@@ -1,13 +1,30 @@
 # Kakehashi
 
-Kakehashi is an Expo/React Native companion app for WaniKani learners. It
-includes review and lesson flows, progress views, study tools, listening
-practice, song/lyrics helpers, OCR/text tools, widgets, and a small marketing
-website.
+Kakehashi is an unofficial mobile companion app for
+[WaniKani](https://www.wanikani.com), the kanji learning platform. It provides a
+native iOS and Android experience for reviews, lessons, progress tracking, study
+tools, listening practice, song and lyrics helpers, OCR/text utilities, and home
+screen widgets.
 
-Kakehashi is not affiliated with WaniKani or Tofugu LLC.
+Kakehashi is free and community-built. It requires a WaniKani account and is not
+affiliated with WaniKani or Tofugu LLC.
 
-## Setup
+<p>
+  <a href="https://apps.apple.com/app/kakehashi-wanikani-companion/id6757765444">
+    <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="48" />
+  </a>
+  <a href="https://play.google.com/store/apps/details?id=com.portego00.kakehashi">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Get it on Google Play" height="48" />
+  </a>
+</p>
+
+## Building Kakehashi
+
+If this is your first time working with React Native or Expo, start with Expo's
+[Set up your environment](https://docs.expo.dev/get-started/set-up-your-environment/?platform=ios&device=simulated&mode=development-build)
+guide. Kakehashi uses native iOS and Android projects, so make sure your
+simulator or emulator, Xcode/Android Studio, and local tooling are ready before
+continuing.
 
 Install dependencies:
 

@@ -264,7 +264,7 @@ const REVIEW_CORRECT_SHORTCUT_FIELDS: {
 
 const PATREON_URL = "https://www.patreon.com/15731284/join";
 const JPDB_SETTINGS_URL = "https://jpdb.io/settings";
-const STOP_DETAILS_PREVIEW_IMAGE = require("../../assets/images/StopDetails.png");
+const STOP_DETAILS_PREVIEW_IMAGE = require("../../../assets/images/StopDetails.png");
 export const STOP_DETAILS_PREVIEW_ASPECT_RATIO = 1320 / 2868;
 
 type ReviewShortcutCaptureTarget =
