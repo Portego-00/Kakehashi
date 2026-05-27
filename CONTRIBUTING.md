@@ -10,11 +10,15 @@ Install dependencies:
 npm install
 ```
 
-Create local environment config:
+Optionally create local environment config for provider-backed features:
 
 ```bash
 cp .env.example .env
 ```
+
+The app should boot without a `.env` file. Missing Supabase and third-party API
+keys disable the related features locally instead of blocking the app from
+starting.
 
 Start the app:
 
