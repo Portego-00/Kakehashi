@@ -123,6 +123,25 @@ interface BuildReviewQueueOptions {
   randomFn?: () => number;
 }
 
+interface RebuildReviewQueueAfterSkipOptions<T extends OrderableReviewItem> {
+  items: T[];
+  remainingQuestions: ReviewQueueQuestion[];
+  skippedItemId: number;
+  skippedItemIds?: number[];
+  skippedQuestionType?: ReviewQuestionType;
+  groupQuestions?: boolean;
+  backToBack?: boolean;
+  maxQuestionGap?: number;
+  questionTypeOrderEnabled?: boolean;
+  questionTypeOrder?: ReviewQuestionType;
+  randomFn?: () => number;
+}
+
+interface RebuildReviewQueueAfterSkipResult {
+  queue: ReviewQueueQuestion[];
+  skippedItemIds: number[];
+}
+
 const SUBJECT_TYPE_FALLBACK_ORDER: Record<SubjectType, number> = {
   radical: 0,
   kanji: 1,
@@ -369,6 +388,15 @@ function getReadingQuestion(itemId: number): ReviewQueueQuestion {
   return { type: "reading", itemId };
 }
 
+function getQuestionByType(
+  questionType: ReviewQuestionType,
+  itemId: number
+): ReviewQueueQuestion {
+  return questionType === "reading"
+    ? getReadingQuestion(itemId)
+    : getMeaningQuestion(itemId);
+}
+
 export function generateReviewQuestions<T extends OrderableReviewItem>(
   items: T[],
   options: { groupQuestions?: boolean } = {}
@@ -508,4 +536,132 @@ export function buildReviewQuestionQueue<T extends OrderableReviewItem>(
     shouldForceQuestionTypeOrder,
     normalizedQuestionTypeOrder
   );
+}
+
+function buildSkippedReviewQuestionTail<T extends OrderableReviewItem>(
+  items: T[],
+  {
+    groupQuestions,
+    maxQuestionGap,
+    questionTypeOrderEnabled,
+    questionTypeOrder,
+    firstQuestionTypeByItemId,
+    randomFn,
+  }: {
+    groupQuestions: boolean;
+    maxQuestionGap: number;
+    questionTypeOrderEnabled: boolean;
+    questionTypeOrder: ReviewQuestionType;
+    firstQuestionTypeByItemId: Map<number, ReviewQuestionType>;
+    randomFn: () => number;
+  }
+): ReviewQueueQuestion[] {
+  const queue: ReviewQueueQuestion[] = [];
+  const batchSize = Math.max(1, Math.floor(maxQuestionGap));
+  const normalizedQuestionTypeOrder =
+    questionTypeOrder === "reading" ? "reading" : "meaning";
+  const shouldForceQuestionTypeOrder = questionTypeOrderEnabled && !groupQuestions;
+
+  for (let startIndex = 0; startIndex < items.length; startIndex += batchSize) {
+    const batch = items.slice(startIndex, startIndex + batchSize);
+    const secondPassQuestions: ReviewQueueQuestion[] = [];
+
+    batch.forEach((item) => {
+      const itemHasReadingQuestion = hasReadingQuestion(item);
+
+      if (groupQuestions || !itemHasReadingQuestion) {
+        queue.push(getMeaningQuestion(item.id));
+        return;
+      }
+
+      const firstQuestionType = shouldForceQuestionTypeOrder
+        ? normalizedQuestionTypeOrder
+        : firstQuestionTypeByItemId.get(item.id) ??
+          (randomFn() < 0.5 ? "meaning" : "reading");
+      const secondQuestionType =
+        firstQuestionType === "meaning" ? "reading" : "meaning";
+
+      queue.push(getQuestionByType(firstQuestionType, item.id));
+      secondPassQuestions.push(getQuestionByType(secondQuestionType, item.id));
+    });
+
+    queue.push(...secondPassQuestions);
+  }
+
+  return queue;
+}
+
+export function rebuildReviewQueueAfterSkip<T extends OrderableReviewItem>({
+  items,
+  remainingQuestions,
+  skippedItemId,
+  skippedItemIds = [],
+  skippedQuestionType,
+  groupQuestions = false,
+  backToBack = false,
+  maxQuestionGap = DEFAULT_MAX_QUESTION_GAP,
+  questionTypeOrderEnabled = false,
+  questionTypeOrder = "meaning",
+  randomFn = Math.random,
+}: RebuildReviewQueueAfterSkipOptions<T>): RebuildReviewQueueAfterSkipResult {
+  const itemById = new Map<number, T>();
+  items.forEach((item) => {
+    itemById.set(item.id, item);
+  });
+
+  const remainingItemIds = new Set(
+    remainingQuestions.map((question) => question.itemId)
+  );
+  const skippedOrder = [
+    ...skippedItemIds.filter((itemId) => itemId !== skippedItemId),
+    skippedItemId,
+  ].filter(
+    (itemId) =>
+      itemById.has(itemId) &&
+      (itemId === skippedItemId || remainingItemIds.has(itemId))
+  );
+  const skippedItemIdSet = new Set(skippedOrder);
+  const firstQuestionTypeByItemId = new Map<number, ReviewQuestionType>();
+
+  remainingQuestions.forEach((question) => {
+    if (
+      skippedItemIdSet.has(question.itemId) &&
+      !firstQuestionTypeByItemId.has(question.itemId)
+    ) {
+      firstQuestionTypeByItemId.set(question.itemId, question.type);
+    }
+  });
+
+  if (skippedQuestionType) {
+    firstQuestionTypeByItemId.set(skippedItemId, skippedQuestionType);
+  }
+
+  const baseQueue = remainingQuestions.filter(
+    (question) => !skippedItemIdSet.has(question.itemId)
+  );
+  const skippedItems = skippedOrder
+    .map((itemId) => itemById.get(itemId))
+    .filter((item): item is T => item !== undefined);
+  const skippedTail = backToBack
+    ? buildReviewQuestionQueue(skippedItems, {
+        groupQuestions,
+        backToBack: true,
+        maxQuestionGap,
+        questionTypeOrderEnabled,
+        questionTypeOrder,
+        randomFn,
+      })
+    : buildSkippedReviewQuestionTail(skippedItems, {
+        groupQuestions,
+        maxQuestionGap,
+        questionTypeOrderEnabled,
+        questionTypeOrder,
+        firstQuestionTypeByItemId,
+        randomFn,
+      });
+
+  return {
+    queue: [...baseQueue, ...skippedTail],
+    skippedItemIds: skippedOrder,
+  };
 }

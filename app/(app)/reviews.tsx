@@ -33,6 +33,7 @@ import {
   buildReviewQuestionQueue,
   DEFAULT_MAX_QUESTION_GAP,
   generateReviewQuestions,
+  rebuildReviewQueueAfterSkip,
   sortReviewItemsForQueue,
   type ReviewQueueQuestion,
 } from "../../src/utils/reviewOrdering";
@@ -97,6 +98,7 @@ export default function ReviewScreen() {
   // Track async review submissions still in-flight when session ends
   const pendingSubmissionCountRef = useRef(0);
   const hasShownReviewPermissionWarningRef = useRef(false);
+  const skippedItemIdsRef = useRef<number[]>([]);
   const {
     ankiCardMode,
     ankiGroupQuestions,
@@ -196,28 +198,6 @@ export default function ReviewScreen() {
   
   // Check if wrap up is available (more than target subjects remaining)
   const isWrapUpAvailable = getRemainingSubjectsCount() > WRAP_UP_TARGET_SUBJECTS;
-
-  const hasReadingQuestion = (reviewItem: ReviewItem): boolean => {
-    if (reviewItem.subject.object === "radical") {
-      return false;
-    }
-
-    const readings = reviewItem.subject.data.readings;
-    if (
-      reviewItem.subject.object === "vocabulary" ||
-      reviewItem.subject.object === "kana_vocabulary"
-    ) {
-      if (!readings) {
-        return false;
-      }
-
-      if (Array.isArray(readings) && readings.length === 0) {
-        return false;
-      }
-    }
-
-    return true;
-  };
 
   // Helper function to get SRS level name
   const getSRSLevelName = (stage: number): string => {
@@ -370,6 +350,7 @@ export default function ReviewScreen() {
       hasCheckedFinalSubmissionsRef.current = false;
       pendingSubmissionCountRef.current = 0;
       hasShownReviewPermissionWarningRef.current = false;
+      skippedItemIdsRef.current = [];
       setFailedSubmissions([]);
       setSubmittingResults(false);
       setReviewPermissionWarning(null);
@@ -1231,6 +1212,9 @@ export default function ReviewScreen() {
     const itemIndex = updatedItems.findIndex((ri) => ri.id === item.id);
 
     if (itemIndex === -1) return;
+    skippedItemIdsRef.current = skippedItemIdsRef.current.filter(
+      (itemId) => itemId !== item.id
+    );
 
     // For accuracy calculation: count every answer submission
     // For grouped answers (Anki mode with meaning+reading), only count once
@@ -1456,7 +1440,7 @@ export default function ReviewScreen() {
   // Handle Skip (empty-submit setting): reset item and move it to the end.
   const handleSkip = (
     item: { id: number; subject: any },
-    _questionType: "meaning" | "reading"
+    questionType: "meaning" | "reading"
   ) => {
     const reviewItem = reviewItems.find((reviewItem) => reviewItem.id === item.id);
     if (!reviewItem) {
@@ -1506,20 +1490,22 @@ export default function ReviewScreen() {
       )
     );
 
-    // Remove all remaining questions for this subject so we can reinsert a
-    // clean pair at the very end.
-    const remainingQuestions = [...activeQueue.slice(1), ...masterQueue].filter(
-      (question) => question.itemId !== item.id
-    );
-
-    const resetQuestions: ReviewQueueQuestion[] = [
-      { type: "meaning", itemId: item.id },
-    ];
-    if (!effectiveAnkiGrouping && hasReadingQuestion(reviewItem)) {
-      resetQuestions.push({ type: "reading", itemId: item.id });
-    }
-
-    const reorderedQueue = [...remainingQuestions, ...resetQuestions];
+    const useBackToBack = backToBackQuestions && !effectiveAnkiGrouping;
+    const remainingQuestions = [...activeQueue.slice(1), ...masterQueue];
+    const { queue: reorderedQueue, skippedItemIds } =
+      rebuildReviewQueueAfterSkip({
+        items: reviewItems,
+        remainingQuestions,
+        skippedItemId: item.id,
+        skippedItemIds: skippedItemIdsRef.current,
+        skippedQuestionType: questionType,
+        groupQuestions: effectiveAnkiGrouping,
+        backToBack: useBackToBack,
+        maxQuestionGap: REVIEW_MAX_QUESTION_GAP,
+        questionTypeOrderEnabled: reviewQuestionOrderEnabled,
+        questionTypeOrder: preferredQuestionType,
+      });
+    skippedItemIdsRef.current = skippedItemIds;
     const nextActiveQueue = reorderedQueue.slice(0, ACTIVE_QUEUE_SIZE);
     const nextMasterQueue = reorderedQueue.slice(ACTIVE_QUEUE_SIZE);
 

@@ -4,6 +4,7 @@ import {
   DEFAULT_REVIEW_ORDER,
   REVIEW_ORDER_OPTIONS,
   REVIEW_TYPE_ORDER_VALUES,
+  rebuildReviewQueueAfterSkip,
   sortReviewItemsForQueue,
   type OrderableReviewItem,
 } from "../reviewOrdering";
@@ -519,5 +520,111 @@ describe("reviewOrdering", () => {
       sortedItems.map((item) => item.id)
     );
     expect(queue[0]?.itemId).toBe(42);
+  });
+
+  it("keeps preview-skipped review items spread instead of pairing each item", () => {
+    const items = Array.from({ length: 10 }, (_, index) =>
+      createTestItem({ id: index + 1 })
+    );
+    let queue = [
+      ...items.map((item) => ({ type: "meaning" as const, itemId: item.id })),
+      ...items.map((item) => ({ type: "reading" as const, itemId: item.id })),
+    ];
+    let skippedItemIds: number[] = [];
+
+    items.forEach((item) => {
+      expect(queue[0]).toEqual({ type: "meaning", itemId: item.id });
+
+      const result = rebuildReviewQueueAfterSkip({
+        items,
+        remainingQuestions: queue.slice(1),
+        skippedItemId: item.id,
+        skippedItemIds,
+        skippedQuestionType: queue[0]?.type,
+        questionTypeOrderEnabled: true,
+        questionTypeOrder: "meaning",
+        maxQuestionGap: 10,
+        randomFn: constantRandom(0),
+      });
+
+      queue = result.queue;
+      skippedItemIds = result.skippedItemIds;
+    });
+
+    expect(queue).toEqual([
+      ...items.map((item) => ({ type: "meaning" as const, itemId: item.id })),
+      ...items.map((item) => ({ type: "reading" as const, itemId: item.id })),
+    ]);
+
+    for (let index = 0; index < queue.length - 1; index += 1) {
+      expect(queue[index].itemId === queue[index + 1].itemId).toBe(false);
+    }
+  });
+
+  it("keeps skipped review items paired when back-to-back mode is enabled", () => {
+    const items = [createTestItem({ id: 51 }), createTestItem({ id: 52 })];
+    let queue = [
+      { type: "meaning" as const, itemId: 51 },
+      { type: "meaning" as const, itemId: 52 },
+      { type: "reading" as const, itemId: 51 },
+      { type: "reading" as const, itemId: 52 },
+    ];
+    let skippedItemIds: number[] = [];
+
+    [51, 52].forEach((itemId) => {
+      const result = rebuildReviewQueueAfterSkip({
+        items,
+        remainingQuestions: queue.slice(1),
+        skippedItemId: itemId,
+        skippedItemIds,
+        skippedQuestionType: queue[0]?.type,
+        backToBack: true,
+        questionTypeOrderEnabled: true,
+        questionTypeOrder: "meaning",
+        maxQuestionGap: 10,
+        randomFn: constantRandom(0),
+      });
+
+      queue = result.queue;
+      skippedItemIds = result.skippedItemIds;
+    });
+
+    expect(queue).toEqual([
+      { type: "meaning", itemId: 51 },
+      { type: "reading", itemId: 51 },
+      { type: "meaning", itemId: 52 },
+      { type: "reading", itemId: 52 },
+    ]);
+  });
+
+  it("drops stale preview-skipped ids that are no longer queued", () => {
+    const items = [
+      createTestItem({ id: 61 }),
+      createTestItem({ id: 62 }),
+      createTestItem({ id: 63 }),
+    ];
+
+    const result = rebuildReviewQueueAfterSkip({
+      items,
+      remainingQuestions: [
+        { type: "meaning", itemId: 63 },
+        { type: "reading", itemId: 63 },
+      ],
+      skippedItemId: 62,
+      skippedItemIds: [61],
+      skippedQuestionType: "meaning",
+      questionTypeOrderEnabled: true,
+      questionTypeOrder: "meaning",
+      maxQuestionGap: 10,
+      randomFn: constantRandom(0),
+    });
+
+    expect(result.skippedItemIds).toEqual([62]);
+    expect(result.queue).toEqual([
+      { type: "meaning", itemId: 63 },
+      { type: "reading", itemId: 63 },
+      { type: "meaning", itemId: 62 },
+      { type: "reading", itemId: 62 },
+    ]);
   });
 });

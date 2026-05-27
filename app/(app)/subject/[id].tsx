@@ -31,7 +31,10 @@ import {
   getSubjects,
   updateStudyMaterial,
 } from "../../../src/utils/api";
-import { getSubjectById } from "../../../src/utils/cache";
+import {
+  clearStudyMaterialsCache,
+  getSubjectById,
+} from "../../../src/utils/cache";
 import { getNiaiSimilarKanjiSubjects } from "../../../src/utils/niaiSimilarKanji";
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import { useTheme } from "../../../src/utils/theme";
@@ -96,6 +99,24 @@ function withTimeout<T>(
 
 function getSettledValue<T>(result: PromiseSettledResult<T>): T | null {
   return result.status === "fulfilled" ? result.value : null;
+}
+
+function mergeStudyMaterial(
+  currentMaterial: any,
+  savedMaterial: any,
+  updates: Record<string, unknown>,
+  subjectId: number
+) {
+  return {
+    ...(currentMaterial || {}),
+    ...(savedMaterial || {}),
+    data: {
+      ...(currentMaterial?.data || {}),
+      ...(savedMaterial?.data || {}),
+      subject_id: savedMaterial?.data?.subject_id || subjectId,
+      ...updates,
+    },
+  };
 }
 
 export default function SubjectDetailsScreen() {
@@ -631,6 +652,9 @@ export default function SubjectDetailsScreen() {
   const handleSaveNote = async () => {
     if (!apiToken || !id || !subjectData) return;
 
+    const subjectId = parseInt(id as string, 10);
+    if (Number.isNaN(subjectId)) return;
+
     setIsSavingNote(true);
     try {
       // Prepare updates for the note
@@ -654,16 +678,20 @@ export default function SubjectDetailsScreen() {
         // Create new study material or handle case where we think there's no material but API says otherwise
         try {
           savedMaterial = await createStudyMaterial(apiToken, {
-            subject_id: parseInt(id as string),
+            subject_id: subjectId,
             ...updates,
           });
         } catch (createError: any) {
           // If we get a 422 error, it might mean the study material already exists
           // Try to fetch study materials again and then update
           if (createError.message?.includes("422")) {
-            const studyMaterials = await getStudyMaterials(apiToken, {
-              subject_ids: [parseInt(id as string)],
-            }, { skipCache: true });
+            const studyMaterials = await getStudyMaterials(
+              apiToken,
+              {
+                subject_ids: [subjectId],
+              },
+              { skipCache: true }
+            );
 
             if (studyMaterials.data.length > 0) {
               const existingMaterial = studyMaterials.data[0];
@@ -681,11 +709,10 @@ export default function SubjectDetailsScreen() {
         }
       }
 
-      // Update local state with the saved material
-      setStudyMaterial(savedMaterial);
-
-      // Trigger a background refresh to ensure the cache is updated
-      fetchSubjectData(false); // Background refresh without loading indicator
+      await clearStudyMaterialsCache(subjectId);
+      setStudyMaterial((currentMaterial: any) =>
+        mergeStudyMaterial(currentMaterial, savedMaterial, updates, subjectId)
+      );
 
       setShowNoteModal(false);
     } catch (error) {
@@ -718,6 +745,9 @@ export default function SubjectDetailsScreen() {
   const handleSynonymsChange = async (synonyms: string[]) => {
     if (!apiToken || !id || !subjectData) return;
 
+    const subjectId = parseInt(id as string, 10);
+    if (Number.isNaN(subjectId)) return;
+
     try {
       const updates = {
         meaning_synonyms: synonyms,
@@ -736,15 +766,19 @@ export default function SubjectDetailsScreen() {
         // Create new study material
         try {
           savedMaterial = await createStudyMaterial(apiToken, {
-            subject_id: parseInt(id as string),
+            subject_id: subjectId,
             ...updates,
           });
         } catch (createError: any) {
           // If we get a 422 error, study material might already exist
           if (createError.message?.includes("422")) {
-            const studyMaterials = await getStudyMaterials(apiToken, {
-              subject_ids: [parseInt(id as string)],
-            }, { skipCache: true });
+            const studyMaterials = await getStudyMaterials(
+              apiToken,
+              {
+                subject_ids: [subjectId],
+              },
+              { skipCache: true }
+            );
 
             if (studyMaterials.data.length > 0) {
               const existingMaterial = studyMaterials.data[0];
@@ -766,7 +800,10 @@ export default function SubjectDetailsScreen() {
       // Note: We don't call fetchSubjectData here because it would immediately
       // fetch study materials from the API, which might return stale data due to
       // eventual consistency, overwriting the freshly saved synonyms.
-      setStudyMaterial(savedMaterial);
+      await clearStudyMaterialsCache(subjectId);
+      setStudyMaterial((currentMaterial: any) =>
+        mergeStudyMaterial(currentMaterial, savedMaterial, updates, subjectId)
+      );
     } catch (error) {
       console.error("❌ Error saving synonyms:", error);
       console.error("❌ Error details:", JSON.stringify(error, null, 2));
