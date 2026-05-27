@@ -59,6 +59,12 @@ const SPACE_TO_LONG_VOWEL_MARK_MAPPING: Record<string, string> = {
   "　": "ー",
 };
 
+const convertToHiragana = (value: string, IMEMode: boolean) =>
+  wanakana.toHiragana(value, {
+    IMEMode,
+    customKanaMapping: SPACE_TO_LONG_VOWEL_MARK_MAPPING,
+  });
+
 // Some Android IMEs occasionally emit an immediate "duplicate append" event
 // after JS transforms text in a controlled TextInput.
 const isLikelyAndroidImeDuplicateAppend = (
@@ -129,6 +135,70 @@ const KanaInput = forwardRef<
       !preferUncontrolledAndroidInput;
     const keyboardType = keyboardTypeProp ?? "default";
 
+    const updateRenderedText = useCallback((nextText: string) => {
+      // iOS stays truly uncontrolled while typing. The ref below remains the
+      // source of truth for answers, and Android still tracks state for the
+      // controlled IME path and empty-field caret workaround.
+      if (Platform.OS === "android") {
+        setText(nextText);
+      }
+    }, []);
+
+    const getConvertedSelection = useCallback(
+      (raw: string, processedText: string, previousText: string) => {
+        const endSelection = {
+          start: processedText.length,
+          end: processedText.length,
+        };
+        const currentSelection = selectionRef.current;
+        const isLikelyEndEdit =
+          raw.startsWith(previousText) ||
+          previousText.startsWith(raw) ||
+          currentSelection.start >= previousText.length;
+
+        if (isLikelyEndEdit) {
+          return endSelection;
+        }
+
+        const convertSelectionOffset = (offset: number | undefined) => {
+          const clampedOffset = Math.max(
+            0,
+            Math.min(offset ?? raw.length, raw.length)
+          );
+          if (!shouldConvertWithWanakana) {
+            return Math.min(clampedOffset, processedText.length);
+          }
+
+          return Math.min(
+            convertToHiragana(raw.slice(0, clampedOffset), true).length,
+            processedText.length
+          );
+        };
+
+        return {
+          start: convertSelectionOffset(currentSelection.start),
+          end: convertSelectionOffset(currentSelection.end),
+        };
+      },
+      [shouldConvertWithWanakana]
+    );
+
+    const setNativeText = useCallback(
+      (
+        nextText: string,
+        selection = { start: nextText.length, end: nextText.length }
+      ) => {
+        if (!inputRef.current) return;
+
+        inputRef.current.setNativeProps({
+          text: nextText,
+          selection,
+        });
+        selectionRef.current = selection;
+      },
+      []
+    );
+
     const resetCursorIfEmptyOnAndroid = useCallback(() => {
       if (Platform.OS !== "android") return;
       if (lastRawValue.current.length > 0) return;
@@ -179,22 +249,24 @@ const KanaInput = forwardRef<
       // Only convert when wanakana conversion is active (not when using native Japanese keyboard)
       if (shouldConvertWithWanakana) {
         // Force convert any trailing romaji to kana
-        const convertedText = wanakana.toHiragana(currentText, {
-          IMEMode: false,
-          customKanaMapping: SPACE_TO_LONG_VOWEL_MARK_MAPPING,
-        });
+        const convertedText = convertToHiragana(currentText, false);
         lastCommittedText.current = convertedText;
         lastCommittedAtMs.current = Date.now();
-        setText(convertedText);
+        updateRenderedText(convertedText);
         // Update native text value when operating in uncontrolled mode
         if (!shouldUseControlledAndroidInput && inputRef.current) {
-          inputRef.current.setNativeProps({ text: convertedText });
+          setNativeText(convertedText);
         }
         return convertedText;
       }
 
       return currentText;
-    }, [shouldConvertWithWanakana, shouldUseControlledAndroidInput]);
+    }, [
+      setNativeText,
+      shouldConvertWithWanakana,
+      shouldUseControlledAndroidInput,
+      updateRenderedText,
+    ]);
 
     // Clear the input field completely
     const clearInput = useCallback(() => {
@@ -204,15 +276,20 @@ const KanaInput = forwardRef<
       lastCommittedText.current = "";
       lastCommittedAtMs.current = 0;
       selectionRef.current = { start: 0, end: 0 };
-      setText("");
+      updateRenderedText("");
       if (!shouldUseControlledAndroidInput && inputRef.current?.clear) {
         // Prefer the native clear() for reliability across platforms
         inputRef.current.clear();
       } else if (!shouldUseControlledAndroidInput && inputRef.current) {
-        inputRef.current.setNativeProps({ text: "" });
+        setNativeText("");
       }
       resetCursorIfEmptyOnAndroid();
-    }, [resetCursorIfEmptyOnAndroid, shouldUseControlledAndroidInput]);
+    }, [
+      resetCursorIfEmptyOnAndroid,
+      setNativeText,
+      shouldUseControlledAndroidInput,
+      updateRenderedText,
+    ]);
 
     // Focus the input field
     const focus = useCallback(() => {
@@ -226,18 +303,19 @@ const KanaInput = forwardRef<
     }, [resetCursorIfEmptyOnAndroid]);
 
     const setInputText = useCallback((nextText: string) => {
-      setText(nextText);
+      updateRenderedText(nextText);
       lastRawValue.current = nextText;
       lastCommittedText.current = nextText;
       lastCommittedAtMs.current = Date.now();
       selectionRef.current = { start: nextText.length, end: nextText.length };
       if (!shouldUseControlledAndroidInput && inputRef.current) {
-        inputRef.current.setNativeProps({
-          text: nextText,
-          selection: selectionRef.current,
-        });
+        setNativeText(nextText, selectionRef.current);
       }
-    }, [shouldUseControlledAndroidInput]);
+    }, [
+      setNativeText,
+      shouldUseControlledAndroidInput,
+      updateRenderedText,
+    ]);
 
     // Expose methods to parent components
     useImperativeHandle(ref, () => ({
@@ -271,10 +349,7 @@ const KanaInput = forwardRef<
         let processedText = raw;
         if (shouldConvertWithWanakana) {
           // IMEMode keeps unfinished chunks (e.g. lone 'n') in romaji
-          processedText = wanakana.toHiragana(raw, {
-            IMEMode: true,
-            customKanaMapping: SPACE_TO_LONG_VOWEL_MARK_MAPPING,
-          });
+          processedText = convertToHiragana(raw, true);
         }
 
         const nowMs = Date.now();
@@ -288,13 +363,7 @@ const KanaInput = forwardRef<
             nowMs
           )
         ) {
-          inputRef.current?.setNativeProps({
-            text: previousText,
-            selection: {
-              start: previousText.length,
-              end: previousText.length,
-            },
-          });
+          setNativeText(previousText);
           return;
         }
 
@@ -303,7 +372,7 @@ const KanaInput = forwardRef<
         lastCommittedAtMs.current = nowMs;
 
         // Update internal state
-        setText(processedText);
+        updateRenderedText(processedText);
 
         // If the processed text is different from raw input, update the TextInput
         // using setNativeProps to avoid triggering another render cycle.
@@ -314,16 +383,28 @@ const KanaInput = forwardRef<
           processedText !== raw &&
           inputRef.current
         ) {
+          const nextSelection = getConvertedSelection(
+            raw,
+            processedText,
+            previousText
+          );
           setTimeout(() => {
             if (lastRawValue.current === raw && inputRef.current) {
-              inputRef.current.setNativeProps({ text: processedText });
+              setNativeText(processedText, nextSelection);
             }
           }, 0);
         }
 
         onKanaChange?.(processedText);
       },
-      [onKanaChange, shouldConvertWithWanakana, shouldUseControlledAndroidInput]
+      [
+        getConvertedSelection,
+        onKanaChange,
+        setNativeText,
+        shouldConvertWithWanakana,
+        shouldUseControlledAndroidInput,
+        updateRenderedText,
+      ]
     );
 
     // When resetSignal changes, clear the input reliably without blurring
@@ -335,9 +416,9 @@ const KanaInput = forwardRef<
       if (!shouldUseControlledAndroidInput && inputRef.current?.clear) {
         inputRef.current.clear();
       } else if (!shouldUseControlledAndroidInput && inputRef.current) {
-        inputRef.current.setNativeProps({ text: "" });
+        setNativeText("");
       }
-      setText("");
+      updateRenderedText("");
       lastRawValue.current = "";
       lastCommittedText.current = "";
       lastCommittedAtMs.current = 0;
@@ -347,7 +428,13 @@ const KanaInput = forwardRef<
       if (wasFocused) {
         requestAnimationFrame(() => inputRef.current?.focus());
       }
-    }, [resetSignal, resetCursorIfEmptyOnAndroid, shouldUseControlledAndroidInput]);
+    }, [
+      resetSignal,
+      resetCursorIfEmptyOnAndroid,
+      setNativeText,
+      shouldUseControlledAndroidInput,
+      updateRenderedText,
+    ]);
 
     const textInputValueProps = shouldUseControlledAndroidInput
       ? { value: text }
