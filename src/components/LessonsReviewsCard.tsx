@@ -25,6 +25,7 @@ const isTablet = screenWidth > 768;
 type LessonsReviewsCardProps = {
   type: "lessons" | "reviews";
   count: number;
+  pendingSyncCount?: number;
   totalLessonCount?: number; // Total available lessons before daily-cap filtering
   onPress: () => void;
   onLessonPicker?: () => void; // Optional callback for lesson picker
@@ -40,6 +41,7 @@ type LessonsReviewsCardProps = {
 export default function LessonsReviewsCard({
   type,
   count,
+  pendingSyncCount: pendingSyncCountProp = 0,
   totalLessonCount,
   onPress,
   onLessonPicker,
@@ -71,21 +73,31 @@ export default function LessonsReviewsCard({
     (state) => state.widgetReviewCardGradientEnd
   );
   const isLessons = type === "lessons";
+  const pendingSyncCount = Math.max(0, pendingSyncCountProp);
+  // Dashboard counts already exclude pending offline progress IDs.
+  const displayCount = Math.max(0, count);
   const followsTheme = isLessons
     ? widgetLessonCardFollowTheme
     : widgetReviewCardFollowTheme;
-  const totalAvailableLessons = isLessons ? totalLessonCount ?? count : count;
+  const totalAvailableLessons = isLessons
+    ? Math.max(0, totalLessonCount ?? count)
+    : displayCount;
   const lessonsBlockedByDailyLimit =
-    isLessons && Boolean(isDailyLimitReached) && count === 0;
+    isLessons && Boolean(isDailyLimitReached) && displayCount === 0;
   const canShowLessonPicker =
     isLessons && Boolean(onLessonPicker) && totalAvailableLessons > 0;
   const isGrayedOut =
     (isLessons && (Boolean(isDone) || Boolean(isDailyLimitReached))) ||
-    count === 0;
+    displayCount === 0;
+  const pendingSyncLabel = pendingSyncCount
+    ? `${pendingSyncCount} ${isLessons ? "lesson" : "review"}${
+        pendingSyncCount === 1 ? "" : "s"
+      } awaiting sync`
+    : null;
   const hasCriticalReviews = React.useMemo(() => {
     if (
       isLessons ||
-      !count ||
+      !displayCount ||
       !currentLevel ||
       !Array.isArray(subjects) ||
       !Array.isArray(assignments) ||
@@ -127,7 +139,7 @@ export default function LessonsReviewsCard({
         assignment.data.srs_stage <= 4
       );
     });
-  }, [assignments, count, currentLevel, isLessons, subjects]);
+  }, [assignments, currentLevel, displayCount, isLessons, subjects]);
   const reviewCountBadgeBorderColor =
     !isLessons && hasCriticalReviews
       ? themeMode === "sepia"
@@ -236,7 +248,7 @@ export default function LessonsReviewsCard({
         { shadowColor: theme.isDark ? "#000000" : "#000000" },
       ]}
       onPress={onPress}
-      disabled={count === 0 || lessonsBlockedByDailyLimit}
+      disabled={displayCount === 0 || lessonsBlockedByDailyLimit}
       activeOpacity={0.9}
     >
       <LinearGradient
@@ -249,21 +261,21 @@ export default function LessonsReviewsCard({
         {isLessons ? (
           <Image
             source={
-              count === 0
+              displayCount === 0
                 ? require("../../assets/images/NoLessons.png")
                 : require("../../assets/images/Lessons.png")
             }
             style={[
               styles.backgroundImage,
               !isTablet && styles.backgroundImageMobile,
-              count === 0 && styles.noLessonsImage,
+              displayCount === 0 && styles.noLessonsImage,
             ]}
             resizeMode="contain"
           />
         ) : (
           <Image
             source={
-              count === 0
+              displayCount === 0
                 ? require("../../assets/images/ReviewsFinished.png")
                 : require("../../assets/images/Reviews.png")
             }
@@ -305,7 +317,7 @@ export default function LessonsReviewsCard({
                 ]}
               >
                 <Text style={[styles.countText, { color: theme.textColor }]}>
-                  {count}
+                  {displayCount}
                 </Text>
               </View>
             </View>
@@ -328,19 +340,26 @@ export default function LessonsReviewsCard({
               : "Review these items to level them up!"}
           </Text>
 
+          {pendingSyncLabel ? (
+            <View style={styles.pendingSyncRow}>
+              <Ionicons name="cloud-upload-outline" size={14} color="white" />
+              <Text style={styles.pendingSyncText}>{pendingSyncLabel}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.bottomRow}>
             {lessonsBlockedByDailyLimit ? (
               <View style={styles.blockedLessonsContainer}>
                 <Text style={styles.nextTimeText}>More lessons unlock tomorrow.</Text>
                 {renderLessonPickerButton()}
               </View>
-            ) : isLessons && count === 0 ? (
+            ) : isLessons && displayCount === 0 ? (
               <Text style={styles.nextTimeText}>
                 {nextLessonTime
                   ? formatNextTime(nextLessonTime)
                   : "No lessons available right now."}
               </Text>
-            ) : !isLessons && count === 0 && nextReviewTime ? (
+            ) : !isLessons && displayCount === 0 && nextReviewTime ? (
               <Text style={styles.nextTimeText}>
                 {formatNextTime(nextReviewTime)}
               </Text>
@@ -384,6 +403,8 @@ export function LessonsReviewsCardPair({
   lessonCount,
   totalLessonCount,
   reviewCount,
+  pendingLessonSyncCount = 0,
+  pendingReviewSyncCount = 0,
   onLessonsPress,
   onReviewsPress,
   onLessonPicker,
@@ -399,6 +420,8 @@ export function LessonsReviewsCardPair({
   lessonCount: number;
   totalLessonCount?: number;
   reviewCount: number;
+  pendingLessonSyncCount?: number;
+  pendingReviewSyncCount?: number;
   onLessonsPress: () => void;
   onReviewsPress: () => void;
   onLessonPicker?: () => void;
@@ -421,6 +444,7 @@ export function LessonsReviewsCardPair({
       <LessonsReviewsCard
         type="lessons"
         count={lessonCount}
+        pendingSyncCount={pendingLessonSyncCount}
         totalLessonCount={totalLessonCount}
         onPress={onLessonsPress}
         onLessonPicker={onLessonPicker}
@@ -431,6 +455,7 @@ export function LessonsReviewsCardPair({
       <LessonsReviewsCard
         type="reviews"
         count={reviewCount}
+        pendingSyncCount={pendingReviewSyncCount}
         onPress={onReviewsPress}
         nextReviewTime={nextReviewTime}
         currentLevel={currentLevel}
@@ -575,5 +600,16 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "flex-start",
     gap: 8,
+  },
+  pendingSyncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  pendingSyncText: {
+    fontSize: 12,
+    color: "white",
+    opacity: 0.95,
+    fontWeight: "600",
   },
 });

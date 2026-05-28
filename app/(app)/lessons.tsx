@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,6 +17,12 @@ import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import { useSession } from "../../src/contexts/AuthContext";
 import { useDashboardData } from "../../src/hooks/useDashboardData";
 import {
+  getPendingProgressAssignmentIds,
+  getPendingProgressCounts,
+  queueProgressAndAttemptSend,
+  syncPendingProgress,
+} from "../../src/services/offlineStudyProgressService";
+import {
   Assignment as ApiAssignment,
   Subject as ApiSubject,
   getAvailableLessons,
@@ -25,7 +32,6 @@ import {
   getSubjects,
   isRateLimitError,
   isUnauthorizedError,
-  startLesson,
 } from "../../src/utils/api";
 import {
   buildReviewQuestionQueue,
@@ -46,6 +52,7 @@ interface LessonItem {
   id: number;
   assignmentId: number;
   subjectId: number;
+  availableAt?: string | null;
   subject: ApiSubject;
   meaningDone: boolean;
   readingDone: boolean;
@@ -197,6 +204,7 @@ export default function LessonsScreen() {
     currentBatch: 0,
     totalBatches: 0,
   });
+  const [pendingLessonCount, setPendingLessonCount] = useState(0);
 
   // Add state for tracking type counts
   const [typeCounts, setTypeCounts] = useState<TypeCounts>({
@@ -235,10 +243,51 @@ export default function LessonsScreen() {
     });
   }, []);
 
+  const refreshPendingLessonCount = useCallback(async () => {
+    try {
+      const counts = await getPendingProgressCounts();
+      setPendingLessonCount(counts.lesson);
+    } catch (error) {
+      console.warn("[Lessons] Failed to load pending lesson queue count:", error);
+    }
+  }, []);
+
   // Load lessons when the component mounts
   useEffect(() => {
     loadLessons();
+    // loadLessons reads the latest settings from this render; making it a
+    // dependency would restart the session setup on every local state change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiToken, isAuthLoading]);
+
+  useEffect(() => {
+    if (isAuthLoading || !apiToken) {
+      setPendingLessonCount(0);
+      return;
+    }
+
+    void syncPendingProgress(apiToken)
+      .catch((error) => {
+        console.warn("[Lessons] Failed to sync pending study progress:", error);
+      })
+      .finally(() => {
+        void refreshPendingLessonCount();
+      });
+  }, [apiToken, isAuthLoading, refreshPendingLessonCount]);
+
+  useEffect(() => {
+    if (isAuthLoading || !apiToken) {
+      setPendingLessonCount(0);
+      return;
+    }
+
+    void refreshPendingLessonCount();
+    const intervalId = setInterval(() => {
+      void refreshPendingLessonCount();
+    }, 10_000);
+
+    return () => clearInterval(intervalId);
+  }, [apiToken, isAuthLoading, refreshPendingLessonCount]);
 
   // Fetch study materials when entering review mode
   useEffect(() => {
@@ -332,8 +381,16 @@ export default function LessonsScreen() {
       const selectedAssignments = lessonsResponse.data.filter(
         (_, index) => !selectedIdSet || selectedIdSet.has(index)
       );
+      const pendingProgressAssignmentIds =
+        await getPendingProgressAssignmentIds().catch(() => ({
+          lesson: new Set<number>(),
+          review: new Set<number>(),
+        }));
+      const availableLessonAssignments = selectedAssignments.filter(
+        (assignment) => !pendingProgressAssignmentIds.lesson.has(assignment.id)
+      );
 
-      if (selectedAssignments.length === 0) {
+      if (availableLessonAssignments.length === 0) {
         Alert.alert(
           "No Lessons Available",
           "There are no lessons available within your current daily limit.",
@@ -372,7 +429,7 @@ export default function LessonsScreen() {
       let subjectsById = new Map<number, ApiSubject>();
 
       if (needsSubjects) {
-        const allSubjectIds = selectedAssignments.map(
+        const allSubjectIds = availableLessonAssignments.map(
           (assignment) => assignment.data.subject_id
         );
 
@@ -390,11 +447,11 @@ export default function LessonsScreen() {
       }
 
       const filteredAssignments = excludeKanaVocabularyFromLessons
-        ? selectedAssignments.filter((assignment) => {
+        ? availableLessonAssignments.filter((assignment) => {
             const subject = subjectsById.get(assignment.data.subject_id);
             return subject?.object !== "kana_vocabulary";
           })
-        : selectedAssignments;
+        : availableLessonAssignments;
 
       if (filteredAssignments.length === 0) {
         Alert.alert(
@@ -468,6 +525,7 @@ export default function LessonsScreen() {
           id: items.length, // Unique ID for this lesson item
           assignmentId: assignment.id,
           subjectId: assignment.data.subject_id,
+          availableAt: assignment.data.available_at ?? null,
           subject: subject,
           meaningDone: false,
           readingDone: false,
@@ -1000,9 +1058,36 @@ export default function LessonsScreen() {
 
     if (isItemComplete && !updatedItems[itemIndex].submitted && apiToken) {
       try {
-        await startLesson(apiToken, updatedItems[itemIndex].assignmentId);
+        const completedAt = new Date();
+        const completedAtIso = completedAt.toISOString();
+        const availableAtMs = Date.parse(
+          updatedItems[itemIndex].availableAt ?? ""
+        );
+        const createdAt =
+          Number.isFinite(availableAtMs) &&
+          completedAt.getTime() <= availableAtMs
+            ? null
+            : completedAtIso;
+
+        const queueResult = await queueProgressAndAttemptSend(apiToken, {
+          assignmentId: updatedItems[itemIndex].assignmentId,
+          subjectId: updatedItems[itemIndex].subjectId,
+          progressType: "lesson",
+          createdAt,
+          availableAt: updatedItems[itemIndex].availableAt ?? null,
+        });
         updatedItems[itemIndex].submitted = true;
+        updatedItems[itemIndex].submissionFailed =
+          !queueResult.response && !queueResult.queued;
         setReviewItems(updatedItems);
+
+        if (queueResult.failure?.isPermissionError) {
+          Alert.alert(
+            "Permission Error",
+            "Your API token doesn't have write permissions. Please update your token in WaniKani settings to allow starting assignments.",
+            [{ text: "OK" }]
+          );
+        }
       } catch (error) {
         console.error("Error starting lesson assignment:", error);
         updatedItems[itemIndex].submissionFailed = true;
@@ -1015,15 +1100,36 @@ export default function LessonsScreen() {
             "Your API token doesn't have write permissions. Please update your token in WaniKani settings to allow starting assignments.",
             [{ text: "OK" }]
           );
-        } else {
-          Alert.alert(
-            "Submission Error",
-            "Failed to start the lesson assignment. Please check your internet connection.",
-            [{ text: "OK" }]
-          );
         }
+      } finally {
+        void refreshPendingLessonCount();
       }
     }
+  };
+
+  const renderPendingLessonSyncBadge = () => {
+    if (pendingLessonCount <= 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.pendingSyncBadgeContainer} pointerEvents="none">
+        <View
+          style={[
+            styles.pendingSyncBadge,
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Text style={[styles.pendingSyncBadgeText, { color: theme.textColor }]}>
+            {pendingLessonCount} lesson sync
+            {pendingLessonCount === 1 ? "" : "s"} pending
+          </Text>
+        </View>
+      </View>
+    );
   };
 
   if (isLoading) {
@@ -1038,6 +1144,7 @@ export default function LessonsScreen() {
             Loading lessons...
           </Text>
         </View>
+        {renderPendingLessonSyncBadge()}
       </View>
     );
   }
@@ -1049,56 +1156,59 @@ export default function LessonsScreen() {
 
     return (
       <>
-        <LessonDetailScreen
-          item={currentItem}
-          onNext={handleNextItem}
-          onPrev={handlePrevItem}
-          canGoBack={currentItemIndex > 0}
-          canGoForward={true}
-          progress={{
-            current: currentItemIndex + 1,
-            total: currentBatch.items.length,
-            batchCurrent: currentBatchIndex + 1,
-            batchTotal: lessonBatches.length,
-          }}
-          onExit={() => {
-            Alert.alert(
-              "Exit Lessons",
-              "Are you sure you want to exit? Your progress will be saved, but incomplete lessons won't count.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Exit",
-                  onPress: navigateBackToDashboard,
-                },
-              ]
-            );
-          }}
-          relatedSubjects={relatedSubjects}
-          typeCounts={typeCounts}
-          batchItems={currentBatch.items}
-          currentBatchIndex={currentItemIndex}
-          onBatchItemPress={(index) => {
-            setCurrentItemIndex(index);
-          }}
-          onSubjectPress={(subjectId) => {
-            // Navigate to subject detail page
-            router.push(`/subject/${subjectId}`);
-          }}
-          onAddSubjectToList={(subject) => {
-            const label =
-              subject.data?.meanings?.find((meaning: any) => meaning.primary)
-                ?.meaning ||
-              subject.data?.meanings?.[0]?.meaning ||
-              subject.data?.characters ||
-              undefined;
-            setListModalSubject({
-              id: subject.id,
-              type: subject.object,
-              label,
-            });
-          }}
-        />
+        <View style={styles.screenWrapper}>
+          <LessonDetailScreen
+            item={currentItem}
+            onNext={handleNextItem}
+            onPrev={handlePrevItem}
+            canGoBack={currentItemIndex > 0}
+            canGoForward={true}
+            progress={{
+              current: currentItemIndex + 1,
+              total: currentBatch.items.length,
+              batchCurrent: currentBatchIndex + 1,
+              batchTotal: lessonBatches.length,
+            }}
+            onExit={() => {
+              Alert.alert(
+                "Exit Lessons",
+                "Are you sure you want to exit? Your progress will be saved, but incomplete lessons won't count.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Exit",
+                    onPress: navigateBackToDashboard,
+                  },
+                ]
+              );
+            }}
+            relatedSubjects={relatedSubjects}
+            typeCounts={typeCounts}
+            batchItems={currentBatch.items}
+            currentBatchIndex={currentItemIndex}
+            onBatchItemPress={(index) => {
+              setCurrentItemIndex(index);
+            }}
+            onSubjectPress={(subjectId) => {
+              // Navigate to subject detail page
+              router.push(`/subject/${subjectId}`);
+            }}
+            onAddSubjectToList={(subject) => {
+              const label =
+                subject.data?.meanings?.find((meaning: any) => meaning.primary)
+                  ?.meaning ||
+                subject.data?.meanings?.[0]?.meaning ||
+                subject.data?.characters ||
+                undefined;
+              setListModalSubject({
+                id: subject.id,
+                type: subject.object,
+                label,
+              });
+            }}
+          />
+          {renderPendingLessonSyncBadge()}
+        </View>
 
         <AddToSubjectListsModal
           visible={!!listModalSubject}
@@ -1158,58 +1268,61 @@ export default function LessonsScreen() {
     };
 
     return (
-      <ReviewQuestionScreen
-        item={{ id: currentItem.id, subject: adaptedSubject }}
-        questionType={currentQuestion.type}
-        onAnswer={handleAnswer}
-        onSkip={handleSkip}
-        onExit={() => {
-          Alert.alert(
-            "Exit Lessons",
-            "Are you sure you want to exit? Your progress will be saved, but incomplete lessons won't count.",
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Exit",
-                onPress: navigateBackToDashboard,
-              },
-            ]
-          );
-        }}
-        showHeader={true}
-        showBackgroundColor={true}
-        totalItems={reviewItems.length}
-        currentItem={
-          activeQueue.length > 0
-            ? effectiveAnkiGrouping
-              ? reviewItems.length -
-                (activeQueue.length + masterQueue.length - ACTIVE_QUEUE_SIZE)
-              : reviewItems.length * 2 -
-                (activeQueue.length + masterQueue.length - ACTIVE_QUEUE_SIZE)
-            : effectiveAnkiGrouping
-            ? reviewItems.length
-            : reviewItems.length * 2
-        }
-        completedCount={
-          reviewItems.filter(
-            (item) =>
-              (item.meaningDone && item.readingDone) ||
-              (item.meaningDone && isSubjectType(item.subject, "radical")) ||
-              (item.meaningDone &&
-                isSubjectType(item.subject, "vocabulary") &&
-                !item.subject.data.readings)
-          ).length
-        }
-        correctAnswersCount={reviewItems.reduce((count, item) => {
-          let correctCount = 0;
-          if (item.meaningDone) correctCount++;
-          if (item.readingDone) correctCount++;
-          return count + correctCount;
-        }, 0)}
-        isLessonFlow={true}
-        studyMaterials={studyMaterialsMap.get(currentItem.subjectId)}
-        onSynonymAdded={handleSynonymAdded}
-      />
+      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+        <ReviewQuestionScreen
+          item={{ id: currentItem.id, subject: adaptedSubject }}
+          questionType={currentQuestion.type}
+          onAnswer={handleAnswer}
+          onSkip={handleSkip}
+          onExit={() => {
+            Alert.alert(
+              "Exit Lessons",
+              "Are you sure you want to exit? Your progress will be saved, but incomplete lessons won't count.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Exit",
+                  onPress: navigateBackToDashboard,
+                },
+              ]
+            );
+          }}
+          showHeader={true}
+          showBackgroundColor={true}
+          totalItems={reviewItems.length}
+          currentItem={
+            activeQueue.length > 0
+              ? effectiveAnkiGrouping
+                ? reviewItems.length -
+                  (activeQueue.length + masterQueue.length - ACTIVE_QUEUE_SIZE)
+                : reviewItems.length * 2 -
+                  (activeQueue.length + masterQueue.length - ACTIVE_QUEUE_SIZE)
+              : effectiveAnkiGrouping
+              ? reviewItems.length
+              : reviewItems.length * 2
+          }
+          completedCount={
+            reviewItems.filter(
+              (item) =>
+                (item.meaningDone && item.readingDone) ||
+                (item.meaningDone && isSubjectType(item.subject, "radical")) ||
+                (item.meaningDone &&
+                  isSubjectType(item.subject, "vocabulary") &&
+                  !item.subject.data.readings)
+            ).length
+          }
+          correctAnswersCount={reviewItems.reduce((count, item) => {
+            let correctCount = 0;
+            if (item.meaningDone) correctCount++;
+            if (item.readingDone) correctCount++;
+            return count + correctCount;
+          }, 0)}
+          isLessonFlow={true}
+          studyMaterials={studyMaterialsMap.get(currentItem.subjectId)}
+          onSynonymAdded={handleSynonymAdded}
+        />
+        {renderPendingLessonSyncBadge()}
+      </View>
     );
   }
 
@@ -1404,6 +1517,7 @@ export default function LessonsScreen() {
           subjectLabel={`Current lessons (${currentLessonSubjectIds.length})`}
           onClose={() => setShowSaveCurrentLessonsModal(false)}
         />
+        {renderPendingLessonSyncBadge()}
       </View>
     );
   }
@@ -1428,6 +1542,7 @@ export default function LessonsScreen() {
           <Text style={styles.buttonText}>Back to Dashboard</Text>
         </TouchableOpacity>
       </View>
+      {renderPendingLessonSyncBadge()}
     </View>
   );
 }
@@ -1436,6 +1551,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f6f6f6",
+  },
+  screenWrapper: {
+    flex: 1,
+  },
+  pendingSyncBadgeContainer: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 28 : 20,
+    alignSelf: "center",
+    zIndex: 50,
+  },
+  pendingSyncBadge: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  pendingSyncBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,

@@ -2980,14 +2980,42 @@ export async function startAssignment(
 export async function getAvailableReviews(
   apiToken: string
 ): Promise<CollectionResponse<Assignment>> {
-  // Get assignments that are immediately available for review
-  const initialResponse = await getAssignments(apiToken, {
-    immediately_available_for_review: true,
-    hidden: false,
-  });
+  try {
+    // Get assignments that are immediately available for review
+    const initialResponse = await getAssignments(apiToken, {
+      immediately_available_for_review: true,
+      hidden: false,
+    });
 
-  // Handle pagination to get all pages
-  return fetchAllPages(initialResponse, apiToken);
+    // Handle pagination to get all pages
+    return fetchAllPages(initialResponse, apiToken);
+  } catch {
+    // Offline/cache fallback: use locally cached assignments if possible.
+    const cachedAssignments = await getAssignmentsOptimized(
+      apiToken,
+      {},
+      { forceFullRefresh: false }
+    );
+    const nowMs = Date.now();
+    const filtered = cachedAssignments.data.filter((assignment) => {
+      if (!isAssignmentInReviewQueueState(assignment.data)) {
+        return false;
+      }
+
+      const availableAtMs = Date.parse(assignment.data.available_at);
+      return Number.isFinite(availableAtMs) && availableAtMs <= nowMs;
+    });
+
+    return {
+      ...cachedAssignments,
+      data: filtered,
+      total_count: filtered.length,
+      pages: {
+        ...cachedAssignments.pages,
+        next_url: null,
+      },
+    };
+  }
 }
 
 /**
@@ -2996,14 +3024,43 @@ export async function getAvailableReviews(
 export async function getAvailableLessons(
   apiToken: string
 ): Promise<CollectionResponse<Assignment>> {
-  // Get assignments that are immediately available for lessons
-  const initialResponse = await getAssignments(apiToken, {
-    immediately_available_for_lessons: true,
-    burned: false,
-  });
+  try {
+    // Get assignments that are immediately available for lessons
+    const initialResponse = await getAssignments(apiToken, {
+      immediately_available_for_lessons: true,
+      burned: false,
+    });
 
-  // Handle pagination to get all pages
-  return fetchAllPages(initialResponse, apiToken);
+    // Handle pagination to get all pages
+    return fetchAllPages(initialResponse, apiToken);
+  } catch {
+    // Offline/cache fallback: use locally cached assignments if possible.
+    const cachedAssignments = await getAssignmentsOptimized(
+      apiToken,
+      {},
+      { forceFullRefresh: false }
+    );
+    const nowMs = Date.now();
+    const filtered = cachedAssignments.data.filter((assignment) => {
+      const assignmentData = assignment?.data;
+      if (!isAssignmentInLessonQueueState(assignmentData)) {
+        return false;
+      }
+
+      const unlockedAtMs = Date.parse(assignmentData.unlocked_at);
+      return Number.isFinite(unlockedAtMs) && unlockedAtMs <= nowMs;
+    });
+
+    return {
+      ...cachedAssignments,
+      data: filtered,
+      total_count: filtered.length,
+      pages: {
+        ...cachedAssignments.pages,
+        next_url: null,
+      },
+    };
+  }
 }
 
 /**
@@ -3210,8 +3267,20 @@ export async function getReviewCount(apiToken: string): Promise<number> {
     }
     return buildVisibleReviewDataFromAssignments(response.data).currentReviews;
   } catch (error) {
-    console.error('Error fetching review count:', error);
-    return 0; // Return 0 if there's an error to avoid breaking the app
+    try {
+      // Offline/cache fallback.
+      const cachedAssignments = await getAssignmentsOptimized(
+        apiToken,
+        {},
+        { forceFullRefresh: false }
+      );
+      return buildVisibleReviewDataFromAssignments(cachedAssignments.data)
+        .currentReviews;
+    } catch (fallbackError) {
+      console.error("Error fetching review count:", error);
+      console.error("Error fetching cached review count:", fallbackError);
+      return 0; // Return 0 if there's an error to avoid breaking the app
+    }
   }
 }
 
@@ -3231,6 +3300,42 @@ type AssignmentLike =
   | {
       data?: Partial<Assignment["data"]> | null;
     };
+
+/**
+ * Returns true when an assignment is in a lesson-ready state.
+ */
+export function isAssignmentInLessonQueueState(
+  assignmentData: AssignmentDataLike
+): assignmentData is Partial<Assignment["data"]> & {
+  unlocked_at: string;
+  subject_id: number;
+} {
+  if (!assignmentData) {
+    return false;
+  }
+
+  if (
+    !assignmentData.unlocked_at ||
+    assignmentData.started_at ||
+    assignmentData.hidden ||
+    typeof assignmentData.subject_id !== "number"
+  ) {
+    return false;
+  }
+
+  if (
+    typeof assignmentData.srs_stage === "number" &&
+    assignmentData.srs_stage !== 0
+  ) {
+    return false;
+  }
+
+  if (assignmentData.burned_at) {
+    return false;
+  }
+
+  return true;
+}
 
 /**
  * Returns true when an assignment is in a reviewable state.

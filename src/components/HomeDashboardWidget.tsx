@@ -129,7 +129,7 @@ export default function HomeDashboardWidget({
       });
     }
 
-    return dashboardData.assignments.filter((assignment: any) => {
+    const filteredCount = dashboardData.assignments.filter((assignment: any) => {
       if (
         !assignment?.data?.unlocked_at ||
         assignment.data.started_at ||
@@ -141,6 +141,8 @@ export default function HomeDashboardWidget({
       const subjectType = subjectTypeById.get(assignment.data.subject_id);
       return subjectType !== "kana_vocabulary";
     }).length;
+
+    return Math.min(filteredCount, dashboardData.lessonCount);
   }, [
     dashboardData.assignments,
     dashboardData.lessonCount,
@@ -317,6 +319,8 @@ export default function HomeDashboardWidget({
           lessonCount={effectiveLessonCount}
           totalLessonCount={availableLessonCountBeforeDailyLimit}
           reviewCount={dashboardData.reviewCount}
+          pendingLessonSyncCount={dashboardData.pendingLessonSyncCount ?? 0}
+          pendingReviewSyncCount={dashboardData.pendingReviewSyncCount ?? 0}
           currentLevel={dashboardData.currentLevel}
           subjects={dashboardData.subjects}
           assignments={dashboardData.assignments}

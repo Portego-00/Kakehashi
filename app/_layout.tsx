@@ -26,6 +26,7 @@ import { MusicPlayerProvider } from "../src/contexts/MusicPlayerContext";
 import { DashboardProvider } from "../src/hooks/useDashboardData";
 import { analyticsService } from "../src/services/analyticsService";
 import { featureFlagsService } from "../src/services/featureFlagsService";
+import { syncPendingProgress } from "../src/services/offlineStudyProgressService";
 import { queueOfflineVocabularyAudioDownloads } from "../src/services/offlineVocabularyAudioService";
 import { getAllSubjectsFromAPI, getUserData } from "../src/utils/api";
 import {
@@ -314,6 +315,9 @@ function RootLayoutContentInner() {
         if (!shouldUseNativeReviewNotificationSystem()) {
           tasks.push(updateLastReviewCount());
         }
+        if (apiToken) {
+          tasks.push(syncPendingProgress(apiToken));
+        }
 
         if (userData?.id) {
           tasks.push(
@@ -342,7 +346,7 @@ function RootLayoutContentInner() {
       }
       subscription?.remove();
     };
-  }, [userData?.id, userData?.username, userData?.level]);
+  }, [apiToken, userData?.id, userData?.username, userData?.level]);
 
   // Initialize global error handlers
   useEffect(() => {
@@ -935,6 +939,12 @@ function RootLayoutContentInner() {
         runPostLoaderOperation("prepare.initializeAzureSpeech.background", () =>
           azureSpeechService.initialize()
         );
+
+        if (token) {
+          runPostLoaderOperation("prepare.syncPendingProgress.background", () =>
+            syncPendingProgress(token)
+          );
+        }
 
         // If we have a token, try to load user data and start fast path
         if (token) {
