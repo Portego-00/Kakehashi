@@ -22,6 +22,7 @@ import {
   queueProgressAndAttemptSend,
   syncPendingProgress,
 } from "../../src/services/offlineStudyProgressService";
+import { markReviewSubmittedInAssignmentCaches } from "../../src/services/studyProgressAssignmentCacheService";
 import {
   ApiError,
   getAvailableReviews,
@@ -79,6 +80,7 @@ interface FailedSubmission {
   readingIncorrect: number;
   createdAt?: string | null;
   availableAt?: string | null;
+  currentSrsStage?: number;
   retryCount: number;
   isPermissionError?: boolean; // Track if failure was due to missing permissions (401)
   statusCode?: number | null;
@@ -1218,6 +1220,7 @@ export default function ReviewScreen() {
       subjectId?: number;
       availableAt?: string | null;
       createdAt?: string | null;
+      currentSrsStage?: number;
     } = {}
   ): Promise<SubmissionAttemptResult> => {
     try {
@@ -1236,6 +1239,25 @@ export default function ReviewScreen() {
       });
       const response = queueResult.response as ReviewSubmissionResponse | null;
 
+      if (response || queueResult.queued) {
+        await markReviewSubmittedInAssignmentCaches({
+          assignmentId,
+          meaningIncorrectCount: meaningIncorrect,
+          readingIncorrectCount: readingIncorrect,
+          completedAt: createdAt ?? new Date().toISOString(),
+          currentSrsStage: options.currentSrsStage,
+          endingSrsStage: response?.data?.ending_srs_stage,
+          nextReviewAt:
+            response?.resources_updated?.assignment?.data?.available_at ??
+            undefined,
+        }).catch((cacheError) => {
+          console.warn(
+            "[Reviews] Failed to update local assignment review time:",
+            cacheError
+          );
+        });
+      }
+
       if (!response) {
         if (queueResult.queued) {
           hasSubmittedReviewsRef.current = true;
@@ -1253,6 +1275,7 @@ export default function ReviewScreen() {
             readingIncorrect,
             createdAt,
             availableAt: options.availableAt ?? null,
+            currentSrsStage: options.currentSrsStage,
             retryCount: 0,
             isPermissionError: queueResult.failure?.isPermissionError,
             statusCode: queueResult.failure?.statusCode ?? null,
@@ -1308,6 +1331,7 @@ export default function ReviewScreen() {
           readingIncorrect,
           createdAt: options.createdAt ?? null,
           availableAt: options.availableAt ?? null,
+          currentSrsStage: options.currentSrsStage,
           retryCount: 0,
           isPermissionError,
           statusCode,
@@ -1462,6 +1486,7 @@ export default function ReviewScreen() {
           subjectId: updatedItems[itemIndex].subjectId,
           availableAt: updatedItems[itemIndex].availableAt ?? null,
           createdAt,
+          currentSrsStage: currentSRSStage,
         }
       )
         .then(({ response, failure }) => {
@@ -1678,6 +1703,7 @@ export default function ReviewScreen() {
             subjectId: submission.subjectId,
             createdAt: submission.createdAt ?? null,
             availableAt: submission.availableAt ?? null,
+            currentSrsStage: submission.currentSrsStage,
           }
         );
 
@@ -1691,6 +1717,7 @@ export default function ReviewScreen() {
             readingIncorrect: submission.readingIncorrect,
             createdAt: submission.createdAt ?? null,
             availableAt: submission.availableAt ?? null,
+            currentSrsStage: submission.currentSrsStage,
             retryCount: submission.retryCount + 1,
             isPermissionError: failure?.isPermissionError,
             statusCode: failure?.statusCode,
@@ -1703,6 +1730,7 @@ export default function ReviewScreen() {
             readingIncorrect: submission.readingIncorrect,
             createdAt: submission.createdAt ?? null,
             availableAt: submission.availableAt ?? null,
+            currentSrsStage: submission.currentSrsStage,
             retryCount: submission.retryCount + 1,
             isPermissionError: failure?.isPermissionError,
             statusCode: failure?.statusCode,
@@ -1729,6 +1757,7 @@ export default function ReviewScreen() {
           readingIncorrect: submission.readingIncorrect,
           createdAt: submission.createdAt ?? null,
           availableAt: submission.availableAt ?? null,
+          currentSrsStage: submission.currentSrsStage,
           retryCount: submission.retryCount + 1,
           isPermissionError,
           statusCode,
@@ -1803,6 +1832,7 @@ export default function ReviewScreen() {
                 item.availableAt ?? null,
                 new Date().toISOString()
               ),
+              currentSrsStage: item.srsStage,
             }
           );
 
@@ -1825,6 +1855,7 @@ export default function ReviewScreen() {
                 new Date().toISOString()
               ),
               availableAt: item.availableAt ?? null,
+              currentSrsStage: item.srsStage,
               retryCount: existingRetryCount + 1,
               isPermissionError: failure?.isPermissionError,
               statusCode: failure?.statusCode,

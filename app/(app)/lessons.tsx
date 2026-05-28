@@ -22,6 +22,7 @@ import {
   queueProgressAndAttemptSend,
   syncPendingProgress,
 } from "../../src/services/offlineStudyProgressService";
+import { markLessonStartedInAssignmentCaches } from "../../src/services/studyProgressAssignmentCacheService";
 import {
   Assignment as ApiAssignment,
   Subject as ApiSubject,
@@ -1080,6 +1081,18 @@ export default function LessonsScreen() {
         updatedItems[itemIndex].submissionFailed =
           !queueResult.response && !queueResult.queued;
         setReviewItems(updatedItems);
+
+        if (queueResult.response || queueResult.queued) {
+          await markLessonStartedInAssignmentCaches({
+            assignmentId: updatedItems[itemIndex].assignmentId,
+            startedAt: completedAtIso,
+          }).catch((cacheError) => {
+            console.warn(
+              "[Lessons] Failed to update local assignment review time:",
+              cacheError
+            );
+          });
+        }
 
         if (queueResult.failure?.isPermissionError) {
           Alert.alert(
