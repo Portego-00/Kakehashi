@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.70",
+    date: "2026-05-29",
+    changes: [
+      {
+        type: "feature",
+        title: "Offline Lessons and Reviews",
+        description:
+          "Lessons and reviews now keep working without a connection. Progress is saved locally, synced when you're back online.",
+      },
+    ],
+  },
+  {
     version: "1.2.69",
     date: "2026-05-28",
     changes: [
