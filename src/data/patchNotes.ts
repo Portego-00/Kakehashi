@@ -56,6 +56,23 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.69",
+    date: "2026-05-28",
+    changes: [
+      {
+        type: "feature",
+        title: "Choose Your Update Experience",
+        description:
+          "Added an Updates setting so you can choose whether OTA updates block startup, wait only briefly, download for the next app open, or show a Home banner. A few days ago OTA checks became slower; even though that is resolved now, this gives you a fallback if it happens again.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "updates" },
+          label: "Open Update Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.68",
     date: "2026-05-25",
     changes: [
