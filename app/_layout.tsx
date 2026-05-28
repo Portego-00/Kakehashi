@@ -69,6 +69,37 @@ type PendingDeepLinkIntent =
       signature: string;
     };
 
+const OTA_UPDATE_CHECK_TIMEOUT_MS = 1000;
+const OTA_UPDATE_CHECK_TIMED_OUT = { timedOut: true } as const;
+
+function resolveWithUpdateCheckTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<T | typeof OTA_UPDATE_CHECK_TIMED_OUT> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      resolve(OTA_UPDATE_CHECK_TIMED_OUT);
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
+function isUpdateCheckTimedOut<T>(
+  result: T | typeof OTA_UPDATE_CHECK_TIMED_OUT
+): result is typeof OTA_UPDATE_CHECK_TIMED_OUT {
+  return result === OTA_UPDATE_CHECK_TIMED_OUT;
+}
+
 function RootLayoutContentInner() {
   const { setIsRunning, setProgress } = useBackgroundTasks();
   const [appIsReady, setAppIsReady] = useState(false);
@@ -99,7 +130,14 @@ function RootLayoutContentInner() {
   const { session, isLoading } = useSession();
   const { theme } = useTheme();
   const router = useRouter();
-  const { gravatarEmail, offlineVocabularyAudioEnabled } = useSettingsStore();
+  const {
+    gravatarEmail,
+    offlineVocabularyAudioEnabled,
+    otaUpdateExperience,
+  } = useSettingsStore();
+  const [settingsHydrated, setSettingsHydrated] = useState(() =>
+    useSettingsStore.persist.hasHydrated()
+  );
   const pendingDeepLinkIntentRef = useRef<PendingDeepLinkIntent | null>(null);
   const pendingIssueNotificationIssueIdRef = useRef<string | null>(null);
   const didCheckInitialUrlRef = useRef(false);
@@ -209,8 +247,34 @@ function RootLayoutContentInner() {
       fontsLoaded,
       hasFontError: Boolean(fontError),
       hasApiToken: Boolean(apiToken),
+      settingsHydrated,
+      otaUpdateExperience,
     });
-  }, [apiToken, fontError, fontsLoaded, isLoading, session]);
+  }, [
+    apiToken,
+    fontError,
+    fontsLoaded,
+    isLoading,
+    otaUpdateExperience,
+    session,
+    settingsHydrated,
+  ]);
+
+  useEffect(() => {
+    if (settingsHydrated) {
+      return;
+    }
+
+    const unsubscribe = useSettingsStore.persist.onFinishHydration(() => {
+      setSettingsHydrated(true);
+    });
+
+    if (useSettingsStore.persist.hasHydrated()) {
+      setSettingsHydrated(true);
+    }
+
+    return unsubscribe;
+  }, [settingsHydrated]);
 
   // Listen for app state changes to update badge when app becomes active
   useEffect(() => {
@@ -588,7 +652,7 @@ function RootLayoutContentInner() {
       return;
     }
 
-    if (!fontGateResolved || isLoading) {
+    if (!fontGateResolved || isLoading || !settingsHydrated) {
       return;
     }
 
@@ -656,9 +720,20 @@ function RootLayoutContentInner() {
       };
 
       const applyStartupUpdateIfAvailable = async (): Promise<boolean> => {
+        if (
+          otaUpdateExperience === "background-next-open" ||
+          otaUpdateExperience === "background-banner"
+        ) {
+          startupDiagnostics.markEvent("prepare.ota.deferred", {
+            mode: otaUpdateExperience,
+          });
+          return false;
+        }
+
         if (__DEV__ || !Updates.isEnabled) {
           startupDiagnostics.markEvent("prepare.ota.skipped", {
             reason: __DEV__ ? "development_mode" : "updates_disabled",
+            mode: otaUpdateExperience,
           });
           return false;
         }
@@ -666,14 +741,32 @@ function RootLayoutContentInner() {
         try {
           setLoaderStatusMessage("Checking for updates...");
 
-          const updateCheck = await runTrackedOperation(
+          const updateCheckPromise = runTrackedOperation(
             "prepare.ota.checkForUpdate",
-            () => Updates.checkForUpdateAsync()
+            () => Updates.checkForUpdateAsync(),
+            { mode: otaUpdateExperience }
           );
+          const updateCheck =
+            otaUpdateExperience === "startup-timeboxed"
+              ? await resolveWithUpdateCheckTimeout(
+                  updateCheckPromise,
+                  OTA_UPDATE_CHECK_TIMEOUT_MS
+                )
+              : await updateCheckPromise;
+
+          if (isUpdateCheckTimedOut(updateCheck)) {
+            startupDiagnostics.markEvent("prepare.ota.checkTimedOut", {
+              timeoutMs: OTA_UPDATE_CHECK_TIMEOUT_MS,
+              mode: otaUpdateExperience,
+            });
+            setLoaderStatusMessage(null);
+            return false;
+          }
 
           startupDiagnostics.markEvent("prepare.ota.checkCompleted", {
             isAvailable: updateCheck.isAvailable,
             isRollBackToEmbedded: updateCheck.isRollBackToEmbedded,
+            mode: otaUpdateExperience,
           });
 
           if (!updateCheck.isAvailable && !updateCheck.isRollBackToEmbedded) {
@@ -685,7 +778,8 @@ function RootLayoutContentInner() {
 
           const fetchResult = await runTrackedOperation(
             "prepare.ota.fetchUpdate",
-            () => Updates.fetchUpdateAsync()
+            () => Updates.fetchUpdateAsync(),
+            { mode: otaUpdateExperience }
           );
           const shouldReloadNow =
             fetchResult.isNew || fetchResult.isRollBackToEmbedded;
@@ -694,6 +788,7 @@ function RootLayoutContentInner() {
             isNew: fetchResult.isNew,
             isRollBackToEmbedded: fetchResult.isRollBackToEmbedded,
             shouldReloadNow,
+            mode: otaUpdateExperience,
           });
 
           if (!shouldReloadNow) {
@@ -717,10 +812,39 @@ function RootLayoutContentInner() {
           console.error("Startup OTA check failed:", error);
           startupDiagnostics.markEvent("prepare.ota.failed", {
             error: error instanceof Error ? error.message : String(error),
+            mode: otaUpdateExperience,
           });
           setLoaderStatusMessage(null);
           return false;
         }
+      };
+
+      const fetchStartupUpdateForNextLaunch = async (): Promise<void> => {
+        if (__DEV__ || !Updates.isEnabled) {
+          startupDiagnostics.markEvent("prepare.ota.backgroundSkipped", {
+            reason: __DEV__ ? "development_mode" : "updates_disabled",
+            mode: otaUpdateExperience,
+          });
+          return;
+        }
+
+        const updateCheck = await Updates.checkForUpdateAsync();
+        startupDiagnostics.markEvent("prepare.ota.backgroundCheckCompleted", {
+          isAvailable: updateCheck.isAvailable,
+          isRollBackToEmbedded: updateCheck.isRollBackToEmbedded,
+          mode: otaUpdateExperience,
+        });
+
+        if (!updateCheck.isAvailable && !updateCheck.isRollBackToEmbedded) {
+          return;
+        }
+
+        const fetchResult = await Updates.fetchUpdateAsync();
+        startupDiagnostics.markEvent("prepare.ota.backgroundFetchCompleted", {
+          isNew: fetchResult.isNew,
+          isRollBackToEmbedded: fetchResult.isRollBackToEmbedded,
+          mode: otaUpdateExperience,
+        });
       };
 
       startupDiagnostics.markEvent("root.prepare.begin", {
@@ -730,6 +854,8 @@ function RootLayoutContentInner() {
         hasSession: Boolean(session),
         fontGateResolved,
         fontGate: fontGateDetailsRef.current,
+        settingsHydrated,
+        otaUpdateExperience,
       });
 
       try {
@@ -779,6 +905,14 @@ function RootLayoutContentInner() {
         const didTriggerReload = await applyStartupUpdateIfAvailable();
         if (didTriggerReload) {
           return;
+        }
+
+        if (otaUpdateExperience === "background-next-open") {
+          runPostLoaderOperation(
+            "prepare.ota.backgroundNextOpen",
+            fetchStartupUpdateForNextLaunch,
+            { mode: otaUpdateExperience }
+          );
         }
 
         const token = session;
@@ -971,11 +1105,13 @@ function RootLayoutContentInner() {
     fontError,
     session,
     isLoading,
+    otaUpdateExperience,
     setUserData,
     setIsRunning,
     setProgress,
     requestAppReady,
     queueOfflineAudioDownloadsForLevel,
+    settingsHydrated,
     theme.backgroundColor,
   ]);
 
