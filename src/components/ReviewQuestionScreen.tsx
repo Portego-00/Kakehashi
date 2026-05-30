@@ -1,4 +1,64 @@
 import { Ionicons } from "@expo/vector-icons";
+import {
+  AnsweredItemCharacterDisplay,
+  RadicalCharacterDisplay,
+} from "../features/review-question/components/CharacterDisplays";
+import {
+  ANDROID_AUTOFOCUS_DELAY_MS,
+  BUTTONLESS_SWIPE_TRIGGER_PX,
+  BUTTONLESS_TAP_MOVE_TOLERANCE_PX,
+  BUTTONLESS_VERTICAL_DOMINANCE_RATIO,
+  DARK_MODE_MEANING_BANNER_BG,
+  DARK_MODE_MEANING_BANNER_TEXT,
+  DARK_MODE_READING_BANNER_BG,
+  FLOATING_REVIEW_TOOL_BUTTON_GAP,
+  FLOATING_REVIEW_TOOL_BUTTON_RIGHT,
+  FLOATING_REVIEW_TOOL_BUTTON_SIZE,
+  FLOATING_REVIEW_TOOL_BUTTON_TOP_WITHOUT_WRAP_UP,
+  FLOATING_REVIEW_TOOL_BUTTON_TOP_WITH_WRAP_UP,
+  IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO,
+  KANJI_CHARACTER_REGEX,
+  PAUSED_SHORTCUT_GUARD_MS,
+  RETRYABLE_ANSWER_RESULTS,
+  SKIP_CUE_VISIBLE_MS,
+  SRS_CARD_SIDE_OFFSET,
+  SRS_CARD_WIDTH,
+  VOCABULARY_AUDIO_MAX_PLAYBACK_MS,
+  VOICE_READING_SCRIPT_MISMATCH_ERROR,
+  height,
+  width,
+} from "../features/review-question/constants";
+import { styles } from "../features/review-question/styles";
+import type {
+  ReviewDetailProgressionStatus,
+  ReviewDetailRelatedSubjects,
+  ReviewQuestionProps,
+  PreviousAnswerItem,
+  VoiceReadingLookup,
+} from "../features/review-question/types";
+import { EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS } from "../features/review-question/types";
+import {
+  compactJapaneseText,
+  ensureSubjectPartsOfSpeechLookup,
+  ensureVoiceReadingLookup,
+  extractAnkiPartOfSpeechValues,
+  getSubjectDataRecord,
+  getSubjectIdList,
+  getSubjectMeanings,
+  getSubjectReadings,
+  getSrsStageDisplayInfo,
+  isSingleKanjiVocabularySubject,
+  loadCachedSubjectsByIds,
+  mapSubjectForDetailGrid,
+  matchesJapaneseAnswer,
+  normalizeAnswerKey,
+  normalizeCachedSubject,
+  normalizeJapaneseReading,
+  replaceArabicNumbersWithKanji,
+  resolveExpectedReadingFromKanji,
+  uniqueNonEmptyAnswers,
+  voiceReadingLookupCache,
+} from "../features/review-question/utils";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
 import * as Haptics from "@/src/utils/haptics";
@@ -7,9 +67,14 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-  Dimensions,
   type GestureResponderEvent,
   InteractionManager,
   Keyboard,
@@ -17,7 +82,6 @@ import {
   type KeyboardEvent,
   type LayoutChangeEvent,
   Platform,
-  StyleSheet,
   Text,
   TextInput,
   type TextInputKeyPressEvent,
@@ -38,15 +102,12 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { SvgXml } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import AudioSessionManager from "../modules/AudioSessionManager";
 import { Subject as WKSubject } from "../types/wanikani";
 import {
   AnswerCheckerResult,
   checkAnswerWithDetails,
-  convertKatakanaToHiragana,
-  convertRomajiToHiragana,
   getAnswerFeedback,
 } from "../utils/answerChecker";
 import { getSubjectTypeColor } from "../utils/subjectColors";
@@ -56,16 +117,8 @@ import {
   updateStudyMaterial,
   getStudyMaterials,
 } from "../utils/api";
-import { getAllSubjects, getSubjectById } from "../utils/cache";
 import { fontStyles } from "../utils/fonts";
-import {
-  DEFAULT_JITAI_FONT_FAMILY,
-  getJitaiFontFamiliesForSelection,
-  loadDownloadedJitaiFonts,
-  type DownloadedJitaiFont,
-} from "../utils/jitaiFonts";
 import { pickPreferredPronunciationAudios } from "../utils/pronunciationAudio";
-import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
 import { getCachedOrDownloadVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
@@ -77,697 +130,9 @@ import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import KanjiDetails from "./KanjiDetails";
 import RadicalDetails from "./RadicalDetails";
-import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
+import SrsLevelIcon from "./SrsLevelIcon";
 import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import VocabularyDetails from "./VocabularyDetails";
-
-// Get screen dimensions for animations
-const { width, height } = Dimensions.get("window");
-const ANSWER_INPUT_FONT_SIZE = Math.min(width * 0.045, 18);
-const ANSWER_INPUT_HEIGHT = 52;
-const ANDROID_AUTOFOCUS_DELAY_MS = 200;
-const SKIP_CUE_VISIBLE_MS = 2000;
-const SRS_CARD_WIDTH = 170;
-const SRS_CARD_COMPACT_WIDTH = 138;
-const SRS_CARD_SIDE_OFFSET = 18;
-const TOP_STATUS_POPUP_OFFSET = 138;
-const PAUSED_SHORTCUT_GUARD_MS = 300;
-const ANSWERED_ITEM_RADICAL_SIZE = 34;
-const BUTTONLESS_TAP_MOVE_TOLERANCE_PX = 14;
-const BUTTONLESS_SWIPE_TRIGGER_PX = 56;
-const BUTTONLESS_VERTICAL_DOMINANCE_RATIO = 1.2;
-const IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO = 0.9;
-const VOCABULARY_AUDIO_MAX_PLAYBACK_MS = 15000;
-const DARK_MODE_MEANING_BANNER_BG = "#b8b8b8";
-const DARK_MODE_MEANING_BANNER_TEXT = "#1f1f1f";
-const DARK_MODE_READING_BANNER_BG = "#2b2b2b";
-const FLOATING_REVIEW_TOOL_BUTTON_SIZE = 40;
-const FLOATING_REVIEW_TOOL_BUTTON_RADIUS = FLOATING_REVIEW_TOOL_BUTTON_SIZE / 2;
-const FLOATING_REVIEW_TOOL_BUTTON_TOP_WITH_WRAP_UP = 184;
-const FLOATING_REVIEW_TOOL_BUTTON_TOP_WITHOUT_WRAP_UP = 140;
-const FLOATING_REVIEW_TOOL_BUTTON_GAP = 8;
-const FLOATING_REVIEW_TOOL_BUTTON_RIGHT = 16;
-
-type QuestionType = "meaning" | "reading";
-
-interface ReviewItem {
-  id: number;
-  subject: WKSubject;
-  srsStage?: number;
-}
-
-interface PreviousAnswerItem {
-  id: number;
-  subject: WKSubject;
-  characters: string;
-  meaning: string;
-  backgroundColor: string;
-  isCorrect: boolean;
-  questionType: QuestionType;
-}
-
-interface SRSProgressionInfo {
-  newLevel: string;
-  newStage: number;
-  isCorrect: boolean;
-  show: boolean;
-  nextReviewInterval: string;
-}
-
-interface ReviewQuestionProps {
-  item: ReviewItem;
-  questionType: QuestionType;
-  onAnswer: (
-    item: ReviewItem,
-    questionType: QuestionType,
-    isCorrect: boolean,
-    wasIncorrect: boolean,
-    isGroupedAnswer?: boolean,
-  ) => void;
-  onAskAgain?: (item: ReviewItem, questionType: QuestionType) => void;
-  onSkip?: (item: ReviewItem, questionType: QuestionType) => void;
-  onExit?: () => void;
-  showHeader?: boolean;
-  showBackgroundColor?: boolean;
-  // Progress stats
-  totalItems?: number;
-  currentItem?: number; // number of answered questions
-  completedCount?: number; // items with both meaning and reading correct
-  correctAnswersCount?: number; // individual correct answers
-  // SRS progression
-  srsProgression?: SRSProgressionInfo;
-  onSRSCardDismiss?: () => void;
-  // Force disable Anki grouped questions (for random tests)
-  forceDisableAnkiGrouping?: boolean;
-  // Hide accuracy for lesson flow
-  isLessonFlow?: boolean;
-  // When provided, overrides the central prompt display text (e.g., show meaning instead of characters)
-  overridePromptText?: string;
-  // Optional subtext shown below the override prompt (e.g., alternative meanings)
-  overridePromptSubtext?: string;
-  // Optional style hint when override prompt is Japanese text (e.g., kana prompt).
-  overridePromptUsesJapaneseFont?: boolean;
-  // Optional override for the paused-card "Correct answer" text.
-  overridePausedCorrectAnswerText?: string;
-  // Wrap up functionality
-  isWrapUpAvailable?: boolean;
-  isWrapUpMode?: boolean;
-  wrapUpTargetSubjects?: number;
-  remainingSubjectsCount?: number;
-  onWrapUp?: () => void;
-  // Study materials for user synonyms
-  studyMaterials?: { meaning_synonyms?: string[] };
-  // Callback when a synonym is added (to update parent's studyMaterialsMap)
-  onSynonymAdded?: (subjectId: number, newSynonyms: string[]) => void;
-  // Context sentence hints shown on demand to help disambiguate similar meanings.
-  contextSentencesHint?: { ja?: string; en?: string }[];
-  // Maximum number of hint rows shown in the expandable hint panel.
-  contextHintMaxItems?: number;
-  // For custom modes (e.g., English -> Japanese), allow entering subject characters
-  // on reading questions as a correct answer.
-  acceptCharactersAsCorrectForReading?: boolean;
-  // For strict custom modes (e.g., Kana -> Kanji), require subject characters on reading questions.
-  requireSubjectCharactersForReading?: boolean;
-  // For custom reading modes (e.g., English -> Japanese), display both subject
-  // characters and reading together in the answer reveal/paused cards.
-  showCharactersAndReadingForReadingQuestion?: boolean;
-  // Warning shown when review submission fails due to missing token permissions.
-  reviewPermissionWarning?: string | null;
-  onDismissReviewPermissionWarning?: () => void;
-}
-
-const RETRYABLE_ANSWER_RESULTS = new Set<AnswerCheckerResult>([
-  AnswerCheckerResult.OtherKanjiReading,
-  AnswerCheckerResult.WrongReadingType,
-  AnswerCheckerResult.MismatchingOkurigana,
-  AnswerCheckerResult.ContainsInvalidCharacters,
-  AnswerCheckerResult.IsKanjiButWantReading,
-  AnswerCheckerResult.IsReadingButWantMeaning,
-  AnswerCheckerResult.IsMeaningButWantReading,
-  AnswerCheckerResult.IncorrectNConversion,
-]);
-
-const KANJI_CHARACTER_REGEX = /[\u3400-\u4DBF\u4E00-\u9FFF]/;
-const KANA_CHARACTER_REGEX = /[\u3040-\u309F\u30A0-\u30FF]/;
-const TRANSCRIPT_PUNCTUATION_REGEX =
-  /[。、，,．\.!?！？:：;；'"`´「」『』（）\(\)\[\]【】{}…・]/g;
-const DIGIT_SEQUENCE_REGEX = /\d+/g;
-const ARABIC_NUMBER_REGEX = /^\d+$/;
-const KANJI_DIGITS = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
-const LARGE_NUMBER_UNITS = ["", "万", "億", "兆", "京"];
-const VOICE_READING_SCRIPT_MISMATCH_ERROR =
-  "Recognized kanji text instead of kana. Please try speaking the reading again.";
-
-interface VoiceReadingLookup {
-  wordReadings: Record<string, string[]>;
-  singleKanjiReadings: Record<string, string[]>;
-}
-
-type ReviewDetailProgressionStatus = "loading" | "success" | "offline";
-
-interface ReviewDetailRelatedSubjects {
-  componentSubjects: WKSubject[];
-  amalgamationSubjects: WKSubject[];
-  visuallySimilarSubjects: WKSubject[];
-}
-
-const EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS: ReviewDetailRelatedSubjects = {
-  componentSubjects: [],
-  amalgamationSubjects: [],
-  visuallySimilarSubjects: [],
-};
-
-let voiceReadingLookupCache: VoiceReadingLookup | null = null;
-let voiceReadingLookupPromise: Promise<VoiceReadingLookup> | null = null;
-
-function getSubjectDataRecord(subject: WKSubject): Record<string, any> {
-  return (subject.data ?? {}) as Record<string, any>;
-}
-
-function getSubjectIdList(value: unknown): number[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter(
-    (id): id is number => typeof id === "number" && Number.isFinite(id),
-  );
-}
-
-function getSubjectMeanings(
-  subject: WKSubject,
-): { meaning: string; primary: boolean }[] {
-  const meanings = getSubjectDataRecord(subject).meanings;
-  if (!Array.isArray(meanings)) {
-    return [];
-  }
-
-  return meanings
-    .map((meaning) => ({
-      meaning: typeof meaning?.meaning === "string" ? meaning.meaning : "",
-      primary: meaning?.primary === true,
-    }))
-    .filter((meaning) => meaning.meaning.length > 0);
-}
-
-function getSubjectReadings(
-  subject: WKSubject,
-): {
-  reading: string;
-  primary: boolean;
-  type: "onyomi" | "kunyomi" | "nanori";
-}[] {
-  const readings = getSubjectDataRecord(subject).readings;
-  if (!Array.isArray(readings)) {
-    return [];
-  }
-
-  return readings
-    .map((reading) => {
-      const readingType =
-        reading?.type === "kunyomi" || reading?.type === "nanori"
-          ? reading.type
-          : "onyomi";
-      return {
-        reading: typeof reading?.reading === "string" ? reading.reading : "",
-        primary: reading?.primary === true,
-        type: readingType,
-      };
-    })
-    .filter((reading) => reading.reading.length > 0);
-}
-
-function normalizeCachedSubject(value: unknown): WKSubject | null {
-  if (
-    value &&
-    typeof value === "object" &&
-    typeof (value as WKSubject).id === "number" &&
-    (value as WKSubject).data
-  ) {
-    return value as WKSubject;
-  }
-
-  return null;
-}
-
-async function loadCachedSubjectsByIds(ids: number[]): Promise<WKSubject[]> {
-  if (ids.length === 0) {
-    return [];
-  }
-
-  const subjects = await Promise.all(ids.map((id) => getSubjectById(id)));
-  return subjects
-    .map(normalizeCachedSubject)
-    .filter((subject): subject is WKSubject => Boolean(subject));
-}
-
-function mapSubjectForDetailGrid(subject: WKSubject) {
-  const data = getSubjectDataRecord(subject);
-  const characterImages = Array.isArray(data.character_images)
-    ? data.character_images
-    : [];
-
-  return {
-    id: subject.id,
-    characters: typeof data.characters === "string" ? data.characters : null,
-    meanings: getSubjectMeanings(subject).map((meaning) => meaning.meaning),
-    characterImages,
-    imageUrl: characterImages[0]?.url || null,
-    level: Number(data.level ?? 0),
-  };
-}
-
-function compactJapaneseText(text: string | null | undefined): string {
-  return (text ?? "")
-    .normalize("NFKC")
-    .trim()
-    .replace(TRANSCRIPT_PUNCTUATION_REGEX, "")
-    .replace(/\s+/g, "");
-}
-
-function isSingleKanjiVocabularySubject(subject: WKSubject): boolean {
-  const subjectCharacters = compactJapaneseText(subject?.data?.characters);
-  return (
-    subject.object === "vocabulary" &&
-    subjectCharacters.length === 1 &&
-    KANJI_CHARACTER_REGEX.test(subjectCharacters)
-  );
-}
-
-function matchesJapaneseAnswer(input: string, expected: string): boolean {
-  return (
-    input === expected ||
-    input.replace(/^〜/, "") === expected.replace(/^〜/, "")
-  );
-}
-
-function normalizeJapaneseReading(text: string | null | undefined): string {
-  const compactText = compactJapaneseText(text);
-  if (!compactText) {
-    return "";
-  }
-
-  const hiraganaCandidate = convertKatakanaToHiragana(compactText);
-  if (/[A-Za-z]/.test(hiraganaCandidate)) {
-    return convertRomajiToHiragana(hiraganaCandidate);
-  }
-
-  return hiraganaCandidate;
-}
-
-function convertFourDigitGroupToKanji(groupDigits: string): string {
-  const paddedGroup = groupDigits.padStart(4, "0");
-  const unitByIndex = ["千", "百", "十", ""];
-  let result = "";
-
-  for (let index = 0; index < 4; index += 1) {
-    const digitValue = Number.parseInt(paddedGroup[index] || "0", 10);
-    if (!Number.isFinite(digitValue) || digitValue <= 0) {
-      continue;
-    }
-
-    const unit = unitByIndex[index] || "";
-    if (digitValue === 1 && unit) {
-      result += unit;
-    } else {
-      result += `${KANJI_DIGITS[digitValue]}${unit}`;
-    }
-  }
-
-  return result;
-}
-
-function convertArabicNumberToKanji(value: string): string | null {
-  if (!ARABIC_NUMBER_REGEX.test(value)) {
-    return null;
-  }
-
-  const normalizedValue = value.replace(/^0+(?=\d)/, "");
-  if (normalizedValue === "0") {
-    return "零";
-  }
-
-  const groups: string[] = [];
-  for (let cursor = normalizedValue.length; cursor > 0; cursor -= 4) {
-    const start = Math.max(0, cursor - 4);
-    groups.unshift(normalizedValue.slice(start, cursor));
-  }
-
-  if (groups.length > LARGE_NUMBER_UNITS.length) {
-    return null;
-  }
-
-  let result = "";
-  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-    const groupKanji = convertFourDigitGroupToKanji(groups[groupIndex] || "");
-    if (!groupKanji) {
-      continue;
-    }
-
-    const unitIndex = groups.length - 1 - groupIndex;
-    const groupUnit = LARGE_NUMBER_UNITS[unitIndex] || "";
-    result += `${groupKanji}${groupUnit}`;
-  }
-
-  return result || "零";
-}
-
-function replaceArabicNumbersWithKanji(text: string): string {
-  return text.replace(DIGIT_SEQUENCE_REGEX, (digits) => {
-    return convertArabicNumberToKanji(digits) || digits;
-  });
-}
-
-function normalizeAnswerKey(answer: string): string {
-  return answer.trim().toLowerCase();
-}
-
-function getSrsStageDisplayInfo(
-  stage: number,
-): { label: string; iconLevel: SrsLevelName } {
-  switch (stage) {
-    case 1:
-      return { label: "Apprentice I", iconLevel: "Apprentice I" };
-    case 2:
-      return { label: "Apprentice II", iconLevel: "Apprentice II" };
-    case 3:
-      return { label: "Apprentice III", iconLevel: "Apprentice III" };
-    case 4:
-      return { label: "Apprentice IV", iconLevel: "Apprentice IV" };
-    case 5:
-      return { label: "Guru I", iconLevel: "Guru I" };
-    case 6:
-      return { label: "Guru II", iconLevel: "Guru II" };
-    case 7:
-      return { label: "Master", iconLevel: "Master" };
-    case 8:
-      return { label: "Enlightened", iconLevel: "Enlightened" };
-    default:
-      if (stage >= 9) {
-        return { label: "Burned", iconLevel: "Burned" };
-      }
-      return { label: "Lesson", iconLevel: "Apprentice I" };
-  }
-}
-
-function uniqueNonEmptyAnswers(
-  answers: (string | null | undefined)[],
-): string[] {
-  const deduped = new Map<string, string>();
-
-  answers.forEach((answer) => {
-    if (typeof answer !== "string") {
-      return;
-    }
-
-    const trimmed = answer.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    const key = normalizeAnswerKey(trimmed);
-    if (!deduped.has(key)) {
-      deduped.set(key, trimmed);
-    }
-  });
-
-  return Array.from(deduped.values());
-}
-
-function extractAnkiPartOfSpeechValues(
-  partsOfSpeech: (string | null | undefined)[] | null | undefined,
-): string[] {
-  if (!Array.isArray(partsOfSpeech) || partsOfSpeech.length === 0) {
-    return [];
-  }
-
-  return uniqueNonEmptyAnswers(
-    partsOfSpeech.filter(
-      (partOfSpeech): partOfSpeech is string => typeof partOfSpeech === "string",
-    ),
-  );
-}
-
-interface SubjectPartsOfSpeechLookup {
-  byId: Record<number, string[]>;
-}
-
-let subjectPartsOfSpeechLookupCache: SubjectPartsOfSpeechLookup | null = null;
-let subjectPartsOfSpeechLookupPromise: Promise<SubjectPartsOfSpeechLookup> | null =
-  null;
-
-function buildSubjectPartsOfSpeechLookup(
-  subjects: WKSubject[],
-): SubjectPartsOfSpeechLookup {
-  const byId: Record<number, string[]> = {};
-
-  for (const subject of subjects) {
-    const subjectId = Number(subject?.id);
-    if (!Number.isFinite(subjectId)) {
-      continue;
-    }
-
-    const partOfSpeechValues = extractAnkiPartOfSpeechValues(
-      (
-        subject?.data as {
-          parts_of_speech?: (string | null | undefined)[] | null;
-        }
-      )?.parts_of_speech,
-    );
-
-    if (partOfSpeechValues.length > 0) {
-      byId[subjectId] = partOfSpeechValues;
-    }
-  }
-
-  return { byId };
-}
-
-async function ensureSubjectPartsOfSpeechLookup(): Promise<SubjectPartsOfSpeechLookup> {
-  if (subjectPartsOfSpeechLookupCache) {
-    return subjectPartsOfSpeechLookupCache;
-  }
-
-  if (!subjectPartsOfSpeechLookupPromise) {
-    subjectPartsOfSpeechLookupPromise = (async () => {
-      const subjects = await getAllSubjects();
-      if (!Array.isArray(subjects) || subjects.length === 0) {
-        const emptyLookup = { byId: {} };
-        subjectPartsOfSpeechLookupCache = emptyLookup;
-        return emptyLookup;
-      }
-
-      const lookup = buildSubjectPartsOfSpeechLookup(subjects as WKSubject[]);
-      subjectPartsOfSpeechLookupCache = lookup;
-      return lookup;
-    })().catch((error) => {
-      subjectPartsOfSpeechLookupPromise = null;
-      throw error;
-    });
-  }
-
-  return subjectPartsOfSpeechLookupPromise;
-}
-
-function buildVoiceReadingLookupFromSubjects(subjects: WKSubject[]): VoiceReadingLookup {
-  const wordReadings = new Map<string, Set<string>>();
-  const singleKanjiReadings = new Map<string, Set<string>>();
-
-  for (const subject of subjects) {
-    const subjectCharacters = compactJapaneseText(subject?.data?.characters);
-    if (!subjectCharacters) {
-      continue;
-    }
-
-    const readings = Array.isArray(subject?.data?.readings)
-      ? subject.data.readings
-      : [];
-    if (readings.length === 0) {
-      continue;
-    }
-
-    if (!wordReadings.has(subjectCharacters)) {
-      wordReadings.set(subjectCharacters, new Set<string>());
-    }
-
-    const knownWordReadings = wordReadings.get(subjectCharacters);
-    if (!knownWordReadings) {
-      continue;
-    }
-
-    for (const readingEntry of readings) {
-      const normalizedReading = normalizeJapaneseReading(readingEntry?.reading);
-      if (normalizedReading) {
-        knownWordReadings.add(normalizedReading);
-      }
-    }
-
-    if (
-      subject.object !== "kanji" ||
-      subjectCharacters.length !== 1 ||
-      !KANJI_CHARACTER_REGEX.test(subjectCharacters)
-    ) {
-      continue;
-    }
-
-    if (!singleKanjiReadings.has(subjectCharacters)) {
-      singleKanjiReadings.set(subjectCharacters, new Set<string>());
-    }
-
-    const knownKanjiReadings = singleKanjiReadings.get(subjectCharacters);
-    if (!knownKanjiReadings) {
-      continue;
-    }
-
-    for (const readingEntry of readings) {
-      const normalizedReading = normalizeJapaneseReading(readingEntry?.reading);
-      if (normalizedReading) {
-        knownKanjiReadings.add(normalizedReading);
-      }
-    }
-  }
-
-  const wordReadingsRecord: Record<string, string[]> = {};
-  wordReadings.forEach((readings, characters) => {
-    wordReadingsRecord[characters] = Array.from(readings);
-  });
-
-  const singleKanjiReadingsRecord: Record<string, string[]> = {};
-  singleKanjiReadings.forEach((readings, characters) => {
-    singleKanjiReadingsRecord[characters] = Array.from(readings);
-  });
-
-  return {
-    wordReadings: wordReadingsRecord,
-    singleKanjiReadings: singleKanjiReadingsRecord,
-  };
-}
-
-async function ensureVoiceReadingLookup(): Promise<VoiceReadingLookup> {
-  if (voiceReadingLookupCache) {
-    return voiceReadingLookupCache;
-  }
-
-  if (!voiceReadingLookupPromise) {
-    voiceReadingLookupPromise = (async () => {
-      const subjects = await getAllSubjects();
-      if (!Array.isArray(subjects) || subjects.length === 0) {
-        throw new Error("No cached subjects available for voice reading lookup.");
-      }
-
-      const lookup = buildVoiceReadingLookupFromSubjects(subjects as WKSubject[]);
-      if (Object.keys(lookup.wordReadings).length === 0) {
-        throw new Error("Failed to build voice reading lookup from cached subjects.");
-      }
-
-      voiceReadingLookupCache = lookup;
-      return lookup;
-    })().catch((error) => {
-      voiceReadingLookupPromise = null;
-      throw error;
-    });
-  }
-
-  return voiceReadingLookupPromise;
-}
-
-function getTokenReadings(
-  token: string,
-  singleKanjiReadings: Record<string, string[]>,
-): string[] {
-  if (KANJI_CHARACTER_REGEX.test(token)) {
-    return Array.from(new Set(singleKanjiReadings[token] ?? []));
-  }
-
-  if (KANA_CHARACTER_REGEX.test(token)) {
-    const normalizedKana = normalizeJapaneseReading(token);
-    return normalizedKana ? [normalizedKana] : [];
-  }
-
-  return token ? [token] : [];
-}
-
-function canComposeExpectedReading(
-  tokenReadings: string[][],
-  expectedReading: string,
-): boolean {
-  const memo = new Map<string, boolean>();
-
-  const search = (tokenIndex: number, readingIndex: number): boolean => {
-    const memoKey = `${tokenIndex}:${readingIndex}`;
-    const memoizedResult = memo.get(memoKey);
-    if (memoizedResult !== undefined) {
-      return memoizedResult;
-    }
-
-    if (tokenIndex >= tokenReadings.length) {
-      const matches = readingIndex === expectedReading.length;
-      memo.set(memoKey, matches);
-      return matches;
-    }
-
-    const options = tokenReadings[tokenIndex] ?? [];
-    for (const option of options) {
-      if (!option || !expectedReading.startsWith(option, readingIndex)) {
-        continue;
-      }
-
-      if (search(tokenIndex + 1, readingIndex + option.length)) {
-        memo.set(memoKey, true);
-        return true;
-      }
-    }
-
-    memo.set(memoKey, false);
-    return false;
-  };
-
-  return search(0, 0);
-}
-
-function resolveExpectedReadingFromKanji(
-  lookupKey: string,
-  expectedReadings: string[],
-  lookup: VoiceReadingLookup,
-): string | null {
-  if (!lookupKey || expectedReadings.length === 0) {
-    return null;
-  }
-
-  const wkReadings = lookup.wordReadings[lookupKey] ?? [];
-  if (wkReadings.length > 0) {
-    const wkReadingSet = new Set(wkReadings);
-    for (const expectedReading of expectedReadings) {
-      if (wkReadingSet.has(expectedReading)) {
-        return expectedReading;
-      }
-    }
-  }
-
-  if (!KANJI_CHARACTER_REGEX.test(lookupKey)) {
-    return null;
-  }
-
-  const tokenReadings = Array.from(lookupKey).map((token) =>
-    getTokenReadings(token, lookup.singleKanjiReadings),
-  );
-
-  if (tokenReadings.some((options) => options.length === 0)) {
-    return null;
-  }
-
-  for (const expectedReading of expectedReadings) {
-    if (!expectedReading) {
-      continue;
-    }
-
-    if (canComposeExpectedReading(tokenReadings, expectedReading)) {
-      return expectedReading;
-    }
-  }
-
-  return null;
-}
 
 // Custom hook for animating percentage values (used for progress bar) - Reanimated version
 const useAnimatedPercentage = (
@@ -789,163 +154,6 @@ const useAnimatedPercentage = (
 
   return animatedValue;
 };
-
-// Stable, memoized character renderer to avoid unmount/remount on parent re-renders
-const RadicalCharacterDisplay = React.memo(
-  function RadicalCharacterDisplay({
-    subject,
-    size = Math.min(width * 0.25, 120),
-    forceDefaultFont = false,
-  }: {
-    subject: WKSubject;
-    size?: number;
-    forceDefaultFont?: boolean;
-  }) {
-    const { jitaiEnabled, jitaiSelectedFontIds } = useSettingsStore();
-    const [downloadedJitaiFonts, setDownloadedJitaiFonts] = useState<
-      DownloadedJitaiFont[]
-    >([]);
-    const isRadical = subject.object === "radical";
-
-    const bestImg =
-      isRadical && subject.data.character_images?.length
-        ? pickBestImage(subject.data.character_images)
-        : null;
-    const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
-    const svgXml = useRemoteSvg(svgUrl, "#ffffff");
-
-    useEffect(() => {
-      let cancelled = false;
-
-      loadDownloadedJitaiFonts()
-        .then((fonts) => {
-          if (!cancelled) {
-            setDownloadedJitaiFonts(fonts);
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to load downloaded Jitai fonts:", error);
-        });
-
-      return () => {
-        cancelled = true;
-      };
-    }, []);
-
-    // Randomize font if enabled (Jitai)
-    const selectedRandomFont = React.useMemo(() => {
-      if (!jitaiEnabled) {
-        return DEFAULT_JITAI_FONT_FAMILY;
-      }
-
-      const availableFonts = getJitaiFontFamiliesForSelection(
-        jitaiSelectedFontIds,
-        downloadedJitaiFonts,
-      );
-      const randomIndex = Math.floor(Math.random() * availableFonts.length);
-      const subjectOffset = subject.id % availableFonts.length;
-      return (
-        availableFonts[(randomIndex + subjectOffset) % availableFonts.length] ??
-        DEFAULT_JITAI_FONT_FAMILY
-      );
-    }, [subject.id, jitaiEnabled, jitaiSelectedFontIds, downloadedJitaiFonts]);
-
-    const fontToUse = forceDefaultFont
-      ? DEFAULT_JITAI_FONT_FAMILY
-      : selectedRandomFont;
-
-    if (subject.data.characters) {
-      return (
-        <Text
-          selectable
-          style={[
-            styles.characterText,
-            fontStyles.japaneseText,
-            { fontFamily: fontToUse, fontSize: size },
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {subject.data.characters}
-        </Text>
-      );
-    }
-
-    if (svgXml) {
-      return <SvgXml xml={svgXml} width={size} height={size} />;
-    }
-
-    if (svgUrl) {
-      return null; // loading svg
-    }
-
-    return (
-      <Text
-        style={styles.placeholderText}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {subject.data.meanings[0]?.meaning || ""}
-      </Text>
-    );
-  },
-  (prev, next) =>
-    prev.subject.id === next.subject.id &&
-    prev.size === next.size &&
-    prev.forceDefaultFont === next.forceDefaultFont,
-);
-
-const AnsweredItemCharacterDisplay = React.memo(function AnsweredItemCharacterDisplay({
-  subject,
-  fallbackText,
-}: {
-  subject: WKSubject;
-  fallbackText: string;
-}) {
-  const isRadical = subject.object === "radical";
-  const bestImg =
-    isRadical && subject.data.character_images?.length
-      ? pickBestImage(subject.data.character_images)
-      : null;
-  const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
-  const svgXml = useRemoteSvg(svgUrl, "#ffffff");
-
-  if (subject.data.characters) {
-    return (
-      <Text
-        style={styles.answeredItemCharacter}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {subject.data.characters}
-      </Text>
-    );
-  }
-
-  if (svgXml) {
-    return (
-      <SvgXml
-        xml={svgXml}
-        width={ANSWERED_ITEM_RADICAL_SIZE}
-        height={ANSWERED_ITEM_RADICAL_SIZE}
-      />
-    );
-  }
-
-  if (svgUrl) {
-    return null;
-  }
-
-  return (
-    <Text
-      style={styles.answeredItemCharacterFallback}
-      numberOfLines={1}
-      adjustsFontSizeToFit
-    >
-      {fallbackText}
-    </Text>
-  );
-});
 
 export default function ReviewQuestionScreen({
   item,
@@ -1022,7 +230,8 @@ export default function ReviewQuestionScreen({
     [reviewCharacterFontScale, windowWidth],
   );
   const effectiveShowAnswerStopSubjectDetails = showAnswerStopSubjectDetails;
-  const isVoiceReviewEnabled = Platform.OS === "ios" && voiceReviewAnswersEnabled;
+  const isVoiceReviewEnabled =
+    Platform.OS === "ios" && voiceReviewAnswersEnabled;
   const resolvedReviewIncorrectKeyboardShortcuts = useMemo(
     () =>
       resolveReviewIncorrectKeyboardShortcuts(reviewIncorrectKeyboardShortcuts),
@@ -1059,9 +268,9 @@ export default function ReviewQuestionScreen({
     "correct" | "incorrect" | "close" | null
   >(null);
   const [ankiAnswerRevealed, setAnkiAnswerRevealed] = useState(false);
-  const [ankiRevealQuestionKey, setAnkiRevealQuestionKey] = useState<string | null>(
-    null,
-  );
+  const [ankiRevealQuestionKey, setAnkiRevealQuestionKey] = useState<
+    string | null
+  >(null);
   const [isPausedOnWrong, setIsPausedOnWrong] = useState(false);
   const [isPausedOnCloseAnswer, setIsPausedOnCloseAnswer] = useState(false);
   const [isPausedOnCorrect, setIsPausedOnCorrect] = useState(false);
@@ -1069,11 +278,11 @@ export default function ReviewQuestionScreen({
     useState(false);
   const [wrongAnswerText, setWrongAnswerText] = useState<string | null>(null);
   const [closeAnswerText, setCloseAnswerText] = useState<string | null>(null);
-  const [correctAnswerText, setCorrectAnswerText] = useState<string | null>(null);
+  const [correctAnswerText, setCorrectAnswerText] = useState<string | null>(
+    null,
+  );
   const [reviewDetailRelatedSubjects, setReviewDetailRelatedSubjects] =
-    useState<ReviewDetailRelatedSubjects>(
-      EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS,
-    );
+    useState<ReviewDetailRelatedSubjects>(EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS);
   const [isAddingSynonym, setIsAddingSynonym] = useState(false);
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const [inputResetNonce, setInputResetNonce] = useState(0);
@@ -1085,9 +294,12 @@ export default function ReviewQuestionScreen({
   const [skipCueText, setSkipCueText] = useState<string | null>(null);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [iosKeyboardVisible, setIosKeyboardVisible] = useState(false);
-  const [iosKeyboardAvoidingEnabled, setIosKeyboardAvoidingEnabled] = useState(true);
-  const [androidQuestionLayoutHeight, setAndroidQuestionLayoutHeight] = useState(0);
-  const [ankiButtonlessOverlayWidth, setAnkiButtonlessOverlayWidth] = useState(0);
+  const [iosKeyboardAvoidingEnabled, setIosKeyboardAvoidingEnabled] =
+    useState(true);
+  const [androidQuestionLayoutHeight, setAndroidQuestionLayoutHeight] =
+    useState(0);
+  const [ankiButtonlessOverlayWidth, setAnkiButtonlessOverlayWidth] =
+    useState(0);
   const androidBaselineQuestionHeightRef = useRef(0);
   const interfaceIdiom = (
     Platform.constants as { interfaceIdiom?: string } | undefined
@@ -1105,11 +317,13 @@ export default function ReviewQuestionScreen({
   );
   const isVoiceSubmittingRef = useRef(false);
   const isVoiceRetryPendingRef = useRef(false);
-  const skipCueHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingAnkiSubmitCallbackRef = useRef<(() => void) | null>(null);
-  const pausedDetailsRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+  const skipCueHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const pendingAnkiSubmitCallbackRef = useRef<(() => void) | null>(null);
+  const pausedDetailsRevealTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const buttonlessGestureStartRef = useRef({ x: 0, y: 0 });
   const buttonlessGestureDeltaRef = useRef({ dx: 0, dy: 0 });
   const mountedRef = useRef(true);
@@ -1216,7 +430,10 @@ export default function ReviewQuestionScreen({
     const handleKeyboardDidShow = (event: KeyboardEvent) => {
       const endCoordinates = event.endCoordinates;
       const boundedWindowHeight = Math.max(1, Math.round(windowHeight));
-      const reportedHeight = Math.max(0, Math.round(endCoordinates?.height ?? 0));
+      const reportedHeight = Math.max(
+        0,
+        Math.round(endCoordinates?.height ?? 0),
+      );
       const reportedScreenY = Number.isFinite(endCoordinates?.screenY)
         ? Math.round(endCoordinates.screenY)
         : boundedWindowHeight - reportedHeight;
@@ -1225,7 +442,9 @@ export default function ReviewQuestionScreen({
       const isSuspiciousKeyboardFrame =
         (reportedHeight > 0 && reportedScreenY <= 1) ||
         effectiveHeight >=
-          Math.round(boundedWindowHeight * IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO);
+          Math.round(
+            boundedWindowHeight * IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO,
+          );
 
       if (isSuspiciousKeyboardFrame) {
         // Some iOS + external keyboard combinations report a full-screen frame.
@@ -1268,7 +487,10 @@ export default function ReviewQuestionScreen({
     if (Platform.OS !== "android") return;
 
     const handleKeyboardDidShow = (event: KeyboardEvent) => {
-      const nextHeight = Math.max(0, Math.round(event.endCoordinates?.height ?? 0));
+      const nextHeight = Math.max(
+        0,
+        Math.round(event.endCoordinates?.height ?? 0),
+      );
       setAndroidKeyboardHeight(nextHeight);
     };
 
@@ -1430,7 +652,8 @@ export default function ReviewQuestionScreen({
       return "";
     }
 
-    const numericKanjiTranscript = replaceArabicNumbersWithKanji(compactTranscript);
+    const numericKanjiTranscript =
+      replaceArabicNumbersWithKanji(compactTranscript);
 
     const subjectCharacters = compactJapaneseText(subject.data.characters);
     if (
@@ -1444,10 +667,7 @@ export default function ReviewQuestionScreen({
       }
     }
 
-    const hiraganaCandidate = convertKatakanaToHiragana(compactTranscript);
-    if (/[A-Za-z]/.test(hiraganaCandidate)) {
-      return convertRomajiToHiragana(hiraganaCandidate);
-    }
+    const hiraganaCandidate = normalizeJapaneseReading(compactTranscript);
 
     if (KANJI_CHARACTER_REGEX.test(numericKanjiTranscript)) {
       const lookup = voiceReadingLookupRef.current;
@@ -1644,7 +864,8 @@ export default function ReviewQuestionScreen({
 
   const checkVoicePermissions = useCallback(async () => {
     try {
-      const available = await ExpoSpeechRecognitionModule.isRecognitionAvailable();
+      const available =
+        await ExpoSpeechRecognitionModule.isRecognitionAvailable();
       if (!available) {
         setVoiceError("Speech recognition is not available on this device.");
         return false;
@@ -1769,9 +990,7 @@ export default function ReviewQuestionScreen({
     isVoiceSubmittingRef.current = true;
     isVoiceRetryPendingRef.current = false;
     setVoiceError(null);
-    setVoiceInterimTranscript(
-      submissionDelayMs > 0 ? detectedAnswer : "",
-    );
+    setVoiceInterimTranscript(submissionDelayMs > 0 ? detectedAnswer : "");
     latestVoiceResultsRef.current = [];
     setUserAnswer(detectedAnswer);
     kanaInputRef.current?.setInputText?.(detectedAnswer);
@@ -1780,7 +999,10 @@ export default function ReviewQuestionScreen({
       try {
         ExpoSpeechRecognitionModule.stop();
       } catch (error) {
-        console.error("Error stopping speech recognition before submit:", error);
+        console.error(
+          "Error stopping speech recognition before submit:",
+          error,
+        );
       }
     }
 
@@ -1935,7 +1157,8 @@ export default function ReviewQuestionScreen({
       }
       // Restore focus to avoid keyboard flicker
       if (wasFocused && !effectiveAnkiCardMode) {
-        const focusDelay = Platform.OS === "android" ? ANDROID_AUTOFOCUS_DELAY_MS : 0;
+        const focusDelay =
+          Platform.OS === "android" ? ANDROID_AUTOFOCUS_DELAY_MS : 0;
         if (focusDelay > 0) {
           setTimeout(() => {
             if (mountedRef.current) {
@@ -2052,14 +1275,22 @@ export default function ReviewQuestionScreen({
     // is not left in a stale focused state on iPad when progressing.
     Keyboard.dismiss();
 
-    const focusTimer = setTimeout(() => {
-      if (mountedRef.current) {
-        pausedShortcutInputRef.current?.focus();
-      }
-    }, Platform.OS === "android" ? 140 : 90);
+    const focusTimer = setTimeout(
+      () => {
+        if (mountedRef.current) {
+          pausedShortcutInputRef.current?.focus();
+        }
+      },
+      Platform.OS === "android" ? 140 : 90,
+    );
 
     return () => clearTimeout(focusTimer);
-  }, [isPausedOnWrong, isPausedOnCloseAnswer, isPausedOnCorrect, navigatingToDetail]);
+  }, [
+    isPausedOnWrong,
+    isPausedOnCloseAnswer,
+    isPausedOnCorrect,
+    navigatingToDetail,
+  ]);
 
   const completeAnswer = (feedbackType: "correct" | "incorrect" | "close") => {
     // Set answered state but don't animate the feedback overlay
@@ -2197,7 +1428,7 @@ export default function ReviewQuestionScreen({
 
   const waitForVocabularySoundToFinish = (
     sound: AudioSound,
-    requestId: number
+    requestId: number,
   ): Promise<void> =>
     new Promise((resolve) => {
       let settled = false;
@@ -2302,7 +1533,7 @@ export default function ReviewQuestionScreen({
 
         const cachedAudioUri = await getCachedOrDownloadVocabularyAudioUri(
           item.subject.id,
-          audioFile
+          audioFile,
         );
 
         if (requestId !== vocabularyAudioRequestIdRef.current) {
@@ -2415,7 +1646,10 @@ export default function ReviewQuestionScreen({
     }
 
     // Needed for the single-kanji vocabulary warning when users input a kanji reading.
-    if (questionType === "reading" && isSingleKanjiVocabularySubject(item.subject)) {
+    if (
+      questionType === "reading" &&
+      isSingleKanjiVocabularySubject(item.subject)
+    ) {
       await ensureVoiceReadingLookupLoaded();
     }
 
@@ -2431,7 +1665,7 @@ export default function ReviewQuestionScreen({
               voiceReadingLookupRef.current?.singleKanjiReadings,
             acceptAnyKanjiOnyomiReading,
           }
-        : undefined
+        : undefined,
     );
 
     result = resolveReadingModeResult({
@@ -2458,9 +1692,7 @@ export default function ReviewQuestionScreen({
         // Correct answer
         setAnswered(true);
         // Complete answer with animation and haptic feedback
-        await completeAnswer(
-          shouldPauseOnCloseAnswer ? "close" : "correct",
-        );
+        await completeAnswer(shouldPauseOnCloseAnswer ? "close" : "correct");
 
         if (!mountedRef.current) return;
 
@@ -2468,7 +1700,8 @@ export default function ReviewQuestionScreen({
           setIsPausedOnCloseAnswer(true);
           setIsPausedOnWrong(false);
           setIsPausedOnCorrect(false);
-          suppressSubmitUntilRef.current = Date.now() + PAUSED_SHORTCUT_GUARD_MS;
+          suppressSubmitUntilRef.current =
+            Date.now() + PAUSED_SHORTCUT_GUARD_MS;
           setCloseAnswerText(answer);
           setWrongAnswerText(null);
           setCorrectAnswerText(null);
@@ -2490,7 +1723,8 @@ export default function ReviewQuestionScreen({
           setIsPausedOnCloseAnswer(false);
           setIsPausedOnWrong(false);
           setIsPausedOnCorrect(true);
-          suppressSubmitUntilRef.current = Date.now() + PAUSED_SHORTCUT_GUARD_MS;
+          suppressSubmitUntilRef.current =
+            Date.now() + PAUSED_SHORTCUT_GUARD_MS;
           setCorrectAnswerText(answer);
           setCloseAnswerText(null);
           setWrongAnswerText(null);
@@ -2579,7 +1813,8 @@ export default function ReviewQuestionScreen({
           setIsPausedOnWrong(true);
           setIsPausedOnCloseAnswer(false);
           setIsPausedOnCorrect(false);
-          suppressSubmitUntilRef.current = Date.now() + PAUSED_SHORTCUT_GUARD_MS;
+          suppressSubmitUntilRef.current =
+            Date.now() + PAUSED_SHORTCUT_GUARD_MS;
           // Store the wrong answer to display it
           setWrongAnswerText(answer);
           setCloseAnswerText(null);
@@ -2750,7 +1985,10 @@ export default function ReviewQuestionScreen({
     let message = "Speech recognition failed. Please try again.";
     if (event.error === "not-allowed") {
       message = "Microphone permission denied. Enable it in Settings.";
-    } else if (event.error === "no-speech" || event.error === "speech-timeout") {
+    } else if (
+      event.error === "no-speech" ||
+      event.error === "speech-timeout"
+    ) {
       message = "No speech detected. Please try again.";
     } else if (event.message) {
       message = event.message;
@@ -2824,9 +2062,7 @@ export default function ReviewQuestionScreen({
     // Store this item for the animation
     const characters =
       subject.data.characters ||
-      (subject.data.character_images
-        ? subject.data.meanings[0].meaning
-        : "");
+      (subject.data.character_images ? subject.data.meanings[0].meaning : "");
     setPreviousAnswerItem({
       id: item.subject.id,
       subject: item.subject,
@@ -2874,9 +2110,7 @@ export default function ReviewQuestionScreen({
     // Store this item for the animation
     const characters =
       subject.data.characters ||
-      (subject.data.character_images
-        ? subject.data.meanings[0].meaning
-        : "");
+      (subject.data.character_images ? subject.data.meanings[0].meaning : "");
     setPreviousAnswerItem({
       id: item.subject.id,
       subject: item.subject,
@@ -3023,8 +2257,9 @@ export default function ReviewQuestionScreen({
     const srsStage =
       typeof item.srsStage === "number" ? item.srsStage : undefined;
     const progressionStatus: ReviewDetailProgressionStatus = "success";
-    const relatedComponents =
-      reviewDetailRelatedSubjects.componentSubjects.map(mapSubjectForDetailGrid);
+    const relatedComponents = reviewDetailRelatedSubjects.componentSubjects.map(
+      mapSubjectForDetailGrid,
+    );
     const relatedAmalgamations =
       reviewDetailRelatedSubjects.amalgamationSubjects.map(
         mapSubjectForDetailGrid,
@@ -3057,12 +2292,14 @@ export default function ReviewQuestionScreen({
             imageUrl: characterImages[0]?.url || null,
             documentUrl:
               typeof data.document_url === "string" ? data.document_url : null,
-            amalgamationSubjects: relatedAmalgamations.map((relatedSubject) => ({
-              id: relatedSubject.id,
-              characters: relatedSubject.characters || "",
-              meanings: relatedSubject.meanings,
-              level: relatedSubject.level,
-            })),
+            amalgamationSubjects: relatedAmalgamations.map(
+              (relatedSubject) => ({
+                id: relatedSubject.id,
+                characters: relatedSubject.characters || "",
+                meanings: relatedSubject.meanings,
+                level: relatedSubject.level,
+              }),
+            ),
             userSynonyms,
             srsStage,
           }}
@@ -3099,12 +2336,14 @@ export default function ReviewQuestionScreen({
             readingHint:
               typeof data.reading_hint === "string" ? data.reading_hint : null,
             componentSubjects: relatedComponents,
-            amalgamationSubjects: relatedAmalgamations.map((relatedSubject) => ({
-              id: relatedSubject.id,
-              characters: relatedSubject.characters || "",
-              meanings: relatedSubject.meanings,
-              level: relatedSubject.level,
-            })),
+            amalgamationSubjects: relatedAmalgamations.map(
+              (relatedSubject) => ({
+                id: relatedSubject.id,
+                characters: relatedSubject.characters || "",
+                meanings: relatedSubject.meanings,
+                level: relatedSubject.level,
+              }),
+            ),
             visuallySimilarSubjects: visuallySimilarSubjects.map(
               (relatedSubject) => ({
                 id: relatedSubject.id,
@@ -3358,9 +2597,7 @@ export default function ReviewQuestionScreen({
     // Store this item for the animation
     const incorrectCharacters =
       subject.data.characters ||
-      (subject.data.character_images
-        ? subject.data.meanings[0].meaning
-        : "");
+      (subject.data.character_images ? subject.data.meanings[0].meaning : "");
     setPreviousAnswerItem({
       id: item.subject.id,
       subject: item.subject,
@@ -3443,7 +2680,7 @@ export default function ReviewQuestionScreen({
       const existingSynonyms = studyMaterials?.meaning_synonyms || [];
 
       // Check if synonym already exists (shouldn't happen but be safe)
-      if (existingSynonyms.some(s => s.toLowerCase() === newSynonym)) {
+      if (existingSynonyms.some((s) => s.toLowerCase() === newSynonym)) {
         // Already exists, just mark as correct
         handleMarkCorrect();
         return;
@@ -3452,9 +2689,13 @@ export default function ReviewQuestionScreen({
       const updatedSynonyms = [...existingSynonyms, newSynonym];
 
       // Check if study material exists for this subject
-      const studyMaterialsResponse = await getStudyMaterials(apiToken, {
-        subject_ids: [subjectId],
-      }, { skipCache: true });
+      const studyMaterialsResponse = await getStudyMaterials(
+        apiToken,
+        {
+          subject_ids: [subjectId],
+        },
+        { skipCache: true },
+      );
 
       const existingMaterial = studyMaterialsResponse?.data?.[0];
 
@@ -3498,9 +2739,7 @@ export default function ReviewQuestionScreen({
     hasReplayableVocabularyAudio &&
     (questionType === "reading" || effectiveAnkiGroupQuestions);
 
-  const handlePausedShortcutKeyPress = (
-    event: TextInputKeyPressEvent,
-  ) => {
+  const handlePausedShortcutKeyPress = (event: TextInputKeyPressEvent) => {
     const pressedKey = event.nativeEvent.key;
     if (!pressedKey) {
       return;
@@ -3728,9 +2967,7 @@ export default function ReviewQuestionScreen({
 
     const characters =
       subject.data.characters ||
-      (subject.data.character_images
-        ? subject.data.meanings[0].meaning
-        : "");
+      (subject.data.character_images ? subject.data.meanings[0].meaning : "");
 
     if (isCorrect) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -3901,9 +3138,9 @@ export default function ReviewQuestionScreen({
     ).parts_of_speech;
     return extractAnkiPartOfSpeechValues(partsOfSpeech);
   }, [subject.data]);
-  const [ankiPartOfSpeechValues, setAnkiPartOfSpeechValues] = useState<string[]>(
-    directAnkiPartOfSpeechValues,
-  );
+  const [ankiPartOfSpeechValues, setAnkiPartOfSpeechValues] = useState<
+    string[]
+  >(directAnkiPartOfSpeechValues);
 
   useEffect(() => {
     setAnkiPartOfSpeechValues(directAnkiPartOfSpeechValues);
@@ -4012,7 +3249,8 @@ export default function ReviewQuestionScreen({
   const userSynonymsForAnki = useMemo(
     () =>
       userSynonymAnswerOptions.filter(
-        (answer) => !acceptedMeaningAnswerKeySet.has(normalizeAnswerKey(answer)),
+        (answer) =>
+          !acceptedMeaningAnswerKeySet.has(normalizeAnswerKey(answer)),
       ),
     [acceptedMeaningAnswerKeySet, userSynonymAnswerOptions],
   );
@@ -4119,14 +3357,20 @@ export default function ReviewQuestionScreen({
     }
 
     if (effectiveAnkiGroupQuestions) {
-      if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
+      if (
+        shouldShowAcceptedAnswersAndSynonyms &&
+        otherAcceptedMeaningAnswers.length > 0
+      ) {
         rows.push({
           key: "other-accepted-meanings",
           label: "Other meaning answers",
           values: otherAcceptedMeaningAnswers,
         });
       }
-      if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedReadingAnswers.length > 0) {
+      if (
+        shouldShowAcceptedAnswersAndSynonyms &&
+        otherAcceptedReadingAnswers.length > 0
+      ) {
         rows.push({
           key: "other-accepted-readings",
           label: "Other reading answers",
@@ -4141,7 +3385,10 @@ export default function ReviewQuestionScreen({
           values: ankiPartOfSpeechValues,
         });
       }
-      if (shouldShowAcceptedAnswersAndSynonyms && userSynonymsForAnki.length > 0) {
+      if (
+        shouldShowAcceptedAnswersAndSynonyms &&
+        userSynonymsForAnki.length > 0
+      ) {
         rows.push({
           key: "user-synonyms",
           label: "User synonyms",
@@ -4152,7 +3399,10 @@ export default function ReviewQuestionScreen({
     }
 
     if (questionType === "meaning") {
-      if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
+      if (
+        shouldShowAcceptedAnswersAndSynonyms &&
+        otherAcceptedMeaningAnswers.length > 0
+      ) {
         rows.push({
           key: "other-accepted-meanings",
           label: "Other accepted answers",
@@ -4166,7 +3416,10 @@ export default function ReviewQuestionScreen({
           values: ankiPartOfSpeechValues,
         });
       }
-      if (shouldShowAcceptedAnswersAndSynonyms && userSynonymsForAnki.length > 0) {
+      if (
+        shouldShowAcceptedAnswersAndSynonyms &&
+        userSynonymsForAnki.length > 0
+      ) {
         rows.push({
           key: "user-synonyms",
           label: "User synonyms",
@@ -4176,7 +3429,10 @@ export default function ReviewQuestionScreen({
       return rows;
     }
 
-    if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedReadingAnswers.length > 0) {
+    if (
+      shouldShowAcceptedAnswersAndSynonyms &&
+      otherAcceptedReadingAnswers.length > 0
+    ) {
       rows.push({
         key: "other-accepted-readings",
         label: "Other accepted answers",
@@ -4221,7 +3477,8 @@ export default function ReviewQuestionScreen({
     const objectType = subject.object as string;
     if (objectType === "radical") return "Radical";
     if (objectType === "kanji") return "Kanji";
-    if (objectType === "vocabulary" || objectType === "kana_vocabulary") return "Vocabulary";
+    if (objectType === "vocabulary" || objectType === "kana_vocabulary")
+      return "Vocabulary";
     return "";
   };
 
@@ -4326,16 +3583,15 @@ export default function ReviewQuestionScreen({
   const isPausedOnAnswer =
     isPausedOnWrong || isPausedOnCloseAnswer || isPausedOnCorrect;
   const shouldUsePausedSubjectDetailsMode =
-    effectiveShowAnswerStopSubjectDetails && isPausedOnAnswer && !effectiveAnkiCardMode;
+    effectiveShowAnswerStopSubjectDetails &&
+    isPausedOnAnswer &&
+    !effectiveAnkiCardMode;
   const shouldShowPausedSubjectDetails =
     shouldUsePausedSubjectDetailsMode && pausedDetailsSheetVisible;
   const pausedSubjectDetailsPanelHeight = Math.round(
     Math.max(
       240,
-      Math.min(
-        windowHeight * (windowWidth > windowHeight ? 0.5 : 0.48),
-        430,
-      ),
+      Math.min(windowHeight * (windowWidth > windowHeight ? 0.5 : 0.48), 430),
     ),
   );
   const pausedDetailsLayoutTransition = LinearTransition.duration(260).easing(
@@ -4419,7 +3675,8 @@ export default function ReviewQuestionScreen({
     androidBaselineQuestionHeightRef.current > 0
       ? Math.max(
           0,
-          androidBaselineQuestionHeightRef.current - androidQuestionLayoutHeight,
+          androidBaselineQuestionHeightRef.current -
+            androidQuestionLayoutHeight,
         )
       : 0;
   const androidKeyboardFallbackLift =
@@ -4447,8 +3704,7 @@ export default function ReviewQuestionScreen({
   const shouldShowSrsProgressionCard =
     !!srsProgression && srsProgressionCardDisplayMode !== "hidden";
   const shouldUseCompactSrsProgressionCard =
-    shouldShowSrsProgressionCard &&
-    srsProgressionCardDisplayMode === "compact";
+    shouldShowSrsProgressionCard && srsProgressionCardDisplayMode === "compact";
   const shouldFullyHideAnkiAnswer =
     ankiHideAnswerCompletely && !isCurrentQuestionAnkiRevealed;
   const showAnkiSkipChip =
@@ -4472,18 +3728,29 @@ export default function ReviewQuestionScreen({
 
     return (
       <View
-        style={[styles.reviewMetadataStack, inRow && styles.reviewMetadataStackInRow]}
+        style={[
+          styles.reviewMetadataStack,
+          inRow && styles.reviewMetadataStackInRow,
+        ]}
         pointerEvents="none"
       >
         <View style={styles.reviewMetadataPill}>
           <Ionicons name="school-outline" size={13} color="white" />
-          <Text style={styles.reviewMetadataText}>{`Level ${reviewSubjectLevel}`}</Text>
+          <Text
+            style={styles.reviewMetadataText}
+          >{`Level ${reviewSubjectLevel}`}</Text>
         </View>
         <View style={styles.reviewMetadataPill}>
           <View style={styles.reviewMetadataSrsIcon}>
-            <SrsLevelIcon level={reviewSrsStageInfo.iconLevel} size={14} color="white" />
+            <SrsLevelIcon
+              level={reviewSrsStageInfo.iconLevel}
+              size={14}
+              color="white"
+            />
           </View>
-          <Text style={styles.reviewMetadataText}>{reviewSrsStageInfo.label}</Text>
+          <Text style={styles.reviewMetadataText}>
+            {reviewSrsStageInfo.label}
+          </Text>
         </View>
       </View>
     );
@@ -4691,8 +3958,17 @@ export default function ReviewQuestionScreen({
             activeOpacity={0.8}
           >
             <View style={[styles.srsCardContent, styles.srsCardContentCompact]}>
-              <View style={[styles.srsIconContainer, styles.srsIconContainerCompact]}>
-                <SrsLevelIcon level={srsProgression.newLevel} size={18} color="white" />
+              <View
+                style={[
+                  styles.srsIconContainer,
+                  styles.srsIconContainerCompact,
+                ]}
+              >
+                <SrsLevelIcon
+                  level={srsProgression.newLevel}
+                  size={18}
+                  color="white"
+                />
               </View>
               <View style={styles.srsTextContainer}>
                 <View style={styles.srsArrowAndLevel}>
@@ -4701,11 +3977,16 @@ export default function ReviewQuestionScreen({
                     size={11}
                     color="white"
                   />
-                  <Text style={[styles.srsCardLevel, styles.srsCardLevelCompact]}>
+                  <Text
+                    style={[styles.srsCardLevel, styles.srsCardLevelCompact]}
+                  >
                     {srsProgression.newLevel}
                   </Text>
                 </View>
-                <Text style={[styles.srsNextReview, styles.srsNextReviewCompact]} numberOfLines={1}>
+                <Text
+                  style={[styles.srsNextReview, styles.srsNextReviewCompact]}
+                  numberOfLines={1}
+                >
                   {srsProgression.newStage >= 9
                     ? "🔥 Burned!"
                     : srsProgression.nextReviewInterval}
@@ -4801,869 +4082,230 @@ export default function ReviewQuestionScreen({
               styles.reviewInteractionPaneWithDetails,
           ]}
         >
-        {/* Character display (or overridden prompt) */}
-        <View
-          style={[
-            styles.characterWrapper,
-            shouldShowPausedSubjectDetails && styles.characterWrapperWithDetails,
-          ]}
-        >
-          <View style={styles.characterContainer}>
-            {overridePromptText ? (
-              <>
-                <Text
-                  style={[
-                    styles.placeholderText,
-                    overridePromptUsesJapaneseFont && fontStyles.japaneseText,
-                  ]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                >
-                  {overridePromptText}
-                </Text>
-                {!!overridePromptSubtext && (
-                  <Text
-                    style={styles.placeholderSubtext}
-                    numberOfLines={3}
-                    adjustsFontSizeToFit
-                  >
-                    {overridePromptSubtext}
-                  </Text>
-                )}
-              </>
-            ) : (
-              <RadicalCharacterDisplay
-                subject={subject}
-                size={reviewPromptCharacterSize}
-                forceDefaultFont={isUsingDefaultJitaiFont}
-              />
-            )}
-          </View>
-
-          {/* Context Hint Button - only show when context sentences are available */}
-          {contextSentencesHint && contextSentencesHint.length > 0 && (
-            <View style={styles.contextHintContainer}>
-              <TouchableOpacity
-                style={styles.contextHintButton}
-                onPress={() => setShowContextHint(!showContextHint)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={showContextHint ? "chevron-up" : "help-circle-outline"}
-                  size={18}
-                  color="rgba(255, 255, 255, 0.8)"
-                />
-                <Text style={styles.contextHintButtonText}>
-                  {showContextHint ? "Hide Hint" : "Show Context Hint"}
-                </Text>
-              </TouchableOpacity>
-
-              {showContextHint && (
-                <View style={styles.contextHintContent}>
-                  {contextSentencesHint.slice(0, contextHintMaxItems).map((sentence, index) => (
-                    <View
-                      key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
-                      style={styles.contextHintSentenceGroup}
-                    >
-                      {!!sentence.ja && (
-                        <Text
-                          style={[
-                            styles.contextHintSentence,
-                            styles.contextHintSentenceJapanese,
-                            fontStyles.japaneseText,
-                          ]}
-                          numberOfLines={3}
-                        >
-                          • {sentence.ja}
-                        </Text>
-                      )}
-                      {!!sentence.en && (
-                        <Text
-                          style={styles.contextHintSentence}
-                          numberOfLines={3}
-                        >
-                          • {sentence.en}
-                        </Text>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
-        {effectiveAnkiCardMode ? (
-          /* Anki Card Mode */
-          <View style={styles.ankiCardContainer}>
-            <TouchableOpacity
-              style={styles.ankiAnswerContainer}
-              onPress={
-                !isCurrentQuestionAnkiRevealed ? handleAnkiRevealAnswer : undefined
-              }
-              activeOpacity={1}
-              disabled={isCurrentQuestionAnkiRevealed}
-            >
-            {((shouldShowSrsProgressionCard && !shouldUseCompactSrsProgressionCard) ||
-              showAnkiSkipChip ||
-              shouldShowReviewItemMetadata) && (
-              <View
-                style={[
-                  styles.ankiPreCardOverlayRow,
-                  { justifyContent: ankiPreCardOverlayJustification },
-                ]}
-              >
-                {shouldShowReviewItemMetadata && renderReviewMetadata(true)}
-                {showAnkiSkipChip && (
-                  <TouchableOpacity
-                    style={[
-                      styles.ankiPreRevealSkipChip,
-                      theme.isDark
-                        ? styles.ankiPreRevealSkipChipDark
-                        : styles.ankiPreRevealSkipChipLight,
-                    ]}
-                    onPress={handleAnkiSkipButton}
-                    activeOpacity={0.85}
-                    accessibilityLabel="Skip this card"
-                  >
-                    <Ionicons
-                      name="play-skip-forward"
-                      size={16}
-                      color={theme.isDark ? "#D1D5DB" : "#334155"}
-                    />
-                    <Text
-                      style={[
-                        styles.ankiPreRevealSkipChipText,
-                        { color: theme.isDark ? "#D1D5DB" : "#334155" },
-                      ]}
-                    >
-                      Skip
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {shouldShowSrsProgressionCard &&
-                  !shouldUseCompactSrsProgressionCard &&
-                  srsProgression && (
-                  <Animated.View
-                    style={[
-                      styles.ankiSrsProgressionOverlay,
-                      shouldOffsetSrsCardToSide
-                        ? styles.ankiSrsProgressionOverlaySide
-                        : styles.ankiSrsProgressionOverlayCentered,
-                      srsCardStyle,
-                    ]}
-                    pointerEvents="box-none"
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.srsProgressionCardInline,
-                        {
-                          backgroundColor: srsProgression.isCorrect
-                            ? "#4caf50"
-                            : "#f44336",
-                        },
-                      ]}
-                      onPress={onSRSCardDismiss}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.srsCardContent}>
-                        <View style={styles.srsIconContainer}>
-                          <SrsLevelIcon
-                            level={srsProgression.newLevel}
-                            size={22}
-                            color="white"
-                          />
-                        </View>
-                        <View style={styles.srsTextContainer}>
-                          <View style={styles.srsArrowAndLevel}>
-                            <Ionicons
-                              name={srsProgression.isCorrect ? "arrow-up" : "arrow-down"}
-                              size={12}
-                              color="white"
-                            />
-                            <Text style={styles.srsCardLevel}>
-                              {srsProgression.newLevel}
-                            </Text>
-                          </View>
-                          <Text style={styles.srsNextReview}>
-                            {srsProgression.newStage >= 9
-                              ? "🔥 Burned!"
-                              : `Next: ${srsProgression.nextReviewInterval}`}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  </Animated.View>
-                )}
-              </View>
-            )}
-
-            <View
-              style={[
-                styles.banner,
-                effectiveAnkiGroupQuestions
-                  ? styles.bannerGrouped
-                  : questionType === "meaning"
-                    ? styles.bannerMeaning
-                    : styles.bannerReading,
-                !effectiveAnkiGroupQuestions &&
-                  questionType === "meaning" &&
-                  theme.isDark && {
-                    backgroundColor: DARK_MODE_MEANING_BANNER_BG,
-                  },
-                !effectiveAnkiGroupQuestions &&
-                  questionType === "reading" &&
-                  theme.isDark && {
-                    backgroundColor: DARK_MODE_READING_BANNER_BG,
-                  },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.bannerText,
-                  effectiveAnkiGroupQuestions
-                    ? styles.bannerTextGrouped
-                    : questionType === "meaning"
-                      ? styles.bannerTextMeaning
-                      : styles.bannerTextReading,
-                  !effectiveAnkiGroupQuestions &&
-                    questionType === "meaning" &&
-                    theme.isDark && {
-                      color: DARK_MODE_MEANING_BANNER_TEXT,
-                    },
-                ]}
-              >
-                {getSubjectTypeLabel()}{" "}
-                <Text style={styles.bannerTextBold}>
-                  {effectiveAnkiGroupQuestions
-                    ? "Meaning & Reading"
-                    : questionType === "meaning"
-                      ? "Meaning"
-                      : "Reading"}
-                </Text>
-              </Text>
-            </View>
-
-            <Animated.View
-              style={[
-                styles.ankiContentContainer,
-                ankiContainerStyle,
-                theme.isDark && { backgroundColor: "#000000" },
-              ]}
-            >
-              {/* Answer display area */}
-              <View style={styles.ankiAnswerSection}>
-                <View style={styles.ankiBlurContainer}>
-                  {!shouldFullyHideAnkiAnswer && (
-                    <>
-                      {(() => {
-                        const answer = getCorrectAnswer();
-                        if (typeof answer === "object" && answer.isGrouped) {
-                          return (
-                            <>
-                              <Text
-                                style={[
-                                  styles.ankiAnswerText,
-                                  theme.isDark && { color: "#ffffff" },
-                                ]}
-                              >
-                                {answer.meaning}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.ankiAnswerText,
-                                  fontStyles.japaneseText,
-                                  { marginTop: 8 },
-                                  theme.isDark && { color: "#ffffff" },
-                                ]}
-                              >
-                                {answer.reading}
-                              </Text>
-                            </>
-                          );
-                        }
-                        return (
-                          <Text
-                            style={[
-                              styles.ankiAnswerText,
-                              questionType === "reading"
-                                ? fontStyles.japaneseText
-                                : null,
-                              theme.isDark && { color: "#ffffff" },
-                            ]}
-                          >
-                            {typeof answer === "string" ? answer : ""}
-                          </Text>
-                        );
-                      })()}
-                      {isCurrentQuestionAnkiRevealed &&
-                        ankiSupplementaryAnswerRows.length > 0 && (
-                          <View style={styles.ankiSupplementaryAnswersContainer}>
-                            {ankiSupplementaryAnswerRows.map((row) => (
-                              <View
-                                key={row.key}
-                                style={styles.ankiSupplementaryAnswerRow}
-                              >
-                                <Text
-                                  style={[
-                                    styles.ankiSupplementaryAnswerLabel,
-                                    theme.isDark && {
-                                      color: "rgba(255, 255, 255, 0.62)",
-                                    },
-                                  ]}
-                                >
-                                  {row.label}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.ankiSupplementaryAnswerValue,
-                                    row.japanese && fontStyles.japaneseText,
-                                    theme.isDark && { color: "#F4F4F5" },
-                                  ]}
-                                >
-                                  {row.values.join(", ")}
-                                </Text>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-                      {!isCurrentQuestionAnkiRevealed &&
-                        (Platform.OS === "ios" ? (
-                          <BlurView
-                            intensity={80}
-                            style={styles.ankiBlurOverlay}
-                            tint={theme.isDark ? "dark" : "light"}
-                          />
-                        ) : (
-                          // Android: BlurView doesn't work well, use opaque overlay instead
-                          <View
-                            style={[
-                              styles.ankiBlurOverlay,
-                              {
-                                backgroundColor: theme.isDark
-                                  ? "#000000"
-                                  : "#ffffff",
-                              },
-                            ]}
-                          />
-                        ))}
-                    </>
-                  )}
-                </View>
-                {!isCurrentQuestionAnkiRevealed && (
-                  <View style={styles.ankiTapHint}>
-                    <Ionicons
-                      name="finger-print-outline"
-                      size={18}
-                      color={theme.isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)"}
-                    />
-                    <Text style={[styles.ankiTapToReveal, theme.isDark && { color: "rgba(255,255,255,0.6)" }]}>
-                      Tap anywhere to see the answer
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {showAnkiReplayButton && (
-                <View style={styles.ankiReplaySection}>
-                  <TouchableOpacity
-                    style={[
-                      styles.ankiReplayButton,
-                      theme.isDark && styles.ankiReplayButtonDark,
-                      isReplayingAudio && styles.ankiReplayButtonDisabled,
-                    ]}
-                    onPress={() => {
-                      void handleReplayAudio();
-                    }}
-                    activeOpacity={0.75}
-                    disabled={isReplayingAudio}
-                    accessibilityLabel="Replay vocabulary audio"
-                  >
-                    <Ionicons
-                      name={isReplayingAudio ? "sync" : "volume-high"}
-                      size={16}
-                      color={theme.isDark ? "#DDD6FE" : "#6D28D9"}
-                    />
-                    <Text
-                      style={[
-                        styles.ankiReplayButtonText,
-                        { color: theme.isDark ? "#DDD6FE" : "#6D28D9" },
-                      ]}
-                    >
-                      {isReplayingAudio ? "Replaying..." : "Replay"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Buttons (animated in when revealed) */}
-              {isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode && (
-                <Animated.View
-                  style={[styles.ankiButtonSection, ankiButtonSectionStyle]}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.ankiButton,
-                      styles.ankiButtonWrong,
-                      theme.isDark && { backgroundColor: "#3D1F1F", borderColor: "#5C2B2B" },
-                    ]}
-                    onPress={() => handleAnkiAnswerButton(false)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.ankiButtonIconContainer}>
-                      <Ionicons name="close" size={24} color="#D92C2C" />
-                    </View>
-                    <Text style={[styles.ankiButtonText, { color: "#D92C2C" }]}>
-                      Wrong
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.ankiButton,
-                      styles.ankiButtonDetails,
-                      theme.isDark && { backgroundColor: "#1A2F3D", borderColor: "#254559" },
-                    ]}
-                    onPress={handleAnkiDetailsButton}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.ankiButtonIconContainer}>
-                      <Ionicons
-                        name="information-circle"
-                        size={24}
-                        color="#0096FF"
-                      />
-                    </View>
-                    <Text style={[styles.ankiButtonText, { color: "#0096FF" }]}>
-                      Details
-                    </Text>
-                  </TouchableOpacity>
-
-                  {allowSkippingReviews && onSkip && (
-                    <TouchableOpacity
-                      style={[
-                        styles.ankiButton,
-                        styles.ankiButtonSkip,
-                        theme.isDark && { backgroundColor: "#2A2E35", borderColor: "#3A4250" },
-                      ]}
-                      onPress={handleAnkiSkipButton}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.ankiButtonIconContainer}>
-                        <Ionicons
-                          name="play-skip-forward"
-                          size={24}
-                          color={theme.isDark ? "#CBD5E1" : "#4A5568"}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.ankiButtonText,
-                          { color: theme.isDark ? "#CBD5E1" : "#4A5568" },
-                        ]}
-                      >
-                        Skip
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={[
-                      styles.ankiButton,
-                      styles.ankiButtonCorrect,
-                      theme.isDark && { backgroundColor: "#1F3D1F", borderColor: "#2B5C2B" },
-                    ]}
-                    onPress={() => handleAnkiAnswerButton(true)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.ankiButtonIconContainer}>
-                      <Ionicons name="checkmark" size={24} color="#00B300" />
-                    </View>
-                    <Text style={[styles.ankiButtonText, { color: "#00B300" }]}>
-                      Correct
-                    </Text>
-                  </TouchableOpacity>
-                </Animated.View>
-              )}
-
-            </Animated.View>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          /* Traditional WaniKani Mode */
-          <Animated.View
-            layout={
-              effectiveShowAnswerStopSubjectDetails
-                ? pausedDetailsLayoutTransition
-                : undefined
-            }
+          {/* Character display (or overridden prompt) */}
+          <View
             style={[
-              styles.answerContainer,
-              Platform.OS === "android" &&
-                androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift },
-              shouldShowPausedSubjectDetails && [
-                styles.pausedUnifiedDetailsSheet,
-                {
-                  backgroundColor: theme.backgroundColor,
-                  borderColor: theme.border,
-                },
-              ],
+              styles.characterWrapper,
+              shouldShowPausedSubjectDetails &&
+                styles.characterWrapperWithDetails,
             ]}
           >
-            {/* SRS Progression Card - above input field */}
-            {shouldShowSrsProgressionCard &&
-              !shouldUseCompactSrsProgressionCard &&
-              srsProgression && (
-              <Animated.View
-                style={[
-                  styles.srsProgressionCard,
-                  {
-                    backgroundColor: srsProgression.isCorrect
-                      ? "#4caf50"
-                      : "#f44336",
-                  },
-                  srsCardPositionStyle,
-                  srsCardStyle,
-                ]}
-                pointerEvents="box-none"
-              >
+            <View style={styles.characterContainer}>
+              {overridePromptText ? (
+                <>
+                  <Text
+                    style={[
+                      styles.placeholderText,
+                      overridePromptUsesJapaneseFont && fontStyles.japaneseText,
+                    ]}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                  >
+                    {overridePromptText}
+                  </Text>
+                  {!!overridePromptSubtext && (
+                    <Text
+                      style={styles.placeholderSubtext}
+                      numberOfLines={3}
+                      adjustsFontSizeToFit
+                    >
+                      {overridePromptSubtext}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <RadicalCharacterDisplay
+                  subject={subject}
+                  size={reviewPromptCharacterSize}
+                  forceDefaultFont={isUsingDefaultJitaiFont}
+                />
+              )}
+            </View>
+
+            {/* Context Hint Button - only show when context sentences are available */}
+            {contextSentencesHint && contextSentencesHint.length > 0 && (
+              <View style={styles.contextHintContainer}>
                 <TouchableOpacity
-                  style={styles.srsCardContent}
-                  onPress={onSRSCardDismiss}
-                  activeOpacity={0.8}
+                  style={styles.contextHintButton}
+                  onPress={() => setShowContextHint(!showContextHint)}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.srsIconContainer}>
-                    <SrsLevelIcon
-                      level={srsProgression.newLevel}
-                      size={22}
-                      color="white"
-                    />
-                  </View>
-                  <View style={styles.srsTextContainer}>
-                    <View style={styles.srsArrowAndLevel}>
-                      <Ionicons
-                        name={srsProgression.isCorrect ? "arrow-up" : "arrow-down"}
-                        size={12}
-                        color="white"
-                      />
-                      <Text style={styles.srsCardLevel}>
-                        {srsProgression.newLevel}
-                      </Text>
-                    </View>
-                    <Text style={styles.srsNextReview}>
-                      {srsProgression.newStage >= 9
-                        ? "🔥 Burned!"
-                        : `Next: ${srsProgression.nextReviewInterval}`}
-                    </Text>
-                  </View>
+                  <Ionicons
+                    name={
+                      showContextHint ? "chevron-up" : "help-circle-outline"
+                    }
+                    size={18}
+                    color="rgba(255, 255, 255, 0.8)"
+                  />
+                  <Text style={styles.contextHintButtonText}>
+                    {showContextHint ? "Hide Hint" : "Show Context Hint"}
+                  </Text>
                 </TouchableOpacity>
-              </Animated.View>
-            )}
 
-            {!shouldUsePausedSubjectDetailsMode && renderReviewMetadata()}
-
-            {/* Paused on wrong answer - show correct answer and actions */}
-            {isPausedOnWrong && !shouldUsePausedSubjectDetailsMode && (
-              <View style={styles.pausedCard}>
-                <View style={styles.pausedCardHeader}>
-                  <View style={styles.pausedCardIconContainer}>
-                    <Ionicons name="close-circle" size={24} color="#f44336" />
+                {showContextHint && (
+                  <View style={styles.contextHintContent}>
+                    {contextSentencesHint
+                      .slice(0, contextHintMaxItems)
+                      .map((sentence, index) => (
+                        <View
+                          key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
+                          style={styles.contextHintSentenceGroup}
+                        >
+                          {!!sentence.ja && (
+                            <Text
+                              style={[
+                                styles.contextHintSentence,
+                                styles.contextHintSentenceJapanese,
+                                fontStyles.japaneseText,
+                              ]}
+                              numberOfLines={3}
+                            >
+                              • {sentence.ja}
+                            </Text>
+                          )}
+                          {!!sentence.en && (
+                            <Text
+                              style={styles.contextHintSentence}
+                              numberOfLines={3}
+                            >
+                              • {sentence.en}
+                            </Text>
+                          )}
+                        </View>
+                      ))}
                   </View>
-                  <Text style={styles.pausedCardTitle}>Incorrect</Text>
-                </View>
-
-                <View style={styles.correctAnswerSection}>
-                  <Text style={styles.correctAnswerLabel}>Correct answer:</Text>
-                  <Text
-                    style={[
-                      styles.correctAnswerText,
-                      questionType === "reading" && fontStyles.japaneseText,
-                    ]}
-                  >
-                    {pausedCorrectAnswerText}
-                  </Text>
-                </View>
-
-                <View style={styles.pausedPrimaryActions}>
-                  <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
-                    onPress={handleProgressAsWrong}
-                  >
-                    <Ionicons name="close" size={18} color="#f44336" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#f44336" }]}>
-                      Mark Incorrect
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonSkip]}
-                    onPress={handlePausedSkip}
-                  >
-                    <Ionicons name="play-skip-forward" size={18} color="#2196F3" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#2196F3" }]}>
-                      Skip
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonCorrect]}
-                    onPress={handleMarkCorrect}
-                  >
-                    <Ionicons name="checkmark" size={18} color="#4caf50" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#4caf50" }]}>
-                      Mark Correct
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.pausedSecondaryActions}>
-                  {canReplayPausedAudio && (
-                    <TouchableOpacity
-                      style={[
-                        styles.pausedSecondaryAction,
-                        styles.pausedButtonReplay,
-                        isReplayingAudio && styles.pausedActionDisabled,
-                      ]}
-                      onPress={() => {
-                        void handleReplayAudio();
-                      }}
-                      disabled={isReplayingAudio}
-                    >
-                      <Ionicons
-                        name={isReplayingAudio ? "sync" : "volume-high"}
-                        size={16}
-                        color="#9575cd"
-                      />
-                      <Text
-                        style={[
-                          styles.pausedSecondaryActionText,
-                          { color: "#9575cd" },
-                        ]}
-                      >
-                        {isReplayingAudio
-                          ? "Replaying..."
-                          : `Replay`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]}
-                    onPress={handleViewDetails}
-                  >
-                    <Ionicons name="information-circle" size={16} color="#9E9E9E" />
-                    <Text style={[styles.pausedSecondaryActionText, { color: "#9E9E9E" }]}>
-                      Details
-                    </Text>
-                  </TouchableOpacity>
-
-                  {showAddSynonymButton && questionType === "meaning" && (
-                    <TouchableOpacity
-                      style={[styles.pausedSecondaryAction, styles.pausedButtonSynonym]}
-                      onPress={handleAddAsSynonym}
-                      disabled={isAddingSynonym}
-                    >
-                      <Ionicons name="add-circle" size={16} color="#ff9800" />
-                      <Text style={[styles.pausedSecondaryActionText, { color: "#ff9800" }]}>
-                        {isAddingSynonym ? "Adding..." : "Synonym"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+                )}
               </View>
             )}
+          </View>
 
-            {isPausedOnCloseAnswer && !shouldUsePausedSubjectDetailsMode && (
-              <View style={styles.pausedCard}>
-                <View style={styles.pausedCardHeader}>
+          {effectiveAnkiCardMode ? (
+            /* Anki Card Mode */
+            <View style={styles.ankiCardContainer}>
+              <TouchableOpacity
+                style={styles.ankiAnswerContainer}
+                onPress={
+                  !isCurrentQuestionAnkiRevealed
+                    ? handleAnkiRevealAnswer
+                    : undefined
+                }
+                activeOpacity={1}
+                disabled={isCurrentQuestionAnkiRevealed}
+              >
+                {((shouldShowSrsProgressionCard &&
+                  !shouldUseCompactSrsProgressionCard) ||
+                  showAnkiSkipChip ||
+                  shouldShowReviewItemMetadata) && (
                   <View
                     style={[
-                      styles.pausedCardIconContainer,
-                      styles.pausedCardIconContainerClose,
+                      styles.ankiPreCardOverlayRow,
+                      { justifyContent: ankiPreCardOverlayJustification },
                     ]}
                   >
-                    <Ionicons name="warning" size={22} color="#ff9800" />
-                  </View>
-                  <Text
-                    style={[styles.pausedCardTitle, styles.pausedCardTitleClose]}
-                  >
-                    Close Match
-                  </Text>
-                </View>
-
-                <View style={styles.correctAnswerSection}>
-                  <Text style={styles.correctAnswerLabel}>Accepted answers:</Text>
-                  <Text
-                    style={[
-                      styles.correctAnswerText,
-                      styles.correctAnswerTextClose,
-                      questionType === "reading" && fontStyles.japaneseText,
-                    ]}
-                  >
-                    {pausedCorrectAnswerText}
-                  </Text>
-                </View>
-
-                <View style={styles.pausedPrimaryActions}>
-                  <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
-                    onPress={handleProgressAsWrong}
-                  >
-                    <Ionicons name="close" size={18} color="#f44336" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#f44336" }]}>
-                      Mark Incorrect
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonCorrect]}
-                    onPress={handleProgressAsCorrect}
-                  >
-                    <Ionicons name="checkmark" size={18} color="#4caf50" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#4caf50" }]}>
-                      Mark Correct
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.pausedSecondaryActions}>
-                  {canReplayPausedAudio && (
-                    <TouchableOpacity
-                      style={[
-                        styles.pausedSecondaryAction,
-                        styles.pausedButtonReplay,
-                        isReplayingAudio && styles.pausedActionDisabled,
-                      ]}
-                      onPress={() => {
-                        void handleReplayAudio();
-                      }}
-                      disabled={isReplayingAudio}
-                    >
-                      <Ionicons
-                        name={isReplayingAudio ? "sync" : "volume-high"}
-                        size={16}
-                        color="#9575cd"
-                      />
-                      <Text
+                    {shouldShowReviewItemMetadata && renderReviewMetadata(true)}
+                    {showAnkiSkipChip && (
+                      <TouchableOpacity
                         style={[
-                          styles.pausedSecondaryActionText,
-                          { color: "#9575cd" },
+                          styles.ankiPreRevealSkipChip,
+                          theme.isDark
+                            ? styles.ankiPreRevealSkipChipDark
+                            : styles.ankiPreRevealSkipChipLight,
                         ]}
+                        onPress={handleAnkiSkipButton}
+                        activeOpacity={0.85}
+                        accessibilityLabel="Skip this card"
                       >
-                        {isReplayingAudio
-                          ? "Replaying..."
-                          : `Replay`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]}
-                    onPress={handleViewDetails}
-                  >
-                    <Ionicons name="information-circle" size={16} color="#9E9E9E" />
-                    <Text style={[styles.pausedSecondaryActionText, { color: "#9E9E9E" }]}>
-                      Details
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {isPausedOnCorrect && !shouldUsePausedSubjectDetailsMode && (
-              <View style={styles.pausedCard}>
-                <View style={styles.pausedCardHeader}>
-                  <View
-                    style={[
-                      styles.pausedCardIconContainer,
-                      styles.pausedCardIconContainerCorrect,
-                    ]}
-                  >
-                    <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+                        <Ionicons
+                          name="play-skip-forward"
+                          size={16}
+                          color={theme.isDark ? "#D1D5DB" : "#334155"}
+                        />
+                        <Text
+                          style={[
+                            styles.ankiPreRevealSkipChipText,
+                            { color: theme.isDark ? "#D1D5DB" : "#334155" },
+                          ]}
+                        >
+                          Skip
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    {shouldShowSrsProgressionCard &&
+                      !shouldUseCompactSrsProgressionCard &&
+                      srsProgression && (
+                        <Animated.View
+                          style={[
+                            styles.ankiSrsProgressionOverlay,
+                            shouldOffsetSrsCardToSide
+                              ? styles.ankiSrsProgressionOverlaySide
+                              : styles.ankiSrsProgressionOverlayCentered,
+                            srsCardStyle,
+                          ]}
+                          pointerEvents="box-none"
+                        >
+                          <TouchableOpacity
+                            style={[
+                              styles.srsProgressionCardInline,
+                              {
+                                backgroundColor: srsProgression.isCorrect
+                                  ? "#4caf50"
+                                  : "#f44336",
+                              },
+                            ]}
+                            onPress={onSRSCardDismiss}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.srsCardContent}>
+                              <View style={styles.srsIconContainer}>
+                                <SrsLevelIcon
+                                  level={srsProgression.newLevel}
+                                  size={22}
+                                  color="white"
+                                />
+                              </View>
+                              <View style={styles.srsTextContainer}>
+                                <View style={styles.srsArrowAndLevel}>
+                                  <Ionicons
+                                    name={
+                                      srsProgression.isCorrect
+                                        ? "arrow-up"
+                                        : "arrow-down"
+                                    }
+                                    size={12}
+                                    color="white"
+                                  />
+                                  <Text style={styles.srsCardLevel}>
+                                    {srsProgression.newLevel}
+                                  </Text>
+                                </View>
+                                <Text style={styles.srsNextReview}>
+                                  {srsProgression.newStage >= 9
+                                    ? "🔥 Burned!"
+                                    : `Next: ${srsProgression.nextReviewInterval}`}
+                                </Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        </Animated.View>
+                      )}
                   </View>
-                  <Text
-                    style={[styles.pausedCardTitle, styles.pausedCardTitleCorrect]}
-                  >
-                    Correct
-                  </Text>
-                </View>
+                )}
 
-                <View style={styles.correctAnswerSection}>
-                  <Text style={styles.correctAnswerLabel}>Accepted answers:</Text>
-                  <Text
-                    style={[
-                      styles.correctAnswerText,
-                      questionType === "reading" && fontStyles.japaneseText,
-                    ]}
-                  >
-                    {pausedCorrectAnswerText}
-                  </Text>
-                </View>
-
-                <View style={styles.pausedSecondaryActions}>
-                  {canReplayPausedAudio && (
-                    <TouchableOpacity
-                      style={[
-                        styles.pausedSecondaryAction,
-                        styles.pausedButtonReplay,
-                        isReplayingAudio && styles.pausedActionDisabled,
-                      ]}
-                      onPress={() => {
-                        void handleReplayAudio();
-                      }}
-                      disabled={isReplayingAudio}
-                    >
-                      <Ionicons
-                        name={isReplayingAudio ? "sync" : "volume-high"}
-                        size={16}
-                        color="#9575cd"
-                      />
-                      <Text
-                        style={[
-                          styles.pausedSecondaryActionText,
-                          { color: "#9575cd" },
-                        ]}
-                      >
-                        {isReplayingAudio
-                          ? "Replaying..."
-                          : `Replay`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]}
-                    onPress={handleViewDetails}
-                  >
-                    <Ionicons name="information-circle" size={16} color="#9E9E9E" />
-                    <Text style={[styles.pausedSecondaryActionText, { color: "#9E9E9E" }]}>
-                      Details
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            <Animated.View
-              style={[
-                styles.inputContainer,
-                shakeStyle,
-                shouldShowPausedSubjectDetails &&
-                  styles.pausedAnswerControlArea,
-              ]}
-            >
-              <Animated.View style={[styles.inputGlowContainer, inputGlowStyle]}>
                 <View
                   style={[
                     styles.banner,
-                    questionType === "meaning"
-                      ? styles.bannerMeaning
-                      : styles.bannerReading,
-                    questionType === "meaning" &&
+                    effectiveAnkiGroupQuestions
+                      ? styles.bannerGrouped
+                      : questionType === "meaning"
+                        ? styles.bannerMeaning
+                        : styles.bannerReading,
+                    !effectiveAnkiGroupQuestions &&
+                      questionType === "meaning" &&
                       theme.isDark && {
                         backgroundColor: DARK_MODE_MEANING_BANNER_BG,
                       },
-                    questionType === "reading" &&
+                    !effectiveAnkiGroupQuestions &&
+                      questionType === "reading" &&
                       theme.isDark && {
                         backgroundColor: DARK_MODE_READING_BANNER_BG,
                       },
@@ -5672,10 +4314,13 @@ export default function ReviewQuestionScreen({
                   <Text
                     style={[
                       styles.bannerText,
-                      questionType === "meaning"
-                        ? styles.bannerTextMeaning
-                        : styles.bannerTextReading,
-                      questionType === "meaning" &&
+                      effectiveAnkiGroupQuestions
+                        ? styles.bannerTextGrouped
+                        : questionType === "meaning"
+                          ? styles.bannerTextMeaning
+                          : styles.bannerTextReading,
+                      !effectiveAnkiGroupQuestions &&
+                        questionType === "meaning" &&
                         theme.isDark && {
                           color: DARK_MODE_MEANING_BANNER_TEXT,
                         },
@@ -5683,209 +4328,1022 @@ export default function ReviewQuestionScreen({
                   >
                     {getSubjectTypeLabel()}{" "}
                     <Text style={styles.bannerTextBold}>
-                      {questionType === "meaning" ? "Meaning" : "Reading"}
+                      {effectiveAnkiGroupQuestions
+                        ? "Meaning & Reading"
+                        : questionType === "meaning"
+                          ? "Meaning"
+                          : "Reading"}
                     </Text>
                   </Text>
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <KanaInput
-                    ref={kanaInputRef}
-                    style={[
-                      styles.answerInput,
-                      questionType === "reading" && styles.answerInputReading,
-                      isVoiceReviewEnabled &&
-                        (isVoiceRecognizing
-                          ? styles.answerInputVoiceModeDual
-                          : styles.answerInputVoiceMode),
-                      {
-                        backgroundColor: theme.isDark ? "#000000" : "white",
-                        color: theme.isDark ? "#ffffff" : "#000000",
-                      },
-                      isPausedOnAnswer ? styles.pausedInputTextHidden : null,
-                    ]}
-                    onKanaChange={handleAnswerChange}
-                    onKeyPress={handlePausedShortcutKeyPress}
-                    onFocus={syncAndroidKeyboardMetrics}
-                    placeholder={
-                      isPausedOnAnswer ? undefined : answerInputPlaceholder
-                    }
-                    editable={!navigatingToDetail}
-                    showSoftInputOnFocus={!isPausedOnAnswer}
-                    caretHidden={isPausedOnAnswer}
-                    returnKeyType="done"
-                    onSubmitEditing={handleInputSubmitEditing}
-                    enableKanaConversion={questionType === "reading"}
-                    useJapaneseKeyboard={autoSwitchKeyboard && questionType === "reading"}
-                    resetSignal={`${
-                      item.subject.id
-                    }-${questionType}-${retryCount}-${inputResetNonce}`}
-                    submitBehavior="submit"
-                  />
+                <Animated.View
+                  style={[
+                    styles.ankiContentContainer,
+                    ankiContainerStyle,
+                    theme.isDark && { backgroundColor: "#000000" },
+                  ]}
+                >
+                  {/* Answer display area */}
+                  <View style={styles.ankiAnswerSection}>
+                    <View style={styles.ankiBlurContainer}>
+                      {!shouldFullyHideAnkiAnswer && (
+                        <>
+                          {(() => {
+                            const answer = getCorrectAnswer();
+                            if (
+                              typeof answer === "object" &&
+                              answer.isGrouped
+                            ) {
+                              return (
+                                <>
+                                  <Text
+                                    style={[
+                                      styles.ankiAnswerText,
+                                      theme.isDark && { color: "#ffffff" },
+                                    ]}
+                                  >
+                                    {answer.meaning}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.ankiAnswerText,
+                                      fontStyles.japaneseText,
+                                      { marginTop: 8 },
+                                      theme.isDark && { color: "#ffffff" },
+                                    ]}
+                                  >
+                                    {answer.reading}
+                                  </Text>
+                                </>
+                              );
+                            }
+                            return (
+                              <Text
+                                style={[
+                                  styles.ankiAnswerText,
+                                  questionType === "reading"
+                                    ? fontStyles.japaneseText
+                                    : null,
+                                  theme.isDark && { color: "#ffffff" },
+                                ]}
+                              >
+                                {typeof answer === "string" ? answer : ""}
+                              </Text>
+                            );
+                          })()}
+                          {isCurrentQuestionAnkiRevealed &&
+                            ankiSupplementaryAnswerRows.length > 0 && (
+                              <View
+                                style={styles.ankiSupplementaryAnswersContainer}
+                              >
+                                {ankiSupplementaryAnswerRows.map((row) => (
+                                  <View
+                                    key={row.key}
+                                    style={styles.ankiSupplementaryAnswerRow}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.ankiSupplementaryAnswerLabel,
+                                        theme.isDark && {
+                                          color: "rgba(255, 255, 255, 0.62)",
+                                        },
+                                      ]}
+                                    >
+                                      {row.label}
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.ankiSupplementaryAnswerValue,
+                                        row.japanese && fontStyles.japaneseText,
+                                        theme.isDark && { color: "#F4F4F5" },
+                                      ]}
+                                    >
+                                      {row.values.join(", ")}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                          {!isCurrentQuestionAnkiRevealed &&
+                            (Platform.OS === "ios" ? (
+                              <BlurView
+                                intensity={80}
+                                style={styles.ankiBlurOverlay}
+                                tint={theme.isDark ? "dark" : "light"}
+                              />
+                            ) : (
+                              // Android: BlurView doesn't work well, use opaque overlay instead
+                              <View
+                                style={[
+                                  styles.ankiBlurOverlay,
+                                  {
+                                    backgroundColor: theme.isDark
+                                      ? "#000000"
+                                      : "#ffffff",
+                                  },
+                                ]}
+                              />
+                            ))}
+                        </>
+                      )}
+                    </View>
+                    {!isCurrentQuestionAnkiRevealed && (
+                      <View style={styles.ankiTapHint}>
+                        <Ionicons
+                          name="finger-print-outline"
+                          size={18}
+                          color={
+                            theme.isDark
+                              ? "rgba(255,255,255,0.6)"
+                              : "rgba(0,0,0,0.6)"
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.ankiTapToReveal,
+                            theme.isDark && { color: "rgba(255,255,255,0.6)" },
+                          ]}
+                        >
+                          Tap anywhere to see the answer
+                        </Text>
+                      </View>
+                    )}
+                  </View>
 
-                  {isPausedOnAnswer && (
-                    <View
-                      pointerEvents="none"
-                      style={[styles.pausedAnswerOverlay]}
-                    >
-                      <TextInput
-                        value={pausedAnswerText || ""}
-                        editable={false}
-                        caretHidden
-                        showSoftInputOnFocus={false}
-                        selectTextOnFocus={false}
-                        underlineColorAndroid="transparent"
+                  {showAnkiReplayButton && (
+                    <View style={styles.ankiReplaySection}>
+                      <TouchableOpacity
                         style={[
-                          styles.answerInput,
-                          questionType === "reading" && styles.answerInputReading,
-                          isVoiceReviewEnabled &&
-                            (isVoiceRecognizing
-                              ? styles.answerInputVoiceModeDual
-                              : styles.answerInputVoiceMode),
-                          {
-                            backgroundColor: theme.isDark ? "#000000" : "white",
-                          },
-                          hasCorrectAccent
-                            ? styles.correctPausedAnswerInput
-                            : hasCloseAccent
-                              ? styles.closePausedAnswerInput
-                            : styles.wrongAnswerInput,
-                          questionType === "reading" && fontStyles.japaneseText,
+                          styles.ankiReplayButton,
+                          theme.isDark && styles.ankiReplayButtonDark,
+                          isReplayingAudio && styles.ankiReplayButtonDisabled,
                         ]}
-                      />
+                        onPress={() => {
+                          void handleReplayAudio();
+                        }}
+                        activeOpacity={0.75}
+                        disabled={isReplayingAudio}
+                        accessibilityLabel="Replay vocabulary audio"
+                      >
+                        <Ionicons
+                          name={isReplayingAudio ? "sync" : "volume-high"}
+                          size={16}
+                          color={theme.isDark ? "#DDD6FE" : "#6D28D9"}
+                        />
+                        <Text
+                          style={[
+                            styles.ankiReplayButtonText,
+                            { color: theme.isDark ? "#DDD6FE" : "#6D28D9" },
+                          ]}
+                        >
+                          {isReplayingAudio ? "Replaying..." : "Replay"}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   )}
 
-                  {isVoiceReviewEnabled && (
-                    <>
+                  {/* Buttons (animated in when revealed) */}
+                  {isCurrentQuestionAnkiRevealed &&
+                    !effectiveAnkiButtonlessMode && (
+                      <Animated.View
+                        style={[
+                          styles.ankiButtonSection,
+                          ankiButtonSectionStyle,
+                        ]}
+                      >
+                        <TouchableOpacity
+                          style={[
+                            styles.ankiButton,
+                            styles.ankiButtonWrong,
+                            theme.isDark && {
+                              backgroundColor: "#3D1F1F",
+                              borderColor: "#5C2B2B",
+                            },
+                          ]}
+                          onPress={() => handleAnkiAnswerButton(false)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.ankiButtonIconContainer}>
+                            <Ionicons name="close" size={24} color="#D92C2C" />
+                          </View>
+                          <Text
+                            style={[
+                              styles.ankiButtonText,
+                              { color: "#D92C2C" },
+                            ]}
+                          >
+                            Wrong
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.ankiButton,
+                            styles.ankiButtonDetails,
+                            theme.isDark && {
+                              backgroundColor: "#1A2F3D",
+                              borderColor: "#254559",
+                            },
+                          ]}
+                          onPress={handleAnkiDetailsButton}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.ankiButtonIconContainer}>
+                            <Ionicons
+                              name="information-circle"
+                              size={24}
+                              color="#0096FF"
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.ankiButtonText,
+                              { color: "#0096FF" },
+                            ]}
+                          >
+                            Details
+                          </Text>
+                        </TouchableOpacity>
+
+                        {allowSkippingReviews && onSkip && (
+                          <TouchableOpacity
+                            style={[
+                              styles.ankiButton,
+                              styles.ankiButtonSkip,
+                              theme.isDark && {
+                                backgroundColor: "#2A2E35",
+                                borderColor: "#3A4250",
+                              },
+                            ]}
+                            onPress={handleAnkiSkipButton}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.ankiButtonIconContainer}>
+                              <Ionicons
+                                name="play-skip-forward"
+                                size={24}
+                                color={theme.isDark ? "#CBD5E1" : "#4A5568"}
+                              />
+                            </View>
+                            <Text
+                              style={[
+                                styles.ankiButtonText,
+                                { color: theme.isDark ? "#CBD5E1" : "#4A5568" },
+                              ]}
+                            >
+                              Skip
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                          style={[
+                            styles.ankiButton,
+                            styles.ankiButtonCorrect,
+                            theme.isDark && {
+                              backgroundColor: "#1F3D1F",
+                              borderColor: "#2B5C2B",
+                            },
+                          ]}
+                          onPress={() => handleAnkiAnswerButton(true)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.ankiButtonIconContainer}>
+                            <Ionicons
+                              name="checkmark"
+                              size={24}
+                              color="#00B300"
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.ankiButtonText,
+                              { color: "#00B300" },
+                            ]}
+                          >
+                            Correct
+                          </Text>
+                        </TouchableOpacity>
+                      </Animated.View>
+                    )}
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            /* Traditional WaniKani Mode */
+            <Animated.View
+              layout={
+                effectiveShowAnswerStopSubjectDetails
+                  ? pausedDetailsLayoutTransition
+                  : undefined
+              }
+              style={[
+                styles.answerContainer,
+                Platform.OS === "android" &&
+                  androidKeyboardLift > 0 && {
+                    paddingBottom: androidKeyboardLift,
+                  },
+                shouldShowPausedSubjectDetails && [
+                  styles.pausedUnifiedDetailsSheet,
+                  {
+                    backgroundColor: theme.backgroundColor,
+                    borderColor: theme.border,
+                  },
+                ],
+              ]}
+            >
+              {/* SRS Progression Card - above input field */}
+              {shouldShowSrsProgressionCard &&
+                !shouldUseCompactSrsProgressionCard &&
+                srsProgression && (
+                  <Animated.View
+                    style={[
+                      styles.srsProgressionCard,
+                      {
+                        backgroundColor: srsProgression.isCorrect
+                          ? "#4caf50"
+                          : "#f44336",
+                      },
+                      srsCardPositionStyle,
+                      srsCardStyle,
+                    ]}
+                    pointerEvents="box-none"
+                  >
+                    <TouchableOpacity
+                      style={styles.srsCardContent}
+                      onPress={onSRSCardDismiss}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.srsIconContainer}>
+                        <SrsLevelIcon
+                          level={srsProgression.newLevel}
+                          size={22}
+                          color="white"
+                        />
+                      </View>
+                      <View style={styles.srsTextContainer}>
+                        <View style={styles.srsArrowAndLevel}>
+                          <Ionicons
+                            name={
+                              srsProgression.isCorrect
+                                ? "arrow-up"
+                                : "arrow-down"
+                            }
+                            size={12}
+                            color="white"
+                          />
+                          <Text style={styles.srsCardLevel}>
+                            {srsProgression.newLevel}
+                          </Text>
+                        </View>
+                        <Text style={styles.srsNextReview}>
+                          {srsProgression.newStage >= 9
+                            ? "🔥 Burned!"
+                            : `Next: ${srsProgression.nextReviewInterval}`}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  </Animated.View>
+                )}
+
+              {!shouldUsePausedSubjectDetailsMode && renderReviewMetadata()}
+
+              {/* Paused on wrong answer - show correct answer and actions */}
+              {isPausedOnWrong && !shouldUsePausedSubjectDetailsMode && (
+                <View style={styles.pausedCard}>
+                  <View style={styles.pausedCardHeader}>
+                    <View style={styles.pausedCardIconContainer}>
+                      <Ionicons name="close-circle" size={24} color="#f44336" />
+                    </View>
+                    <Text style={styles.pausedCardTitle}>Incorrect</Text>
+                  </View>
+
+                  <View style={styles.correctAnswerSection}>
+                    <Text style={styles.correctAnswerLabel}>
+                      Correct answer:
+                    </Text>
+                    <Text
+                      style={[
+                        styles.correctAnswerText,
+                        questionType === "reading" && fontStyles.japaneseText,
+                      ]}
+                    >
+                      {pausedCorrectAnswerText}
+                    </Text>
+                  </View>
+
+                  <View style={styles.pausedPrimaryActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedActionButton,
+                        styles.pausedButtonIncorrect,
+                      ]}
+                      onPress={handleProgressAsWrong}
+                    >
+                      <Ionicons name="close" size={18} color="#f44336" />
+                      <Text
+                        style={[
+                          styles.pausedActionButtonText,
+                          { color: "#f44336" },
+                        ]}
+                      >
+                        Mark Incorrect
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedActionButton,
+                        styles.pausedButtonSkip,
+                      ]}
+                      onPress={handlePausedSkip}
+                    >
+                      <Ionicons
+                        name="play-skip-forward"
+                        size={18}
+                        color="#2196F3"
+                      />
+                      <Text
+                        style={[
+                          styles.pausedActionButtonText,
+                          { color: "#2196F3" },
+                        ]}
+                      >
+                        Skip
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedActionButton,
+                        styles.pausedButtonCorrect,
+                      ]}
+                      onPress={handleMarkCorrect}
+                    >
+                      <Ionicons name="checkmark" size={18} color="#4caf50" />
+                      <Text
+                        style={[
+                          styles.pausedActionButtonText,
+                          { color: "#4caf50" },
+                        ]}
+                      >
+                        Mark Correct
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.pausedSecondaryActions}>
+                    {canReplayPausedAudio && (
                       <TouchableOpacity
                         style={[
-                          styles.voiceButtonInside,
-                          isVoiceRecognizing ? styles.voiceButtonActive : null,
+                          styles.pausedSecondaryAction,
+                          styles.pausedButtonReplay,
+                          isReplayingAudio && styles.pausedActionDisabled,
                         ]}
-                        onPress={handleVoiceAnswerButton}
-                        disabled={navigatingToDetail || isPausedOnAnswer || answered}
+                        onPress={() => {
+                          void handleReplayAudio();
+                        }}
+                        disabled={isReplayingAudio}
                       >
                         <Ionicons
-                          name={isVoiceRecognizing ? "stop" : "mic"}
-                          size={20}
-                          color="#fff"
+                          name={isReplayingAudio ? "sync" : "volume-high"}
+                          size={16}
+                          color="#9575cd"
                         />
+                        <Text
+                          style={[
+                            styles.pausedSecondaryActionText,
+                            { color: "#9575cd" },
+                          ]}
+                        >
+                          {isReplayingAudio ? "Replaying..." : `Replay`}
+                        </Text>
                       </TouchableOpacity>
+                    )}
 
-                      {isVoiceRecognizing && (
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedSecondaryAction,
+                        styles.pausedButtonDetails,
+                      ]}
+                      onPress={handleViewDetails}
+                    >
+                      <Ionicons
+                        name="information-circle"
+                        size={16}
+                        color="#9E9E9E"
+                      />
+                      <Text
+                        style={[
+                          styles.pausedSecondaryActionText,
+                          { color: "#9E9E9E" },
+                        ]}
+                      >
+                        Details
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showAddSynonymButton && questionType === "meaning" && (
+                      <TouchableOpacity
+                        style={[
+                          styles.pausedSecondaryAction,
+                          styles.pausedButtonSynonym,
+                        ]}
+                        onPress={handleAddAsSynonym}
+                        disabled={isAddingSynonym}
+                      >
+                        <Ionicons name="add-circle" size={16} color="#ff9800" />
+                        <Text
+                          style={[
+                            styles.pausedSecondaryActionText,
+                            { color: "#ff9800" },
+                          ]}
+                        >
+                          {isAddingSynonym ? "Adding..." : "Synonym"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {isPausedOnCloseAnswer && !shouldUsePausedSubjectDetailsMode && (
+                <View style={styles.pausedCard}>
+                  <View style={styles.pausedCardHeader}>
+                    <View
+                      style={[
+                        styles.pausedCardIconContainer,
+                        styles.pausedCardIconContainerClose,
+                      ]}
+                    >
+                      <Ionicons name="warning" size={22} color="#ff9800" />
+                    </View>
+                    <Text
+                      style={[
+                        styles.pausedCardTitle,
+                        styles.pausedCardTitleClose,
+                      ]}
+                    >
+                      Close Match
+                    </Text>
+                  </View>
+
+                  <View style={styles.correctAnswerSection}>
+                    <Text style={styles.correctAnswerLabel}>
+                      Accepted answers:
+                    </Text>
+                    <Text
+                      style={[
+                        styles.correctAnswerText,
+                        styles.correctAnswerTextClose,
+                        questionType === "reading" && fontStyles.japaneseText,
+                      ]}
+                    >
+                      {pausedCorrectAnswerText}
+                    </Text>
+                  </View>
+
+                  <View style={styles.pausedPrimaryActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedActionButton,
+                        styles.pausedButtonIncorrect,
+                      ]}
+                      onPress={handleProgressAsWrong}
+                    >
+                      <Ionicons name="close" size={18} color="#f44336" />
+                      <Text
+                        style={[
+                          styles.pausedActionButtonText,
+                          { color: "#f44336" },
+                        ]}
+                      >
+                        Mark Incorrect
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedActionButton,
+                        styles.pausedButtonCorrect,
+                      ]}
+                      onPress={handleProgressAsCorrect}
+                    >
+                      <Ionicons name="checkmark" size={18} color="#4caf50" />
+                      <Text
+                        style={[
+                          styles.pausedActionButtonText,
+                          { color: "#4caf50" },
+                        ]}
+                      >
+                        Mark Correct
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.pausedSecondaryActions}>
+                    {canReplayPausedAudio && (
+                      <TouchableOpacity
+                        style={[
+                          styles.pausedSecondaryAction,
+                          styles.pausedButtonReplay,
+                          isReplayingAudio && styles.pausedActionDisabled,
+                        ]}
+                        onPress={() => {
+                          void handleReplayAudio();
+                        }}
+                        disabled={isReplayingAudio}
+                      >
+                        <Ionicons
+                          name={isReplayingAudio ? "sync" : "volume-high"}
+                          size={16}
+                          color="#9575cd"
+                        />
+                        <Text
+                          style={[
+                            styles.pausedSecondaryActionText,
+                            { color: "#9575cd" },
+                          ]}
+                        >
+                          {isReplayingAudio ? "Replaying..." : `Replay`}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedSecondaryAction,
+                        styles.pausedButtonDetails,
+                      ]}
+                      onPress={handleViewDetails}
+                    >
+                      <Ionicons
+                        name="information-circle"
+                        size={16}
+                        color="#9E9E9E"
+                      />
+                      <Text
+                        style={[
+                          styles.pausedSecondaryActionText,
+                          { color: "#9E9E9E" },
+                        ]}
+                      >
+                        Details
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {isPausedOnCorrect && !shouldUsePausedSubjectDetailsMode && (
+                <View style={styles.pausedCard}>
+                  <View style={styles.pausedCardHeader}>
+                    <View
+                      style={[
+                        styles.pausedCardIconContainer,
+                        styles.pausedCardIconContainerCorrect,
+                      ]}
+                    >
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color="#4caf50"
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.pausedCardTitle,
+                        styles.pausedCardTitleCorrect,
+                      ]}
+                    >
+                      Correct
+                    </Text>
+                  </View>
+
+                  <View style={styles.correctAnswerSection}>
+                    <Text style={styles.correctAnswerLabel}>
+                      Accepted answers:
+                    </Text>
+                    <Text
+                      style={[
+                        styles.correctAnswerText,
+                        questionType === "reading" && fontStyles.japaneseText,
+                      ]}
+                    >
+                      {pausedCorrectAnswerText}
+                    </Text>
+                  </View>
+
+                  <View style={styles.pausedSecondaryActions}>
+                    {canReplayPausedAudio && (
+                      <TouchableOpacity
+                        style={[
+                          styles.pausedSecondaryAction,
+                          styles.pausedButtonReplay,
+                          isReplayingAudio && styles.pausedActionDisabled,
+                        ]}
+                        onPress={() => {
+                          void handleReplayAudio();
+                        }}
+                        disabled={isReplayingAudio}
+                      >
+                        <Ionicons
+                          name={isReplayingAudio ? "sync" : "volume-high"}
+                          size={16}
+                          color="#9575cd"
+                        />
+                        <Text
+                          style={[
+                            styles.pausedSecondaryActionText,
+                            { color: "#9575cd" },
+                          ]}
+                        >
+                          {isReplayingAudio ? "Replaying..." : `Replay`}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pausedSecondaryAction,
+                        styles.pausedButtonDetails,
+                      ]}
+                      onPress={handleViewDetails}
+                    >
+                      <Ionicons
+                        name="information-circle"
+                        size={16}
+                        color="#9E9E9E"
+                      />
+                      <Text
+                        style={[
+                          styles.pausedSecondaryActionText,
+                          { color: "#9E9E9E" },
+                        ]}
+                      >
+                        Details
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              <Animated.View
+                style={[
+                  styles.inputContainer,
+                  shakeStyle,
+                  shouldShowPausedSubjectDetails &&
+                    styles.pausedAnswerControlArea,
+                ]}
+              >
+                <Animated.View
+                  style={[styles.inputGlowContainer, inputGlowStyle]}
+                >
+                  <View
+                    style={[
+                      styles.banner,
+                      questionType === "meaning"
+                        ? styles.bannerMeaning
+                        : styles.bannerReading,
+                      questionType === "meaning" &&
+                        theme.isDark && {
+                          backgroundColor: DARK_MODE_MEANING_BANNER_BG,
+                        },
+                      questionType === "reading" &&
+                        theme.isDark && {
+                          backgroundColor: DARK_MODE_READING_BANNER_BG,
+                        },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.bannerText,
+                        questionType === "meaning"
+                          ? styles.bannerTextMeaning
+                          : styles.bannerTextReading,
+                        questionType === "meaning" &&
+                          theme.isDark && {
+                            color: DARK_MODE_MEANING_BANNER_TEXT,
+                          },
+                      ]}
+                    >
+                      {getSubjectTypeLabel()}{" "}
+                      <Text style={styles.bannerTextBold}>
+                        {questionType === "meaning" ? "Meaning" : "Reading"}
+                      </Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.inputWrapper}>
+                    <KanaInput
+                      ref={kanaInputRef}
+                      style={[
+                        styles.answerInput,
+                        questionType === "reading" && styles.answerInputReading,
+                        isVoiceReviewEnabled &&
+                          (isVoiceRecognizing
+                            ? styles.answerInputVoiceModeDual
+                            : styles.answerInputVoiceMode),
+                        {
+                          backgroundColor: theme.isDark ? "#000000" : "white",
+                          color: theme.isDark ? "#ffffff" : "#000000",
+                        },
+                        isPausedOnAnswer ? styles.pausedInputTextHidden : null,
+                      ]}
+                      onKanaChange={handleAnswerChange}
+                      onKeyPress={handlePausedShortcutKeyPress}
+                      onFocus={syncAndroidKeyboardMetrics}
+                      placeholder={
+                        isPausedOnAnswer ? undefined : answerInputPlaceholder
+                      }
+                      editable={!navigatingToDetail}
+                      showSoftInputOnFocus={!isPausedOnAnswer}
+                      caretHidden={isPausedOnAnswer}
+                      returnKeyType="done"
+                      onSubmitEditing={handleInputSubmitEditing}
+                      enableKanaConversion={questionType === "reading"}
+                      useJapaneseKeyboard={
+                        autoSwitchKeyboard && questionType === "reading"
+                      }
+                      resetSignal={`${
+                        item.subject.id
+                      }-${questionType}-${retryCount}-${inputResetNonce}`}
+                      submitBehavior="submit"
+                    />
+
+                    {isPausedOnAnswer && (
+                      <View
+                        pointerEvents="none"
+                        style={[styles.pausedAnswerOverlay]}
+                      >
+                        <TextInput
+                          value={pausedAnswerText || ""}
+                          editable={false}
+                          caretHidden
+                          showSoftInputOnFocus={false}
+                          selectTextOnFocus={false}
+                          underlineColorAndroid="transparent"
+                          style={[
+                            styles.answerInput,
+                            questionType === "reading" &&
+                              styles.answerInputReading,
+                            isVoiceReviewEnabled &&
+                              (isVoiceRecognizing
+                                ? styles.answerInputVoiceModeDual
+                                : styles.answerInputVoiceMode),
+                            {
+                              backgroundColor: theme.isDark
+                                ? "#000000"
+                                : "white",
+                            },
+                            hasCorrectAccent
+                              ? styles.correctPausedAnswerInput
+                              : hasCloseAccent
+                                ? styles.closePausedAnswerInput
+                                : styles.wrongAnswerInput,
+                            questionType === "reading" &&
+                              fontStyles.japaneseText,
+                          ]}
+                        />
+                      </View>
+                    )}
+
+                    {isVoiceReviewEnabled && (
+                      <>
                         <TouchableOpacity
-                          style={styles.voiceRetryButtonInside}
-                          onPress={handleRetryVoiceRecognition}
-                          disabled={navigatingToDetail || isPausedOnAnswer || answered}
+                          style={[
+                            styles.voiceButtonInside,
+                            isVoiceRecognizing
+                              ? styles.voiceButtonActive
+                              : null,
+                          ]}
+                          onPress={handleVoiceAnswerButton}
+                          disabled={
+                            navigatingToDetail || isPausedOnAnswer || answered
+                          }
                         >
                           <Ionicons
-                            name="refresh"
-                            size={18}
+                            name={isVoiceRecognizing ? "stop" : "mic"}
+                            size={20}
                             color="#fff"
                           />
                         </TouchableOpacity>
-                      )}
-                    </>
-                  )}
 
-                  <TouchableOpacity
-                    style={[
-                      styles.submitButtonInside,
-                      hasCorrectAccent
-                        ? styles.correctButton
-                        : hasCloseAccent
-                          ? styles.closeButton
-                        : hasIncorrectAccent
-                          ? styles.incorrectButton
-                          : null,
-                    ]}
-                    onPress={handleSubmitOrAdvance}
-                  >
-                    <Ionicons
-                      name={submitIconName}
-                      size={20}
-                      color="#fff"
-                    />
-                  </TouchableOpacity>
-                </View>
+                        {isVoiceRecognizing && (
+                          <TouchableOpacity
+                            style={styles.voiceRetryButtonInside}
+                            onPress={handleRetryVoiceRecognition}
+                            disabled={
+                              navigatingToDetail || isPausedOnAnswer || answered
+                            }
+                          >
+                            <Ionicons name="refresh" size={18} color="#fff" />
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    )}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.submitButtonInside,
+                        hasCorrectAccent
+                          ? styles.correctButton
+                          : hasCloseAccent
+                            ? styles.closeButton
+                            : hasIncorrectAccent
+                              ? styles.incorrectButton
+                              : null,
+                      ]}
+                      onPress={handleSubmitOrAdvance}
+                    >
+                      <Ionicons name={submitIconName} size={20} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+
+                {shouldShowPausedSubjectDetails &&
+                  renderPausedDetailsCorrectAnswer()}
+
+                {shouldShowPausedSubjectDetails && renderPausedDetailsActions()}
+
+                {isPausedOnAnswer && (
+                  <TextInput
+                    ref={pausedShortcutInputRef}
+                    value=""
+                    onChangeText={() => {}}
+                    onKeyPress={handlePausedShortcutKeyPress}
+                    onSubmitEditing={handleInputSubmitEditing}
+                    style={styles.hiddenPausedShortcutInput}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    blurOnSubmit={false}
+                    showSoftInputOnFocus={false}
+                    caretHidden
+                  />
+                )}
+
+                {isVoiceReviewEnabled &&
+                  (isVoiceRecognizing ||
+                    voiceError ||
+                    voiceInterimTranscript) && (
+                    <View
+                      style={[
+                        styles.voiceStatusContainer,
+                        isVoiceRecognizing ||
+                        (!voiceError && !!voiceInterimTranscript)
+                          ? styles.voiceStatusListening
+                          : styles.voiceStatusError,
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          isVoiceRecognizing ||
+                          (!voiceError && !!voiceInterimTranscript)
+                            ? "radio"
+                            : "warning-outline"
+                        }
+                        size={14}
+                        color="white"
+                      />
+                      <Text style={styles.voiceStatusText} numberOfLines={2}>
+                        {isVoiceRecognizing
+                          ? voiceInterimTranscript || "Listening..."
+                          : voiceError ||
+                            voiceInterimTranscript ||
+                            "Voice recognition stopped."}
+                      </Text>
+                    </View>
+                  )}
               </Animated.View>
 
-              {shouldShowPausedSubjectDetails && renderPausedDetailsCorrectAnswer()}
-
-              {shouldShowPausedSubjectDetails && renderPausedDetailsActions()}
-
-              {isPausedOnAnswer && (
-                <TextInput
-                  ref={pausedShortcutInputRef}
-                  value=""
-                  onChangeText={() => {}}
-                  onKeyPress={handlePausedShortcutKeyPress}
-                  onSubmitEditing={handleInputSubmitEditing}
-                  style={styles.hiddenPausedShortcutInput}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  blurOnSubmit={false}
-                  showSoftInputOnFocus={false}
-                  caretHidden
-                />
+              {/* Retry feedback shown when user submits a retryable answer */}
+              {showRetryFeedback && answerResult && (
+                <View style={styles.retryFeedback}>
+                  <Text style={styles.retryFeedbackText}>
+                    {getAnswerFeedback(answerResult, questionType)}
+                  </Text>
+                </View>
               )}
 
-              {isVoiceReviewEnabled &&
-                (isVoiceRecognizing || voiceError || voiceInterimTranscript) && (
-                  <View
-                    style={[
-                      styles.voiceStatusContainer,
-                      isVoiceRecognizing || (!voiceError && !!voiceInterimTranscript)
-                        ? styles.voiceStatusListening
-                        : styles.voiceStatusError,
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        isVoiceRecognizing || (!voiceError && !!voiceInterimTranscript)
-                          ? "radio"
-                          : "warning-outline"
-                      }
-                      size={14}
-                      color="white"
-                    />
-                    <Text style={styles.voiceStatusText} numberOfLines={2}>
-                      {isVoiceRecognizing
-                        ? voiceInterimTranscript || "Listening..."
-                        : voiceError || voiceInterimTranscript || "Voice recognition stopped."}
-                    </Text>
-                  </View>
-                )}
+              {shouldShowPausedSubjectDetails && (
+                <Animated.View
+                  entering={pausedDetailsEntering}
+                  exiting={pausedDetailsExiting}
+                  layout={pausedDetailsLayoutTransition}
+                  style={[
+                    styles.pausedSubjectDetailsPanel,
+                    {
+                      height: pausedSubjectDetailsPanelHeight,
+                      backgroundColor: theme.backgroundColor,
+                    },
+                  ]}
+                >
+                  {renderPausedSubjectDetails()}
+                </Animated.View>
+              )}
             </Animated.View>
-
-            {/* Retry feedback shown when user submits a retryable answer */}
-            {showRetryFeedback && answerResult && (
-              <View style={styles.retryFeedback}>
-                <Text style={styles.retryFeedbackText}>
-                  {getAnswerFeedback(answerResult, questionType)}
-                </Text>
-              </View>
-            )}
-
-            {shouldShowPausedSubjectDetails && (
-              <Animated.View
-                entering={pausedDetailsEntering}
-                exiting={pausedDetailsExiting}
-                layout={pausedDetailsLayoutTransition}
-                style={[
-                  styles.pausedSubjectDetailsPanel,
-                  {
-                    height: pausedSubjectDetailsPanelHeight,
-                    backgroundColor: theme.backgroundColor,
-                  },
-                ]}
-              >
-                {renderPausedSubjectDetails()}
-              </Animated.View>
-            )}
-          </Animated.View>
-        )}
+          )}
         </Animated.View>
 
         {effectiveAnkiCardMode &&
@@ -5897,12 +5355,10 @@ export default function ReviewQuestionScreen({
                 setAnkiButtonlessOverlayWidth(event.nativeEvent.layout.width)
               }
               onStartShouldSetResponder={() =>
-                !navigatingToDetail &&
-                !pendingAnkiSubmitCallbackRef.current
+                !navigatingToDetail && !pendingAnkiSubmitCallbackRef.current
               }
               onMoveShouldSetResponder={() =>
-                !navigatingToDetail &&
-                !pendingAnkiSubmitCallbackRef.current
+                !navigatingToDetail && !pendingAnkiSubmitCallbackRef.current
               }
               onResponderGrant={beginButtonlessAnkiGesture}
               onResponderMove={trackButtonlessAnkiGesture}
@@ -5919,1225 +5375,3 @@ export default function ReviewQuestionScreen({
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  statsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 10,
-    paddingHorizontal: 16,
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 70,
-  },
-  statText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginLeft: 5,
-  },
-  progressBarContainer: {
-    height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    width: "100%",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "white",
-  },
-  permissionWarningBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-    marginHorizontal: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    zIndex: 120,
-  },
-  permissionWarningText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  permissionWarningDismiss: {
-    marginLeft: 8,
-    padding: 2,
-  },
-  skipCueContainer: {
-    position: "absolute",
-    top: TOP_STATUS_POPUP_OFFSET,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 150,
-  },
-  srsTopPopupContainer: {
-    position: "absolute",
-    top: TOP_STATUS_POPUP_OFFSET,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 149,
-  },
-  skipCuePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    borderWidth: 1,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  skipCueText: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  answeredItemBox: {
-    position: "absolute",
-    top: height / 2, // Start at center
-    left: width / 2, // Start at center
-    zIndex: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  answeredItemBoxTouchable: {
-    minWidth: 80,
-    maxWidth: 200,
-    height: 65,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center", // Center the text
-    paddingHorizontal: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  answeredItemCharacter: {
-    color: "white",
-    fontSize: Math.min(width * 0.07, 30),
-    fontWeight: "400",
-    flexShrink: 1,
-    textAlign: "center",
-    fontFamily: "SourceHanSansJP-Regular",
-    // Android-specific: remove extra font padding and center vertically
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  answeredItemCharacterFallback: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-    flexShrink: 1,
-    textAlign: "center",
-    paddingHorizontal: 4,
-  },
-  answeredItemStatusIndicator: {
-    position: "absolute",
-    top: -10,
-    right: -10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  inputContainer: {
-    width: "100%",
-  },
-  banner: {
-    padding: 12,
-    alignSelf: "stretch",
-    alignItems: "center",
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  },
-  bannerMeaning: {
-    backgroundColor: "rgba(255, 255, 255, 0.7)", // Semitransparent white for meaning
-  },
-  bannerReading: {
-    backgroundColor: "#333333", // Black for reading questions
-  },
-  bannerGrouped: {
-    backgroundColor: "#333333", // Dark gray for grouped questions (same as reading)
-  },
-  bannerText: {
-    fontSize: 16,
-  },
-  bannerTextBold: {
-    fontWeight: "bold",
-  },
-  bannerTextMeaning: {
-    color: "#333", // Dark text for white background
-  },
-  bannerTextReading: {
-    color: "white", // White text for black background
-  },
-  bannerTextGrouped: {
-    color: "white", // White text for dark gray background
-  },
-  inputWrapper: {
-    position: "relative",
-    alignSelf: "stretch",
-  },
-  inputGlowContainer: {
-    borderRadius: 8,
-    ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 0 },
-        shadowRadius: 25,
-      },
-      android: {
-        elevation: 15,
-      },
-    }),
-  },
-  submitButtonInside: {
-    position: "absolute",
-    right: 8,
-    top: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#333",
-    elevation: 2,
-  },
-  voiceButtonInside: {
-    position: "absolute",
-    left: 8,
-    top: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#333",
-    elevation: 2,
-  },
-  voiceButtonActive: {
-    backgroundColor: "#d32f2f",
-  },
-  voiceRetryButtonInside: {
-    position: "absolute",
-    left: 52,
-    top: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#1976d2",
-    elevation: 2,
-  },
-  questionContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  reviewInteractionPane: {
-    flex: 1,
-  },
-  reviewInteractionPaneWithDetails: {
-    justifyContent: "space-between",
-    minHeight: 220,
-  },
-  characterWrapper: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  characterWrapperWithDetails: {
-    minHeight: 96,
-    paddingBottom: 10,
-  },
-  characterContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reviewMetadataStack: {
-    alignSelf: "flex-start",
-    gap: 8,
-    marginBottom: 10,
-    marginLeft: 2,
-  },
-  reviewMetadataStackInRow: {
-    marginBottom: 0,
-    marginLeft: 0,
-  },
-  reviewMetadataPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
-    backgroundColor: "rgba(0, 0, 0, 0.18)",
-  },
-  reviewMetadataSrsIcon: {
-    width: 14,
-    height: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reviewMetadataText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  floatingReviewToolButton: {
-    position: "absolute",
-    right: 16,
-    width: FLOATING_REVIEW_TOOL_BUTTON_SIZE,
-    height: FLOATING_REVIEW_TOOL_BUTTON_SIZE,
-    borderRadius: FLOATING_REVIEW_TOOL_BUTTON_RADIUS,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    zIndex: 100,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "rgba(0, 0, 0, 0.4)",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  floatingReviewToolButtonInner: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    borderRadius: FLOATING_REVIEW_TOOL_BUTTON_RADIUS,
-    borderWidth: 0.5,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  characterText: {
-    fontSize: Math.min(width * 0.25, 120),
-    color: "white",
-    fontWeight: "400",
-    textAlign: "center",
-    fontFamily: "SourceHanSansJP-Regular",
-    // Android-specific: remove extra font padding and center vertically
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  placeholderText: {
-    fontSize: Math.min(width * 0.09, 36),
-    color: "white",
-    fontWeight: "500",
-    textAlign: "center",
-  },
-  placeholderSubtext: {
-    marginTop: 8,
-    fontSize: Math.min(width * 0.05, 18),
-    color: "rgba(255,255,255,0.9)",
-    textAlign: "center",
-    paddingHorizontal: 12,
-  },
-  answerContainer: {
-    alignSelf: "stretch",
-    justifyContent: "flex-end",
-    marginTop: "auto",
-  },
-  pausedUnifiedDetailsSheet: {
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: 0,
-    marginHorizontal: -16,
-    marginBottom: -16,
-    paddingTop: 12,
-    paddingHorizontal: 12,
-    overflow: "hidden",
-  },
-  pausedAnswerControlArea: {
-    paddingBottom: 10,
-  },
-  pausedDetailsCorrectAnswer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 8,
-    marginTop: 7,
-  },
-  pausedDetailsCorrectAnswerBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-  },
-  pausedDetailsCorrectAnswerLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  pausedDetailsCorrectAnswerText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  pausedSubjectDetailsPanel: {
-    alignSelf: "stretch",
-    overflow: "hidden",
-    marginHorizontal: -12,
-  },
-  pausedDetailsActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 8,
-  },
-  pausedDetailsActionButton: {
-    flexGrow: 1,
-    flexBasis: "30%",
-    minHeight: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  pausedDetailsActionButtonText: {
-    fontSize: 11,
-    fontWeight: "700",
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  answerInput: {
-    alignSelf: "stretch",
-    height: ANSWER_INPUT_HEIGHT,
-    paddingHorizontal: 16,
-    fontSize: ANSWER_INPUT_FONT_SIZE,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    marginTop: Platform.OS === "android" ? -StyleSheet.hairlineWidth : 0,
-    textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  answerInputReading: {
-    ...fontStyles.japaneseText,
-  },
-  answerInputVoiceMode: {
-    paddingLeft: 56,
-    paddingRight: 56,
-  },
-  answerInputVoiceModeDual: {
-    paddingLeft: 100,
-    paddingRight: 56,
-  },
-  correctButton: {
-    backgroundColor: "#4caf50",
-  },
-  closeButton: {
-    backgroundColor: "#ff9800",
-  },
-  incorrectButton: {
-    backgroundColor: "#f44336",
-  },
-  retryFeedback: {
-    backgroundColor: "rgba(255, 152, 0, 0.8)",
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  voiceStatusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 8,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  voiceStatusListening: {
-    backgroundColor: "rgba(25, 118, 210, 0.9)",
-  },
-  voiceStatusError: {
-    backgroundColor: "rgba(244, 67, 54, 0.9)",
-  },
-  voiceStatusText: {
-    flex: 1,
-    marginLeft: 6,
-    color: "white",
-    fontSize: 13,
-  },
-  retryFeedbackText: {
-    fontSize: 14,
-    color: "white",
-    textAlign: "center",
-  },
-  backButton: {
-    padding: 8,
-    marginRight: "auto",
-  },
-  disabledTouchable: {
-    opacity: 0.7, // Slightly dim the button when disabled
-  },
-  srsProgressionCard: {
-    position: "absolute",
-    bottom: 115,
-    width: SRS_CARD_WIDTH,
-    borderRadius: 24,
-    zIndex: 1000,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  srsProgressionCardCompact: {
-    width: SRS_CARD_COMPACT_WIDTH,
-    borderRadius: 20,
-  },
-  srsCardContent: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  srsCardContentCompact: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    gap: 8,
-  },
-  srsIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  srsIconContainerCompact: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-  },
-  srsTextContainer: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    flex: 1,
-  },
-  srsArrowAndLevel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  srsCardLevel: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  srsCardLevelCompact: {
-    fontSize: 11,
-  },
-  srsNextReview: {
-    color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 10,
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  srsNextReviewCompact: {
-    fontSize: 9,
-    marginTop: 1,
-  },
-  // Anki Card Mode Styles
-  ankiCardContainer: {
-    flex: 1,
-    position: "relative",
-  },
-  ankiAnswerContainer: {
-    flex: 1,
-    alignSelf: "stretch",
-    justifyContent: "flex-end",
-  },
-  ankiSrsProgressionOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  ankiSrsProgressionOverlayCentered: {
-    alignItems: "center",
-  },
-  ankiSrsProgressionOverlaySide: {
-    alignItems: "flex-end",
-    paddingRight: SRS_CARD_SIDE_OFFSET,
-  },
-  srsProgressionCardInline: {
-    width: SRS_CARD_WIDTH,
-    borderRadius: 24,
-    zIndex: 1000,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  ankiPreCardOverlayRow: {
-    position: "relative",
-    flexDirection: "row",
-    alignItems: "flex-end",
-    marginBottom: 10,
-  },
-  ankiPreRevealSkipChip: {
-    alignSelf: "flex-end",
-    marginRight: 14,
-    zIndex: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 11,
-    borderRadius: 999,
-    borderWidth: 1,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.14,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  ankiPreRevealSkipChipLight: {
-    backgroundColor: "rgba(248, 250, 252, 0.95)",
-    borderColor: "rgba(71, 85, 105, 0.2)",
-  },
-  ankiPreRevealSkipChipDark: {
-    backgroundColor: "rgba(15, 23, 42, 0.94)",
-    borderColor: "rgba(148, 163, 184, 0.4)",
-  },
-  ankiPreRevealSkipChipText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  ankiContentContainer: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    overflow: "hidden",
-    marginTop: -1, // Remove potential gap
-  },
-  ankiAnswerSection: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ankiBlurContainer: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  ankiAnswerText: {
-    fontSize: Math.min(width * 0.05, 20),
-    fontWeight: "500",
-    textAlign: "center",
-    paddingHorizontal: 20,
-    color: "#333",
-  },
-  ankiSupplementaryAnswersContainer: {
-    marginTop: 10,
-    width: "100%",
-    gap: 6,
-  },
-  ankiSupplementaryAnswerRow: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-  },
-  ankiSupplementaryAnswerLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "rgba(0, 0, 0, 0.55)",
-    textAlign: "center",
-    marginBottom: 2,
-  },
-  ankiSupplementaryAnswerValue: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#2A2A2A",
-    textAlign: "center",
-  },
-  ankiBlurOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 6,
-    overflow: "hidden",
-  },
-  ankiTapHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 8,
-  },
-  ankiTapToReveal: {
-    fontSize: 14,
-    color: "rgba(0,0,0,0.6)",
-    fontWeight: "500",
-  },
-  ankiReplaySection: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  ankiReplayButton: {
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    backgroundColor: "#F5F3FF",
-    borderColor: "rgba(109, 40, 217, 0.2)",
-  },
-  ankiReplayButtonDark: {
-    backgroundColor: "rgba(76, 29, 149, 0.28)",
-    borderColor: "rgba(221, 214, 254, 0.42)",
-  },
-  ankiReplayButtonDisabled: {
-    opacity: 0.6,
-  },
-  ankiReplayButtonText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  ankiButtonSection: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    paddingTop: 4,
-    gap: 12,
-  },
-  ankiButtonlessOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 30,
-  },
-  ankiButton: {
-    flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 16, // More rounded
-    minHeight: 70,
-    backgroundColor: "#F2F4F7", // Light grey background
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  ankiButtonIconContainer: {
-    marginBottom: 6,
-  },
-  ankiButtonWrong: {
-    backgroundColor: "#FEF2F2", // Very light red
-    borderWidth: 1,
-    borderColor: "rgba(244, 67, 54, 0.1)",
-  },
-  ankiButtonDetails: {
-    backgroundColor: "#F0F9FF", // Very light blue
-    borderWidth: 1,
-    borderColor: "rgba(33, 150, 243, 0.1)",
-  },
-  ankiButtonSkip: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "rgba(71, 85, 105, 0.15)",
-  },
-  ankiButtonCorrect: {
-    backgroundColor: "#F0FDF4", // Very light green
-    borderWidth: 1,
-    borderColor: "rgba(76, 175, 80, 0.1)",
-  },
-  ankiButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  ankiWrongOptionsContainer: {
-    flex: 1,
-    width: "100%",
-    marginTop: 10,
-  },
-  ankiWrongTitle: {
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
-  },
-  ankiWrongGrid: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 10,
-  },
-  ankiButtonOption: {
-    flex: 1,
-    minHeight: 60,
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  ankiButtonOptionReading: {
-    flex: 1, // Reading button
-    minHeight: 60,
-    backgroundColor: "#2c2c2c",
-    borderWidth: 1,
-    borderColor: "#1a1a1a",
-  },
-  ankiButtonOptionMeaning: {
-    flex: 1, // Meaning button
-    minHeight: 60,
-    backgroundColor: "#f0f0f0",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  ankiButtonOptionFull: {
-    backgroundColor: "#FEF2F2", // Light red for "Both"
-    borderColor: "rgba(244, 67, 54, 0.2)",
-  },
-  ankiButtonOptionText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-    textAlign: "center",
-  },
-  ankiButtonOptionTextLight: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "white",
-    textAlign: "center",
-  },
-  ankiButtonOptionTextDark: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-    textAlign: "center",
-  },
-  ankiCancelButton: {
-    alignItems: "center",
-    paddingVertical: 10,
-    marginBottom: -20,
-  },
-  ankiCancelText: {
-    color: "#666",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  floatingWrapUpButton: {
-    position: "absolute",
-    top: 140, // Same height as previous answer card
-    right: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    zIndex: 100,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "rgba(0, 0, 0, 0.4)",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  floatingWrapUpButtonInner: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    borderRadius: 20,
-    borderWidth: 0.5,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  floatingWrapUpButtonText: {
-    color: "white",
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 6,
-    textShadowColor: "rgba(0, 0, 0, 0.1)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  floatingWrapUpIndicator: {
-    position: "absolute",
-    top: 140, // Same height as previous answer card
-    right: 16,
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    zIndex: 100,
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.3)",
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "rgba(0, 0, 0, 0.4)",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  floatingWrapUpIndicatorInner: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 215, 0, 0.08)",
-    borderRadius: 20,
-    borderWidth: 0.5,
-    borderColor: "rgba(255, 215, 0, 0.15)",
-  },
-  floatingWrapUpIndicatorText: {
-    color: "#ffd700",
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 6,
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  // Paused on wrong answer styles
-  pausedCard: {
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  pausedCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  pausedCardIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(244, 67, 54, 0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  pausedCardIconContainerCorrect: {
-    backgroundColor: "rgba(76, 175, 80, 0.15)",
-  },
-  pausedCardIconContainerClose: {
-    backgroundColor: "rgba(255, 152, 0, 0.2)",
-  },
-  pausedCardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#f44336",
-  },
-  pausedCardTitleClose: {
-    color: "#ff9800",
-  },
-  pausedCardTitleCorrect: {
-    color: "#4caf50",
-  },
-  correctAnswerSection: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
-  },
-  correctAnswerLabel: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.6)",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  correctAnswerText: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#4caf50",
-    textAlign: "center",
-  },
-  correctAnswerTextClose: {
-    color: "#ff9800",
-  },
-  pausedPrimaryActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  pausedActionButton: {
-    flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    gap: 4,
-  },
-  pausedButtonCorrect: {
-    backgroundColor: "rgba(76, 175, 80, 0.15)",
-  },
-  pausedButtonSkip: {
-    backgroundColor: "rgba(33, 150, 243, 0.15)",
-  },
-  pausedButtonIncorrect: {
-    backgroundColor: "rgba(244, 67, 54, 0.15)",
-  },
-  pausedButtonSynonym: {
-    backgroundColor: "rgba(255, 152, 0, 0.15)",
-  },
-  pausedButtonDetails: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-  },
-  pausedButtonReplay: {
-    backgroundColor: "rgba(149, 117, 205, 0.2)",
-  },
-  pausedActionButtonText: {
-    fontSize: 11,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  pausedActionDisabled: {
-    opacity: 0.55,
-  },
-  pausedSecondaryActions: {
-    marginTop: 8,
-    flexDirection: "row",
-    gap: 8,
-  },
-  pausedSecondaryAction: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  pausedSecondaryActionText: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  wrongAnswerDisplay: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pausedAnswerOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  pausedInputTextHidden: {
-    color: "transparent",
-  },
-  hiddenPausedShortcutInput: {
-    position: "absolute",
-    opacity: 0,
-    width: 1,
-    height: 1,
-  },
-  wrongAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
-    backgroundColor: "transparent",
-    color: "#f44336",
-    textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  correctPausedAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
-    backgroundColor: "transparent",
-    color: "#4caf50",
-    textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  closePausedAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
-    backgroundColor: "transparent",
-    color: "#ff9800",
-    textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  // Context hint styles
-  contextHintContainer: {
-    marginTop: 16,
-    alignItems: "center",
-    width: "100%",
-    paddingHorizontal: 20,
-  },
-  contextHintButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
-  },
-  contextHintButtonText: {
-    color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  contextHintContent: {
-    marginTop: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderRadius: 12,
-    padding: 14,
-    width: "100%",
-    maxWidth: 350,
-  },
-  contextHintSentenceGroup: {
-    marginBottom: 8,
-  },
-  contextHintSentence: {
-    color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 14,
-    lineHeight: 20,
-    fontStyle: "italic",
-  },
-  contextHintSentenceJapanese: {
-    fontStyle: "normal",
-    color: "rgba(255, 255, 255, 0.95)",
-  },
-});
