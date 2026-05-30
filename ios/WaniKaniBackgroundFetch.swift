@@ -36,11 +36,11 @@ class WaniKaniBackgroundFetch: NSObject {
   }
   
   @objc
-  func storeApiToken(_ apiToken: String) {
-    self.lastApiToken = apiToken
-    // Store API token for background fetch
-    UserDefaults.standard.set(apiToken, forKey: "wanikani_api_token")
-  }
+	  func storeApiToken(_ apiToken: String) {
+	    self.lastApiToken = apiToken
+	    // Store API token for background fetch
+	    UserDefaults.standard.set(apiToken, forKey: kakehashiStoredAPITokenKey)
+	  }
   
   @objc
   func updateNotificationSettings(_ settings: [String: Any]) {
@@ -62,9 +62,35 @@ class WaniKaniBackgroundFetch: NSObject {
       print("📱 Background Fetch: Badge permission: \(settings.badgeSetting.rawValue)")
     }
     
-    guard let apiToken = self.lastApiToken ?? UserDefaults.standard.string(forKey: "wanikani_api_token") else {
+    guard let apiToken = self.lastApiToken ?? UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey) else {
       print("❌ Background Fetch: No API token")
       completionHandler(.noData)
+      return
+    }
+
+    if UserDefaults.standard.bool(forKey: kakehashiVacationModeKey) {
+      print("🏖️ Background Fetch: Vacation mode is active; clearing review badge and watch snapshot")
+      DispatchQueue.main.async {
+        UIApplication.shared.applicationIconBadgeNumber = 0
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+          let identifiersToRemove = requests
+            .filter {
+              $0.identifier.hasPrefix("badge-update-") ||
+              $0.identifier.hasPrefix("review-")
+            }
+            .map { $0.identifier }
+          UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
+        }
+
+        self.updateWidgetData(
+          currentReviews: 0,
+          upcomingReviews: Array(repeating: 0, count: 24),
+          upcomingReviewTimes: nil,
+          isOnVacation: true,
+          vacationStartedAt: UserDefaults.standard.string(forKey: kakehashiVacationStartedAtKey)
+        )
+        completionHandler(.noData)
+      }
       return
     }
     
@@ -340,7 +366,7 @@ class WaniKaniBackgroundFetch: NSObject {
   
   @objc
   private func handleReviewUpdateTrigger() {
-    guard let apiToken = self.lastApiToken ?? UserDefaults.standard.string(forKey: "wanikani_api_token") else {
+    guard let apiToken = self.lastApiToken ?? UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey) else {
       return
     }
     
@@ -472,7 +498,7 @@ class WaniKaniBackgroundFetch: NSObject {
       "lastFetchTime": lastFetchTime?.description ?? "Never",
       "timeSinceLastFetch": timeSinceLastFetch,
       "currentReviewCount": reviewCount,
-      "hasApiToken": (lastApiToken ?? UserDefaults.standard.string(forKey: "wanikani_api_token")) != nil,
+      "hasApiToken": (lastApiToken ?? UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey)) != nil,
       "badgeEnabled": UserDefaults.standard.object(forKey: "badge_notifications_enabled") as? Bool ?? true
     ]
   }
@@ -492,25 +518,25 @@ class WaniKaniBackgroundFetch: NSObject {
   }
   
   // Update widget data using shared App Group
-  private func updateWidgetData(currentReviews: Int, upcomingReviews: [Int], upcomingReviewTimes: [String: Int]?) {
+  private func updateWidgetData(
+    currentReviews: Int,
+    upcomingReviews: [Int],
+    upcomingReviewTimes: [String: Int]?,
+    isOnVacation: Bool = false,
+    vacationStartedAt: String? = nil
+  ) {
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
     print("📱 updateWidgetData called at \(timestamp) with: currentReviews=\(currentReviews), upcoming=\(upcomingReviews.reduce(0, +))")
     NSLog("📱 updateWidgetData called at %@ with: currentReviews=%d, upcoming=%d", timestamp, currentReviews, upcomingReviews.reduce(0, +))
     
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
-      print("❌ Failed to access App Group UserDefaults")
-      return
-    }
-    
-    let data: [String: Any] = [
-      "currentReviews": currentReviews,
-      "upcomingReviews": upcomingReviews,
-      "upcomingReviewTimes": upcomingReviewTimes ?? [:],
-      "lastUpdated": Date().timeIntervalSince1970
-    ]
-    
-    sharedDefaults.set(data, forKey: "waniKaniReviewData")
-    let syncSuccess = sharedDefaults.synchronize()
+    let syncSuccess = saveKakehashiReviewSnapshot(
+      currentReviews: currentReviews,
+      upcomingReviews: upcomingReviews,
+      upcomingReviewTimes: upcomingReviewTimes,
+      isOnVacation: isOnVacation,
+      vacationStartedAt: vacationStartedAt,
+      logPrefix: "WaniKaniBackgroundFetch"
+    )
     print("✅ Saved review data to App Group: \(currentReviews) reviews (sync: \(syncSuccess))")
     NSLog("✅ Saved review data to App Group: %d reviews (sync: %@)", currentReviews, syncSuccess ? "success" : "failed")
     
@@ -532,7 +558,7 @@ class WaniKaniBackgroundFetch: NSObject {
         print("🔄 Requesting specific widget reload...")
         NSLog("🔄 Requesting specific widget reload...")
         
-        WidgetCenter.shared.reloadTimelines(ofKind: "WaniKaniWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: kakehashiHomeWidgetKind)
         print("✅ WaniKani widgets reloaded with new review data")
         NSLog("✅ WaniKani widgets reloaded with new review data")
         

@@ -2,13 +2,13 @@
   "expo": {
     "name": "Kakehashi",
     "slug": "kakehashi",
-    "version": "1.4.4",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kakehashi",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "version": "1.4.4",
+      "version": "1.5.0",
       "supportsTablet": true,
       "bundleIdentifier": "com.portego00.kakehashi",
       "icon": "./ios/Kakehashi.icon",
@@ -39,7 +39,7 @@
       "appleTeamId": "854C975NWV"
     },
     "android": {
-      "version": "1.4.4",
+      "version": "1.5.0",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/images/adaptive-icon-background.png",
@@ -217,7 +217,7 @@
         "projectId": "22fd8bf2-11b1-439f-b818-80b2ef36b90b"
       }
     },
-    "runtimeVersion": "1.4.4",
+    "runtimeVersion": "1.5.0",
     "updates": {
       "url": "https://u.expo.dev/22fd8bf2-11b1-439f-b818-80b2ef36b90b",
       "checkAutomatically": "ON_ERROR_RECOVERY"

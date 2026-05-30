@@ -5,6 +5,8 @@ interface ReviewData {
   currentReviews: number;
   upcomingReviews: number[];
   upcomingReviewTimes?: { [key: string]: number }; // Optional for backward compatibility
+  isOnVacation?: boolean;
+  vacationStartedAt?: string | null;
   settings: {
     badgeEnabled: boolean;
     alertsEnabled: boolean;

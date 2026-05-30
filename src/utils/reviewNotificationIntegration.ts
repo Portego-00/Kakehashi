@@ -9,6 +9,7 @@ import {
   type VisibleReviewData,
 } from './api';
 import { supportsBadgeAndReviewNotifications } from './platformSupport';
+import { useAuthStore } from './store';
 
 const SETTINGS_KEY = 'wanikani-settings';
 const IS_SUPPORTED_PLATFORM =
@@ -63,12 +64,28 @@ function convertVisibleReviewDataToReviewData(
     upcomingReviews: number[];
     upcomingReviewTimes: { [key: string]: number };
   },
-  settings: { badgeEnabled: boolean; alertsEnabled: boolean; soundsEnabled: boolean }
+  settings: { badgeEnabled: boolean; alertsEnabled: boolean; soundsEnabled: boolean },
+  vacation: { isOnVacation: boolean; vacationStartedAt: string | null }
 ): ReviewData {
+  if (vacation.isOnVacation) {
+    return {
+      currentReviews: 0,
+      upcomingReviews: new Array(
+        Math.max(visibleReviewData.upcomingReviews.length, 24)
+      ).fill(0),
+      upcomingReviewTimes: {},
+      isOnVacation: true,
+      vacationStartedAt: vacation.vacationStartedAt,
+      settings,
+    };
+  }
+
   return {
     currentReviews: visibleReviewData.currentReviews,
     upcomingReviews: visibleReviewData.upcomingReviews,
     upcomingReviewTimes: visibleReviewData.upcomingReviewTimes,
+    isOnVacation: false,
+    vacationStartedAt: null,
     settings,
   };
 }
@@ -113,6 +130,12 @@ export async function updateBadgeAndScheduleNotifications(
 
       // Get notification settings
       const settings = await getNotificationSettings();
+      const vacationStartedAt =
+        useAuthStore.getState().userData?.current_vacation_started_at ?? null;
+      const vacation = {
+        isOnVacation: Boolean(vacationStartedAt),
+        vacationStartedAt,
+      };
       // Retained for API compatibility with existing callers.
       void options.forceSummaryRefresh;
       
@@ -138,7 +161,8 @@ export async function updateBadgeAndScheduleNotifications(
           }));
         reviewData = convertVisibleReviewDataToReviewData(
           visibleReviewData,
-          settings
+          settings,
+          vacation
         );
       } catch (visibleDataError) {
         console.warn(
@@ -147,9 +171,11 @@ export async function updateBadgeAndScheduleNotifications(
         );
         const currentReviews = await getReviewCount(apiToken);
         reviewData = {
-          currentReviews,
+          currentReviews: vacation.isOnVacation ? 0 : currentReviews,
           upcomingReviews: new Array(24).fill(0),
           upcomingReviewTimes: {},
+          isOnVacation: vacation.isOnVacation,
+          vacationStartedAt: vacation.vacationStartedAt,
           settings,
         };
       }

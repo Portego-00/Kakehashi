@@ -20,8 +20,8 @@ struct WaniKaniReviewData: Codable {
 // Shared UserDefaults for App Group communication
 class SharedReviewDataManager {
     static let shared = SharedReviewDataManager()
-    private let appGroupIdentifier = "group.com.wanikani.reviewdata"
-    private let reviewDataKey = "waniKaniReviewData"
+    private let appGroupIdentifier = kakehashiAppGroupIdentifier
+    private let reviewDataKey = kakehashiReviewDataKey
     
     private var sharedDefaults: UserDefaults? {
         return UserDefaults(suiteName: appGroupIdentifier)

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D91FDB91BF5DE6812400C30 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 764DC7639EA881F63AAE6445 /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		14A01CE2F6594CBEA3E5F588 /* SourceHanSansJP-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 64B9908AD61B4E58B09DD340 /* SourceHanSansJP-Regular.otf */; };
 		154753FF9FC87829B6F64CDE /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 238A2EB18FFDB16DCCED8948 /* libPods-ExpoWidgetsTarget.a */; };
@@ -36,6 +37,9 @@
 		E644781016D04006AF263372 /* SourceHanSansJP-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 042E6F0ED68540F0BB11B3B8 /* SourceHanSansJP-Bold.otf */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		FA24C101981AF4C40F28B83A /* KeyboardManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 37E9968EF1A2EBFD6F44B8A7 /* KeyboardManager.m */; };
+		XX6A44985675A04437B8C4XX /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XX4DFF38D47332D6BF0183XX /* SwiftUI.framework */; };
+		XX8E4863C19534EC7D4226XX /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XX8ACBDF17A27E5D829A2CXX /* WatchConnectivity.framework */; };
+		XXC3B1D2D6754A0C41600AXX /* Kakehashi Watch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = XX5BE0F3A7C51B5CC862AFXX /* Kakehashi Watch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		XXE4511B4070E5F72D4AB4XX /* WaniKani OCR.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = XX69EE2B1C1E922F3FD7AAXX /* WaniKani OCR.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -54,6 +58,13 @@
 			remoteGlobalIDString = XX4118A2F124B9955BD529XX;
 			remoteInfo = "WaniKani OCR";
 		};
+		XX7483F1A68A78986FFD1AXX /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = XXCEF6D4E61D62F2B0F6BEXX;
+			remoteInfo = "Kakehashi Watch";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -67,6 +78,17 @@
 				E1A372EC08BB42B79083614F /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		XX81D5C67C94C2E1F9007EXX /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				XXC3B1D2D6754A0C41600AXX /* Kakehashi Watch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -111,7 +133,10 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = wanikani/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* wanikani-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.h; name = "wanikani-Bridging-Header.h"; path = "wanikani/wanikani-Bridging-Header.h"; sourceTree = "<group>"; };
 		FFE8E9BAEAB6413098FCF782 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		XX4DFF38D47332D6BF0183XX /* SwiftUI.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		XX5BE0F3A7C51B5CC862AFXX /* Kakehashi Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = 4; includeInIndex = 0; path = "Kakehashi Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		XX69EE2B1C1E922F3FD7AAXX /* WaniKani OCR.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 4; includeInIndex = 0; path = "WaniKani OCR.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		XX8ACBDF17A27E5D829A2CXX /* WatchConnectivity.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -122,6 +147,14 @@
 				Info.plist,
 			);
 			target = XX4118A2F124B9955BD529XX /* WaniKani OCR */;
+		};
+		XXB0D3D3B61B070D99B9BAXX /* Exceptions for "kakehashi-watch" folder in "Kakehashi Watch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				"expo-target.config.js",
+			);
+			target = XXCEF6D4E61D62F2B0F6BEXX /* Kakehashi Watch */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -136,6 +169,18 @@
 			explicitFolders = (
 			);
 			path = "share-extension";
+			sourceTree = "<group>";
+		};
+		XX3CB3699C7F6598F017ADXX /* kakehashi-watch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				XXB0D3D3B61B070D99B9BAXX /* Exceptions for "kakehashi-watch" folder in "Kakehashi Watch" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "kakehashi-watch";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -155,6 +200,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				154753FF9FC87829B6F64CDE /* libPods-ExpoWidgetsTarget.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		XX074B8811C1CF8E8A3D74XX /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				XX6A44985675A04437B8C4XX /* SwiftUI.framework in Frameworks */,
+				XX8E4863C19534EC7D4226XX /* WatchConnectivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,6 +250,8 @@
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				6AC80FED109C3A07435120AD /* libPods-wanikani.a */,
 				238A2EB18FFDB16DCCED8948 /* libPods-ExpoWidgetsTarget.a */,
+				XX4DFF38D47332D6BF0183XX /* SwiftUI.framework */,
+				XX8ACBDF17A27E5D829A2CXX /* WatchConnectivity.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -239,6 +295,7 @@
 				13B07F961A680F5B00A75B9A /* Kakehashi.app */,
 				XX69EE2B1C1E922F3FD7AAXX /* WaniKani OCR.appex */,
 				121278DA8FFF4489BC70DD2E /* ExpoWidgetsTarget.appex */,
+				XX5BE0F3A7C51B5CC862AFXX /* Kakehashi Watch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -305,6 +362,7 @@
 			isa = PBXGroup;
 			children = (
 				XX1568D9FFDB5C982FFE07XX /* share-extension */,
+				XX3CB3699C7F6598F017ADXX /* kakehashi-watch */,
 			);
 			name = "expo:targets";
 			path = ../targets;
@@ -326,17 +384,19 @@
 				XX72A8CFBF0FBA13A79902XX /* Embed Foundation Extensions */,
 				03CE27B2064724914ECD3112 /* [CP] Embed Pods Frameworks */,
 				B57C8D4E766B9932EDE596E5 /* [CP] Copy Pods Resources */,
+				XX81D5C67C94C2E1F9007EXX /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				XX0C779A60098229544163XX /* PBXTargetDependency */,
 				94A4A93B5B3B45AA9FE9B36A /* PBXTargetDependency */,
+				XXC3D8054CC99A7CE4F5ABXX /* PBXTargetDependency */,
 			);
-			name = wanikani;
-			productName = wanikani;
-			productReference = 13B07F961A680F5B00A75B9A /* Kakehashi.app */;
-			productType = "com.apple.product-type.application";
+				name = wanikani;
+				productName = wanikani;
+				productReference = 13B07F961A680F5B00A75B9A /* Kakehashi.app */;
+				productType = "com.apple.product-type.application";
 		};
 		1A3F8AE7B10243D7BB0A6ED8 /* ExpoWidgetsTarget */ = {
 			isa = PBXNativeTarget;
@@ -376,6 +436,26 @@
 			productReference = XX69EE2B1C1E922F3FD7AAXX /* WaniKani OCR.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		XXCEF6D4E61D62F2B0F6BEXX /* Kakehashi Watch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = XX047147AB6BD26A49A5BEXX /* Build configuration list for PBXNativeTarget "Kakehashi Watch" */;
+			buildPhases = (
+				XX074B8811C1CF8E8A3D74XX /* Frameworks */,
+				XXE45443DC38DCFE1DB622XX /* Sources */,
+				XXFA5A8CCDD805DF7AEF9CXX /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				XX3CB3699C7F6598F017ADXX /* kakehashi-watch */,
+			);
+				name = "Kakehashi Watch";
+				productName = KakehashiWatch;
+				productReference = XX5BE0F3A7C51B5CC862AFXX /* Kakehashi Watch.app */;
+				productType = "com.apple.product-type.application";
+			};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -391,6 +471,11 @@
 						LastSwiftMigration = 1250;
 					};
 					XX4118A2F124B9955BD529XX = {
+						CreatedOnToolsVersion = 14.3;
+						DevelopmentTeam = 854C975NWV;
+						ProvisioningStyle = Automatic;
+					};
+					XXCEF6D4E61D62F2B0F6BEXX = {
 						CreatedOnToolsVersion = 14.3;
 						DevelopmentTeam = 854C975NWV;
 						ProvisioningStyle = Automatic;
@@ -413,6 +498,7 @@
 				13B07F861A680F5B00A75B9A /* wanikani */,
 				XX4118A2F124B9955BD529XX /* WaniKani OCR */,
 				1A3F8AE7B10243D7BB0A6ED8 /* ExpoWidgetsTarget */,
+				XXCEF6D4E61D62F2B0F6BEXX /* Kakehashi Watch */,
 			);
 		};
 /* End PBXProject section */
@@ -436,6 +522,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		XXFA5A8CCDD805DF7AEF9CXX /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0D91FDB91BF5DE6812400C30 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -468,13 +562,11 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-wanikani/Pods-wanikani-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/Clarity/Clarity.framework/Clarity",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/MobileVLCKit/MobileVLCKit.framework/MobileVLCKit",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Clarity.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/MobileVLCKit.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
 			);
@@ -755,6 +847,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		XXE45443DC38DCFE1DB622XX /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -767,6 +866,11 @@
 			isa = PBXTargetDependency;
 			target = XX4118A2F124B9955BD529XX /* WaniKani OCR */;
 			targetProxy = XX479EE8241CD2C9B3310BXX /* PBXContainerItemProxy */;
+		};
+		XXC3D8054CC99A7CE4F5ABXX /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = XXCEF6D4E61D62F2B0F6BEXX /* Kakehashi Watch */;
+			targetProxy = XX7483F1A68A78986FFD1AXX /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1018,6 +1122,50 @@
 			};
 			name = Release;
 		};
+		XX216E6251072CA6BAA587XX /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = $accent;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 854C975NWV;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../targets/kakehashi-watch/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Kakehashi;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.portego00.kakehashi;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.4.4;
+				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.portego00.kakehashi.watch;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 		XX2E6EB43792E2B3F82D19XX /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1057,6 +1205,50 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		XX526EB4D01F74900A6506XX /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = $accent;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 854C975NWV;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../targets/kakehashi-watch/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Kakehashi;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.portego00.kakehashi;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.4.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.portego00.kakehashi.watch;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
 		};
@@ -1127,6 +1319,15 @@
 			buildConfigurations = (
 				85BDBDCEA4724B9FA4144AFC /* Debug */,
 				AB96261ABE4E4CCF96EB7A0C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		XX047147AB6BD26A49A5BEXX /* Build configuration list for PBXNativeTarget "Kakehashi Watch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XX526EB4D01F74900A6506XX /* Debug */,
+				XX216E6251072CA6BAA587XX /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
