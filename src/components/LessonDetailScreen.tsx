@@ -137,6 +137,11 @@ const ANDROID_RIGHT_ARROW_KEY_CODE = 22;
 const WEB_LEFT_ARROW_KEY_CODE = 37;
 const WEB_RIGHT_ARROW_KEY_CODE = 39;
 
+const deferStateUpdate = (update: () => void) => {
+  const timeout = setTimeout(update, 0);
+  return () => clearTimeout(timeout);
+};
+
 interface SimilarVocabularyItem {
   id: number;
   characters: string;
@@ -768,17 +773,20 @@ const SubjectContent = ({
     };
   }, []);
 
-  // These effects intentionally reset async section state when the active
-  // subject or enabled detail sections change.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     let isMounted = true;
 
     if (!shouldLoadSimilarVocabulary) {
-      setCachedVocabularySubjects([]);
-      setLoadingSimilarVocabulary(false);
+      const cancelReset = deferStateUpdate(() => {
+        if (!isMounted) {
+          return;
+        }
+        setCachedVocabularySubjects([]);
+        setLoadingSimilarVocabulary(false);
+      });
       return () => {
         isMounted = false;
+        cancelReset();
       };
     }
 
@@ -848,7 +856,7 @@ const SubjectContent = ({
 
   useEffect(() => {
     if (Platform.OS !== "android" || noteModalVisible) return;
-    setAndroidKeyboardHeight(0);
+    return deferStateUpdate(() => setAndroidKeyboardHeight(0));
   }, [noteModalVisible]);
 
   const handleNoteModalOverlayLayout = (event: LayoutChangeEvent) => {
@@ -886,17 +894,19 @@ const SubjectContent = ({
   // Reset scroll position when subject changes
   useEffect(() => {
     scrollViewRef.current?.scrollTo({ x: 0, y: 0, animated: false });
-    setRevealedTranslations(new Set());
-    setSentencePlaybackSpeeds({});
-    setExpandedSentenceSpeedId(null);
-    setSelectedUsagePatternIndex(0);
-    setShowAllSimilarByMeaning(false);
-    setShowAllSimilarByReading(false);
+    return deferStateUpdate(() => {
+      setRevealedTranslations(new Set());
+      setSentencePlaybackSpeeds({});
+      setExpandedSentenceSpeedId(null);
+      setSelectedUsagePatternIndex(0);
+      setShowAllSimilarByMeaning(false);
+      setShowAllSimilarByReading(false);
+    });
   }, [subject.id]);
 
   useEffect(() => {
     if (!showContextSentenceSpeedControl) {
-      setExpandedSentenceSpeedId(null);
+      return deferStateUpdate(() => setExpandedSentenceSpeedId(null));
     }
   }, [showContextSentenceSpeedControl]);
 
@@ -907,8 +917,7 @@ const SubjectContent = ({
       visuallySimilarKanjiSource !== "niai" ||
       !shouldLoadKanjiVisualSimilar
     ) {
-      setNiaiSimilarKanji([]);
-      return;
+      return deferStateUpdate(() => setNiaiSimilarKanji([]));
     }
 
     const kanjiChar = subject.data?.characters;
@@ -936,13 +945,22 @@ const SubjectContent = ({
       !singleKanjiVocabularyCharacter ||
       !shouldLoadSingleKanjiVocabularySimilarKanji
     ) {
-      setSingleKanjiVocabularySimilarKanji([]);
+      const cancelReset = deferStateUpdate(() => {
+        if (isMounted) {
+          setSingleKanjiVocabularySimilarKanji([]);
+        }
+      });
       return () => {
         isMounted = false;
+        cancelReset();
       };
     }
 
-    setSingleKanjiVocabularySimilarKanji([]);
+    const cancelInitialReset = deferStateUpdate(() => {
+      if (isMounted) {
+        setSingleKanjiVocabularySimilarKanji([]);
+      }
+    });
 
     const loadSimilarKanji = async () => {
       try {
@@ -1032,6 +1050,7 @@ const SubjectContent = ({
 
     return () => {
       isMounted = false;
+      cancelInitialReset();
     };
   }, [
     singleKanjiVocabularyCharacter,
@@ -1097,8 +1116,7 @@ const SubjectContent = ({
   // Fetch study materials for user synonyms and notes
   useEffect(() => {
     if (!apiToken || !subject.id || !shouldLoadStudyMaterials) {
-      applyStudyMaterialState(null);
-      return;
+      return deferStateUpdate(() => applyStudyMaterialState(null));
     }
 
     getStudyMaterials(apiToken, { subject_ids: [subject.id] })
@@ -1215,16 +1233,19 @@ const SubjectContent = ({
 
   useEffect(() => {
     if (!shouldLoadMediaContextSentences) {
-      setLoadingMediaSentences(false);
-      setMediaSentences([]);
-      setNextDataOffset(0);
-      setVisibleMediaCount(10);
-      return;
+      return deferStateUpdate(() => {
+        setLoadingMediaSentences(false);
+        setMediaSentences([]);
+        setNextDataOffset(0);
+        setVisibleMediaCount(10);
+      });
     }
 
-    setNextDataOffset(0);
-    setVisibleMediaCount(10);
-    fetchMediaSentences(0);
+    return deferStateUpdate(() => {
+      setNextDataOffset(0);
+      setVisibleMediaCount(10);
+      fetchMediaSentences(0);
+    });
   }, [fetchMediaSentences, shouldLoadMediaContextSentences]);
 
   const loadMoreMediaSentences = () => {
@@ -1251,8 +1272,7 @@ const SubjectContent = ({
       !shouldLoadRadicalMnemonicIllustration ||
       !documentUrl
     ) {
-      setRadicalMnemonicImageUrl(null);
-      return;
+      return deferStateUpdate(() => setRadicalMnemonicImageUrl(null));
     }
 
     getMnemonicImageUrlFromDocument(documentUrl)
@@ -1283,13 +1303,19 @@ const SubjectContent = ({
       !shouldLoadRadicalMnemonicIllustration ||
       !radicalMnemonicImageUrl
     ) {
-      setRadicalMnemonicSvgXml(null);
-      setRadicalMnemonicImageKind("unknown");
-      return;
+      return deferStateUpdate(() => {
+        setRadicalMnemonicSvgXml(null);
+        setRadicalMnemonicImageKind("unknown");
+      });
     }
 
-    setRadicalMnemonicSvgXml(null);
-    setRadicalMnemonicImageKind("unknown");
+    const cancelInitialReset = deferStateUpdate(() => {
+      if (cancelled) {
+        return;
+      }
+      setRadicalMnemonicSvgXml(null);
+      setRadicalMnemonicImageKind("unknown");
+    });
 
     getMnemonicImageAsset(radicalMnemonicImageUrl)
       .then((asset) => {
@@ -1311,6 +1337,7 @@ const SubjectContent = ({
 
     return () => {
       cancelled = true;
+      cancelInitialReset();
     };
   }, [
     subject.id,
@@ -1319,8 +1346,6 @@ const SubjectContent = ({
     shouldLoadRadicalMnemonicIllustration,
     radicalMnemonicImageUrl,
   ]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   // Format mnemonic text with HTML highlighting (similar to KanjiDetails.tsx)
   const formatMnemonic = (mnemonic: string) => {
     if (!mnemonic) return null;
