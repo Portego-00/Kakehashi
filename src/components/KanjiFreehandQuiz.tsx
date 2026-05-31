@@ -1656,7 +1656,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gestureLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
   },
   loadingInner: {

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -842,17 +842,17 @@ export default function RadicalDetails({
             <View style={styles.progressionContainer}>
               {progressionStatus === "loading" ? (
                 /* Loading State */
-                <View style={styles.loadingContainer}>
+                (<View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color={theme.secondary} />
                   <Text
                     style={[styles.loadingText, { color: theme.textSecondary }]}
                   >
                     Loading progression...
                   </Text>
-                </View>
+                </View>)
               ) : progressionStatus === "offline" ? (
                 /* Offline State */
-                <View style={styles.notStartedContainer}>
+                (<View style={styles.notStartedContainer}>
                   <View style={[styles.srsBadge, styles.lockedBadge]}>
                     <Ionicons name="cloud-offline" size={28} color="#fff" />
                   </View>
@@ -867,12 +867,12 @@ export default function RadicalDetails({
                   >
                     Cannot determine progression while offline
                   </Text>
-                </View>
+                </View>)
               ) : radical.srsStage === undefined ||
                 radical.srsStage === null ||
                 radical.srsStage === 0 ? (
                 /* Not Started State */
-                <View style={styles.notStartedContainer}>
+                (<View style={styles.notStartedContainer}>
                   <View style={[styles.srsBadge, styles.lockedBadge]}>
                     <Ionicons name="lock-closed" size={28} color="#fff" />
                   </View>
@@ -887,10 +887,10 @@ export default function RadicalDetails({
                   >
                     Complete the lesson to start tracking progress
                   </Text>
-                </View>
+                </View>)
               ) : (
                 /* Started State */
-                <>
+                (<>
                   <View style={styles.srsContainer}>
                     <View
                       style={[
@@ -933,11 +933,9 @@ export default function RadicalDetails({
                       </View>
                     )}
                   </View>
-
                   <View
                     style={[styles.divider, { backgroundColor: theme.border }]}
                   />
-
                   <View style={styles.statsContainer}>
                     <View style={styles.statColumn}>
                       <Text
@@ -1019,13 +1017,12 @@ export default function RadicalDetails({
                       </View>
                     </View>
                   </View>
-                </>
+                </>)
               )}
             </View>
           </View>
         </View>
       </Animated.ScrollView>
-
       {/* Sticky Header */}
       {!embedded && (
         <Animated.View
@@ -1080,14 +1077,12 @@ export default function RadicalDetails({
           </TouchableOpacity>
         </Animated.View>
       )}
-
       <CopyTooltip
         visible={tooltipVisible}
         position={tooltipPosition}
         opacity={tooltipOpacity}
         translateY={tooltipTranslateY}
       />
-
       {/* Synonyms Modal */}
       <SynonymsModal
         visible={synonymsModalVisible}

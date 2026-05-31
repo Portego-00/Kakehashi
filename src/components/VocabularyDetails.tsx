@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -2194,7 +2194,6 @@ export default function VocabularyDetails({
             {/* Context Sections removed from Meaning tab */}
           </View>
         )}
-
         {activeTab === "reading" && (
           <View>
             {/* Reading Tab Content */}
@@ -2348,7 +2347,6 @@ export default function VocabularyDetails({
             {/* Context Sections removed from Reading tab */}
           </View>
         )}
-
         {activeTab === "context" && (
           <View>
             {/* Patterns of Use */}
@@ -2489,7 +2487,6 @@ export default function VocabularyDetails({
                                 )}
                               </TouchableOpacity>
                             </View>
-
                             {/* Horizontal layout: Image on left, text on right */}
                             <View style={styles.mediaContentRow}>
                               {/* Screenshot from the media */}
@@ -2603,7 +2600,6 @@ export default function VocabularyDetails({
             )}
           </View>
         )}
-
         {activeTab !== "context" && (
           <>
             {/* Notes Section */}
@@ -2823,7 +2819,7 @@ export default function VocabularyDetails({
                 <View style={styles.progressionContainer}>
                   {progressionStatus === "loading" ? (
                     /* Loading State */
-                    <View style={styles.loadingContainer}>
+                    (<View style={styles.loadingContainer}>
                       <ActivityIndicator size="small" color={theme.secondary} />
                       <Text
                         style={[
@@ -2833,10 +2829,10 @@ export default function VocabularyDetails({
                       >
                         Loading progression...
                       </Text>
-                    </View>
+                    </View>)
                   ) : progressionStatus === "offline" ? (
                     /* Offline State */
-                    <View style={styles.notStartedContainer}>
+                    (<View style={styles.notStartedContainer}>
                       <View style={[styles.srsBadge, styles.lockedBadge]}>
                         <Ionicons name="cloud-offline" size={28} color="#fff" />
                       </View>
@@ -2853,12 +2849,12 @@ export default function VocabularyDetails({
                       >
                         Cannot determine progression while offline
                       </Text>
-                    </View>
+                    </View>)
                   ) : vocabulary.srsStage === undefined ||
                     vocabulary.srsStage === null ||
                     vocabulary.srsStage === 0 ? (
                     /* Not Started State */
-                    <View style={styles.notStartedContainer}>
+                    (<View style={styles.notStartedContainer}>
                       <View style={[styles.srsBadge, styles.lockedBadge]}>
                         <Ionicons name="lock-closed" size={28} color="#fff" />
                       </View>
@@ -2875,10 +2871,10 @@ export default function VocabularyDetails({
                       >
                         Complete the lesson to start tracking progress
                       </Text>
-                    </View>
+                    </View>)
                   ) : (
                     /* Started State */
-                    <>
+                    (<>
                       <View style={styles.srsContainer}>
                         <View
                           style={[
@@ -2931,14 +2927,12 @@ export default function VocabularyDetails({
                           </View>
                         )}
                       </View>
-
                       <View
                         style={[
                           styles.divider,
                           { backgroundColor: theme.border },
                         ]}
                       />
-
                       <View style={styles.statsContainer}>
                         <View style={styles.statColumn}>
                           <Text
@@ -3113,7 +3107,7 @@ export default function VocabularyDetails({
                           </View>
                         </View>
                       </View>
-                    </>
+                    </>)
                   )}
                 </View>
               </View>
@@ -3742,10 +3736,10 @@ const createStyles = (subjectColors: SubjectColors) =>
     opacity: 0.18,
   },
   translationBlurOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   translationRevealHint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

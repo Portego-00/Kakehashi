@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native-vision-camera/lib/commonjs/expo-plugin/withVisionCamera.js b/node_modules/react-native-vision-camera/lib/commonjs/expo-plugin/withVisionCamera.js
+index a1707b8..4642545 100644
+--- a/node_modules/react-native-vision-camera/lib/commonjs/expo-plugin/withVisionCamera.js
++++ b/node_modules/react-native-vision-camera/lib/commonjs/expo-plugin/withVisionCamera.js
+@@ -4,7 +4,7 @@ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+ exports.default = void 0;
+-var _configPlugins = require("@expo/config-plugins");
++var _configPlugins = require("expo/config-plugins");
+ var _withEnableFrameProcessorsAndroid = require("./withEnableFrameProcessorsAndroid");
+ var _withEnableFrameProcessorsIOS = require("./withEnableFrameProcessorsIOS");
+ var _withAndroidMLKitVisionModel = require("./withAndroidMLKitVisionModel");

@@ -79,6 +79,10 @@ export async function getStoredBunproApiToken(): Promise<string | null> {
   }
 }
 
+export function getBunproApiTokenFromEnv(): string | null {
+  return normalizeBunproApiToken(process.env.EXPO_PUBLIC_BUNPRO_API_TOKEN);
+}
+
 export async function getActiveBunproApiToken(): Promise<string | null> {
   return getStoredBunproApiToken();
 }

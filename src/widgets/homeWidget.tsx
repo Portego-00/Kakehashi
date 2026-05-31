@@ -28,6 +28,7 @@ import {
 import { Asset } from "expo-asset";
 import { Directory, File, Paths } from "expo-file-system";
 import type { Widget, WidgetEnvironment } from "expo-widgets";
+import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import type {
   WidgetContentMode,
@@ -207,7 +208,7 @@ type WidgetController<T extends object> = Pick<
 
 type CreateWidgetFn = <T extends object>(
   name: string,
-  widget: (props: T, context: WidgetEnvironment) => JSX.Element,
+  widget: (props: T, context: WidgetEnvironment) => ReactElement,
 ) => Widget<T>;
 
 const NOOP_WIDGET: WidgetController<HomeWidgetProps> = {
@@ -352,7 +353,7 @@ async function ensureSharedStreakIconUris(): Promise<StreakIconUris> {
       if (destinationFile.exists) {
         destinationFile.delete();
       }
-      sourceFile.copy(destinationFile);
+      await sourceFile.copy(destinationFile);
       iconUris[iconKey] = destinationFile.uri;
     }
 
@@ -428,7 +429,7 @@ async function ensureSharedReviewIllustrationUris(): Promise<ReviewIllustrationU
       if (destinationFile.exists) {
         destinationFile.delete();
       }
-      sourceFile.copy(destinationFile);
+      await sourceFile.copy(destinationFile);
       illustrationUris[illustrationKey] = destinationFile.uri;
     }
 
@@ -494,7 +495,7 @@ async function ensureSharedReviewAccessoryIconUri(): Promise<string> {
       return "";
     }
 
-    sourceFile.copy(destinationFile);
+    await sourceFile.copy(destinationFile);
     cachedReviewAccessoryIconUri = destinationFile.uri;
     return destinationFile.uri;
   })().finally(() => {

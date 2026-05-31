@@ -6064,10 +6064,10 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       opacity: 0.18,
     },
     translationBlurOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     translationRevealHint: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",

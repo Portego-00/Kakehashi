@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   touchLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 10,
   },
   touchZone: {

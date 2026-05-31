@@ -6709,7 +6709,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   ankiButtonlessOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 30,
   },
   ankiButton: {

@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   confettiContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: "hidden",
   },
 

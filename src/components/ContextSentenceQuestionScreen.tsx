@@ -2183,10 +2183,10 @@ const styles = StyleSheet.create({
     opacity: 0.18,
   },
   translationBlurOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   translationRevealHint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

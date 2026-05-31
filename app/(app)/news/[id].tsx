@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   ReactElement,
@@ -2402,7 +2402,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   tooltipBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 0,
   },
   tooltipPopup: {

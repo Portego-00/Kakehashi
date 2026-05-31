@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import * as Haptics from "@/src/utils/haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -657,7 +657,6 @@ export default function ListeningQuestionScreen({
           pointerEvents="none"
         />
       )}
-
       {/* Stats Header */}
       <View
         style={[
@@ -695,14 +694,12 @@ export default function ListeningQuestionScreen({
           </View>
         </View>
       </View>
-
       {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
         <Animated.View
           style={[styles.progressBar, { width: progressPercentage }]}
         />
       </View>
-
       {/* Content - scrollable for long media/sentences */}
       <ScrollView
         style={styles.scrollContent}
@@ -854,7 +851,6 @@ export default function ListeningQuestionScreen({
         </Animated.View>
 
       </ScrollView>
-
       {/* Bottom question area (hidden in kanji writing mode) */}
       {!isKanjiWritingPhase && (
         <KeyboardAvoidingView
@@ -871,14 +867,13 @@ export default function ListeningQuestionScreen({
         >
           {questionPhase === "kanji" ? (
             /* Vocabulary Multiple Choice Phase */
-            <View style={styles.questionSection}>
+            (<View style={styles.questionSection}>
               <View style={styles.questionPromptContainer}>
                 <Ionicons name="ear" size={24} color="white" />
                 <Text style={styles.questionPrompt}>
                   Which word did you hear?
                 </Text>
               </View>
-
               <View style={styles.choicesGrid}>
                 {question.kanjiChoices.map((choice, index) => (
                   <TouchableOpacity
@@ -903,7 +898,6 @@ export default function ListeningQuestionScreen({
                   </TouchableOpacity>
                 ))}
               </View>
-
               <TouchableOpacity
                 style={[
                   styles.submitButton,
@@ -916,14 +910,13 @@ export default function ListeningQuestionScreen({
                 <Text style={styles.submitButtonText}>Submit Answer</Text>
                 <Ionicons name="arrow-forward" size={24} color="white" />
               </TouchableOpacity>
-            </View>
+            </View>)
           ) : (
             /* Meaning Input Phase */
-            <View style={styles.questionSection}>
+            (<View style={styles.questionSection}>
               <View style={styles.banner}>
                 <Text style={styles.bannerText}>Meaning Question</Text>
               </View>
-
               <View style={styles.inputWrapper}>
                 <Animated.View
                   style={[
@@ -966,7 +959,7 @@ export default function ListeningQuestionScreen({
                   <Ionicons name="arrow-forward" size={20} color="white" />
                 </TouchableOpacity>
               </View>
-            </View>
+            </View>)
           )}
         </KeyboardAvoidingView>
       )}

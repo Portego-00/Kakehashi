@@ -558,7 +558,8 @@ export const mangaLibraryService = {
     }
 
     const pagesDirectory = getMangaPagesDirectory(mangaId);
-    const pageImageFileNames = imageEntries.map((entry, index) => {
+    const pageImageFileNames: string[] = [];
+    for (const [index, entry] of imageEntries.entries()) {
       const extension = getFileExtension(entry.relativePath) || "jpg";
       const pageFileName = buildPageFileName(index + 1, extension);
       const pageFile = new File(pagesDirectory, pageFileName);
@@ -567,9 +568,9 @@ export const mangaLibraryService = {
         pageFile.delete();
       }
 
-      entry.file.copy(pageFile);
-      return pageFileName;
-    });
+      await entry.file.copy(pageFile);
+      pageImageFileNames.push(pageFileName);
+    }
 
     const coverUri = new File(pagesDirectory, pageImageFileNames[0]).uri;
     const metadata: MangaLibraryItem = {

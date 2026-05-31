@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   supporterAvatarFallback: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -189,7 +189,7 @@ function persistVideoUriToHistoryCache(
     if (destinationVideoFile.exists) {
       destinationVideoFile.delete();
     }
-    sourceVideoFile.copy(destinationVideoFile);
+    sourceVideoFile.copySync(destinationVideoFile);
     return destinationVideoFile.uri;
   } catch {
     return sourceVideoUri;

@@ -1,0 +1,64 @@
+diff --git a/node_modules/@bacons/apple-targets/build/asset-contents.js b/node_modules/@bacons/apple-targets/build/asset-contents.js
+new file mode 100644
+index 0000000..8b4b89f
+--- /dev/null
++++ b/node_modules/@bacons/apple-targets/build/asset-contents.js
+@@ -0,0 +1,19 @@
++"use strict";
++
++Object.defineProperty(exports, "__esModule", {
++    value: true,
++});
++exports.writeContentsJsonAsync = writeContentsJsonAsync;
++const fs_1 = require("fs");
++const path_1 = require("path");
++
++async function writeContentsJsonAsync(directory, { images }) {
++    await fs_1.promises.mkdir(directory, { recursive: true });
++    await fs_1.promises.writeFile((0, path_1.join)(directory, "Contents.json"), JSON.stringify({
++        images,
++        info: {
++            version: 1,
++            author: "expo",
++        },
++    }, null, 2));
++}
+diff --git a/node_modules/@bacons/apple-targets/build/icon/with-image-asset.js b/node_modules/@bacons/apple-targets/build/icon/with-image-asset.js
+index 5888359..8770292 100644
+--- a/node_modules/@bacons/apple-targets/build/icon/with-image-asset.js
++++ b/node_modules/@bacons/apple-targets/build/icon/with-image-asset.js
+@@ -26,7 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.generateWatchIconsInternalAsync = exports.generateIconsInternalAsync = exports.generateResizedImageAsync = exports.setIconsAsync = exports.ICON_CONTENTS = exports.withImageAsset = void 0;
+ const config_plugins_1 = require("expo/config-plugins");
+ const image_utils_1 = require("@expo/image-utils");
+-const AssetContents_1 = require("@expo/prebuild-config/build/plugins/icons/AssetContents");
++const AssetContents_1 = require("../asset-contents");
+ const fs = __importStar(require("fs"));
+ const path_1 = __importStar(require("path"));
+ const withImageAsset = (config, { cwd, name, image }) => {
+diff --git a/node_modules/@bacons/apple-targets/build/icon/with-ios-icon.js b/node_modules/@bacons/apple-targets/build/icon/with-ios-icon.js
+index c8fb463..a343d22 100644
+--- a/node_modules/@bacons/apple-targets/build/icon/with-ios-icon.js
++++ b/node_modules/@bacons/apple-targets/build/icon/with-ios-icon.js
+@@ -26,7 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.generateWatchIconsInternalAsync = exports.generateIconsInternalAsync = exports.setIconsAsync = exports.ICON_CONTENTS = exports.withIosIcon = void 0;
+ const config_plugins_1 = require("expo/config-plugins");
+ const image_utils_1 = require("@expo/image-utils");
+-const AssetContents_1 = require("@expo/prebuild-config/build/plugins/icons/AssetContents");
++const AssetContents_1 = require("../asset-contents");
+ const fs = __importStar(require("fs"));
+ const path_1 = require("path");
+ // TODO: support dark, tinted, and universal icons for widgets.
+diff --git a/node_modules/@bacons/apple-targets/build/with-widget.js b/node_modules/@bacons/apple-targets/build/with-widget.js
+index 9e847e1..8f7fa83 100644
+--- a/node_modules/@bacons/apple-targets/build/with-widget.js
++++ b/node_modules/@bacons/apple-targets/build/with-widget.js
+@@ -10,7 +10,7 @@ const glob_1 = require("glob");
+ const path_1 = __importDefault(require("path"));
+ const chalk_1 = __importDefault(require("chalk"));
+ const with_ios_colorset_1 = require("./colorset/with-ios-colorset");
+-const AssetContents_1 = require("@expo/prebuild-config/build/plugins/icons/AssetContents");
++const AssetContents_1 = require("./asset-contents");
+ const with_image_asset_1 = require("./icon/with-image-asset");
+ const with_ios_symbolset_1 = require("./symbolset/with-ios-symbolset");
+ const with_ios_icon_1 = require("./icon/with-ios-icon");

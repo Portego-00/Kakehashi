@@ -2204,7 +2204,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.9)",
   },
   mediaModalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   mediaModalContent: {
     flex: 1,

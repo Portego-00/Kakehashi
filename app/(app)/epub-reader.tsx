@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   positioningOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -1140,11 +1140,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   lookupModalRoot: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "flex-end",
   },
   lookupBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "transparent",
   },
   lookupSheetWrap: {
