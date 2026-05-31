@@ -131,7 +131,7 @@ export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 10;
+const SETTINGS_STORE_SCHEMA_VERSION = 11;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -567,6 +567,8 @@ type SettingsState = {
 
   // Songs settings
   newsDefaultStudyMode: StudyModePreference;
+  hideVocabularyTooltipMeanings: boolean;
+  hideVocabularyTooltipReadings: boolean;
   songsMusicSource: "spotify" | "apple";
   songsPlaybackSource: "youtube" | "appleMusic";
   songsLyricsDefaultStudyMode: StudyModePreference;
@@ -722,6 +724,8 @@ type SettingsState = {
   setVisuallySimilarKanjiSource: (source: "wanikani" | "niai") => void;
   setListeningAutoPlayAudio: (autoplay: boolean) => void;
   setNewsDefaultStudyMode: (mode: StudyModePreference) => void;
+  setHideVocabularyTooltipMeanings: (hide: boolean) => void;
+  setHideVocabularyTooltipReadings: (hide: boolean) => void;
   setSongsMusicSource: (source: "spotify" | "apple") => void;
   setSongsPlaybackSource: (source: "youtube" | "appleMusic") => void;
   setSongsLyricsDefaultStudyMode: (mode: StudyModePreference) => void;
@@ -870,6 +874,8 @@ export const useSettingsStore = create<SettingsState>()(
 
       listeningAutoPlayAudio: true, // Default to true - auto-play audio when moving between questions
       newsDefaultStudyMode: "none", // Default to regular NHK article view
+      hideVocabularyTooltipMeanings: false, // Default to showing tooltip meanings immediately
+      hideVocabularyTooltipReadings: false, // Default to showing tooltip readings immediately
       songsMusicSource: "spotify", // Default to Spotify for backwards compatibility
       songsPlaybackSource: "youtube", // Default to existing YouTube player behavior
       songsLyricsDefaultStudyMode: "wk", // Default to WK chips for inline lyrics analysis
@@ -1105,6 +1111,10 @@ export const useSettingsStore = create<SettingsState>()(
       setVisuallySimilarKanjiSource: (source) => set({ visuallySimilarKanjiSource: source }),
       setListeningAutoPlayAudio: (autoplay) => set({ listeningAutoPlayAudio: autoplay }),
       setNewsDefaultStudyMode: (mode) => set({ newsDefaultStudyMode: mode }),
+      setHideVocabularyTooltipMeanings: (hide) =>
+        set({ hideVocabularyTooltipMeanings: hide }),
+      setHideVocabularyTooltipReadings: (hide) =>
+        set({ hideVocabularyTooltipReadings: hide }),
       setSongsMusicSource: (source) => set({ songsMusicSource: source }),
       setSongsPlaybackSource: (source) => set({ songsPlaybackSource: source }),
       setSongsLyricsDefaultStudyMode: (mode) =>
@@ -1243,6 +1253,8 @@ export const useSettingsStore = create<SettingsState>()(
           lessonPickerViewMode?: unknown;
           reviewCharacterFontScale?: unknown;
           otaUpdateExperience?: unknown;
+          hideVocabularyTooltipMeanings?: unknown;
+          hideVocabularyTooltipReadings?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1343,6 +1355,18 @@ export const useSettingsStore = create<SettingsState>()(
         migratedRecord.otaUpdateExperience = normalizeOtaUpdateExperience(
           migratedRecord.otaUpdateExperience
         );
+        if (
+          version < 11 ||
+          typeof migratedRecord.hideVocabularyTooltipMeanings !== "boolean"
+        ) {
+          migratedRecord.hideVocabularyTooltipMeanings = false;
+        }
+        if (
+          version < 11 ||
+          typeof migratedRecord.hideVocabularyTooltipReadings !== "boolean"
+        ) {
+          migratedRecord.hideVocabularyTooltipReadings = false;
+        }
 
         return migrated;
       },

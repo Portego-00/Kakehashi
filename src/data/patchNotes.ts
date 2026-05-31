@@ -65,6 +65,11 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Constellation exit no longer ends Practice Mistakes review.",
       },
+      {
+        type: "feature",
+        title: "Reader Tooltip Reveal Settings",
+        description: "Added tap-to-reveal settings for tooltip meanings and readings.",
+      },
     ],
   },
   {

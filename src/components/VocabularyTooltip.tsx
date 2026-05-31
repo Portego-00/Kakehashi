@@ -5,8 +5,10 @@ import {
   type LayoutChangeEvent,
   Modal,
   Pressable,
+  type StyleProp,
   StyleSheet,
   Text,
+  type TextStyle,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -23,6 +25,7 @@ import {
   VocabularyMatch,
 } from "../utils/textHighlighting";
 import { useTheme } from "../utils/theme";
+import { useSettingsStore } from "../utils/store";
 
 interface VocabularyTooltipProps {
   selectedItem: VocabularyMatch | KanjiMatch | null;
@@ -54,6 +57,14 @@ export const VocabularyTooltip: React.FC<VocabularyTooltipProps> = ({
   onTooltipLayout,
 }) => {
   const { theme } = useTheme();
+  const hideVocabularyTooltipMeanings = useSettingsStore(
+    (state) => state.hideVocabularyTooltipMeanings
+  );
+  const hideVocabularyTooltipReadings = useSettingsStore(
+    (state) => state.hideVocabularyTooltipReadings
+  );
+  const [isMeaningRevealed, setIsMeaningRevealed] = React.useState(false);
+  const [isReadingRevealed, setIsReadingRevealed] = React.useState(false);
   const isHoverPreview = interactionMode === "hover";
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -61,6 +72,11 @@ export const VocabularyTooltip: React.FC<VocabularyTooltipProps> = ({
       opacity: opacity.value,
     };
   });
+
+  React.useEffect(() => {
+    setIsMeaningRevealed(false);
+    setIsReadingRevealed(false);
+  }, [selectedItem?.id, selectedItem?.characters, selectedSurfaceText]);
 
   if (!selectedItem || !position) return null;
 
@@ -86,6 +102,62 @@ export const VocabularyTooltip: React.FC<VocabularyTooltipProps> = ({
       return;
     }
     router.push(`/subject/${subjectId}`);
+  };
+  const shouldHideMeaning =
+    hideVocabularyTooltipMeanings && !isMeaningRevealed;
+  const shouldHideReading =
+    hideVocabularyTooltipReadings && !isReadingRevealed;
+  const renderTooltipValueRow = ({
+    label,
+    value,
+    hidden,
+    revealLabel,
+    onReveal,
+    valueStyle,
+  }: {
+    label: string;
+    value: string;
+    hidden: boolean;
+    revealLabel: string;
+    onReveal: () => void;
+    valueStyle?: StyleProp<TextStyle>;
+  }) => {
+    const rowContent = (
+      <>
+        <Text
+          style={[
+            styles.tooltipPopupLabel,
+            { color: theme.textSecondary },
+          ]}
+        >
+          {label}
+        </Text>
+        <Text
+          style={[
+            styles.tooltipPopupValue,
+            { color: hidden ? theme.primary : theme.textColor },
+            hidden ? styles.tooltipRevealValue : null,
+            !hidden ? valueStyle : null,
+          ]}
+        >
+          {hidden ? revealLabel : value}
+        </Text>
+      </>
+    );
+
+    if (hidden) {
+      return (
+        <Pressable
+          style={styles.tooltipPopupRow}
+          onPress={onReveal}
+          accessibilityRole="button"
+        >
+          {rowContent}
+        </Pressable>
+      );
+    }
+
+    return <View style={styles.tooltipPopupRow}>{rowContent}</View>;
   };
 
   const tooltipBody = (
@@ -134,45 +206,23 @@ export const VocabularyTooltip: React.FC<VocabularyTooltipProps> = ({
 
         <View style={styles.tooltipPopupContent}>
           {primaryReading && (
-            <View style={styles.tooltipPopupRow}>
-              <Text
-                style={[
-                  styles.tooltipPopupLabel,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Reading:
-              </Text>
-              <Text
-                style={[
-                  styles.tooltipPopupValue,
-                  { color: theme.textColor },
-                  fontStyles.japaneseText,
-                ]}
-              >
-                {primaryReading}
-              </Text>
-            </View>
+            renderTooltipValueRow({
+              label: "Reading:",
+              value: primaryReading,
+              hidden: shouldHideReading,
+              revealLabel: "Tap to reveal",
+              onReveal: () => setIsReadingRevealed(true),
+              valueStyle: fontStyles.japaneseText,
+            })
           )}
 
-          <View style={styles.tooltipPopupRow}>
-            <Text
-              style={[
-                styles.tooltipPopupLabel,
-                { color: theme.textSecondary },
-              ]}
-            >
-              Meaning:
-            </Text>
-            <Text
-              style={[
-                styles.tooltipPopupValue,
-                { color: theme.textColor },
-              ]}
-            >
-              {selectedItem.meaning}
-            </Text>
-          </View>
+          {renderTooltipValueRow({
+            label: "Meaning:",
+            value: selectedItem.meaning,
+            hidden: shouldHideMeaning,
+            revealLabel: "Tap to reveal",
+            onReveal: () => setIsMeaningRevealed(true),
+          })}
 
           {jpdbKanjiComposition.length > 0 ? (
             <View style={styles.tooltipPopupRow}>
@@ -331,6 +381,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     flex: 1,
+  },
+  tooltipRevealValue: {
+    fontWeight: "700",
   },
   tooltipKanjiCompositionWrap: {
     flex: 1,

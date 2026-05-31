@@ -24,6 +24,8 @@ import {
   StyleSheet,
   Switch,
   Text,
+  type StyleProp,
+  type TextStyle,
   Pressable,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -161,7 +163,11 @@ export default function NewsDetailScreen() {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const { userData } = useAuthStore();
-  const { newsDefaultStudyMode } = useSettingsStore();
+  const {
+    hideVocabularyTooltipMeanings,
+    hideVocabularyTooltipReadings,
+    newsDefaultStudyMode,
+  } = useSettingsStore();
   const userLevel = userData?.level || 0;
   const soundRef = useRef<AudioSound | null>(null);
   const audioPlaybackRequestIdRef = useRef(0);
@@ -210,6 +216,10 @@ export default function NewsDetailScreen() {
     null
   );
   const [selectedTokenKey, setSelectedTokenKey] = useState<string | null>(null);
+  const [isTooltipMeaningRevealed, setIsTooltipMeaningRevealed] =
+    useState(false);
+  const [isTooltipReadingRevealed, setIsTooltipReadingRevealed] =
+    useState(false);
   const [tooltipInteractionMode, setTooltipInteractionMode] = useState<
     "press" | "hover" | null
   >(null);
@@ -252,6 +262,11 @@ export default function NewsDetailScreen() {
 
   // Animation values
   const webViewRef = useRef<WebView>(null);
+
+  useEffect(() => {
+    setIsTooltipMeaningRevealed(false);
+    setIsTooltipReadingRevealed(false);
+  }, [selectedItem?.id, selectedItem?.characters, selectedSurfaceText]);
 
   useEffect(() => {
     if (id) {
@@ -1500,6 +1515,62 @@ export default function NewsDetailScreen() {
       selectedItem.readings?.find((r) => r.primary)?.reading ||
       selectedItem.readings?.[0]?.reading ||
       "";
+    const shouldHideTooltipMeaning =
+      hideVocabularyTooltipMeanings && !isTooltipMeaningRevealed;
+    const shouldHideTooltipReading =
+      hideVocabularyTooltipReadings && !isTooltipReadingRevealed;
+    const renderTooltipValueRow = ({
+      label,
+      value,
+      hidden,
+      revealLabel,
+      onReveal,
+      valueStyle,
+    }: {
+      label: string;
+      value: string;
+      hidden: boolean;
+      revealLabel: string;
+      onReveal: () => void;
+      valueStyle?: StyleProp<TextStyle>;
+    }) => {
+      const rowContent = (
+        <>
+          <Text
+            style={[
+              styles.tooltipPopupLabel,
+              { color: theme.textSecondary },
+            ]}
+          >
+            {label}
+          </Text>
+          <Text
+            style={[
+              styles.tooltipPopupValue,
+              { color: hidden ? theme.primary : theme.textColor },
+              hidden ? styles.tooltipRevealValue : null,
+              !hidden ? valueStyle : null,
+            ]}
+          >
+            {hidden ? revealLabel : value}
+          </Text>
+        </>
+      );
+
+      if (hidden) {
+        return (
+          <Pressable
+            style={styles.tooltipPopupRow}
+            onPress={onReveal}
+            accessibilityRole="button"
+          >
+            {rowContent}
+          </Pressable>
+        );
+      }
+
+      return <View style={styles.tooltipPopupRow}>{rowContent}</View>;
+    };
 
     return (
       <Modal
@@ -1554,45 +1625,23 @@ export default function NewsDetailScreen() {
 
             <View style={styles.tooltipPopupContent}>
               {primaryReading && (
-                <View style={styles.tooltipPopupRow}>
-                  <Text
-                    style={[
-                      styles.tooltipPopupLabel,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Reading:
-                  </Text>
-                  <Text
-                    style={[
-                      styles.tooltipPopupValue,
-                      { color: theme.textColor },
-                      fontStyles.japaneseText,
-                    ]}
-                  >
-                    {primaryReading}
-                  </Text>
-                </View>
+                renderTooltipValueRow({
+                  label: "Reading:",
+                  value: primaryReading,
+                  hidden: shouldHideTooltipReading,
+                  revealLabel: "Tap to reveal",
+                  onReveal: () => setIsTooltipReadingRevealed(true),
+                  valueStyle: fontStyles.japaneseText,
+                })
               )}
 
-              <View style={styles.tooltipPopupRow}>
-                <Text
-                  style={[
-                    styles.tooltipPopupLabel,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Meaning:
-                </Text>
-                <Text
-                  style={[
-                    styles.tooltipPopupValue,
-                    { color: theme.textColor },
-                  ]}
-                >
-                  {selectedItem.meaning}
-                </Text>
-              </View>
+              {renderTooltipValueRow({
+                label: "Meaning:",
+                value: selectedItem.meaning,
+                hidden: shouldHideTooltipMeaning,
+                revealLabel: "Tap to reveal",
+                onReveal: () => setIsTooltipMeaningRevealed(true),
+              })}
 
               {jpdbKanjiComposition.length > 0 ? (
                 <View style={styles.tooltipPopupRow}>
@@ -2460,6 +2509,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     flex: 1,
+  },
+  tooltipRevealValue: {
+    fontWeight: "700",
   },
   tooltipKanjiCompositionWrap: {
     flex: 1,

@@ -1,6 +1,6 @@
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Switch, Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
@@ -9,7 +9,11 @@ export function ReadingDefaultsSection() {
   const {
     handleBlockedFullModeSelection,
     hasStoredJpdbApiKey,
+    hideVocabularyTooltipMeanings,
+    hideVocabularyTooltipReadings,
     newsDefaultStudyMode,
+    setHideVocabularyTooltipMeanings,
+    setHideVocabularyTooltipReadings,
     setNewsDefaultStudyMode,
     setSongsLyricsDefaultStudyMode,
     songsLyricsDefaultStudyMode,
@@ -113,6 +117,72 @@ export function ReadingDefaultsSection() {
               );
             })}
           </View>
+        </View>
+
+        <View
+          style={[
+            styles.settingItem,
+            {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: theme.border,
+            },
+          ]}
+        >
+          <Ionicons
+            name="eye-off-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Hide meaning in tooltips
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Tap the meaning row in reader vocabulary tooltips to reveal it.
+            </Text>
+          </View>
+          <Switch
+            value={hideVocabularyTooltipMeanings}
+            onValueChange={setHideVocabularyTooltipMeanings}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View
+          style={[
+            styles.settingItem,
+            {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: theme.border,
+            },
+          ]}
+        >
+          <Ionicons
+            name="text-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Hide reading in tooltips
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Tap the reading row in reader vocabulary tooltips to reveal it.
+            </Text>
+          </View>
+          <Switch
+            value={hideVocabularyTooltipReadings}
+            onValueChange={setHideVocabularyTooltipReadings}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
         </View>
 
         <View
