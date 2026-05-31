@@ -430,9 +430,10 @@ const SubjectContent = ({
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [androidNoteModalLayoutHeight, setAndroidNoteModalLayoutHeight] =
     useState(0);
+  const [androidBaselineModalHeight, setAndroidBaselineModalHeight] =
+    useState(0);
   const { apiToken } = useAuthStore();
   const mountedRef = useRef(true);
-  const androidBaselineModalHeightRef = useRef(0);
 
   // Visually similar kanji state (for Niai source)
   const [niaiSimilarKanji, setNiaiSimilarKanji] = useState<any[]>([]);
@@ -464,8 +465,7 @@ const SubjectContent = ({
   }, [
     subject.id,
     subject.object,
-    subject.data?.characters,
-    subject.data?.readings,
+    subject.data,
   ]);
   const usagePatterns = useMemo(() => {
     if (subject.object !== "vocabulary" && subject.object !== "kana_vocabulary") {
@@ -477,7 +477,7 @@ const SubjectContent = ({
       typeof subject.data?.characters === "string" ? subject.data.characters : "";
 
     return getWaniKaniVocabularyPatterns(level, characters);
-  }, [subject.object, subject.data?.level, subject.data?.characters]);
+  }, [subject.object, subject.data]);
   const selectedUsagePattern =
     usagePatterns[selectedUsagePatternIndex] ?? usagePatterns[0] ?? null;
   const isVocabularySubject =
@@ -527,7 +527,7 @@ const SubjectContent = ({
     }
 
     return set;
-  }, [isVocabularySubject, subject.data?.readings]);
+  }, [isVocabularySubject, subject.data.readings]);
 
   const subjectMeaningSet = useMemo(() => {
     if (!isVocabularySubject || !Array.isArray(subject.data?.meanings)) {
@@ -543,7 +543,7 @@ const SubjectContent = ({
     }
 
     return set;
-  }, [isVocabularySubject, subject.data?.meanings]);
+  }, [isVocabularySubject, subject.data]);
 
   const similarVocabularyByReading = useMemo<SimilarVocabularyItem[]>(() => {
     if (!showSimilarVocabulary || !isVocabularySubject || subjectReadingSet.size === 0) {
@@ -685,7 +685,7 @@ const SubjectContent = ({
       mpegAudios,
       Array.isArray(subject.data?.readings) ? subject.data.readings : null
     );
-  }, [subject.data?.pronunciation_audios, subject.data?.readings]);
+  }, [subject.data.pronunciation_audios, subject.data.readings]);
 
   const orderedVocabularyComponentSubjectIds = useMemo(() => {
     if (subject.object !== "vocabulary") {
@@ -732,8 +732,8 @@ const SubjectContent = ({
       .map((entry: OrderedComponentSubjectEntry) => entry.id);
   }, [
     subject.object,
-    subject.data?.component_subject_ids,
-    subject.data?.characters,
+    subject.data.component_subject_ids,
+    subject.data.characters,
     relatedSubjects,
   ]);
   const singleKanjiVocabularyCharacter = useMemo(
@@ -742,7 +742,7 @@ const SubjectContent = ({
         subject.object,
         subject.data?.characters
       ),
-    [subject.object, subject.data?.characters]
+    [subject.object, subject.data.characters]
   );
 
   const renderPitchAccent = (withBottomMargin = false) => {
@@ -768,6 +768,9 @@ const SubjectContent = ({
     };
   }, []);
 
+  // These effects intentionally reset async section state when the active
+  // subject or enabled detail sections change.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     let isMounted = true;
 
@@ -844,15 +847,6 @@ const SubjectContent = ({
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== "android") return;
-    if (androidKeyboardHeight > 0 || androidNoteModalLayoutHeight <= 0) return;
-    androidBaselineModalHeightRef.current = Math.max(
-      androidBaselineModalHeightRef.current,
-      androidNoteModalLayoutHeight,
-    );
-  }, [androidKeyboardHeight, androidNoteModalLayoutHeight]);
-
-  useEffect(() => {
     if (Platform.OS !== "android" || noteModalVisible) return;
     setAndroidKeyboardHeight(0);
   }, [noteModalVisible]);
@@ -860,6 +854,11 @@ const SubjectContent = ({
   const handleNoteModalOverlayLayout = (event: LayoutChangeEvent) => {
     if (Platform.OS !== "android") return;
     const nextHeight = Math.round(event.nativeEvent.layout.height);
+    if (androidKeyboardHeight <= 0) {
+      setAndroidBaselineModalHeight((currentHeight) =>
+        Math.max(currentHeight, nextHeight),
+      );
+    }
     setAndroidNoteModalLayoutHeight((currentHeight) =>
       currentHeight === nextHeight ? currentHeight : nextHeight,
     );
@@ -1211,7 +1210,7 @@ const SubjectContent = ({
     shouldLoadMediaContextSentences,
     myAnimeListUsername,
     immersionKitAnimes,
-    userData?.level,
+    userData,
   ]);
 
   useEffect(() => {
@@ -1320,6 +1319,7 @@ const SubjectContent = ({
     shouldLoadRadicalMnemonicIllustration,
     radicalMnemonicImageUrl,
   ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Format mnemonic text with HTML highlighting (similar to KanjiDetails.tsx)
   const formatMnemonic = (mnemonic: string) => {
@@ -4311,10 +4311,10 @@ const SubjectContent = ({
   const androidAppliedKeyboardResize =
     Platform.OS === "android" &&
     androidKeyboardHeight > 0 &&
-    androidBaselineModalHeightRef.current > 0
+    androidBaselineModalHeight > 0
       ? Math.max(
           0,
-          androidBaselineModalHeightRef.current - androidNoteModalLayoutHeight,
+          androidBaselineModalHeight - androidNoteModalLayoutHeight,
         )
       : 0;
   const androidKeyboardFallbackLift =
@@ -4439,7 +4439,6 @@ export default function LessonDetailScreen({
   const insets = useSafeAreaInsets();
   const subjectColors = useSubjectColors();
   const {
-    showStrokeOrder,
     singlePageLessonView,
     autoplayLessonReadingAudio,
     vocabularyAudioVoice,
@@ -4747,7 +4746,7 @@ export default function LessonDetailScreen({
         onBatchItemPress?.(newIndex);
       }
     },
-    [onBatchItemPress]
+    [onBatchItemPress, setIndex]
   );
 
   const isLastSubjectAndLastTab = useCallback(() => {
@@ -4856,13 +4855,13 @@ export default function LessonDetailScreen({
         draggedTowardPreviousRef.current = false;
       }
     },
-    [isLastSubjectAndLastTab, onNext]
+    [isLastSubjectAndLastTab, onNext, setIndex]
   );
 
   const handleConstellationPress = useCallback((subjectId: number) => {
     router.push({
       pathname: "/constellation",
-      params: { id: subjectId, rootId: subjectId },
+      params: { id: subjectId, rootId: subjectId, constellationDepth: "1" },
     });
   }, []);
 
@@ -6064,10 +6063,18 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       opacity: 0.18,
     },
     translationBlurOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      position: "absolute",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
     },
     translationRevealHint: {
-      ...StyleSheet.absoluteFillObject,
+      position: "absolute",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",

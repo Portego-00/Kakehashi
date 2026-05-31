@@ -1067,7 +1067,11 @@ export default function SubjectDetailsScreen() {
             onOpenConstellation={() =>
               router.push({
                 pathname: "/constellation",
-                params: { id: subjectData.id, rootId: subjectData.id },
+                params: {
+                  id: subjectData.id,
+                  rootId: subjectData.id,
+                  constellationDepth: "1",
+                },
               })
             }
           />
@@ -1170,7 +1174,11 @@ export default function SubjectDetailsScreen() {
             onOpenConstellation={() =>
               router.push({
                 pathname: "/constellation",
-                params: { id: subjectData.id, rootId: subjectData.id },
+                params: {
+                  id: subjectData.id,
+                  rootId: subjectData.id,
+                  constellationDepth: "1",
+                },
               })
             }
           />
@@ -1274,7 +1282,11 @@ export default function SubjectDetailsScreen() {
             onOpenConstellation={() =>
               router.push({
                 pathname: "/constellation",
-                params: { id: subjectData.id, rootId: subjectData.id },
+                params: {
+                  id: subjectData.id,
+                  rootId: subjectData.id,
+                  constellationDepth: "1",
+                },
               })
             }
           />

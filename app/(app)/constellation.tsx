@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/src/utils/store";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
@@ -125,7 +125,8 @@ interface NormalizedReadingEntry {
 type SubjectReading = NonNullable<Subject["data"]["readings"]>[number];
 
 export default function ConstellationScreen() {
-  const { id, rootId } = useLocalSearchParams();
+  const { id, rootId, constellationDepth } = useLocalSearchParams();
+  const navigation = useNavigation();
   const { dashboardData } = useDashboardData();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -147,8 +148,19 @@ export default function ConstellationScreen() {
     return combined;
   }, [dashboardData.subjects, fetchedSubjects]);
 
+  const idParam = Array.isArray(id) ? id[0] : id;
+  const rootIdParam = Array.isArray(rootId) ? rootId[0] : rootId;
+  const depthParam = Array.isArray(constellationDepth)
+    ? constellationDepth[0]
+    : constellationDepth;
+  const parsedDepth = Number(depthParam);
+  const currentConstellationDepth =
+    Number.isFinite(parsedDepth) && parsedDepth > 0
+      ? Math.floor(parsedDepth)
+      : 1;
+
   // Find the subject from combined list
-  const subjectId = Number(id);
+  const subjectId = Number(idParam);
   const subject = useMemo(
     () => allSubjects.find((s) => s.id === subjectId),
     [allSubjects, subjectId]
@@ -689,7 +701,11 @@ export default function ConstellationScreen() {
     // Push new screen instead of replace to keep history stack
     router.push({
       pathname: "/constellation",
-      params: { id: nodeId.toString(), rootId: rootId || id },
+      params: {
+        id: nodeId.toString(),
+        rootId: rootIdParam || idParam || subjectId.toString(),
+        constellationDepth: (currentConstellationDepth + 1).toString(),
+      },
     });
   };
 
@@ -701,19 +717,38 @@ export default function ConstellationScreen() {
     router.back();
   };
 
-  const handleExitRabbitHole = () => {
-    if (rootId) {
-      // Pop all the way back to the root subject
-      // We can use router.navigate nicely here if we know the path, but router.dismiss or router.popToTop doesn't behave exactly as "pop to specific ID in stack" in expo-router usually.
-      // The easiest way is to push back to the subject detail screen, but that adds to history.
-      // Better: simply navigate to the subject detail screen.
-      router.dismissAll();
-      // Since we are in a stack, dismissing all might take us to tabs.
-      // Let's use router.navigate to the subject details.
-      router.navigate(`/subject/${rootId}`);
-    } else {
-      router.back();
+  const getConstellationDismissCount = () => {
+    const state = navigation.getState();
+    const routes = state?.routes ?? [];
+    const currentIndex =
+      typeof state?.index === "number" ? state.index : routes.length - 1;
+    let consecutiveConstellationScreens = 0;
+
+    for (let routeIndex = currentIndex; routeIndex >= 0; routeIndex -= 1) {
+      const routeName = routes[routeIndex]?.name ?? "";
+      if (
+        routeName !== "constellation" &&
+        !routeName.endsWith("/constellation")
+      ) {
+        break;
+      }
+      consecutiveConstellationScreens += 1;
     }
+
+    if (consecutiveConstellationScreens > 0) {
+      return consecutiveConstellationScreens;
+    }
+
+    return routes.length > 0 ? 1 : currentConstellationDepth;
+  };
+
+  const handleExitRabbitHole = () => {
+    if (!rootIdParam && !depthParam) {
+      router.back();
+      return;
+    }
+
+    router.dismiss(getConstellationDismissCount());
   };
 
   if (!subject && loadingMissing) {

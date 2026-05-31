@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.71",
+    date: "2026-05-31",
+    changes: [
+      {
+        type: "fix",
+        title: "Practice Mistakes Navigation",
+        description:
+          "Constellation exit no longer ends Practice Mistakes review.",
+      },
+    ],
+  },
+  {
     version: "1.2.70",
     date: "2026-05-29",
     changes: [
