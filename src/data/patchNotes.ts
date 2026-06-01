@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.72",
+    date: "2026-06-01",
+    changes: [
+      {
+        type: "improvement",
+        title: "Fresher Crossword Puzzles",
+        description:
+          "Crosswords now avoid reusing recent words as often while still keeping puzzle quality high.",
+      },
+    ],
+  },
+  {
     version: "1.2.71",
     date: "2026-05-31",
     changes: [

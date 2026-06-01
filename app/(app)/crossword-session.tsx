@@ -44,6 +44,15 @@ import {
   getWordById,
 } from "../../src/utils/crosswordGenerator";
 import {
+  CROSSWORD_HARD_AVOID_PUZZLE_LIMIT,
+  buildCrosswordGenerationPool,
+  getCrosswordHardAvoidSubjectIds,
+  getRecentCrosswordSubjectIds,
+  loadCrosswordWordHistory,
+  saveCrosswordWordHistoryEntry,
+  type CrosswordWordHistoryEntry,
+} from "../../src/utils/crosswordHistory";
+import {
   EXTRA_STUDY_SESSION_STORAGE_KEYS,
   clearExtraStudySessionState,
   loadExtraStudySessionState,
@@ -70,6 +79,8 @@ const CROSSWORD_SUCCESS_COLOR = "#3DDC84";
 const GRID_WRAPPER_PADDING = 8;
 const GRID_CELL_MARGIN = 1;
 const WORD_SCROLL_EDGE_PADDING = 12;
+const CROSSWORD_MIN_FRESH_POOL_SIZE = 30;
+const CROSSWORD_RECENT_WORD_GENERATOR_PENALTY = 4;
 
 type CrosswordSizeId = "small" | "medium" | "large";
 type CrosswordClueDisplayMode = "english" | "kanji" | "english_kanji";
@@ -414,14 +425,6 @@ function getClueTextForWord(
 
 function containsJapaneseCharacters(value: string): boolean {
   return JAPANESE_CHARACTER_REGEX.test(value);
-}
-
-function shuffleInPlace<T>(items: T[]): T[] {
-  for (let i = items.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [items[i], items[j]] = [items[j], items[i]];
-  }
-  return items;
 }
 
 export default function CrosswordSessionScreen() {
@@ -786,9 +789,28 @@ export default function CrosswordSessionScreen() {
 
       const sizePreset = SIZE_BY_ID[config.size] ?? SIZE_BY_ID.medium;
 
-      const randomizedWordCandidates = shuffleInPlace([...wordCandidates]);
       const candidatePoolSize = Math.max(config.maxWords * 10, 90);
-      const generationPool = randomizedWordCandidates.slice(0, candidatePoolSize);
+      let wordHistory: CrosswordWordHistoryEntry[] = [];
+      try {
+        wordHistory = await loadCrosswordWordHistory();
+      } catch (historyError) {
+        console.warn("Crossword: failed to load recent word history", historyError);
+      }
+      const recentSubjectIds = getRecentCrosswordSubjectIds(wordHistory);
+      const hardAvoidSubjectIds = getCrosswordHardAvoidSubjectIds(
+        wordHistory,
+        CROSSWORD_HARD_AVOID_PUZZLE_LIMIT
+      );
+      const minFreshCandidates = Math.max(
+        config.maxWords * 4,
+        CROSSWORD_MIN_FRESH_POOL_SIZE
+      );
+      const generationPool = buildCrosswordGenerationPool(wordCandidates, {
+        poolSize: candidatePoolSize,
+        recentSubjectIds,
+        hardAvoidSubjectIds,
+        minFreshCandidates,
+      });
       const generationOptions = {
         gridSize: sizePreset.gridSize,
         maxWords: config.maxWords,
@@ -796,14 +818,20 @@ export default function CrosswordSessionScreen() {
         maxWordLength: Math.max(3, sizePreset.gridSize - 2),
         attempts: 18,
         seed: Math.floor(Date.now() + Math.random() * 1_000_000),
+        recentSubjectIds,
+        recentWordPenalty: CROSSWORD_RECENT_WORD_GENERATOR_PENALTY,
       };
 
       let built = generateCrossword(generationPool, generationOptions);
       if (
         built.words.length === 0 &&
-        generationPool.length !== randomizedWordCandidates.length
+        generationPool.length !== wordCandidates.length
       ) {
-        built = generateCrossword(randomizedWordCandidates, generationOptions);
+        const fallbackPool = buildCrosswordGenerationPool(wordCandidates, {
+          poolSize: wordCandidates.length,
+          recentSubjectIds,
+        });
+        built = generateCrossword(fallbackPool, generationOptions);
       }
 
       if (built.words.length === 0) {
@@ -813,6 +841,14 @@ export default function CrosswordSessionScreen() {
           [{ text: "OK", onPress: () => router.back() }]
         );
         return;
+      }
+
+      try {
+        await saveCrosswordWordHistoryEntry(
+          built.words.map((word) => word.subjectId)
+        );
+      } catch (historyError) {
+        console.warn("Crossword: failed to save recent word history", historyError);
       }
 
       setPuzzle(built);

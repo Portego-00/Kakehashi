@@ -63,10 +63,18 @@ export interface CrosswordGeneratorOptions {
   attempts?: number;
   /** Optional deterministic seed (string -> number). Useful for tests. */
   seed?: number;
+  /**
+   * Subject IDs used in recent crossword puzzles. These are still allowed, but
+   * the generator will prefer similarly-good puzzles that use fresher words.
+   */
+  recentSubjectIds?: number[];
+  /** Strength of the recent-word penalty (default 4). */
+  recentWordPenalty?: number;
 }
 
 const HIRAGANA_REGEX = /^[぀-ゟー]+$/;
 const SHORT_WORD_LENGTH = 3;
+const DEFAULT_RECENT_WORD_PENALTY = 4;
 
 function makeRng(seed?: number): () => number {
   if (seed === undefined || Number.isNaN(seed)) {
@@ -136,10 +144,40 @@ function countWordsOfLength(words: CrosswordWordInput[], length: number): number
   );
 }
 
+function normalizeRecentSubjectIds(subjectIds?: number[]): Set<number> {
+  const out = new Set<number>();
+  if (!subjectIds) return out;
+  for (const subjectId of subjectIds) {
+    if (typeof subjectId !== "number" || !Number.isFinite(subjectId)) continue;
+    out.add(subjectId);
+  }
+  return out;
+}
+
+function getRecentWordPenalty(
+  subjectId: number,
+  recentSubjectIds: ReadonlySet<number>,
+  penalty: number
+): number {
+  return recentSubjectIds.has(subjectId) ? penalty : 0;
+}
+
+function countRecentWords(
+  words: CrosswordWordInput[],
+  recentSubjectIds: ReadonlySet<number>
+): number {
+  return words.reduce(
+    (total, word) => total + (recentSubjectIds.has(word.subjectId) ? 1 : 0),
+    0
+  );
+}
+
 function pickStarterWordIndex(
   usable: CrosswordWordInput[],
   gridSize: number,
-  rng: () => number
+  rng: () => number,
+  recentSubjectIds: ReadonlySet<number>,
+  recentWordPenalty: number
 ): number {
   if (usable.length <= 1) return 0;
 
@@ -156,7 +194,11 @@ function pickStarterWordIndex(
     const len = wordLength(usable[i]);
     const lengthDistance = Math.abs(len - idealAnchorLength);
     const veryShortPenalty = len <= 2 ? 0.75 : 0;
-    const score = lengthDistance + veryShortPenalty + rng() * 0.35;
+    const score =
+      lengthDistance +
+      veryShortPenalty +
+      getRecentWordPenalty(usable[i].subjectId, recentSubjectIds, recentWordPenalty) +
+      rng() * 0.35;
     if (score < bestScore) {
       bestScore = score;
       bestIndex = i;
@@ -169,7 +211,9 @@ function pickStarterWordIndex(
 function buildAttemptOrdering(
   candidates: CrosswordWordInput[],
   attempt: number,
-  rng: () => number
+  rng: () => number,
+  recentSubjectIds: ReadonlySet<number>,
+  recentWordPenalty: number
 ): CrosswordWordInput[] {
   const shuffled = shuffleInPlace([...candidates], rng);
   const strategy = attempt % 3;
@@ -178,8 +222,14 @@ function buildAttemptOrdering(
     // Balanced: prefer medium/long words, with randomness.
     const idealLength = 5;
     return shuffled.sort((a, b) => {
-      const aScore = Math.abs(wordLength(a) - idealLength) + rng() * 0.55;
-      const bScore = Math.abs(wordLength(b) - idealLength) + rng() * 0.55;
+      const aScore =
+        Math.abs(wordLength(a) - idealLength) +
+        getRecentWordPenalty(a.subjectId, recentSubjectIds, recentWordPenalty) +
+        rng() * 0.55;
+      const bScore =
+        Math.abs(wordLength(b) - idealLength) +
+        getRecentWordPenalty(b.subjectId, recentSubjectIds, recentWordPenalty) +
+        rng() * 0.55;
       return aScore - bScore;
     });
   }
@@ -187,8 +237,14 @@ function buildAttemptOrdering(
   if (strategy === 1) {
     // Mild long-word preference for better anchoring.
     return shuffled.sort((a, b) => {
-      const aLen = wordLength(a) + rng() * 0.9;
-      const bLen = wordLength(b) + rng() * 0.9;
+      const aLen =
+        wordLength(a) -
+        getRecentWordPenalty(a.subjectId, recentSubjectIds, recentWordPenalty) +
+        rng() * 0.9;
+      const bLen =
+        wordLength(b) -
+        getRecentWordPenalty(b.subjectId, recentSubjectIds, recentWordPenalty) +
+        rng() * 0.9;
       if (aLen !== bLen) return bLen - aLen;
       return rng() - 0.5;
     });
@@ -196,8 +252,13 @@ function buildAttemptOrdering(
 
   // Stronger long-word ordering pass, still not deterministic.
   return shuffled.sort((a, b) => {
-    const lenDiff = wordLength(b) - wordLength(a);
-    if (lenDiff !== 0) return lenDiff;
+    const aScore =
+      wordLength(a) -
+      getRecentWordPenalty(a.subjectId, recentSubjectIds, recentWordPenalty);
+    const bScore =
+      wordLength(b) -
+      getRecentWordPenalty(b.subjectId, recentSubjectIds, recentWordPenalty);
+    if (aScore !== bScore) return bScore - aScore;
     return rng() - 0.5;
   });
 }
@@ -287,7 +348,10 @@ function tryGenerate(
   options: Required<
     Pick<CrosswordGeneratorOptions, "gridSize" | "maxWords">
   > &
-    Pick<CrosswordGeneratorOptions, "minWordLength" | "maxWordLength">,
+    Pick<CrosswordGeneratorOptions, "minWordLength" | "maxWordLength"> & {
+      recentSubjectIds: ReadonlySet<number>;
+      recentWordPenalty: number;
+    },
   rng: () => number
 ): InternalPlacement[] {
   const grid = buildEmptyGrid(options.gridSize);
@@ -309,7 +373,13 @@ function tryGenerate(
   if (usable.length === 0) return placed;
 
   // Place the first word horizontally, centred.
-  const starterIndex = pickStarterWordIndex(usable, options.gridSize, rng);
+  const starterIndex = pickStarterWordIndex(
+    usable,
+    options.gridSize,
+    rng,
+    options.recentSubjectIds,
+    options.recentWordPenalty
+  );
   const first = usable[starterIndex];
   const firstLetters = letters(first.hiragana);
   const startRow = Math.floor(options.gridSize / 2);
@@ -547,11 +617,23 @@ export function generateCrossword(
 
   const rng = makeRng(options.seed);
   const attempts = Math.max(options.attempts ?? 8, 10);
+  const recentSubjectIds = normalizeRecentSubjectIds(options.recentSubjectIds);
+  const recentWordPenalty =
+    typeof options.recentWordPenalty === "number" &&
+    Number.isFinite(options.recentWordPenalty)
+      ? Math.max(0, options.recentWordPenalty)
+      : DEFAULT_RECENT_WORD_PENALTY;
 
   let best: InternalPlacement[] = [];
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const orderedCandidates = buildAttemptOrdering(candidates, attempt, rng);
+    const orderedCandidates = buildAttemptOrdering(
+      candidates,
+      attempt,
+      rng,
+      recentSubjectIds,
+      recentWordPenalty
+    );
     const result = tryGenerate(
       orderedCandidates,
       {
@@ -559,6 +641,8 @@ export function generateCrossword(
         maxWords: options.maxWords,
         minWordLength: options.minWordLength,
         maxWordLength: options.maxWordLength,
+        recentSubjectIds,
+        recentWordPenalty,
       },
       rng
     );
@@ -570,6 +654,16 @@ export function generateCrossword(
     if (result.length === best.length) {
       const bestWords = best.map((placement) => placement.word);
       const resultWords = result.map((placement) => placement.word);
+      const bestRecent = countRecentWords(bestWords, recentSubjectIds);
+      const resultRecent = countRecentWords(resultWords, recentSubjectIds);
+      if (resultRecent < bestRecent) {
+        best = result;
+        continue;
+      }
+      if (resultRecent > bestRecent) {
+        continue;
+      }
+
       const bestTwoChar = countWordsOfLength(bestWords, 2);
       const resultTwoChar = countWordsOfLength(resultWords, 2);
       if (resultTwoChar < bestTwoChar) {
