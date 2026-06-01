@@ -145,9 +145,6 @@ export default function StudyTab() {
   const homeSrsBreakdownDisplayMode = useSettingsStore(
     (state) => state.homeSrsBreakdownDisplayMode,
   );
-  const otaUpdateExperience = useSettingsStore(
-    (state) => state.otaUpdateExperience,
-  );
   const widgetContentMode = useSettingsStore((state) => state.widgetContentMode);
   const widgetStreakGradient = useSettingsStore(
     (state) => state.widgetStreakGradient,
@@ -418,40 +415,17 @@ export default function StudyTab() {
     return () => subscription?.remove();
   }, []);
 
-  // Check for OTA updates in the background when the selected experience asks
-  // Home to show the update banner.
+  // Check for OTA updates
   useEffect(() => {
-    let isCancelled = false;
-
-    if (otaUpdateExperience !== "background-banner") {
-      setIsUpdateAvailable(false);
-    }
-
     async function checkForUpdates() {
-      if (
-        __DEV__ ||
-        !Updates.isEnabled ||
-        otaUpdateExperience !== "background-banner"
-      ) {
-        setIsUpdateAvailable(false);
+      if (__DEV__) {
+        // Skip update checks in development
         return;
       }
 
       try {
         const update = await Updates.checkForUpdateAsync();
-        if (!update.isAvailable && !update.isRollBackToEmbedded) {
-          return;
-        }
-
-        const fetchResult = await Updates.fetchUpdateAsync();
-        const isPendingForReload =
-          fetchResult.isNew || fetchResult.isRollBackToEmbedded;
-
-        if (
-          !isCancelled &&
-          isPendingForReload &&
-          otaUpdateExperience === "background-banner"
-        ) {
+        if (update.isAvailable) {
           setIsUpdateAvailable(true);
         }
       } catch (error) {
@@ -459,11 +433,8 @@ export default function StudyTab() {
       }
     }
 
-    void checkForUpdates();
-    return () => {
-      isCancelled = true;
-    };
-  }, [otaUpdateExperience]);
+    checkForUpdates();
+  }, []);
 
   useEffect(() => {
     if (!userData?.id) {
@@ -834,16 +805,13 @@ export default function StudyTab() {
 
     try {
       setIsDownloadingUpdate(true);
+      await Updates.fetchUpdateAsync();
       await Updates.reloadAsync({ reloadScreenOptions });
     } catch (error) {
       console.error("Error applying update:", error);
-      try {
-        await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync({ reloadScreenOptions });
-      } catch (fallbackError) {
-        console.error("Error fetching update before reload:", fallbackError);
-        setIsDownloadingUpdate(false);
-      }
+      setIsDownloadingUpdate(false);
+      // If fetch fails, just reload the app to apply any already downloaded updates
+      await Updates.reloadAsync({ reloadScreenOptions });
     }
   };
 

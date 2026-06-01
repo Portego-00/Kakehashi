@@ -295,7 +295,6 @@ type SettingsSectionKey =
   | "theme"
   | "widgets"
   | "notifications"
-  | "updates"
   | "dataStorage"
   | "levelRecap"
   | "patreon"
@@ -321,7 +320,6 @@ const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   vocabContext: "vocabContext",
   subjectLists: "subjectLists",
   levelRecap: "levelRecap",
-  updates: "updates",
   jpdbApiKey: "profile",
   jpdb: "profile",
 };
@@ -505,8 +503,6 @@ export function useSettingsController() {
     setSongsLyricsDefaultStudyMode,
     appleMusicAuthStatus,
     setAppleMusicAuthStatus,
-    otaUpdateExperience,
-    setOtaUpdateExperience,
     lastSeenPatchNotesVersion,
     bunproSurveyCompleted,
     setBunproSurveyCompleted,
@@ -685,11 +681,6 @@ export function useSettingsController() {
       key: "notifications",
       label: "Notifications",
       icon: "notifications-outline",
-    });
-    chips.push({
-      key: "updates",
-      label: "Updates",
-      icon: "cloud-download-outline",
     });
 
     if (showDataStorageSection) {
@@ -2831,7 +2822,6 @@ export function useSettingsController() {
     offlineAudioProgress,
     offlineCacheRefreshInFlightRef,
     offlineVocabularyAudioEnabled,
-    otaUpdateExperience,
     openReminderTimeModal,
     openReviewShortcutModal,
     openSrsProgressionCardModePicker,
@@ -2941,7 +2931,6 @@ export function useSettingsController() {
     setOfflineAudioCacheSizeBytes,
     setOfflineAudioProgress,
     setOfflineVocabularyAudioEnabled,
-    setOtaUpdateExperience,
     setPendingNotifications,
     setPendingSectionScrollRequest,
     setPrioritizeCriticalItems,

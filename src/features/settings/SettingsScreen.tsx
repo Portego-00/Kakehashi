@@ -25,7 +25,6 @@ import { AppearanceSection } from "./sections/AppearanceSection";
 import { ThemeSection } from "./sections/ThemeSection";
 import { WidgetSection } from "./sections/WidgetSection";
 import { NotificationsSection } from "./sections/NotificationsSection";
-import { UpdateExperienceSection } from "./sections/UpdateExperienceSection";
 import { DataStorageSection } from "./sections/DataStorageSection";
 import { LevelRecapSection } from "./sections/LevelRecapSection";
 import { PatreonSupportersSection } from "./sections/PatreonSupportersSection";
@@ -175,7 +174,6 @@ function SettingsScreenContent() {
         <ThemeSection />
         <WidgetSection />
         <NotificationsSection />
-        <UpdateExperienceSection />
         <DataStorageSection />
         <LevelRecapSection />
         <PatreonSupportersSection />

@@ -64,11 +64,6 @@ export type VocabularyAudioVoicePreference =
 export type StudyModePreference = "none" | "wk" | "full";
 export type SrsProgressionCardDisplayMode = "normal" | "compact" | "hidden";
 export type LessonPickerViewMode = "cards" | "list";
-export type OtaUpdateExperience =
-  | "startup-blocking"
-  | "startup-timeboxed"
-  | "background-next-open"
-  | "background-banner";
 
 export type WidgetContentMode = "reviews" | "critical" | "streak";
 export type WidgetStreakGradientPreset =
@@ -281,18 +276,6 @@ function normalizeLessonPickerViewMode(value: unknown): LessonPickerViewMode {
       return value;
     default:
       return "cards";
-  }
-}
-
-function normalizeOtaUpdateExperience(value: unknown): OtaUpdateExperience {
-  switch (value) {
-    case "startup-blocking":
-    case "startup-timeboxed":
-    case "background-next-open":
-    case "background-banner":
-      return value;
-    default:
-      return "startup-blocking";
   }
 }
 
@@ -532,7 +515,6 @@ type SettingsState = {
   myAnimeListUsername: string | null;
   aniListUsername: string | null;
   immersionKitAnimes: string[] | null;
-  otaUpdateExperience: OtaUpdateExperience;
 
   // Notification settings
   showBadgeNotifications: boolean;
@@ -699,7 +681,6 @@ type SettingsState = {
   setMyAnimeListUsername: (username: string | null) => void;
   setAniListUsername: (username: string | null) => void;
   setImmersionKitAnimes: (animes: string[] | null) => void;
-  setOtaUpdateExperience: (experience: OtaUpdateExperience) => void;
   setShowBadgeNotifications: (show: boolean) => void;
   setEnableReviewNotifications: (enable: boolean) => void;
   setDailyReviewReminderEnabled: (enable: boolean) => void;
@@ -841,7 +822,6 @@ export const useSettingsStore = create<SettingsState>()(
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
       myAnimeListUsername: null, // No MyAnimeList user configured by default
       aniListUsername: null, // No AniList user configured by default
-      otaUpdateExperience: "startup-blocking", // Default to the existing mandatory startup update flow
       showBadgeNotifications: true, // Default to enabled
       enableReviewNotifications: false, // Default to disabled (requires user consent)
       dailyReviewReminderEnabled: false, // Default to disabled
@@ -1066,8 +1046,6 @@ export const useSettingsStore = create<SettingsState>()(
       setAniListUsername: (username) =>
         set({ aniListUsername: username }),
       setImmersionKitAnimes: (animes) => set({ immersionKitAnimes: animes }),
-      setOtaUpdateExperience: (experience) =>
-        set({ otaUpdateExperience: normalizeOtaUpdateExperience(experience) }),
       setShowBadgeNotifications: (show) =>
         set({ showBadgeNotifications: show }),
       setEnableReviewNotifications: (enable) =>
@@ -1252,7 +1230,6 @@ export const useSettingsStore = create<SettingsState>()(
           customTabOrder?: unknown;
           lessonPickerViewMode?: unknown;
           reviewCharacterFontScale?: unknown;
-          otaUpdateExperience?: unknown;
           hideVocabularyTooltipMeanings?: unknown;
           hideVocabularyTooltipReadings?: unknown;
         };
@@ -1352,9 +1329,6 @@ export const useSettingsStore = create<SettingsState>()(
           normalizeReviewCharacterFontScale(
             migratedRecord.reviewCharacterFontScale
           );
-        migratedRecord.otaUpdateExperience = normalizeOtaUpdateExperience(
-          migratedRecord.otaUpdateExperience
-        );
         if (
           version < 11 ||
           typeof migratedRecord.hideVocabularyTooltipMeanings !== "boolean"

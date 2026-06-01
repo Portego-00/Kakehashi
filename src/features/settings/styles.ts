@@ -109,9 +109,6 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  updateExperienceOption: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   bunproSurveyModalContent: {
     paddingBottom: 24,
   },
