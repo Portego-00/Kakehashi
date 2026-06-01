@@ -2058,26 +2058,53 @@ const SubjectContent = ({
               </Text>
             </View>
 
-            {selectedUsagePattern.examples.map((example, exampleIndex) => (
-              <View
-                key={`usage-pattern-example-${subject.id}-${selectedUsagePatternIndex}-${exampleIndex}`}
-                style={[
-                  styles.patternExampleItem,
-                  exampleIndex === selectedUsagePattern.examples.length - 1 && {
-                    marginBottom: 0,
-                  },
-                ]}
-              >
-                <Text selectable style={styles.japaneseSentence}>
-                  {example.ja}
-                </Text>
-                {renderTranslation(
-                  example.en,
-                  `usage-pattern-translation-${subject.id}-${selectedUsagePatternIndex}-${exampleIndex}`,
-                  styles.englishSentence
-                )}
-              </View>
-            ))}
+            {selectedUsagePattern.examples.map((example, exampleIndex) => {
+              const sentenceId = `usage-pattern-speech-${subject.id}-${selectedUsagePatternIndex}-${exampleIndex}`;
+              const translationId = `usage-pattern-translation-${subject.id}-${selectedUsagePatternIndex}-${exampleIndex}`;
+              const isSpeaking = speakingSentenceId === sentenceId;
+
+              return (
+                <View
+                  key={`usage-pattern-example-${subject.id}-${selectedUsagePatternIndex}-${exampleIndex}`}
+                  style={[
+                    styles.patternExampleItem,
+                    exampleIndex === selectedUsagePattern.examples.length - 1 && {
+                      marginBottom: 0,
+                    },
+                  ]}
+                >
+                  <View style={styles.japaneseSentenceContainer}>
+                    <Text
+                      selectable
+                      style={[
+                        styles.japaneseSentence,
+                        styles.japaneseSentenceWithButton,
+                      ]}
+                    >
+                      {example.ja}
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.speakButtonFixed,
+                        isSpeaking && styles.speakingButtonFixed,
+                      ]}
+                      onPress={() => speakJapanese(example.ja, sentenceId)}
+                    >
+                      <Ionicons
+                        name={isSpeaking ? "stop-circle" : "volume-high"}
+                        size={20}
+                        color={isSpeaking ? "white" : subjectColors.vocabulary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {renderTranslation(
+                    example.en,
+                    translationId,
+                    styles.englishSentence
+                  )}
+                </View>
+              );
+            })}
           </View>
         )}
       </View>
@@ -4719,6 +4746,7 @@ export default function LessonDetailScreen({
 
       // Check if already speaking this sentence - if so, stop it
       if (speakingSentenceId === id) {
+        await azureSpeechService.stop();
         setSpeakingSentenceId(null);
         return;
       }

@@ -65,6 +65,12 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Crosswords now avoid reusing recent words as often while still keeping puzzle quality high.",
       },
+      {
+        type: "fix",
+        title: "Lesson Pattern Audio",
+        description:
+          "Patterns of Use examples in lessons now include a play button for hearing Japanese sentences.",
+      },
     ],
   },
   {
