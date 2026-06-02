@@ -62,6 +62,12 @@ export type VocabularyAudioVoicePreference =
   | "random"
   | "both";
 export type StudyModePreference = "none" | "wk" | "full";
+export type SongsPlaybackSource = "youtube" | "appleMusic" | "spotify";
+export type SpotifyAuthStatus =
+  | "authorized"
+  | "notConnected"
+  | "notConfigured"
+  | "unknown";
 export type SrsProgressionCardDisplayMode = "normal" | "compact" | "hidden";
 export type LessonPickerViewMode = "cards" | "list";
 
@@ -126,7 +132,7 @@ export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 11;
+const SETTINGS_STORE_SCHEMA_VERSION = 12;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -552,7 +558,7 @@ type SettingsState = {
   hideVocabularyTooltipMeanings: boolean;
   hideVocabularyTooltipReadings: boolean;
   songsMusicSource: "spotify" | "apple";
-  songsPlaybackSource: "youtube" | "appleMusic";
+  songsPlaybackSource: SongsPlaybackSource;
   songsLyricsDefaultStudyMode: StudyModePreference;
   songsLyricsLineTranslationsEnabled: boolean;
   appleMusicAuthStatus:
@@ -561,6 +567,8 @@ type SettingsState = {
     | "notDetermined"
     | "restricted"
     | "unknown";
+  spotifyAuthStatus: SpotifyAuthStatus;
+  spotifyDisplayName: string | null;
 
   // Patch notes tracking
   lastSeenPatchNotesVersion: string | null;
@@ -708,7 +716,7 @@ type SettingsState = {
   setHideVocabularyTooltipMeanings: (hide: boolean) => void;
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
   setSongsMusicSource: (source: "spotify" | "apple") => void;
-  setSongsPlaybackSource: (source: "youtube" | "appleMusic") => void;
+  setSongsPlaybackSource: (source: SongsPlaybackSource) => void;
   setSongsLyricsDefaultStudyMode: (mode: StudyModePreference) => void;
   setSongsLyricsLineTranslationsEnabled: (enabled: boolean) => void;
   setAppleMusicAuthStatus: (
@@ -719,6 +727,8 @@ type SettingsState = {
       | "restricted"
       | "unknown"
   ) => void;
+  setSpotifyAuthStatus: (status: SpotifyAuthStatus) => void;
+  setSpotifyDisplayName: (displayName: string | null) => void;
   setLastSeenPatchNotesVersion: (version: string | null) => void;
   setBunproSurveyCompleted: (completed: boolean) => void;
   setCustomTabOrder: (tabs: CustomTabId[]) => void;
@@ -861,6 +871,8 @@ export const useSettingsStore = create<SettingsState>()(
       songsLyricsDefaultStudyMode: "wk", // Default to WK chips for inline lyrics analysis
       songsLyricsLineTranslationsEnabled: false, // Default to hidden machine translations
       appleMusicAuthStatus: "notDetermined",
+      spotifyAuthStatus: "notConnected",
+      spotifyDisplayName: null,
 
       immersionKitAnimes: null, // Custom list of selected animes for Immersion Kit
 
@@ -1100,6 +1112,8 @@ export const useSettingsStore = create<SettingsState>()(
       setSongsLyricsLineTranslationsEnabled: (enabled) =>
         set({ songsLyricsLineTranslationsEnabled: enabled }),
       setAppleMusicAuthStatus: (status) => set({ appleMusicAuthStatus: status }),
+      setSpotifyAuthStatus: (status) => set({ spotifyAuthStatus: status }),
+      setSpotifyDisplayName: (displayName) => set({ spotifyDisplayName: displayName }),
       setLastSeenPatchNotesVersion: (version) => set({ lastSeenPatchNotesVersion: version }),
       setBunproSurveyCompleted: (completed) => set({ bunproSurveyCompleted: completed }),
       setCustomTabOrder: (tabs) =>
@@ -1232,6 +1246,9 @@ export const useSettingsStore = create<SettingsState>()(
           reviewCharacterFontScale?: unknown;
           hideVocabularyTooltipMeanings?: unknown;
           hideVocabularyTooltipReadings?: unknown;
+          songsPlaybackSource?: unknown;
+          spotifyAuthStatus?: unknown;
+          spotifyDisplayName?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1340,6 +1357,24 @@ export const useSettingsStore = create<SettingsState>()(
           typeof migratedRecord.hideVocabularyTooltipReadings !== "boolean"
         ) {
           migratedRecord.hideVocabularyTooltipReadings = false;
+        }
+        if (
+          migratedRecord.songsPlaybackSource !== "youtube" &&
+          migratedRecord.songsPlaybackSource !== "appleMusic" &&
+          migratedRecord.songsPlaybackSource !== "spotify"
+        ) {
+          migratedRecord.songsPlaybackSource = "youtube";
+        }
+        if (
+          migratedRecord.spotifyAuthStatus !== "authorized" &&
+          migratedRecord.spotifyAuthStatus !== "notConnected" &&
+          migratedRecord.spotifyAuthStatus !== "notConfigured" &&
+          migratedRecord.spotifyAuthStatus !== "unknown"
+        ) {
+          migratedRecord.spotifyAuthStatus = "notConnected";
+        }
+        if (typeof migratedRecord.spotifyDisplayName !== "string") {
+          migratedRecord.spotifyDisplayName = null;
         }
 
         return migrated;

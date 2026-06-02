@@ -25,6 +25,7 @@ import { CoachMarks, CoachMarkStep } from "../../../src/components/CoachMarks";
 import { appleMusicService } from "../../../src/services/appleMusicService";
 import {
   spotifyService,
+  type MusicPlaylist,
   type SpotifyTrack,
 } from "../../../src/services/spotifyService";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
@@ -58,6 +59,9 @@ export default function SongsTab() {
   const appleMusicAuthStatus = useSettingsStore(
     (state) => state.appleMusicAuthStatus
   );
+  const spotifyAuthStatus = useSettingsStore(
+    (state) => state.spotifyAuthStatus
+  );
   const selectedMusicSource: MusicSource =
     Platform.OS === "ios" && songsPlaybackSource === "appleMusic"
       ? "apple"
@@ -66,6 +70,16 @@ export default function SongsTab() {
     selectedMusicSource === "apple" ? "Apple Music" : "Spotify";
   const appleMusicNeedsAuthorization =
     selectedMusicSource === "apple" && appleMusicAuthStatus !== "authorized";
+  const spotifyAccountNeedsAuthorization =
+    selectedMusicSource === "spotify" && spotifyAuthStatus !== "authorized";
+  const spotifyPlaybackNeedsAuthorization =
+    selectedMusicSource === "spotify" &&
+    songsPlaybackSource === "spotify" &&
+    spotifyAuthStatus !== "authorized";
+  const spotifyCatalogNeedsAuthorization =
+    selectedMusicSource === "spotify" &&
+    !spotifyService.hasClientCredentials() &&
+    spotifyAuthStatus !== "authorized";
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -73,6 +87,8 @@ export default function SongsTab() {
   const [hasSearched, setHasSearched] = useState(false);
   const [songHistory, setSongHistory] = useState<SpotifyTrack[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [importedPlaylists, setImportedPlaylists] = useState<MusicPlaylist[]>([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
 
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
@@ -296,6 +312,16 @@ export default function SongsTab() {
         return;
       }
 
+      if (
+        spotifyPlaybackNeedsAuthorization ||
+        spotifyCatalogNeedsAuthorization
+      ) {
+        setNewReleases((prev) => ({ ...prev, data: [], loading: false }));
+        setPopularSongs((prev) => ({ ...prev, data: [], loading: false }));
+        setAnimeSongs((prev) => ({ ...prev, data: [], loading: false }));
+        return;
+      }
+
       const service =
         selectedMusicSource === "apple" ? appleMusicService : spotifyService;
       const sectionLimit = selectedMusicSource === "apple" ? 24 : 20;
@@ -348,7 +374,63 @@ export default function SongsTab() {
     if (!hasSearched) {
       loadMusicSections();
     }
-  }, [hasSearched, selectedMusicSource, appleMusicAuthStatus]);
+  }, [
+    hasSearched,
+    selectedMusicSource,
+    appleMusicAuthStatus,
+    spotifyPlaybackNeedsAuthorization,
+    spotifyCatalogNeedsAuthorization,
+  ]);
+
+  useEffect(() => {
+    let didCancel = false;
+
+    const loadImportedPlaylists = async () => {
+      if (
+        selectedMusicSource === "apple" &&
+        appleMusicAuthStatus !== "authorized"
+      ) {
+        setImportedPlaylists([]);
+        setIsLoadingPlaylists(false);
+        return;
+      }
+
+      if (
+        selectedMusicSource === "spotify" &&
+        spotifyAuthStatus !== "authorized"
+      ) {
+        setImportedPlaylists([]);
+        setIsLoadingPlaylists(false);
+        return;
+      }
+
+      const service =
+        selectedMusicSource === "apple" ? appleMusicService : spotifyService;
+
+      setIsLoadingPlaylists(true);
+      try {
+        const playlists = await service.getUserPlaylists(20);
+        if (!didCancel) {
+          setImportedPlaylists(playlists);
+        }
+      } catch (playlistError) {
+        console.error("Error loading imported playlists:", playlistError);
+        if (!didCancel) {
+          setImportedPlaylists([]);
+        }
+      } finally {
+        if (!didCancel) {
+          setIsLoadingPlaylists(false);
+        }
+      }
+    };
+
+    void loadImportedPlaylists();
+
+    return () => {
+      didCancel = true;
+    };
+  }, [selectedMusicSource, appleMusicAuthStatus, spotifyAuthStatus]);
 
   // Cache album art image
   const cacheAlbumArt = useCallback(async (song: SpotifyTrack): Promise<string> => {
@@ -439,10 +521,21 @@ export default function SongsTab() {
     // Check if Spotify credentials are available when Spotify is selected.
     if (
       selectedMusicSource === "spotify" &&
-      !spotifyService.isConfigured()
+      spotifyPlaybackNeedsAuthorization
     ) {
       setError(
-        "Spotify API credentials not configured. Please add your credentials to the service."
+        "Connect Spotify in Settings first, then try searching again."
+      );
+      return;
+    }
+
+    if (
+      selectedMusicSource === "spotify" &&
+      !spotifyService.hasClientCredentials() &&
+      spotifyAuthStatus !== "authorized"
+    ) {
+      setError(
+        "Connect Spotify in Settings, or add EXPO_PUBLIC_SPOTIFY_CLIENT_KEY for anonymous catalog search."
       );
       return;
     }
@@ -473,7 +566,13 @@ export default function SongsTab() {
     } finally {
       setIsSearching(false);
     }
-  }, [selectedMusicSource, musicSourceLabel, appleMusicAuthStatus]);
+  }, [
+    selectedMusicSource,
+    musicSourceLabel,
+    appleMusicAuthStatus,
+    spotifyAuthStatus,
+    spotifyPlaybackNeedsAuthorization,
+  ]);
 
   // Debounced search effect
   useEffect(() => {
@@ -509,6 +608,40 @@ export default function SongsTab() {
       });
     },
     [addToHistory]
+  );
+
+  const handlePlaylistPress = useCallback(
+    (playlist: MusicPlaylist) => {
+      if (
+        playlist.source === "spotify" &&
+        spotifyAuthStatus !== "authorized"
+      ) {
+        setError("Connect Spotify in Settings first, then import playlists.");
+        return;
+      }
+
+      if (
+        playlist.source === "apple" &&
+        appleMusicAuthStatus !== "authorized"
+      ) {
+        setError("Authorize Apple Music in Settings first, then import playlists.");
+        return;
+      }
+
+      router.push({
+        pathname: "/playlist-detail",
+        params: {
+          playlistId: playlist.id,
+          playlistName: playlist.name,
+          playlistImageUrl: playlist.imageUrl,
+          playlistDescription: playlist.description,
+          playlistOwnerName: playlist.ownerName || "",
+          playlistSource: playlist.source,
+          playlistTrackCount: String(playlist.trackCount),
+        },
+      });
+    },
+    [appleMusicAuthStatus, spotifyAuthStatus]
   );
 
   const handleClearSearch = useCallback(() => {
@@ -551,6 +684,48 @@ export default function SongsTab() {
           {item.artist}
         </Text>
       </View>
+    </TouchableOpacity>
+  );
+
+  const renderPlaylistCard = ({ item }: { item: MusicPlaylist }) => (
+    <TouchableOpacity
+      style={[
+        styles.playlistCard,
+        { backgroundColor: theme.cardBackground, borderColor: theme.border },
+      ]}
+      onPress={() => {
+        void handlePlaylistPress(item);
+      }}
+      activeOpacity={0.7}
+    >
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={styles.playlistArt} />
+      ) : (
+        <View
+          style={[
+            styles.playlistArt,
+            styles.playlistArtFallback,
+            { backgroundColor: theme.primary },
+          ]}
+        >
+          <Ionicons name="musical-notes" size={28} color="#fff" />
+        </View>
+      )}
+      <View style={styles.playlistInfo}>
+        <Text
+          style={[styles.playlistTitle, { color: theme.textColor }]}
+          numberOfLines={2}
+        >
+          {item.name}
+        </Text>
+        <Text
+          style={[styles.playlistSubtitle, { color: theme.textSecondary }]}
+          numberOfLines={1}
+        >
+          {item.trackCount} song{item.trackCount === 1 ? "" : "s"}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
     </TouchableOpacity>
   );
 
@@ -639,7 +814,7 @@ export default function SongsTab() {
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.centerText, { color: theme.textSecondary }]}>
-            Searching {musicSourceLabel}...
+            {`Searching ${musicSourceLabel}...`}
           </Text>
         </View>
       ) : searchResults.length === 0 ? (
@@ -723,6 +898,51 @@ export default function SongsTab() {
         </View>
       )}
 
+      {(isLoadingPlaylists || importedPlaylists.length > 0 || spotifyAccountNeedsAuthorization || appleMusicNeedsAuthorization) && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+                Your {musicSourceLabel} Playlists
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                Import tracks into lyrics practice
+              </Text>
+            </View>
+          </View>
+          {isLoadingPlaylists ? (
+            <ActivityIndicator
+              size="small"
+              color={theme.primary}
+              style={styles.sectionLoader}
+            />
+          ) : importedPlaylists.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalScrollContent}
+            >
+              {importedPlaylists.map((playlist) => (
+                <View key={`${playlist.source}-${playlist.id}`}>
+                  {renderPlaylistCard({ item: playlist })}
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.offlineContainer}>
+              <Ionicons name="albums-outline" size={48} color={theme.textLight} />
+              <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
+                {appleMusicNeedsAuthorization
+                  ? "Authorize Apple Music in Settings to import playlists"
+                  : spotifyAccountNeedsAuthorization
+                    ? "Connect Spotify in Settings to import playlists"
+                    : "No playlists found"}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* New Japanese Releases */}
       <View ref={categorySectionRef} style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -761,6 +981,8 @@ export default function SongsTab() {
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
+                : spotifyPlaybackNeedsAuthorization || spotifyCatalogNeedsAuthorization
+                  ? "Connect Spotify in Settings to load songs"
                 : "Connect to WiFi to discover new music"}
             </Text>
           </View>
@@ -805,6 +1027,8 @@ export default function SongsTab() {
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
+                : spotifyPlaybackNeedsAuthorization || spotifyCatalogNeedsAuthorization
+                  ? "Connect Spotify in Settings to load songs"
                 : "Connect to WiFi to discover new music"}
             </Text>
           </View>
@@ -849,6 +1073,8 @@ export default function SongsTab() {
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
+                : spotifyPlaybackNeedsAuthorization || spotifyCatalogNeedsAuthorization
+                  ? "Connect Spotify in Settings to load songs"
                 : "Connect to WiFi to discover new music"}
             </Text>
           </View>
@@ -1087,6 +1313,37 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  playlistCard: {
+    width: 220,
+    minHeight: 86,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginRight: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  playlistArt: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+  },
+  playlistArtFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playlistInfo: {
+    flex: 1,
+  },
+  playlistTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  playlistSubtitle: {
+    fontSize: 12,
   },
   horizontalCardsContent: {
     paddingLeft: 16,

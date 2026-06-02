@@ -16,9 +16,10 @@ import React, {
 } from "react";
 import type { EmitterSubscription } from "react-native";
 import { Platform } from "react-native";
+import { useSpotifyPlayerController } from "../features/spotify/useSpotifyPlayerController";
 import { TimedLyricsLine } from "../services/lyricsService";
 
-type MusicSource = "spotify" | "apple";
+type MusicSource = "youtube" | "spotify" | "apple";
 
 interface MusicPlayerContextType {
   // Song info
@@ -30,6 +31,7 @@ interface MusicPlayerContextType {
   songUrl: string | null;
   musicSource: MusicSource;
   appleTrackId: string | null;
+  spotifyTrackId: string | null;
 
   // Lyrics
   timedLyrics: TimedLyricsLine[];
@@ -52,6 +54,7 @@ interface MusicPlayerContextType {
     songId?: string;
     songUrl?: string;
     musicSource?: MusicSource;
+    durationMs?: number;
   }) => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
@@ -97,8 +100,9 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [songId, setSongId] = useState<string | null>(null);
   const [songUrl, setSongUrl] = useState<string | null>(null);
-  const [musicSource, setMusicSource] = useState<MusicSource>("spotify");
+  const [musicSource, setMusicSource] = useState<MusicSource>("youtube");
   const [appleTrackId, setAppleTrackId] = useState<string | null>(null);
+  const [spotifyTrackId, setSpotifyTrackId] = useState<string | null>(null);
 
   // Lyrics
   const [timedLyrics, setTimedLyrics] = useState<TimedLyricsLine[]>([]);
@@ -112,6 +116,31 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
   // Player refs
   const playerRef = useRef<any>(null);
   const appleListenersRef = useRef<EmitterSubscription[]>([]);
+  const musicSourceRef = useRef<MusicSource>("youtube");
+  const spotifyTrackIdRef = useRef<string | null>(null);
+  const appleTrackIdRef = useRef<string | null>(null);
+  const youtubeVideoIdRef = useRef<string | null>(null);
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+  const isPlayingRef = useRef(false);
+
+  useEffect(() => {
+    musicSourceRef.current = musicSource;
+    spotifyTrackIdRef.current = spotifyTrackId;
+    appleTrackIdRef.current = appleTrackId;
+    youtubeVideoIdRef.current = youtubeVideoId;
+    currentTimeRef.current = currentTime;
+    durationRef.current = duration;
+    isPlayingRef.current = isPlayingState;
+  }, [
+    appleTrackId,
+    currentTime,
+    duration,
+    isPlayingState,
+    musicSource,
+    spotifyTrackId,
+    youtubeVideoId,
+  ]);
 
   const clearAppleListeners = useCallback(() => {
     for (const listener of appleListenersRef.current) {
@@ -124,13 +153,29 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     appleListenersRef.current = [];
   }, []);
 
+  const setPlaybackPlayingState = useCallback((playing: boolean) => {
+    setIsPlayingState(playing);
+    isPlayingRef.current = playing;
+  }, []);
+
+  const spotifyPlayer = useSpotifyPlayerController({
+    trackId: spotifyTrackId,
+    trackUrl: spotifyTrackId ? songUrl : null,
+    currentTime,
+    duration,
+    isPlaying: isPlayingState,
+    setIsPlaying: setPlaybackPlayingState,
+    setCurrentTime,
+    setDuration,
+  });
+
   const updateAppleStateFromNative = useCallback(async () => {
     if (!isIOS) return;
 
     try {
       const state = await Player.getCurrentState();
       setCurrentTime(state?.playbackTime ?? 0);
-      setIsPlayingState(isPlayingStatus(state?.playbackStatus));
+      setPlaybackPlayingState(isPlayingStatus(state?.playbackStatus));
 
       const nextDuration = normalizeDurationSeconds(state?.currentSong?.duration);
       if (nextDuration > 0) {
@@ -139,7 +184,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error reading Apple Music playback state:", error);
     }
-  }, []);
+  }, [setPlaybackPlayingState]);
 
   const setupAppleListeners = useCallback(() => {
     if (!isIOS) return;
@@ -153,7 +198,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
           setCurrentTime(state.playbackTime);
         }
 
-        setIsPlayingState(isPlayingStatus(state?.playbackStatus));
+        setPlaybackPlayingState(isPlayingStatus(state?.playbackStatus));
 
         const nextDuration = normalizeDurationSeconds(state?.currentSong?.duration);
         if (nextDuration > 0) {
@@ -186,7 +231,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       playbackTimeListener,
       currentSongListener,
     ];
-  }, [clearAppleListeners]);
+  }, [clearAppleListeners, setPlaybackPlayingState]);
 
   const loadAppleTrack = useCallback(
     async (trackId: string) => {
@@ -237,22 +282,60 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       songId?: string;
       songUrl?: string;
       musicSource?: MusicSource;
+      durationMs?: number;
     }) => {
-      const source = info.musicSource || "spotify";
+      const source = info.musicSource || "youtube";
       const nextAppleTrackId = source === "apple" ? info.songId || null : null;
+      const nextSpotifyTrackId =
+        source === "spotify" ? info.songId || null : null;
+      const nextYoutubeVideoId =
+        source === "youtube" ? info.youtubeVideoId : null;
+      const nextSongId = info.songId || null;
+      const nextSongUrl = info.songUrl || null;
+      const isSameLoadedMedia =
+        source === musicSourceRef.current &&
+        (source === "spotify"
+          ? nextSpotifyTrackId === spotifyTrackIdRef.current
+          : source === "apple"
+            ? nextAppleTrackId === appleTrackIdRef.current
+            : nextYoutubeVideoId === youtubeVideoIdRef.current);
+      const nextDuration = info.durationMs
+        ? info.durationMs / 1000
+        : isSameLoadedMedia
+          ? durationRef.current
+          : 0;
 
       setAlbumArt(info.albumArt);
       setSongTitle(info.songTitle);
       setArtist(info.artist);
-      setSongId(info.songId || null);
-      setSongUrl(info.songUrl || null);
+      setSongId(nextSongId);
+      setSongUrl(nextSongUrl);
       setMusicSource(source);
       setAppleTrackId(nextAppleTrackId);
-      setYoutubeVideoId(source === "apple" ? null : info.youtubeVideoId);
-      setTimedLyrics([]);
-      setIsPlayingState(false);
-      setCurrentTime(0);
-      setDuration(0);
+      setSpotifyTrackId(nextSpotifyTrackId);
+      setYoutubeVideoId(nextYoutubeVideoId);
+
+      musicSourceRef.current = source;
+      appleTrackIdRef.current = nextAppleTrackId;
+      spotifyTrackIdRef.current = nextSpotifyTrackId;
+      youtubeVideoIdRef.current = nextYoutubeVideoId;
+      durationRef.current = nextDuration;
+      setDuration(nextDuration);
+
+      if (!isSameLoadedMedia) {
+        setTimedLyrics([]);
+        setPlaybackPlayingState(false);
+        setCurrentTime(0);
+        currentTimeRef.current = 0;
+      }
+
+      spotifyPlayer.configureTrack({
+        trackId: nextSpotifyTrackId,
+        trackUrl: nextSongUrl,
+        currentTime: isSameLoadedMedia ? currentTimeRef.current : 0,
+        duration: nextDuration,
+        resetPlaybackState: !isSameLoadedMedia,
+      });
 
       if (source === "apple") {
         if (nextAppleTrackId) {
@@ -265,6 +348,11 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       }
 
       clearAppleListeners();
+      if (source === "spotify") {
+        playerRef.current = spotifyPlayer.playerHandle;
+        return;
+      }
+
       playerRef.current = null;
 
       // Try to load video and lyrics from cache if not provided
@@ -313,12 +401,19 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
           );
       }
     },
-    [clearAppleListeners, loadAppleTrack]
+    [
+      clearAppleListeners,
+      loadAppleTrack,
+      setPlaybackPlayingState,
+      spotifyPlayer,
+    ]
   );
 
   const setIsPlaying = useCallback(
     (playing: boolean) => {
-      if (musicSource === "apple") {
+      const source = musicSourceRef.current;
+
+      if (source === "apple") {
         if (!isIOS) return;
 
         try {
@@ -327,21 +422,26 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
           } else {
             Player.pause();
           }
-          setIsPlayingState(playing);
+          setPlaybackPlayingState(playing);
         } catch (error) {
           console.error("Error controlling Apple Music playback:", error);
         }
         return;
       }
 
-      setIsPlayingState(playing);
+      if (source === "spotify") {
+        void spotifyPlayer.setPlaying(playing);
+        return;
+      }
+
+      setPlaybackPlayingState(playing);
     },
-    [musicSource]
+    [setPlaybackPlayingState, spotifyPlayer]
   );
 
   const togglePlayPause = useCallback(() => {
-    setIsPlaying(!isPlayingState);
-  }, [isPlayingState, setIsPlaying]);
+    setIsPlaying(!isPlayingRef.current);
+  }, [setIsPlaying]);
 
   const skipForward = useCallback(async () => {
     if (musicSource === "apple") {
@@ -354,9 +454,15 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         const next = max > 0 ? Math.min(current + 10, max) : current + 10;
         Player.seekToTime(next);
         setCurrentTime(next);
+        currentTimeRef.current = next;
       } catch (error) {
         console.error("Error skipping Apple Music forward:", error);
       }
+      return;
+    }
+
+    if (musicSource === "spotify") {
+      await spotifyPlayer.skipForward();
       return;
     }
 
@@ -369,7 +475,10 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error skipping forward:", error);
     }
-  }, [musicSource]);
+  }, [
+    musicSource,
+    spotifyPlayer,
+  ]);
 
   const skipBackward = useCallback(async () => {
     if (musicSource === "apple") {
@@ -381,9 +490,15 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         const next = Math.max(current - 10, 0);
         Player.seekToTime(next);
         setCurrentTime(next);
+        currentTimeRef.current = next;
       } catch (error) {
         console.error("Error skipping Apple Music backward:", error);
       }
+      return;
+    }
+
+    if (musicSource === "spotify") {
+      await spotifyPlayer.skipBackward();
       return;
     }
 
@@ -396,17 +511,20 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error skipping backward:", error);
     }
-  }, [musicSource]);
+  }, [
+    musicSource,
+    spotifyPlayer,
+  ]);
 
   const onStateChange = useCallback(
     (state: string) => {
-      if (musicSource === "apple") return;
+      if (musicSource === "apple" || musicSource === "spotify") return;
 
       console.log("YouTube player state changed to:", state);
       if (state === "ended" || state === "paused") {
-        setIsPlayingState(false);
+        setPlaybackPlayingState(false);
       } else if (state === "playing") {
-        setIsPlayingState(true);
+        setPlaybackPlayingState(true);
 
         if (playerRef.current) {
           Promise.all([
@@ -427,7 +545,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [musicSource]
+    [musicSource, setPlaybackPlayingState]
   );
 
   const clearPlayer = useCallback(() => {
@@ -439,6 +557,10 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    if (musicSource === "spotify") {
+      spotifyPlayer.pauseSilently();
+    }
+
     clearAppleListeners();
     playerRef.current = null;
     setAlbumArt("");
@@ -447,14 +569,28 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     setYoutubeVideoId(null);
     setSongId(null);
     setSongUrl(null);
-    setMusicSource("spotify");
+    setMusicSource("youtube");
     setAppleTrackId(null);
+    setSpotifyTrackId(null);
     setTimedLyrics([]);
-    setIsPlayingState(false);
+    setPlaybackPlayingState(false);
     setCurrentTime(0);
     setDuration(0);
     setIsPlayerExpanded(false);
-  }, [clearAppleListeners, musicSource]);
+    musicSourceRef.current = "youtube";
+    appleTrackIdRef.current = null;
+    spotifyTrackIdRef.current = null;
+    youtubeVideoIdRef.current = null;
+    currentTimeRef.current = 0;
+    durationRef.current = 0;
+    isPlayingRef.current = false;
+    spotifyPlayer.clear();
+  }, [
+    clearAppleListeners,
+    musicSource,
+    setPlaybackPlayingState,
+    spotifyPlayer,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -471,6 +607,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     songUrl,
     musicSource,
     appleTrackId,
+    spotifyTrackId,
     timedLyrics,
     isPlaying: isPlayingState,
     currentTime,

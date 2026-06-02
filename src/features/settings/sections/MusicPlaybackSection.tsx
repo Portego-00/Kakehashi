@@ -9,12 +9,18 @@ export function MusicPlaybackSection() {
   const {
     appleMusicAuthError,
     getAppleMusicStatusLabel,
+    getSpotifyStatusLabel,
     handleAppleMusicLogin,
     handlePlaybackSourceChange,
+    handleSpotifyLogin,
+    handleSpotifyLogout,
     isAppleMusicAuthenticating,
+    isSpotifyAuthenticating,
     Platform,
     showMusicPlaybackSection,
     songsPlaybackSource,
+    spotifyAuthError,
+    spotifyRedirectUri,
     theme,
     updateSectionOffset,
   } = useSettingsControllerContext();
@@ -59,7 +65,7 @@ export function MusicPlaybackSection() {
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
-                Choose between YouTube video playback or Apple Music playback
+                Choose between YouTube, Spotify, or Apple Music playback
               </Text>
             </View>
           </View>
@@ -110,6 +116,36 @@ export function MusicPlaybackSection() {
                   {
                     borderColor: theme.border,
                     backgroundColor:
+                      songsPlaybackSource === "spotify"
+                        ? theme.primary
+                        : "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  void handlePlaybackSourceChange("spotify");
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.playbackSourceButtonText,
+                    {
+                      color:
+                        songsPlaybackSource === "spotify"
+                          ? "#fff"
+                          : theme.textColor,
+                    },
+                  ]}
+                >
+                  Spotify
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.playbackSourceButton,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor:
                       songsPlaybackSource === "appleMusic"
                         ? theme.primary
                         : "transparent",
@@ -140,9 +176,95 @@ export function MusicPlaybackSection() {
           <View
             style={[
               styles.settingItemColumn,
-              { borderBottomColor: "transparent" },
+              { borderBottomColor: Platform.OS === "ios" ? theme.border : "transparent" },
             ]}
           >
+            <View style={styles.settingRow}>
+              <Ionicons
+                name="musical-notes"
+                size={24}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Spotify Login
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Connect Spotify for account playback and playlist import
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.musicLoginActions}>
+              <TouchableOpacity
+                style={[
+                  styles.syncButton,
+                  { backgroundColor: theme.primary },
+                  isSpotifyAuthenticating && styles.syncButtonDisabled,
+                ]}
+                onPress={handleSpotifyLogin}
+                activeOpacity={0.7}
+                disabled={isSpotifyAuthenticating}
+              >
+                {isSpotifyAuthenticating ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.syncButtonText, { color: "#fff" }]}>
+                    Login / Refresh
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.syncButton,
+                  {
+                    backgroundColor: "transparent",
+                    borderColor: theme.border,
+                    borderWidth: 1,
+                  },
+                ]}
+                onPress={() => {
+                  void handleSpotifyLogout();
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.syncButtonText, { color: theme.textColor }]}>
+                  Disconnect
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text
+              style={[styles.syncStatusText, { color: theme.textSecondary }]}
+            >
+              Status: {getSpotifyStatusLabel()}
+            </Text>
+            <Text
+              selectable
+              style={[styles.spotifyRedirectUriText, { color: theme.textSecondary }]}
+            >
+              Redirect URI: {spotifyRedirectUri}
+            </Text>
+            {spotifyAuthError && (
+              <Text style={[styles.syncStatusText, { color: theme.error }]}>
+                {spotifyAuthError.message}
+              </Text>
+            )}
+          </View>
+
+          {Platform.OS === "ios" && (
+            <View
+              style={[
+                styles.settingItemColumn,
+                { borderBottomColor: "transparent" },
+              ]}
+            >
             <View style={styles.settingRow}>
               <Ionicons
                 name="logo-apple"
@@ -196,7 +318,8 @@ export function MusicPlaybackSection() {
                 {appleMusicAuthError.message}
               </Text>
             )}
-          </View>
+            </View>
+          )}
         </View>
       )}
     </>

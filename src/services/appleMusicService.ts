@@ -4,7 +4,7 @@ import {
   type ISong,
 } from "@lomray/react-native-apple-music";
 import { Platform } from "react-native";
-import type { SpotifyTrack } from "./spotifyService";
+import type { MusicPlaylist, SpotifyTrack } from "./spotifyService";
 
 const APPLE_CATALOG_MAX_LIMIT = 25;
 const APPLE_RSS_MAX_LIMIT = 50;
@@ -371,6 +371,66 @@ class AppleMusicService {
       console.error("Error searching Apple Music tracks:", error);
       throw error;
     }
+  }
+
+  async getUserPlaylists(limit: number = 20): Promise<MusicPlaylist[]> {
+    if (Platform.OS !== "ios") {
+      return [];
+    }
+
+    const safeLimit = this.normalizeLimit(limit, APPLE_RSS_MAX_LIMIT);
+    const response = await MusicKit.getUserPlaylists({
+      limit: safeLimit,
+      offset: 0,
+    });
+
+    return (response?.playlists || []).map((playlist) => ({
+      id: String(playlist.id),
+      name: playlist.name,
+      description: playlist.description || "",
+      imageUrl: this.normalizeArtworkUrl(playlist.artworkUrl || ""),
+      trackCount: playlist.trackCount || 0,
+      source: "apple",
+    }));
+  }
+
+  async getPlaylistTracks(
+    playlistId: string,
+    limit: number = Number.POSITIVE_INFINITY,
+  ): Promise<SpotifyTrack[]> {
+    if (Platform.OS !== "ios") {
+      return [];
+    }
+
+    const hasFiniteLimit = Number.isFinite(limit);
+    const safeLimit = hasFiniteLimit
+      ? Math.max(1, Math.floor(limit))
+      : Number.POSITIVE_INFINITY;
+    const tracks: SpotifyTrack[] = [];
+    let offset = 0;
+
+    while (tracks.length < safeLimit) {
+      const pageLimit = Math.min(ITUNES_MAX_LIMIT, safeLimit - tracks.length);
+      const response = await MusicKit.getPlaylistSongs(playlistId, {
+        limit: pageLimit,
+        offset,
+      });
+      const pageSongs = response?.songs || [];
+      const pageTracks = pageSongs
+        .map((song) => this.mapCatalogSong(song))
+        .filter((track): track is SpotifyTrack => track !== null);
+
+      tracks.push(...pageTracks);
+
+      if (pageSongs.length < pageLimit) {
+        break;
+      }
+
+      offset += pageSongs.length;
+    }
+
+    const dedupedTracks = this.dedupeTracks(tracks);
+    return hasFiniteLimit ? dedupedTracks.slice(0, safeLimit) : dedupedTracks;
   }
 
   async getNewJapaneseReleases(limit: number = 20): Promise<SpotifyTrack[]> {

@@ -96,7 +96,7 @@ interface MiniPlayerProps {
   onStateChange?: (state: string) => void;
   playerRef?: any;
   videoId?: string;
-  mediaSource?: "spotify" | "apple";
+  mediaSource?: "youtube" | "spotify" | "apple";
   trackUrl?: string;
   onExpandChange?: (isExpanded: boolean) => void;
   bottomOffsetTransform?: SharedValue<number>;
@@ -119,7 +119,7 @@ export default function MiniPlayer({
   onStateChange,
   playerRef,
   videoId,
-  mediaSource = "spotify",
+  mediaSource = "youtube",
   trackUrl,
   onExpandChange,
   bottomOffsetTransform,
@@ -207,7 +207,12 @@ export default function MiniPlayer({
   const tooltipOpacity = useSharedValue(0);
 
   const insets = useSafeAreaInsets();
-  const isApplePreviewMode = mediaSource === "apple" && !videoId;
+  const isExternalMusicPreviewMode =
+    (mediaSource === "apple" || mediaSource === "spotify") && !videoId;
+  const externalMusicLabel =
+    mediaSource === "apple" ? "Apple Music" : "Spotify";
+  const externalMusicIcon =
+    mediaSource === "apple" ? "logo-apple" : "musical-notes";
   const expandedTopPadding = videoId ? 8 : insets.top + 12;
 
   const flatListRef = useRef<FlatList>(null);
@@ -389,7 +394,7 @@ export default function MiniPlayer({
     setSeekTarget(null);
     setIsSeeking(false);
     setCurrentIndex(-1);
-  }, [videoId]);
+  }, [videoId, mediaSource, trackUrl]);
 
   // Determine Active Lyrics Index
   useEffect(() => {
@@ -1357,15 +1362,15 @@ export default function MiniPlayer({
                   <Text style={styles.expandedArtist} numberOfLines={1}>
                     {artist}
                   </Text>
-                  {isApplePreviewMode && trackUrl && (
+                  {isExternalMusicPreviewMode && trackUrl && (
                     <TouchableOpacity
                       style={styles.openAppleButton}
                       onPress={handleOpenTrackUrl}
                       activeOpacity={0.7}
                     >
-                      <Ionicons name="logo-apple" size={14} color="white" />
+                      <Ionicons name={externalMusicIcon} size={14} color="white" />
                       <Text style={styles.openAppleButtonText}>
-                        Open in Apple Music
+                        Open in {externalMusicLabel}
                       </Text>
                     </TouchableOpacity>
                   )}

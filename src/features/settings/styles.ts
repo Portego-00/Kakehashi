@@ -345,6 +345,12 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
+  spotifyRedirectUriText: {
+    fontFamily: "monospace",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+  },
   playbackSelector: {
     flexDirection: "row",
     width: "100%",

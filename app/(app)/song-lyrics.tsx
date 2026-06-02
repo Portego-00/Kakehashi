@@ -37,6 +37,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useMusicPlayer } from "../../src/contexts/MusicPlayerContext";
 import { appleMusicService } from "../../src/services/appleMusicService";
+import { spotifyService } from "../../src/services/spotifyService";
 import {
   LyricsResult,
   LyricsSearchResult,
@@ -240,25 +241,57 @@ export default function SongLyricsScreen() {
   const {
     songsPlaybackSource,
     appleMusicAuthStatus,
+    spotifyAuthStatus,
     songsLyricsDefaultStudyMode,
     songsLyricsLineTranslationsEnabled,
     setSongsLyricsDefaultStudyMode,
     setSongsLyricsLineTranslationsEnabled,
   } = useSettingsStore();
   const userLevel = userData?.level || 0;
-  const { songId, songTitle, artist, albumArt, songUrl, musicSource } =
+  const { songId, songTitle, artist, albumArt, songUrl, musicSource, duration } =
     useLocalSearchParams<{
       songId: string;
       songTitle: string;
       artist: string;
       albumArt: string;
       songUrl: string;
+      duration?: string;
       musicSource?: "spotify" | "apple";
     }>();
   const isAppleMusicFlow =
     Platform.OS === "ios" &&
     songsPlaybackSource === "appleMusic" &&
     appleMusicAuthStatus === "authorized";
+  const isSpotifyPlaybackFlow =
+    songsPlaybackSource === "spotify" &&
+    spotifyAuthStatus === "authorized" &&
+    musicSource !== "apple";
+  const isYoutubePlaybackFlow = !isAppleMusicFlow && !isSpotifyPlaybackFlow;
+  const songLoadKey = useMemo(
+    () =>
+      [
+        String(songTitle || ""),
+        String(artist || ""),
+        String(songId || ""),
+        String(musicSource || ""),
+        songsPlaybackSource,
+        appleMusicAuthStatus,
+        spotifyAuthStatus,
+      ].join("|"),
+    [
+      appleMusicAuthStatus,
+      artist,
+      musicSource,
+      songId,
+      songTitle,
+      songsPlaybackSource,
+      spotifyAuthStatus,
+    ]
+  );
+  const durationMs = useMemo(() => {
+    const parsedDuration = Number.parseInt(String(duration || ""), 10);
+    return Number.isFinite(parsedDuration) ? parsedDuration : 0;
+  }, [duration]);
 
   // Use the global music player context
   const {
@@ -510,6 +543,7 @@ export default function SongLyricsScreen() {
   const [tutorialSteps, setTutorialSteps] = useState<CoachMarkStep[]>([]);
   const [isFirstVisit, setIsFirstVisit] = useState<boolean | null>(null); // null = checking, true/false = determined
   const [pendingAutoPlay, setPendingAutoPlay] = useState(false); // Track if we should auto-play after tutorial
+  const loadedSongKeyRef = useRef<string | null>(null);
   const settingsButtonRef = useRef<View>(null);
   const syncToggleRef = useRef<View>(null);
   const lyricsContentRef = useRef<View>(null);
@@ -692,6 +726,7 @@ export default function SongLyricsScreen() {
     const lyricsCacheKey = `${cacheKey}_lyrics`;
     const videoCacheKey = `${cacheKey}_video`;
     let effectiveAppleSongId = songId;
+    let effectiveSpotifySongId = songId;
 
     try {
       if (isAppleMusicFlow && (!effectiveAppleSongId || musicSource !== "apple")) {
@@ -712,10 +747,32 @@ export default function SongLyricsScreen() {
         }
       }
 
-      // Step 1: Check cache for lyrics and (for Spotify mode) video.
+      if (
+        isSpotifyPlaybackFlow &&
+        (!effectiveSpotifySongId || musicSource !== "spotify")
+      ) {
+        try {
+          const spotifyResults = await spotifyService.searchTracks(
+            `${songTitle} ${artist}`,
+            10
+          );
+          if (spotifyResults.length > 0) {
+            effectiveSpotifySongId = spotifyResults[0].id;
+          }
+        } catch (spotifySearchError) {
+          console.warn(
+            "⚠️ Failed to resolve Spotify playback track:",
+            spotifySearchError
+          );
+        }
+      }
+
+      // Step 1: Check cache for lyrics and, when using YouTube fallback, video.
       const [cachedLyricsJson, cachedVideoId] = await Promise.all([
         AsyncStorage.getItem(lyricsCacheKey),
-        isAppleMusicFlow ? Promise.resolve(null) : AsyncStorage.getItem(videoCacheKey),
+        isYoutubePlaybackFlow
+          ? AsyncStorage.getItem(videoCacheKey)
+          : Promise.resolve(null),
       ]);
 
       let lyricsData: LyricsResult | null = null;
@@ -787,6 +844,40 @@ export default function SongLyricsScreen() {
           songId: effectiveAppleSongId,
           songUrl: musicSource === "apple" ? songUrl : undefined,
           musicSource: "apple",
+          durationMs,
+        });
+        if (timedLinesForPlayer.length > 0) {
+          setGlobalTimedLyrics(timedLinesForPlayer);
+        }
+
+        setTimeout(async () => {
+          const tutorialCompleted = await AsyncStorage.getItem(
+            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED
+          );
+          if (tutorialCompleted) {
+            setIsPlaying(true);
+          } else {
+            setPendingAutoPlay(true);
+          }
+        }, 500);
+      } else if (isSpotifyPlaybackFlow) {
+        if (!effectiveSpotifySongId) {
+          setError(
+            "Could not find this track in Spotify. Switch playback to YouTube or pick a different song."
+          );
+          setTimedLyricsStatus("unavailable");
+          return;
+        }
+
+        setSongInfo({
+          albumArt,
+          songTitle,
+          artist,
+          youtubeVideoId: null,
+          songId: effectiveSpotifySongId,
+          songUrl: musicSource === "spotify" ? songUrl : undefined,
+          musicSource: "spotify",
+          durationMs,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -837,7 +928,8 @@ export default function SongLyricsScreen() {
           youtubeVideoId: videoId,
           songId,
           songUrl,
-          musicSource: "spotify",
+          musicSource: "youtube",
+          durationMs,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -868,6 +960,9 @@ export default function SongLyricsScreen() {
     songUrl,
     musicSource,
     isAppleMusicFlow,
+    isSpotifyPlaybackFlow,
+    isYoutubePlaybackFlow,
+    durationMs,
     setSongInfo,
     setIsPlaying,
     setGlobalTimedLyrics,
@@ -875,9 +970,14 @@ export default function SongLyricsScreen() {
 
   useEffect(() => {
     if (songTitle && artist) {
-      loadLyrics();
+      if (loadedSongKeyRef.current === songLoadKey) {
+        return;
+      }
+
+      loadedSongKeyRef.current = songLoadKey;
+      void loadLyrics();
     }
-  }, [songTitle, artist, loadLyrics]);
+  }, [songTitle, artist, loadLyrics, songLoadKey]);
 
   useEffect(() => {
     if (songTitle && artist) {
@@ -886,12 +986,12 @@ export default function SongLyricsScreen() {
       setLyricsSearchArtist(artist);
 
       // Pre-populate results
-      if (!isAppleMusicFlow) {
+      if (isYoutubePlaybackFlow) {
         searchVideos(`${songTitle} ${artist}`);
       }
       searchLyrics(songTitle, artist);
     }
-  }, [songTitle, artist, isAppleMusicFlow]);
+  }, [songTitle, artist, isYoutubePlaybackFlow]);
 
   useEffect(() => {
     setLyricsTranslationStatusMessage(null);
@@ -1409,7 +1509,8 @@ export default function SongLyricsScreen() {
         youtubeVideoId: videoId,
         songId,
         songUrl,
-        musicSource: "spotify",
+        musicSource: "youtube",
+        durationMs,
       });
       setShowOverrideModal(false);
 
@@ -1424,7 +1525,7 @@ export default function SongLyricsScreen() {
         );
       }
     },
-    [albumArt, songTitle, artist, songId, songUrl, setSongInfo]
+    [albumArt, songTitle, artist, songId, songUrl, durationMs, setSongInfo]
   );
 
   const searchLyrics = useCallback(async (song: string, artist: string) => {

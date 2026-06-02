@@ -3,9 +3,9 @@ PODS:
   - DoubleConversion (1.1.6)
   - EASClient (55.0.2):
     - ExpoModulesCore
-  - EXApplication (55.0.9):
+  - EXApplication (55.0.15):
     - ExpoModulesCore
-  - EXConstants (55.0.7):
+  - EXConstants (55.0.16):
     - ExpoModulesCore
   - EXJSONUtils (55.0.0)
   - EXManifests (55.0.9):
@@ -227,6 +227,8 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (55.0.9):
     - ExpoModulesCore
+  - ExpoCrypto (55.0.15):
+    - ExpoModulesCore
   - ExpoDomWebView (55.0.3):
     - ExpoModulesCore
   - ExpoFileSystem (55.0.10):
@@ -253,7 +255,7 @@ PODS:
     - ExpoModulesCore
   - ExpoLinearGradient (55.0.8):
     - ExpoModulesCore
-  - ExpoLinking (55.0.7):
+  - ExpoLinking (55.0.15):
     - ExpoModulesCore
   - ExpoLogBox (55.0.7):
     - React-Core
@@ -322,7 +324,7 @@ PODS:
     - React-RCTFabric
   - ExpoVideo (55.0.10):
     - ExpoModulesCore
-  - ExpoWebBrowser (55.0.9):
+  - ExpoWebBrowser (55.0.16):
     - ExpoModulesCore
   - ExpoWidgets (55.0.4):
     - ExpoModulesCore
@@ -3637,6 +3639,7 @@ DEPENDENCIES:
   - ExpoAudio (from `../node_modules/expo-audio/ios`)
   - ExpoBackgroundTask (from `../node_modules/expo-background-task/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
+  - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
   - "ExpoDomWebView (from `../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -3835,6 +3838,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-background-task/ios"
   ExpoBlur:
     :path: "../node_modules/expo-blur/ios"
+  ExpoCrypto:
+    :path: "../node_modules/expo-crypto/ios"
   ExpoDomWebView:
     :path: "../node_modules/@expo/dom-webview/ios"
   ExpoFileSystem:
@@ -4099,8 +4104,8 @@ SPEC CHECKSUMS:
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   EASClient: a4b8ae18e8de52019ec94d14795faac4800905f0
-  EXApplication: 838dd0a6dc467b7a4267cdf5c997d9ee91a562a7
-  EXConstants: a16ad8db13865e97aaecf64bb92e8ad8e8ce1ae8
+  EXApplication: c7f6775d5a64bf118b8ecaf01cf57aeaa0adef56
+  EXConstants: 255fd9f72f94bfccaed1d161edac04a552baa8d9
   EXJSONUtils: 0080c14b673cfa9a6be5e3fe429768ffe3d42dfb
   EXManifests: 22ec6b0abf4e9b54ea22624aa955cf68d6c90590
   Expo: e79038d6233c3b86847f6d6c37684f68c6a89206
@@ -4112,6 +4117,7 @@ SPEC CHECKSUMS:
   ExpoAudio: 3b83b5658eef8c233102a6b8b5b8fac8ffa37dfb
   ExpoBackgroundTask: e8100c968bb4ed4de7d8ef2c268af70c53aaa74a
   ExpoBlur: 3982ec03e89c0d9a2f2b8f35b48fe12e3155c6ed
+  ExpoCrypto: 3deb1f311979766b91f8ad2e1d1feb4699688fb4
   ExpoDomWebView: d4f2ed3c3fa31d0ce89e79501a0c041c2f233189
   ExpoFileSystem: 0d267067930a744555ff6ab842fd79d3eeb2c33b
   ExpoFont: 4d2a6dedce012c4793532cb38d561d3da95eaafd
@@ -4122,7 +4128,7 @@ SPEC CHECKSUMS:
   ExpoImagePicker: 9005f90c3a2959b77655093488ab56650f69f93a
   ExpoKeepAwake: 55711a70fe88a41e793bbe28543c93cb47ff265d
   ExpoLinearGradient: 311546b2af6dadb591035cbe41b59884ea492377
-  ExpoLinking: 31827b9e0d27d058026a87a0e852f238c5834804
+  ExpoLinking: 3f7bc30ae456e03e272f6b4ee74f89a58bee63fc
   ExpoLogBox: 35febda08748ff213ea133f51acf976ba8c44b2c
   ExpoModulesCore: d5bb916552874ff68290f815720cf69e362e5f3c
   ExpoModulesJSI: 272e71466f386b52c1b26d065342e9479f84adfe
@@ -4139,8 +4145,8 @@ SPEC CHECKSUMS:
   ExpoTaskManager: 1a197d3c489d5ed7ae824f7d6b98404e3a662ff2
   ExpoUI: c887fbac5e415b1e0fddc13780cb3f4ca308c183
   ExpoVideo: e0e8a31273368ef06d52f37ac5900e3b3fe08dfb
-  ExpoWebBrowser: 19c5d250e0c101027677970a5f2fc635d9df2e73
-  ExpoWidgets: aa85e4a2fcea58071546646cb677effeedea6f9e
+  ExpoWebBrowser: 3159d7ac0906b972675cdcb7b755036d6a87e426
+  ExpoWidgets: 7c49bd7239ed0792ccfa83522f640e1aa25e67a1
   EXStructuredHeaders: aa49a5557fa24aa61dda4ac665f3987bf3e9e35d
   ExtensionStorage: 158434def6cd14146ecacf5ac2db6345f8644c2d
   EXUpdates: c7c3c365d4f49e87da96e6e5c3a1da9eb2a16046
@@ -4154,7 +4160,7 @@ SPEC CHECKSUMS:
   GoogleToolboxForMac: d1a2cbf009c453f4d6ded37c105e2f67a32206d8
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
-  hermes-engine: 98114e8d34815b84655c2d9264c6e1b7e02135a6
+  hermes-engine: 9dbbe749f4fe885521d546c3ba12a5f67255af84
   ImageColors: 44c86bc2d1f98b401f0d96a95a61039ce5deb776
   libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f

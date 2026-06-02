@@ -36,6 +36,7 @@ import ReviewNotificationManager, {
   type PendingNotificationsResult,
 } from "../../modules/ReviewNotificationManager";
 import { useAppleMusicAuthCompat } from "../../hooks/useAppleMusicAuthCompat";
+import { useSpotifyAuth } from "../spotify/useSpotifyAuth";
 import {
   clearOfflineVocabularyAudioCache,
   getOfflineVocabularyAudioCacheStats,
@@ -503,6 +504,9 @@ export function useSettingsController() {
     setSongsLyricsDefaultStudyMode,
     appleMusicAuthStatus,
     setAppleMusicAuthStatus,
+    spotifyAuthStatus,
+    spotifyDisplayName,
+    setSpotifyAuthStatus,
     lastSeenPatchNotesVersion,
     bunproSurveyCompleted,
     setBunproSurveyCompleted,
@@ -514,6 +518,16 @@ export function useSettingsController() {
     isAuthenticating: isAppleMusicAuthenticating,
     error: appleMusicAuthError,
   } = useAppleMusicAuthCompat();
+  const {
+    available: isSpotifyAuthAvailable,
+    requestAuthorization: requestSpotifyAuthorization,
+    disconnect: disconnectSpotify,
+    refreshStatus: refreshSpotifyStatus,
+    isAuthenticating: isSpotifyAuthenticating,
+    error: spotifyAuthError,
+    profile: spotifyProfile,
+    redirectUri: spotifyRedirectUri,
+  } = useSpotifyAuth();
   const [selectedVoice, setSelectedVoice] =
     useState<string>("ja-JP-NanamiNeural");
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -614,8 +628,7 @@ export function useSettingsController() {
   const canAccessApiDebugTools = __DEV__ || isPortegoUser;
   const scrollViewRef = useRef<ScrollView>(null);
   const sectionChipScrollViewRef = useRef<ScrollView>(null);
-  const showMusicPlaybackSection =
-    !isSongsHiddenForEmail && Platform.OS === "ios";
+  const showMusicPlaybackSection = !isSongsHiddenForEmail;
   const showWidgetsSection = Platform.OS === "ios";
   const showDataStorageSection = hasFeatureAccess(
     "cache_management",
@@ -1508,6 +1521,20 @@ export function useSettingsController() {
     }
   };
 
+  const getSpotifyStatusLabel = () => {
+    if (!isSpotifyAuthAvailable || spotifyAuthStatus === "notConfigured") {
+      return "Not configured";
+    }
+
+    if (spotifyAuthStatus === "authorized") {
+      const displayName =
+        spotifyProfile?.displayName || spotifyDisplayName;
+      return displayName ? `Connected as ${displayName}` : "Connected";
+    }
+
+    return "Not connected";
+  };
+
   const getAppleMusicSubscriptionAlertMessage = (error: unknown) => {
     const code =
       typeof error === "object" && error !== null && "code" in error
@@ -1586,11 +1613,80 @@ export function useSettingsController() {
     }
   };
 
+  const handleSpotifyLogin = async () => {
+    if (!isSpotifyAuthAvailable) {
+      setSpotifyAuthStatus("notConfigured");
+      Alert.alert(
+        "Spotify Setup Required",
+        `Add EXPO_PUBLIC_SPOTIFY_CLIENT_ID and register ${spotifyRedirectUri} exactly as a redirect URI in your Spotify app settings.`,
+      );
+      return;
+    }
+
+    try {
+      const result = await requestSpotifyAuthorization();
+      if (!result || result.type !== "success") {
+        return;
+      }
+
+      const profile = await refreshSpotifyStatus();
+      if (!profile) {
+        return;
+      }
+
+      setSongsPlaybackSource("spotify");
+      if (profile.product !== "premium") {
+        Alert.alert(
+          "Spotify Connected",
+          "Your Spotify account is connected. Spotify playback control usually requires Premium; playlist import will still work.",
+        );
+        return;
+      }
+
+      Alert.alert("Connected", "Spotify playback is now ready.");
+    } catch (error) {
+      console.error("Spotify login failed:", error);
+      Alert.alert(
+        "Login Failed",
+        "Could not complete Spotify authorization. Please try again.",
+      );
+    }
+  };
+
+  const handleSpotifyLogout = async () => {
+    await disconnectSpotify();
+    if (songsPlaybackSource === "spotify") {
+      setSongsPlaybackSource("youtube");
+    }
+  };
+
   const handlePlaybackSourceChange = async (
-    source: "youtube" | "appleMusic",
+    source: "youtube" | "appleMusic" | "spotify",
   ) => {
     if (source === "youtube") {
       setSongsPlaybackSource("youtube");
+      return;
+    }
+
+    if (source === "spotify") {
+      if (!isSpotifyAuthAvailable) {
+        Alert.alert(
+          "Spotify Setup Required",
+          `Add EXPO_PUBLIC_SPOTIFY_CLIENT_ID and register ${spotifyRedirectUri} exactly as a redirect URI in your Spotify app settings.`,
+        );
+        return;
+      }
+
+      const profile = await refreshSpotifyStatus();
+      if (!profile) {
+        Alert.alert(
+          "Login Required",
+          "Connect Spotify first, then switch playback to Spotify.",
+        );
+        return;
+      }
+
+      setSongsPlaybackSource("spotify");
       return;
     }
 
@@ -2726,6 +2822,7 @@ export function useSettingsController() {
     getPreviousDailyLessonReminderMinimum,
     getReviewOrderLabel,
     getSrsProgressionCardModeIconName,
+    getSpotifyStatusLabel,
     getSrsProgressionCardModeLabel,
     getVocabularyAudioVoiceIconName,
     getVocabularyAudioVoiceLabel,
@@ -2762,6 +2859,8 @@ export function useSettingsController() {
     handleRateAppPress,
     handleRemoveJpdbApiKey,
     handleRepairCache,
+    handleSpotifyLogin,
+    handleSpotifyLogout,
     handleReviewNotificationChange,
     handleReviewShortcutCaptureKeyPress,
     handleReviewShortcutCaptureSubmit,
@@ -2786,6 +2885,8 @@ export function useSettingsController() {
     isAnyDailyReminderEnabled,
     isAppleMusicAuthAvailable,
     isAppleMusicAuthenticating,
+    isSpotifyAuthAvailable,
+    isSpotifyAuthenticating,
     isCheckingCacheHealth,
     isClearingOfflineAudioCache,
     isDailyLessonLimitEnabled,
@@ -3026,6 +3127,10 @@ export function useSettingsController() {
     skipCustomLessonQuiz,
     songsLyricsDefaultStudyMode,
     songsPlaybackSource,
+    spotifyAuthError,
+    spotifyAuthStatus,
+    spotifyDisplayName,
+    spotifyRedirectUri,
     SRS_PROGRESSION_CARD_MODE_OPTIONS,
     srsProgressionCardDisplayMode,
     STOP_DETAILS_PREVIEW_IMAGE,
