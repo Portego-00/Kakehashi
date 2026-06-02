@@ -54,8 +54,10 @@ export function useSpotifyPlayerController({
   const queuedPlayingRef = useRef<boolean | null>(null);
   const desiredPlayingRef = useRef<boolean | null>(null);
   const commandSettleUntilRef = useRef(0);
+  const desiredPositionSecondsRef = useRef<number | null>(null);
+  const positionSettleUntilRef = useRef(0);
   const remoteSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+    null,
   );
   const appStateRef = useRef(AppState.currentState);
 
@@ -72,7 +74,7 @@ export function useSpotifyPlayerController({
       setIsPlaying(playing);
       isPlayingRef.current = playing;
     },
-    [setIsPlaying]
+    [setIsPlaying],
   );
 
   const setPlaybackCurrentTime = useCallback(
@@ -80,7 +82,7 @@ export function useSpotifyPlayerController({
       setCurrentTime(time);
       currentTimeRef.current = time;
     },
-    [setCurrentTime]
+    [setCurrentTime],
   );
 
   const setPlaybackDuration = useCallback(
@@ -88,7 +90,7 @@ export function useSpotifyPlayerController({
       setDuration(nextDuration);
       durationRef.current = nextDuration;
     },
-    [setDuration]
+    [setDuration],
   );
 
   const clearPendingRemoteSync = useCallback(() => {
@@ -103,12 +105,18 @@ export function useSpotifyPlayerController({
     commandSettleUntilRef.current = 0;
   }, []);
 
+  const clearPositionSettle = useCallback(() => {
+    desiredPositionSecondsRef.current = null;
+    positionSettleUntilRef.current = 0;
+  }, []);
+
   const clearCommandState = useCallback(() => {
     queuedPlayingRef.current = null;
     startedTrackIdRef.current = null;
     clearCommandSettle();
+    clearPositionSettle();
     clearPendingRemoteSync();
-  }, [clearCommandSettle, clearPendingRemoteSync]);
+  }, [clearCommandSettle, clearPendingRemoteSync, clearPositionSettle]);
 
   const getSettlingDesiredPlaying = useCallback(() => {
     const desiredPlaying = desiredPlayingRef.current;
@@ -127,16 +135,44 @@ export function useSpotifyPlayerController({
   const setOptimisticPlaying = useCallback(
     (playing: boolean) => {
       desiredPlayingRef.current = playing;
-      commandSettleUntilRef.current =
-        Date.now() + SPOTIFY_COMMAND_SETTLE_MS;
+      commandSettleUntilRef.current = Date.now() + SPOTIFY_COMMAND_SETTLE_MS;
       setPlaybackPlayingState(playing);
     },
-    [setPlaybackPlayingState]
+    [setPlaybackPlayingState],
+  );
+
+  const getSettlingDesiredPosition = useCallback(() => {
+    const desiredPositionSeconds = desiredPositionSecondsRef.current;
+    if (desiredPositionSeconds === null) {
+      return null;
+    }
+
+    if (Date.now() > positionSettleUntilRef.current) {
+      clearPositionSettle();
+      return null;
+    }
+
+    return desiredPositionSeconds;
+  }, [clearPositionSettle]);
+
+  const setOptimisticPosition = useCallback(
+    (seconds: number) => {
+      const nextPositionSeconds =
+        durationRef.current > 0
+          ? Math.min(Math.max(seconds, 0), durationRef.current)
+          : Math.max(seconds, 0);
+
+      desiredPositionSecondsRef.current = nextPositionSeconds;
+      positionSettleUntilRef.current = Date.now() + SPOTIFY_COMMAND_SETTLE_MS;
+      setPlaybackCurrentTime(nextPositionSeconds);
+    },
+    [setPlaybackCurrentTime],
   );
 
   const applyPlaybackSnapshot = useCallback(
     (snapshot: SpotifyPlaybackSnapshot | null) => {
       const settlingDesiredPlaying = getSettlingDesiredPlaying();
+      const settlingDesiredPosition = getSettlingDesiredPosition();
 
       if (!snapshot) {
         setPlaybackPlayingState(settlingDesiredPlaying ?? false);
@@ -172,7 +208,21 @@ export function useSpotifyPlayerController({
       }
 
       setPlaybackPlayingState(nextIsPlaying);
-      setPlaybackCurrentTime(snapshot.progressMs / 1000);
+
+      const snapshotPositionSeconds = snapshot.progressMs / 1000;
+      const shouldKeepOptimisticPosition =
+        settlingDesiredPosition !== null &&
+        Math.abs(snapshotPositionSeconds - settlingDesiredPosition) > 1.25;
+
+      if (settlingDesiredPosition !== null && !shouldKeepOptimisticPosition) {
+        clearPositionSettle();
+      }
+
+      setPlaybackCurrentTime(
+        shouldKeepOptimisticPosition
+          ? settlingDesiredPosition
+          : snapshotPositionSeconds,
+      );
 
       if (snapshot.durationMs > 0) {
         setPlaybackDuration(snapshot.durationMs / 1000);
@@ -180,11 +230,13 @@ export function useSpotifyPlayerController({
     },
     [
       clearCommandSettle,
+      clearPositionSettle,
+      getSettlingDesiredPosition,
       getSettlingDesiredPlaying,
       setPlaybackCurrentTime,
       setPlaybackDuration,
       setPlaybackPlayingState,
-    ]
+    ],
   );
 
   const syncFromRemote = useCallback(async () => {
@@ -204,46 +256,49 @@ export function useSpotifyPlayerController({
         void syncFromRemote();
       }, delayMs);
     },
-    [clearPendingRemoteSync, syncFromRemote]
+    [clearPendingRemoteSync, syncFromRemote],
   );
 
-  const showPlaybackError = useCallback((error: unknown) => {
-    const playbackError =
-      error instanceof SpotifyPlaybackError
-        ? error
-        : new SpotifyPlaybackError(
-            "PLAYBACK_FAILED",
-            error instanceof Error ? error.message : String(error)
-          );
+  const showPlaybackError = useCallback(
+    (error: unknown) => {
+      const playbackError =
+        error instanceof SpotifyPlaybackError
+          ? error
+          : new SpotifyPlaybackError(
+              "PLAYBACK_FAILED",
+              error instanceof Error ? error.message : String(error),
+            );
 
-    if (playbackError.code === "NO_ACTIVE_DEVICE") {
-      Alert.alert(
-        "Open Spotify",
-        "Spotify needs an active player before Kakehashi can control playback. Open Spotify, let the song start playing, then come back to Kakehashi.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Open Spotify",
-            onPress: () => {
-              const spotifyTrackUri = trackIdRef.current
-                ? `spotify:track:${trackIdRef.current}`
-                : trackUrlRef.current;
-              if (spotifyTrackUri) {
-                setOptimisticPlaying(true);
-                scheduleRemoteSync(2500);
-                Linking.openURL(spotifyTrackUri).catch((linkError) => {
-                  console.error("Failed to open Spotify:", linkError);
-                });
-              }
+      if (playbackError.code === "NO_ACTIVE_DEVICE") {
+        Alert.alert(
+          "Open Spotify",
+          "Spotify needs an active player before Kakehashi can control playback. Open Spotify, let the song start playing, then come back to Kakehashi.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Spotify",
+              onPress: () => {
+                const spotifyTrackUri = trackIdRef.current
+                  ? `spotify:track:${trackIdRef.current}`
+                  : trackUrlRef.current;
+                if (spotifyTrackUri) {
+                  setOptimisticPlaying(true);
+                  scheduleRemoteSync(2500);
+                  Linking.openURL(spotifyTrackUri).catch((linkError) => {
+                    console.error("Failed to open Spotify:", linkError);
+                  });
+                }
+              },
             },
-          },
-        ]
-      );
-      return;
-    }
+          ],
+        );
+        return;
+      }
 
-    Alert.alert("Spotify Playback", playbackError.message);
-  }, [scheduleRemoteSync, setOptimisticPlaying]);
+      Alert.alert("Spotify Playback", playbackError.message);
+    },
+    [scheduleRemoteSync, setOptimisticPlaying],
+  );
 
   const syncExpectedPlayback = useCallback(async () => {
     const expectedTrackId = trackIdRef.current;
@@ -274,7 +329,7 @@ export function useSpotifyPlayerController({
 
       showPlaybackError(error);
     },
-    [showPlaybackError, syncExpectedPlayback]
+    [showPlaybackError, syncExpectedPlayback],
   );
 
   const configureTrack = useCallback(
@@ -301,7 +356,7 @@ export function useSpotifyPlayerController({
         isPlayingRef.current = false;
       }
     },
-    [clearCommandState]
+    [clearCommandState],
   );
 
   const setPlaying = useCallback(
@@ -325,8 +380,7 @@ export function useSpotifyPlayerController({
           const snapshot = await spotifyService
             .getCurrentPlayback()
             .catch(() => null);
-          const isRemoteOnExpectedTrack =
-            snapshot?.trackId === expectedTrackId;
+          const isRemoteOnExpectedTrack = snapshot?.trackId === expectedTrackId;
           const hasStartedExpectedTrack =
             startedTrackIdRef.current === expectedTrackId;
 
@@ -372,36 +426,37 @@ export function useSpotifyPlayerController({
       setPlaybackPlayingState,
       showPlaybackError,
       syncExpectedPlayback,
-    ]
+    ],
   );
 
   const skipForward = useCallback(async () => {
-    const next = durationRef.current > 0
-      ? Math.min(currentTimeRef.current + 10, durationRef.current)
-      : currentTimeRef.current + 10;
+    const next =
+      durationRef.current > 0
+        ? Math.min(currentTimeRef.current + 10, durationRef.current)
+        : currentTimeRef.current + 10;
 
     try {
       await spotifyService.seekToPosition(next * 1000);
-      setPlaybackCurrentTime(next);
-      await syncFromRemote();
+      setOptimisticPosition(next);
+      scheduleRemoteSync();
     } catch (error) {
       console.error("Error skipping Spotify forward:", error);
       await showPlaybackErrorIfNeeded(error);
     }
-  }, [setPlaybackCurrentTime, showPlaybackErrorIfNeeded, syncFromRemote]);
+  }, [scheduleRemoteSync, setOptimisticPosition, showPlaybackErrorIfNeeded]);
 
   const skipBackward = useCallback(async () => {
     const next = Math.max(currentTimeRef.current - 10, 0);
 
     try {
       await spotifyService.seekToPosition(next * 1000);
-      setPlaybackCurrentTime(next);
-      await syncFromRemote();
+      setOptimisticPosition(next);
+      scheduleRemoteSync();
     } catch (error) {
       console.error("Error skipping Spotify backward:", error);
       await showPlaybackErrorIfNeeded(error);
     }
-  }, [setPlaybackCurrentTime, showPlaybackErrorIfNeeded, syncFromRemote]);
+  }, [scheduleRemoteSync, setOptimisticPosition, showPlaybackErrorIfNeeded]);
 
   const pauseSilently = useCallback(() => {
     spotifyService.pausePlayback().catch(() => {});
@@ -421,7 +476,8 @@ export function useSpotifyPlayerController({
       seekTo: async (seconds: number) => {
         const nextCurrentTime = Math.max(seconds, 0);
         await spotifyService.seekToPosition(nextCurrentTime * 1000);
-        setPlaybackCurrentTime(nextCurrentTime);
+        setOptimisticPosition(nextCurrentTime);
+        scheduleRemoteSync();
       },
       getCurrentTime: async () => {
         const snapshot = await spotifyService.getCurrentPlayback();
@@ -432,7 +488,7 @@ export function useSpotifyPlayerController({
         return snapshot?.durationMs ? snapshot.durationMs / 1000 : 0;
       },
     }),
-    [setPlaybackCurrentTime]
+    [scheduleRemoteSync, setOptimisticPosition],
   );
 
   useEffect(() => {
@@ -494,6 +550,6 @@ export function useSpotifyPlayerController({
       skipBackward,
       skipForward,
       syncFromRemote,
-    ]
+    ],
   );
 }

@@ -54,13 +54,13 @@ export default function SongsTab() {
   const { theme } = useTheme();
   const inputRef = useRef<TextInput>(null);
   const songsPlaybackSource = useSettingsStore(
-    (state) => state.songsPlaybackSource
+    (state) => state.songsPlaybackSource,
   );
   const appleMusicAuthStatus = useSettingsStore(
-    (state) => state.appleMusicAuthStatus
+    (state) => state.appleMusicAuthStatus,
   );
   const spotifyAuthStatus = useSettingsStore(
-    (state) => state.spotifyAuthStatus
+    (state) => state.spotifyAuthStatus,
   );
   const selectedMusicSource: MusicSource =
     Platform.OS === "ios" && songsPlaybackSource === "appleMusic"
@@ -87,7 +87,9 @@ export default function SongsTab() {
   const [hasSearched, setHasSearched] = useState(false);
   const [songHistory, setSongHistory] = useState<SpotifyTrack[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [importedPlaylists, setImportedPlaylists] = useState<MusicPlaylist[]>([]);
+  const [importedPlaylists, setImportedPlaylists] = useState<MusicPlaylist[]>(
+    [],
+  );
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
 
   // Tutorial state
@@ -117,22 +119,25 @@ export default function SongsTab() {
   });
 
   // Get cached album art URI if exists
-  const getCachedAlbumArt = useCallback(async (song: SpotifyTrack): Promise<string> => {
-    try {
-      const cacheDir = new Directory(Paths.cache, "songs");
-      const imagesDir = new Directory(cacheDir.uri, IMAGES_CACHE_DIR);
-      const filename = `${song.id}.jpg`;
-      const localUri = `${imagesDir.uri}/${filename}`;
+  const getCachedAlbumArt = useCallback(
+    async (song: SpotifyTrack): Promise<string> => {
+      try {
+        const cacheDir = new Directory(Paths.cache, "songs");
+        const imagesDir = new Directory(cacheDir.uri, IMAGES_CACHE_DIR);
+        const filename = `${song.id}.jpg`;
+        const localUri = `${imagesDir.uri}/${filename}`;
 
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      if (fileInfo.exists) {
-        return localUri;
+        const fileInfo = await FileSystem.getInfoAsync(localUri);
+        if (fileInfo.exists) {
+          return localUri;
+        }
+      } catch {
+        // Ignore error and return original URL
       }
-    } catch {
-      // Ignore error and return original URL
-    }
-    return song.albumArt;
-  }, []);
+      return song.albumArt;
+    },
+    [],
+  );
 
   // Load song history from cache on mount
   useEffect(() => {
@@ -152,7 +157,7 @@ export default function SongsTab() {
             history.map(async (song) => ({
               ...song,
               albumArt: await getCachedAlbumArt(song),
-            }))
+            })),
           );
 
           setSongHistory(historyWithCachedImages);
@@ -173,7 +178,7 @@ export default function SongsTab() {
     const checkTutorialStatus = async () => {
       try {
         const completed = await AsyncStorage.getItem(
-          TUTORIAL_STORAGE_KEYS.SONGS_COMPLETED
+          TUTORIAL_STORAGE_KEYS.SONGS_COMPLETED,
         );
         if (!completed) {
           // Small delay to let the UI render first
@@ -195,7 +200,8 @@ export default function SongsTab() {
     const steps: CoachMarkStep[] = [];
     // On Android, measureInWindow returns coordinates that don't account for
     // the status bar when used with statusBarTranslucent modals
-    const statusBarOffset = Platform.OS === "android" ? (RNStatusBar.currentHeight || 0) : 0;
+    const statusBarOffset =
+      Platform.OS === "android" ? RNStatusBar.currentHeight || 0 : 0;
 
     // Step 1: Welcome (no target, centered)
     steps.push({
@@ -254,12 +260,14 @@ export default function SongsTab() {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
       const lyricsKeys = allKeys.filter((key) =>
-        key.startsWith(LYRICS_CACHE_PREFIX)
+        key.startsWith(LYRICS_CACHE_PREFIX),
       );
 
       if (lyricsKeys.length > 0) {
         await AsyncStorage.multiRemove(lyricsKeys);
-        console.log(`🗑️ Cleared ${lyricsKeys.length} cached lyrics/video entries`);
+        console.log(
+          `🗑️ Cleared ${lyricsKeys.length} cached lyrics/video entries`,
+        );
         alert(`Cleared ${lyricsKeys.length} cached songs`);
       } else {
         console.log("No lyrics cache to clear");
@@ -295,7 +303,7 @@ export default function SongsTab() {
       [
         { text: "Cancel", style: "cancel" },
         { text: "Clear", style: "destructive", onPress: clearSongHistory },
-      ]
+      ],
     );
   }, [clearSongHistory]);
 
@@ -433,61 +441,67 @@ export default function SongsTab() {
   }, [selectedMusicSource, appleMusicAuthStatus, spotifyAuthStatus]);
 
   // Cache album art image
-  const cacheAlbumArt = useCallback(async (song: SpotifyTrack): Promise<string> => {
-    try {
-      const cacheDir = new Directory(Paths.cache, "songs");
-      cacheDir.create({ idempotent: true });
+  const cacheAlbumArt = useCallback(
+    async (song: SpotifyTrack): Promise<string> => {
+      try {
+        const cacheDir = new Directory(Paths.cache, "songs");
+        cacheDir.create({ idempotent: true });
 
-      const imagesDir = new Directory(cacheDir.uri, IMAGES_CACHE_DIR);
-      imagesDir.create({ idempotent: true });
+        const imagesDir = new Directory(cacheDir.uri, IMAGES_CACHE_DIR);
+        imagesDir.create({ idempotent: true });
 
-      // Create a safe filename from the song ID
-      const filename = `${song.id}.jpg`;
-      const localUri = `${imagesDir.uri}/${filename}`;
+        // Create a safe filename from the song ID
+        const filename = `${song.id}.jpg`;
+        const localUri = `${imagesDir.uri}/${filename}`;
 
-      // Check if image already exists
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      if (fileInfo.exists) {
-        return localUri;
+        // Check if image already exists
+        const fileInfo = await FileSystem.getInfoAsync(localUri);
+        if (fileInfo.exists) {
+          return localUri;
+        }
+
+        // Download and cache the image
+        const downloadResult = await FileSystem.downloadAsync(
+          song.albumArt,
+          localUri,
+        );
+
+        if (downloadResult.status === 200) {
+          console.log(`✅ Cached album art for ${song.title}`);
+          return localUri;
+        }
+
+        return song.albumArt; // Fallback to original URL
+      } catch (error) {
+        console.error("Error caching album art:", error);
+        return song.albumArt; // Fallback to original URL
       }
-
-      // Download and cache the image
-      const downloadResult = await FileSystem.downloadAsync(
-        song.albumArt,
-        localUri
-      );
-
-      if (downloadResult.status === 200) {
-        console.log(`✅ Cached album art for ${song.title}`);
-        return localUri;
-      }
-
-      return song.albumArt; // Fallback to original URL
-    } catch (error) {
-      console.error("Error caching album art:", error);
-      return song.albumArt; // Fallback to original URL
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Save song history to cache
-  const saveHistory = useCallback(async (history: SpotifyTrack[]) => {
-    try {
-      const cacheDir = new Directory(Paths.cache, "songs");
-      cacheDir.create({ idempotent: true });
+  const saveHistory = useCallback(
+    async (history: SpotifyTrack[]) => {
+      try {
+        const cacheDir = new Directory(Paths.cache, "songs");
+        cacheDir.create({ idempotent: true });
 
-      const historyFile = new File(cacheDir, CACHE_FILE_NAME);
-      historyFile.write(JSON.stringify(history, null, 2));
+        const historyFile = new File(cacheDir, CACHE_FILE_NAME);
+        historyFile.write(JSON.stringify(history, null, 2));
 
-      console.log(`✅ Saved ${history.length} songs to history`);
+        console.log(`✅ Saved ${history.length} songs to history`);
 
-      // Cache album art for all songs in history
-      history.forEach(song => {
-        cacheAlbumArt(song);
-      });
-    } catch (error) {
-      console.error("Error saving song history:", error);
-    }
-  }, [cacheAlbumArt]);
+        // Cache album art for all songs in history
+        history.forEach((song) => {
+          cacheAlbumArt(song);
+        });
+      } catch (error) {
+        console.error("Error saving song history:", error);
+      }
+    },
+    [cacheAlbumArt],
+  );
 
   // Add song to history (called when user clicks on a song)
   const addToHistory = useCallback(
@@ -499,7 +513,7 @@ export default function SongsTab() {
         // Add song to the beginning
         const newHistory = [song, ...filteredHistory].slice(
           0,
-          MAX_HISTORY_ITEMS
+          MAX_HISTORY_ITEMS,
         );
 
         // Save to cache
@@ -508,71 +522,76 @@ export default function SongsTab() {
         return newHistory;
       });
     },
-    [saveHistory]
+    [saveHistory],
   );
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      setHasSearched(false);
-      return;
-    }
+  const handleSearch = useCallback(
+    async (query: string) => {
+      if (!query.trim()) {
+        setSearchResults([]);
+        setHasSearched(false);
+        return;
+      }
 
-    // Check if Spotify credentials are available when Spotify is selected.
-    if (
-      selectedMusicSource === "spotify" &&
-      spotifyPlaybackNeedsAuthorization
-    ) {
-      setError(
-        "Connect Spotify in Settings first, then try searching again."
-      );
-      return;
-    }
+      // Check if Spotify credentials are available when Spotify is selected.
+      if (
+        selectedMusicSource === "spotify" &&
+        spotifyPlaybackNeedsAuthorization
+      ) {
+        setError(
+          "Connect Spotify in Settings first, then try searching again.",
+        );
+        return;
+      }
 
-    if (
-      selectedMusicSource === "spotify" &&
-      !spotifyService.hasClientCredentials() &&
-      spotifyAuthStatus !== "authorized"
-    ) {
-      setError(
-        "Connect Spotify in Settings, or add EXPO_PUBLIC_SPOTIFY_CLIENT_KEY for anonymous catalog search."
-      );
-      return;
-    }
+      if (
+        selectedMusicSource === "spotify" &&
+        !spotifyService.hasClientCredentials() &&
+        spotifyAuthStatus !== "authorized"
+      ) {
+        setError(
+          "Connect Spotify in Settings, or add EXPO_PUBLIC_SPOTIFY_CLIENT_KEY for anonymous catalog search.",
+        );
+        return;
+      }
 
-    if (
-      selectedMusicSource === "apple" &&
-      appleMusicAuthStatus !== "authorized"
-    ) {
-      setError(
-        "Authorize Apple Music in Settings first, then try searching again."
-      );
-      return;
-    }
+      if (
+        selectedMusicSource === "apple" &&
+        appleMusicAuthStatus !== "authorized"
+      ) {
+        setError(
+          "Authorize Apple Music in Settings first, then try searching again.",
+        );
+        return;
+      }
 
-    try {
-      setIsSearching(true);
-      setError(null);
-      setHasSearched(true);
-      const service =
-        selectedMusicSource === "apple" ? appleMusicService : spotifyService;
+      try {
+        setIsSearching(true);
+        setError(null);
+        setHasSearched(true);
+        const service =
+          selectedMusicSource === "apple" ? appleMusicService : spotifyService;
 
-      const results = await service.searchTracks(query.trim());
-      setSearchResults(results);
-    } catch (err) {
-      console.error("Error searching songs:", err);
-      setError(`Failed to search ${musicSourceLabel} songs. Please try again.`);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [
-    selectedMusicSource,
-    musicSourceLabel,
-    appleMusicAuthStatus,
-    spotifyAuthStatus,
-    spotifyPlaybackNeedsAuthorization,
-  ]);
+        const results = await service.searchTracks(query.trim());
+        setSearchResults(results);
+      } catch (err) {
+        console.error("Error searching songs:", err);
+        setError(
+          `Failed to search ${musicSourceLabel} songs. Please try again.`,
+        );
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [
+      selectedMusicSource,
+      musicSourceLabel,
+      appleMusicAuthStatus,
+      spotifyAuthStatus,
+      spotifyPlaybackNeedsAuthorization,
+    ],
+  );
 
   // Debounced search effect
   useEffect(() => {
@@ -607,15 +626,12 @@ export default function SongsTab() {
         },
       });
     },
-    [addToHistory]
+    [addToHistory],
   );
 
   const handlePlaylistPress = useCallback(
     (playlist: MusicPlaylist) => {
-      if (
-        playlist.source === "spotify" &&
-        spotifyAuthStatus !== "authorized"
-      ) {
+      if (playlist.source === "spotify" && spotifyAuthStatus !== "authorized") {
         setError("Connect Spotify in Settings first, then import playlists.");
         return;
       }
@@ -624,7 +640,9 @@ export default function SongsTab() {
         playlist.source === "apple" &&
         appleMusicAuthStatus !== "authorized"
       ) {
-        setError("Authorize Apple Music in Settings first, then import playlists.");
+        setError(
+          "Authorize Apple Music in Settings first, then import playlists.",
+        );
         return;
       }
 
@@ -641,7 +659,7 @@ export default function SongsTab() {
         },
       });
     },
-    [appleMusicAuthStatus, spotifyAuthStatus]
+    [appleMusicAuthStatus, spotifyAuthStatus],
   );
 
   const handleClearSearch = useCallback(() => {
@@ -678,7 +696,10 @@ export default function SongsTab() {
           {item.title}
         </Text>
         <Text
-          style={[styles.recentlyPlayedArtist, { color: "rgba(255,255,255,0.9)" }]}
+          style={[
+            styles.recentlyPlayedArtist,
+            { color: "rgba(255,255,255,0.9)" },
+          ]}
           numberOfLines={1}
         >
           {item.artist}
@@ -718,12 +739,27 @@ export default function SongsTab() {
         >
           {item.name}
         </Text>
-        <Text
-          style={[styles.playlistSubtitle, { color: theme.textSecondary }]}
-          numberOfLines={1}
-        >
-          {item.trackCount} song{item.trackCount === 1 ? "" : "s"}
-        </Text>
+        <View style={styles.playlistMetaRow}>
+          <View
+            style={[
+              styles.playlistSourcePill,
+              {
+                backgroundColor:
+                  item.source === "spotify" ? "#1DB954" : "#FA2D48",
+              },
+            ]}
+          >
+            <Text style={styles.playlistSourceText}>
+              {item.source === "spotify" ? "Spotify" : "Apple"}
+            </Text>
+          </View>
+          <Text
+            style={[styles.playlistSubtitle, { color: theme.textSecondary }]}
+            numberOfLines={1}
+          >
+            {item.trackCount} song{item.trackCount === 1 ? "" : "s"}
+          </Text>
+        </View>
       </View>
       <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
     </TouchableOpacity>
@@ -743,7 +779,7 @@ export default function SongsTab() {
         source={{ uri: item.albumArt }}
         style={[
           styles.horizontalCardImage,
-          { backgroundColor: theme.isDark ? "#333" : "#e0e0e0" }
+          { backgroundColor: theme.isDark ? "#333" : "#e0e0e0" },
         ]}
       />
       <View style={styles.horizontalCardInfo}>
@@ -830,7 +866,8 @@ export default function SongsTab() {
       ) : (
         <View style={styles.resultsList}>
           <Text style={[styles.resultsCount, { color: theme.textSecondary }]}>
-            Found {searchResults.length} song{searchResults.length !== 1 ? "s" : ""}
+            Found {searchResults.length} song
+            {searchResults.length !== 1 ? "s" : ""}
           </Text>
           <FlashList
             data={searchResults}
@@ -863,7 +900,9 @@ export default function SongsTab() {
               <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
                 Recently Played
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+              >
                 Your listening history
               </Text>
             </View>
@@ -878,7 +917,10 @@ export default function SongsTab() {
                 color={theme.textSecondary}
               />
               <Text
-                style={[styles.sectionActionText, { color: theme.textSecondary }]}
+                style={[
+                  styles.sectionActionText,
+                  { color: theme.textSecondary },
+                ]}
               >
                 Clear
               </Text>
@@ -898,14 +940,19 @@ export default function SongsTab() {
         </View>
       )}
 
-      {(isLoadingPlaylists || importedPlaylists.length > 0 || spotifyAccountNeedsAuthorization || appleMusicNeedsAuthorization) && (
+      {(isLoadingPlaylists ||
+        importedPlaylists.length > 0 ||
+        spotifyAccountNeedsAuthorization ||
+        appleMusicNeedsAuthorization) && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View>
               <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
                 Your {musicSourceLabel} Playlists
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+              >
                 Import tracks into lyrics practice
               </Text>
             </View>
@@ -920,18 +967,26 @@ export default function SongsTab() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScrollContent}
+              contentContainerStyle={styles.horizontalCardsContent}
             >
-              {importedPlaylists.map((playlist) => (
-                <View key={`${playlist.source}-${playlist.id}`}>
-                  {renderPlaylistCard({ item: playlist })}
-                </View>
-              ))}
+              <View style={styles.playlistGridContainer}>
+                {importedPlaylists.map((playlist) => (
+                  <View key={`${playlist.source}-${playlist.id}`}>
+                    {renderPlaylistCard({ item: playlist })}
+                  </View>
+                ))}
+              </View>
             </ScrollView>
           ) : (
             <View style={styles.offlineContainer}>
-              <Ionicons name="albums-outline" size={48} color={theme.textLight} />
-              <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
+              <Ionicons
+                name="albums-outline"
+                size={48}
+                color={theme.textLight}
+              />
+              <Text
+                style={[styles.offlineText, { color: theme.textSecondary }]}
+              >
                 {appleMusicNeedsAuthorization
                   ? "Authorize Apple Music in Settings to import playlists"
                   : spotifyAccountNeedsAuthorization
@@ -951,7 +1006,9 @@ export default function SongsTab() {
               {newReleases.title}
             </Text>
             {newReleases.subtitle && (
-              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+              >
                 {newReleases.subtitle}
               </Text>
             )}
@@ -971,19 +1028,26 @@ export default function SongsTab() {
           >
             <View style={styles.gridContainer}>
               {newReleases.data.map((song) => (
-                <View key={song.id}>{renderHorizontalSongCard({ item: song })}</View>
+                <View key={song.id}>
+                  {renderHorizontalSongCard({ item: song })}
+                </View>
               ))}
             </View>
           </ScrollView>
         ) : (
           <View style={styles.offlineContainer}>
-            <Ionicons name="cloud-offline-outline" size={48} color={theme.textLight} />
+            <Ionicons
+              name="cloud-offline-outline"
+              size={48}
+              color={theme.textLight}
+            />
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
-                : spotifyPlaybackNeedsAuthorization || spotifyCatalogNeedsAuthorization
+                : spotifyPlaybackNeedsAuthorization ||
+                    spotifyCatalogNeedsAuthorization
                   ? "Connect Spotify in Settings to load songs"
-                : "Connect to WiFi to discover new music"}
+                  : "Connect to WiFi to discover new music"}
             </Text>
           </View>
         )}
@@ -997,7 +1061,9 @@ export default function SongsTab() {
               {popularSongs.title}
             </Text>
             {popularSongs.subtitle && (
-              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+              >
                 {popularSongs.subtitle}
               </Text>
             )}
@@ -1017,19 +1083,26 @@ export default function SongsTab() {
           >
             <View style={styles.gridContainer}>
               {popularSongs.data.map((song) => (
-                <View key={song.id}>{renderHorizontalSongCard({ item: song })}</View>
+                <View key={song.id}>
+                  {renderHorizontalSongCard({ item: song })}
+                </View>
               ))}
             </View>
           </ScrollView>
         ) : (
           <View style={styles.offlineContainer}>
-            <Ionicons name="cloud-offline-outline" size={48} color={theme.textLight} />
+            <Ionicons
+              name="cloud-offline-outline"
+              size={48}
+              color={theme.textLight}
+            />
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
-                : spotifyPlaybackNeedsAuthorization || spotifyCatalogNeedsAuthorization
+                : spotifyPlaybackNeedsAuthorization ||
+                    spotifyCatalogNeedsAuthorization
                   ? "Connect Spotify in Settings to load songs"
-                : "Connect to WiFi to discover new music"}
+                  : "Connect to WiFi to discover new music"}
             </Text>
           </View>
         )}
@@ -1043,7 +1116,9 @@ export default function SongsTab() {
               {animeSongs.title}
             </Text>
             {animeSongs.subtitle && (
-              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+              >
                 {animeSongs.subtitle}
               </Text>
             )}
@@ -1063,19 +1138,26 @@ export default function SongsTab() {
           >
             <View style={styles.gridContainer}>
               {animeSongs.data.map((song) => (
-                <View key={song.id}>{renderHorizontalSongCard({ item: song })}</View>
+                <View key={song.id}>
+                  {renderHorizontalSongCard({ item: song })}
+                </View>
               ))}
             </View>
           </ScrollView>
         ) : (
           <View style={styles.offlineContainer}>
-            <Ionicons name="cloud-offline-outline" size={48} color={theme.textLight} />
+            <Ionicons
+              name="cloud-offline-outline"
+              size={48}
+              color={theme.textLight}
+            />
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
-                : spotifyPlaybackNeedsAuthorization || spotifyCatalogNeedsAuthorization
+                : spotifyPlaybackNeedsAuthorization ||
+                    spotifyCatalogNeedsAuthorization
                   ? "Connect Spotify in Settings to load songs"
-                : "Connect to WiFi to discover new music"}
+                  : "Connect to WiFi to discover new music"}
             </Text>
           </View>
         )}
@@ -1108,7 +1190,11 @@ export default function SongsTab() {
             style={styles.clearCacheButton}
             activeOpacity={0.7}
           >
-            <Ionicons name="trash-outline" size={20} color={theme.textSecondary} />
+            <Ionicons
+              name="trash-outline"
+              size={20}
+              color={theme.textSecondary}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -1165,7 +1251,9 @@ export default function SongsTab() {
             <Text style={[styles.emptyTitle, { color: theme.error }]}>
               Error
             </Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+            <Text
+              style={[styles.emptySubtitle, { color: theme.textSecondary }]}
+            >
               {error}
             </Text>
           </View>
@@ -1315,19 +1403,18 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   playlistCard: {
-    width: 220,
-    minHeight: 86,
+    width: Dimensions.get("window").width * 0.75,
+    height: 88,
     borderRadius: 12,
     borderWidth: 1,
     padding: 10,
-    marginRight: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   playlistArt: {
-    width: 56,
-    height: 56,
+    width: 64,
+    height: 64,
     borderRadius: 8,
   },
   playlistArtFallback: {
@@ -1344,10 +1431,32 @@ const styles = StyleSheet.create({
   },
   playlistSubtitle: {
     fontSize: 12,
+    flexShrink: 1,
+  },
+  playlistMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  playlistSourcePill: {
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  playlistSourceText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
   },
   horizontalCardsContent: {
     paddingLeft: 16,
     paddingRight: 16,
+  },
+  playlistGridContainer: {
+    flexDirection: "column",
+    flexWrap: "wrap",
+    height: 192,
+    gap: 12,
   },
   gridContainer: {
     flexDirection: "column",

@@ -48,6 +48,7 @@ export default function GlobalMiniPlayer() {
     return (
       pathname === "/songs" ||
       pathname === "/(tabs)/songs" ||
+      pathname.startsWith("/playlist-detail") ||
       pathname.startsWith("/song-lyrics")
     );
   }, [pathname, params]);
@@ -82,7 +83,7 @@ export default function GlobalMiniPlayer() {
       damping: 18,
       mass: 1,
     });
-  }, [pathname, isPlayerExpanded]);
+  }, [bottomOffsetAnim, pathname, isPlayerExpanded]);
 
   // Check if we're NOT on the lyrics screen (to show View Lyrics button)
   const showLyricsButton = useMemo(() => {
@@ -104,15 +105,7 @@ export default function GlobalMiniPlayer() {
         musicSource: musicSource === "apple" ? "apple" : "spotify",
       },
     });
-  }, [
-    router,
-    songId,
-    songUrl,
-    songTitle,
-    artist,
-    albumArt,
-    musicSource,
-  ]);
+  }, [router, songId, songUrl, songTitle, artist, albumArt, musicSource]);
 
   // Clear player when navigating to a different tab (not within songs context)
   useEffect(() => {
@@ -178,7 +171,11 @@ export default function GlobalMiniPlayer() {
 
       try {
         const dur = await playerRef.current.getDuration();
-        if (!isCancelled && activeVideoIdRef.current === youtubeVideoId && dur > 0) {
+        if (
+          !isCancelled &&
+          activeVideoIdRef.current === youtubeVideoId &&
+          dur > 0
+        ) {
           setDuration(dur);
           console.log("Video duration loaded:", dur);
           return;
@@ -210,7 +207,11 @@ export default function GlobalMiniPlayer() {
     let isMounted = true;
 
     const updateProgress = async () => {
-      if (!isMounted || !youtubeVideoId || activeVideoIdRef.current !== youtubeVideoId) {
+      if (
+        !isMounted ||
+        !youtubeVideoId ||
+        activeVideoIdRef.current !== youtubeVideoId
+      ) {
         return;
       }
       if (!playerRef.current) {

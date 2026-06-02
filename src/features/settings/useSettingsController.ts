@@ -532,6 +532,10 @@ export function useSettingsController() {
     useState<string>("ja-JP-NanamiNeural");
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showOpenSourceModal, setShowOpenSourceModal] = useState(false);
+  const [appleMusicPlaybackAccessStatus, setAppleMusicPlaybackAccessStatus] =
+    useState<"unknown" | "available" | "subscriptionRequired" | "unavailable">(
+      "unknown",
+    );
   const [testingVoiceId, setTestingVoiceId] = useState<string | null>(null);
   const [cacheAnalysis, setCacheAnalysis] =
     useState<CacheAnalysisResult | null>(null);
@@ -619,6 +623,12 @@ export function useSettingsController() {
   >(null);
   const [bunproFeatureRequestInput, setBunproFeatureRequestInput] =
     useState("");
+
+  useEffect(() => {
+    if (appleMusicAuthStatus !== "authorized") {
+      setAppleMusicPlaybackAccessStatus("unknown");
+    }
+  }, [appleMusicAuthStatus]);
   const [isSubmittingBunproSurvey, setIsSubmittingBunproSurvey] =
     useState(false);
   const normalizedEmail = gravatarEmail?.trim().toLowerCase() ?? "";
@@ -1527,8 +1537,7 @@ export function useSettingsController() {
     }
 
     if (spotifyAuthStatus === "authorized") {
-      const displayName =
-        spotifyProfile?.displayName || spotifyDisplayName;
+      const displayName = spotifyProfile?.displayName || spotifyDisplayName;
       return displayName ? `Connected as ${displayName}` : "Connected";
     }
 
@@ -1556,7 +1565,10 @@ export function useSettingsController() {
     try {
       const subscription = await checkAppleMusicSubscription();
       if (!subscription.canPlayCatalogContent) {
-        setSongsPlaybackSource("youtube");
+        setAppleMusicPlaybackAccessStatus("subscriptionRequired");
+        if (songsPlaybackSource === "appleMusic") {
+          setSongsPlaybackSource("youtube");
+        }
         Alert.alert(
           "Subscription Required",
           "Apple Music playback needs an active Apple Music subscription.",
@@ -1564,10 +1576,14 @@ export function useSettingsController() {
         return false;
       }
 
+      setAppleMusicPlaybackAccessStatus("available");
       return true;
     } catch (error) {
       console.error("Apple Music subscription check failed:", error);
-      setSongsPlaybackSource("youtube");
+      setAppleMusicPlaybackAccessStatus("unavailable");
+      if (songsPlaybackSource === "appleMusic") {
+        setSongsPlaybackSource("youtube");
+      }
       Alert.alert(
         "Apple Music Unavailable",
         getAppleMusicSubscriptionAlertMessage(error),
@@ -1602,7 +1618,7 @@ export function useSettingsController() {
           "Not Authorized",
           "Apple Music authorization was not granted.",
         );
-        setSongsPlaybackSource("youtube");
+        setAppleMusicPlaybackAccessStatus("unknown");
       }
     } catch (error) {
       console.error("Apple Music login failed:", error);
@@ -1679,10 +1695,7 @@ export function useSettingsController() {
 
       const profile = await refreshSpotifyStatus();
       if (!profile) {
-        Alert.alert(
-          "Login Required",
-          "Connect Spotify first, then switch playback to Spotify.",
-        );
+        await handleSpotifyLogin();
         return;
       }
 
@@ -1707,10 +1720,7 @@ export function useSettingsController() {
     }
 
     if (appleMusicAuthStatus !== "authorized") {
-      Alert.alert(
-        "Login Required",
-        "Authorize Apple Music first, then switch playback to Apple Music.",
-      );
+      await handleAppleMusicLogin();
       return;
     }
 
@@ -2758,6 +2768,7 @@ export function useSettingsController() {
     apiToken,
     appleMusicAuthError,
     appleMusicAuthStatus,
+    appleMusicPlaybackAccessStatus,
     applyReviewShortcutValue,
     autoplayLessonReadingAudio,
     autoplayVocabularyAudio,
