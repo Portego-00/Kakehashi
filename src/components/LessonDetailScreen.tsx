@@ -2073,27 +2073,28 @@ const SubjectContent = ({
                     },
                   ]}
                 >
-                  <View style={styles.japaneseSentenceContainer}>
+                  <View style={styles.sentenceRow}>
                     <Text
                       selectable
                       style={[
                         styles.japaneseSentence,
-                        styles.japaneseSentenceWithButton,
+                        styles.usagePatternJapaneseSentence,
                       ]}
                     >
                       {example.ja}
                     </Text>
                     <TouchableOpacity
                       style={[
-                        styles.speakButtonFixed,
-                        isSpeaking && styles.speakingButtonFixed,
+                        styles.sentencePlayButton,
+                        isSpeaking && styles.sentencePlayButtonActive,
                       ]}
                       onPress={() => speakJapanese(example.ja, sentenceId)}
+                      activeOpacity={0.85}
                     >
                       <Ionicons
-                        name={isSpeaking ? "stop-circle" : "volume-high"}
-                        size={20}
-                        color={isSpeaking ? "white" : subjectColors.vocabulary}
+                        name={isSpeaking ? "stop" : "play"}
+                        size={16}
+                        color={isSpeaking ? "#fff" : subjectColors.vocabulary}
                       />
                     </TouchableOpacity>
                   </View>
@@ -6087,6 +6088,23 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     },
     patternExampleItem: {
       marginBottom: 10,
+    },
+    sentenceRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    usagePatternJapaneseSentence: {
+      flex: 1,
+    },
+    sentencePlayButton: {
+      padding: 8,
+      borderRadius: 16,
+      backgroundColor: withAlpha(subjectColors.vocabulary, 0.1),
+      marginLeft: 8,
+    },
+    sentencePlayButtonActive: {
+      backgroundColor: subjectColors.vocabulary,
+      borderRadius: 16,
     },
     sentenceItem: {
       backgroundColor: theme.isDark ? "#2a2a2a" : "#f9f9f9",

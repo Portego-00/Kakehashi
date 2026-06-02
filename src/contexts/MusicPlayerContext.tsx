@@ -33,6 +33,7 @@ interface MusicPlayerContextType {
 
   // Lyrics
   timedLyrics: TimedLyricsLine[];
+  lyricsTimingOffsetMs: number;
 
   // Player state
   isPlaying: boolean;
@@ -52,6 +53,7 @@ interface MusicPlayerContextType {
     songId?: string;
     songUrl?: string;
     musicSource?: MusicSource;
+    lyricsTimingOffsetMs?: number;
   }) => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
@@ -63,6 +65,7 @@ interface MusicPlayerContextType {
   onStateChange: (state: string) => void;
   clearPlayer: () => void;
   setTimedLyrics: (lyrics: TimedLyricsLine[]) => void;
+  setLyricsTimingOffsetMs: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const MusicPlayerContext = createContext<MusicPlayerContextType | undefined>(
@@ -102,6 +105,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
 
   // Lyrics
   const [timedLyrics, setTimedLyrics] = useState<TimedLyricsLine[]>([]);
+  const [lyricsTimingOffsetMs, setLyricsTimingOffsetMs] = useState(0);
 
   // Player state
   const [isPlayingState, setIsPlayingState] = useState(false);
@@ -112,6 +116,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
   // Player refs
   const playerRef = useRef<any>(null);
   const appleListenersRef = useRef<EmitterSubscription[]>([]);
+  const lyricsTimingSongKeyRef = useRef<string | null>(null);
 
   const clearAppleListeners = useCallback(() => {
     for (const listener of appleListenersRef.current) {
@@ -237,9 +242,26 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       songId?: string;
       songUrl?: string;
       musicSource?: MusicSource;
+      lyricsTimingOffsetMs?: number;
     }) => {
       const source = info.musicSource || "spotify";
       const nextAppleTrackId = source === "apple" ? info.songId || null : null;
+      const nextLyricsTimingSongKey = [
+        source,
+        info.songId || "",
+        info.songTitle,
+        info.artist,
+      ].join("|");
+
+      if (
+        typeof info.lyricsTimingOffsetMs === "number" &&
+        Number.isFinite(info.lyricsTimingOffsetMs)
+      ) {
+        setLyricsTimingOffsetMs(info.lyricsTimingOffsetMs);
+      } else if (lyricsTimingSongKeyRef.current !== nextLyricsTimingSongKey) {
+        setLyricsTimingOffsetMs(0);
+      }
+      lyricsTimingSongKeyRef.current = nextLyricsTimingSongKey;
 
       setAlbumArt(info.albumArt);
       setSongTitle(info.songTitle);
@@ -450,6 +472,8 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     setMusicSource("spotify");
     setAppleTrackId(null);
     setTimedLyrics([]);
+    setLyricsTimingOffsetMs(0);
+    lyricsTimingSongKeyRef.current = null;
     setIsPlayingState(false);
     setCurrentTime(0);
     setDuration(0);
@@ -472,6 +496,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     musicSource,
     appleTrackId,
     timedLyrics,
+    lyricsTimingOffsetMs,
     isPlaying: isPlayingState,
     currentTime,
     duration,
@@ -488,6 +513,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     onStateChange,
     clearPlayer,
     setTimedLyrics,
+    setLyricsTimingOffsetMs,
   };
 
   return (
