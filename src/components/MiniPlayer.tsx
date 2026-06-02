@@ -103,6 +103,7 @@ interface MiniPlayerProps {
   onNavigateToLyrics?: () => void;
   showLyricsButton?: boolean;
   timedLyrics?: TimedLyricsLine[];
+  lyricsTimingOffsetMs?: number;
 }
 
 export default function MiniPlayer({
@@ -126,6 +127,7 @@ export default function MiniPlayer({
   onNavigateToLyrics,
   showLyricsButton = false,
   timedLyrics = [],
+  lyricsTimingOffsetMs = 0,
 }: MiniPlayerProps) {
   const fadeAnim = useSharedValue(0);
   const translateY = useSharedValue(100);
@@ -403,18 +405,21 @@ export default function MiniPlayer({
       return;
     }
 
+    const adjustedCurrentTime = currentTime - lyricsTimingOffsetMs / 1000;
     const index = timedLyrics.findIndex((line, idx) => {
       const nextLine = timedLyrics[idx + 1];
       const lineTime = line.startTimeMs / 1000;
       const nextLineTime = nextLine ? nextLine.startTimeMs / 1000 : Infinity;
-      return currentTime >= lineTime && currentTime < nextLineTime;
+      return (
+        adjustedCurrentTime >= lineTime && adjustedCurrentTime < nextLineTime
+      );
     });
 
     // Only update if changed to avoid unnecessary re-renders
     if (index !== currentIndex) {
       setCurrentIndex(index);
     }
-  }, [currentTime, timedLyrics, currentIndex]);
+  }, [currentTime, lyricsTimingOffsetMs, timedLyrics, currentIndex]);
 
   // Scroll to active line
   useEffect(() => {
@@ -1091,7 +1096,10 @@ export default function MiniPlayer({
               ? undefined
               : () => {
                   if (playerRef?.current) {
-                    const seekTime = item.startTimeMs / 1000;
+                    const seekTime = Math.max(
+                      0,
+                      item.startTimeMs / 1000 + lyricsTimingOffsetMs / 1000
+                    );
                     handleSeekComplete(seekTime);
                   }
                 }
@@ -1142,6 +1150,7 @@ export default function MiniPlayer({
       fullAnalysisEnabled,
       wkStudyModeEnabled,
       timedLineOffsets,
+      lyricsTimingOffsetMs,
       handleSeekComplete,
       highlightTimedLyricLine,
     ]

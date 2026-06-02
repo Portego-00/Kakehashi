@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Slider from "@react-native-community/slider";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   memo,
@@ -80,24 +81,59 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
+const SwiftUIModifiers =
+  Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 const GRAMMAR_TOOLTIP_ID_MIN = -9000000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
 const LRC_TIMESTAMP_REGEX = /\[(?:\d{1,2}:)?\d{1,2}(?:\.\d{1,3})?\]/g;
 const LEADING_COMMA_PATTERN = /^\s*,\s*/;
+const JAPANESE_TEXT_PATTERN =
+  /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\u3005\u3006\u303b\uff66-\uff9f]/;
+const LYRICS_TIMING_OFFSET_MIN_MS = -60000;
+const LYRICS_TIMING_OFFSET_MAX_MS = 60000;
+const LYRICS_TIMING_OFFSET_STEP_MS = 500;
+
+function clampLyricsTimingOffsetMs(offsetMs: number): number {
+  if (!Number.isFinite(offsetMs)) {
+    return 0;
+  }
+
+  const roundedOffsetMs =
+    Math.round(offsetMs / LYRICS_TIMING_OFFSET_STEP_MS) *
+    LYRICS_TIMING_OFFSET_STEP_MS;
+  return Math.min(
+    LYRICS_TIMING_OFFSET_MAX_MS,
+    Math.max(LYRICS_TIMING_OFFSET_MIN_MS, roundedOffsetMs),
+  );
+}
+
+function formatLyricsTimingOffset(offsetMs: number): string {
+  if (offsetMs === 0) {
+    return "In sync";
+  }
+
+  const seconds = Math.abs(offsetMs) / 1000;
+  return offsetMs > 0
+    ? `Delay +${seconds.toFixed(1)}s`
+    : `Advance ${seconds.toFixed(1)}s`;
+}
 
 function normalizeLyricLineForTranslation(line: string): string {
   return line.replace(LRC_TIMESTAMP_REGEX, "").trim();
 }
 
+function containsJapaneseText(line: string): boolean {
+  return JAPANESE_TEXT_PATTERN.test(line);
+}
+
 function buildDisplayTranslationsForLines(
   lyricLines: string[],
-  translationsByNormalizedLine: Record<string, string>
+  translationsByNormalizedLine: Record<string, string>,
 ): (string | null)[] {
   const resolvedLines = lyricLines.map((line) => {
     const normalizedLine = normalizeLyricLineForTranslation(line);
-    if (!normalizedLine) {
+    if (!normalizedLine || !containsJapaneseText(normalizedLine)) {
       return null;
     }
 
@@ -139,81 +175,92 @@ function buildDisplayTranslationsForLines(
       continue;
     }
 
-    const trimmedCurrentLine = currentLine.slice(commaMatch[0].length).trimStart();
-    adjustedLines[index] = trimmedCurrentLine.length > 0 ? trimmedCurrentLine : null;
+    const trimmedCurrentLine = currentLine
+      .slice(commaMatch[0].length)
+      .trimStart();
+    adjustedLines[index] =
+      trimmedCurrentLine.length > 0 ? trimmedCurrentLine : null;
   }
 
   return adjustedLines;
 }
 
-const StreamingLineText = memo(function StreamingLineText({
-  text,
-  color,
-  characterIntervalMs = 10,
-}: {
-  text: string;
-  color: string;
-  characterIntervalMs?: number;
-}): ReactElement {
-  const [visibleCharacterCount, setVisibleCharacterCount] = useState<number>(0);
-  const previousTextRef = useRef<string>("");
+const StreamingLineText = memo(
+  function StreamingLineText({
+    text,
+    color,
+    characterIntervalMs = 10,
+  }: {
+    text: string;
+    color: string;
+    characterIntervalMs?: number;
+  }): ReactElement {
+    const [visibleCharacterCount, setVisibleCharacterCount] =
+      useState<number>(0);
+    const previousTextRef = useRef<string>("");
 
-  useEffect(() => {
-    if (!text) {
-      previousTextRef.current = "";
-      setVisibleCharacterCount(0);
-      return;
-    }
+    useEffect(() => {
+      if (!text) {
+        previousTextRef.current = "";
+        setVisibleCharacterCount(0);
+        return;
+      }
 
-    const previousText = previousTextRef.current;
-    previousTextRef.current = text;
+      const previousText = previousTextRef.current;
+      previousTextRef.current = text;
 
-    if (previousText && !text.startsWith(previousText)) {
-      // Non-prefix updates (for example punctuation carry-over) should not
-      // restart the animation to avoid visible flicker.
-      setVisibleCharacterCount(text.length);
-      return;
-    }
+      if (previousText && !text.startsWith(previousText)) {
+        // Non-prefix updates (for example punctuation carry-over) should not
+        // restart the animation to avoid visible flicker.
+        setVisibleCharacterCount(text.length);
+        return;
+      }
 
-    const startCount = previousText ? previousText.length : 0;
-    setVisibleCharacterCount((currentCount) => Math.max(currentCount, startCount));
+      const startCount = previousText ? previousText.length : 0;
+      setVisibleCharacterCount((currentCount) =>
+        Math.max(currentCount, startCount),
+      );
 
-    const charsPerTick = text.length > 140 ? 8 : text.length > 80 ? 6 : 4;
-    const interval = Math.max(6, characterIntervalMs);
-    const timer = setInterval(() => {
-      setVisibleCharacterCount((currentCount) => {
-        if (currentCount >= text.length) {
-          clearInterval(timer);
-          return currentCount;
-        }
+      const charsPerTick = text.length > 140 ? 8 : text.length > 80 ? 6 : 4;
+      const interval = Math.max(6, characterIntervalMs);
+      const timer = setInterval(() => {
+        setVisibleCharacterCount((currentCount) => {
+          if (currentCount >= text.length) {
+            clearInterval(timer);
+            return currentCount;
+          }
 
-        const nextCount = Math.min(text.length, currentCount + charsPerTick);
-        if (nextCount >= text.length) {
-          clearInterval(timer);
-        }
-        return nextCount;
-      });
-    }, interval);
+          const nextCount = Math.min(text.length, currentCount + charsPerTick);
+          if (nextCount >= text.length) {
+            clearInterval(timer);
+          }
+          return nextCount;
+        });
+      }, interval);
 
-    return () => {
-      clearInterval(timer);
-    };
-  }, [text, characterIntervalMs]);
+      return () => {
+        clearInterval(timer);
+      };
+    }, [text, characterIntervalMs]);
 
-  return (
-    <Text style={[styles.lineTranslationText, { color }]}>
-      {text.slice(0, visibleCharacterCount)}
-    </Text>
-  );
-}, (previousProps, nextProps) => {
-  return (
-    previousProps.text === nextProps.text &&
-    previousProps.color === nextProps.color &&
-    previousProps.characterIntervalMs === nextProps.characterIntervalMs
-  );
-});
+    return (
+      <Text style={[styles.lineTranslationText, { color }]}>
+        {text.slice(0, visibleCharacterCount)}
+      </Text>
+    );
+  },
+  (previousProps, nextProps) => {
+    return (
+      previousProps.text === nextProps.text &&
+      previousProps.color === nextProps.color &&
+      previousProps.characterIntervalMs === nextProps.characterIntervalMs
+    );
+  },
+);
 
-function buildGrammarTooltipItem(token: JpdbParsedTokenAnnotation): VocabularyMatch {
+function buildGrammarTooltipItem(
+  token: JpdbParsedTokenAnnotation,
+): VocabularyMatch {
   const meaningText = token.meaning?.trim() || "Grammar point";
   const partsOfSpeechSummary = token.partsOfSpeech.filter(Boolean).join(", ");
   const details = partsOfSpeechSummary
@@ -248,16 +295,23 @@ export default function SongLyricsScreen() {
     setSongsLyricsLineTranslationsEnabled,
   } = useSettingsStore();
   const userLevel = userData?.level || 0;
-  const { songId, songTitle, artist, albumArt, songUrl, musicSource, duration } =
-    useLocalSearchParams<{
-      songId: string;
-      songTitle: string;
-      artist: string;
-      albumArt: string;
-      songUrl: string;
-      duration?: string;
-      musicSource?: "spotify" | "apple";
-    }>();
+  const {
+    songId,
+    songTitle,
+    artist,
+    albumArt,
+    songUrl,
+    musicSource,
+    duration,
+  } = useLocalSearchParams<{
+    songId: string;
+    songTitle: string;
+    artist: string;
+    albumArt: string;
+    songUrl: string;
+    duration?: string;
+    musicSource?: "spotify" | "apple";
+  }>();
   const isAppleMusicFlow =
     Platform.OS === "ios" &&
     songsPlaybackSource === "appleMusic" &&
@@ -286,7 +340,7 @@ export default function SongLyricsScreen() {
       songTitle,
       songsPlaybackSource,
       spotifyAuthStatus,
-    ]
+    ],
   );
   const durationMs = useMemo(() => {
     const parsedDuration = Number.parseInt(String(duration || ""), 10);
@@ -302,16 +356,18 @@ export default function SongLyricsScreen() {
     setSongInfo,
     setIsPlaying,
     setTimedLyrics: setGlobalTimedLyrics,
+    lyricsTimingOffsetMs,
+    setLyricsTimingOffsetMs,
   } = useMusicPlayer();
 
   const [lyrics, setLyrics] = useState<string>("");
   const [vocabularyMatches, setVocabularyMatches] = useState<VocabularyMatch[]>(
-    []
+    [],
   );
   const [kanjiMatches, setKanjiMatches] = useState<KanjiMatch[]>([]);
-  const [jpdbParsedTokens, setJpdbParsedTokens] = useState<JpdbParsedTokenAnnotation[]>(
-    []
-  );
+  const [jpdbParsedTokens, setJpdbParsedTokens] = useState<
+    JpdbParsedTokenAnnotation[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -334,7 +390,7 @@ export default function SongLyricsScreen() {
     (VocabularyMatch | KanjiMatch) | null
   >(null);
   const [selectedSurfaceText, setSelectedSurfaceText] = useState<string | null>(
-    null
+    null,
   );
   const [selectedTokenKey, setSelectedTokenKey] = useState<string | null>(null);
   const [tooltipInteractionMode, setTooltipInteractionMode] = useState<
@@ -371,10 +427,16 @@ export default function SongLyricsScreen() {
     useState(false);
   const [lyricsTranslationStatusMessage, setLyricsTranslationStatusMessage] =
     useState<string | null>(null);
+  const [hasLoadedLyricsTimingOffset, setHasLoadedLyricsTimingOffset] =
+    useState(false);
+  const [isLyricsTimingAdjustmentEnabled, setIsLyricsTimingAdjustmentEnabled] =
+    useState(false);
+  const [isLyricsTimingControlVisible, setIsLyricsTimingControlVisible] =
+    useState(false);
 
   const vocabularyMatchesById = useMemo(
     () => new Map(vocabularyMatches.map((match) => [match.id, match])),
-    [vocabularyMatches]
+    [vocabularyMatches],
   );
   const grammarUnderlineColor = theme.isDark ? "#fbbf24" : "#b45309";
   const verbUnderlineColor = theme.isDark ? "#34d399" : "#0f766e";
@@ -389,8 +451,7 @@ export default function SongLyricsScreen() {
     songsLyricsDefaultStudyMode === "full" && !hasStoredJpdbApiKey
       ? "wk"
       : songsLyricsDefaultStudyMode;
-  const fullAnalysisEnabled =
-    activeStudyMode === "full";
+  const fullAnalysisEnabled = activeStudyMode === "full";
   const wkStudyModeEnabled = activeStudyMode === "wk";
   const lineTranslationsEnabled =
     songsLyricsLineTranslationsEnabled && hasStoredJpdbApiKey;
@@ -404,6 +465,23 @@ export default function SongLyricsScreen() {
   const lineTranslationsCacheKey = songLyricsCacheBaseKey
     ? `${songLyricsCacheBaseKey}_translations`
     : null;
+  const lyricsTimingOffsetCacheKey = songLyricsCacheBaseKey
+    ? `${songLyricsCacheBaseKey}_lyrics_timing_offset_ms`
+    : null;
+  const lyricsTimingOffsetSeconds = lyricsTimingOffsetMs / 1000;
+  const lyricsTimingOffsetDisplay = useMemo(
+    () => formatLyricsTimingOffset(lyricsTimingOffsetMs),
+    [lyricsTimingOffsetMs],
+  );
+  const activeLyricsTimingOffsetMs = isLyricsTimingAdjustmentEnabled
+    ? lyricsTimingOffsetMs
+    : 0;
+  const canAdjustLyricsTiming = timedLyrics.length > 0 && isTimedMode;
+  const shouldShowLyricsTimingControl =
+    canAdjustLyricsTiming &&
+    isLyricsTimingAdjustmentEnabled &&
+    isLyricsTimingControlVisible;
+  const lyricsTimingOffsetMsRef = useRef(0);
   const staticLyricLines = useMemo(() => {
     if (!lyrics) {
       return [];
@@ -431,14 +509,17 @@ export default function SongLyricsScreen() {
       isTimedMode && timedLyrics.length > 0
         ? timedLyrics.map((line) => line.words ?? "")
         : staticLyricLines.map((line) => line.text),
-    [isTimedMode, timedLyrics, staticLyricLines]
+    [isTimedMode, timedLyrics, staticLyricLines],
   );
   const normalizedVisibleLinesForTranslation = useMemo(
     () =>
       visibleLinesForTranslation
         .map((line) => normalizeLyricLineForTranslation(line))
-        .filter((line): line is string => line.length > 0),
-    [visibleLinesForTranslation]
+        .filter(
+          (line): line is string =>
+            line.length > 0 && containsJapaneseText(line),
+        ),
+    [visibleLinesForTranslation],
   );
   const timedLineTranslationsForDisplay = useMemo(() => {
     if (!lineTranslationsEnabled) {
@@ -447,7 +528,7 @@ export default function SongLyricsScreen() {
 
     return buildDisplayTranslationsForLines(
       timedLyrics.map((line) => line.words ?? ""),
-      lineTranslations
+      lineTranslations,
     );
   }, [lineTranslations, lineTranslationsEnabled, timedLyrics]);
   const staticLineTranslationsForDisplay = useMemo(() => {
@@ -457,7 +538,7 @@ export default function SongLyricsScreen() {
 
     return buildDisplayTranslationsForLines(
       staticLyricLines.map((line) => line.text),
-      lineTranslations
+      lineTranslations,
     );
   }, [lineTranslations, lineTranslationsEnabled, staticLyricLines]);
   const timedLineOffsets = useMemo(() => {
@@ -556,10 +637,10 @@ export default function SongLyricsScreen() {
       skeletonOpacity.value = withRepeat(
         withSequence(
           withTiming(0.6, { duration: 800 }),
-          withTiming(0.3, { duration: 800 })
+          withTiming(0.3, { duration: 800 }),
         ),
         -1,
-        true
+        true,
       );
     }
   }, [timedLyricsStatus]);
@@ -578,7 +659,7 @@ export default function SongLyricsScreen() {
     const checkTutorialStatus = async () => {
       try {
         const completed = await AsyncStorage.getItem(
-          TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED
+          TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED,
         );
         setIsFirstVisit(!completed);
       } catch (error) {
@@ -614,7 +695,8 @@ export default function SongLyricsScreen() {
     const steps: CoachMarkStep[] = [];
     // On Android, measureInWindow returns coordinates that don't account for
     // the status bar when used with statusBarTranslucent modals
-    const statusBarOffset = Platform.OS === "android" ? (StatusBar.currentHeight || 0) : 0;
+    const statusBarOffset =
+      Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
 
     // Step 1: Welcome (no target, centered)
     steps.push({
@@ -637,49 +719,63 @@ export default function SongLyricsScreen() {
     }
   }, [timedLyrics.length]);
 
-  const continueWithSettingsButton = useCallback((steps: CoachMarkStep[], statusBarOffset: number) => {
-    // Step 3: Settings button
-    if (settingsButtonRef.current) {
-      settingsButtonRef.current.measureInWindow((x, y, width, height) => {
-        steps.push({
-          ...LYRICS_TUTORIAL_STEPS[2],
-          target: { x, y: y + statusBarOffset, width, height },
+  const continueWithSettingsButton = useCallback(
+    (steps: CoachMarkStep[], statusBarOffset: number) => {
+      // Step 3: Settings button
+      if (settingsButtonRef.current) {
+        settingsButtonRef.current.measureInWindow((x, y, width, height) => {
+          steps.push({
+            ...LYRICS_TUTORIAL_STEPS[2],
+            target: { x, y: y + statusBarOffset, width, height },
+          });
+          continueWithVocabulary(steps, statusBarOffset);
         });
+      } else {
         continueWithVocabulary(steps, statusBarOffset);
-      });
-    } else {
-      continueWithVocabulary(steps, statusBarOffset);
-    }
-  }, []);
+      }
+    },
+    [],
+  );
 
-  const continueWithVocabulary = useCallback((steps: CoachMarkStep[], statusBarOffset: number) => {
-    // Step 4: Vocabulary highlights
-    if (lyricsContentRef.current) {
-      lyricsContentRef.current.measureInWindow((x, y, width, height) => {
+  const continueWithVocabulary = useCallback(
+    (steps: CoachMarkStep[], statusBarOffset: number) => {
+      // Step 4: Vocabulary highlights
+      if (lyricsContentRef.current) {
+        lyricsContentRef.current.measureInWindow((x, y, width, height) => {
+          steps.push({
+            ...LYRICS_TUTORIAL_STEPS[3],
+            target: {
+              x,
+              y: y + statusBarOffset,
+              width: width,
+              height: Math.min(height, 150),
+            },
+          });
+          setTutorialSteps(steps);
+          setShowTutorial(true);
+        });
+      } else {
+        // Add vocabulary step without target
         steps.push({
           ...LYRICS_TUTORIAL_STEPS[3],
-          target: { x, y: y + statusBarOffset, width: width, height: Math.min(height, 150) },
+          target: null,
         });
         setTutorialSteps(steps);
         setShowTutorial(true);
-      });
-    } else {
-      // Add vocabulary step without target
-      steps.push({
-        ...LYRICS_TUTORIAL_STEPS[3],
-        target: null,
-      });
-      setTutorialSteps(steps);
-      setShowTutorial(true);
-    }
-  }, []);
+      }
+    },
+    [],
+  );
 
   // Handle tutorial completion
   const handleTutorialComplete = useCallback(async () => {
     setShowTutorial(false);
     setIsFirstVisit(false); // Mark as no longer first visit to trigger pending auto-play
     try {
-      await AsyncStorage.setItem(TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED, "true");
+      await AsyncStorage.setItem(
+        TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED,
+        "true",
+      );
     } catch (error) {
       console.error("Error saving lyrics tutorial completion:", error);
     }
@@ -713,7 +809,7 @@ export default function SongLyricsScreen() {
     if (!songTitle || !artist) {
       console.log("⚠️ No song metadata available");
       setError(
-        "Song information incomplete. Cannot fetch lyrics without song title and artist."
+        "Song information incomplete. Cannot fetch lyrics without song title and artist.",
       );
       setTimedLyricsStatus("unavailable");
       setIsLoading(false);
@@ -729,11 +825,14 @@ export default function SongLyricsScreen() {
     let effectiveSpotifySongId = songId;
 
     try {
-      if (isAppleMusicFlow && (!effectiveAppleSongId || musicSource !== "apple")) {
+      if (
+        isAppleMusicFlow &&
+        (!effectiveAppleSongId || musicSource !== "apple")
+      ) {
         try {
           const appleResults = await appleMusicService.searchTracks(
             `${songTitle} ${artist}`,
-            10
+            10,
           );
           if (appleResults.length > 0) {
             const bestAppleMatch = appleResults[0];
@@ -742,7 +841,7 @@ export default function SongLyricsScreen() {
         } catch (appleSearchError) {
           console.warn(
             "⚠️ Failed to resolve Apple Music playback track:",
-            appleSearchError
+            appleSearchError,
           );
         }
       }
@@ -754,7 +853,7 @@ export default function SongLyricsScreen() {
         try {
           const spotifyResults = await spotifyService.searchTracks(
             `${songTitle} ${artist}`,
-            10
+            10,
           );
           if (spotifyResults.length > 0) {
             effectiveSpotifySongId = spotifyResults[0].id;
@@ -762,7 +861,7 @@ export default function SongLyricsScreen() {
         } catch (spotifySearchError) {
           console.warn(
             "⚠️ Failed to resolve Spotify playback track:",
-            spotifySearchError
+            spotifySearchError,
           );
         }
       }
@@ -790,14 +889,15 @@ export default function SongLyricsScreen() {
         try {
           lyricsData = await lyricsService.getLyrics(songTitle, artist);
           // Cache the lyrics
-          AsyncStorage.setItem(lyricsCacheKey, JSON.stringify(lyricsData)).catch(
-            (e) => console.error("Error caching lyrics:", e)
-          );
+          AsyncStorage.setItem(
+            lyricsCacheKey,
+            JSON.stringify(lyricsData),
+          ).catch((e) => console.error("Error caching lyrics:", e));
         } catch (error) {
           console.warn("⚠️ Lyrics not found:", error);
           if (error instanceof Error && error.message === "LYRICS_NOT_FOUND") {
             setError(
-              "Lyrics not found for this song. Try using the override settings to search manually."
+              "Lyrics not found for this song. Try using the override settings to search manually.",
             );
           }
         }
@@ -830,7 +930,7 @@ export default function SongLyricsScreen() {
       if (isAppleMusicFlow) {
         if (!effectiveAppleSongId) {
           setError(
-            "Could not find this track in Apple Music. Switch playback to YouTube or pick a different song."
+            "Could not find this track in Apple Music. Switch playback to YouTube or pick a different song.",
           );
           setTimedLyricsStatus("unavailable");
           return;
@@ -845,6 +945,7 @@ export default function SongLyricsScreen() {
           songUrl: musicSource === "apple" ? songUrl : undefined,
           musicSource: "apple",
           durationMs,
+          lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -852,7 +953,7 @@ export default function SongLyricsScreen() {
 
         setTimeout(async () => {
           const tutorialCompleted = await AsyncStorage.getItem(
-            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED
+            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED,
           );
           if (tutorialCompleted) {
             setIsPlaying(true);
@@ -863,7 +964,7 @@ export default function SongLyricsScreen() {
       } else if (isSpotifyPlaybackFlow) {
         if (!effectiveSpotifySongId) {
           setError(
-            "Could not find this track in Spotify. Switch playback to YouTube or pick a different song."
+            "Could not find this track in Spotify. Switch playback to YouTube or pick a different song.",
           );
           setTimedLyricsStatus("unavailable");
           return;
@@ -878,6 +979,7 @@ export default function SongLyricsScreen() {
           songUrl: musicSource === "spotify" ? songUrl : undefined,
           musicSource: "spotify",
           durationMs,
+          lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -885,7 +987,7 @@ export default function SongLyricsScreen() {
 
         setTimeout(async () => {
           const tutorialCompleted = await AsyncStorage.getItem(
-            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED
+            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED,
           );
           if (tutorialCompleted) {
             setIsPlaying(true);
@@ -902,13 +1004,13 @@ export default function SongLyricsScreen() {
             const bestMatch = await youtubeService.findBestMatch(
               songTitle,
               artist,
-              duration
+              duration,
             );
             if (bestMatch) {
               videoId = bestMatch.videoId;
               // Cache the video ID
               AsyncStorage.setItem(videoCacheKey, videoId).catch((e) =>
-                console.error("Error caching video:", e)
+                console.error("Error caching video:", e),
               );
             }
           } catch (videoError) {
@@ -930,6 +1032,7 @@ export default function SongLyricsScreen() {
           songUrl,
           musicSource: "youtube",
           durationMs,
+          lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -938,7 +1041,7 @@ export default function SongLyricsScreen() {
         // Auto-play after a short delay (respecting tutorial)
         setTimeout(async () => {
           const tutorialCompleted = await AsyncStorage.getItem(
-            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED
+            TUTORIAL_STORAGE_KEYS.LYRICS_COMPLETED,
           );
           if (tutorialCompleted) {
             setIsPlaying(true);
@@ -999,6 +1102,97 @@ export default function SongLyricsScreen() {
 
   useEffect(() => {
     let didCancel = false;
+
+    setHasLoadedLyricsTimingOffset(false);
+    setIsLyricsTimingAdjustmentEnabled(false);
+    setIsLyricsTimingControlVisible(false);
+    lyricsTimingOffsetMsRef.current = 0;
+    setLyricsTimingOffsetMs(0);
+
+    const loadLyricsTimingOffset = async () => {
+      if (!lyricsTimingOffsetCacheKey) {
+        if (!didCancel) {
+          setHasLoadedLyricsTimingOffset(true);
+        }
+        return;
+      }
+
+      try {
+        const cachedOffsetMs = await AsyncStorage.getItem(
+          lyricsTimingOffsetCacheKey,
+        );
+        if (didCancel) {
+          return;
+        }
+
+        const parsedOffsetMs =
+          cachedOffsetMs === null ? 0 : Number.parseFloat(cachedOffsetMs);
+        const nextOffsetMs = clampLyricsTimingOffsetMs(parsedOffsetMs);
+        lyricsTimingOffsetMsRef.current = nextOffsetMs;
+        setLyricsTimingOffsetMs(nextOffsetMs);
+        setIsLyricsTimingAdjustmentEnabled(nextOffsetMs !== 0);
+        setIsLyricsTimingControlVisible(false);
+        setHasLoadedLyricsTimingOffset(true);
+      } catch (cacheError) {
+        console.error("Error loading lyric timing offset:", cacheError);
+        if (!didCancel) {
+          lyricsTimingOffsetMsRef.current = 0;
+          setLyricsTimingOffsetMs(0);
+          setIsLyricsTimingAdjustmentEnabled(false);
+          setIsLyricsTimingControlVisible(false);
+          setHasLoadedLyricsTimingOffset(true);
+        }
+      }
+    };
+
+    void loadLyricsTimingOffset();
+
+    return () => {
+      didCancel = true;
+    };
+  }, [lyricsTimingOffsetCacheKey, setLyricsTimingOffsetMs]);
+
+  useEffect(() => {
+    lyricsTimingOffsetMsRef.current = lyricsTimingOffsetMs;
+  }, [lyricsTimingOffsetMs]);
+
+  useEffect(() => {
+    if (!lyricsTimingOffsetCacheKey || !hasLoadedLyricsTimingOffset) {
+      return;
+    }
+
+    const normalizedOffsetMs = isLyricsTimingAdjustmentEnabled
+      ? clampLyricsTimingOffsetMs(lyricsTimingOffsetMs)
+      : 0;
+    const saveTimeout = setTimeout(() => {
+      if (normalizedOffsetMs === 0) {
+        AsyncStorage.removeItem(lyricsTimingOffsetCacheKey).catch(
+          (cacheError) =>
+            console.error("Error clearing lyric timing offset:", cacheError),
+        );
+        return;
+      }
+
+      AsyncStorage.setItem(
+        lyricsTimingOffsetCacheKey,
+        String(normalizedOffsetMs),
+      ).catch((cacheError) =>
+        console.error("Error saving lyric timing offset:", cacheError),
+      );
+    }, 250);
+
+    return () => {
+      clearTimeout(saveTimeout);
+    };
+  }, [
+    lyricsTimingOffsetCacheKey,
+    lyricsTimingOffsetMs,
+    isLyricsTimingAdjustmentEnabled,
+    hasLoadedLyricsTimingOffset,
+  ]);
+
+  useEffect(() => {
+    let didCancel = false;
     setHasLoadedLineTranslationsCache(false);
 
     const loadCachedLineTranslations = async () => {
@@ -1023,16 +1217,24 @@ export default function SongLyricsScreen() {
         }
 
         const parsedCache = JSON.parse(cachedJson) as unknown;
-        if (!parsedCache || typeof parsedCache !== "object" || Array.isArray(parsedCache)) {
+        if (
+          !parsedCache ||
+          typeof parsedCache !== "object" ||
+          Array.isArray(parsedCache)
+        ) {
           setLineTranslations({});
           setHasLoadedLineTranslationsCache(true);
           return;
         }
 
         const normalizedTranslations = Object.entries(
-          parsedCache as Record<string, unknown>
+          parsedCache as Record<string, unknown>,
         ).reduce<Record<string, string>>((accumulator, [key, value]) => {
-          if (typeof key !== "string" || key.length === 0) {
+          if (typeof key !== "string") {
+            return accumulator;
+          }
+          const normalizedKey = normalizeLyricLineForTranslation(key);
+          if (!normalizedKey || !containsJapaneseText(normalizedKey)) {
             return accumulator;
           }
           if (typeof value !== "string") {
@@ -1044,7 +1246,7 @@ export default function SongLyricsScreen() {
             return accumulator;
           }
 
-          accumulator[key] = trimmedValue;
+          accumulator[normalizedKey] = trimmedValue;
           return accumulator;
         }, {});
 
@@ -1074,18 +1276,22 @@ export default function SongLyricsScreen() {
     const translationCount = Object.keys(lineTranslations).length;
     if (translationCount === 0) {
       AsyncStorage.removeItem(lineTranslationsCacheKey).catch((cacheError) =>
-        console.error("Error clearing lyric translations cache:", cacheError)
+        console.error("Error clearing lyric translations cache:", cacheError),
       );
       return;
     }
 
     AsyncStorage.setItem(
       lineTranslationsCacheKey,
-      JSON.stringify(lineTranslations)
+      JSON.stringify(lineTranslations),
     ).catch((cacheError) =>
-      console.error("Error saving lyric translations cache:", cacheError)
+      console.error("Error saving lyric translations cache:", cacheError),
     );
-  }, [lineTranslationsCacheKey, lineTranslations, hasLoadedLineTranslationsCache]);
+  }, [
+    lineTranslationsCacheKey,
+    lineTranslations,
+    hasLoadedLineTranslationsCache,
+  ]);
 
   useEffect(() => {
     if (!lineTranslationsEnabled) {
@@ -1095,7 +1301,7 @@ export default function SongLyricsScreen() {
     }
 
     const uniqueVisibleLines = Array.from(
-      new Set(normalizedVisibleLinesForTranslation)
+      new Set(normalizedVisibleLinesForTranslation),
     );
     if (uniqueVisibleLines.length === 0) {
       setIsTranslatingLyrics(false);
@@ -1104,7 +1310,7 @@ export default function SongLyricsScreen() {
     }
 
     const missingLines = uniqueVisibleLines.filter(
-      (line) => !lineTranslations[line]
+      (line) => !lineTranslations[line],
     );
     if (missingLines.length === 0) {
       setIsTranslatingLyrics(false);
@@ -1121,7 +1327,7 @@ export default function SongLyricsScreen() {
           setHasStoredJpdbApiKey(false);
           setIsTranslatingLyrics(false);
           setLyricsTranslationStatusMessage(
-            "Add your JPDB API key in Settings to enable lyric translations."
+            "Add your JPDB API key in Settings to enable lyric translations.",
           );
         }
         return;
@@ -1236,10 +1442,7 @@ export default function SongLyricsScreen() {
         vocabularyMatches,
         kanjiMatches,
         jpdbParsedTokens: parsedTokens,
-      } = await findMatches(
-        text,
-        allSubjects
-      );
+      } = await findMatches(text, allSubjects);
 
       setVocabularyMatches(vocabularyMatches);
       setKanjiMatches(kanjiMatches);
@@ -1257,7 +1460,7 @@ export default function SongLyricsScreen() {
       event: any,
       itemOverride?: VocabularyMatch | KanjiMatch,
       tokenKey?: string,
-      interactionMode: "press" | "hover" = "press"
+      interactionMode: "press" | "hover" = "press",
     ) => {
       // Find the item in matches
       const item =
@@ -1272,11 +1475,11 @@ export default function SongLyricsScreen() {
         y: number,
         width: number,
         height: number,
-        source: "measure" | "page" = "measure"
+        source: "measure" | "page" = "measure",
       ) => {
         const statusBarOffset =
           source === "measure" && Platform.OS === "android"
-            ? (StatusBar.currentHeight || 0)
+            ? StatusBar.currentHeight || 0
             : 0;
         const adjustedY = y + statusBarOffset;
 
@@ -1306,7 +1509,12 @@ export default function SongLyricsScreen() {
         });
       };
 
-      const measureFromTarget = (x: number, y: number, width: number, height: number) => {
+      const measureFromTarget = (
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+      ) => {
         if (
           Number.isFinite(x) &&
           Number.isFinite(y) &&
@@ -1348,35 +1556,41 @@ export default function SongLyricsScreen() {
             ) {
               openTooltipAtAnchor(pageX - 12, pageY - 12, 24, 24, "page");
             }
-          }
+          },
         );
         return;
       }
 
       const measurementTarget = event?.target as
-        | { measureInWindow?: (callback: (x: number, y: number, w: number, h: number) => void) => void }
+        | {
+            measureInWindow?: (
+              callback: (x: number, y: number, w: number, h: number) => void,
+            ) => void;
+          }
         | undefined;
 
       if (
         measurementTarget &&
         typeof measurementTarget.measureInWindow === "function"
       ) {
-        measurementTarget.measureInWindow((x: number, y: number, width: number, height: number) => {
-          if (measureFromTarget(x, y, width, height)) {
-            return;
-          }
+        measurementTarget.measureInWindow(
+          (x: number, y: number, width: number, height: number) => {
+            if (measureFromTarget(x, y, width, height)) {
+              return;
+            }
 
-          const pageX = Number(event?.nativeEvent?.pageX);
-          const pageY = Number(event?.nativeEvent?.pageY);
-          if (
-            Number.isFinite(pageX) &&
-            Number.isFinite(pageY) &&
-            pageX > 1 &&
-            pageY > 1
-          ) {
-            openTooltipAtAnchor(pageX - 12, pageY - 12, 24, 24, "page");
-          }
-        });
+            const pageX = Number(event?.nativeEvent?.pageX);
+            const pageY = Number(event?.nativeEvent?.pageY);
+            if (
+              Number.isFinite(pageX) &&
+              Number.isFinite(pageY) &&
+              pageX > 1 &&
+              pageY > 1
+            ) {
+              openTooltipAtAnchor(pageX - 12, pageY - 12, 24, 24, "page");
+            }
+          },
+        );
         return;
       }
 
@@ -1391,7 +1605,7 @@ export default function SongLyricsScreen() {
         openTooltipAtAnchor(pageX - 12, pageY - 12, 24, 24, "page");
       }
     },
-    [vocabularyMatches, kanjiMatches, tooltipOpacity]
+    [vocabularyMatches, kanjiMatches, tooltipOpacity],
   );
 
   const handleCloseTooltip = useCallback(() => {
@@ -1414,7 +1628,7 @@ export default function SongLyricsScreen() {
       }
       handleCloseTooltip();
     },
-    [tooltipInteractionMode, selectedTokenKey, handleCloseTooltip]
+    [tooltipInteractionMode, selectedTokenKey, handleCloseTooltip],
   );
 
   const handleViewDetails = useCallback(() => {
@@ -1435,7 +1649,7 @@ export default function SongLyricsScreen() {
         params: { id: subjectId.toString(), from: "song-lyrics" },
       });
     },
-    [handleCloseTooltip, router]
+    [handleCloseTooltip, router],
   );
 
   const handleClose = useCallback(() => {
@@ -1449,28 +1663,31 @@ export default function SongLyricsScreen() {
     });
   }, [router]);
 
-  const selectStudyMode = useCallback((mode: StudyModePreference) => {
-    if (mode === "full" && !hasStoredJpdbApiKey) {
-      Alert.alert(
-        "JPDB API Key Required",
-        "Full grammar study mode is blocked until you save a JPDB API key.",
-        [
-          { text: "Not now", style: "cancel" },
-          {
-            text: "Open Settings",
-            onPress: openJpdbApiKeySettings,
-          },
-        ]
-      );
-      return;
-    }
+  const selectStudyMode = useCallback(
+    (mode: StudyModePreference) => {
+      if (mode === "full" && !hasStoredJpdbApiKey) {
+        Alert.alert(
+          "JPDB API Key Required",
+          "Full grammar study mode is blocked until you save a JPDB API key.",
+          [
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: openJpdbApiKeySettings,
+            },
+          ],
+        );
+        return;
+      }
 
-    setSongsLyricsDefaultStudyMode(mode);
-  }, [
-    hasStoredJpdbApiKey,
-    openJpdbApiKeySettings,
-    setSongsLyricsDefaultStudyMode,
-  ]);
+      setSongsLyricsDefaultStudyMode(mode);
+    },
+    [
+      hasStoredJpdbApiKey,
+      openJpdbApiKeySettings,
+      setSongsLyricsDefaultStudyMode,
+    ],
+  );
 
   const toggleLineTranslationsFromMenu = useCallback(() => {
     if (!hasStoredJpdbApiKey) {
@@ -1483,6 +1700,53 @@ export default function SongLyricsScreen() {
     lineTranslationsEnabled,
     setSongsLyricsLineTranslationsEnabled,
   ]);
+
+  const openLyricsTimingAdjustment = useCallback(() => {
+    setIsLyricsTimingAdjustmentEnabled(true);
+    setIsLyricsTimingControlVisible(true);
+    setIsAutoscrollEnabled(true);
+  }, []);
+
+  const closeLyricsTimingAdjustment = useCallback(() => {
+    setIsLyricsTimingControlVisible(false);
+    if (lyricsTimingOffsetMs === 0) {
+      setIsLyricsTimingAdjustmentEnabled(false);
+    }
+  }, [lyricsTimingOffsetMs]);
+
+  const handleLyricsTimingOffsetChange = useCallback(
+    (offsetSeconds: number) => {
+      const nextOffsetMs = clampLyricsTimingOffsetMs(offsetSeconds * 1000);
+      lyricsTimingOffsetMsRef.current = nextOffsetMs;
+      setIsLyricsTimingAdjustmentEnabled(true);
+      setIsLyricsTimingControlVisible(true);
+      setLyricsTimingOffsetMs(nextOffsetMs);
+      setIsAutoscrollEnabled(true);
+    },
+    [setLyricsTimingOffsetMs],
+  );
+
+  const adjustLyricsTimingOffset = useCallback(
+    (deltaMs: number) => {
+      const nextOffsetMs = clampLyricsTimingOffsetMs(
+        lyricsTimingOffsetMs + deltaMs,
+      );
+      lyricsTimingOffsetMsRef.current = nextOffsetMs;
+      setIsLyricsTimingAdjustmentEnabled(true);
+      setIsLyricsTimingControlVisible(true);
+      setLyricsTimingOffsetMs(nextOffsetMs);
+      setIsAutoscrollEnabled(true);
+    },
+    [lyricsTimingOffsetMs, setLyricsTimingOffsetMs],
+  );
+
+  const resetLyricsTimingOffset = useCallback(() => {
+    lyricsTimingOffsetMsRef.current = 0;
+    setIsLyricsTimingAdjustmentEnabled(false);
+    setIsLyricsTimingControlVisible(false);
+    setLyricsTimingOffsetMs(0);
+    setIsAutoscrollEnabled(true);
+  }, [setLyricsTimingOffsetMs]);
 
   const searchVideos = useCallback(async (query: string) => {
     if (!query.trim()) return;
@@ -1511,6 +1775,7 @@ export default function SongLyricsScreen() {
         songUrl,
         musicSource: "youtube",
         durationMs,
+        lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
       });
       setShowOverrideModal(false);
 
@@ -1518,14 +1783,14 @@ export default function SongLyricsScreen() {
       if (songTitle && artist) {
         const cacheKeyBase = `wanikani_lyrics_v1_${songTitle.replace(
           /\s+/g,
-          ""
+          "",
         )}_${artist.replace(/\s+/g, "")}`;
         AsyncStorage.setItem(`${cacheKeyBase}_video`, videoId).catch((e) =>
-          console.error("Error checking video cache update:", e)
+          console.error("Error checking video cache update:", e),
         );
       }
     },
-    [albumArt, songTitle, artist, songId, songUrl, durationMs, setSongInfo]
+    [albumArt, songTitle, artist, songId, songUrl, durationMs, setSongInfo],
   );
 
   const searchLyrics = useCallback(async (song: string, artist: string) => {
@@ -1571,11 +1836,11 @@ export default function SongLyricsScreen() {
         if (songTitle && artist) {
           const cacheKeyBase = `wanikani_lyrics_v1_${songTitle.replace(
             /\s+/g,
-            ""
+            "",
           )}_${artist.replace(/\s+/g, "")}`;
           AsyncStorage.setItem(
             `${cacheKeyBase}_lyrics`,
-            JSON.stringify(lyricsResult)
+            JSON.stringify(lyricsResult),
           ).catch((e) => console.error("Error updating lyrics cache:", e));
         }
       } catch (error) {
@@ -1586,7 +1851,7 @@ export default function SongLyricsScreen() {
         setIsLoading(false);
       }
     },
-    [findVocabularyMatches, songTitle, artist]
+    [findVocabularyMatches, songTitle, artist],
   );
 
   const seekToTime = useCallback(
@@ -1601,7 +1866,7 @@ export default function SongLyricsScreen() {
         console.error("Error seeking to time:", error);
       }
     },
-    [playerRef]
+    [playerRef],
   );
 
   // Auto-scroll to current timed lyric line (only if autoscroll is enabled)
@@ -1614,12 +1879,13 @@ export default function SongLyricsScreen() {
     )
       return;
 
-    const currentTimeMs = currentTime * 1000;
+    const adjustedCurrentTimeMs =
+      currentTime * 1000 - activeLyricsTimingOffsetMs;
     const currentLineIndex = timedLyrics.findIndex((line, index) => {
       const nextLine = timedLyrics[index + 1];
       return (
-        currentTimeMs >= line.startTimeMs &&
-        (!nextLine || currentTimeMs < nextLine.startTimeMs)
+        adjustedCurrentTimeMs >= line.startTimeMs &&
+        (!nextLine || adjustedCurrentTimeMs < nextLine.startTimeMs)
       );
     });
 
@@ -1635,11 +1901,12 @@ export default function SongLyricsScreen() {
             animated: true,
           });
         },
-        () => {}
+        () => {},
       );
     }
   }, [
     currentTime,
+    activeLyricsTimingOffsetMs,
     isTimedMode,
     isPlaying,
     timedLyrics,
@@ -1688,7 +1955,7 @@ export default function SongLyricsScreen() {
   const renderUnderlinedAnalyzedText = (
     text: string,
     textStartOffset: number,
-    baseTextStyle: any
+    baseTextStyle: any,
   ): ReactElement => {
     if (!text) {
       return <Text style={baseTextStyle}>{text}</Text>;
@@ -1714,7 +1981,7 @@ export default function SongLyricsScreen() {
           (token) =>
             token.start >= textStartOffset &&
             token.end <= textEndOffset &&
-            token.end > token.start
+            token.end > token.start,
         )
         .sort((a, b) => {
           if (a.start !== b.start) {
@@ -1765,9 +2032,12 @@ export default function SongLyricsScreen() {
 
           if (segment.tokenType === "plain" || !segment.token) {
             renderedNodes.push(
-              <Text key={`plain-${textStartOffset}-${index}`} style={baseTextStyle}>
+              <Text
+                key={`plain-${textStartOffset}-${index}`}
+                style={baseTextStyle}
+              >
                 {segment.text}
-              </Text>
+              </Text>,
             );
             return renderedNodes;
           }
@@ -1792,15 +2062,15 @@ export default function SongLyricsScreen() {
                 : vocabUnderlineColor;
           const tokenUnderlineColor = withAlpha(
             underlineColor,
-            theme.isDark ? 0.95 : 0.75
+            theme.isDark ? 0.95 : 0.75,
           );
           const selectedTokenBorderColor = withAlpha(
             theme.textColor,
-            theme.isDark ? 0.58 : 0.34
+            theme.isDark ? 0.58 : 0.34,
           );
           const selectedTokenBackground = withAlpha(
             underlineColor,
-            theme.isDark ? 0.24 : 0.18
+            theme.isDark ? 0.24 : 0.18,
           );
 
           const tokenText = (
@@ -1829,7 +2099,7 @@ export default function SongLyricsScreen() {
             renderedNodes.push(
               <View key={tokenNodeKey} style={styles.underlinedTokenPressable}>
                 {tokenText}
-              </View>
+              </View>,
             );
           } else {
             renderedNodes.push(
@@ -1843,7 +2113,7 @@ export default function SongLyricsScreen() {
                     event,
                     tooltipItem,
                     tokenKey,
-                    "press"
+                    "press",
                   )
                 }
                 onHoverIn={
@@ -1855,7 +2125,7 @@ export default function SongLyricsScreen() {
                           event,
                           tooltipItem,
                           tokenKey,
-                          "hover"
+                          "hover",
                         )
                     : undefined
                 }
@@ -1866,7 +2136,7 @@ export default function SongLyricsScreen() {
                 }
               >
                 {tokenText}
-              </Pressable>
+              </Pressable>,
             );
           }
 
@@ -1882,7 +2152,7 @@ export default function SongLyricsScreen() {
                 style={[baseTextStyle, styles.inlineUnderlineSeparator]}
               >
                 {TOKEN_UNDERLINE_SEPARATOR}
-              </Text>
+              </Text>,
             );
           }
 
@@ -1895,7 +2165,7 @@ export default function SongLyricsScreen() {
   // Helper function to highlight vocabulary in timed lyrics with inline chips
   const highlightTimedLyricLine = (
     text: string,
-    textStartOffset: number
+    textStartOffset: number,
   ): ReactElement => {
     if (!text) return <Text>{text}</Text>;
 
@@ -1912,18 +2182,23 @@ export default function SongLyricsScreen() {
           const highlight = segment.match;
           const color = getItemColor(highlight.type);
           const isWaniKaniBacked = isWaniKaniBackedMatch(highlight);
-          const shouldKnow = isWaniKaniBacked ? highlight.level <= userLevel : true;
+          const shouldKnow = isWaniKaniBacked
+            ? highlight.level <= userLevel
+            : true;
           const showLevelBadge = !shouldKnow && isWaniKaniBacked;
           const showJpdbBadge = !isWaniKaniBacked;
 
           return (
             <TouchableOpacity
               key={`chip-${index}-${highlight.id}`}
-              onPress={(e) => handleVocabularyPress(highlight.id, segment.text, e)}
+              onPress={(e) =>
+                handleVocabularyPress(highlight.id, segment.text, e)
+              }
               activeOpacity={0.7}
               style={[
                 styles.inlineChipWrapper,
-                (showLevelBadge || showJpdbBadge) && styles.inlineChipWrapperWithBadge,
+                (showLevelBadge || showJpdbBadge) &&
+                  styles.inlineChipWrapperWithBadge,
               ]}
             >
               <View
@@ -1958,18 +2233,25 @@ export default function SongLyricsScreen() {
 
   // Helper function to render timed lyrics
   const renderTimedLyrics = (): ReactElement => {
-    const currentTimeMs = currentTime * 1000;
+    const adjustedCurrentTimeMs =
+      currentTime * 1000 - activeLyricsTimingOffsetMs;
 
     return (
       <>
         {timedLyrics.map((line, index) => {
           const isCurrentLine =
-            currentTimeMs >= line.startTimeMs &&
+            adjustedCurrentTimeMs >= line.startTimeMs &&
             (!timedLyrics[index + 1] ||
-              currentTimeMs < timedLyrics[index + 1].startTimeMs);
+              adjustedCurrentTimeMs < timedLyrics[index + 1].startTimeMs);
 
-          const isPastLine = currentTimeMs > line.startTimeMs && !isCurrentLine;
-          const translatedLineText = timedLineTranslationsForDisplay[index] ?? null;
+          const isPastLine =
+            adjustedCurrentTimeMs > line.startTimeMs && !isCurrentLine;
+          const translatedLineText =
+            timedLineTranslationsForDisplay[index] ?? null;
+          const seekTimeSeconds = Math.max(
+            0,
+            (line.startTimeMs + activeLyricsTimingOffsetMs) / 1000,
+          );
 
           return (
             <TouchableOpacity
@@ -1978,7 +2260,11 @@ export default function SongLyricsScreen() {
                 if (ref) lineRefs.current[index] = ref;
               }}
               style={styles.timedLyricLine}
-              onPress={fullAnalysisEnabled ? undefined : () => seekToTime(line.startTimeMs / 1000)}
+              onPress={
+                fullAnalysisEnabled
+                  ? undefined
+                  : () => seekToTime(seekTimeSeconds)
+              }
               disabled={fullAnalysisEnabled}
               activeOpacity={fullAnalysisEnabled ? 1 : 0.7}
             >
@@ -1992,7 +2278,7 @@ export default function SongLyricsScreen() {
                     { color: theme.textColor },
                     isCurrentLine && styles.currentTimedLyric,
                     isPastLine && styles.pastTimedLyric,
-                  ]
+                  ],
                 )
               ) : wkStudyModeEnabled ? (
                 <Text
@@ -2004,7 +2290,10 @@ export default function SongLyricsScreen() {
                     isPastLine && styles.pastTimedLyric,
                   ]}
                 >
-                  {highlightTimedLyricLine(line.words, timedLineOffsets[index] ?? 0)}
+                  {highlightTimedLyricLine(
+                    line.words,
+                    timedLineOffsets[index] ?? 0,
+                  )}
                 </Text>
               ) : (
                 <Text
@@ -2035,7 +2324,7 @@ export default function SongLyricsScreen() {
   // Helper function to render one static lyric line with highlights
   const renderStaticLyricLine = (
     lineText: string,
-    lineStartOffset: number
+    lineStartOffset: number,
   ): ReactElement => {
     if (fullAnalysisEnabled) {
       return renderUnderlinedAnalyzedText(lineText, lineStartOffset, [
@@ -2072,13 +2361,19 @@ export default function SongLyricsScreen() {
       >
         {segments.map((segment, index) => {
           if (!segment.match) {
-            return <Text key={`text-${lineStartOffset}-${index}`}>{segment.text}</Text>;
+            return (
+              <Text key={`text-${lineStartOffset}-${index}`}>
+                {segment.text}
+              </Text>
+            );
           }
 
           const highlight = segment.match;
           const color = getItemColor(highlight.type);
           const isWaniKaniBacked = isWaniKaniBackedMatch(highlight);
-          const shouldKnow = isWaniKaniBacked ? highlight.level <= userLevel : true;
+          const shouldKnow = isWaniKaniBacked
+            ? highlight.level <= userLevel
+            : true;
           const showLevelBadge = !shouldKnow && isWaniKaniBacked;
           const showJpdbBadge = !isWaniKaniBacked;
 
@@ -2091,7 +2386,8 @@ export default function SongLyricsScreen() {
               activeOpacity={0.7}
               style={[
                 styles.inlineChipWrapper,
-                (showLevelBadge || showJpdbBadge) && styles.inlineChipWrapperWithBadge,
+                (showLevelBadge || showJpdbBadge) &&
+                  styles.inlineChipWrapperWithBadge,
               ]}
             >
               <View
@@ -2142,7 +2438,8 @@ export default function SongLyricsScreen() {
     return (
       <>
         {staticLyricLines.map((line, index) => {
-          const translatedLineText = staticLineTranslationsForDisplay[index] ?? null;
+          const translatedLineText =
+            staticLineTranslationsForDisplay[index] ?? null;
           const hasVisibleText = line.text.trim().length > 0;
 
           return (
@@ -2261,7 +2558,9 @@ export default function SongLyricsScreen() {
                       ? "Disable English line translations"
                       : "Enable English line translations"
                   }
-                  systemImage={lineTranslationsEnabled ? "checkmark.circle.fill" : "circle"}
+                  systemImage={
+                    lineTranslationsEnabled ? "checkmark.circle.fill" : "circle"
+                  }
                   onPress={toggleLineTranslationsFromMenu}
                   modifiers={
                     SwiftUIModifiers
@@ -2290,7 +2589,9 @@ export default function SongLyricsScreen() {
       {error ? (
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color={theme.error} />
-          <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
+          <Text style={[styles.errorText, { color: theme.error }]}>
+            {error}
+          </Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: theme.primary }]}
             onPress={loadLyrics}
@@ -2314,46 +2615,249 @@ export default function SongLyricsScreen() {
         >
           {/* Lyrics */}
           <View
-            style={[styles.lyricsCard, { backgroundColor: theme.cardBackground }]}
+            style={[
+              styles.lyricsCard,
+              { backgroundColor: theme.cardBackground },
+            ]}
           >
             <View style={styles.lyricsTitleRow}>
               <Text style={[styles.lyricsTitle, { color: theme.textColor }]}>
                 Lyrics
               </Text>
               {timedLyrics.length > 0 && (
-                <View ref={syncToggleRef} style={styles.syncToggleRow}>
-                  <Ionicons
-                    name="sync"
-                    size={18}
-                    color={theme.textSecondary}
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text
-                    style={[styles.syncToggleLabel, { color: theme.textSecondary }]}
-                  >
-                    Sync
-                  </Text>
-                  <Switch
-                    value={isTimedMode}
-                    onValueChange={(value) => {
-                      setIsTimedMode(value);
-                      if (value) {
-                        setIsAutoscrollEnabled(true);
-                      }
-                    }}
-                    trackColor={{ false: "#767577", true: theme.primary }}
-                    thumbColor="#f4f3f4"
-                  />
+                <View style={styles.lyricsTitleActions}>
+                  {isTimedMode && (
+                    <TouchableOpacity
+                      style={[
+                        styles.lyricsTimingToggleButton,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: isLyricsTimingAdjustmentEnabled
+                            ? withAlpha(
+                                theme.primary,
+                                theme.isDark ? 0.28 : 0.12,
+                              )
+                            : "transparent",
+                        },
+                      ]}
+                      onPress={openLyricsTimingAdjustment}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={
+                          isLyricsTimingAdjustmentEnabled
+                            ? theme.primary
+                            : theme.textSecondary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.lyricsTimingToggleButtonText,
+                          {
+                            color: isLyricsTimingAdjustmentEnabled
+                              ? theme.primary
+                              : theme.textSecondary,
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {isLyricsTimingAdjustmentEnabled &&
+                        lyricsTimingOffsetMs !== 0
+                          ? lyricsTimingOffsetDisplay
+                          : "Delay"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <View ref={syncToggleRef} style={styles.syncToggleRow}>
+                    <Ionicons
+                      name="sync"
+                      size={18}
+                      color={theme.textSecondary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={[
+                        styles.syncToggleLabel,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Sync
+                    </Text>
+                    <Switch
+                      value={isTimedMode}
+                      onValueChange={(value) => {
+                        setIsTimedMode(value);
+                        if (value) {
+                          setIsAutoscrollEnabled(true);
+                        } else {
+                          setIsLyricsTimingControlVisible(false);
+                        }
+                      }}
+                      trackColor={{ false: "#767577", true: theme.primary }}
+                      thumbColor="#f4f3f4"
+                    />
+                  </View>
                 </View>
               )}
             </View>
+
+            {shouldShowLyricsTimingControl ? (
+              <View
+                style={[
+                  styles.lyricsTimingControl,
+                  {
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.lyricsTimingHeader}>
+                  <View style={styles.lyricsTimingTitleGroup}>
+                    <Ionicons
+                      name="time-outline"
+                      size={16}
+                      color={theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.lyricsTimingTitle,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      Lyrics timing
+                    </Text>
+                  </View>
+                  <View style={styles.lyricsTimingHeaderActions}>
+                    <Text
+                      style={[
+                        styles.lyricsTimingValue,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {lyricsTimingOffsetDisplay}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.lyricsTimingCloseButton}
+                      onPress={closeLyricsTimingAdjustment}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={18}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Slider
+                  style={styles.lyricsTimingSlider}
+                  minimumValue={LYRICS_TIMING_OFFSET_MIN_MS / 1000}
+                  maximumValue={LYRICS_TIMING_OFFSET_MAX_MS / 1000}
+                  step={LYRICS_TIMING_OFFSET_STEP_MS / 1000}
+                  value={lyricsTimingOffsetSeconds}
+                  onValueChange={handleLyricsTimingOffsetChange}
+                  minimumTrackTintColor={theme.primary}
+                  maximumTrackTintColor={theme.border}
+                  thumbTintColor={theme.primary}
+                />
+                <View style={styles.lyricsTimingActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.lyricsTimingButton,
+                      { borderColor: theme.border },
+                      lyricsTimingOffsetMs <= LYRICS_TIMING_OFFSET_MIN_MS &&
+                        styles.lyricsTimingButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      adjustLyricsTimingOffset(-LYRICS_TIMING_OFFSET_STEP_MS)
+                    }
+                    disabled={
+                      lyricsTimingOffsetMs <= LYRICS_TIMING_OFFSET_MIN_MS
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="play-back-outline"
+                      size={15}
+                      color={theme.textColor}
+                    />
+                    <Text
+                      style={[
+                        styles.lyricsTimingButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      -0.5s
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.lyricsTimingButton,
+                      { borderColor: theme.border },
+                      lyricsTimingOffsetMs === 0 &&
+                        styles.lyricsTimingButtonDisabled,
+                    ]}
+                    onPress={resetLyricsTimingOffset}
+                    disabled={lyricsTimingOffsetMs === 0}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="refresh-outline"
+                      size={15}
+                      color={theme.textColor}
+                    />
+                    <Text
+                      style={[
+                        styles.lyricsTimingButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      Reset
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.lyricsTimingButton,
+                      { borderColor: theme.border },
+                      lyricsTimingOffsetMs >= LYRICS_TIMING_OFFSET_MAX_MS &&
+                        styles.lyricsTimingButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      adjustLyricsTimingOffset(LYRICS_TIMING_OFFSET_STEP_MS)
+                    }
+                    disabled={
+                      lyricsTimingOffsetMs >= LYRICS_TIMING_OFFSET_MAX_MS
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.lyricsTimingButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      +0.5s
+                    </Text>
+                    <Ionicons
+                      name="play-forward-outline"
+                      size={15}
+                      color={theme.textColor}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
 
             {/* Show info message when timed lyrics unavailable and we're in static mode */}
             {timedLyricsStatus === "unavailable" &&
               !isTimedMode &&
               timedLyrics.length === 0 && (
                 <View
-                  style={[styles.infoMessage, { backgroundColor: theme.border }]}
+                  style={[
+                    styles.infoMessage,
+                    { backgroundColor: theme.border },
+                  ]}
                 >
                   <View style={styles.infoMessageContent}>
                     <Ionicons
@@ -2440,7 +2944,7 @@ export default function SongLyricsScreen() {
                               },
                             ]}
                           />
-                        )
+                        ),
                       )}
                     </View>
                   ))}
@@ -2523,7 +3027,8 @@ export default function SongLyricsScreen() {
                         { color: theme.textSecondary },
                       ]}
                     >
-                      Choose between plain lyrics, WK chips, or full JPDB grammar underlines.
+                      Choose between plain lyrics, WK chips, or full JPDB
+                      grammar underlines.
                     </Text>
                   </View>
                 </View>
@@ -2582,9 +3087,7 @@ export default function SongLyricsScreen() {
                         styles.analysisModeSelectorButtonText,
                         {
                           color:
-                            activeStudyMode === "wk"
-                              ? "#fff"
-                              : theme.textColor,
+                            activeStudyMode === "wk" ? "#fff" : theme.textColor,
                         },
                       ]}
                     >
@@ -2595,7 +3098,8 @@ export default function SongLyricsScreen() {
                   <TouchableOpacity
                     style={[
                       styles.analysisModeSelectorButton,
-                      !hasStoredJpdbApiKey && styles.analysisModeSelectorButtonDisabled,
+                      !hasStoredJpdbApiKey &&
+                        styles.analysisModeSelectorButtonDisabled,
                       {
                         borderColor: theme.border,
                         backgroundColor:
@@ -2667,7 +3171,12 @@ export default function SongLyricsScreen() {
             )}
 
             {/* Tabs */}
-            <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
+            <View
+              style={[
+                styles.tabsContainer,
+                { borderBottomColor: theme.border },
+              ]}
+            >
               {!isAppleMusicFlow && (
                 <TouchableOpacity
                   style={[
@@ -2708,7 +3217,9 @@ export default function SongLyricsScreen() {
                 style={[
                   styles.tab,
                   activeOverrideMode === "lyrics" && styles.activeTab,
-                  activeOverrideMode === "lyrics" && { borderBottomColor: theme.primary }
+                  activeOverrideMode === "lyrics" && {
+                    borderBottomColor: theme.primary,
+                  },
                 ]}
                 onPress={() => setActiveOverrideMode("lyrics")}
                 activeOpacity={0.7}
@@ -2716,12 +3227,21 @@ export default function SongLyricsScreen() {
                 <Ionicons
                   name="musical-notes"
                   size={20}
-                  color={activeOverrideMode === "lyrics" ? theme.primary : theme.textSecondary}
+                  color={
+                    activeOverrideMode === "lyrics"
+                      ? theme.primary
+                      : theme.textSecondary
+                  }
                 />
                 <Text
                   style={[
                     styles.tabText,
-                    { color: activeOverrideMode === "lyrics" ? theme.primary : theme.textSecondary }
+                    {
+                      color:
+                        activeOverrideMode === "lyrics"
+                          ? theme.primary
+                          : theme.textSecondary,
+                    },
                   ]}
                 >
                   Lyrics
@@ -2731,7 +3251,15 @@ export default function SongLyricsScreen() {
 
             {/* Sticky Search Area for Lyrics */}
             {activeOverrideMode === "lyrics" && (
-              <View style={[styles.stickySearchArea, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
+              <View
+                style={[
+                  styles.stickySearchArea,
+                  {
+                    backgroundColor: theme.cardBackground,
+                    borderBottomColor: theme.border,
+                  },
+                ]}
+              >
                 <Text
                   style={[
                     styles.overrideSectionDescription,
@@ -2811,9 +3339,7 @@ export default function SongLyricsScreen() {
                     spellCheck={false}
                   />
                   {lyricsSearchArtist.length > 0 && (
-                    <TouchableOpacity
-                      onPress={() => setLyricsSearchArtist("")}
-                    >
+                    <TouchableOpacity onPress={() => setLyricsSearchArtist("")}>
                       <Ionicons
                         name="close-circle"
                         size={20}
@@ -2838,9 +3364,7 @@ export default function SongLyricsScreen() {
                   ) : (
                     <>
                       <Ionicons name="search" size={18} color="white" />
-                      <Text style={styles.searchButtonText}>
-                        Search Lyrics
-                      </Text>
+                      <Text style={styles.searchButtonText}>Search Lyrics</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -2849,7 +3373,15 @@ export default function SongLyricsScreen() {
 
             {/* Sticky Search Area for Video */}
             {!isAppleMusicFlow && activeOverrideMode === "video" && (
-              <View style={[styles.stickySearchArea, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
+              <View
+                style={[
+                  styles.stickySearchArea,
+                  {
+                    backgroundColor: theme.cardBackground,
+                    borderBottomColor: theme.border,
+                  },
+                ]}
+              >
                 <Text
                   style={[
                     styles.overrideSectionDescription,
@@ -2912,9 +3444,7 @@ export default function SongLyricsScreen() {
                   ) : (
                     <>
                       <Ionicons name="search" size={18} color="white" />
-                      <Text style={styles.searchButtonText}>
-                        Search Videos
-                      </Text>
+                      <Text style={styles.searchButtonText}>Search Videos</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -3007,7 +3537,7 @@ export default function SongLyricsScreen() {
                               >
                                 Duration: {Math.floor(result.duration / 60)}:
                                 {String(
-                                  Math.floor(result.duration) % 60
+                                  Math.floor(result.duration) % 60,
                                 ).padStart(2, "0")}
                               </Text>
                             )}
@@ -3212,6 +3742,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
+  lyricsTitleActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexShrink: 1,
+  },
   syncToggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -3219,6 +3756,88 @@ const styles = StyleSheet.create({
   syncToggleLabel: {
     fontSize: 14,
     marginRight: 8,
+  },
+  lyricsTimingToggleButton: {
+    minHeight: 32,
+    maxWidth: 126,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  lyricsTimingToggleButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  lyricsTimingControl: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginBottom: 16,
+  },
+  lyricsTimingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  lyricsTimingHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  lyricsTimingCloseButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+  },
+  lyricsTimingTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
+  },
+  lyricsTimingTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  lyricsTimingValue: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  lyricsTimingSlider: {
+    height: 36,
+    marginTop: 4,
+  },
+  lyricsTimingActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  lyricsTimingButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  lyricsTimingButtonDisabled: {
+    opacity: 0.42,
+  },
+  lyricsTimingButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   infoMessage: {
     flexDirection: "column",

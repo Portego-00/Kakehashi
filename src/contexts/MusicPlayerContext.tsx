@@ -35,6 +35,7 @@ interface MusicPlayerContextType {
 
   // Lyrics
   timedLyrics: TimedLyricsLine[];
+  lyricsTimingOffsetMs: number;
 
   // Player state
   isPlaying: boolean;
@@ -55,6 +56,7 @@ interface MusicPlayerContextType {
     songUrl?: string;
     musicSource?: MusicSource;
     durationMs?: number;
+    lyricsTimingOffsetMs?: number;
   }) => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
@@ -66,10 +68,11 @@ interface MusicPlayerContextType {
   onStateChange: (state: string) => void;
   clearPlayer: () => void;
   setTimedLyrics: (lyrics: TimedLyricsLine[]) => void;
+  setLyricsTimingOffsetMs: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const MusicPlayerContext = createContext<MusicPlayerContextType | undefined>(
-  undefined
+  undefined,
 );
 
 const isIOS = Platform.OS === "ios";
@@ -106,6 +109,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
 
   // Lyrics
   const [timedLyrics, setTimedLyrics] = useState<TimedLyricsLine[]>([]);
+  const [lyricsTimingOffsetMs, setLyricsTimingOffsetMs] = useState(0);
 
   // Player state
   const [isPlayingState, setIsPlayingState] = useState(false);
@@ -123,6 +127,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
   const isPlayingRef = useRef(false);
+  const lyricsTimingSongKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     musicSourceRef.current = musicSource;
@@ -177,7 +182,9 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       setCurrentTime(state?.playbackTime ?? 0);
       setPlaybackPlayingState(isPlayingStatus(state?.playbackStatus));
 
-      const nextDuration = normalizeDurationSeconds(state?.currentSong?.duration);
+      const nextDuration = normalizeDurationSeconds(
+        state?.currentSong?.duration,
+      );
       if (nextDuration > 0) {
         setDuration(nextDuration);
       }
@@ -200,11 +207,13 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
 
         setPlaybackPlayingState(isPlayingStatus(state?.playbackStatus));
 
-        const nextDuration = normalizeDurationSeconds(state?.currentSong?.duration);
+        const nextDuration = normalizeDurationSeconds(
+          state?.currentSong?.duration,
+        );
         if (nextDuration > 0) {
           setDuration(nextDuration);
         }
-      }
+      },
     );
 
     const playbackTimeListener = Player.addListener(
@@ -213,7 +222,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         if (typeof state?.playbackTime === "number") {
           setCurrentTime(state.playbackTime);
         }
-      }
+      },
     );
 
     const currentSongListener = Player.addListener(
@@ -223,7 +232,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         if (nextDuration > 0) {
           setDuration(nextDuration);
         }
-      }
+      },
     );
 
     appleListenersRef.current = [
@@ -270,7 +279,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         playerRef.current = null;
       }
     },
-    [clearAppleListeners, setupAppleListeners, updateAppleStateFromNative]
+    [clearAppleListeners, setupAppleListeners, updateAppleStateFromNative],
   );
 
   const setSongInfo = useCallback(
@@ -283,6 +292,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       songUrl?: string;
       musicSource?: MusicSource;
       durationMs?: number;
+      lyricsTimingOffsetMs?: number;
     }) => {
       const source = info.musicSource || "youtube";
       const nextAppleTrackId = source === "apple" ? info.songId || null : null;
@@ -304,6 +314,22 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         : isSameLoadedMedia
           ? durationRef.current
           : 0;
+      const nextLyricsTimingSongKey = [
+        source,
+        info.songId || "",
+        info.songTitle,
+        info.artist,
+      ].join("|");
+
+      if (
+        typeof info.lyricsTimingOffsetMs === "number" &&
+        Number.isFinite(info.lyricsTimingOffsetMs)
+      ) {
+        setLyricsTimingOffsetMs(info.lyricsTimingOffsetMs);
+      } else if (lyricsTimingSongKeyRef.current !== nextLyricsTimingSongKey) {
+        setLyricsTimingOffsetMs(0);
+      }
+      lyricsTimingSongKeyRef.current = nextLyricsTimingSongKey;
 
       setAlbumArt(info.albumArt);
       setSongTitle(info.songTitle);
@@ -359,7 +385,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       if (info.songTitle && info.artist) {
         const cacheKeyBase = `wanikani_lyrics_v1_${info.songTitle.replace(
           /\s+/g,
-          ""
+          "",
         )}_${info.artist.replace(/\s+/g, "")}`;
 
         // Load Video from cache
@@ -373,7 +399,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
               }
             })
             .catch((err: any) =>
-              console.error("Error loading cached video in context", err)
+              console.error("Error loading cached video in context", err),
             );
         }
 
@@ -390,14 +416,14 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
                 console.log(
                   "Global Context: Found cached lyrics",
                   cachedLyrics.timedLyrics.length,
-                  "lines"
+                  "lines",
                 );
                 setTimedLyrics(cachedLyrics.timedLyrics);
               }
             }
           })
           .catch((err: any) =>
-            console.error("Error loading cached lyrics in context", err)
+            console.error("Error loading cached lyrics in context", err),
           );
       }
     },
@@ -406,7 +432,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       loadAppleTrack,
       setPlaybackPlayingState,
       spotifyPlayer,
-    ]
+    ],
   );
 
   const setIsPlaying = useCallback(
@@ -436,7 +462,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
 
       setPlaybackPlayingState(playing);
     },
-    [setPlaybackPlayingState, spotifyPlayer]
+    [setPlaybackPlayingState, spotifyPlayer],
   );
 
   const togglePlayPause = useCallback(() => {
@@ -475,10 +501,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error skipping forward:", error);
     }
-  }, [
-    musicSource,
-    spotifyPlayer,
-  ]);
+  }, [musicSource, spotifyPlayer]);
 
   const skipBackward = useCallback(async () => {
     if (musicSource === "apple") {
@@ -511,10 +534,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error skipping backward:", error);
     }
-  }, [
-    musicSource,
-    spotifyPlayer,
-  ]);
+  }, [musicSource, spotifyPlayer]);
 
   const onStateChange = useCallback(
     (state: string) => {
@@ -545,7 +565,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [musicSource, setPlaybackPlayingState]
+    [musicSource, setPlaybackPlayingState],
   );
 
   const clearPlayer = useCallback(() => {
@@ -574,6 +594,8 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     setSpotifyTrackId(null);
     setTimedLyrics([]);
     setPlaybackPlayingState(false);
+    setLyricsTimingOffsetMs(0);
+    lyricsTimingSongKeyRef.current = null;
     setCurrentTime(0);
     setDuration(0);
     setIsPlayerExpanded(false);
@@ -609,6 +631,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     appleTrackId,
     spotifyTrackId,
     timedLyrics,
+    lyricsTimingOffsetMs,
     isPlaying: isPlayingState,
     currentTime,
     duration,
@@ -625,6 +648,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     onStateChange,
     clearPlayer,
     setTimedLyrics,
+    setLyricsTimingOffsetMs,
   };
 
   return (
