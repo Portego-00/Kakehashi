@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Slider from "@react-native-community/slider";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   memo,
@@ -85,6 +86,34 @@ const GRAMMAR_TOOLTIP_ID_MIN = -9000000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
 const LRC_TIMESTAMP_REGEX = /\[(?:\d{1,2}:)?\d{1,2}(?:\.\d{1,3})?\]/g;
 const LEADING_COMMA_PATTERN = /^\s*,\s*/;
+const LYRICS_TIMING_OFFSET_MIN_MS = -60000;
+const LYRICS_TIMING_OFFSET_MAX_MS = 60000;
+const LYRICS_TIMING_OFFSET_STEP_MS = 500;
+
+function clampLyricsTimingOffsetMs(offsetMs: number): number {
+  if (!Number.isFinite(offsetMs)) {
+    return 0;
+  }
+
+  const roundedOffsetMs =
+    Math.round(offsetMs / LYRICS_TIMING_OFFSET_STEP_MS) *
+    LYRICS_TIMING_OFFSET_STEP_MS;
+  return Math.min(
+    LYRICS_TIMING_OFFSET_MAX_MS,
+    Math.max(LYRICS_TIMING_OFFSET_MIN_MS, roundedOffsetMs)
+  );
+}
+
+function formatLyricsTimingOffset(offsetMs: number): string {
+  if (offsetMs === 0) {
+    return "In sync";
+  }
+
+  const seconds = Math.abs(offsetMs) / 1000;
+  return offsetMs > 0
+    ? `Delay +${seconds.toFixed(1)}s`
+    : `Advance ${seconds.toFixed(1)}s`;
+}
 
 function normalizeLyricLineForTranslation(line: string): string {
   return line.replace(LRC_TIMESTAMP_REGEX, "").trim();
@@ -269,6 +298,8 @@ export default function SongLyricsScreen() {
     setSongInfo,
     setIsPlaying,
     setTimedLyrics: setGlobalTimedLyrics,
+    lyricsTimingOffsetMs,
+    setLyricsTimingOffsetMs,
   } = useMusicPlayer();
 
   const [lyrics, setLyrics] = useState<string>("");
@@ -338,6 +369,8 @@ export default function SongLyricsScreen() {
     useState(false);
   const [lyricsTranslationStatusMessage, setLyricsTranslationStatusMessage] =
     useState<string | null>(null);
+  const [hasLoadedLyricsTimingOffset, setHasLoadedLyricsTimingOffset] =
+    useState(false);
 
   const vocabularyMatchesById = useMemo(
     () => new Map(vocabularyMatches.map((match) => [match.id, match])),
@@ -371,6 +404,15 @@ export default function SongLyricsScreen() {
   const lineTranslationsCacheKey = songLyricsCacheBaseKey
     ? `${songLyricsCacheBaseKey}_translations`
     : null;
+  const lyricsTimingOffsetCacheKey = songLyricsCacheBaseKey
+    ? `${songLyricsCacheBaseKey}_lyrics_timing_offset_ms`
+    : null;
+  const lyricsTimingOffsetSeconds = lyricsTimingOffsetMs / 1000;
+  const lyricsTimingOffsetDisplay = useMemo(
+    () => formatLyricsTimingOffset(lyricsTimingOffsetMs),
+    [lyricsTimingOffsetMs]
+  );
+  const lyricsTimingOffsetMsRef = useRef(0);
   const staticLyricLines = useMemo(() => {
     if (!lyrics) {
       return [];
@@ -787,6 +829,7 @@ export default function SongLyricsScreen() {
           songId: effectiveAppleSongId,
           songUrl: musicSource === "apple" ? songUrl : undefined,
           musicSource: "apple",
+          lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -838,6 +881,7 @@ export default function SongLyricsScreen() {
           songId,
           songUrl,
           musicSource: "spotify",
+          lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
         });
         if (timedLinesForPlayer.length > 0) {
           setGlobalTimedLyrics(timedLinesForPlayer);
@@ -896,6 +940,87 @@ export default function SongLyricsScreen() {
   useEffect(() => {
     setLyricsTranslationStatusMessage(null);
   }, [songTitle, artist]);
+
+  useEffect(() => {
+    let didCancel = false;
+
+    setHasLoadedLyricsTimingOffset(false);
+    lyricsTimingOffsetMsRef.current = 0;
+    setLyricsTimingOffsetMs(0);
+
+    const loadLyricsTimingOffset = async () => {
+      if (!lyricsTimingOffsetCacheKey) {
+        if (!didCancel) {
+          setHasLoadedLyricsTimingOffset(true);
+        }
+        return;
+      }
+
+      try {
+        const cachedOffsetMs = await AsyncStorage.getItem(
+          lyricsTimingOffsetCacheKey
+        );
+        if (didCancel) {
+          return;
+        }
+
+        const parsedOffsetMs =
+          cachedOffsetMs === null ? 0 : Number.parseFloat(cachedOffsetMs);
+        const nextOffsetMs = clampLyricsTimingOffsetMs(parsedOffsetMs);
+        lyricsTimingOffsetMsRef.current = nextOffsetMs;
+        setLyricsTimingOffsetMs(nextOffsetMs);
+        setHasLoadedLyricsTimingOffset(true);
+      } catch (cacheError) {
+        console.error("Error loading lyric timing offset:", cacheError);
+        if (!didCancel) {
+          lyricsTimingOffsetMsRef.current = 0;
+          setLyricsTimingOffsetMs(0);
+          setHasLoadedLyricsTimingOffset(true);
+        }
+      }
+    };
+
+    void loadLyricsTimingOffset();
+
+    return () => {
+      didCancel = true;
+    };
+  }, [lyricsTimingOffsetCacheKey, setLyricsTimingOffsetMs]);
+
+  useEffect(() => {
+    lyricsTimingOffsetMsRef.current = lyricsTimingOffsetMs;
+  }, [lyricsTimingOffsetMs]);
+
+  useEffect(() => {
+    if (!lyricsTimingOffsetCacheKey || !hasLoadedLyricsTimingOffset) {
+      return;
+    }
+
+    const normalizedOffsetMs = clampLyricsTimingOffsetMs(lyricsTimingOffsetMs);
+    const saveTimeout = setTimeout(() => {
+      if (normalizedOffsetMs === 0) {
+        AsyncStorage.removeItem(lyricsTimingOffsetCacheKey).catch((cacheError) =>
+          console.error("Error clearing lyric timing offset:", cacheError)
+        );
+        return;
+      }
+
+      AsyncStorage.setItem(
+        lyricsTimingOffsetCacheKey,
+        String(normalizedOffsetMs)
+      ).catch((cacheError) =>
+        console.error("Error saving lyric timing offset:", cacheError)
+      );
+    }, 250);
+
+    return () => {
+      clearTimeout(saveTimeout);
+    };
+  }, [
+    lyricsTimingOffsetCacheKey,
+    lyricsTimingOffsetMs,
+    hasLoadedLyricsTimingOffset,
+  ]);
 
   useEffect(() => {
     let didCancel = false;
@@ -1384,6 +1509,34 @@ export default function SongLyricsScreen() {
     setSongsLyricsLineTranslationsEnabled,
   ]);
 
+  const handleLyricsTimingOffsetChange = useCallback(
+    (offsetSeconds: number) => {
+      const nextOffsetMs = clampLyricsTimingOffsetMs(offsetSeconds * 1000);
+      lyricsTimingOffsetMsRef.current = nextOffsetMs;
+      setLyricsTimingOffsetMs(nextOffsetMs);
+      setIsAutoscrollEnabled(true);
+    },
+    [setLyricsTimingOffsetMs]
+  );
+
+  const adjustLyricsTimingOffset = useCallback(
+    (deltaMs: number) => {
+      const nextOffsetMs = clampLyricsTimingOffsetMs(
+        lyricsTimingOffsetMs + deltaMs
+      );
+      lyricsTimingOffsetMsRef.current = nextOffsetMs;
+      setLyricsTimingOffsetMs(nextOffsetMs);
+      setIsAutoscrollEnabled(true);
+    },
+    [lyricsTimingOffsetMs, setLyricsTimingOffsetMs]
+  );
+
+  const resetLyricsTimingOffset = useCallback(() => {
+    lyricsTimingOffsetMsRef.current = 0;
+    setLyricsTimingOffsetMs(0);
+    setIsAutoscrollEnabled(true);
+  }, [setLyricsTimingOffsetMs]);
+
   const searchVideos = useCallback(async (query: string) => {
     if (!query.trim()) return;
 
@@ -1410,6 +1563,7 @@ export default function SongLyricsScreen() {
         songId,
         songUrl,
         musicSource: "spotify",
+        lyricsTimingOffsetMs: lyricsTimingOffsetMsRef.current,
       });
       setShowOverrideModal(false);
 
@@ -1513,12 +1667,12 @@ export default function SongLyricsScreen() {
     )
       return;
 
-    const currentTimeMs = currentTime * 1000;
+    const adjustedCurrentTimeMs = currentTime * 1000 - lyricsTimingOffsetMs;
     const currentLineIndex = timedLyrics.findIndex((line, index) => {
       const nextLine = timedLyrics[index + 1];
       return (
-        currentTimeMs >= line.startTimeMs &&
-        (!nextLine || currentTimeMs < nextLine.startTimeMs)
+        adjustedCurrentTimeMs >= line.startTimeMs &&
+        (!nextLine || adjustedCurrentTimeMs < nextLine.startTimeMs)
       );
     });
 
@@ -1539,6 +1693,7 @@ export default function SongLyricsScreen() {
     }
   }, [
     currentTime,
+    lyricsTimingOffsetMs,
     isTimedMode,
     isPlaying,
     timedLyrics,
@@ -1857,18 +2012,24 @@ export default function SongLyricsScreen() {
 
   // Helper function to render timed lyrics
   const renderTimedLyrics = (): ReactElement => {
-    const currentTimeMs = currentTime * 1000;
+    const adjustedCurrentTimeMs = currentTime * 1000 - lyricsTimingOffsetMs;
 
     return (
       <>
         {timedLyrics.map((line, index) => {
           const isCurrentLine =
-            currentTimeMs >= line.startTimeMs &&
+            adjustedCurrentTimeMs >= line.startTimeMs &&
             (!timedLyrics[index + 1] ||
-              currentTimeMs < timedLyrics[index + 1].startTimeMs);
+              adjustedCurrentTimeMs < timedLyrics[index + 1].startTimeMs);
 
-          const isPastLine = currentTimeMs > line.startTimeMs && !isCurrentLine;
-          const translatedLineText = timedLineTranslationsForDisplay[index] ?? null;
+          const isPastLine =
+            adjustedCurrentTimeMs > line.startTimeMs && !isCurrentLine;
+          const translatedLineText =
+            timedLineTranslationsForDisplay[index] ?? null;
+          const seekTimeSeconds = Math.max(
+            0,
+            (line.startTimeMs + lyricsTimingOffsetMs) / 1000
+          );
 
           return (
             <TouchableOpacity
@@ -1877,7 +2038,9 @@ export default function SongLyricsScreen() {
                 if (ref) lineRefs.current[index] = ref;
               }}
               style={styles.timedLyricLine}
-              onPress={fullAnalysisEnabled ? undefined : () => seekToTime(line.startTimeMs / 1000)}
+              onPress={
+                fullAnalysisEnabled ? undefined : () => seekToTime(seekTimeSeconds)
+              }
               disabled={fullAnalysisEnabled}
               activeOpacity={fullAnalysisEnabled ? 1 : 0.7}
             >
@@ -2246,6 +2409,139 @@ export default function SongLyricsScreen() {
                 </View>
               )}
             </View>
+
+            {timedLyrics.length > 0 && isTimedMode && (
+              <View
+                style={[
+                  styles.lyricsTimingControl,
+                  {
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.lyricsTimingHeader}>
+                  <View style={styles.lyricsTimingTitleGroup}>
+                    <Ionicons
+                      name="time-outline"
+                      size={16}
+                      color={theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.lyricsTimingTitle,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      Lyrics timing
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.lyricsTimingValue,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {lyricsTimingOffsetDisplay}
+                  </Text>
+                </View>
+                <Slider
+                  style={styles.lyricsTimingSlider}
+                  minimumValue={LYRICS_TIMING_OFFSET_MIN_MS / 1000}
+                  maximumValue={LYRICS_TIMING_OFFSET_MAX_MS / 1000}
+                  step={LYRICS_TIMING_OFFSET_STEP_MS / 1000}
+                  value={lyricsTimingOffsetSeconds}
+                  onValueChange={handleLyricsTimingOffsetChange}
+                  minimumTrackTintColor={theme.primary}
+                  maximumTrackTintColor={theme.border}
+                  thumbTintColor={theme.primary}
+                />
+                <View style={styles.lyricsTimingActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.lyricsTimingButton,
+                      { borderColor: theme.border },
+                      lyricsTimingOffsetMs <= LYRICS_TIMING_OFFSET_MIN_MS &&
+                        styles.lyricsTimingButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      adjustLyricsTimingOffset(-LYRICS_TIMING_OFFSET_STEP_MS)
+                    }
+                    disabled={
+                      lyricsTimingOffsetMs <= LYRICS_TIMING_OFFSET_MIN_MS
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="play-back-outline"
+                      size={15}
+                      color={theme.textColor}
+                    />
+                    <Text
+                      style={[
+                        styles.lyricsTimingButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      -0.5s
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.lyricsTimingButton,
+                      { borderColor: theme.border },
+                      lyricsTimingOffsetMs === 0 &&
+                        styles.lyricsTimingButtonDisabled,
+                    ]}
+                    onPress={resetLyricsTimingOffset}
+                    disabled={lyricsTimingOffsetMs === 0}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="refresh-outline"
+                      size={15}
+                      color={theme.textColor}
+                    />
+                    <Text
+                      style={[
+                        styles.lyricsTimingButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      Reset
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.lyricsTimingButton,
+                      { borderColor: theme.border },
+                      lyricsTimingOffsetMs >= LYRICS_TIMING_OFFSET_MAX_MS &&
+                        styles.lyricsTimingButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      adjustLyricsTimingOffset(LYRICS_TIMING_OFFSET_STEP_MS)
+                    }
+                    disabled={
+                      lyricsTimingOffsetMs >= LYRICS_TIMING_OFFSET_MAX_MS
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.lyricsTimingButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      +0.5s
+                    </Text>
+                    <Ionicons
+                      name="play-forward-outline"
+                      size={15}
+                      color={theme.textColor}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Show info message when timed lyrics unavailable and we're in static mode */}
             {timedLyricsStatus === "unavailable" &&
@@ -3118,6 +3414,60 @@ const styles = StyleSheet.create({
   syncToggleLabel: {
     fontSize: 14,
     marginRight: 8,
+  },
+  lyricsTimingControl: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginBottom: 16,
+  },
+  lyricsTimingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  lyricsTimingTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
+  },
+  lyricsTimingTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  lyricsTimingValue: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  lyricsTimingSlider: {
+    height: 36,
+    marginTop: 4,
+  },
+  lyricsTimingActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  lyricsTimingButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  lyricsTimingButtonDisabled: {
+    opacity: 0.42,
+  },
+  lyricsTimingButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   infoMessage: {
     flexDirection: "column",
