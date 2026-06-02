@@ -1,15 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import { FlashList } from "@shopify/flash-list";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { LinearGradient } from "expo-linear-gradient";
 import { Directory, File, Paths } from "expo-file-system";
 import * as FileSystem from "expo-file-system";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -17,6 +19,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { appleMusicService } from "../../src/services/appleMusicService";
 import {
   spotifyService,
@@ -36,6 +45,7 @@ const formatSongCount = (count: number): string =>
 
 export default function PlaylistDetailScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const playlistId = getParam(params.playlistId);
   const playlistName = getParam(params.playlistName) || "Playlist";
@@ -46,7 +56,7 @@ export default function PlaylistDetailScreen() {
     getParam(params.playlistSource) === "apple" ? "apple" : "spotify";
   const playlistTrackCount = Number.parseInt(
     getParam(params.playlistTrackCount),
-    10
+    10,
   );
   const declaredTrackCount = Number.isFinite(playlistTrackCount)
     ? Math.max(0, playlistTrackCount)
@@ -56,6 +66,11 @@ export default function PlaylistDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [isStickyHeaderInteractive, setIsStickyHeaderInteractive] =
+    useState(false);
+  const listRef = useRef<FlashListRef<SpotifyTrack>>(null);
+  const isStickyHeaderInteractiveRef = useRef(false);
+  const scrollY = useSharedValue(0);
 
   const sourceLabel = playlistSource === "apple" ? "Apple Music" : "Spotify";
   const detailsLine = useMemo(() => {
@@ -66,30 +81,71 @@ export default function PlaylistDetailScreen() {
     return parts.filter(Boolean).join(" • ");
   }, [declaredTrackCount, playlistOwnerName, sourceLabel, tracks.length]);
 
-  const cacheAlbumArt = useCallback(async (song: SpotifyTrack): Promise<string> => {
-    try {
-      const cacheDir = new Directory(Paths.cache, "songs");
-      cacheDir.create({ idempotent: true });
+  const stickyHeaderStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [90, 140, 190],
+      [0, 0.45, 1],
+      Extrapolation.CLAMP,
+    );
 
-      const imagesDir = new Directory(cacheDir.uri, IMAGES_CACHE_DIR);
-      imagesDir.create({ idempotent: true });
+    const translateY = interpolate(
+      scrollY.value,
+      [90, 150],
+      [-52, 0],
+      Extrapolation.CLAMP,
+    );
 
-      const localUri = `${imagesDir.uri}/${song.id}.jpg`;
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      if (fileInfo.exists) {
-        return localUri;
+    return {
+      opacity,
+      transform: [{ translateY }],
+    };
+  });
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nextScrollY = event.nativeEvent.contentOffset.y;
+      scrollY.value = nextScrollY;
+      const nextInteractive = nextScrollY > 150;
+      if (isStickyHeaderInteractiveRef.current !== nextInteractive) {
+        isStickyHeaderInteractiveRef.current = nextInteractive;
+        setIsStickyHeaderInteractive(nextInteractive);
       }
+    },
+    [scrollY],
+  );
 
-      const downloadResult = await FileSystem.downloadAsync(
-        song.albumArt,
-        localUri
-      );
-
-      return downloadResult.status === 200 ? localUri : song.albumArt;
-    } catch {
-      return song.albumArt;
-    }
+  const scrollToTop = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
+
+  const cacheAlbumArt = useCallback(
+    async (song: SpotifyTrack): Promise<string> => {
+      try {
+        const cacheDir = new Directory(Paths.cache, "songs");
+        cacheDir.create({ idempotent: true });
+
+        const imagesDir = new Directory(cacheDir.uri, IMAGES_CACHE_DIR);
+        imagesDir.create({ idempotent: true });
+
+        const localUri = `${imagesDir.uri}/${song.id}.jpg`;
+        const fileInfo = await FileSystem.getInfoAsync(localUri);
+        if (fileInfo.exists) {
+          return localUri;
+        }
+
+        const downloadResult = await FileSystem.downloadAsync(
+          song.albumArt,
+          localUri,
+        );
+
+        return downloadResult.status === 200 ? localUri : song.albumArt;
+      } catch {
+        return song.albumArt;
+      }
+    },
+    [],
+  );
 
   const addToHistory = useCallback(
     async (song: SpotifyTrack) => {
@@ -102,7 +158,7 @@ export default function PlaylistDetailScreen() {
           ? (JSON.parse(await historyFile.text()) as SpotifyTrack[])
           : [];
         const filteredHistory = existingHistory.filter(
-          (historySong) => historySong.id !== song.id
+          (historySong) => historySong.id !== song.id,
         );
         const cachedAlbumArt = await cacheAlbumArt(song);
         const nextHistory = [
@@ -115,7 +171,7 @@ export default function PlaylistDetailScreen() {
         console.error("Error saving playlist song history:", historyError);
       }
     },
-    [cacheAlbumArt]
+    [cacheAlbumArt],
   );
 
   useEffect(() => {
@@ -134,12 +190,13 @@ export default function PlaylistDetailScreen() {
       try {
         setIsLoading(true);
         setError(null);
-        const limit = declaredTrackCount > 0
-          ? declaredTrackCount
-          : Number.POSITIVE_INFINITY;
+        const limit =
+          declaredTrackCount > 0
+            ? declaredTrackCount
+            : Number.POSITIVE_INFINITY;
         const playlistTracks = await service.getPlaylistTracks(
           playlistId,
-          limit
+          limit,
         );
 
         if (!didCancel) {
@@ -182,7 +239,7 @@ export default function PlaylistDetailScreen() {
         },
       });
     },
-    [addToHistory, playlistSource]
+    [addToHistory, playlistSource],
   );
 
   const handleRetry = useCallback(() => {
@@ -235,17 +292,14 @@ export default function PlaylistDetailScreen() {
         />
       </TouchableOpacity>
     ),
-    [handleSongPress, theme.isDark, theme.textColor, theme.textSecondary]
+    [handleSongPress, theme.isDark, theme.textColor, theme.textSecondary],
   );
 
   const renderHeader = useCallback(
     () => (
       <View>
         <LinearGradient
-          colors={[
-            theme.isDark ? "#1f7a4d" : "#58d184",
-            theme.backgroundColor,
-          ]}
+          colors={[theme.isDark ? "#1f7a4d" : "#58d184", theme.backgroundColor]}
           style={styles.hero}
         >
           <Pressable
@@ -321,11 +375,13 @@ export default function PlaylistDetailScreen() {
       theme.textSecondary,
       handleSongPress,
       tracks,
-    ]
+    ],
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <StatusBar style={theme.statusBarStyle} />
 
       {isLoading ? (
@@ -342,7 +398,11 @@ export default function PlaylistDetailScreen() {
         <View style={styles.loadingShell}>
           {renderHeader()}
           <View style={styles.centerContent}>
-            <Ionicons name="alert-circle-outline" size={56} color={theme.error} />
+            <Ionicons
+              name="alert-circle-outline"
+              size={56}
+              color={theme.error}
+            />
             <Text style={[styles.errorTitle, { color: theme.error }]}>
               Playlist Error
             </Text>
@@ -360,13 +420,18 @@ export default function PlaylistDetailScreen() {
         </View>
       ) : (
         <FlashList
+          ref={listRef}
           data={tracks}
           renderItem={renderTrack}
           keyExtractor={(item, index) => `${item.source}-${item.id}-${index}`}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={
             <View style={styles.centerContent}>
-              <Ionicons name="musical-notes-outline" size={56} color={theme.textLight} />
+              <Ionicons
+                name="musical-notes-outline"
+                size={56}
+                color={theme.textLight}
+              />
               <Text style={[styles.errorTitle, { color: theme.textColor }]}>
                 No Songs
               </Text>
@@ -377,8 +442,74 @@ export default function PlaylistDetailScreen() {
           }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         />
       )}
+
+      <Animated.View
+        pointerEvents={isStickyHeaderInteractive ? "auto" : "none"}
+        style={[
+          styles.stickyHeader,
+          {
+            backgroundColor: theme.cardBackground,
+            borderBottomColor: theme.border,
+            paddingTop: insets.top + 8,
+            height: insets.top + 72,
+          },
+          stickyHeaderStyle,
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.stickyBackButton}
+          onPress={() => router.back()}
+          hitSlop={12}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="chevron-back" size={26} color={theme.textColor} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.stickyContent}
+          onPress={scrollToTop}
+          activeOpacity={0.75}
+        >
+          {playlistImageUrl ? (
+            <Image
+              source={{ uri: playlistImageUrl }}
+              style={[
+                styles.stickyArtwork,
+                { backgroundColor: theme.isDark ? "#252525" : "#e5e7eb" },
+              ]}
+            />
+          ) : (
+            <View
+              style={[
+                styles.stickyArtwork,
+                styles.stickyArtworkFallback,
+                { backgroundColor: theme.primary },
+              ]}
+            >
+              <Ionicons name="musical-notes" size={20} color="#fff" />
+            </View>
+          )}
+
+          <View style={styles.stickyTextContainer}>
+            <Text
+              style={[styles.stickyTitle, { color: theme.textColor }]}
+              numberOfLines={1}
+            >
+              {playlistName}
+            </Text>
+            <Text
+              style={[styles.stickySubtitle, { color: theme.textSecondary }]}
+              numberOfLines={1}
+            >
+              {detailsLine}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -526,5 +657,53 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700",
+  },
+  stickyHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  stickyBackButton: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stickyContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    minWidth: 0,
+  },
+  stickyArtwork: {
+    width: 42,
+    height: 42,
+    borderRadius: 6,
+  },
+  stickyArtworkFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stickyTextContainer: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  stickyTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  stickySubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
   },
 });

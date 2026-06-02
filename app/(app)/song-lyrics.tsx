@@ -1714,6 +1714,19 @@ export default function SongLyricsScreen() {
     }
   }, [lyricsTimingOffsetMs]);
 
+  const toggleLyricsTimingAdjustment = useCallback(() => {
+    if (isLyricsTimingControlVisible) {
+      closeLyricsTimingAdjustment();
+      return;
+    }
+
+    openLyricsTimingAdjustment();
+  }, [
+    closeLyricsTimingAdjustment,
+    isLyricsTimingControlVisible,
+    openLyricsTimingAdjustment,
+  ]);
+
   const handleLyricsTimingOffsetChange = useCallback(
     (offsetSeconds: number) => {
       const nextOffsetMs = clampLyricsTimingOffsetMs(offsetSeconds * 1000);
@@ -2640,7 +2653,7 @@ export default function SongLyricsScreen() {
                             : "transparent",
                         },
                       ]}
-                      onPress={openLyricsTimingAdjustment}
+                      onPress={toggleLyricsTimingAdjustment}
                       activeOpacity={0.7}
                     >
                       <Ionicons
