@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.73",
+    date: "2026-06-02",
+    changes: [
+      {
+        type: "feature",
+        title: "Song Lyrics Timing Offset",
+        description:
+          "Synced song lyrics now include an optional per-song delay control for matching videos with intros or timing differences.",
+      },
+    ],
+  },
+  {
     version: "1.2.72",
     date: "2026-06-01",
     changes: [

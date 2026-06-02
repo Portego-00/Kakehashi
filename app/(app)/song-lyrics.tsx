@@ -86,6 +86,8 @@ const GRAMMAR_TOOLTIP_ID_MIN = -9000000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
 const LRC_TIMESTAMP_REGEX = /\[(?:\d{1,2}:)?\d{1,2}(?:\.\d{1,3})?\]/g;
 const LEADING_COMMA_PATTERN = /^\s*,\s*/;
+const JAPANESE_TEXT_PATTERN =
+  /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\u3005\u3006\u303b\uff66-\uff9f]/;
 const LYRICS_TIMING_OFFSET_MIN_MS = -60000;
 const LYRICS_TIMING_OFFSET_MAX_MS = 60000;
 const LYRICS_TIMING_OFFSET_STEP_MS = 500;
@@ -119,13 +121,17 @@ function normalizeLyricLineForTranslation(line: string): string {
   return line.replace(LRC_TIMESTAMP_REGEX, "").trim();
 }
 
+function containsJapaneseText(line: string): boolean {
+  return JAPANESE_TEXT_PATTERN.test(line);
+}
+
 function buildDisplayTranslationsForLines(
   lyricLines: string[],
   translationsByNormalizedLine: Record<string, string>
 ): (string | null)[] {
   const resolvedLines = lyricLines.map((line) => {
     const normalizedLine = normalizeLyricLineForTranslation(line);
-    if (!normalizedLine) {
+    if (!normalizedLine || !containsJapaneseText(normalizedLine)) {
       return null;
     }
 
@@ -458,7 +464,10 @@ export default function SongLyricsScreen() {
     () =>
       visibleLinesForTranslation
         .map((line) => normalizeLyricLineForTranslation(line))
-        .filter((line): line is string => line.length > 0),
+        .filter(
+          (line): line is string =>
+            line.length > 0 && containsJapaneseText(line)
+        ),
     [visibleLinesForTranslation]
   );
   const timedLineTranslationsForDisplay = useMemo(() => {
@@ -1078,7 +1087,11 @@ export default function SongLyricsScreen() {
         const normalizedTranslations = Object.entries(
           parsedCache as Record<string, unknown>
         ).reduce<Record<string, string>>((accumulator, [key, value]) => {
-          if (typeof key !== "string" || key.length === 0) {
+          if (typeof key !== "string") {
+            return accumulator;
+          }
+          const normalizedKey = normalizeLyricLineForTranslation(key);
+          if (!normalizedKey || !containsJapaneseText(normalizedKey)) {
             return accumulator;
           }
           if (typeof value !== "string") {
@@ -1090,7 +1103,7 @@ export default function SongLyricsScreen() {
             return accumulator;
           }
 
-          accumulator[key] = trimmedValue;
+          accumulator[normalizedKey] = trimmedValue;
           return accumulator;
         }, {});
 
