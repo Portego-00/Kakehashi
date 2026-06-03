@@ -65,6 +65,12 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Added Spotify account connection, Spotify playback from song lyrics, and playlist importing for Spotify and Apple Music.",
       },
+      {
+        type: "fix",
+        title: "Level-Up Estimate Exclusions",
+        description:
+          "Level Up In estimates now respect levels ignored in Level Timing, keeping long outliers from skewing the countdown.",
+      },
     ],
   },
   {

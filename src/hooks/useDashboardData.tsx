@@ -49,6 +49,11 @@ import {
   formatTimeInterval,
 } from "../utils/levelProgress";
 import {
+  areLevelTimingExcludedLevelsEqual,
+  loadLevelTimingExcludedLevels,
+  subscribeLevelTimingExcludedLevels,
+} from "../utils/levelTimingExclusions";
+import {
   getFullDashboardDataFromPermanentStorage,
   saveAssignmentsToPermanentStorage,
 } from "../utils/permanentStorage";
@@ -158,6 +163,96 @@ const initialDashboardData: DashboardDataType = {
   },
 };
 
+function calculateDashboardLevelTimeRemaining({
+  assignments,
+  subjects,
+  levelProgressions,
+  resets,
+  currentLevel,
+  excludedLevels,
+}: {
+  assignments: any[];
+  subjects: any[];
+  levelProgressions: any[];
+  resets: any[];
+  currentLevel: number;
+  excludedLevels: readonly number[];
+}): DashboardDataType["levelTimeRemaining"] {
+  const subjectsById: Record<number, any> = {};
+  const currentLevelSubjectsById: Record<number, any> = {};
+
+  for (const subject of subjects) {
+    subjectsById[subject.id] = subject;
+    if (subject.data.level === currentLevel) {
+      currentLevelSubjectsById[subject.id] = subject;
+    }
+  }
+
+  const currentLevelAssignments = assignments.filter((assignment) => {
+    return subjectsById[assignment.data.subject_id]?.data.level === currentLevel;
+  });
+
+  const enhancedAssignments = currentLevelAssignments.map((assignment) => {
+    const subject = currentLevelSubjectsById[assignment.data.subject_id];
+    const isLocked = !assignment.data.unlocked_at;
+
+    return {
+      ...assignment,
+      subject,
+      isLocked,
+    };
+  });
+
+  const assignedSubjectIds = new Set(
+    currentLevelAssignments.map((assignment) => assignment.data.subject_id)
+  );
+  const lockedKanjiEntries = Object.values(currentLevelSubjectsById)
+    .filter(
+      (subject: any) =>
+        subject.object === "kanji" &&
+        !subject.data.hidden_at &&
+        !assignedSubjectIds.has(subject.id)
+    )
+    .map((subject: any) => ({
+      id: -subject.id,
+      object: "assignment",
+      url: "",
+      data_updated_at: "",
+      data: {
+        created_at: "",
+        subject_type: "kanji" as const,
+        subject_id: subject.id,
+        unlocked_at: null,
+        started_at: null,
+        passed_at: null,
+        burned_at: null,
+        available_at: null,
+        resurrected_at: null,
+        hidden: false,
+        srs_stage: 0,
+      },
+      subject,
+      isLocked: true,
+    }));
+
+  const allLevelAssignments = [
+    ...enhancedAssignments,
+    ...lockedKanjiEntries,
+  ];
+
+  const { finish, isEstimate } = calculateLevelTimeRemaining(
+    allLevelAssignments,
+    levelProgressions,
+    resets,
+    { excludedLevels, currentLevel }
+  );
+
+  const timeText =
+    finish <= new Date() ? "Now" : formatTimeInterval(finish);
+
+  return { timeText, isEstimate };
+}
+
 interface DashboardContextType {
   dashboardData: DashboardDataType;
   isLoading: boolean;
@@ -253,6 +348,7 @@ const DashboardContext = createContext<DashboardContextType>({
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const { apiToken, setUserData, setLearnedKanjiCount, lastWrappedLevel, setLastWrappedLevel } =
     useAuthStore();
+  const authUserId = useAuthStore((state) => state.userData?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<LoadingStage>(
     LoadingStage.IDLE
@@ -263,6 +359,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const dashboardDataRef = useRef(dashboardData);
   dashboardDataRef.current = dashboardData;
   const [isFreshData, setIsFreshData] = useState(false);
+  const [levelTimingExcludedLevels, setLevelTimingExcludedLevels] = useState<
+    number[]
+  >([]);
   const startupDashboardFetchTrackedRef = useRef(false);
   const dashboardForegroundFetchInFlightRef = useRef(false);
   const dashboardBackgroundRefreshInFlightRef = useRef(false);
@@ -274,6 +373,85 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   // Calculate loading progress based on current stage
   const loadingProgress = loadingStage / TOTAL_LOADING_STAGES;
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    loadLevelTimingExcludedLevels(authUserId)
+      .then((levels) => {
+        if (isCancelled) {
+          return;
+        }
+
+        setLevelTimingExcludedLevels((current) =>
+          areLevelTimingExcludedLevelsEqual(current, levels) ? current : levels
+        );
+      })
+      .catch((error) => {
+        console.warn("Failed to load level timing excluded levels:", error);
+        if (!isCancelled) {
+          setLevelTimingExcludedLevels([]);
+        }
+      });
+
+    const unsubscribe = subscribeLevelTimingExcludedLevels(
+      (changedUserId, levels) => {
+        if ((changedUserId ?? "anonymous") !== (authUserId ?? "anonymous")) {
+          return;
+        }
+
+        setLevelTimingExcludedLevels((current) =>
+          areLevelTimingExcludedLevelsEqual(current, levels) ? current : levels
+        );
+      }
+    );
+
+    return () => {
+      isCancelled = true;
+      unsubscribe();
+    };
+  }, [authUserId]);
+
+  useEffect(() => {
+    setDashboardData((prev) => {
+      if (
+        !prev.dataLoadingState.levelData ||
+        !prev.dataLoadingState.subjects ||
+        prev.subjects.length === 0
+      ) {
+        return prev;
+      }
+
+      try {
+        const levelTimeRemaining = calculateDashboardLevelTimeRemaining({
+          assignments: prev.assignments,
+          subjects: prev.subjects,
+          levelProgressions: prev.levelProgressions,
+          resets: prev.resets,
+          currentLevel: prev.currentLevel,
+          excludedLevels: levelTimingExcludedLevels,
+        });
+
+        if (
+          prev.levelTimeRemaining.timeText === levelTimeRemaining.timeText &&
+          prev.levelTimeRemaining.isEstimate === levelTimeRemaining.isEstimate
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          levelTimeRemaining,
+        };
+      } catch (error) {
+        console.warn(
+          "Error recalculating level time remaining after exclusions changed:",
+          error
+        );
+        return prev;
+      }
+    });
+  }, [levelTimingExcludedLevels]);
 
   const loadPendingProgressAssignmentIds = useCallback(
     async (): Promise<PendingProgressAssignmentIds> => {
@@ -753,101 +931,22 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         };
 
         try {
-          // Get the current level assignments
           const currentLevelValue = userData.data.level;
+          const excludedLevels = await loadLevelTimingExcludedLevels(userData.data.id);
+          setLevelTimingExcludedLevels((current) =>
+            areLevelTimingExcludedLevelsEqual(current, excludedLevels)
+              ? current
+              : excludedLevels
+          );
 
-          const currentLevelAssignments = assignments.data.filter((a) => {
-            // Find the subject for this assignment
-            const subject = allSubjects.find((s) => s.id === a.data.subject_id);
-            // Check if it's from the current level
-            return subject && subject.data.level === currentLevelValue;
+          levelTimeRemainingData = calculateDashboardLevelTimeRemaining({
+            assignments: assignments.data,
+            subjects: allSubjects,
+            levelProgressions: levelProgressions.data,
+            resets: resets.data,
+            currentLevel: currentLevelValue,
+            excludedLevels,
           });
-
-          // Ensure we have the complete subject data for each assignment
-          const currentLevelSubjectsById = allSubjects.reduce(
-            (acc, subject) => {
-              if (subject.data.level === currentLevelValue) {
-                acc[subject.id] = subject;
-              }
-              return acc;
-            },
-            {} as Record<number, any>
-          );
-
-          // Enhance assignments with their full subject data
-          // In Swift, the isLocked property is used to determine if a kanji is locked
-          const enhancedAssignments = currentLevelAssignments.map(
-            (assignment) => {
-              const subject =
-                currentLevelSubjectsById[assignment.data.subject_id];
-
-              // In Swift's assignment class, isLocked means the item isn't unlocked yet
-              // This is different from "started" which means it has been started in lessons
-              const isLocked = !assignment.data.unlocked_at;
-
-              return {
-                ...assignment,
-                // Attach the subject data to match the Swift implementation
-                subject: subject,
-                // Set isLocked property to match Swift's definition
-                isLocked: isLocked,
-              };
-            }
-          );
-
-          // The WaniKani API only returns assignments for unlocked subjects.
-          // Kanji that are still locked (waiting for radicals to guru) have no
-          // assignment at all, so synthesize locked entries here to avoid
-          // underestimating level-up time.
-          const assignedSubjectIds = new Set(
-            currentLevelAssignments.map((a) => a.data.subject_id)
-          );
-          const lockedKanjiEntries = Object.values(currentLevelSubjectsById)
-            .filter(
-              (subject: any) =>
-                subject.object === "kanji" &&
-                !subject.data.hidden_at &&
-                !assignedSubjectIds.has(subject.id)
-            )
-            .map((subject: any) => ({
-              id: -subject.id,
-              object: "assignment",
-              url: "",
-              data_updated_at: "",
-              data: {
-                created_at: "",
-                subject_type: "kanji" as const,
-                subject_id: subject.id,
-                unlocked_at: null,
-                started_at: null,
-                passed_at: null,
-                burned_at: null,
-                available_at: null,
-                resurrected_at: null,
-                hidden: false,
-                srs_stage: 0,
-              },
-              subject,
-              isLocked: true,
-            }));
-
-          const allLevelAssignments = [
-            ...enhancedAssignments,
-            ...lockedKanjiEntries,
-          ];
-
-          // Now call the level time remaining calculator
-          const { finish, isEstimate } = calculateLevelTimeRemaining(
-            allLevelAssignments,
-            levelProgressions.data,
-            resets.data
-          );
-
-          // Format the finish date into a time text
-          const timeText =
-            finish <= new Date() ? "Now" : formatTimeInterval(finish);
-
-          levelTimeRemainingData = { timeText, isEstimate };
         } catch (error) {
           console.warn("Error calculating level time remaining:", error);
           levelTimeRemainingData = {

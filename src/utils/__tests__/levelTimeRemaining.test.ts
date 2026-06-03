@@ -191,6 +191,41 @@ describe("calculateLevelTimeRemaining", () => {
     expect(isEstimate).toBe(true);
     expect(finish.toISOString()).toBe("2026-02-24T23:34:00.000Z");
   });
+
+  it("ignores excluded historical levels for locked-kanji estimates", () => {
+    const lockedKanji = makeSubject(30, 5, "kanji");
+    const assignments: TestAssignment[] = [
+      makeAssignment({
+        id: 30,
+        subjectId: lockedKanji.id,
+        subjectType: "kanji",
+        srsStage: 0,
+        availableAt: null,
+        unlockedAt: null,
+        startedAt: null,
+        isLocked: true,
+        subject: lockedKanji,
+      }),
+    ];
+
+    const levelProgressions = [
+      { data: { level: 1, timeSpentCurrent: 10 * 24 * 60 * 60 } },
+      { data: { level: 2, timeSpentCurrent: 12 * 24 * 60 * 60 } },
+      { data: { level: 3, timeSpentCurrent: 120 * 24 * 60 * 60 } },
+      { data: { level: 4, timeSpentCurrent: 14 * 24 * 60 * 60 } },
+      { data: { level: 5, timeSpentCurrent: 4 * 24 * 60 * 60 } },
+    ];
+
+    const { finish, isEstimate } = calculateLevelTimeRemaining(
+      assignments,
+      levelProgressions,
+      [],
+      { currentLevel: 5, excludedLevels: [3] }
+    );
+
+    expect(isEstimate).toBe(true);
+    expect(finish.toISOString()).toBe("2026-03-04T10:34:00.000Z");
+  });
 });
 
 describe("formatTimeInterval", () => {

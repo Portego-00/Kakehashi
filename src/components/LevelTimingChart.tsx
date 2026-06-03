@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInDown, Layout } from "react-native-reanimated";
@@ -7,6 +6,13 @@ import {
   DEFAULT_ANALYTICS_WIDGET_STYLE_COLORS,
   normalizeAnalyticsWidgetColor,
 } from "../utils/analyticsWidgetStyles";
+import {
+  areLevelTimingExcludedLevelsEqual,
+  loadLevelTimingExcludedLevels,
+  normalizeLevelTimingExcludedLevels,
+  saveLevelTimingExcludedLevels,
+  subscribeLevelTimingExcludedLevels,
+} from "../utils/levelTimingExclusions";
 import { buildResetAwareLevelTimingData } from "../utils/levelProgress";
 import { withAlpha } from "../utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../utils/store";
@@ -34,25 +40,6 @@ type LevelTimingChartProps = {
   levelProgressions: any[];
   resets?: any[];
   currentLevel?: number;
-};
-
-const LEVEL_TIMING_DISABLED_STORAGE_KEY_PREFIX =
-  "wanikani_level_timing_disabled_levels_v1";
-
-const normalizeLevelList = (value: unknown): number[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const unique = new Set<number>();
-  for (const entry of value) {
-    const parsed = Number(entry);
-    if (Number.isFinite(parsed) && parsed >= 1) {
-      unique.add(Math.trunc(parsed));
-    }
-  }
-
-  return Array.from(unique).sort((a, b) => a - b);
 };
 
 // Convert numbers to Japanese kanji
@@ -184,11 +171,6 @@ export default function LevelTimingChart({
   const BAR_WIDTH = isTablet ? 36 : "80%";
   const LABEL_FONT_size = isTablet ? 13 : 11;
   const VALUE_FONT_SIZE = isTablet ? 12 : 10;
-  const storageKey = useMemo(
-    () =>
-      `${LEVEL_TIMING_DISABLED_STORAGE_KEY_PREFIX}:${authUserId ?? "anonymous"}`,
-    [authUserId],
-  );
 
   // Process level progressions to extract timing data
   const levelTimingData: LevelTimingData[] = useMemo(() => {
@@ -255,18 +237,12 @@ export default function LevelTimingChart({
 
     const loadDisabledLevels = async () => {
       try {
-        const raw = await AsyncStorage.getItem(storageKey);
+        const levels = await loadLevelTimingExcludedLevels(authUserId);
         if (isCancelled) {
           return;
         }
 
-        if (!raw) {
-          setDisabledLevels([]);
-          return;
-        }
-
-        const parsed = JSON.parse(raw);
-        setDisabledLevels(normalizeLevelList(parsed));
+        setDisabledLevels(levels);
       } catch (error) {
         console.warn("Failed to load level timing excluded levels", error);
         if (!isCancelled) {
@@ -284,19 +260,35 @@ export default function LevelTimingChart({
     return () => {
       isCancelled = true;
     };
-  }, [storageKey]);
+  }, [authUserId]);
 
   useEffect(() => {
     if (!disabledLevelsHydrated) {
       return;
     }
 
-    AsyncStorage.setItem(storageKey, JSON.stringify(disabledLevels)).catch(
-      (error) => {
-        console.warn("Failed to save level timing excluded levels", error);
-      },
+    saveLevelTimingExcludedLevels(authUserId, disabledLevels).catch((error) => {
+      console.warn("Failed to save level timing excluded levels", error);
+    });
+  }, [authUserId, disabledLevels, disabledLevelsHydrated]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeLevelTimingExcludedLevels(
+      (changedUserId, levels) => {
+        if ((changedUserId ?? "anonymous") !== (authUserId ?? "anonymous")) {
+          return;
+        }
+
+        setDisabledLevels((current) =>
+          areLevelTimingExcludedLevelsEqual(current, levels)
+            ? current
+            : normalizeLevelTimingExcludedLevels(levels)
+        );
+      }
     );
-  }, [disabledLevels, disabledLevelsHydrated, storageKey]);
+
+    return unsubscribe;
+  }, [authUserId]);
 
   const toggleableCompletedLevelSet = useMemo(() => {
     const levels = new Set<number>();

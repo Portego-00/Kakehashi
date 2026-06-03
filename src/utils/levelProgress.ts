@@ -43,6 +43,11 @@ export type WkstatsLevelTimingSummary = {
   levelUpInDays: number;
 };
 
+export type LevelTimeRemainingCalculationOptions = {
+  excludedLevels?: readonly number[];
+  currentLevel?: number;
+};
+
 function parseTimestamp(value: string | null | undefined): number | null {
   if (!value) {
     return null;
@@ -385,7 +390,8 @@ function getResetAwareLevelProgressions(
 export function calculateLevelTimeRemaining(
   assignments: LevelAssignment[],
   allLevelProgressions: any[],
-  resets: any[] = []
+  resets: any[] = [],
+  options: LevelTimeRemainingCalculationOptions = {}
 ): { finish: Date; isEstimate: boolean } {
   const radicalDates: Date[] = [];
   const guruDates: Date[] = [];
@@ -466,7 +472,8 @@ export function calculateLevelTimeRemaining(
   if (lastGuruDate.getTime() === DISTANT_FUTURE && lastSubject) {
     let average = calculateAverageLevelTimeRemaining(
       allLevelProgressions,
-      resets
+      resets,
+      options
     );
 
     // Floor estimate at minimum apprentice-to-guru time for a fresh item plus
@@ -556,7 +563,8 @@ function apprenticeStageDurationSeconds(subject: Subject, stage: number): number
  */
 function calculateAverageLevelTimeRemaining(
   levelProgressions: any[],
-  resets: any[] = []
+  resets: any[] = [],
+  options: LevelTimeRemainingCalculationOptions = {}
 ): number {
   const hasLevelMetadata = (levelProgressions ?? []).some((level) => {
     const normalized = level?.data ?? level;
@@ -568,8 +576,40 @@ function calculateAverageLevelTimeRemaining(
     ? getResetAwareLevelProgressions(levelProgressions, resets)
     : levelProgressions ?? [];
   const timeSpentAtEachLevel: number[] = [];
+  const excludedLevelSet = new Set<number>();
 
-  for (const level of resetAwareProgressions) {
+  for (const level of options.excludedLevels ?? []) {
+    const parsedLevel = Number(level);
+    if (Number.isFinite(parsedLevel) && parsedLevel >= 1) {
+      excludedLevelSet.add(Math.trunc(parsedLevel));
+    }
+  }
+
+  const currentLevel = Number.isFinite(options.currentLevel)
+    ? Math.trunc(Number(options.currentLevel))
+    : null;
+
+  for (let index = 0; index < resetAwareProgressions.length; index += 1) {
+    const level = resetAwareProgressions[index];
+    const normalized = level?.data ?? level;
+    const progressionLevel = Number(normalized?.level);
+    const hasProgressionLevel = Number.isFinite(progressionLevel);
+    const normalizedProgressionLevel = hasProgressionLevel
+      ? Math.trunc(progressionLevel)
+      : null;
+    const isCurrentLevelProgression =
+      currentLevel !== null
+        ? normalizedProgressionLevel === currentLevel
+        : index === resetAwareProgressions.length - 1;
+
+    if (
+      normalizedProgressionLevel !== null &&
+      excludedLevelSet.has(normalizedProgressionLevel) &&
+      !isCurrentLevelProgression
+    ) {
+      continue;
+    }
+
     const timeSpentCurrent = getTimeSpentCurrent(level);
     if (timeSpentCurrent > 0) {
       timeSpentAtEachLevel.push(timeSpentCurrent);
