@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.74",
+    date: "2026-06-03",
+    changes: [
+      {
+        type: "feature",
+        title: "Spotify Playback and Playlists",
+        description:
+          "Added Spotify account connection, Spotify playback from song lyrics, and playlist importing for Spotify and Apple Music.",
+      },
+    ],
+  },
+  {
     version: "1.2.73",
     date: "2026-06-02",
     changes: [
@@ -98,7 +110,8 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "feature",
         title: "Reader Tooltip Reveal Settings",
-        description: "Added tap-to-reveal settings for tooltip meanings and readings.",
+        description:
+          "Added tap-to-reveal settings for tooltip meanings and readings.",
       },
     ],
   },
@@ -346,8 +359,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "feature",
         title: "Constellation Pinch Zoom",
-        description:
-          "Constellation view now supports pinch-to-zoom.",
+        description: "Constellation view now supports pinch-to-zoom.",
       },
     ],
   },
@@ -630,7 +642,8 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "design",
         title: "Critical Review Count Border",
-        description: "Reviews count now gets a visible border when critical items are ready.",
+        description:
+          "Reviews count now gets a visible border when critical items are ready.",
       },
     ],
   },
@@ -665,8 +678,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "feature",
         title: "Subject Lists Device Sync",
-        description:
-          "Custom subject lists now sync across your devices.",
+        description: "Custom subject lists now sync across your devices.",
       },
       {
         type: "fix",
@@ -771,7 +783,8 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "feature",
         title: "EPUB Reader (Beta)",
-        description: "Added a new beta EPUB reader to read books inside the app.",
+        description:
+          "Added a new beta EPUB reader to read books inside the app.",
         link: {
           route: "/tab-settings",
           label: "Customize Tabs",
@@ -825,8 +838,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "feature",
         title: "Configurable Review Wrap Up",
-        description:
-          "Set Wrap Up target to 5, 10, 15, or 20 subjects.",
+        description: "Set Wrap Up target to 5, 10, 15, or 20 subjects.",
         link: {
           route: "/settings",
           params: { scrollTo: "reviews" },
@@ -947,8 +959,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "feature",
         title: "Anki Answer Visibility",
-        description:
-          "Choose blurred or fully hidden answers in Anki mode.",
+        description: "Choose blurred or fully hidden answers in Anki mode.",
         link: {
           route: "/anki-settings",
           label: "Open Anki Settings",
@@ -957,8 +968,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "fix",
         title: "Vocabulary Type Filter",
-        description:
-          "Vocabulary filter now also includes kana vocabulary.",
+        description: "Vocabulary filter now also includes kana vocabulary.",
       },
       {
         type: "fix",
@@ -1031,8 +1041,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "design",
         title: "New Themes: Sepia and Midnight",
-        description:
-          "Added two new theme presets: Sepia and Midnight.",
+        description: "Added two new theme presets: Sepia and Midnight.",
         link: {
           route: "/settings",
           label: "Open Settings",
@@ -1166,8 +1175,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "improvement",
         title: "App loading improvements",
-        description:
-          "The app now loads faster.",
+        description: "The app now loads faster.",
       },
     ],
   },
@@ -1188,8 +1196,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "fix",
         title: "Android UI Fixes",
-        description:
-          "Fixed several Android-only UI issues.",
+        description: "Fixed several Android-only UI issues.",
       },
     ],
   },

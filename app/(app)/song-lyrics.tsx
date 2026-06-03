@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as SwiftUI from "@expo/ui/swift-ui";
+import * as SwiftUIModifiers from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Slider from "@react-native-community/slider";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -78,12 +80,6 @@ import {
   TUTORIAL_STORAGE_KEYS,
 } from "../../src/utils/tutorialSteps";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const SwiftUIModifiers =
-  Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
-
 const GRAMMAR_TOOLTIP_ID_MIN = -9000000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
 const LRC_TIMESTAMP_REGEX = /\[(?:\d{1,2}:)?\d{1,2}(?:\.\d{1,3})?\]/g;
@@ -93,6 +89,16 @@ const JAPANESE_TEXT_PATTERN =
 const LYRICS_TIMING_OFFSET_MIN_MS = -60000;
 const LYRICS_TIMING_OFFSET_MAX_MS = 60000;
 const LYRICS_TIMING_OFFSET_STEP_MS = 500;
+const LYRICS_SKELETON_LINE_WIDTHS = [
+  [86, 68, 76],
+  [74, 91],
+  [82, 63, 88, 70],
+  [69, 79, 94],
+  [88, 72],
+  [76, 92, 64],
+  [83, 67, 79, 89],
+  [71, 85],
+] as const;
 
 function clampLyricsTimingOffsetMs(offsetMs: number): number {
   if (!Number.isFinite(offsetMs)) {
@@ -200,46 +206,58 @@ const StreamingLineText = memo(
     const previousTextRef = useRef<string>("");
 
     useEffect(() => {
-      if (!text) {
-        previousTextRef.current = "";
-        setVisibleCharacterCount(0);
-        return;
-      }
+      let timer: ReturnType<typeof setInterval> | null = null;
 
-      const previousText = previousTextRef.current;
-      previousTextRef.current = text;
+      const animationFrame = requestAnimationFrame(() => {
+        if (!text) {
+          previousTextRef.current = "";
+          setVisibleCharacterCount(0);
+          return;
+        }
 
-      if (previousText && !text.startsWith(previousText)) {
-        // Non-prefix updates (for example punctuation carry-over) should not
-        // restart the animation to avoid visible flicker.
-        setVisibleCharacterCount(text.length);
-        return;
-      }
+        const previousText = previousTextRef.current;
+        previousTextRef.current = text;
 
-      const startCount = previousText ? previousText.length : 0;
-      setVisibleCharacterCount((currentCount) =>
-        Math.max(currentCount, startCount),
-      );
+        if (previousText && !text.startsWith(previousText)) {
+          // Non-prefix updates (for example punctuation carry-over) should not
+          // restart the animation to avoid visible flicker.
+          setVisibleCharacterCount(text.length);
+          return;
+        }
 
-      const charsPerTick = text.length > 140 ? 8 : text.length > 80 ? 6 : 4;
-      const interval = Math.max(6, characterIntervalMs);
-      const timer = setInterval(() => {
-        setVisibleCharacterCount((currentCount) => {
-          if (currentCount >= text.length) {
-            clearInterval(timer);
-            return currentCount;
-          }
+        const startCount = previousText ? previousText.length : 0;
+        setVisibleCharacterCount((currentCount) =>
+          Math.max(currentCount, startCount),
+        );
 
-          const nextCount = Math.min(text.length, currentCount + charsPerTick);
-          if (nextCount >= text.length) {
-            clearInterval(timer);
-          }
-          return nextCount;
-        });
-      }, interval);
+        const charsPerTick = text.length > 140 ? 8 : text.length > 80 ? 6 : 4;
+        const interval = Math.max(6, characterIntervalMs);
+        timer = setInterval(() => {
+          setVisibleCharacterCount((currentCount) => {
+            if (currentCount >= text.length) {
+              if (timer) {
+                clearInterval(timer);
+              }
+              return currentCount;
+            }
+
+            const nextCount = Math.min(
+              text.length,
+              currentCount + charsPerTick,
+            );
+            if (nextCount >= text.length && timer) {
+              clearInterval(timer);
+            }
+            return nextCount;
+          });
+        }, interval);
+      });
 
       return () => {
-        clearInterval(timer);
+        cancelAnimationFrame(animationFrame);
+        if (timer) {
+          clearInterval(timer);
+        }
       };
     }, [text, characterIntervalMs]);
 
@@ -417,7 +435,6 @@ export default function SongLyricsScreen() {
     LyricsSearchResult[]
   >([]);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
-  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [hasStoredJpdbApiKey, setHasStoredJpdbApiKey] = useState(false);
   const [lineTranslations, setLineTranslations] = useState<
     Record<string, string>
@@ -609,16 +626,6 @@ export default function SongLyricsScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!hasStoredJpdbApiKey && songsLyricsLineTranslationsEnabled) {
-      setSongsLyricsLineTranslationsEnabled(false);
-    }
-  }, [
-    hasStoredJpdbApiKey,
-    songsLyricsLineTranslationsEnabled,
-    setSongsLyricsLineTranslationsEnabled,
-  ]);
-
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState<CoachMarkStep[]>([]);
@@ -634,25 +641,29 @@ export default function SongLyricsScreen() {
 
   useEffect(() => {
     if (timedLyricsStatus === "loading") {
-      skeletonOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.6, { duration: 800 }),
-          withTiming(0.3, { duration: 800 }),
+      skeletonOpacity.set(
+        withRepeat(
+          withSequence(
+            withTiming(0.6, { duration: 800 }),
+            withTiming(0.3, { duration: 800 }),
+          ),
+          -1,
+          true,
         ),
-        -1,
-        true,
       );
     }
-  }, [timedLyricsStatus]);
+  }, [skeletonOpacity, timedLyricsStatus]);
 
   // Animated spacer for smooth transition when player expands/collapses
   const animatedSpacerHeight = useSharedValue(0);
 
   useEffect(() => {
-    animatedSpacerHeight.value = withTiming(isPlayerExpanded ? 500 : 0, {
-      duration: 300,
-    });
-  }, [isPlayerExpanded]);
+    animatedSpacerHeight.set(
+      withTiming(isPlayerExpanded ? 500 : 0, {
+        duration: 300,
+      }),
+    );
+  }, [animatedSpacerHeight, isPlayerExpanded]);
 
   // Check tutorial status on mount (before lyrics load)
   useEffect(() => {
@@ -670,72 +681,6 @@ export default function SongLyricsScreen() {
 
     checkTutorialStatus();
   }, []);
-
-  // Show tutorial after lyrics have loaded (only on first visit)
-  useEffect(() => {
-    if (isFirstVisit && !isLoading && (lyrics || timedLyrics.length > 0)) {
-      // Delay to let lyrics render first
-      setTimeout(() => {
-        measureElementsAndShowTutorial();
-      }, 500);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirstVisit, isLoading, lyrics, timedLyrics.length]);
-
-  // Auto-play after tutorial completes (if we were waiting)
-  useEffect(() => {
-    if (pendingAutoPlay && !showTutorial && isFirstVisit === false) {
-      setPendingAutoPlay(false);
-      setIsPlaying(true);
-    }
-  }, [pendingAutoPlay, showTutorial, isFirstVisit, setIsPlaying]);
-
-  // Measure UI elements and build tutorial steps with targets
-  const measureElementsAndShowTutorial = useCallback(() => {
-    const steps: CoachMarkStep[] = [];
-    // On Android, measureInWindow returns coordinates that don't account for
-    // the status bar when used with statusBarTranslucent modals
-    const statusBarOffset =
-      Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
-
-    // Step 1: Welcome (no target, centered)
-    steps.push({
-      ...LYRICS_TUTORIAL_STEPS[0],
-      target: null,
-    });
-
-    // Step 2: Sync toggle (if timed lyrics available)
-    if (syncToggleRef.current && timedLyrics.length > 0) {
-      syncToggleRef.current.measureInWindow((x, y, width, height) => {
-        steps.push({
-          ...LYRICS_TUTORIAL_STEPS[1],
-          target: { x, y: y + statusBarOffset, width, height },
-        });
-        continueWithSettingsButton(steps, statusBarOffset);
-      });
-    } else {
-      // Skip sync step if no timed lyrics
-      continueWithSettingsButton(steps, statusBarOffset);
-    }
-  }, [timedLyrics.length]);
-
-  const continueWithSettingsButton = useCallback(
-    (steps: CoachMarkStep[], statusBarOffset: number) => {
-      // Step 3: Settings button
-      if (settingsButtonRef.current) {
-        settingsButtonRef.current.measureInWindow((x, y, width, height) => {
-          steps.push({
-            ...LYRICS_TUTORIAL_STEPS[2],
-            target: { x, y: y + statusBarOffset, width, height },
-          });
-          continueWithVocabulary(steps, statusBarOffset);
-        });
-      } else {
-        continueWithVocabulary(steps, statusBarOffset);
-      }
-    },
-    [],
-  );
 
   const continueWithVocabulary = useCallback(
     (steps: CoachMarkStep[], statusBarOffset: number) => {
@@ -767,6 +712,83 @@ export default function SongLyricsScreen() {
     [],
   );
 
+  const continueWithSettingsButton = useCallback(
+    (steps: CoachMarkStep[], statusBarOffset: number) => {
+      // Step 3: Settings button
+      if (settingsButtonRef.current) {
+        settingsButtonRef.current.measureInWindow((x, y, width, height) => {
+          steps.push({
+            ...LYRICS_TUTORIAL_STEPS[2],
+            target: { x, y: y + statusBarOffset, width, height },
+          });
+          continueWithVocabulary(steps, statusBarOffset);
+        });
+      } else {
+        continueWithVocabulary(steps, statusBarOffset);
+      }
+    },
+    [continueWithVocabulary],
+  );
+
+  // Measure UI elements and build tutorial steps with targets
+  const measureElementsAndShowTutorial = useCallback(() => {
+    const steps: CoachMarkStep[] = [];
+    // On Android, measureInWindow returns coordinates that don't account for
+    // the status bar when used with statusBarTranslucent modals
+    const statusBarOffset =
+      Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
+
+    // Step 1: Welcome (no target, centered)
+    steps.push({
+      ...LYRICS_TUTORIAL_STEPS[0],
+      target: null,
+    });
+
+    // Step 2: Sync toggle (if timed lyrics available)
+    if (syncToggleRef.current && timedLyrics.length > 0) {
+      syncToggleRef.current.measureInWindow((x, y, width, height) => {
+        steps.push({
+          ...LYRICS_TUTORIAL_STEPS[1],
+          target: { x, y: y + statusBarOffset, width, height },
+        });
+        continueWithSettingsButton(steps, statusBarOffset);
+      });
+    } else {
+      // Skip sync step if no timed lyrics
+      continueWithSettingsButton(steps, statusBarOffset);
+    }
+  }, [continueWithSettingsButton, timedLyrics.length]);
+
+  // Show tutorial after lyrics have loaded (only on first visit)
+  useEffect(() => {
+    if (isFirstVisit && !isLoading && (lyrics || timedLyrics.length > 0)) {
+      // Delay to let lyrics render first
+      setTimeout(() => {
+        measureElementsAndShowTutorial();
+      }, 500);
+    }
+  }, [
+    isFirstVisit,
+    isLoading,
+    lyrics,
+    measureElementsAndShowTutorial,
+    timedLyrics.length,
+  ]);
+
+  // Auto-play after tutorial completes (if we were waiting)
+  useEffect(() => {
+    if (pendingAutoPlay && !showTutorial && isFirstVisit === false) {
+      const autoPlayTimeout = setTimeout(() => {
+        setPendingAutoPlay(false);
+        setIsPlaying(true);
+      }, 0);
+
+      return () => {
+        clearTimeout(autoPlayTimeout);
+      };
+    }
+  }, [pendingAutoPlay, showTutorial, isFirstVisit, setIsPlaying]);
+
   // Handle tutorial completion
   const handleTutorialComplete = useCallback(async () => {
     setShowTutorial(false);
@@ -785,18 +807,25 @@ export default function SongLyricsScreen() {
     height: animatedSpacerHeight.value,
   }));
 
-  // Helper function to extract YouTube video ID from URL
-  const extractYoutubeVideoId = (url: string): string | null => {
+  const findVocabularyMatches = useCallback(async (text: string) => {
     try {
-      const regExp =
-        /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-      const match = url.match(regExp);
-      return match && match[2].length === 11 ? match[2] : null;
-    } catch (error) {
-      console.error("Error extracting YouTube video ID:", error);
-      return null;
+      // Get all subjects from cache
+      const allSubjects = await getAllSubjects();
+
+      const {
+        vocabularyMatches,
+        kanjiMatches,
+        jpdbParsedTokens: parsedTokens,
+      } = await findMatches(text, allSubjects);
+
+      setVocabularyMatches(vocabularyMatches);
+      setKanjiMatches(kanjiMatches);
+      setJpdbParsedTokens(Array.isArray(parsedTokens) ? parsedTokens : []);
+    } catch (err) {
+      console.error("Error finding vocabulary matches:", err);
+      setJpdbParsedTokens([]);
     }
-  };
+  }, []);
 
   const loadLyrics = useCallback(async () => {
     setError(null);
@@ -1069,6 +1098,7 @@ export default function SongLyricsScreen() {
     setSongInfo,
     setIsPlaying,
     setGlobalTimedLyrics,
+    findVocabularyMatches,
   ]);
 
   useEffect(() => {
@@ -1077,37 +1107,85 @@ export default function SongLyricsScreen() {
         return;
       }
 
-      loadedSongKeyRef.current = songLoadKey;
-      void loadLyrics();
+      const loadTimeout = setTimeout(() => {
+        loadedSongKeyRef.current = songLoadKey;
+        void loadLyrics();
+      }, 0);
+
+      return () => {
+        clearTimeout(loadTimeout);
+      };
     }
   }, [songTitle, artist, loadLyrics, songLoadKey]);
 
   useEffect(() => {
-    if (songTitle && artist) {
+    if (!songTitle || !artist) {
+      return;
+    }
+
+    let didCancel = false;
+    const preloadTimeout = setTimeout(() => {
+      const searchQuery = `${songTitle} ${artist}`;
+
       setVideoSearchQuery(`${songTitle} ${artist}`);
       setLyricsSearchSong(songTitle);
       setLyricsSearchArtist(artist);
 
       // Pre-populate results
       if (isYoutubePlaybackFlow) {
-        searchVideos(`${songTitle} ${artist}`);
+        setIsSearchingVideos(true);
+        youtubeService
+          .searchVideos(searchQuery)
+          .then((results) => {
+            if (!didCancel) {
+              setVideoSearchResults(results);
+            }
+          })
+          .catch((searchError) =>
+            console.error("Error searching videos:", searchError),
+          )
+          .finally(() => {
+            if (!didCancel) {
+              setIsSearchingVideos(false);
+            }
+          });
       }
-      searchLyrics(songTitle, artist);
-    }
+      setIsSearchingLyrics(true);
+      lyricsService
+        .searchLyrics(songTitle, artist)
+        .then((results) => {
+          if (!didCancel) {
+            setLyricsSearchResults(results);
+          }
+        })
+        .catch((searchError) =>
+          console.error("Error searching lyrics:", searchError),
+        )
+        .finally(() => {
+          if (!didCancel) {
+            setIsSearchingLyrics(false);
+          }
+        });
+    }, 0);
+
+    return () => {
+      didCancel = true;
+      clearTimeout(preloadTimeout);
+    };
   }, [songTitle, artist, isYoutubePlaybackFlow]);
 
   useEffect(() => {
-    setLyricsTranslationStatusMessage(null);
+    const clearTranslationStatusTimeout = setTimeout(() => {
+      setLyricsTranslationStatusMessage(null);
+    }, 0);
+
+    return () => {
+      clearTimeout(clearTranslationStatusTimeout);
+    };
   }, [songTitle, artist]);
 
   useEffect(() => {
     let didCancel = false;
-
-    setHasLoadedLyricsTimingOffset(false);
-    setIsLyricsTimingAdjustmentEnabled(false);
-    setIsLyricsTimingControlVisible(false);
-    lyricsTimingOffsetMsRef.current = 0;
-    setLyricsTimingOffsetMs(0);
 
     const loadLyricsTimingOffset = async () => {
       if (!lyricsTimingOffsetCacheKey) {
@@ -1145,10 +1223,18 @@ export default function SongLyricsScreen() {
       }
     };
 
-    void loadLyricsTimingOffset();
+    const loadOffsetTimeout = setTimeout(() => {
+      setHasLoadedLyricsTimingOffset(false);
+      setIsLyricsTimingAdjustmentEnabled(false);
+      setIsLyricsTimingControlVisible(false);
+      lyricsTimingOffsetMsRef.current = 0;
+      setLyricsTimingOffsetMs(0);
+      void loadLyricsTimingOffset();
+    }, 0);
 
     return () => {
       didCancel = true;
+      clearTimeout(loadOffsetTimeout);
     };
   }, [lyricsTimingOffsetCacheKey, setLyricsTimingOffsetMs]);
 
@@ -1193,7 +1279,6 @@ export default function SongLyricsScreen() {
 
   useEffect(() => {
     let didCancel = false;
-    setHasLoadedLineTranslationsCache(false);
 
     const loadCachedLineTranslations = async () => {
       if (!lineTranslationsCacheKey) {
@@ -1261,10 +1346,14 @@ export default function SongLyricsScreen() {
       }
     };
 
-    void loadCachedLineTranslations();
+    const loadTranslationsTimeout = setTimeout(() => {
+      setHasLoadedLineTranslationsCache(false);
+      void loadCachedLineTranslations();
+    }, 0);
 
     return () => {
       didCancel = true;
+      clearTimeout(loadTranslationsTimeout);
     };
   }, [lineTranslationsCacheKey]);
 
@@ -1294,164 +1383,147 @@ export default function SongLyricsScreen() {
   ]);
 
   useEffect(() => {
-    if (!lineTranslationsEnabled) {
-      setIsTranslatingLyrics(false);
-      setLyricsTranslationStatusMessage(null);
-      return;
-    }
-
-    const uniqueVisibleLines = Array.from(
-      new Set(normalizedVisibleLinesForTranslation),
-    );
-    if (uniqueVisibleLines.length === 0) {
-      setIsTranslatingLyrics(false);
-      setLyricsTranslationStatusMessage(null);
-      return;
-    }
-
-    const missingLines = uniqueVisibleLines.filter(
-      (line) => !lineTranslations[line],
-    );
-    if (missingLines.length === 0) {
-      setIsTranslatingLyrics(false);
-      setLyricsTranslationStatusMessage(null);
-      return;
-    }
-
     let didCancel = false;
-
-    const translateVisibleLyrics = async () => {
-      const storedApiKey = await getStoredJpdbApiKey();
-      if (!storedApiKey) {
-        if (!didCancel) {
-          setHasStoredJpdbApiKey(false);
-          setIsTranslatingLyrics(false);
-          setLyricsTranslationStatusMessage(
-            "Add your JPDB API key in Settings to enable lyric translations.",
-          );
-        }
+    const translationTimeout = setTimeout(() => {
+      if (!lineTranslationsEnabled) {
+        setIsTranslatingLyrics(false);
+        setLyricsTranslationStatusMessage(null);
         return;
       }
 
-      setIsTranslatingLyrics(true);
-      setLyricsTranslationStatusMessage(null);
+      const uniqueVisibleLines = Array.from(
+        new Set(normalizedVisibleLinesForTranslation),
+      );
+      if (uniqueVisibleLines.length === 0) {
+        setIsTranslatingLyrics(false);
+        setLyricsTranslationStatusMessage(null);
+        return;
+      }
 
-      const accumulatedTranslations: Record<string, string> = {
-        ...lineTranslations,
-      };
-      let statusMessage: string | null = null;
-      let previousJapaneseContext: string | null = null;
-      let previousEnglishContext: string | null = null;
+      const missingLines = uniqueVisibleLines.filter(
+        (line) => !lineTranslations[line],
+      );
+      if (missingLines.length === 0) {
+        setIsTranslatingLyrics(false);
+        setLyricsTranslationStatusMessage(null);
+        return;
+      }
 
-      for (const line of uniqueVisibleLines) {
-        if (didCancel) {
+      const translateVisibleLyrics = async () => {
+        const storedApiKey = await getStoredJpdbApiKey();
+        if (!storedApiKey) {
+          if (!didCancel) {
+            setHasStoredJpdbApiKey(false);
+            setIsTranslatingLyrics(false);
+            setLyricsTranslationStatusMessage(
+              "Add your JPDB API key in Settings to enable lyric translations.",
+            );
+          }
           return;
         }
 
-        const existingTranslation = accumulatedTranslations[line];
-        if (existingTranslation) {
-          previousJapaneseContext = line;
-          previousEnglishContext = existingTranslation;
-          continue;
-        }
+        setIsTranslatingLyrics(true);
+        setLyricsTranslationStatusMessage(null);
 
-        try {
-          const context: [string, string] | null =
-            previousJapaneseContext && previousEnglishContext
-              ? [previousJapaneseContext, previousEnglishContext]
-              : null;
-          const translation = await translateJapaneseToEnglish(line, {
-            apiKey: storedApiKey,
-            context,
-          });
-          const translatedText = translation.text.trim();
+        const accumulatedTranslations: Record<string, string> = {
+          ...lineTranslations,
+        };
+        let statusMessage: string | null = null;
+        let previousJapaneseContext: string | null = null;
+        let previousEnglishContext: string | null = null;
 
-          if (!translatedText) {
+        for (const line of uniqueVisibleLines) {
+          if (didCancel) {
+            return;
+          }
+
+          const existingTranslation = accumulatedTranslations[line];
+          if (existingTranslation) {
+            previousJapaneseContext = line;
+            previousEnglishContext = existingTranslation;
             continue;
           }
 
-          accumulatedTranslations[line] = translatedText;
-          if (!didCancel) {
-            setLineTranslations((previous) => {
-              if (previous[line] === translatedText) {
-                return previous;
-              }
-              return {
-                ...previous,
-                [line]: translatedText,
-              };
+          try {
+            const context: [string, string] | null =
+              previousJapaneseContext && previousEnglishContext
+                ? [previousJapaneseContext, previousEnglishContext]
+                : null;
+            const translation = await translateJapaneseToEnglish(line, {
+              apiKey: storedApiKey,
+              context,
             });
-          }
-          previousJapaneseContext = line;
-          previousEnglishContext = translatedText;
-        } catch (translationError) {
-          if (translationError instanceof JpdbApiError) {
-            if (translationError.code === "bad_key") {
-              statusMessage = "JPDB API key is invalid. Update it in Settings.";
-              setHasStoredJpdbApiKey(false);
-              break;
-            }
+            const translatedText = translation.text.trim();
 
-            if (translationError.code === "too_many_requests") {
-              statusMessage =
-                "JPDB rate limit reached. Try lyric translation again in a moment.";
-              break;
-            }
-
-            if (translationError.code === "api_unavailable") {
-              statusMessage =
-                "JPDB translation is temporarily unavailable. Please retry later.";
-              break;
-            }
-
-            if (translationError.code === "text_too_long") {
-              statusMessage = "Some lyric lines were too long to translate.";
+            if (!translatedText) {
               continue;
             }
+
+            accumulatedTranslations[line] = translatedText;
+            if (!didCancel) {
+              setLineTranslations((previous) => {
+                if (previous[line] === translatedText) {
+                  return previous;
+                }
+                return {
+                  ...previous,
+                  [line]: translatedText,
+                };
+              });
+            }
+            previousJapaneseContext = line;
+            previousEnglishContext = translatedText;
+          } catch (translationError) {
+            if (translationError instanceof JpdbApiError) {
+              if (translationError.code === "bad_key") {
+                statusMessage =
+                  "JPDB API key is invalid. Update it in Settings.";
+                setHasStoredJpdbApiKey(false);
+                break;
+              }
+
+              if (translationError.code === "too_many_requests") {
+                statusMessage =
+                  "JPDB rate limit reached. Try lyric translation again in a moment.";
+                break;
+              }
+
+              if (translationError.code === "api_unavailable") {
+                statusMessage =
+                  "JPDB translation is temporarily unavailable. Please retry later.";
+                break;
+              }
+
+              if (translationError.code === "text_too_long") {
+                statusMessage = "Some lyric lines were too long to translate.";
+                continue;
+              }
+            }
+
+            console.error("Error translating lyric line:", translationError);
+            statusMessage = "Could not translate lyrics right now.";
+            break;
           }
-
-          console.error("Error translating lyric line:", translationError);
-          statusMessage = "Could not translate lyrics right now.";
-          break;
         }
-      }
 
-      if (!didCancel) {
-        setIsTranslatingLyrics(false);
-        setLyricsTranslationStatusMessage(statusMessage);
-      }
-    };
+        if (!didCancel) {
+          setIsTranslatingLyrics(false);
+          setLyricsTranslationStatusMessage(statusMessage);
+        }
+      };
 
-    void translateVisibleLyrics();
+      void translateVisibleLyrics();
+    }, 0);
 
     return () => {
       didCancel = true;
+      clearTimeout(translationTimeout);
     };
   }, [
     lineTranslations,
     lineTranslationsEnabled,
     normalizedVisibleLinesForTranslation,
   ]);
-
-  const findVocabularyMatches = async (text: string) => {
-    try {
-      // Get all subjects from cache
-      const allSubjects = await getAllSubjects();
-
-      const {
-        vocabularyMatches,
-        kanjiMatches,
-        jpdbParsedTokens: parsedTokens,
-      } = await findMatches(text, allSubjects);
-
-      setVocabularyMatches(vocabularyMatches);
-      setKanjiMatches(kanjiMatches);
-      setJpdbParsedTokens(Array.isArray(parsedTokens) ? parsedTokens : []);
-    } catch (err) {
-      console.error("Error finding vocabulary matches:", err);
-      setJpdbParsedTokens([]);
-    }
-  };
 
   const handleVocabularyPress = useCallback(
     (
@@ -1504,9 +1576,11 @@ export default function SongLyricsScreen() {
         setSelectedTokenKey(tokenKey ?? null);
         setTooltipInteractionMode(interactionMode);
 
-        tooltipOpacity.value = withTiming(1, {
-          duration: interactionMode === "hover" ? 120 : 200,
-        });
+        tooltipOpacity.set(
+          withTiming(1, {
+            duration: interactionMode === "hover" ? 120 : 200,
+          }),
+        );
       };
 
       const measureFromTarget = (
@@ -1610,7 +1684,7 @@ export default function SongLyricsScreen() {
 
   const handleCloseTooltip = useCallback(() => {
     // Instantly close without animation
-    tooltipOpacity.value = 0;
+    tooltipOpacity.set(0);
     setSelectedItem(null);
     setSelectedSurfaceText(null);
     setSelectedTokenKey(null);
@@ -1778,7 +1852,6 @@ export default function SongLyricsScreen() {
   const handleSelectVideo = useCallback(
     (videoId: string) => {
       setError(null);
-      setCurrentVideoId(videoId);
       setSongInfo({
         albumArt,
         songTitle,
@@ -1864,7 +1937,7 @@ export default function SongLyricsScreen() {
         setIsLoading(false);
       }
     },
-    [findVocabularyMatches, songTitle, artist],
+    [findVocabularyMatches, setGlobalTimedLyrics, songTitle, artist],
   );
 
   const seekToTime = useCallback(
@@ -2939,26 +3012,24 @@ export default function SongLyricsScreen() {
               {timedLyricsStatus === "loading" ? (
                 <View style={styles.skeletonContainer}>
                   {/* Skeleton loader for lyrics */}
-                  {[...Array(8)].map((_, groupIndex) => (
+                  {LYRICS_SKELETON_LINE_WIDTHS.map((lineWidths, groupIndex) => (
                     <View
                       key={`group-${groupIndex}`}
                       style={styles.skeletonGroup}
                     >
-                      {[...Array(Math.floor(Math.random() * 3) + 2)].map(
-                        (_, lineIndex) => (
-                          <Animated.View
-                            key={`line-${groupIndex}-${lineIndex}`}
-                            style={[
-                              styles.skeletonLine,
-                              {
-                                backgroundColor: theme.border,
-                                width: `${60 + Math.random() * 35}%`,
-                                opacity: skeletonOpacity,
-                              },
-                            ]}
-                          />
-                        ),
-                      )}
+                      {lineWidths.map((lineWidth, lineIndex) => (
+                        <Animated.View
+                          key={`line-${groupIndex}-${lineIndex}`}
+                          style={[
+                            styles.skeletonLine,
+                            {
+                              backgroundColor: theme.border,
+                              width: `${lineWidth}%`,
+                              opacity: skeletonOpacity,
+                            },
+                          ]}
+                        />
+                      ))}
                     </View>
                   ))}
                 </View>
