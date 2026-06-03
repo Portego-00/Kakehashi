@@ -30,6 +30,12 @@ import {
   loadExtraStudySessionState,
   saveExtraStudySessionState,
 } from "../../src/utils/extraStudySessionPersistence";
+import {
+  getRecentRandomTestSubjectIds,
+  loadRandomTestSubjectHistory,
+  saveRandomTestSubjectHistoryEntry,
+  selectRandomTestSubjects,
+} from "../../src/utils/randomTestHistory";
 import { buildReviewQuestionQueue } from "../../src/utils/reviewOrdering";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
@@ -325,6 +331,9 @@ const buildRandomTestSession = (
   subjects: ApiSubject[],
   config: TestSessionConfig,
   queueBehavior: RandomQueueBehaviorOptions,
+  selectionOptions: {
+    avoidSubjectIds?: ReadonlySet<number>;
+  } = {},
 ): {
   questions: TestQuestion[];
   reviewItems: RandomTestReviewItem[];
@@ -338,15 +347,9 @@ const buildRandomTestSession = (
   }
 
   const maxSubjects = Math.min(config.numberOfQuestions, candidates.length);
-  const pool = [...candidates];
-
-  // Select random unique subjects with unbiased partial Fisher–Yates.
-  for (let i = 0; i < maxSubjects; i++) {
-    const randomIndex = i + Math.floor(Math.random() * (pool.length - i));
-    [pool[i], pool[randomIndex]] = [pool[randomIndex], pool[i]];
-  }
-
-  const selectedSubjects = pool.slice(0, maxSubjects);
+  const selectedSubjects = selectRandomTestSubjects(candidates, maxSubjects, {
+    avoidSubjectIds: selectionOptions.avoidSubjectIds,
+  });
   const questions: TestQuestion[] = [];
   const reviewItems: RandomTestReviewItem[] = [];
   const subjectById = new Map<number, ApiSubject>();
@@ -729,9 +732,48 @@ export default function TestSessionScreen() {
       return;
     }
 
+    const loadRecentRandomTestSubjectIds = async (): Promise<Set<number>> => {
+      if (isHiraganaVocabMeaningMode) {
+        return new Set();
+      }
+
+      try {
+        const history = await loadRandomTestSubjectHistory();
+        return new Set(getRecentRandomTestSubjectIds(history));
+      } catch (historyError) {
+        console.warn(
+          "Random Test: failed to load recent subject history",
+          historyError,
+        );
+        return new Set();
+      }
+    };
+
+    const saveGeneratedRandomTestHistory = async (
+      items: RandomTestReviewItem[],
+    ): Promise<void> => {
+      if (isHiraganaVocabMeaningMode) {
+        return;
+      }
+
+      try {
+        await saveRandomTestSubjectHistoryEntry(
+          items.map((item) => item.subjectId),
+        );
+      } catch (historyError) {
+        console.warn(
+          "Random Test: failed to save recent subject history",
+          historyError,
+        );
+      }
+    };
+
+    let avoidRecentRandomTestSubjectIds = new Set<number>();
+
     try {
       setIsLoading(true);
       await clearSavedRandomTestSession();
+      avoidRecentRandomTestSubjectIds = await loadRecentRandomTestSubjectIds();
 
       let assignmentsResponse: { data: Assignment[] } | null = null;
       try {
@@ -864,7 +906,9 @@ export default function TestSessionScreen() {
       };
 
       const { questions, reviewItems: generatedReviewItems } =
-        buildRandomTestSession(filteredSubjects, config, queueBehavior);
+        buildRandomTestSession(filteredSubjects, config, queueBehavior, {
+          avoidSubjectIds: avoidRecentRandomTestSubjectIds,
+        });
       const reviewItemsWithSrs = generatedReviewItems.map((reviewItem) => ({
         ...reviewItem,
         srsStage: subjectIdToStage.get(reviewItem.subjectId),
@@ -879,6 +923,7 @@ export default function TestSessionScreen() {
         return;
       }
 
+      await saveGeneratedRandomTestHistory(reviewItemsWithSrs);
       initializeSessionState(questions, reviewItemsWithSrs);
     } catch (error) {
       console.warn("Falling back to offline subjects-only mode due to error:", error);
@@ -979,7 +1024,9 @@ export default function TestSessionScreen() {
         };
 
         const { questions, reviewItems: generatedReviewItems } =
-          buildRandomTestSession(filteredSubjects, config, queueBehavior);
+          buildRandomTestSession(filteredSubjects, config, queueBehavior, {
+            avoidSubjectIds: avoidRecentRandomTestSubjectIds,
+          });
 
         if (questions.length === 0) {
           Alert.alert(
@@ -990,6 +1037,7 @@ export default function TestSessionScreen() {
           return;
         }
 
+        await saveGeneratedRandomTestHistory(generatedReviewItems);
         initializeSessionState(questions, generatedReviewItems);
       } catch (fallbackError) {
         console.error("Offline fallback failed:", fallbackError);

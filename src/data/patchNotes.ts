@@ -71,6 +71,12 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Level Up In estimates now respect levels ignored in Level Timing, keeping long outliers from skewing the countdown.",
       },
+      {
+        type: "fix",
+        title: "Fresher Random Tests",
+        description:
+          "Random Test now avoids reusing subjects from recent tests when enough fresh items are available.",
+      },
     ],
   },
   {
