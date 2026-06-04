@@ -37,6 +37,7 @@ export default function KanjiPracticeModal({
   const topPadding = Platform.OS === "android" ? insets.top : 10;
   const [isComplete, setIsComplete] = useState(false);
   const [totalMistakes, setTotalMistakes] = useState(0);
+  const [attemptKey, setAttemptKey] = useState(0);
 
   const handleComplete = useCallback(
     (result: { totalMistakes: number; character: string }) => {
@@ -47,6 +48,7 @@ export default function KanjiPracticeModal({
   );
 
   const handlePracticeAgain = useCallback(() => {
+    setAttemptKey((prev) => prev + 1);
     setIsComplete(false);
     setTotalMistakes(0);
   }, []);
@@ -158,7 +160,7 @@ export default function KanjiPracticeModal({
             </View>
           ) : (
             <KanjiWriterQuiz
-              key={`${character}-${isComplete}`}
+              key={`${character}-${attemptKey}`}
               character={character}
               onComplete={handleComplete}
               leniency={strokeLeniency}

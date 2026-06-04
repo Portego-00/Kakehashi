@@ -17,6 +17,8 @@ import Svg, { Line } from "react-native-svg";
 import { loadKanjiWriterData } from "../utils/kanjiWriterDataLoader";
 import { useTheme } from "../utils/theme";
 
+const LOADER_PENDING_TIMEOUT_MS = 12000;
+
 export interface KanjiWriterQuizProps {
   character: string;
   onComplete?: (result: { totalMistakes: number; character: string }) => void;
@@ -90,11 +92,10 @@ export default function KanjiWriterQuiz({
   const [strokeNum, setStrokeNum] = useState(0);
   const [totalStrokes, setTotalStrokes] = useState(0);
   const [totalMistakes, setTotalMistakes] = useState(0);
-  const [isQuizActive, setIsQuizActive] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(true);
 
   // Use refs for state that should persist across character changes
   const showGridRef = useRef(true); // Grid ON by default
@@ -118,80 +119,9 @@ export default function KanjiWriterQuiz({
   const currentStrokeIndex = writer.quiz.useStore((state) => state.index);
   const quizActive = writer.quiz.useStore((state) => state.active);
   const quizMistakes = writer.quiz.useStore((state) => state.mistakes);
-
-  // Update stroke number when quiz state changes
-  useEffect(() => {
-    if (quizActive) {
-      setStrokeNum(currentStrokeIndex);
-    }
-  }, [currentStrokeIndex, quizActive]);
-
-  // Start quiz when character loads
-  useEffect(() => {
-    if (
-      writer.characterState.status === "resolved" &&
-      !hasStartedQuiz.current
-    ) {
-      hasStartedQuiz.current = true;
-      setIsTransitioning(false); // Clear transition state
-      const charData = writer.characterState.data;
-      setTotalStrokes(charData.strokes.length);
-
-      // Start the quiz
-      writer.quiz.start({
-        leniency,
-        showHintAfterMisses,
-        acceptBackwardsStrokes: false,
-        onCorrectStroke: (strokeData) => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          setStrokeNum(strokeData.strokeNum + 1);
-          onCorrectStroke?.(strokeData.strokeNum, strokeData.strokesRemaining);
-        },
-        onMistake: (strokeData) => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-          // Custom mistake counting logic:
-          // - 1st mistake on stroke: nothing (mistakesOnStroke = 1)
-          // - 2nd mistake on stroke: add 1 to total (mistakesOnStroke = 2)
-          // - 3rd+ mistakes: don't add more (already counted)
-          const strokeIndex = strokeData.strokeNum;
-          const mistakesOnThisStroke = strokeData.mistakesOnStroke;
-
-          if (
-            mistakesOnThisStroke === 2 &&
-            !countedMistakeStrokesRef.current.has(strokeIndex)
-          ) {
-            // This is the 2nd mistake on this stroke - count it
-            countedMistakeStrokesRef.current.add(strokeIndex);
-            const newTotal = countedMistakeStrokesRef.current.size;
-            setTotalMistakes(newTotal);
-            onMistake?.(strokeIndex, newTotal);
-          }
-          // 1st mistake or 3rd+: don't update the count
-        },
-        onComplete: (summary) => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setIsQuizActive(false);
-          setIsComplete(true);
-          // Store completion data with our custom mistake count
-          completionDataRef.current = {
-            totalMistakes: countedMistakeStrokesRef.current.size,
-            character: summary.character,
-          };
-        },
-      });
-
-      setIsQuizActive(true);
-    }
-  }, [
-    writer.characterState.status,
-    writer.characterState,
-    writer.quiz,
-    leniency,
-    showHintAfterMisses,
-    onCorrectStroke,
-    onMistake,
-  ]);
+  const isResolvedCharacter =
+    writer.characterState.status === "resolved" &&
+    writer.characterState.data.symbol === character;
 
   // Handle character change - show transition state to clear canvas
   useEffect(() => {
@@ -204,7 +134,6 @@ export default function KanjiWriterQuiz({
     setStrokeNum(0);
     setTotalStrokes(0);
     setTotalMistakes(0);
-    setIsQuizActive(false);
     setIsComplete(false);
     setShowOutline(false);
     setIsAnimating(false);
@@ -214,9 +143,85 @@ export default function KanjiWriterQuiz({
     setShowGrid(showGridRef.current);
   }, [character]);
 
+  // Update stroke number when quiz state changes
+  useEffect(() => {
+    if (quizActive) {
+      setStrokeNum(currentStrokeIndex);
+    }
+  }, [currentStrokeIndex, quizActive]);
+
+  // Start quiz when character loads
+  useEffect(() => {
+    if (
+      writer.characterState.status !== "resolved" ||
+      writer.characterState.data.symbol !== character ||
+      hasStartedQuiz.current
+    ) {
+      return;
+    }
+
+    hasStartedQuiz.current = true;
+    setIsTransitioning(false); // Clear transition state
+    const charData = writer.characterState.data;
+    setTotalStrokes(charData.strokes.length);
+
+    // Start the quiz
+    writer.quiz.start({
+      leniency,
+      showHintAfterMisses,
+      acceptBackwardsStrokes: false,
+      onCorrectStroke: (strokeData) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setStrokeNum(strokeData.strokeNum + 1);
+        onCorrectStroke?.(strokeData.strokeNum, strokeData.strokesRemaining);
+      },
+      onMistake: (strokeData) => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+        // Custom mistake counting logic:
+        // - 1st mistake on stroke: nothing (mistakesOnStroke = 1)
+        // - 2nd mistake on stroke: add 1 to total (mistakesOnStroke = 2)
+        // - 3rd+ mistakes: don't add more (already counted)
+        const strokeIndex = strokeData.strokeNum;
+        const mistakesOnThisStroke = strokeData.mistakesOnStroke;
+
+        if (
+          mistakesOnThisStroke === 2 &&
+          !countedMistakeStrokesRef.current.has(strokeIndex)
+        ) {
+          // This is the 2nd mistake on this stroke - count it
+          countedMistakeStrokesRef.current.add(strokeIndex);
+          const newTotal = countedMistakeStrokesRef.current.size;
+          setTotalMistakes(newTotal);
+          onMistake?.(strokeIndex, newTotal);
+        }
+        // 1st mistake or 3rd+: don't update the count
+      },
+      onComplete: (summary) => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setIsComplete(true);
+        // Store completion data with our custom mistake count
+        completionDataRef.current = {
+          totalMistakes: countedMistakeStrokesRef.current.size,
+          character: summary.character,
+        };
+      },
+    });
+  }, [
+    character,
+    writer.characterState.status,
+    writer.characterState,
+    writer.quiz,
+    leniency,
+    showHintAfterMisses,
+    onCorrectStroke,
+    onMistake,
+  ]);
+
   // Auto-replace when stroke data is not available (404 error)
   useEffect(() => {
     if (writer.characterState.status === "rejected") {
+      setIsTransitioning(false);
       const callback = onUnavailable || onSkip;
       if (callback) {
         // Show error briefly, then auto-replace/skip after 1 second
@@ -228,10 +233,28 @@ export default function KanjiWriterQuiz({
     }
   }, [writer.characterState.status, onUnavailable, onSkip]);
 
+  // If the library gets stuck in pending, move on instead of trapping the user.
+  useEffect(() => {
+    if (writer.characterState.status !== "pending") {
+      return;
+    }
+
+    const callback = onUnavailable || onSkip;
+    if (!callback) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      callback();
+    }, LOADER_PENDING_TIMEOUT_MS);
+
+    return () => clearTimeout(timer);
+  }, [character, writer.characterState.status, onUnavailable, onSkip]);
+
   const handleShowHint = useCallback(() => {
     // To show a hint, we temporarily increase the mistake count for the current stroke
     // to trigger the QuizMistakeHighlighter, then it resets automatically
-    if (writer.characterState.status === "resolved" && quizActive) {
+    if (isResolvedCharacter && quizActive) {
       const currentMistakes = quizMistakes[currentStrokeIndex] || 0;
       const hintThreshold =
         typeof showHintAfterMisses === "number" ? showHintAfterMisses : 3;
@@ -257,7 +280,7 @@ export default function KanjiWriterQuiz({
       // If already at or above threshold, the hint will show automatically on next mistake
     }
   }, [
-    writer.characterState.status,
+    isResolvedCharacter,
     writer.quiz,
     quizActive,
     quizMistakes,
@@ -278,7 +301,7 @@ export default function KanjiWriterQuiz({
   }, []);
 
   const handleReplayAnimation = useCallback(() => {
-    if (writer.characterState.status === "resolved" && !isAnimating) {
+    if (isResolvedCharacter && !isAnimating) {
       setIsAnimating(true);
       writer.animator.animateCharacter({
         strokeDuration: 500,
@@ -288,7 +311,7 @@ export default function KanjiWriterQuiz({
         },
       });
     }
-  }, [writer.animator, writer.characterState.status, isAnimating]);
+  }, [writer.animator, isResolvedCharacter, isAnimating]);
 
   const handleNext = useCallback(() => {
     // Call onComplete with stored data when user clicks Next
@@ -304,7 +327,12 @@ export default function KanjiWriterQuiz({
     : "rgba(0,0,0,0.1)";
 
   // Show loading during transition or while character is pending
-  if (isTransitioning || writer.characterState.status === "pending") {
+  if (
+    isTransitioning ||
+    writer.characterState.status === "idle" ||
+    writer.characterState.status === "pending" ||
+    (writer.characterState.status === "resolved" && !isResolvedCharacter)
+  ) {
     return (
       <View style={styles.container}>
         <View

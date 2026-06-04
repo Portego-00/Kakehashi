@@ -542,7 +542,7 @@ export default function KanjiFreehandQuiz({
   const hanziScale = canvasSize / CANVAS_INNER_SIZE;
 
   const [showOutline, setShowOutline] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [strokes, setStrokes] = useState<FreehandPoint[][]>([]);
@@ -562,7 +562,6 @@ export default function KanjiFreehandQuiz({
   );
 
   const showGridRef = useRef(true);
-  const hasInitializedRef = useRef(false);
   const completionDataRef = useRef<KanjiFreehandQuizResult | null>(null);
   const cancelAnimationRef = useRef<() => void>(() => {});
   const summaryAnimation = useRef(new Animated.Value(0)).current;
@@ -580,6 +579,9 @@ export default function KanjiFreehandQuiz({
     character,
     loader: loadKanjiWriterData,
   });
+  const isResolvedCharacter =
+    writer.characterState.status === "resolved" &&
+    writer.characterState.data.symbol === character;
 
   useEffect(() => {
     cancelAnimationRef.current = () => {
@@ -706,19 +708,22 @@ export default function KanjiFreehandQuiz({
   );
 
   useEffect(() => {
-    if (writer.characterState.status === "resolved" && !hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      setIsTransitioning(false);
-    }
-  }, [writer.characterState.status]);
-
-  useEffect(() => {
     setIsTransitioning(true);
-    hasInitializedRef.current = false;
     resetAttemptState();
     setShowOutline(false);
     setShowGrid(showGridRef.current);
   }, [character, resetAttemptState]);
+
+  useEffect(() => {
+    if (isResolvedCharacter) {
+      setIsTransitioning(false);
+      return;
+    }
+
+    if (writer.characterState.status === "rejected") {
+      setIsTransitioning(false);
+    }
+  }, [character, isResolvedCharacter, writer.characterState.status]);
 
   useEffect(() => {
     if (writer.characterState.status !== "rejected") {
@@ -767,7 +772,7 @@ export default function KanjiFreehandQuiz({
 
   const handleReplayCorrect = useCallback(() => {
     if (
-      writer.characterState.status !== "resolved" ||
+      !isResolvedCharacter ||
       isAnimating ||
       replayMode === "user"
     ) {
@@ -789,10 +794,10 @@ export default function KanjiFreehandQuiz({
     });
   }, [
     clearUserReplayTimer,
+    isResolvedCharacter,
     isAnimating,
     replayMode,
     writer.animator,
-    writer.characterState.status,
   ]);
 
   const handleReplayMine = useCallback(() => {
@@ -860,7 +865,10 @@ export default function KanjiFreehandQuiz({
   }, [clearUserReplayTimer]);
 
   const handleSubmit = useCallback(() => {
-    if (writer.characterState.status !== "resolved") {
+    if (
+      writer.characterState.status !== "resolved" ||
+      writer.characterState.data.symbol !== character
+    ) {
       return;
     }
 
@@ -949,7 +957,12 @@ export default function KanjiFreehandQuiz({
   const canvasShadowColor = theme.isDark ? "#000" : "#333";
   const summaryMaxHeight = Math.max(120, Math.min(190, screenHeight * 0.22));
 
-  if (isTransitioning || writer.characterState.status === "pending") {
+  if (
+    isTransitioning ||
+    writer.characterState.status === "idle" ||
+    writer.characterState.status === "pending" ||
+    (writer.characterState.status === "resolved" && !isResolvedCharacter)
+  ) {
     return (
       <View style={styles.container}>
         <View

@@ -353,6 +353,22 @@ export default function WritingPracticeSessionScreen() {
   }, [config, hasRestoredSession, loadQuestions]);
 
   const currentQuestion = questions[currentIndex];
+  const routeSessionKey =
+    typeof params.sessionId === "string"
+      ? params.sessionId
+      : Array.isArray(params.sessionId)
+        ? params.sessionId.join("-")
+        : params.resume === "true"
+          ? "resume"
+          : "session";
+  const currentQuestionKey = currentQuestion
+    ? [
+        routeSessionKey,
+        currentIndex,
+        currentQuestion.subject.id,
+        currentQuestion.character,
+      ].join("-")
+    : routeSessionKey;
 
   const handleComplete = useCallback(
     (result: { totalMistakes: number; character: string }) => {
@@ -800,7 +816,7 @@ export default function WritingPracticeSessionScreen() {
 
         {/* Writer Canvas */}
         <KanjiWriterQuiz
-          key={currentQuestion.character}
+          key={currentQuestionKey}
           character={currentQuestion.character}
           onComplete={handleComplete}
           onSkip={handleSkip}
