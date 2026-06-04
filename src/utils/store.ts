@@ -490,6 +490,7 @@ type SettingsState = {
   lessonTypeOrderEnabled: boolean;
   lessonTypeOrder: LessonTypeOrderSetting[];
   interleaveLessonTypesEnabled: boolean;
+  minimumRadicalKanjiPerBatchEnabled: boolean; // Keep at least one radical and one kanji in each lesson batch when available
   prioritizeCriticalItems: boolean;
   autoplayVocabularyAudio: boolean;
   autoplayLessonReadingAudio: boolean; // Auto-play vocabulary audio when opening the Reading tab in lessons
@@ -654,6 +655,7 @@ type SettingsState = {
   setLessonTypeOrderEnabled: (enabled: boolean) => void;
   setLessonTypeOrder: (order: LessonTypeOrderSetting[]) => void;
   setInterleaveLessonTypesEnabled: (enabled: boolean) => void;
+  setMinimumRadicalKanjiPerBatchEnabled: (enabled: boolean) => void;
   setPrioritizeCriticalItems: (prioritize: boolean) => void;
   setAutoplayVocabularyAudio: (autoplay: boolean) => void;
   setAutoplayLessonReadingAudio: (autoplay: boolean) => void;
@@ -800,6 +802,7 @@ export const useSettingsStore = create<SettingsState>()(
       lessonTypeOrderEnabled: false, // Default to disabled - no forced type grouping
       lessonTypeOrder: [...DEFAULT_LESSON_TYPE_ORDER], // Radical -> Kanji -> Vocabulary
       interleaveLessonTypesEnabled: false, // Default to disabled - preserve legacy ordering unless user opts in
+      minimumRadicalKanjiPerBatchEnabled: false, // Default to disabled - preserve legacy batch composition
       prioritizeCriticalItems: false, // Default to disabled (traditional SRS ordering)
       autoplayVocabularyAudio: false, // Default to disabled (no automatic audio playback)
       autoplayLessonReadingAudio: false, // Default to disabled for lesson reading tab navigation
@@ -996,6 +999,9 @@ export const useSettingsStore = create<SettingsState>()(
       setLessonTypeOrder: (lessonTypeOrder) => set({ lessonTypeOrder }),
       setInterleaveLessonTypesEnabled: (interleaveLessonTypesEnabled) =>
         set({ interleaveLessonTypesEnabled }),
+      setMinimumRadicalKanjiPerBatchEnabled: (
+        minimumRadicalKanjiPerBatchEnabled
+      ) => set({ minimumRadicalKanjiPerBatchEnabled }),
       setPrioritizeCriticalItems: (prioritize) =>
         set({ prioritizeCriticalItems: prioritize }),
       setAutoplayVocabularyAudio: (autoplay) =>

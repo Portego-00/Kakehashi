@@ -29,6 +29,7 @@ type LessonsReviewsCardProps = {
   totalLessonCount?: number; // Total available lessons before daily-cap filtering
   onPress: () => void;
   onLessonPicker?: () => void; // Optional callback for lesson picker
+  hasResumableLessonSession?: boolean;
   isDone?: boolean;
   isDailyLimitReached?: boolean; // Optional flag to indicate lessons are blocked by daily cap
   nextLessonTime?: string; // Optional timestamp for next available lesson
@@ -45,6 +46,7 @@ export default function LessonsReviewsCard({
   totalLessonCount,
   onPress,
   onLessonPicker,
+  hasResumableLessonSession = false,
   isDone,
   isDailyLimitReached,
   nextLessonTime,
@@ -73,6 +75,7 @@ export default function LessonsReviewsCard({
     (state) => state.widgetReviewCardGradientEnd
   );
   const isLessons = type === "lessons";
+  const canResumeLessonSession = isLessons && hasResumableLessonSession;
   const pendingSyncCount = Math.max(0, pendingSyncCountProp);
   // Dashboard counts already exclude pending offline progress IDs.
   const displayCount = Math.max(0, count);
@@ -83,12 +86,18 @@ export default function LessonsReviewsCard({
     ? Math.max(0, totalLessonCount ?? count)
     : displayCount;
   const lessonsBlockedByDailyLimit =
-    isLessons && Boolean(isDailyLimitReached) && displayCount === 0;
+    isLessons &&
+    Boolean(isDailyLimitReached) &&
+    displayCount === 0 &&
+    !canResumeLessonSession;
+  const canStartSession =
+    displayCount > 0 || canResumeLessonSession;
   const canShowLessonPicker =
     isLessons && Boolean(onLessonPicker) && totalAvailableLessons > 0;
   const isGrayedOut =
-    (isLessons && (Boolean(isDone) || Boolean(isDailyLimitReached))) ||
-    displayCount === 0;
+    !canResumeLessonSession &&
+    ((isLessons && (Boolean(isDone) || Boolean(isDailyLimitReached))) ||
+      displayCount === 0);
   const pendingSyncLabel = pendingSyncCount
     ? `${pendingSyncCount} ${isLessons ? "lesson" : "review"}${
         pendingSyncCount === 1 ? "" : "s"
@@ -248,7 +257,7 @@ export default function LessonsReviewsCard({
         { shadowColor: theme.isDark ? "#000000" : "#000000" },
       ]}
       onPress={onPress}
-      disabled={displayCount === 0 || lessonsBlockedByDailyLimit}
+      disabled={!canStartSession || lessonsBlockedByDailyLimit}
       activeOpacity={0.9}
     >
       <LinearGradient
@@ -335,6 +344,8 @@ export default function LessonsReviewsCard({
                   ? "You've reached your daily lesson limit for today."
                   : "You've done all your available lessons!"
                 : "There are no more reviews to do right now."
+              : canResumeLessonSession
+              ? "Resume your in-progress lesson session."
               : isLessons
               ? "We cooked up these lessons just for you."
               : "Review these items to level them up!"}
@@ -353,7 +364,7 @@ export default function LessonsReviewsCard({
                 <Text style={styles.nextTimeText}>More lessons unlock tomorrow.</Text>
                 {renderLessonPickerButton()}
               </View>
-            ) : isLessons && displayCount === 0 ? (
+            ) : isLessons && displayCount === 0 && !canResumeLessonSession ? (
               <Text style={styles.nextTimeText}>
                 {nextLessonTime
                   ? formatNextTime(nextLessonTime)
@@ -374,7 +385,11 @@ export default function LessonsReviewsCard({
                   <Text
                     style={[styles.startButtonText, { color: theme.textColor }]}
                   >
-                    {isLessons ? "Start Lessons" : "Start Reviews"}
+                    {canResumeLessonSession
+                      ? "Resume Lessons"
+                      : isLessons
+                      ? "Start Lessons"
+                      : "Start Reviews"}
                   </Text>
                   <Ionicons
                     name="chevron-forward"
@@ -408,6 +423,7 @@ export function LessonsReviewsCardPair({
   onLessonsPress,
   onReviewsPress,
   onLessonPicker,
+  hasResumableLessonSession,
   isDoneLessons,
   isLessonDailyLimitReached,
   nextLessonTime,
@@ -425,6 +441,7 @@ export function LessonsReviewsCardPair({
   onLessonsPress: () => void;
   onReviewsPress: () => void;
   onLessonPicker?: () => void;
+  hasResumableLessonSession?: boolean;
   isDoneLessons?: boolean;
   isLessonDailyLimitReached?: boolean;
   nextLessonTime?: string;
@@ -448,6 +465,7 @@ export function LessonsReviewsCardPair({
         totalLessonCount={totalLessonCount}
         onPress={onLessonsPress}
         onLessonPicker={onLessonPicker}
+        hasResumableLessonSession={hasResumableLessonSession}
         isDone={isDoneLessons}
         isDailyLimitReached={isLessonDailyLimitReached}
         nextLessonTime={nextLessonTime}

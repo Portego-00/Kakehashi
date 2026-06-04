@@ -218,6 +218,68 @@ describe("lessonOrdering", () => {
     expect(topTwoIds).toEqual([2, 3]);
   });
 
+  it("pulls radicals and kanji into each batch when minimum type coverage is enabled", () => {
+    const items = [
+      createTestItem({ id: 1, subjectType: "vocabulary", subjectId: 1 }),
+      createTestItem({ id: 2, subjectType: "vocabulary", subjectId: 2 }),
+      createTestItem({ id: 3, subjectType: "vocabulary", subjectId: 3 }),
+      createTestItem({ id: 4, subjectType: "vocabulary", subjectId: 4 }),
+      createTestItem({ id: 5, subjectType: "vocabulary", subjectId: 5 }),
+      createTestItem({ id: 6, subjectType: "radical", subjectId: 6 }),
+      createTestItem({ id: 7, subjectType: "kanji", subjectId: 7 }),
+      createTestItem({ id: 8, subjectType: "vocabulary", subjectId: 8 }),
+      createTestItem({ id: 9, subjectType: "radical", subjectId: 9 }),
+      createTestItem({ id: 10, subjectType: "kanji", subjectId: 10 }),
+    ];
+
+    const sorted = sortLessonItemsForQueue(items, {
+      lessonOrder: "ascendingSubjectId",
+      minimumRadicalKanjiPerBatchEnabled: true,
+      lessonBatchSize: 5,
+      randomFn: constantRandom(0),
+    });
+
+    const firstBatchTypes = sorted
+      .slice(0, 5)
+      .map((item) => item.subject.object);
+    const secondBatchTypes = sorted
+      .slice(5, 10)
+      .map((item) => item.subject.object);
+
+    expect(firstBatchTypes).toContain("radical");
+    expect(firstBatchTypes).toContain("kanji");
+    expect(secondBatchTypes).toContain("radical");
+    expect(secondBatchTypes).toContain("kanji");
+    expect(sorted.map((item) => item.id).sort((a, b) => a - b)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+  });
+
+  it("only pulls item types that are available for minimum batch coverage", () => {
+    const items = [
+      createTestItem({ id: 1, subjectType: "vocabulary", subjectId: 1 }),
+      createTestItem({ id: 2, subjectType: "vocabulary", subjectId: 2 }),
+      createTestItem({ id: 3, subjectType: "vocabulary", subjectId: 3 }),
+      createTestItem({ id: 4, subjectType: "vocabulary", subjectId: 4 }),
+      createTestItem({ id: 5, subjectType: "kanji", subjectId: 5 }),
+      createTestItem({ id: 6, subjectType: "vocabulary", subjectId: 6 }),
+    ];
+
+    const sorted = sortLessonItemsForQueue(items, {
+      lessonOrder: "ascendingSubjectId",
+      minimumRadicalKanjiPerBatchEnabled: true,
+      lessonBatchSize: 4,
+      randomFn: constantRandom(0),
+    });
+
+    const firstBatchTypes = sorted
+      .slice(0, 4)
+      .map((item) => item.subject.object);
+
+    expect(firstBatchTypes).toContain("kanji");
+    expect(firstBatchTypes).not.toContain("radical");
+  });
+
   it("keeps explicit type grouping as the higher-priority mode", () => {
     const items = [
       createTestItem({ id: 1, subjectType: "vocabulary" }),

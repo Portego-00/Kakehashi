@@ -33,6 +33,7 @@ export const PERMANENT_KEYS = {
   LEVEL_PROGRESSIONS: 'level_progressions',
   ANKI_ONBOARDING: 'anki_onboarding',
   ANKI_SETTINGS: 'anki_settings',
+  LESSON_SESSION: 'lesson_session',
   SUBJECTS_METADATA: 'subjects_metadata', // Stores expected count and other metadata
 } as const;
 

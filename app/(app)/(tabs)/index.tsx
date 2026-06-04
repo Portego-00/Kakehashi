@@ -44,6 +44,7 @@ import {
   filterRecentLessonAssignments,
 } from "../../../src/utils/recentLessonsWindow";
 import { hasExtraStudySessionState } from "../../../src/utils/extraStudySessionPersistence";
+import { loadPersistedLessonSession } from "../../../src/utils/lessonSessionPersistence";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import {
   useSubjectColors,
@@ -190,6 +191,8 @@ export default function StudyTab() {
   const [showOpenSourceModal, setShowOpenSourceModal] = useState(false);
   const [activeExtraStudySessionModeIds, setActiveExtraStudySessionModeIds] =
     useState<ExtraStudyModeId[]>([]);
+  const [hasResumableLessonSession, setHasResumableLessonSession] =
+    useState(false);
   const [manualWidgetRefreshToken, setManualWidgetRefreshToken] = useState(0);
   const remainingDailyLessonSlots = useMemo(
     () =>
@@ -701,7 +704,18 @@ export default function StudyTab() {
         }
       };
 
+      const refreshLessonSessionIndicator = async () => {
+        const lessonSession = await loadPersistedLessonSession(
+          userData?.id ?? null,
+        );
+
+        if (isFocused) {
+          setHasResumableLessonSession(Boolean(lessonSession));
+        }
+      };
+
       void refreshExtraStudySessionIndicators();
+      void refreshLessonSessionIndicator();
       void refreshStreakIfCalendarDayChanged();
 
       if (isInitialFocus) {
@@ -715,7 +729,11 @@ export default function StudyTab() {
       return () => {
         isFocused = false;
       };
-    }, [refreshLessonsReviewsCounts, refreshStreakIfCalendarDayChanged]),
+    }, [
+      refreshLessonsReviewsCounts,
+      refreshStreakIfCalendarDayChanged,
+      userData?.id,
+    ]),
   );
 
   // Check for the refresh parameter (used when returning from reviews)
@@ -776,7 +794,7 @@ export default function StudyTab() {
   }, [isRefreshing, refreshData, refreshStreak]);
 
   const handleLessonsPress = () => {
-    if (effectiveLessonCount <= 0) {
+    if (effectiveLessonCount <= 0 && !hasResumableLessonSession) {
       return;
     }
 
@@ -870,6 +888,7 @@ export default function StudyTab() {
                 userData={userData}
                 effectiveLessonCount={effectiveLessonCount}
                 isDailyLessonLimitReached={isDailyLessonLimitReached}
+                hasResumableLessonSession={hasResumableLessonSession}
                 isIPadLandscape={isIPadLandscape}
                 shouldShowRecentMistakes={shouldShowRecentMistakes}
                 currentStreak={currentStreak}
@@ -894,6 +913,7 @@ export default function StudyTab() {
                 userData={userData}
                 effectiveLessonCount={effectiveLessonCount}
                 isDailyLessonLimitReached={isDailyLessonLimitReached}
+                hasResumableLessonSession={hasResumableLessonSession}
                 isIPadLandscape={isIPadLandscape}
                 shouldShowRecentMistakes={shouldShowRecentMistakes}
                 currentStreak={currentStreak}
@@ -931,6 +951,7 @@ export default function StudyTab() {
                   userData={userData}
                   effectiveLessonCount={effectiveLessonCount}
                   isDailyLessonLimitReached={isDailyLessonLimitReached}
+                  hasResumableLessonSession={hasResumableLessonSession}
                   isIPadLandscape={isIPadLandscape}
                   shouldShowRecentMistakes={shouldShowRecentMistakes}
                   currentStreak={currentStreak}
@@ -957,6 +978,7 @@ export default function StudyTab() {
                   userData={userData}
                   effectiveLessonCount={effectiveLessonCount}
                   isDailyLessonLimitReached={isDailyLessonLimitReached}
+                  hasResumableLessonSession={hasResumableLessonSession}
                   isIPadLandscape={isIPadLandscape}
                   shouldShowRecentMistakes={shouldShowRecentMistakes}
                   currentStreak={currentStreak}
@@ -989,6 +1011,7 @@ export default function StudyTab() {
             userData={userData}
             effectiveLessonCount={effectiveLessonCount}
             isDailyLessonLimitReached={isDailyLessonLimitReached}
+            hasResumableLessonSession={hasResumableLessonSession}
             isIPadLandscape={isIPadLandscape}
             shouldShowRecentMistakes={shouldShowRecentMistakes}
             currentStreak={currentStreak}
@@ -1015,6 +1038,7 @@ export default function StudyTab() {
             userData={userData}
             effectiveLessonCount={effectiveLessonCount}
             isDailyLessonLimitReached={isDailyLessonLimitReached}
+            hasResumableLessonSession={hasResumableLessonSession}
             isIPadLandscape={isIPadLandscape}
             shouldShowRecentMistakes={shouldShowRecentMistakes}
             currentStreak={currentStreak}
@@ -1044,6 +1068,7 @@ export default function StudyTab() {
           userData={userData}
           effectiveLessonCount={effectiveLessonCount}
           isDailyLessonLimitReached={isDailyLessonLimitReached}
+          hasResumableLessonSession={hasResumableLessonSession}
           isIPadLandscape={isIPadLandscape}
           shouldShowRecentMistakes={shouldShowRecentMistakes}
           currentStreak={currentStreak}

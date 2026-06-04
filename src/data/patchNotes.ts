@@ -56,6 +56,24 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.75",
+    date: "2026-06-04",
+    changes: [
+      {
+        type: "feature",
+        title: "Resumable Lesson Sessions",
+        description:
+          "Started lesson sessions can now be resumed if you leave the lesson flow or return after switching tasks.",
+      },
+      {
+        type: "feature",
+        title: "Lesson Batch Type Minimums",
+        description:
+          "Added an option to include at least one radical and one kanji in each lesson batch when available.",
+      },
+    ],
+  },
+  {
     version: "1.2.74",
     date: "2026-06-03",
     changes: [

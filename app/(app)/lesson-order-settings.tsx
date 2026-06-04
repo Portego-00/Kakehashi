@@ -216,12 +216,15 @@ export default function LessonOrderSettings() {
   const {
     lessonOrder,
     setLessonOrder,
+    lessonBatchSize,
     lessonTypeOrderEnabled,
     setLessonTypeOrderEnabled,
     lessonTypeOrder,
     setLessonTypeOrder,
     interleaveLessonTypesEnabled,
     setInterleaveLessonTypesEnabled,
+    minimumRadicalKanjiPerBatchEnabled,
+    setMinimumRadicalKanjiPerBatchEnabled,
     prioritizeCriticalItems,
     setPrioritizeCriticalItems,
   } = useSettingsStore();
@@ -319,6 +322,8 @@ export default function LessonOrderSettings() {
     lessonTypeOrderEnabled,
     lessonTypeOrder: normalizedTypeOrder,
     interleaveLessonTypesEnabled,
+    minimumRadicalKanjiPerBatchEnabled,
+    lessonBatchSize,
     prioritizeCriticalItems,
     userLevel,
     randomFn: () => 0.42,
@@ -486,7 +491,7 @@ export default function LessonOrderSettings() {
           <View
             style={[
               styles.optionRow,
-              { borderBottomColor: "transparent" },
+              { borderBottomColor: theme.border },
             ]}
           >
             <View style={styles.optionTextWrap}>
@@ -505,6 +510,28 @@ export default function LessonOrderSettings() {
                   setLessonTypeOrderEnabled(false);
                 }
               }}
+              trackColor={{ false: "#767577", true: theme.primary }}
+              thumbColor="#f4f3f4"
+            />
+          </View>
+
+          <View
+            style={[
+              styles.optionRow,
+              { borderBottomColor: "transparent" },
+            ]}
+          >
+            <View style={styles.optionTextWrap}>
+              <Text style={[styles.optionTitle, { color: theme.textColor }]}>
+                Minimum radicals and kanji
+              </Text>
+              <Text style={[styles.optionDescription, { color: theme.textSecondary }]}>
+                Pull at least one radical and one kanji into each lesson batch when those item types are available.
+              </Text>
+            </View>
+            <Switch
+              value={minimumRadicalKanjiPerBatchEnabled}
+              onValueChange={setMinimumRadicalKanjiPerBatchEnabled}
               trackColor={{ false: "#767577", true: theme.primary }}
               thumbColor="#f4f3f4"
             />

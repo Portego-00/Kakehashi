@@ -53,6 +53,7 @@ type HomeDashboardWidgetProps = {
   userData: any;
   effectiveLessonCount: number;
   isDailyLessonLimitReached: boolean;
+  hasResumableLessonSession?: boolean;
   isIPadLandscape: boolean;
   shouldShowRecentMistakes: boolean;
   currentStreak: number;
@@ -80,6 +81,7 @@ export default function HomeDashboardWidget({
   userData,
   effectiveLessonCount,
   isDailyLessonLimitReached,
+  hasResumableLessonSession = false,
   isIPadLandscape,
   shouldShowRecentMistakes,
   currentStreak,
@@ -326,6 +328,7 @@ export default function HomeDashboardWidget({
           assignments={dashboardData.assignments}
           onLessonsPress={onLessonsPress}
           onLessonPicker={onLessonPicker}
+          hasResumableLessonSession={hasResumableLessonSession}
           onReviewsPress={onReviewsPress}
           isDoneLessons={effectiveLessonCount === 0}
           isLessonDailyLimitReached={isDailyLessonLimitReached}

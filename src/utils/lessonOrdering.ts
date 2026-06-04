@@ -92,6 +92,8 @@ interface SortLessonItemsOptions {
   lessonTypeOrderEnabled?: boolean;
   lessonTypeOrder?: LessonTypeOrderSetting[];
   interleaveLessonTypesEnabled?: boolean;
+  minimumRadicalKanjiPerBatchEnabled?: boolean;
+  lessonBatchSize?: number;
   prioritizeCriticalItems?: boolean;
   userLevel?: number;
   randomFn?: () => number;
@@ -362,6 +364,107 @@ function interleaveItemsBySubjectType<T extends OrderableLessonItem>(
   return interleaved;
 }
 
+function countBatchMinimumTypes<T extends OrderableLessonItem>(
+  batch: T[],
+  minimumTypes: LessonTypeOrderSetting[]
+): Map<LessonTypeOrderSetting, number> {
+  const counts = new Map<LessonTypeOrderSetting, number>();
+  minimumTypes.forEach((type) => counts.set(type, 0));
+
+  batch.forEach((item) => {
+    const bucket = getTypeOrderBucket(item);
+    if (counts.has(bucket)) {
+      counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+    }
+  });
+
+  return counts;
+}
+
+function findBatchMinimumReplacementIndex<T extends OrderableLessonItem>(
+  batch: T[],
+  minimumTypes: LessonTypeOrderSetting[]
+): number {
+  const minimumTypeSet = new Set(minimumTypes);
+
+  for (let index = batch.length - 1; index >= 0; index -= 1) {
+    if (!minimumTypeSet.has(getTypeOrderBucket(batch[index]))) {
+      return index;
+    }
+  }
+
+  const counts = countBatchMinimumTypes(batch, minimumTypes);
+  for (let index = batch.length - 1; index >= 0; index -= 1) {
+    const bucket = getTypeOrderBucket(batch[index]);
+    if ((counts.get(bucket) ?? 0) > 1) {
+      return index;
+    }
+  }
+
+  return batch.length - 1;
+}
+
+function ensureMinimumTypesPerBatch<T extends OrderableLessonItem>(
+  sortedItems: T[],
+  batchSize: number,
+  minimumTypes: LessonTypeOrderSetting[]
+): T[] {
+  const normalizedBatchSize = Math.floor(batchSize);
+  if (
+    sortedItems.length <= 1 ||
+    normalizedBatchSize < minimumTypes.length ||
+    minimumTypes.length === 0
+  ) {
+    return [...sortedItems];
+  }
+
+  const remaining = [...sortedItems];
+  const arranged: T[] = [];
+
+  while (remaining.length > 0) {
+    const batch = remaining.splice(0, normalizedBatchSize);
+
+    minimumTypes.forEach((minimumType) => {
+      const hasMinimumType = batch.some(
+        (item) => getTypeOrderBucket(item) === minimumType
+      );
+      if (hasMinimumType) {
+        return;
+      }
+
+      const replacementSourceIndex = remaining.findIndex(
+        (item) => getTypeOrderBucket(item) === minimumType
+      );
+      if (replacementSourceIndex === -1) {
+        return;
+      }
+
+      const [minimumItem] = remaining.splice(replacementSourceIndex, 1);
+      if (!minimumItem) {
+        return;
+      }
+
+      if (batch.length < normalizedBatchSize) {
+        batch.push(minimumItem);
+        return;
+      }
+
+      const replacementIndex = findBatchMinimumReplacementIndex(
+        batch,
+        minimumTypes
+      );
+      const [displacedItem] = batch.splice(replacementIndex, 1, minimumItem);
+      if (displacedItem) {
+        remaining.unshift(displacedItem);
+      }
+    });
+
+    arranged.push(...batch);
+  }
+
+  return arranged;
+}
+
 export function sortLessonItemsForQueue<T extends OrderableLessonItem>(
   items: T[],
   options: SortLessonItemsOptions = {}
@@ -371,6 +474,8 @@ export function sortLessonItemsForQueue<T extends OrderableLessonItem>(
     lessonTypeOrderEnabled = false,
     lessonTypeOrder = DEFAULT_LESSON_TYPE_ORDER,
     interleaveLessonTypesEnabled = false,
+    minimumRadicalKanjiPerBatchEnabled = false,
+    lessonBatchSize = 0,
     prioritizeCriticalItems = false,
     userLevel = 1,
     randomFn = Math.random,
@@ -388,6 +493,8 @@ export function sortLessonItemsForQueue<T extends OrderableLessonItem>(
     shuffledIndex.set(item.id, index);
   });
 
+  let sortedItems: T[];
+
   if (interleaveLessonTypesEnabled && !lessonTypeOrderEnabled) {
     const baseSorted = [...shuffledItems].sort((left, right) =>
       compareByConfiguredOrder(left, right, {
@@ -400,71 +507,85 @@ export function sortLessonItemsForQueue<T extends OrderableLessonItem>(
     );
 
     if (!prioritizeCriticalItems) {
-      return interleaveItemsBySubjectType(baseSorted, normalizedTypeOrder);
-    }
-
-    const criticalItems: T[] = [];
-    const nonCriticalItems: T[] = [];
-
-    baseSorted.forEach((item) => {
-      if (isCriticalLesson(item, userLevel)) {
-        criticalItems.push(item);
-        return;
-      }
-      nonCriticalItems.push(item);
-    });
-
-    return [
-      ...interleaveItemsBySubjectType(criticalItems, normalizedTypeOrder),
-      ...interleaveItemsBySubjectType(nonCriticalItems, normalizedTypeOrder),
-    ];
-  }
-
-  return [...shuffledItems].sort((left, right) => {
-    if (prioritizeCriticalItems) {
-      const leftIsCritical = isCriticalLesson(left, userLevel);
-      const rightIsCritical = isCriticalLesson(right, userLevel);
-      if (leftIsCritical && !rightIsCritical) return -1;
-      if (!leftIsCritical && rightIsCritical) return 1;
-    }
-
-    if (lessonOrder === "random" && !lessonTypeOrderEnabled) {
-      return (
-        (shuffledIndex.get(left.id) ?? 0) - (shuffledIndex.get(right.id) ?? 0)
+      sortedItems = interleaveItemsBySubjectType(
+        baseSorted,
+        normalizedTypeOrder
       );
+    } else {
+      const criticalItems: T[] = [];
+      const nonCriticalItems: T[] = [];
+
+      baseSorted.forEach((item) => {
+        if (isCriticalLesson(item, userLevel)) {
+          criticalItems.push(item);
+          return;
+        }
+        nonCriticalItems.push(item);
+      });
+
+      sortedItems = [
+        ...interleaveItemsBySubjectType(criticalItems, normalizedTypeOrder),
+        ...interleaveItemsBySubjectType(nonCriticalItems, normalizedTypeOrder),
+      ];
     }
+  } else {
+    sortedItems = [...shuffledItems].sort((left, right) => {
+      if (prioritizeCriticalItems) {
+        const leftIsCritical = isCriticalLesson(left, userLevel);
+        const rightIsCritical = isCriticalLesson(right, userLevel);
+        if (leftIsCritical && !rightIsCritical) return -1;
+        if (!leftIsCritical && rightIsCritical) return 1;
+      }
 
-    if (lessonTypeOrderEnabled) {
-      const leftTypeOrder = typeOrderMap.get(getTypeOrderBucket(left)) ?? 0;
-      const rightTypeOrder = typeOrderMap.get(getTypeOrderBucket(right)) ?? 0;
-      const typeOrderComparison = leftTypeOrder - rightTypeOrder;
-
-      if (lessonOrder === "random") {
-        if (typeOrderComparison !== 0) return typeOrderComparison;
+      if (lessonOrder === "random" && !lessonTypeOrderEnabled) {
         return (
           (shuffledIndex.get(left.id) ?? 0) - (shuffledIndex.get(right.id) ?? 0)
         );
       }
 
-      if (typeOrderComparison !== 0) return typeOrderComparison;
+      if (lessonTypeOrderEnabled) {
+        const leftTypeOrder = typeOrderMap.get(getTypeOrderBucket(left)) ?? 0;
+        const rightTypeOrder = typeOrderMap.get(getTypeOrderBucket(right)) ?? 0;
+        const typeOrderComparison = leftTypeOrder - rightTypeOrder;
 
-      const lessonOrderComparison = compareByLessonOrder(
-        left,
-        right,
-        lessonOrder
-      );
-      if (lessonOrderComparison !== 0) return lessonOrderComparison;
+        if (lessonOrder === "random") {
+          if (typeOrderComparison !== 0) return typeOrderComparison;
+          return (
+            (shuffledIndex.get(left.id) ?? 0) -
+            (shuffledIndex.get(right.id) ?? 0)
+          );
+        }
 
-      return (
-        (shuffledIndex.get(left.id) ?? 0) - (shuffledIndex.get(right.id) ?? 0)
-      );
-    }
-    return compareByConfiguredOrder(left, right, {
-      lessonOrder,
-      prioritizeCriticalItems,
-      userLevel,
-      shuffledIndex,
-      includeSubjectTypeFallback: true,
+        if (typeOrderComparison !== 0) return typeOrderComparison;
+
+        const lessonOrderComparison = compareByLessonOrder(
+          left,
+          right,
+          lessonOrder
+        );
+        if (lessonOrderComparison !== 0) return lessonOrderComparison;
+
+        return (
+          (shuffledIndex.get(left.id) ?? 0) -
+          (shuffledIndex.get(right.id) ?? 0)
+        );
+      }
+      return compareByConfiguredOrder(left, right, {
+        lessonOrder,
+        prioritizeCriticalItems,
+        userLevel,
+        shuffledIndex,
+        includeSubjectTypeFallback: true,
+      });
     });
-  });
+  }
+
+  if (minimumRadicalKanjiPerBatchEnabled) {
+    return ensureMinimumTypesPerBatch(sortedItems, lessonBatchSize, [
+      "radical",
+      "kanji",
+    ]);
+  }
+
+  return sortedItems;
 }

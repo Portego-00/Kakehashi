@@ -44,6 +44,12 @@ import {
   type LessonTypeOrderSetting,
   type OrderableLessonItem,
 } from "../../src/utils/lessonOrdering";
+import {
+  clearPersistedLessonSession,
+  loadPersistedLessonSession,
+  savePersistedLessonSession,
+  type PersistedLessonSessionState,
+} from "../../src/utils/lessonSessionPersistence";
 import { getRemainingDailyLessonSlots } from "../../src/utils/dailyLessonLimit";
 import { useSubjectColors } from "../../src/utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
@@ -95,6 +101,8 @@ const orderLessonAssignments = (
     lessonTypeOrderEnabled: boolean;
     lessonTypeOrder: LessonTypeOrderSetting[];
     interleaveLessonTypesEnabled: boolean;
+    minimumRadicalKanjiPerBatchEnabled: boolean;
+    lessonBatchSize: number;
     prioritizeCriticalItems: boolean;
   }
 ): ApiAssignment[] => {
@@ -130,6 +138,9 @@ const orderLessonAssignments = (
     lessonTypeOrderEnabled: options.lessonTypeOrderEnabled,
     lessonTypeOrder: options.lessonTypeOrder,
     interleaveLessonTypesEnabled: options.interleaveLessonTypesEnabled,
+    minimumRadicalKanjiPerBatchEnabled:
+      options.minimumRadicalKanjiPerBatchEnabled,
+    lessonBatchSize: options.lessonBatchSize,
     prioritizeCriticalItems: options.prioritizeCriticalItems,
     userLevel: options.userLevel,
   }).map((item) => item.assignment);
@@ -156,6 +167,7 @@ export default function LessonsScreen() {
     lessonTypeOrderEnabled,
     lessonTypeOrder,
     interleaveLessonTypesEnabled,
+    minimumRadicalKanjiPerBatchEnabled,
     excludeKanaVocabularyFromLessons,
   } = useSettingsStore();
   const effectiveAnkiGrouping =
@@ -164,6 +176,7 @@ export default function LessonsScreen() {
     ? "meaning"
     : "reading";
   const { selectedLessonIds } = useLocalSearchParams();
+  const hasSelectedLessonFilterParam = selectedLessonIds !== undefined;
   const [isLoading, setIsLoading] = useState(true);
   const [allLessons, setAllLessons] = useState<LessonItem[]>([]);
   const [lessonBatches, setLessonBatches] = useState<LessonBatch[]>([]);
@@ -198,6 +211,9 @@ export default function LessonsScreen() {
   const [isFinalBatchComplete, setIsFinalBatchComplete] = useState(false);
   const [showSaveCurrentLessonsModal, setShowSaveCurrentLessonsModal] =
     useState(false);
+  const [lessonSessionCreatedAt, setLessonSessionCreatedAt] = useState<
+    string | null
+  >(null);
 
   const [progress, setProgress] = useState({
     totalItems: 0,
@@ -234,6 +250,52 @@ export default function LessonsScreen() {
     });
     return Array.from(uniqueIds);
   }, [allLessons]);
+
+  const restorePersistedLessonSession = useCallback(
+    (state: PersistedLessonSessionState, createdAt: string) => {
+      const batches = state.lessonBatches as LessonBatch[];
+      const lessons = state.allLessons as LessonItem[];
+
+      if (
+        lessons.length === 0 ||
+        batches.length === 0 ||
+        state.currentBatchIndex < 0 ||
+        state.currentBatchIndex >= batches.length
+      ) {
+        return false;
+      }
+
+      const currentBatch = batches[state.currentBatchIndex];
+      if (
+        !currentBatch ||
+        state.currentItemIndex < 0 ||
+        state.currentItemIndex >= currentBatch.items.length
+      ) {
+        return false;
+      }
+
+      setAllLessons(lessons);
+      setLessonBatches(batches);
+      setCurrentBatchIndex(state.currentBatchIndex);
+      setCurrentItemIndex(state.currentItemIndex);
+      setMode(state.mode as LessonsMode);
+      setReviewItems(state.reviewItems as LessonItem[]);
+      setMasterQueue(state.masterQueue);
+      setActiveQueue(state.activeQueue);
+      setCurrentQuestion(state.currentQuestion);
+      setSessionCompleting(false);
+      setCompletedBatchStats(state.completedBatchStats);
+      setIsFinalBatchComplete(state.isFinalBatchComplete);
+      setProgress(state.progress);
+      setTypeCounts(state.typeCounts);
+      setRelatedSubjects(state.relatedSubjects);
+      setShowSaveCurrentLessonsModal(false);
+      setLessonSessionCreatedAt(createdAt);
+
+      return true;
+    },
+    []
+  );
 
   // Handler for when a synonym is added during review
   const handleSynonymAdded = useCallback((subjectId: number, newSynonyms: string[]) => {
@@ -290,6 +352,66 @@ export default function LessonsScreen() {
     return () => clearInterval(intervalId);
   }, [apiToken, isAuthLoading, refreshPendingLessonCount]);
 
+  useEffect(() => {
+    if (
+      isLoading ||
+      hasSelectedLessonFilterParam ||
+      allLessons.length === 0 ||
+      lessonBatches.length === 0
+    ) {
+      return;
+    }
+
+    const createdAt = lessonSessionCreatedAt ?? new Date().toISOString();
+    if (!lessonSessionCreatedAt) {
+      setLessonSessionCreatedAt(createdAt);
+    }
+
+    void savePersistedLessonSession(
+      {
+        allLessons,
+        lessonBatches,
+        currentBatchIndex,
+        currentItemIndex,
+        mode,
+        reviewItems,
+        masterQueue,
+        activeQueue,
+        currentQuestion,
+        completedBatchStats,
+        isFinalBatchComplete,
+        progress,
+        typeCounts,
+        relatedSubjects,
+      },
+      {
+        userId: userData?.id ?? null,
+        createdAt,
+      }
+    ).catch((error) => {
+      console.warn("[Lessons] Failed to persist lesson session:", error);
+    });
+  }, [
+    activeQueue,
+    allLessons,
+    completedBatchStats,
+    currentBatchIndex,
+    currentItemIndex,
+    currentQuestion,
+    hasSelectedLessonFilterParam,
+    isFinalBatchComplete,
+    isLoading,
+    lessonBatches,
+    lessonSessionCreatedAt,
+    masterQueue,
+    mode,
+    progress,
+    relatedSubjects,
+    reviewItems,
+    typeCounts,
+    userData?.id,
+  ]);
+
   // Fetch study materials when entering review mode
   useEffect(() => {
     if (mode !== LessonsMode.REVIEW || !acceptUserSynonymsAsAnswers || !apiToken || reviewItems.length === 0) {
@@ -332,18 +454,7 @@ export default function LessonsScreen() {
       setIsLoading(true);
       setIsFinalBatchComplete(false);
       setShowSaveCurrentLessonsModal(false);
-
-      // Fetch available lessons
-      const lessonsResponse = await getAvailableLessons(apiToken);
-
-      if (lessonsResponse.data.length === 0) {
-        Alert.alert(
-          "No Lessons Available",
-          "You don't have any lessons available right now.",
-          [{ text: "OK", onPress: () => router.back() }]
-        );
-        return;
-      }
+      setLessonSessionCreatedAt(null);
 
       // Parse selected lesson IDs if provided
       const selectedIds: number[] | null = selectedLessonIds
@@ -356,6 +467,35 @@ export default function LessonsScreen() {
 
       const selectedIdSet = selectedIds ? new Set(selectedIds) : null;
       const hasSelectedLessonFilter = selectedIdSet !== null;
+
+      if (!hasSelectedLessonFilter) {
+        const persistedSession = await loadPersistedLessonSession(
+          userData?.id ?? null
+        );
+
+        if (
+          persistedSession &&
+          restorePersistedLessonSession(
+            persistedSession.state,
+            persistedSession.createdAt
+          )
+        ) {
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Fetch available lessons
+      const lessonsResponse = await getAvailableLessons(apiToken);
+
+      if (lessonsResponse.data.length === 0) {
+        Alert.alert(
+          "No Lessons Available",
+          "You don't have any lessons available right now.",
+          [{ text: "OK", onPress: () => router.back() }]
+        );
+        return;
+      }
 
       let remainingDailyLessonSlots = Number.POSITIVE_INFINITY;
       if (dailyLessonLimit > 0 && !hasSelectedLessonFilter) {
@@ -472,6 +612,8 @@ export default function LessonsScreen() {
           lessonTypeOrderEnabled,
           lessonTypeOrder,
           interleaveLessonTypesEnabled,
+          minimumRadicalKanjiPerBatchEnabled,
+          lessonBatchSize,
           prioritizeCriticalItems,
         }
       );
@@ -632,6 +774,7 @@ export default function LessonsScreen() {
       setCurrentBatchIndex(0);
       setCurrentItemIndex(0);
       setMode(LessonsMode.LESSON);
+      setLessonSessionCreatedAt(new Date().toISOString());
 
       setProgress({
         totalItems: items.length,
@@ -985,17 +1128,33 @@ export default function LessonsScreen() {
     setIsFinalBatchComplete(false);
   };
 
-  const navigateBackToDashboard = useCallback(() => {
+  const navigateBackToDashboard = useCallback((options?: {
+    clearLessonSession?: boolean;
+  }) => {
     void refreshLessonsAndReviews();
-    router.dismissAll();
-    router.replace({
-      pathname: "/",
-      params: { refreshLessonsReviews: "true" },
-    });
+
+    const finishNavigation = () => {
+      router.dismissAll();
+      router.replace({
+        pathname: "/",
+        params: { refreshLessonsReviews: "true" },
+      });
+    };
+
+    if (options?.clearLessonSession) {
+      void clearPersistedLessonSession()
+        .catch((error) => {
+          console.warn("[Lessons] Failed to clear lesson session:", error);
+        })
+        .finally(finishNavigation);
+      return;
+    }
+
+    finishNavigation();
   }, [refreshLessonsAndReviews]);
 
-  const handleGoToDashboard = () => {
-    navigateBackToDashboard();
+  const handleGoToDashboard = (options?: { clearLessonSession?: boolean }) => {
+    navigateBackToDashboard(options);
   };
 
   const handleAnswer = async (
@@ -1190,7 +1349,7 @@ export default function LessonsScreen() {
                   { text: "Cancel", style: "cancel" },
                   {
                     text: "Exit",
-                    onPress: navigateBackToDashboard,
+                    onPress: () => navigateBackToDashboard(),
                   },
                 ]
               );
@@ -1295,7 +1454,7 @@ export default function LessonsScreen() {
                 { text: "Cancel", style: "cancel" },
                 {
                   text: "Exit",
-                  onPress: navigateBackToDashboard,
+                  onPress: () => navigateBackToDashboard(),
                 },
               ]
             );
@@ -1496,7 +1655,11 @@ export default function LessonsScreen() {
                   styles.batchHomeButton,
                   { backgroundColor: theme.cardBackground, borderColor: theme.border },
                 ]}
-                onPress={handleGoToDashboard}
+                onPress={() =>
+                  handleGoToDashboard({
+                    clearLessonSession: isFinalBatchComplete,
+                  })
+                }
               >
                 <Ionicons name="home" size={20} color={theme.textColor} />
               </TouchableOpacity>
@@ -1507,7 +1670,10 @@ export default function LessonsScreen() {
                 ]}
                 onPress={
                   isFinalBatchComplete
-                    ? handleGoToDashboard
+                    ? () =>
+                        handleGoToDashboard({
+                          clearLessonSession: true,
+                        })
                     : handleContinueToNextBatch
                 }
               >
@@ -1550,7 +1716,7 @@ export default function LessonsScreen() {
             styles.buttonContainer,
             { backgroundColor: subjectColors.kanji },
           ]}
-          onPress={handleGoToDashboard}
+          onPress={() => handleGoToDashboard()}
         >
           <Text style={styles.buttonText}>Back to Dashboard</Text>
         </TouchableOpacity>

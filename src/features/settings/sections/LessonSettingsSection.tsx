@@ -19,6 +19,7 @@ export function LessonSettingsSection() {
     interleaveLessonTypesEnabled,
     isDailyLessonLimitEnabled,
     lessonBatchSize,
+    minimumRadicalKanjiPerBatchEnabled,
     lessonOrder,
     lessonPickerViewMode,
     lessonTypeOrderEnabled,
@@ -36,6 +37,17 @@ export function LessonSettingsSection() {
     theme,
     updateSectionOffset,
   } = useSettingsControllerContext();
+  const lessonOrderSummary = [
+    getLessonOrderLabel(lessonOrder),
+    lessonTypeOrderEnabled
+      ? "type groups"
+      : interleaveLessonTypesEnabled
+        ? "interleaved mix"
+        : null,
+    minimumRadicalKanjiPerBatchEnabled ? "batch minimums" : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
 
   return (
     <>
@@ -252,11 +264,7 @@ export function LessonSettingsSection() {
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
-              {lessonTypeOrderEnabled
-                ? `${getLessonOrderLabel(lessonOrder)} + type groups`
-                : interleaveLessonTypesEnabled
-                  ? `${getLessonOrderLabel(lessonOrder)} + interleaved mix`
-                  : getLessonOrderLabel(lessonOrder)}
+              {lessonOrderSummary}
             </Text>
           </View>
           <Ionicons
