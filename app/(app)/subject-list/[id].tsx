@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,8 @@ import {
   Image,
   Keyboard,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   StyleSheet,
   Text,
@@ -75,6 +77,13 @@ const SELECTED_SUBJECT_SORT_SECTIONS = [
     options: SUBJECT_LIST_ITEM_SORT_OPTIONS,
   },
 ];
+type SubjectListEditorTab = "browse" | "selected";
+type PendingScrollRestore = {
+  tab: SubjectListEditorTab;
+  offset: number;
+  expiresAt: number;
+};
+const SCROLL_RESTORE_WINDOW_MS = 3000;
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -90,6 +99,13 @@ export default function SubjectListEditorScreen() {
   const { apiToken } = useAuthStore();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const listRef = useRef<FlatList<Subject>>(null);
+  const scrollOffsetsRef = useRef<Record<SubjectListEditorTab, number>>({
+    browse: 0,
+    selected: 0,
+  });
+  const pendingScrollRestoreRef = useRef<PendingScrollRestore | null>(null);
 
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [list, setList] = useState<SubjectList | null>(null);
@@ -104,7 +120,7 @@ export default function SubjectListEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"browse" | "selected">("browse");
+  const [activeTab, setActiveTab] = useState<SubjectListEditorTab>("browse");
   const [showFilters, setShowFilters] = useState(false);
   const [showSelectedSortModal, setShowSelectedSortModal] = useState(false);
   const [selectedSubjectSortMode, setSelectedSubjectSortMode] =
@@ -337,6 +353,11 @@ export default function SubjectListEditorScreen() {
   };
 
   const handleSubjectTilePress = (subject: Subject) => {
+    pendingScrollRestoreRef.current = {
+      tab: activeTab,
+      offset: scrollOffsetsRef.current[activeTab],
+      expiresAt: Date.now() + SCROLL_RESTORE_WINDOW_MS,
+    };
     router.push(`/subject/${subject.id}`);
   };
 
@@ -390,6 +411,64 @@ export default function SubjectListEditorScreen() {
     selectedSubjectOrderIndex,
     selectedSubjectSortMode,
     subjectSrsStageMap,
+  ]);
+
+  const visibleSubjectCount =
+    activeTab === "browse" ? filteredSubjects.length : selectedSubjects.length;
+
+  const handleListScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollOffsetsRef.current[activeTab] = event.nativeEvent.contentOffset.y;
+    },
+    [activeTab]
+  );
+
+  const handleListScrollBeginDrag = useCallback(() => {
+    pendingScrollRestoreRef.current = null;
+  }, []);
+
+  const restoreListScrollIfNeeded = useCallback(() => {
+    const pendingRestore = pendingScrollRestoreRef.current;
+    if (!pendingRestore) {
+      return;
+    }
+
+    if (Date.now() > pendingRestore.expiresAt) {
+      pendingScrollRestoreRef.current = null;
+      return;
+    }
+
+    if (pendingRestore.tab !== activeTab || pendingRestore.offset <= 0) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({
+        offset: pendingRestore.offset,
+        animated: false,
+      });
+    });
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (
+      !isFocused ||
+      isLoadingSubjects ||
+      isCacheMissing ||
+      isRebuildingCache ||
+      visibleSubjectCount === 0
+    ) {
+      return;
+    }
+
+    restoreListScrollIfNeeded();
+  }, [
+    isCacheMissing,
+    isFocused,
+    isLoadingSubjects,
+    isRebuildingCache,
+    restoreListScrollIfNeeded,
+    visibleSubjectCount,
   ]);
 
   const allMatchingSelected =
@@ -999,6 +1078,7 @@ export default function SubjectListEditorScreen() {
           </View>
         ) : (
           <FlatList
+            ref={listRef}
             data={activeTab === "browse" ? filteredSubjects : selectedSubjects}
             renderItem={
               activeTab === "browse"
@@ -1012,6 +1092,9 @@ export default function SubjectListEditorScreen() {
             ]}
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
+            onScroll={handleListScroll}
+            onScrollBeginDrag={handleListScrollBeginDrag}
+            scrollEventThrottle={16}
             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
             ListEmptyComponent={
               <View style={styles.emptyState}>
