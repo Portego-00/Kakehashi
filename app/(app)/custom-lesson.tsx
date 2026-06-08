@@ -63,7 +63,7 @@ const isSubjectType = (subject: any, type: string): boolean => {
 };
 
 export default function CustomLessonScreen() {
-  const { apiToken, userData } = useAuthStore();
+  const { apiToken } = useAuthStore();
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const {
@@ -71,10 +71,7 @@ export default function CustomLessonScreen() {
     ankiGroupQuestions,
     ankiCardModeScope,
     lessonBatchSize,
-    reviewOrder,
-    reviewTypeOrderEnabled,
-    reviewTypeOrder,
-    prioritizeCriticalItems,
+    customReviewOrder,
     backToBackQuestions,
     skipCustomLessonQuiz,
   } = useSettingsStore();
@@ -83,7 +80,6 @@ export default function CustomLessonScreen() {
   const params = useLocalSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [allLessons, setAllLessons] = useState<LessonItem[]>([]);
   const batchSize = lessonBatchSize; // Use setting from store
   const [lessonBatches, setLessonBatches] = useState<LessonBatch[]>([]);
   const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
@@ -316,7 +312,6 @@ export default function CustomLessonScreen() {
         });
       }
 
-      setAllLessons(items);
       setLessonBatches(batches);
       setCurrentBatchIndex(0);
       setCurrentItemIndex(0);
@@ -377,11 +372,7 @@ export default function CustomLessonScreen() {
   const initializeReviewQueue = (items: LessonItem[]) => {
     const sortableItems = items as (LessonItem & OrderableReviewItem)[];
     const sortedItems = sortReviewItemsForQueue(sortableItems, {
-      reviewOrder,
-      reviewTypeOrderEnabled,
-      reviewTypeOrder,
-      prioritizeCriticalItems,
-      userLevel: userData?.level ?? 1,
+      reviewOrder: customReviewOrder,
     });
     const useBackToBack = backToBackQuestions && !effectiveAnkiGrouping;
     const orderedQuestions = buildReviewQuestionQueue(sortedItems, {

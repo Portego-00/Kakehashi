@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.76",
+    date: "2026-06-08",
+    changes: [
+      {
+        type: "improvement",
+        title: "Custom Review Order",
+        description:
+          "Custom reviews and custom lesson quizzes now have their own review order setting, defaulting to random so regular review ordering stays separate.",
+        link: {
+          route: "/review-order-settings",
+          label: "Open Review Order Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.75",
     date: "2026-06-04",
     changes: [

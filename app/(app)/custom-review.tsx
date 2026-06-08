@@ -13,11 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import {
-  Subject,
+  type Subject as ApiSubject,
   getAllAssignmentsCached,
   getSubjects,
   getStudyMaterials,
 } from "../../src/utils/api";
+import type { Subject as WaniKaniSubject } from "../../src/types/wanikani";
 import { getAllSubjects } from "../../src/utils/cache";
 import {
   buildReviewQuestionQueue,
@@ -40,8 +41,9 @@ interface ReviewItem {
   id: number;
   assignmentId: number; // We'll use a fake ID for custom reviews
   subjectId: number;
-  subject: Subject;
+  subject: WaniKaniSubject;
   srsStage?: number;
+  availableAt?: string | null;
   meaningDone: boolean;
   readingDone: boolean;
   meaningIncorrect: number;
@@ -94,17 +96,14 @@ const CUSTOM_REVIEW_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW;
 
 export default function CustomReviewScreen() {
-  const { apiToken, userData } = useAuthStore();
+  const { apiToken } = useAuthStore();
   const { theme } = useTheme();
   const {
     ankiCardMode,
     ankiGroupQuestions,
     ankiCardModeScope,
     acceptUserSynonymsAsAnswers,
-    reviewOrder,
-    reviewTypeOrderEnabled,
-    reviewTypeOrder,
-    prioritizeCriticalItems,
+    customReviewOrder,
     backToBackQuestions,
     reviewQuestionOrderEnabled,
     meaningFirst,
@@ -330,13 +329,13 @@ export default function CustomReviewScreen() {
       }
 
       // Resolve subjects from durable local cache first so custom review works offline.
-      const cachedSubjects = (await getAllSubjects()) as Subject[];
-      const subjectsById = new Map<number, Subject>(
-        cachedSubjects.map((subject) => [subject.id, subject as Subject]),
+      const cachedSubjects = (await getAllSubjects()) as ApiSubject[];
+      const subjectsById = new Map<number, ApiSubject>(
+        cachedSubjects.map((subject) => [subject.id, subject as ApiSubject]),
       );
       let loadedSubjects = subjectIds
         .map((subjectId) => subjectsById.get(subjectId))
-        .filter((subject): subject is Subject => Boolean(subject));
+        .filter((subject): subject is ApiSubject => Boolean(subject));
 
       if (loadedSubjects.length !== subjectIds.length) {
         const missingSubjectIds = subjectIds.filter(
@@ -348,7 +347,7 @@ export default function CustomReviewScreen() {
             const subjectsResponse = await getSubjects(apiToken, {
               ids: missingSubjectIds,
             });
-            const fetchedSubjectsById = new Map<number, Subject>(
+            const fetchedSubjectsById = new Map<number, ApiSubject>(
               subjectsResponse.data.map((subject) => [subject.id, subject]),
             );
             loadedSubjects = subjectIds
@@ -356,7 +355,7 @@ export default function CustomReviewScreen() {
                 (subjectId) =>
                   subjectsById.get(subjectId) ?? fetchedSubjectsById.get(subjectId),
               )
-              .filter((subject): subject is Subject => Boolean(subject));
+              .filter((subject): subject is ApiSubject => Boolean(subject));
           } catch (error) {
             if (loadedSubjects.length === 0) {
               throw error;
@@ -379,6 +378,7 @@ export default function CustomReviewScreen() {
       }
 
       const subjectIdToStage = new Map<number, number>();
+      const subjectIdToAvailableAt = new Map<number, string | null>();
       const loadedSubjectIds = loadedSubjects.map((subject) => subject.id);
       try {
         const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
@@ -388,6 +388,10 @@ export default function CustomReviewScreen() {
           subjectIdToStage.set(
             assignment.data.subject_id,
             assignment.data.srs_stage,
+          );
+          subjectIdToAvailableAt.set(
+            assignment.data.subject_id,
+            assignment.data.available_at ?? null,
           );
         });
       } catch (error) {
@@ -424,8 +428,9 @@ export default function CustomReviewScreen() {
         id: subject.id,
         assignmentId: -subject.id, // Negative ID to indicate custom review
         subjectId: subject.id,
-        subject: subject,
+        subject: subject as WaniKaniSubject,
         srsStage: subjectIdToStage.get(subject.id),
+        availableAt: subjectIdToAvailableAt.get(subject.id) ?? null,
         meaningDone: false,
         readingDone: false,
         meaningIncorrect: 0,
@@ -439,11 +444,7 @@ export default function CustomReviewScreen() {
 
       const sortableItems = items as (ReviewItem & OrderableReviewItem)[];
       const sortedItems = sortReviewItemsForQueue(sortableItems, {
-        reviewOrder,
-        reviewTypeOrderEnabled,
-        reviewTypeOrder,
-        prioritizeCriticalItems,
-        userLevel: userData?.level ?? 1,
+        reviewOrder: customReviewOrder,
       });
       const allQuestions = generateReviewQuestions(sortedItems, {
         groupQuestions: effectiveAnkiGrouping,
@@ -484,14 +485,10 @@ export default function CustomReviewScreen() {
     params.subjectIds,
     effectiveAnkiGrouping,
     acceptUserSynonymsAsAnswers,
-    reviewOrder,
-    reviewTypeOrderEnabled,
-    reviewTypeOrder,
-    prioritizeCriticalItems,
+    customReviewOrder,
     backToBackQuestions,
     reviewQuestionOrderEnabled,
     preferredQuestionType,
-    userData?.level,
     clearSavedCustomReviewSession,
     navigateToDashboard,
     restoreSavedCustomReviewSession,

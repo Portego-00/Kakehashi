@@ -278,6 +278,8 @@ export default function ReviewOrderSettings() {
   const {
     reviewOrder,
     setReviewOrder,
+    customReviewOrder,
+    setCustomReviewOrder,
     reviewTypeOrderEnabled,
     setReviewTypeOrderEnabled,
     reviewTypeOrder,
@@ -466,7 +468,11 @@ export default function ReviewOrderSettings() {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-            Choose Ordering
+            Regular Reviews
+          </Text>
+
+          <Text style={[styles.previewSubtitle, { color: theme.textSecondary }]}>
+            Used by regular WaniKani review sessions.
           </Text>
 
           {REVIEW_ORDER_OPTIONS.map((option, index) => {
@@ -482,6 +488,61 @@ export default function ReviewOrderSettings() {
                   },
                 ]}
                 onPress={() => setReviewOrder(option.value)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.optionTextWrap}>
+                  <Text style={[styles.optionTitle, { color: theme.textColor }]}>
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.optionDescription,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {option.description}
+                  </Text>
+                </View>
+                <Ionicons
+                  name={isSelected ? "radio-button-on" : "radio-button-off"}
+                  size={20}
+                  color={isSelected ? theme.primary : theme.textSecondary}
+                />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Custom Reviews
+          </Text>
+
+          <Text style={[styles.previewSubtitle, { color: theme.textSecondary }]}>
+            Used by custom reviews and custom lesson quizzes. Defaults to random.
+          </Text>
+
+          {REVIEW_ORDER_OPTIONS.map((option, index) => {
+            const isSelected = customReviewOrder === option.value;
+            const isLast = index === REVIEW_ORDER_OPTIONS.length - 1;
+            return (
+              <TouchableOpacity
+                key={`custom-${option.value}`}
+                style={[
+                  styles.optionRow,
+                  {
+                    borderBottomColor: isLast ? "transparent" : theme.border,
+                  },
+                ]}
+                onPress={() => setCustomReviewOrder(option.value)}
                 activeOpacity={0.75}
               >
                 <View style={styles.optionTextWrap}>

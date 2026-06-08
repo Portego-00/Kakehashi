@@ -20,6 +20,7 @@ export function ReviewSettingsSection() {
     backToBackQuestions,
     canDecreaseReviewCharacterFontScale,
     canIncreaseReviewCharacterFontScale,
+    customReviewOrder,
     disableAutoProgressOnCloseAnswer,
     disableAutoProgressOnCorrect,
     disableAutoProgressOnWrong,
@@ -330,9 +331,11 @@ export function ReviewSettingsSection() {
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
-              {reviewTypeOrderEnabled
-                ? `${getReviewOrderLabel(reviewOrder)} + type groups`
-                : getReviewOrderLabel(reviewOrder)}
+              {`Reviews: ${
+                reviewTypeOrderEnabled
+                  ? `${getReviewOrderLabel(reviewOrder)} + type groups`
+                  : getReviewOrderLabel(reviewOrder)
+              } · Custom: ${getReviewOrderLabel(customReviewOrder)}`}
             </Text>
           </View>
           <Ionicons

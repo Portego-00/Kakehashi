@@ -24,6 +24,7 @@ export interface ReviewOrderOption {
 }
 
 export const DEFAULT_REVIEW_ORDER: ReviewOrderSetting = "random";
+export const DEFAULT_CUSTOM_REVIEW_ORDER: ReviewOrderSetting = "random";
 export const REVIEW_TYPE_ORDER_VALUES: readonly ReviewTypeOrderSetting[] = [
   "radical",
   "kanji",

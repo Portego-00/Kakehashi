@@ -17,6 +17,7 @@ import {
   removeFromPermanentStorage,
 } from "./permanentStorage";
 import {
+  DEFAULT_CUSTOM_REVIEW_ORDER,
   DEFAULT_REVIEW_ORDER,
   type ReviewOrderSetting,
   DEFAULT_REVIEW_TYPE_ORDER,
@@ -484,6 +485,7 @@ type SettingsState = {
   ankiButtonlessMode: boolean;
   ankiShowReplayAudioButton: boolean;
   reviewOrder: ReviewOrderSetting;
+  customReviewOrder: ReviewOrderSetting;
   reviewTypeOrderEnabled: boolean;
   reviewTypeOrder: ReviewTypeOrderSetting[];
   lessonOrder: LessonOrderSetting;
@@ -649,6 +651,7 @@ type SettingsState = {
   setAnkiButtonlessMode: (enabled: boolean) => void;
   setAnkiShowReplayAudioButton: (show: boolean) => void;
   setReviewOrder: (order: ReviewOrderSetting) => void;
+  setCustomReviewOrder: (order: ReviewOrderSetting) => void;
   setReviewTypeOrderEnabled: (enabled: boolean) => void;
   setReviewTypeOrder: (order: ReviewTypeOrderSetting[]) => void;
   setLessonOrder: (order: LessonOrderSetting) => void;
@@ -796,6 +799,7 @@ export const useSettingsStore = create<SettingsState>()(
       ankiButtonlessMode: false, // Default to false - show standard Anki self-grade buttons
       ankiShowReplayAudioButton: false, // Default to false - keep reveal actions focused on grading
       reviewOrder: DEFAULT_REVIEW_ORDER,
+      customReviewOrder: DEFAULT_CUSTOM_REVIEW_ORDER,
       reviewTypeOrderEnabled: false, // Default to disabled - no forced type grouping
       reviewTypeOrder: [...DEFAULT_REVIEW_TYPE_ORDER], // Radical -> Kanji -> Vocabulary
       lessonOrder: DEFAULT_LESSON_ORDER,
@@ -990,6 +994,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAnkiShowReplayAudioButton: (show) =>
         set({ ankiShowReplayAudioButton: show }),
       setReviewOrder: (reviewOrder) => set({ reviewOrder }),
+      setCustomReviewOrder: (customReviewOrder) => set({ customReviewOrder }),
       setReviewTypeOrderEnabled: (reviewTypeOrderEnabled) =>
         set({ reviewTypeOrderEnabled }),
       setReviewTypeOrder: (reviewTypeOrder) => set({ reviewTypeOrder }),
