@@ -1,8 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -59,7 +58,6 @@ import { formatLevelWithSrsStage } from "../../../src/utils/srsStageLabel";
 import { useTheme } from "../../../src/utils/theme";
 import {
   DEFAULT_SUBJECT_LIST_ITEM_SORT_MODE,
-  getSubjectListItemSortLabel,
   isSubjectListItemSortMode,
   sortSubjectListItems,
   SUBJECT_LIST_ITEM_SORT_OPTIONS,
@@ -78,12 +76,6 @@ const SELECTED_SUBJECT_SORT_SECTIONS = [
   },
 ];
 type SubjectListEditorTab = "browse" | "selected";
-type PendingScrollRestore = {
-  tab: SubjectListEditorTab;
-  offset: number;
-  expiresAt: number;
-};
-const SCROLL_RESTORE_WINDOW_MS = 3000;
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -99,13 +91,12 @@ export default function SubjectListEditorScreen() {
   const { apiToken } = useAuthStore();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
   const listRef = useRef<FlatList<Subject>>(null);
-  const scrollOffsetsRef = useRef<Record<SubjectListEditorTab, number>>({
+  const tabScrollOffsetsRef = useRef<Record<SubjectListEditorTab, number>>({
     browse: 0,
     selected: 0,
   });
-  const pendingScrollRestoreRef = useRef<PendingScrollRestore | null>(null);
+  const pendingTabScrollRestoreRef = useRef<SubjectListEditorTab | null>(null);
 
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [list, setList] = useState<SubjectList | null>(null);
@@ -246,13 +237,14 @@ export default function SubjectListEditorScreen() {
     }
   }, [apiToken]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadList();
-      loadAllSubjects();
-      loadSubjectSrsStages();
-    }, [loadAllSubjects, loadList, loadSubjectSrsStages])
-  );
+  useEffect(() => {
+    loadList();
+  }, [loadList]);
+
+  useEffect(() => {
+    loadAllSubjects();
+    loadSubjectSrsStages();
+  }, [loadAllSubjects, loadSubjectSrsStages]);
 
   const rebuildCache = useCallback(async () => {
     if (!apiToken) return;
@@ -353,17 +345,23 @@ export default function SubjectListEditorScreen() {
   };
 
   const handleSubjectTilePress = (subject: Subject) => {
-    pendingScrollRestoreRef.current = {
-      tab: activeTab,
-      offset: scrollOffsetsRef.current[activeTab],
-      expiresAt: Date.now() + SCROLL_RESTORE_WINDOW_MS,
-    };
     router.push(`/subject/${subject.id}`);
   };
 
   const clearSelection = () => {
     setSelectedSubjectIds(new Set());
   };
+
+  const switchTab = useCallback(
+    (nextTab: SubjectListEditorTab) => {
+      if (nextTab === activeTab) {
+        return;
+      }
+      pendingTabScrollRestoreRef.current = nextTab;
+      setActiveTab(nextTab);
+    },
+    [activeTab]
+  );
 
   const selectedSubjectOrderIndex = useMemo(() => {
     const orderIndex = new Map<number, number>();
@@ -413,64 +411,6 @@ export default function SubjectListEditorScreen() {
     subjectSrsStageMap,
   ]);
 
-  const visibleSubjectCount =
-    activeTab === "browse" ? filteredSubjects.length : selectedSubjects.length;
-
-  const handleListScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      scrollOffsetsRef.current[activeTab] = event.nativeEvent.contentOffset.y;
-    },
-    [activeTab]
-  );
-
-  const handleListScrollBeginDrag = useCallback(() => {
-    pendingScrollRestoreRef.current = null;
-  }, []);
-
-  const restoreListScrollIfNeeded = useCallback(() => {
-    const pendingRestore = pendingScrollRestoreRef.current;
-    if (!pendingRestore) {
-      return;
-    }
-
-    if (Date.now() > pendingRestore.expiresAt) {
-      pendingScrollRestoreRef.current = null;
-      return;
-    }
-
-    if (pendingRestore.tab !== activeTab || pendingRestore.offset <= 0) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToOffset({
-        offset: pendingRestore.offset,
-        animated: false,
-      });
-    });
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (
-      !isFocused ||
-      isLoadingSubjects ||
-      isCacheMissing ||
-      isRebuildingCache ||
-      visibleSubjectCount === 0
-    ) {
-      return;
-    }
-
-    restoreListScrollIfNeeded();
-  }, [
-    isCacheMissing,
-    isFocused,
-    isLoadingSubjects,
-    isRebuildingCache,
-    restoreListScrollIfNeeded,
-    visibleSubjectCount,
-  ]);
-
   const allMatchingSelected =
     matchingSubjectIds.length > 0 &&
     matchingSubjectIds.every((subjectId) => selectedSubjectIds.has(subjectId));
@@ -500,6 +440,33 @@ export default function SubjectListEditorScreen() {
       return next;
     });
   };
+
+  const handleOpenSelectedSort = () => {
+    switchTab("selected");
+    setShowSelectedSortModal(true);
+  };
+
+  const handleListScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      tabScrollOffsetsRef.current[activeTab] = event.nativeEvent.contentOffset.y;
+    },
+    [activeTab]
+  );
+
+  const activeTabItemCount =
+    activeTab === "browse" ? filteredSubjects.length : selectedSubjects.length;
+
+  useLayoutEffect(() => {
+    if (pendingTabScrollRestoreRef.current !== activeTab) {
+      return;
+    }
+
+    pendingTabScrollRestoreRef.current = null;
+    const offset = tabScrollOffsetsRef.current[activeTab] ?? 0;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset, animated: false });
+    });
+  }, [activeTab, activeTabItemCount]);
 
   const getItemTypeColor = (itemType: string) => {
     return getSubjectTypeColor(itemType as any);
@@ -636,11 +603,25 @@ export default function SubjectListEditorScreen() {
   };
 
   const openHeaderMenu = () => {
-    Alert.alert(listName || "List options", undefined, [
+    const actions: Parameters<typeof Alert.alert>[2] = [
+      { text: "Sort Items", onPress: handleOpenSelectedSort },
       { text: "Rename", onPress: handleStartRename },
+    ];
+
+    if (selectedSubjectIds.size > 0) {
+      actions.push({
+        text: "Remove All From List",
+        style: "destructive",
+        onPress: clearSelection,
+      });
+    }
+
+    actions.push(
       { text: "Delete", style: "destructive", onPress: handleDelete },
-      { text: "Cancel", style: "cancel" },
-    ]);
+      { text: "Cancel", style: "cancel" }
+    );
+
+    Alert.alert(listName || "List options", undefined, actions);
   };
 
   const handleBack = () => {
@@ -838,6 +819,19 @@ export default function SubjectListEditorScreen() {
                 }
               >
                 <SwiftUI.Button
+                  label="Sort Items"
+                  systemImage="arrow.up.arrow.down"
+                  onPress={handleOpenSelectedSort}
+                />
+                {selectedSubjectIds.size > 0 ? (
+                  <SwiftUI.Button
+                    label="Remove All From List"
+                    systemImage="trash.slash"
+                    role="destructive"
+                    onPress={clearSelection}
+                  />
+                ) : null}
+                <SwiftUI.Button
                   label="Rename"
                   systemImage="pencil"
                   onPress={handleStartRename}
@@ -878,7 +872,7 @@ export default function SubjectListEditorScreen() {
                 borderColor: `${theme.primary}55`,
               },
             ]}
-            onPress={() => setActiveTab("browse")}
+            onPress={() => switchTab("browse")}
             activeOpacity={0.8}
           >
             <Text
@@ -898,7 +892,7 @@ export default function SubjectListEditorScreen() {
                 borderColor: `${theme.primary}55`,
               },
             ]}
-            onPress={() => setActiveTab("selected")}
+            onPress={() => switchTab("selected")}
             activeOpacity={0.8}
           >
             <Text
@@ -985,63 +979,8 @@ export default function SubjectListEditorScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.bulkActionButton,
-                { backgroundColor: theme.cardBackground, borderColor: theme.border },
-                selectedSubjectIds.size === 0 && styles.bulkActionButtonDisabled,
-              ]}
-              onPress={clearSelection}
-              disabled={selectedSubjectIds.size === 0}
-            >
-              <Ionicons
-                name="close-circle-outline"
-                size={18}
-                color={theme.textSecondary}
-              />
-              <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
-                Clear All
-              </Text>
-            </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.bulkActionsRow}>
-            <TouchableOpacity
-              style={[
-                styles.bulkActionButton,
-                { backgroundColor: theme.cardBackground, borderColor: theme.border },
-                selectedSubjectIds.size === 0 && styles.bulkActionButtonDisabled,
-              ]}
-              onPress={clearSelection}
-              disabled={selectedSubjectIds.size === 0}
-            >
-              <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
-              <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
-                Remove All From List
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.bulkActionButton,
-                { backgroundColor: theme.cardBackground, borderColor: theme.border },
-              ]}
-              onPress={() => setShowSelectedSortModal(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="swap-vertical-outline"
-                size={18}
-                color={theme.textSecondary}
-              />
-              <Text
-                style={[styles.bulkActionText, { color: theme.textSecondary }]}
-                numberOfLines={1}
-              >
-                Sort: {getSubjectListItemSortLabel(selectedSubjectSortMode)}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        ) : null}
 
         {isLoadingSubjects ? (
           <View style={styles.centerState}>
@@ -1093,7 +1032,6 @@ export default function SubjectListEditorScreen() {
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
             onScroll={handleListScroll}
-            onScrollBeginDrag={handleListScrollBeginDrag}
             scrollEventThrottle={16}
             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
             ListEmptyComponent={
