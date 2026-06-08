@@ -69,6 +69,16 @@ export const PATCH_NOTES: PatchNote[] = [
           label: "Open Review Order Settings",
         },
       },
+      {
+        type: "improvement",
+        title: "Subject List Sorting",
+        description:
+          "Custom subject lists now remember your selected item sort, including newest-added and oldest-added ordering.",
+        link: {
+          route: "/subject-lists",
+          label: "Open Subject Lists",
+        },
+      },
     ],
   },
   {

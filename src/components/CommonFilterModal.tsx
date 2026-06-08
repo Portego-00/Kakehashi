@@ -30,6 +30,7 @@ interface CommonFilterModalProps {
   currentValues: Record<string, any>;
   sections: FilterSection[];
   title?: string;
+  applyButtonLabel?: string;
 }
 
 export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
@@ -39,6 +40,7 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
   currentValues,
   sections,
   title = "Filters",
+  applyButtonLabel = "Apply Filters",
 }) => {
   const { theme } = useTheme();
   const [pendingValues, setPendingValues] =
@@ -76,7 +78,7 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
         }),
       ]).start();
     }
-  }, [visible, currentValues]);
+  }, [visible, currentValues, filterPanelAnimation, backdropOpacity]);
 
   const animateClose = useCallback(() => {
     Animated.parallel([
@@ -93,7 +95,7 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
     ]).start(() => {
       onClose();
     });
-  }, [onClose]);
+  }, [onClose, filterPanelAnimation, backdropOpacity]);
 
   const handleApply = useCallback(() => {
     onApply(pendingValues);
@@ -237,7 +239,7 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
               activeOpacity={0.7}
             >
               <Text style={[styles.buttonText, { color: "white" }]}>
-                Apply Filters
+                {applyButtonLabel}
               </Text>
             </TouchableOpacity>
           </View>

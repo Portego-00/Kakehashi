@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -23,6 +24,7 @@ import {
   SearchFilterModal,
   SearchFilters,
 } from "../../../src/components/SearchFilterModal";
+import { CommonFilterModal } from "../../../src/components/CommonFilterModal";
 import { GlassButton } from "../../../src/components/GlassButton";
 import { WaniKaniItemType } from "../../../src/types/wanikani";
 import {
@@ -53,10 +55,26 @@ import {
 } from "../../../src/utils/subjectSearch";
 import { formatLevelWithSrsStage } from "../../../src/utils/srsStageLabel";
 import { useTheme } from "../../../src/utils/theme";
+import {
+  DEFAULT_SUBJECT_LIST_ITEM_SORT_MODE,
+  getSubjectListItemSortLabel,
+  isSubjectListItemSortMode,
+  sortSubjectListItems,
+  SUBJECT_LIST_ITEM_SORT_OPTIONS,
+  SUBJECT_LIST_ITEM_SORT_STORAGE_KEY,
+  SubjectListItemSortMode,
+} from "../../../src/utils/subjectListItemSorting";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
 const DEFAULT_ACTIVE_SRS_STAGES = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+const SELECTED_SUBJECT_SORT_SECTIONS = [
+  {
+    id: "sortMode",
+    title: "Sort by",
+    options: SUBJECT_LIST_ITEM_SORT_OPTIONS,
+  },
+];
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -88,6 +106,9 @@ export default function SubjectListEditorScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"browse" | "selected">("browse");
   const [showFilters, setShowFilters] = useState(false);
+  const [showSelectedSortModal, setShowSelectedSortModal] = useState(false);
+  const [selectedSubjectSortMode, setSelectedSubjectSortMode] =
+    useState<SubjectListItemSortMode>(DEFAULT_SUBJECT_LIST_ITEM_SORT_MODE);
   const [filters, setFilters] = useState<SearchFilters>(() => {
     const defaults = createDefaultSearchFilters();
     defaults.srsStages = new Set(DEFAULT_ACTIVE_SRS_STAGES);
@@ -107,6 +128,37 @@ export default function SubjectListEditorScreen() {
   const [isCacheMissing, setIsCacheMissing] = useState(false);
   const [isRebuildingCache, setIsRebuildingCache] = useState(false);
   const [cacheRebuildProgress, setCacheRebuildProgress] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    AsyncStorage.getItem(SUBJECT_LIST_ITEM_SORT_STORAGE_KEY)
+      .then((storedMode) => {
+        if (!isMounted || !isSubjectListItemSortMode(storedMode)) {
+          return;
+        }
+        setSelectedSubjectSortMode(storedMode);
+      })
+      .catch((error) => {
+        console.warn("Failed to load subject list sort preference:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const updateSelectedSubjectSortMode = useCallback(
+    (nextMode: SubjectListItemSortMode) => {
+      setSelectedSubjectSortMode(nextMode);
+      AsyncStorage.setItem(SUBJECT_LIST_ITEM_SORT_STORAGE_KEY, nextMode).catch(
+        (error) => {
+          console.warn("Failed to save subject list sort preference:", error);
+        }
+      );
+    },
+    []
+  );
 
   const loadList = useCallback(async () => {
     if (!id) return;
@@ -292,6 +344,19 @@ export default function SubjectListEditorScreen() {
     setSelectedSubjectIds(new Set());
   };
 
+  const selectedSubjectOrderIndex = useMemo(() => {
+    const orderIndex = new Map<number, number>();
+    Array.from(selectedSubjectIds.values()).forEach((subjectId, index) => {
+      orderIndex.set(subjectId, index);
+    });
+    return orderIndex;
+  }, [selectedSubjectIds]);
+
+  const selectedSortValues = useMemo(
+    () => ({ sortMode: selectedSubjectSortMode }),
+    [selectedSubjectSortMode]
+  );
+
   const selectedSubjects = useMemo(() => {
     if (!allSubjects) {
       return [];
@@ -302,16 +367,30 @@ export default function SubjectListEditorScreen() {
     );
     const query = searchQuery.trim();
 
-    const ranked = query
+    const matchingSubjects = query
       ? rankSubjectsByQuery(onlySelected, query).map(({ subject }) => subject)
-      : sortSubjectsByLevelAndType(onlySelected);
+      : onlySelected;
+
+    const ranked = sortSubjectListItems(
+      matchingSubjects,
+      selectedSubjectSortMode,
+      selectedSubjectOrderIndex,
+      subjectSrsStageMap
+    );
 
     if (ranked.length > 250) {
       return ranked.slice(0, 250);
     }
 
     return ranked;
-  }, [allSubjects, searchQuery, selectedSubjectIds]);
+  }, [
+    allSubjects,
+    searchQuery,
+    selectedSubjectIds,
+    selectedSubjectOrderIndex,
+    selectedSubjectSortMode,
+    subjectSrsStageMap,
+  ]);
 
   const allMatchingSelected =
     matchingSubjectIds.length > 0 &&
@@ -862,6 +941,26 @@ export default function SubjectListEditorScreen() {
                 Remove All From List
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.bulkActionButton,
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+              ]}
+              onPress={() => setShowSelectedSortModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="swap-vertical-outline"
+                size={18}
+                color={theme.textSecondary}
+              />
+              <Text
+                style={[styles.bulkActionText, { color: theme.textSecondary }]}
+                numberOfLines={1}
+              >
+                Sort: {getSubjectListItemSortLabel(selectedSubjectSortMode)}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1029,6 +1128,19 @@ export default function SubjectListEditorScreen() {
           onApply={(nextFilters) => {
             setFilters(nextFilters);
             setShowFilters(false);
+          }}
+        />
+        <CommonFilterModal
+          visible={showSelectedSortModal && activeTab === "selected"}
+          title="Sort List"
+          currentValues={selectedSortValues}
+          sections={SELECTED_SUBJECT_SORT_SECTIONS}
+          applyButtonLabel="Apply Sort"
+          onClose={() => setShowSelectedSortModal(false)}
+          onApply={(values) => {
+            if (isSubjectListItemSortMode(values.sortMode)) {
+              updateSelectedSubjectSortMode(values.sortMode);
+            }
           }}
         />
     </View>
