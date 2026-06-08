@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -213,6 +214,12 @@ export default function AddToSubjectListsModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
+        <Pressable
+          accessibilityLabel="Close add to lists modal"
+          accessibilityRole="button"
+          style={styles.backdropPressable}
+          onPress={onClose}
+        />
         <View
           style={[
             styles.container,
@@ -366,8 +373,10 @@ export default function AddToSubjectListsModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
+  },
+  backdropPressable: {
+    ...StyleSheet.absoluteFill,
   },
   container: {
     borderTopLeftRadius: 18,
