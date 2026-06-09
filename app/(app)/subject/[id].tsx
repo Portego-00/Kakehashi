@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   Alert,
   InteractionManager,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -1053,6 +1055,105 @@ export default function SubjectDetailsScreen() {
     subjectData?.data?.characters ||
     undefined;
 
+  const closeNoteModal = () => {
+    if (!isSavingNote) {
+      setShowNoteModal(false);
+    }
+  };
+
+  const renderNoteModal = () => (
+    <Modal
+      visible={showNoteModal}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={closeNoteModal}
+    >
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
+      >
+        <View
+          style={[
+            styles.modalContent,
+            { backgroundColor: theme.cardBackground },
+          ]}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+              {noteType === "meaning" ? "Meaning Note" : "Reading Note"}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={closeNoteModal}
+              disabled={isSavingNote}
+              accessibilityRole="button"
+              accessibilityLabel="Close note editor"
+            >
+              <Text
+                style={[
+                  styles.modalCloseButtonText,
+                  { color: theme.textColor },
+                ]}
+              >
+                X
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TextInput
+            style={[
+              styles.noteInput,
+              {
+                borderColor: theme.border,
+                color: theme.textColor,
+                backgroundColor: theme.isDark
+                  ? "rgba(255,255,255,0.05)"
+                  : "white",
+              },
+            ]}
+            multiline
+            value={noteText}
+            onChangeText={setNoteText}
+            placeholder={`Add your ${noteType} note here...`}
+            placeholderTextColor={theme.textLight}
+          />
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={closeNoteModal}
+              disabled={isSavingNote}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.textColor }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                styles.saveButton,
+                { backgroundColor: theme.primary },
+              ]}
+              onPress={handleSaveNote}
+              disabled={isSavingNote}
+            >
+              {isSavingNote ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={[styles.modalButtonText, { color: "white" }]}>
+                  Save
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
   switch (subjectData.object) {
     case "radical":
       return (
@@ -1076,80 +1177,7 @@ export default function SubjectDetailsScreen() {
             }
           />
 
-          <Modal
-            visible={showNoteModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setShowNoteModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View
-                style={[
-                  styles.modalContent,
-                  { backgroundColor: theme.cardBackground },
-                ]}
-              >
-                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
-                  {noteType === "meaning" ? "Meaning Note" : "Reading Note"}
-                </Text>
-
-                <TextInput
-                  style={[
-                    styles.noteInput,
-                    {
-                      borderColor: theme.border,
-                      color: theme.textColor,
-                      backgroundColor: theme.isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "white",
-                    },
-                  ]}
-                  multiline
-                  value={noteText}
-                  onChangeText={setNoteText}
-                  placeholder={`Add your ${noteType} note here...`}
-                  placeholderTextColor={theme.textLight}
-                />
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => setShowNoteModal(false)}
-                    disabled={isSavingNote}
-                  >
-                    <Text
-                      style={[
-                        styles.modalButtonText,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      styles.saveButton,
-                      { backgroundColor: theme.primary },
-                    ]}
-                    onPress={handleSaveNote}
-                    disabled={isSavingNote}
-                  >
-                    {isSavingNote ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text
-                        style={[styles.modalButtonText, { color: "white" }]}
-                      >
-                        Save
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          {renderNoteModal()}
 
           <AddToSubjectListsModal
             visible={showAddToListModal}
@@ -1183,80 +1211,7 @@ export default function SubjectDetailsScreen() {
             }
           />
 
-          <Modal
-            visible={showNoteModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setShowNoteModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View
-                style={[
-                  styles.modalContent,
-                  { backgroundColor: theme.cardBackground },
-                ]}
-              >
-                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
-                  {noteType === "meaning" ? "Meaning Note" : "Reading Note"}
-                </Text>
-
-                <TextInput
-                  style={[
-                    styles.noteInput,
-                    {
-                      borderColor: theme.border,
-                      color: theme.textColor,
-                      backgroundColor: theme.isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "white",
-                    },
-                  ]}
-                  multiline
-                  value={noteText}
-                  onChangeText={setNoteText}
-                  placeholder={`Add your ${noteType} note here...`}
-                  placeholderTextColor={theme.textLight}
-                />
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => setShowNoteModal(false)}
-                    disabled={isSavingNote}
-                  >
-                    <Text
-                      style={[
-                        styles.modalButtonText,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      styles.saveButton,
-                      { backgroundColor: theme.primary },
-                    ]}
-                    onPress={handleSaveNote}
-                    disabled={isSavingNote}
-                  >
-                    {isSavingNote ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text
-                        style={[styles.modalButtonText, { color: "white" }]}
-                      >
-                        Save
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          {renderNoteModal()}
 
           <AddToSubjectListsModal
             visible={showAddToListModal}
@@ -1291,80 +1246,7 @@ export default function SubjectDetailsScreen() {
             }
           />
 
-          <Modal
-            visible={showNoteModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setShowNoteModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View
-                style={[
-                  styles.modalContent,
-                  { backgroundColor: theme.cardBackground },
-                ]}
-              >
-                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
-                  {noteType === "meaning" ? "Meaning Note" : "Reading Note"}
-                </Text>
-
-                <TextInput
-                  style={[
-                    styles.noteInput,
-                    {
-                      borderColor: theme.border,
-                      color: theme.textColor,
-                      backgroundColor: theme.isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "white",
-                    },
-                  ]}
-                  multiline
-                  value={noteText}
-                  onChangeText={setNoteText}
-                  placeholder={`Add your ${noteType} note here...`}
-                  placeholderTextColor={theme.textLight}
-                />
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => setShowNoteModal(false)}
-                    disabled={isSavingNote}
-                  >
-                    <Text
-                      style={[
-                        styles.modalButtonText,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      styles.saveButton,
-                      { backgroundColor: theme.primary },
-                    ]}
-                    onPress={handleSaveNote}
-                    disabled={isSavingNote}
-                  >
-                    {isSavingNote ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text
-                        style={[styles.modalButtonText, { color: "white" }]}
-                      >
-                        Save
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          {renderNoteModal()}
 
           <AddToSubjectListsModal
             visible={showAddToListModal}
@@ -1440,11 +1322,31 @@ const styles = StyleSheet.create({
     padding: 16,
     width: "100%",
     maxWidth: 450,
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 16,
+    flex: 1,
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  modalCloseButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 22,
   },
   noteInput: {
     borderWidth: 1,
