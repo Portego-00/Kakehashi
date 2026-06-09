@@ -33,6 +33,35 @@ let lastAttemptAtMs = 0;
 let isSyncing = false;
 let didWarnAboutMissingTable = false;
 
+export type StudyTimeSyncStatus = {
+  state: "never" | "syncing" | "success" | "skipped" | "error";
+  /** Human-readable outcome of the last attempt, shown in the app. */
+  detail: string;
+  at: number | null;
+  lastSuccessAt: number | null;
+};
+
+let syncStatus: StudyTimeSyncStatus = {
+  state: "never",
+  detail: "No sync attempted yet",
+  at: null,
+  lastSuccessAt: null,
+};
+
+function setSyncStatus(state: StudyTimeSyncStatus["state"], detail: string): void {
+  syncStatus = {
+    state,
+    detail,
+    at: Date.now(),
+    lastSuccessAt: state === "success" ? Date.now() : syncStatus.lastSuccessAt,
+  };
+}
+
+/** Read by the Study Time screen so device testers can see sync results. */
+export function getStudyTimeSyncStatus(): StudyTimeSyncStatus {
+  return syncStatus;
+}
+
 function isMissingTableError(error: unknown): boolean {
   if (!error || typeof error !== "object") {
     return false;
@@ -46,7 +75,7 @@ function isMissingTableError(error: unknown): boolean {
   );
 }
 
-function getDeviceId(): string {
+export function getDeviceId(): string {
   try {
     const existing = timeTrackingStorage.getString(DEVICE_ID_KEY);
     if (existing) {
@@ -108,13 +137,17 @@ function buildActivityMs(record: DayRecord): Partial<Record<ActivityKey, number>
 
 async function syncNow(): Promise<void> {
   if (!isSupabaseConfigured) {
+    setSyncStatus("skipped", "Supabase is not configured in this build");
     return;
   }
 
   const userData = useAuthStore.getState().userData;
   if (!userData?.id) {
+    setSyncStatus("skipped", "Waiting for login (no user data yet)");
     return;
   }
+
+  setSyncStatus("syncing", "Pushing day totals…");
 
   // Persist the running clocks so the rows below reflect everything.
   timeTrackingService.foldNow();
@@ -128,6 +161,7 @@ async function syncNow(): Promise<void> {
   });
 
   if (dirtyDays.length === 0) {
+    setSyncStatus("success", "Up to date — nothing new to push");
     return;
   }
 
@@ -163,13 +197,23 @@ async function syncNow(): Promise<void> {
           `Time tracking sync table is missing. Run the ${TABLE_NAME} migration to enable it.`
         );
       }
+      setSyncStatus(
+        "error",
+        `Table "${TABLE_NAME}" not found — run the migration in Supabase`
+      );
       return;
     }
     // Leave pushed sums untouched; the next opportunity re-sends the same
     // absolute values, which is safe.
     console.log("📊 Could not sync study time:", error.message);
+    setSyncStatus("error", error.message);
     return;
   }
+
+  setSyncStatus(
+    "success",
+    `Pushed ${dirtyDays.length} day${dirtyDays.length === 1 ? "" : "s"}`
+  );
 
   const nextPushedSums = { ...pushedSums };
   for (const { dateKey, record } of dirtyDays) {
@@ -185,9 +229,9 @@ async function syncNow(): Promise<void> {
   writePushedSums(nextPushedSums);
 }
 
-export function maybeSyncStudyTime(): void {
+export function maybeSyncStudyTime(options: { force?: boolean } = {}): void {
   const now = Date.now();
-  if (isSyncing || now - lastAttemptAtMs < MIN_SYNC_INTERVAL_MS) {
+  if (isSyncing || (!options.force && now - lastAttemptAtMs < MIN_SYNC_INTERVAL_MS)) {
     return;
   }
 
@@ -196,6 +240,7 @@ export function maybeSyncStudyTime(): void {
   syncNow()
     .catch((error) => {
       console.log("📊 Study time sync failed:", error?.message ?? error);
+      setSyncStatus("error", String(error?.message ?? error));
     })
     .finally(() => {
       isSyncing = false;

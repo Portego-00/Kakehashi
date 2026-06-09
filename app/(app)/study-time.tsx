@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +21,12 @@ import {
   type RangeSummary,
 } from "../../src/services/timeTrackingCore";
 import { timeTrackingService } from "../../src/services/timeTrackingService";
-import { maybeSyncStudyTime } from "../../src/services/timeTrackingSyncService";
+import {
+  getDeviceId,
+  getStudyTimeSyncStatus,
+  maybeSyncStudyTime,
+  type StudyTimeSyncStatus,
+} from "../../src/services/timeTrackingSyncService";
 import {
   formatDurationMs,
   formatDurationMsCoarse,
@@ -39,7 +45,27 @@ type ScreenData = {
   startKey: string;
   elapsedDays: number;
   series: { dateKey: string; studyMs: number }[];
+  syncStatus: StudyTimeSyncStatus;
 };
+
+function formatTimeAgo(timestampMs: number | null): string {
+  if (!timestampMs) {
+    return "never";
+  }
+  const seconds = Math.max(0, Math.floor((Date.now() - timestampMs) / 1000));
+  if (seconds < 5) {
+    return "just now";
+  }
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
 
 function parseDateKey(dateKey: string): Date {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -73,6 +99,7 @@ function readScreenData(range: RangeId): ScreenData {
     startKey,
     elapsedDays: daysBetweenInclusive(startKey, todayKey),
     series: timeTrackingService.getDailyStudySeries(CHART_DAY_COUNT),
+    syncStatus: getStudyTimeSyncStatus(),
   };
 }
 
@@ -98,7 +125,7 @@ export default function StudyTimeScreen() {
     }, [range])
   );
 
-  const { summary, elapsedDays, series } = data;
+  const { summary, elapsedDays, series, syncStatus } = data;
 
   const activeCategories = useMemo(
     () =>
@@ -340,6 +367,57 @@ export default function StudyTimeScreen() {
             only counts while the app is in the foreground.
           </Text>
         </View>
+
+        {/* Sync status — visible so device testers can debug without a console */}
+        <View style={cardStyle}>
+          <View style={styles.appTotalRow}>
+            <View style={styles.categoryLabelGroup}>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={16}
+                color={theme.textSecondary}
+              />
+              <Text style={[styles.categoryLabel, { color: theme.textColor }]}>
+                Sync
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.syncNowButton, { backgroundColor: theme.primary }]}
+              onPress={() => {
+                maybeSyncStudyTime({ force: true });
+                setData(readScreenData(range));
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.syncNowButtonText}>Sync now</Text>
+            </TouchableOpacity>
+          </View>
+          <Text
+            style={[
+              styles.syncDetail,
+              {
+                color:
+                  syncStatus.state === "error"
+                    ? theme.error
+                    : syncStatus.state === "success"
+                      ? "#22C55E"
+                      : theme.textSecondary,
+              },
+            ]}
+          >
+            {syncStatus.detail}
+            {syncStatus.at ? ` (${formatTimeAgo(syncStatus.at)})` : ""}
+          </Text>
+          <Text style={[styles.footnote, { color: theme.textSecondary }]}>
+            Last successful push: {formatTimeAgo(syncStatus.lastSuccessAt)}
+          </Text>
+          <Text
+            style={[styles.footnote, { color: theme.textSecondary }]}
+            selectable
+          >
+            Device ID: {getDeviceId()}
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -496,5 +574,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: 10,
+  },
+  syncNowButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  syncNowButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  syncDetail: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 12,
   },
 });
