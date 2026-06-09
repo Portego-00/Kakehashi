@@ -20,6 +20,7 @@ import {
   type RangeSummary,
 } from "../../src/services/timeTrackingCore";
 import { timeTrackingService } from "../../src/services/timeTrackingService";
+import { maybeSyncStudyTime } from "../../src/services/timeTrackingSyncService";
 import {
   formatDurationMs,
   formatDurationMsCoarse,
@@ -86,6 +87,9 @@ export default function StudyTimeScreen() {
   // Live refresh while focused; all reads are local and in-memory cached.
   useFocusEffect(
     useCallback(() => {
+      // Good moment to push totals to Supabase (throttled internally).
+      maybeSyncStudyTime();
+
       setData(readScreenData(range));
       const timer = setInterval(() => {
         setData(readScreenData(range));

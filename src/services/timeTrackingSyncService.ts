@@ -107,7 +107,7 @@ function buildActivityMs(record: DayRecord): Partial<Record<ActivityKey, number>
 }
 
 async function syncNow(): Promise<void> {
-  if (!isSupabaseConfigured || didWarnAboutMissingTable) {
+  if (!isSupabaseConfigured) {
     return;
   }
 
@@ -155,6 +155,8 @@ async function syncNow(): Promise<void> {
 
   if (error) {
     if (isMissingTableError(error)) {
+      // Keep retrying on later opportunities (the table may be created while
+      // the app is running); only the warning is one-time.
       if (!didWarnAboutMissingTable) {
         didWarnAboutMissingTable = true;
         console.warn(
