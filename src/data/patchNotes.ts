@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.77",
+    date: "2026-06-09",
+    changes: [
+      {
+        type: "fix",
+        title: "Katakana Typing in Reviews",
+        description:
+          "Reading inputs now preserve caps-based katakana conversion, so typing romaji with caps produces katakana instead of being forced back to hiragana.",
+      },
+    ],
+  },
+  {
     version: "1.2.76",
     date: "2026-06-08",
     changes: [

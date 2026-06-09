@@ -59,8 +59,8 @@ const SPACE_TO_LONG_VOWEL_MARK_MAPPING: Record<string, string> = {
   "　": "ー",
 };
 
-const convertToHiragana = (value: string, IMEMode: boolean) =>
-  wanakana.toHiragana(value, {
+const convertToKana = (value: string, IMEMode: boolean) =>
+  wanakana.toKana(value, {
     IMEMode,
     customKanaMapping: SPACE_TO_LONG_VOWEL_MARK_MAPPING,
   });
@@ -170,7 +170,7 @@ const KanaInput = forwardRef<
           }
 
           return Math.min(
-            convertToHiragana(raw.slice(0, clampedOffset), true).length,
+            convertToKana(raw.slice(0, clampedOffset), true).length,
             processedText.length
           );
         };
@@ -241,7 +241,7 @@ const KanaInput = forwardRef<
       };
     }, [applyNativeKeyboardPreference, isInputFocused]);
 
-    // Convert final romaji to kana (e.g., きぶn to きぶん)
+    // Convert final romaji to kana (e.g., きぶn to きぶん, KATA to カタ)
     // This is important for cases like "n" which doesn't auto-convert to "ん" until
     // followed by a non-n character or when input is submitted
     const flushKana = useCallback(() => {
@@ -249,7 +249,7 @@ const KanaInput = forwardRef<
       // Only convert when wanakana conversion is active (not when using native Japanese keyboard)
       if (shouldConvertWithWanakana) {
         // Force convert any trailing romaji to kana
-        const convertedText = convertToHiragana(currentText, false);
+        const convertedText = convertToKana(currentText, false);
         lastCommittedText.current = convertedText;
         lastCommittedAtMs.current = Date.now();
         updateRenderedText(convertedText);
@@ -349,7 +349,7 @@ const KanaInput = forwardRef<
         let processedText = raw;
         if (shouldConvertWithWanakana) {
           // IMEMode keeps unfinished chunks (e.g. lone 'n') in romaji
-          processedText = convertToHiragana(raw, true);
+          processedText = convertToKana(raw, true);
         }
 
         const nowMs = Date.now();
