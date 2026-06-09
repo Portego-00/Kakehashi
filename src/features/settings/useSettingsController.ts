@@ -1772,6 +1772,32 @@ export function useSettingsController() {
     router.back();
   };
 
+  const getDailyReminderSyncOptions = ({
+    reviewEnabled = dailyReviewReminderEnabled,
+    lessonEnabled = dailyLessonReminderEnabled,
+    lessonMinimum = dailyLessonReminderMinimum,
+    hour = dailyReviewReminderHour,
+    minute = dailyReviewReminderMinute,
+  }: {
+    reviewEnabled?: boolean;
+    lessonEnabled?: boolean;
+    lessonMinimum?: number;
+    hour?: number;
+    minute?: number;
+  } = {}) => ({
+    dailyReviewReminderConfig: {
+      enabled: reviewEnabled,
+      hour,
+      minute,
+    },
+    dailyLessonReminderConfig: {
+      enabled: lessonEnabled,
+      hour,
+      minute,
+      minimumLessons: lessonMinimum,
+    },
+  });
+
   const handleBadgeNotificationChange = async (value: boolean) => {
     setShowBadgeNotifications(value);
 
@@ -1809,7 +1835,7 @@ export function useSettingsController() {
     }
 
     // Keep daily reminder scheduling in sync.
-    await syncDailyReminderNotifications();
+    await syncDailyReminderNotifications(getDailyReminderSyncOptions());
   };
 
   const handleReviewNotificationChange = async (value: boolean) => {
@@ -1825,7 +1851,7 @@ export function useSettingsController() {
       // Keep the old system as fallback for background checks
       await initializeReviewNotifications();
       await scheduleReviewChecks();
-      await syncDailyReminderNotifications();
+      await syncDailyReminderNotifications(getDailyReminderSyncOptions());
     } else {
       // If disabling, cancel all notifications (both old and new systems)
       await cancelReviewNotifications();
@@ -1859,7 +1885,7 @@ export function useSettingsController() {
         }
       }
 
-      await syncDailyReminderNotifications();
+      await syncDailyReminderNotifications(getDailyReminderSyncOptions());
     }
   };
 
@@ -1966,7 +1992,9 @@ export function useSettingsController() {
       }
     }
 
-    await syncDailyReminderNotifications();
+    await syncDailyReminderNotifications(
+      getDailyReminderSyncOptions({ reviewEnabled: value })
+    );
   };
 
   const handleDailyLessonReminderChange = async (value: boolean) => {
@@ -1990,7 +2018,9 @@ export function useSettingsController() {
       }
     }
 
-    await syncDailyReminderNotifications();
+    await syncDailyReminderNotifications(
+      getDailyReminderSyncOptions({ lessonEnabled: value })
+    );
   };
 
   const handleDailyLessonReminderMinimumChange = async (
@@ -2003,7 +2033,9 @@ export function useSettingsController() {
       dailyLessonReminderMinimumStep,
     );
     setDailyLessonReminderMinimum(normalizedMinimum);
-    await syncDailyReminderNotifications();
+    await syncDailyReminderNotifications(
+      getDailyReminderSyncOptions({ lessonMinimum: normalizedMinimum })
+    );
   };
 
   useEffect(() => {
@@ -2027,7 +2059,12 @@ export function useSettingsController() {
     setDailyReviewReminderMinute(reminderMinuteDraft);
     setShowReminderTimeModal(false);
 
-    await syncDailyReminderNotifications();
+    await syncDailyReminderNotifications(
+      getDailyReminderSyncOptions({
+        hour: reminderHourDraft,
+        minute: reminderMinuteDraft,
+      })
+    );
   };
 
   const getCurrentVoiceDisplayName = () => {

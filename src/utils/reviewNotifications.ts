@@ -23,8 +23,17 @@ let lastReviewCountUpdateInFlight: Promise<void> | null = null;
 type UpdateLastReviewCountOptions = {
   reviewCount?: number;
 };
+type DailyReviewReminderConfig = {
+  enabled: boolean;
+  hour: number;
+  minute: number;
+};
+type DailyLessonReminderConfig = DailyReviewReminderConfig & {
+  minimumLessons: number;
+};
 type SyncDailyReviewReminderOptions = {
   reviewCount?: number;
+  reminderConfig?: Partial<DailyReviewReminderConfig>;
 };
 type LessonReminderProgress = {
   lessonsStartedToday: number;
@@ -32,10 +41,13 @@ type LessonReminderProgress = {
 };
 type SyncDailyLessonReminderOptions = {
   lessonProgress?: LessonReminderProgress;
+  reminderConfig?: Partial<DailyLessonReminderConfig>;
 };
 type SyncDailyReminderNotificationsOptions = {
   reviewCount?: number;
   lessonProgress?: LessonReminderProgress;
+  dailyReviewReminderConfig?: Partial<DailyReviewReminderConfig>;
+  dailyLessonReminderConfig?: Partial<DailyLessonReminderConfig>;
 };
 const DAILY_REVIEW_REMINDER_MESSAGES: {
   title: string;
@@ -66,6 +78,68 @@ const DAILY_REVIEW_REMINDER_MESSAGES: {
     body: 'Pending reviews are waiting. Let’s clear some!',
   },
 ];
+
+type ScheduledNotificationRequest = Awaited<
+  ReturnType<typeof Notifications.getAllScheduledNotificationsAsync>
+>[number];
+
+function getScheduledNotificationData(
+  request: ScheduledNotificationRequest
+): Record<string, unknown> | null {
+  const data = request.content?.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return null;
+  }
+
+  return data as Record<string, unknown>;
+}
+
+async function cancelDailyReminderNotification({
+  storageKey,
+  matchesReminderData,
+}: {
+  storageKey: string;
+  matchesReminderData: (data: Record<string, unknown>) => boolean;
+}): Promise<void> {
+  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
+    return;
+  }
+
+  try {
+    const notificationIdsToCancel = new Set<string>();
+    const scheduledNotificationId = await AsyncStorage.getItem(storageKey);
+    if (scheduledNotificationId) {
+      notificationIdsToCancel.add(scheduledNotificationId);
+    }
+
+    try {
+      const scheduledNotifications =
+        await Notifications.getAllScheduledNotificationsAsync();
+      scheduledNotifications.forEach((request) => {
+        const data = getScheduledNotificationData(request);
+        if (data && matchesReminderData(data)) {
+          notificationIdsToCancel.add(request.identifier);
+        }
+      });
+    } catch {
+      // Fall back to the stored identifier when scheduled notification lookup fails.
+    }
+
+    await Promise.all(
+      Array.from(notificationIdsToCancel).map((notificationId) =>
+        Notifications.cancelScheduledNotificationAsync(notificationId)
+      )
+    );
+  } catch {
+    // Silent failure
+  } finally {
+    try {
+      await AsyncStorage.removeItem(storageKey);
+    } catch {
+      // Silent failure
+    }
+  }
+}
 
 function clampDailyReminderHour(hour: unknown): number {
   if (typeof hour !== 'number') {
@@ -102,11 +176,7 @@ async function isReviewNotificationsEnabled(): Promise<boolean> {
   }
 }
 
-async function getDailyReviewReminderConfig(): Promise<{
-  enabled: boolean;
-  hour: number;
-  minute: number;
-}> {
+async function getDailyReviewReminderConfig(): Promise<DailyReviewReminderConfig> {
   try {
     const settings = await AsyncStorage.getItem('wanikani-settings');
     if (settings) {
@@ -135,12 +205,7 @@ async function getDailyReviewReminderConfig(): Promise<{
   };
 }
 
-async function getDailyLessonReminderConfig(): Promise<{
-  enabled: boolean;
-  minimumLessons: number;
-  hour: number;
-  minute: number;
-}> {
+async function getDailyLessonReminderConfig(): Promise<DailyLessonReminderConfig> {
   try {
     const settings = await AsyncStorage.getItem('wanikani-settings');
     if (settings) {
@@ -240,49 +305,17 @@ async function getReminderMessageForDay(
 }
 
 export async function cancelDailyReviewReminderNotification(): Promise<void> {
-  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
-    return;
-  }
-
-  try {
-    const scheduledNotificationId = await AsyncStorage.getItem(
-      DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY
-    );
-    if (scheduledNotificationId) {
-      await Notifications.cancelScheduledNotificationAsync(scheduledNotificationId);
-    }
-  } catch {
-    // Silent failure
-  } finally {
-    try {
-      await AsyncStorage.removeItem(DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY);
-    } catch {
-      // Silent failure
-    }
-  }
+  await cancelDailyReminderNotification({
+    storageKey: DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY,
+    matchesReminderData: (data) => data.dailyReminder === true,
+  });
 }
 
 export async function cancelDailyLessonReminderNotification(): Promise<void> {
-  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
-    return;
-  }
-
-  try {
-    const scheduledNotificationId = await AsyncStorage.getItem(
-      DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY
-    );
-    if (scheduledNotificationId) {
-      await Notifications.cancelScheduledNotificationAsync(scheduledNotificationId);
-    }
-  } catch {
-    // Silent failure
-  } finally {
-    try {
-      await AsyncStorage.removeItem(DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY);
-    } catch {
-      // Silent failure
-    }
-  }
+  await cancelDailyReminderNotification({
+    storageKey: DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY,
+    matchesReminderData: (data) => data.dailyLessonReminder === true,
+  });
 }
 
 export async function syncDailyReviewReminderNotification(
@@ -295,7 +328,10 @@ export async function syncDailyReviewReminderNotification(
   try {
     await cancelDailyReviewReminderNotification();
 
-    const reminderConfig = await getDailyReviewReminderConfig();
+    const reminderConfig = {
+      ...(await getDailyReviewReminderConfig()),
+      ...options.reminderConfig,
+    };
     if (!reminderConfig.enabled) {
       return;
     }
@@ -423,7 +459,10 @@ export async function syncDailyLessonReminderNotification(
   try {
     await cancelDailyLessonReminderNotification();
 
-    const reminderConfig = await getDailyLessonReminderConfig();
+    const reminderConfig = {
+      ...(await getDailyLessonReminderConfig()),
+      ...options.reminderConfig,
+    };
     if (!reminderConfig.enabled) {
       return;
     }
@@ -476,9 +515,13 @@ export async function syncDailyLessonReminderNotification(
 export async function syncDailyReminderNotifications(
   options: SyncDailyReminderNotificationsOptions = {}
 ): Promise<void> {
-  await syncDailyReviewReminderNotification({ reviewCount: options.reviewCount });
+  await syncDailyReviewReminderNotification({
+    reviewCount: options.reviewCount,
+    reminderConfig: options.dailyReviewReminderConfig,
+  });
   await syncDailyLessonReminderNotification({
     lessonProgress: options.lessonProgress,
+    reminderConfig: options.dailyLessonReminderConfig,
   });
 }
 
