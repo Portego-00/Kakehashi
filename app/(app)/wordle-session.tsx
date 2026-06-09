@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -641,6 +642,7 @@ function WordleSummary({
 }
 
 export default function WordleSessionScreen() {
+  useActivityTracking("wordle");
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
   const userLevel = userData?.level ?? 60;

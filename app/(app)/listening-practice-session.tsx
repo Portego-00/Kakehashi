@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { router, useLocalSearchParams } from "expo-router";
@@ -61,6 +62,7 @@ interface ListeningPracticeSavedSession {
 }
 
 export default function ListeningPracticeSession() {
+  useActivityTracking("listening_practice");
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();

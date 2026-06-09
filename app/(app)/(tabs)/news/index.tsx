@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -40,6 +41,7 @@ const CAROUSEL_TAP_COOLDOWN_MS = 120;
 type OtherNewsSortMode = "date" | "knownKanji";
 
 export default function NewsScreen() {
+  useActivityTracking("news", { mode: "focus" });
   const [news, setNews] = useState<NhkEasyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCarouselInteracting, setIsCarouselInteracting] = useState(false);

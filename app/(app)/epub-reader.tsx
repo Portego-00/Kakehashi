@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -102,6 +103,7 @@ const findLookupMatchAtOffset = (
 };
 
 export default function EpubReaderScreen() {
+  useActivityTracking("epub", { mode: "focus" });
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ bookId?: string }>();

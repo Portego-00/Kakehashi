@@ -1,4 +1,5 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -144,6 +145,7 @@ if (Platform.OS === "ios") {
 }
 
 export default function AnimeTranscriptDevViewerScreen() {
+  useActivityTracking("video", { mode: "focus" });
   const { theme } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();

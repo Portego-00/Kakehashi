@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -432,6 +433,7 @@ const buildRandomTestSession = (
 };
 
 export default function TestSessionScreen() {
+  useActivityTracking("test_session");
   const { theme } = useTheme();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();

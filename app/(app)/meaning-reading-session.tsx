@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -214,6 +215,7 @@ async function buildKanjiVocabularyHintMap(
 }
 
 export default function MeaningReadingSessionScreen() {
+  useActivityTracking("meaning_reading");
   const { theme } = useTheme();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();

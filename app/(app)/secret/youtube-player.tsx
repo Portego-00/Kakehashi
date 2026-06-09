@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback } from "react";
 import {
@@ -13,6 +14,7 @@ import YoutubePlayer from "react-native-youtube-iframe";
 import { useTheme } from "../../../src/utils/theme";
 
 export default function YouTubePlayerScreen() {
+  useActivityTracking("video", { mode: "focus" });
   const { theme } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();

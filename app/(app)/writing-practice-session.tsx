@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -79,6 +80,7 @@ const WRITING_PRACTICE_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.WRITING_PRACTICE;
 
 export default function WritingPracticeSessionScreen() {
+  useActivityTracking("writing_practice");
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const { apiToken } = useAuthStore();

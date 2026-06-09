@@ -28,6 +28,8 @@ import { analyticsService } from "../src/services/analyticsService";
 import { featureFlagsService } from "../src/services/featureFlagsService";
 import { syncPendingProgress } from "../src/services/offlineStudyProgressService";
 import { queueOfflineVocabularyAudioDownloads } from "../src/services/offlineVocabularyAudioService";
+import { timeTrackingService } from "../src/services/timeTrackingService";
+import { initializeTimeTrackingSync } from "../src/services/timeTrackingSyncService";
 import { getAllSubjectsFromAPI, getUserData } from "../src/utils/api";
 import {
   initializeBadgeNotifications,
@@ -287,6 +289,12 @@ function RootLayoutContentInner() {
   // Initialize global error handlers
   useEffect(() => {
     errorService.initializeGlobalHandlers();
+  }, []);
+
+  // Start the app/study time tracker (MMKV ledger + AppState heartbeat)
+  useEffect(() => {
+    timeTrackingService.initialize();
+    initializeTimeTrackingSync();
   }, []);
 
   // Set user info for error attribution

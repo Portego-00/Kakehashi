@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -63,6 +64,7 @@ const isSubjectType = (subject: any, type: string): boolean => {
 };
 
 export default function CustomLessonScreen() {
+  useActivityTracking("custom_lesson");
   const { apiToken } = useAuthStore();
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();

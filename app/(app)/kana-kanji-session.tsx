@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -112,6 +113,7 @@ const EMPTY_PROGRESS_STATE: KanaKanjiProgressState = {
 const KANA_KANJI_SESSION_KEY = EXTRA_STUDY_SESSION_STORAGE_KEYS.KANA_KANJI;
 
 export default function KanaKanjiSessionScreen() {
+  useActivityTracking("kana_kanji");
   const { theme } = useTheme();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -107,6 +108,7 @@ function parseSubjectIds(raw: unknown): number[] {
 }
 
 export default function ContextSentencePracticeSession() {
+  useActivityTracking("context_sentence");
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
   const { autoSwitchKeyboard, showContextSentenceSpeedControl } =

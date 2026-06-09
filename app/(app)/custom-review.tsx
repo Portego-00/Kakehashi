@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -96,6 +97,7 @@ const CUSTOM_REVIEW_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW;
 
 export default function CustomReviewScreen() {
+  useActivityTracking("custom_review");
   const { apiToken } = useAuthStore();
   const { theme } = useTheme();
   const {

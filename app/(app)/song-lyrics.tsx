@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import * as SwiftUI from "@expo/ui/swift-ui";
 import * as SwiftUIModifiers from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -300,6 +301,7 @@ function buildGrammarTooltipItem(
 }
 
 export default function SongLyricsScreen() {
+  useActivityTracking("songs", { mode: "focus" });
   const { theme } = useTheme();
   const router = useRouter();
   const { userData } = useAuthStore();

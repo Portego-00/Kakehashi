@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import RecentLessonsResultsScreen from "../../src/components/RecentLessonsResultsScreen";
@@ -27,6 +28,7 @@ interface Question {
 }
 
 export default function RecentLessonsReview() {
+  useActivityTracking("recent_lessons_review");
   const { theme } = useTheme();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();

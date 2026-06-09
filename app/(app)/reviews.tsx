@@ -16,6 +16,7 @@ import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
 import { useDashboardData } from "../../src/hooks/useDashboardData";
 import useBluetoothAudioKeepAlive from "../../src/hooks/useBluetoothAudioKeepAlive";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import {
   getPendingProgressAssignmentIds,
   getPendingProgressCounts,
@@ -186,6 +187,10 @@ export default function ReviewScreen() {
   const shouldKeepReviewAudioWarm =
     autoplayVocabularyAudio && !isLoading && !isFinished && isFocused;
   useBluetoothAudioKeepAlive(shouldKeepReviewAudioWarm, "Reviews");
+
+  // Counts as review time from mount until the results screen, including time
+  // on screens pushed on top (subject details, search) while the flow is open.
+  useActivityTracking("reviews", { enabled: !isFinished });
 
   const refreshPendingReviewCount = useCallback(async () => {
     try {

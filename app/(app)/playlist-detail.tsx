@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { LinearGradient } from "expo-linear-gradient";
 import { Directory, File, Paths } from "expo-file-system";
@@ -44,6 +45,7 @@ const formatSongCount = (count: number): string =>
   `${count} song${count === 1 ? "" : "s"}`;
 
 export default function PlaylistDetailScreen() {
+  useActivityTracking("songs", { mode: "focus" });
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();

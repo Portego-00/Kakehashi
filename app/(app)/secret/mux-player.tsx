@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useState } from "react";
@@ -29,6 +30,7 @@ import { getAllSubjects } from "../../../src/utils/cache";
 import { useAuthStore } from "../../../src/utils/store";
 
 export default function MuxPlayerScreen() {
+  useActivityTracking("video", { mode: "focus" });
   const { theme } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();

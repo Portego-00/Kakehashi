@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -123,6 +124,7 @@ type AnimeTranscriptDevHistoryScreenProps = {
 export default function AnimeTranscriptDevHistoryScreen({
   showBackButton = true,
 }: AnimeTranscriptDevHistoryScreenProps) {
+  useActivityTracking("video", { mode: "focus" });
   const { theme } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();

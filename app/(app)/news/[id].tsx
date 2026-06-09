@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -158,6 +159,7 @@ type ContentBlock = {
 };
 
 export default function NewsDetailScreen() {
+  useActivityTracking("news", { mode: "focus" });
   const { id } = useLocalSearchParams<{ id: string }>();
   const [item, setItem] = useState<NhkEasyItem | undefined>(undefined);
   const { theme } = useTheme();

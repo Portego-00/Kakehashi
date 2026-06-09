@@ -15,6 +15,7 @@ import AddToSubjectListsModal from "../../src/components/AddToSubjectListsModal"
 import LessonDetailScreen from "../../src/components/LessonDetailScreen";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import { useSession } from "../../src/contexts/AuthContext";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { useDashboardData } from "../../src/hooks/useDashboardData";
 import {
   getPendingProgressAssignmentIds,
@@ -211,6 +212,10 @@ export default function LessonsScreen() {
   const [isFinalBatchComplete, setIsFinalBatchComplete] = useState(false);
   const [showSaveCurrentLessonsModal, setShowSaveCurrentLessonsModal] =
     useState(false);
+
+  // Counts as lesson time from mount until the final completion screen,
+  // including time on screens pushed on top while the flow stays open.
+  useActivityTracking("lessons", { enabled: !isFinalBatchComplete });
   const [lessonSessionCreatedAt, setLessonSessionCreatedAt] = useState<
     string | null
   >(null);

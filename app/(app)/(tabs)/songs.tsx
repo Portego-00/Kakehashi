@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlashList } from "@shopify/flash-list";
 import { Directory, File, Paths } from "expo-file-system";
@@ -51,6 +52,7 @@ interface MusicSection {
 type MusicSource = "spotify" | "apple";
 
 export default function SongsTab() {
+  useActivityTracking("songs", { mode: "focus" });
   const { theme } = useTheme();
   const inputRef = useRef<TextInput>(null);
   const songsPlaybackSource = useSettingsStore(

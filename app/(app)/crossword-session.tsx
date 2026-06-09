@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio, type AudioSound } from "../../src/utils/expoAvCompat";
 import { router, useLocalSearchParams } from "expo-router";
@@ -428,6 +429,7 @@ function containsJapaneseCharacters(value: string): boolean {
 }
 
 export default function CrosswordSessionScreen() {
+  useActivityTracking("crossword");
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
   const vocabularyAudioVoice = useSettingsStore(

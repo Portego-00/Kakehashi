@@ -24,6 +24,7 @@ import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
 import ReviewHeatmap from "../../../src/components/ReviewHeatmap";
 import ReviewStatsTable from "../../../src/components/ReviewStatsTable";
 import SrsBreakdown from "../../../src/components/SrsBreakdown";
+import StudyTimeCard from "../../../src/components/StudyTimeCard";
 import TodayStudyActivityCard from "../../../src/components/TodayStudyActivityCard";
 import { useDashboardData } from "../../../src/hooks/useDashboardData";
 import {
@@ -280,6 +281,9 @@ export default function AnalyticsTab() {
             assignments={dashboardData.assignments || []}
             reviewStats={dashboardData.reviewStatistics || []}
           />
+
+          {/* Time spent studying today, tracked locally on this device */}
+          <StudyTimeCard />
 
           {/* Progress Section */}
           <View style={styles.progressSection}>
