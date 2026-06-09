@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@kakehashi/core": ["packages/core/src/index.ts"],
+      "@kakehashi/core/*": ["packages/core/src/*"]
+    }
+  }
+}

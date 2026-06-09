@@ -1,15 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  isSupabaseConfigComplete,
+  SUPABASE_NOT_CONFIGURED_ERROR_CODE,
+  SUPABASE_NOT_CONFIGURED_MESSAGE,
+} from '@kakehashi/core';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-
-export const SUPABASE_NOT_CONFIGURED_ERROR_CODE = 'SUPABASE_NOT_CONFIGURED';
-export const SUPABASE_NOT_CONFIGURED_MESSAGE =
-  'Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to enable Supabase-backed features.';
+export const isSupabaseConfigured = isSupabaseConfigComplete({
+  supabaseUrl,
+  supabaseAnonKey,
+});
 
 type SupabaseDisabledError = Error & {
   code: typeof SUPABASE_NOT_CONFIGURED_ERROR_CODE;

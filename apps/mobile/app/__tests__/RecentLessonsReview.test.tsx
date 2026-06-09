@@ -48,7 +48,7 @@ jest.mock('../../src/utils/theme', () => ({
 }));
 
 jest.mock('../../src/components/ReviewQuestionScreen', () => {
-  const React = jest.requireActual('react');
+  const React = jest.requireActual('react') as typeof import('react');
   const { Text, TextInput, TouchableOpacity, View } = jest.requireActual('react-native');
 
   return function MockReviewQuestionScreen({
@@ -164,7 +164,7 @@ describe('RecentLessonsReview Screen', () => {
     jest.clearAllMocks();
     
     // Setup auth store mock
-    (useAuthStore as jest.Mock).mockReturnValue({
+    (useAuthStore as unknown as jest.Mock).mockReturnValue({
       apiToken: 'test-token',
     });
 

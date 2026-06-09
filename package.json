@@ -1,0 +1,29 @@
+{
+  "name": "kakehashi",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "mobile": "pnpm --filter @kakehashi/mobile start",
+    "mobile:clear": "pnpm --filter @kakehashi/mobile start --clear",
+    "mobile:ios": "pnpm --filter @kakehashi/mobile ios",
+    "mobile:android": "pnpm --filter @kakehashi/mobile android",
+    "mobile:web": "pnpm --filter @kakehashi/mobile web",
+    "mobile:lint": "pnpm --filter @kakehashi/mobile lint",
+    "mobile:test": "pnpm --filter @kakehashi/mobile test",
+    "web": "pnpm --filter @kakehashi/web dev",
+    "web:build": "pnpm --filter @kakehashi/web build",
+    "web:start": "pnpm --filter @kakehashi/web start",
+    "web:lint": "pnpm --filter @kakehashi/web lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "validate": "pnpm install && pnpm typecheck && pnpm lint && pnpm web:build",
+    "eas:build:ios": "cd apps/mobile && eas build --platform ios",
+    "eas:build:android": "cd apps/mobile && eas build --platform android",
+    "eas:submit": "cd apps/mobile && eas submit"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}

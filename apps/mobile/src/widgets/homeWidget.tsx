@@ -28,6 +28,7 @@ import {
 import { Asset } from "expo-asset";
 import { Directory, File, Paths } from "expo-file-system";
 import type { Widget, WidgetEnvironment } from "expo-widgets";
+import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import type {
   WidgetContentMode,
@@ -207,7 +208,7 @@ type WidgetController<T extends object> = Pick<
 
 type CreateWidgetFn = <T extends object>(
   name: string,
-  widget: (props: T, context: WidgetEnvironment) => JSX.Element,
+  widget: (props: T, context: WidgetEnvironment) => ReactElement,
 ) => Widget<T>;
 
 const NOOP_WIDGET: WidgetController<HomeWidgetProps> = {

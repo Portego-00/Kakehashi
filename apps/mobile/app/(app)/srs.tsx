@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SrsBreakdown from '../../src/components/SrsBreakdown';
 import { SrsLevel } from '../../src/types/wanikani';
-import { fetchAllPages, getAssignments, getSubjects } from '../../src/utils/api';
+import { fetchAllPages, getAssignments, getSubjects, type Subject } from '../../src/utils/api';
 import { useAuthStore } from '../../src/utils/store';
 import { SRS_COLORS } from '../../src/constants/srsColors';
 
@@ -36,7 +36,7 @@ export default function SrsScreen() {
       console.log(`Fetched ${subjects.data.length} subjects`);
 
       // Map subjects by ID for easy lookup
-      const subjectsById = subjects.data.reduce((acc, subject) => {
+      const subjectsById = subjects.data.reduce<Record<number, Subject>>((acc, subject) => {
         acc[subject.id] = subject;
         return acc;
       }, {});

@@ -12,7 +12,6 @@ export default function ReviewSearchScreen() {
         options={{
           headerShown: true,
           title: "",
-          headerBackTitleVisible: false,
           headerTransparent: showNativeSearchBar,
           headerShadowVisible: !showNativeSearchBar,
           // @ts-ignore iOS-only native search bar options

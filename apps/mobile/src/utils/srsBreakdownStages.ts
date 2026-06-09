@@ -1,5 +1,5 @@
 import { SRS_COLORS } from "../constants/srsColors";
-import type { SrsLevel } from "../types/wanikani";
+import type { SrsLevel } from "@kakehashi/core";
 
 export const ACTIVE_SRS_STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const GROUPED_ACTIVE_SRS_STAGES = [1, 5, 7, 8, 9] as const;

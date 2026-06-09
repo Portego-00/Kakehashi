@@ -2,9 +2,16 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@kakehashi/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@kakehashi/core/*": [
+        "../../packages/core/src/*"
       ]
     }
   },

@@ -1,10 +1,11 @@
 # Kakehashi
 
-Kakehashi is an unofficial mobile companion app for
+Kakehashi is an unofficial companion app for
 [WaniKani](https://www.wanikani.com), the kanji learning platform. It provides a
 native iOS and Android experience for reviews, lessons, progress tracking, study
 tools, listening practice, song and lyrics helpers, OCR/text utilities, and home
-screen widgets.
+screen widgets, plus a Next.js web foundation for progressively shared product
+features.
 
 Kakehashi is free and community-built. It requires a WaniKani account and is not
 affiliated with WaniKani or Tofugu LLC.
@@ -29,36 +30,45 @@ continuing.
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Install iOS pods:
 
 ```bash
-cd ios
+cd apps/mobile/ios
 pod install
-cd ..
+cd ../../..
 ```
 
 Run the app on a simulator or emulator:
 
 ```bash
-npm run ios
-npm run android
+pnpm mobile:ios
+pnpm mobile:android
 ```
 
 Run on a connected device:
 
 ```bash
+cd apps/mobile
 npx expo run:ios --device
 npx expo run:android --device
+cd ../..
 ```
 
 Run common checks:
 
 ```bash
-npm run lint
-npm test
+pnpm lint
+pnpm test
+pnpm web:build
+```
+
+Run the web app:
+
+```bash
+pnpm web
 ```
 
 ## Contributing

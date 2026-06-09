@@ -52,6 +52,10 @@ function normalizeBunproApiToken(rawValue: string | null | undefined): string | 
   return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
+export function getBunproApiTokenFromEnv(): string | null {
+  return normalizeBunproApiToken(process.env.EXPO_PUBLIC_BUNPRO_API_TOKEN);
+}
+
 function buildBunproUrl(
   endpoint: string,
   query: Record<string, BunproRequestQueryValue> = {}

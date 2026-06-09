@@ -278,7 +278,9 @@ function buildHiraganaMeaningContextHints(
         ja: maskedJa || undefined,
       };
     })
-    .filter((hint): hint is { ja?: string; en?: string } => Boolean(hint));
+    .filter(
+      (hint): hint is { ja: string; en?: string } => hint !== null,
+    );
 }
 
 const getAvailableQuestionTypes = (

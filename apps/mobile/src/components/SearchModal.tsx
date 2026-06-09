@@ -699,7 +699,6 @@ export default function SearchModal({ visible, onClose }: SearchModalProps) {
                 data={flatListData}
                 renderItem={renderSearchResult}
                 keyExtractor={item => item.id.toString()}
-                estimatedItemSize={73}
                 contentContainerStyle={styles.listContent}
                 keyboardShouldPersistTaps="handled"
               />

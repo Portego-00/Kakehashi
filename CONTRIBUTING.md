@@ -7,7 +7,7 @@ Thanks for helping improve Kakehashi.
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Optionally create local environment config for provider-backed features:
@@ -23,7 +23,13 @@ starting.
 Start the app:
 
 ```bash
-npm start
+pnpm mobile
+```
+
+Start the web app:
+
+```bash
+pnpm web
 ```
 
 ## Helpful Checks
@@ -32,8 +38,9 @@ These are useful to run before opening a pull request, especially when your
 change touches app behavior:
 
 ```bash
-npm run lint
-npm test
+pnpm lint
+pnpm test
+pnpm typecheck
 ```
 
 Some provider-backed features require local environment values. Do not commit
