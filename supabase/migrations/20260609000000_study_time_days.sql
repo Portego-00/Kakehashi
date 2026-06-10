@@ -38,15 +38,23 @@ create index if not exists study_time_days_user_day_idx
 
 alter table public.study_time_days enable row level security;
 
+-- Table-level privileges (RLS still applies on top of these). SELECT is
+-- granted because upserts (INSERT ... ON CONFLICT DO UPDATE) may need to read
+-- conflicting rows, but clients still cannot SELECT data: there is no SELECT
+-- policy, so RLS returns nothing for reads.
+grant select, insert, update on public.study_time_days to anon, authenticated;
+
 -- Same trust model as app_sessions: clients write with the anon key but can
 -- never read usage data back. Developer access goes through the dashboard or
 -- the service role, which bypass RLS.
+drop policy if exists "Clients can insert study time rows" on public.study_time_days;
 create policy "Clients can insert study time rows"
   on public.study_time_days
   for insert
   to anon, authenticated
   with check (true);
 
+drop policy if exists "Clients can update study time rows" on public.study_time_days;
 create policy "Clients can update study time rows"
   on public.study_time_days
   for update
