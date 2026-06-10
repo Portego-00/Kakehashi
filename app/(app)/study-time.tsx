@@ -12,7 +12,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  ReduceMotion,
+} from "react-native-reanimated";
 import { GlassButton } from "../../src/components/GlassButton";
+import RollingNumberText from "../../src/components/RollingNumberText";
 import { STUDY_TIME_CATEGORY_META } from "../../src/constants/studyTimeCategories";
 import {
   ACTIVITY_CATEGORIES,
@@ -37,6 +44,15 @@ import {
 import { useTheme } from "../../src/utils/theme";
 
 const CHART_HEIGHT = 96;
+
+// Drives card expand/collapse and bar resizing when the range changes.
+const cardLayout = LinearTransition.springify()
+  .damping(22)
+  .stiffness(240)
+  .reduceMotion(ReduceMotion.System);
+
+const sectionEntering = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
+const sectionExiting = FadeOut.duration(120).reduceMotion(ReduceMotion.System);
 
 type ScreenData = StudyTimeRangeData & {
   syncStatus: StudyTimeSyncStatus;
@@ -75,6 +91,7 @@ export default function StudyTimeScreen() {
   const range = STUDY_TIME_RANGE_IDS[rangeIndex];
   const [data, setData] = useState<ScreenData>(() => readScreenData("today"));
   const [selectedBucketId, setSelectedBucketId] = useState<string | null>(null);
+  const [showChartBreakdown, setShowChartBreakdown] = useState(false);
 
   // Live refresh while focused; all reads are local and in-memory cached.
   useFocusEffect(
@@ -157,56 +174,70 @@ export default function StudyTimeScreen() {
         />
 
         {/* Total for the selected range */}
-        <View style={cardStyle}>
+        <Animated.View style={cardStyle} layout={cardLayout}>
           <Text style={[styles.heroLabel, { color: theme.textSecondary }]}>
             Total study time
           </Text>
-          <Text style={[styles.heroValue, { color: theme.textColor }]}>
-            {formatDurationMs(summary.studyMs)}
-          </Text>
+          <RollingNumberText
+            text={formatDurationMs(summary.studyMs)}
+            style={[styles.heroValue, { color: theme.textColor }]}
+            containerStyle={styles.heroValueContainer}
+          />
           {range !== "today" && (
-            <View style={styles.heroMetaRow}>
+            <Animated.View
+              style={styles.heroMetaRow}
+              entering={sectionEntering}
+              exiting={sectionExiting}
+              layout={cardLayout}
+            >
               <View style={styles.heroMetaItem}>
-                <Text style={[styles.heroMetaValue, { color: theme.textColor }]}>
-                  {formatDurationMsCoarse(averagePerDayMs)}
-                </Text>
+                <RollingNumberText
+                  text={formatDurationMsCoarse(averagePerDayMs)}
+                  style={[styles.heroMetaValue, { color: theme.textColor }]}
+                />
                 <Text style={[styles.heroMetaLabel, { color: theme.textSecondary }]}>
                   avg / day
                 </Text>
               </View>
               <View style={styles.heroMetaItem}>
-                <Text style={[styles.heroMetaValue, { color: theme.textColor }]}>
-                  {summary.activeDayCount}/{elapsedDays}
-                </Text>
+                <RollingNumberText
+                  text={`${summary.activeDayCount}/${elapsedDays}`}
+                  style={[styles.heroMetaValue, { color: theme.textColor }]}
+                />
                 <Text style={[styles.heroMetaLabel, { color: theme.textSecondary }]}>
                   active days
                 </Text>
               </View>
               <View style={styles.heroMetaItem}>
-                <Text style={[styles.heroMetaValue, { color: theme.textColor }]}>
-                  {formatDurationMsCoarse(
+                <RollingNumberText
+                  text={formatDurationMsCoarse(
                     summary.activeDayCount > 0
                       ? summary.studyMs / summary.activeDayCount
                       : 0
                   )}
-                </Text>
+                  style={[styles.heroMetaValue, { color: theme.textColor }]}
+                />
                 <Text style={[styles.heroMetaLabel, { color: theme.textSecondary }]}>
                   avg / active day
                 </Text>
               </View>
-            </View>
+            </Animated.View>
           )}
-        </View>
+        </Animated.View>
 
         {/* Per-category breakdown */}
-        <View style={cardStyle}>
+        <Animated.View style={cardStyle} layout={cardLayout}>
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
             Breakdown
           </Text>
           {activeCategories.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            <Animated.Text
+              entering={sectionEntering}
+              exiting={sectionExiting}
+              style={[styles.emptyText, { color: theme.textSecondary }]}
+            >
               Nothing tracked in this period yet.
-            </Text>
+            </Animated.Text>
           ) : (
             activeCategories.map((category) => {
               const meta = STUDY_TIME_CATEGORY_META[category];
@@ -214,7 +245,13 @@ export default function StudyTimeScreen() {
               const share = summary.studyMs > 0 ? categoryMs / summary.studyMs : 0;
 
               return (
-                <View key={category} style={styles.categoryRow}>
+                <Animated.View
+                  key={category}
+                  style={styles.categoryRow}
+                  entering={sectionEntering}
+                  exiting={sectionExiting}
+                  layout={cardLayout}
+                >
                   <View style={styles.categoryHeader}>
                     <View style={styles.categoryLabelGroup}>
                       <Ionicons name={meta.icon} size={16} color={meta.color} />
@@ -230,7 +267,8 @@ export default function StudyTimeScreen() {
                     </Text>
                   </View>
                   <View style={[styles.categoryTrack, { backgroundColor: trackColor }]}>
-                    <View
+                    <Animated.View
+                      layout={cardLayout}
                       style={[
                         styles.categoryFill,
                         {
@@ -240,17 +278,46 @@ export default function StudyTimeScreen() {
                       ]}
                     />
                   </View>
-                </View>
+                </Animated.View>
               );
             })
           )}
-        </View>
+        </Animated.View>
 
         {/* Range chart */}
-        <View style={cardStyle}>
-          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-            {chartTitle}
-          </Text>
+        <Animated.View style={cardStyle} layout={cardLayout}>
+          <View style={styles.chartHeaderRow}>
+            <Text style={[styles.sectionTitle, styles.chartSectionTitle, { color: theme.textColor }]}>
+              {chartTitle}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowChartBreakdown((value) => !value)}
+              style={[
+                styles.chartToggle,
+                {
+                  backgroundColor: showChartBreakdown ? theme.primary : trackColor,
+                },
+              ]}
+              accessibilityRole="switch"
+              accessibilityLabel="Color bars by category"
+              accessibilityState={{ checked: showChartBreakdown }}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="color-palette-outline"
+                size={13}
+                color={showChartBreakdown ? "#fff" : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.chartToggleLabel,
+                  { color: showChartBreakdown ? "#fff" : theme.textSecondary },
+                ]}
+              >
+                Breakdown
+              </Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.chartRow}>
             {series.map((bucket) => {
               const isSelected = bucket.id === selectedBucketId;
@@ -268,20 +335,44 @@ export default function StudyTimeScreen() {
                   }
                 >
                   <View style={styles.chartBarSlot}>
-                    <View
+                    <Animated.View
+                      layout={cardLayout}
                       style={[
                         styles.chartBar,
                         {
                           height: barHeight,
                           backgroundColor:
                             bucket.studyMs > 0
-                              ? isSelected || bucket.isCurrent
-                                ? theme.primary
-                                : `${theme.primary}88`
+                              ? showChartBreakdown
+                                ? "transparent"
+                                : isSelected || bucket.isCurrent
+                                  ? theme.primary
+                                  : `${theme.primary}88`
                               : trackColor,
                         },
                       ]}
-                    />
+                    >
+                      {showChartBreakdown && bucket.studyMs > 0
+                        ? ACTIVITY_CATEGORIES.map((category) => {
+                            const categoryMs = bucket.byCategory[category] ?? 0;
+                            if (categoryMs <= 0) {
+                              return null;
+                            }
+                            return (
+                              <Animated.View
+                                key={category}
+                                entering={sectionEntering}
+                                layout={cardLayout}
+                                style={{
+                                  height: (categoryMs / bucket.studyMs) * barHeight,
+                                  backgroundColor:
+                                    STUDY_TIME_CATEGORY_META[category].color,
+                                }}
+                              />
+                            );
+                          })
+                        : null}
+                    </Animated.View>
                   </View>
                   <Text
                     style={[
@@ -304,10 +395,10 @@ export default function StudyTimeScreen() {
               ? `${selectedBucket.accessibilityLabel} — ${formatDurationMs(selectedBucket.studyMs)}`
               : `Tap a ${chartUnit} bar to see that period's total`}
           </Text>
-        </View>
+        </Animated.View>
 
         {/* App total */}
-        <View style={cardStyle}>
+        <Animated.View style={cardStyle} layout={cardLayout}>
           <View style={styles.appTotalRow}>
             <View style={styles.categoryLabelGroup}>
               <Ionicons name="phone-portrait-outline" size={16} color={theme.textSecondary} />
@@ -315,18 +406,19 @@ export default function StudyTimeScreen() {
                 Total time in app
               </Text>
             </View>
-            <Text style={[styles.categoryValue, { color: theme.textColor }]}>
-              {formatDurationMs(summary.appTotalMs)}
-            </Text>
+            <RollingNumberText
+              text={formatDurationMs(summary.appTotalMs)}
+              style={[styles.categoryValue, { color: theme.textColor }]}
+            />
           </View>
           <Text style={[styles.footnote, { color: theme.textSecondary }]}>
             Includes everything you do in the app, not just study screens. Time
             only counts while the app is in the foreground.
           </Text>
-        </View>
+        </Animated.View>
 
         {/* Sync status — visible so device testers can debug without a console */}
-        <View style={cardStyle}>
+        <Animated.View style={cardStyle} layout={cardLayout}>
           <View style={styles.appTotalRow}>
             <View style={styles.categoryLabelGroup}>
               <Ionicons
@@ -380,7 +472,7 @@ export default function StudyTimeScreen() {
           >
             Project: {getSupabaseHost()}
           </Text>
-        </View>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -455,8 +547,10 @@ const styles = StyleSheet.create({
   heroValue: {
     fontSize: 34,
     fontWeight: "bold",
-    marginTop: 4,
     fontVariant: ["tabular-nums"],
+  },
+  heroValueContainer: {
+    marginTop: 4,
   },
   heroMetaRow: {
     flexDirection: "row",
@@ -515,6 +609,29 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 4,
   },
+  chartHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    gap: 8,
+  },
+  chartSectionTitle: {
+    marginBottom: 0,
+    flexShrink: 1,
+  },
+  chartToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  chartToggleLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
   chartRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -532,6 +649,9 @@ const styles = StyleSheet.create({
   chartBar: {
     borderRadius: 3,
     alignSelf: "stretch",
+    overflow: "hidden",
+    // Stacked category segments render bottom-up.
+    flexDirection: "column-reverse",
   },
   chartDayLabel: {
     fontSize: 10,

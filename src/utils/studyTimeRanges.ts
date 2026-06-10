@@ -1,5 +1,9 @@
 import { startOfMonth, startOfWeek } from "date-fns";
-import { getLocalDateKey, type RangeSummary } from "../services/timeTrackingCore";
+import {
+  getLocalDateKey,
+  type ActivityCategory,
+  type RangeSummary,
+} from "../services/timeTrackingCore";
 import { timeTrackingService } from "../services/timeTrackingService";
 
 export type StudyTimeRangeId = "today" | "week" | "month" | "all";
@@ -12,6 +16,7 @@ export type StudyTimeChartBucket = {
   label: string;
   accessibilityLabel: string;
   studyMs: number;
+  byCategory: Record<ActivityCategory, number>;
   isCurrent: boolean;
 };
 
@@ -119,6 +124,7 @@ function buildDayBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[]
       label: formatDayLabel(date),
       accessibilityLabel: formatFullDate(date),
       studyMs: summary.studyMs,
+      byCategory: summary.byCategory,
       isCurrent: dateKey === todayKey,
     };
   });
@@ -143,6 +149,7 @@ function buildWeekBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[
       label: formatMonthDay(start),
       accessibilityLabel: `Week of ${formatMonthDay(start)}`,
       studyMs: summary.studyMs,
+      byCategory: summary.byCategory,
       isCurrent: startKey <= todayKey && todayKey <= endKey,
     };
   });
@@ -171,6 +178,7 @@ function buildMonthBuckets(now: Date, bucketCount: number): StudyTimeChartBucket
         year: "numeric",
       }),
       studyMs: summary.studyMs,
+      byCategory: summary.byCategory,
       isCurrent: startKey <= todayKey && todayKey <= endKey,
     };
   });
