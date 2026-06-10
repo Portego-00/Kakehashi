@@ -417,10 +417,30 @@ export default function StudyTimeScreen() {
           >
             Device ID: {getDeviceId()}
           </Text>
+          <Text
+            style={[styles.footnote, { color: theme.textSecondary }]}
+            selectable
+          >
+            Project: {getSupabaseHost()}
+          </Text>
         </View>
       </ScrollView>
     </View>
   );
+}
+
+// Which Supabase project this build talks to (public client config), so RLS
+// or missing-table errors can be matched against the right dashboard.
+function getSupabaseHost(): string {
+  try {
+    const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+    if (!url) {
+      return "not configured";
+    }
+    return new URL(url).host;
+  } catch {
+    return "invalid URL";
+  }
 }
 
 const styles = StyleSheet.create({
