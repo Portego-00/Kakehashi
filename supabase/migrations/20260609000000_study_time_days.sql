@@ -46,18 +46,21 @@ grant select, insert, update on public.study_time_days to anon, authenticated;
 
 -- Same trust model as app_sessions: clients write with the anon key but can
 -- never read usage data back. Developer access goes through the dashboard or
--- the service role, which bypass RLS.
-drop policy if exists "Clients can insert study time rows" on public.study_time_days;
-create policy "Clients can insert study time rows"
-  on public.study_time_days
-  for insert
-  to anon, authenticated
-  with check (true);
+-- the service role, which bypass RLS. Policies are recreated from scratch
+-- (dropping any leftovers, including restrictive ones) and apply to all
+-- roles so nonstandard API role setups keep working.
+do $$
+declare p record;
+begin
+  for p in select policyname from pg_policies
+           where schemaname = 'public' and tablename = 'study_time_days'
+  loop
+    execute format('drop policy %I on public.study_time_days', p.policyname);
+  end loop;
+end $$;
 
-drop policy if exists "Clients can update study time rows" on public.study_time_days;
-create policy "Clients can update study time rows"
-  on public.study_time_days
-  for update
-  to anon, authenticated
-  using (true)
-  with check (true);
+create policy "study_time_days_insert" on public.study_time_days
+  for insert to public with check (true);
+
+create policy "study_time_days_update" on public.study_time_days
+  for update to public using (true) with check (true);
