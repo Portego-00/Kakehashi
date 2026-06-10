@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
+  Easing,
   FadeIn,
   FadeOut,
   LinearTransition,
@@ -46,9 +47,9 @@ import { useTheme } from "../../src/utils/theme";
 const CHART_HEIGHT = 96;
 
 // Drives card expand/collapse and bar resizing when the range changes.
-const cardLayout = LinearTransition.springify()
-  .damping(22)
-  .stiffness(240)
+// Timing-based: settles without spring overshoot.
+const cardLayout = LinearTransition.easing(Easing.inOut(Easing.quad))
+  .duration(240)
   .reduceMotion(ReduceMotion.System);
 
 const sectionEntering = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
@@ -302,20 +303,13 @@ export default function StudyTimeScreen() {
               accessibilityLabel="Color bars by category"
               accessibilityState={{ checked: showChartBreakdown }}
               activeOpacity={0.85}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons
                 name="color-palette-outline"
-                size={13}
+                size={16}
                 color={showChartBreakdown ? "#fff" : theme.textSecondary}
               />
-              <Text
-                style={[
-                  styles.chartToggleLabel,
-                  { color: showChartBreakdown ? "#fff" : theme.textSecondary },
-                ]}
-              >
-                Breakdown
-              </Text>
             </TouchableOpacity>
           </View>
           <View style={styles.chartRow}>
@@ -621,16 +615,11 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   chartToggle: {
-    flexDirection: "row",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  chartToggleLabel: {
-    fontSize: 12,
-    fontWeight: "600",
+    justifyContent: "center",
   },
   chartRow: {
     flexDirection: "row",

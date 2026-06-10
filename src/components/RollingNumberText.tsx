@@ -8,13 +8,14 @@ import {
   ViewStyle,
 } from "react-native";
 import Animated, {
+  Easing,
   FadeIn,
   FadeOut,
   LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 /**
@@ -34,16 +35,15 @@ import Animated, {
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const HEIGHT_PER_FONT_SIZE = 1.25;
 
-const DIGIT_SPRING = {
-  damping: 20,
-  stiffness: 220,
-  mass: 0.9,
+// Ease-out timing: settles cleanly without overshooting past the digit.
+const DIGIT_TIMING = {
+  duration: 280,
+  easing: Easing.out(Easing.cubic),
   reduceMotion: ReduceMotion.System,
 };
 
-const charLayout = LinearTransition.springify()
-  .damping(22)
-  .stiffness(260)
+const charLayout = LinearTransition.easing(Easing.inOut(Easing.quad))
+  .duration(200)
   .reduceMotion(ReduceMotion.System);
 
 const charEntering = FadeIn.duration(160).reduceMotion(ReduceMotion.System);
@@ -63,7 +63,7 @@ const RollingDigit = memo(function RollingDigit({
   const translateY = useSharedValue(-digit * height);
 
   useEffect(() => {
-    translateY.value = withSpring(-digit * height, DIGIT_SPRING);
+    translateY.value = withTiming(-digit * height, DIGIT_TIMING);
   }, [digit, height, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
