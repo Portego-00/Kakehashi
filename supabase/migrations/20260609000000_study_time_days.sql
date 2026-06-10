@@ -1,8 +1,15 @@
 -- Study/app time tracking rollups, pushed by the app for developer analytics.
 --
--- The client upserts ABSOLUTE day totals keyed by (user_id, device_id, day).
--- Values only ever grow on the device, so duplicate or retried requests
--- simply rewrite the same row and can never double count time.
+-- The client calls the upsert_study_time_days() function with ABSOLUTE day
+-- totals keyed by (user_id, device_id, day). Values only ever grow on the
+-- device (and totals are merged with greatest() server-side), so duplicate or
+-- retried requests can never double count time.
+--
+-- Clients have NO direct table access (no grants, RLS enabled, no policies):
+-- the security definer function is the only write path, and nothing can read
+-- the data back except the dashboard / service role.
+--
+-- Safe to re-run: recreates the function and re-applies grants/locks.
 --
 -- Example developer queries:
 --   total in-app hours per day across all users:
@@ -36,19 +43,11 @@ create index if not exists study_time_days_day_idx
 create index if not exists study_time_days_user_day_idx
   on public.study_time_days (user_id, day);
 
+-- Lock the table down completely for client roles. Reads and writes both go
+-- through code that bypasses RLS (the function below / dashboard / service
+-- role), so no client-facing grants or policies are needed at all.
 alter table public.study_time_days enable row level security;
 
--- Table-level privileges (RLS still applies on top of these). SELECT is
--- granted because upserts (INSERT ... ON CONFLICT DO UPDATE) may need to read
--- conflicting rows, but clients still cannot SELECT data: there is no SELECT
--- policy, so RLS returns nothing for reads.
-grant select, insert, update on public.study_time_days to anon, authenticated;
-
--- Same trust model as app_sessions: clients write with the anon key but can
--- never read usage data back. Developer access goes through the dashboard or
--- the service role, which bypass RLS. Policies are recreated from scratch
--- (dropping any leftovers, including restrictive ones) and apply to all
--- roles so nonstandard API role setups keep working.
 do $$
 declare p record;
 begin
@@ -59,8 +58,56 @@ begin
   end loop;
 end $$;
 
-create policy "study_time_days_insert" on public.study_time_days
-  for insert to public with check (true);
+revoke all on public.study_time_days from anon, authenticated;
 
-create policy "study_time_days_update" on public.study_time_days
-  for update to public using (true) with check (true);
+-- The single write path for clients. SECURITY DEFINER runs as the function
+-- owner (table owner), so client roles need no table privileges and RLS does
+-- not apply inside. Totals merge with greatest() so out-of-order or repeated
+-- pushes of absolute values stay monotonic.
+create or replace function public.upsert_study_time_days(rows jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if rows is null or jsonb_typeof(rows) <> 'array' then
+    raise exception 'rows must be a jsonb array';
+  end if;
+  if jsonb_array_length(rows) > 31 then
+    raise exception 'too many rows in one push';
+  end if;
+
+  insert into public.study_time_days
+    (user_id, device_id, day, activity_ms, study_total_ms, app_total_ms,
+     user_name, user_level, app_version, platform, updated_at)
+  select
+    r->>'user_id',
+    r->>'device_id',
+    (r->>'day')::date,
+    coalesce(r->'activity_ms', '{}'::jsonb),
+    coalesce((r->>'study_total_ms')::bigint, 0),
+    coalesce((r->>'app_total_ms')::bigint, 0),
+    nullif(r->>'user_name', ''),
+    (r->>'user_level')::integer,
+    nullif(r->>'app_version', ''),
+    nullif(r->>'platform', ''),
+    coalesce((r->>'updated_at')::timestamptz, now())
+  from jsonb_array_elements(rows) as r
+  where coalesce(r->>'user_id', '') <> ''
+    and coalesce(r->>'device_id', '') <> ''
+    and (r->>'day') is not null
+  on conflict (user_id, device_id, day) do update set
+    activity_ms = excluded.activity_ms,
+    study_total_ms = greatest(study_time_days.study_total_ms, excluded.study_total_ms),
+    app_total_ms = greatest(study_time_days.app_total_ms, excluded.app_total_ms),
+    user_name = excluded.user_name,
+    user_level = excluded.user_level,
+    app_version = excluded.app_version,
+    platform = excluded.platform,
+    updated_at = excluded.updated_at;
+end;
+$$;
+
+revoke all on function public.upsert_study_time_days(jsonb) from public;
+grant execute on function public.upsert_study_time_days(jsonb) to anon, authenticated;

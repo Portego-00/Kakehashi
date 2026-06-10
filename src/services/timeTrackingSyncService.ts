@@ -25,6 +25,7 @@ import { timeTrackingService, timeTrackingStorage } from "./timeTrackingService"
 const DEVICE_ID_KEY = "ttv1.device_id";
 const PUSHED_SUMS_KEY = "ttv1.sync.pushed_sums";
 const TABLE_NAME = "study_time_days";
+const UPSERT_FUNCTION_NAME = "upsert_study_time_days";
 
 const MIN_SYNC_INTERVAL_MS = 90 * 1000;
 const MAX_DAYS_PER_SYNC = 14;
@@ -62,7 +63,7 @@ export function getStudyTimeSyncStatus(): StudyTimeSyncStatus {
   return syncStatus;
 }
 
-function isMissingTableError(error: unknown): boolean {
+function isMissingSyncTargetError(error: unknown): boolean {
   if (!error || typeof error !== "object") {
     return false;
   }
@@ -70,8 +71,12 @@ function isMissingTableError(error: unknown): boolean {
   const code = String((error as { code?: unknown }).code ?? "");
   const message = String((error as { message?: unknown }).message ?? "").toLowerCase();
   return (
-    code === "42P01" ||
-    (message.includes("does not exist") && message.includes(TABLE_NAME))
+    code === "42P01" || // table missing
+    code === "42883" || // function missing
+    code === "PGRST202" || // PostgREST: function not in schema cache
+    (message.includes("does not exist") && message.includes(TABLE_NAME)) ||
+    (message.includes("could not find the function") &&
+      message.includes(UPSERT_FUNCTION_NAME))
   );
 }
 
@@ -183,23 +188,24 @@ async function syncNow(): Promise<void> {
     updated_at: nowIso,
   }));
 
-  const { error } = await supabase
-    .from(TABLE_NAME)
-    .upsert(rows, { onConflict: "user_id,device_id,day" });
+  // A security definer RPC is the only write path: clients have no table
+  // privileges at all, which keeps the data unreadable and avoids the SELECT
+  // requirement PostgREST upserts have for conflict detection.
+  const { error } = await supabase.rpc(UPSERT_FUNCTION_NAME, { rows });
 
   if (error) {
-    if (isMissingTableError(error)) {
-      // Keep retrying on later opportunities (the table may be created while
-      // the app is running); only the warning is one-time.
+    if (isMissingSyncTargetError(error)) {
+      // Keep retrying on later opportunities (the migration may be applied
+      // while the app is running); only the warning is one-time.
       if (!didWarnAboutMissingTable) {
         didWarnAboutMissingTable = true;
         console.warn(
-          `Time tracking sync table is missing. Run the ${TABLE_NAME} migration to enable it.`
+          `Time tracking sync target is missing. Run the ${TABLE_NAME} migration to enable it.`
         );
       }
       setSyncStatus(
         "error",
-        `Table "${TABLE_NAME}" not found — run the migration in Supabase`
+        `Function "${UPSERT_FUNCTION_NAME}" not found — run the latest migration in Supabase`
       );
       return;
     }
