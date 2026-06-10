@@ -29,6 +29,7 @@ import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
 import ReviewHeatmap from "../../../src/components/ReviewHeatmap";
 import ReviewStatsTable from "../../../src/components/ReviewStatsTable";
 import SrsBreakdown from "../../../src/components/SrsBreakdown";
+import StudyTimeCard from "../../../src/components/StudyTimeCard";
 import {
     BurnedItems,
     CriticalItems,
@@ -538,6 +539,8 @@ export default function ProgressTab() {
                 subjects={dashboardData.subjects}
                 currentLevel={dashboardData.currentLevel}
               />
+
+              <StudyTimeCard />
 
               {/* Progress card */}
               <Animated.View style={[styles.progressCard, { backgroundColor: theme.cardBackground }, animatedCardStyle]}>

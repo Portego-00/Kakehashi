@@ -1,74 +1,184 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  StyleProp,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from "react-native";
 import { STUDY_TIME_CATEGORY_META } from "../constants/studyTimeCategories";
 import {
   ACTIVITY_CATEGORIES,
-  addRecordToSummary,
-  emptyRangeSummary,
-  type RangeSummary,
 } from "../services/timeTrackingCore";
-import { timeTrackingService } from "../services/timeTrackingService";
 import { formatDurationMs } from "../utils/durationFormat";
+import { withAlpha } from "../utils/subjectColors";
+import {
+  readStudyTimeRangeData,
+  STUDY_TIME_RANGE_IDS,
+  STUDY_TIME_RANGE_LABELS,
+  type StudyTimeRangeData,
+} from "../utils/studyTimeRanges";
 import { useTheme } from "../utils/theme";
 
-function readTodaySummary(): RangeSummary {
-  const summary = emptyRangeSummary();
-  addRecordToSummary(summary, timeTrackingService.getLiveToday());
-  return summary;
-}
+const CARD_CHART_HEIGHT = 58;
 
-export default function StudyTimeCard() {
+type StudyTimeCardProps = {
+  interactive?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+export default function StudyTimeCard({
+  interactive = true,
+  style,
+}: StudyTimeCardProps) {
   const { theme } = useTheme();
-  const [today, setToday] = useState<RangeSummary>(readTodaySummary);
+  const [rangeIndex, setRangeIndex] = useState(0);
+  const range = STUDY_TIME_RANGE_IDS[rangeIndex];
+  const [data, setData] = useState<StudyTimeRangeData>(() =>
+    readStudyTimeRangeData("today"),
+  );
 
   // Live clock: refresh once a second while the tab is focused. Reads are
   // in-memory (MMKV cache) and the tracker never writes on reads.
   useFocusEffect(
     useCallback(() => {
-      setToday(readTodaySummary());
+      setData(readStudyTimeRangeData(range));
       const timer = setInterval(() => {
-        setToday(readTodaySummary());
+        setData(readStudyTimeRangeData(range));
       }, 1000);
       return () => clearInterval(timer);
-    }, [])
+    }, [range])
   );
 
+  const { summary, series, chartTitle } = data;
   const activeCategories = ACTIVITY_CATEGORIES.filter(
-    (category) => today.byCategory[category] > 0
-  ).sort((a, b) => today.byCategory[b] - today.byCategory[a]);
+    (category) => summary.byCategory[category] > 0
+  ).sort((a, b) => summary.byCategory[b] - summary.byCategory[a]);
 
   const trackColor = theme.isDark ? "#2a2a2a" : "#f0f0f0";
+  const chartMaxMs = Math.max(1, ...series.map((bucket) => bucket.studyMs));
 
   return (
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.cardBackground }]}
-      onPress={() => router.push("/study-time")}
-      activeOpacity={0.85}
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.cardBackground,
+          borderColor: theme.border,
+        },
+        style,
+      ]}
     >
       <View style={styles.headerRow}>
-        <View style={styles.titleGroup}>
-          <Ionicons name="time-outline" size={18} color={theme.textColor} />
-          <Text style={[styles.title, { color: theme.textColor }]}>Study Time</Text>
+        <View style={styles.headerLeft}>
+          <View
+            style={[
+              styles.iconBadge,
+              { backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.34 : 0.18) },
+            ]}
+          >
+            <Ionicons name="time-outline" size={18} color={theme.primary} />
+          </View>
+          <Text style={[styles.title, { color: theme.textColor }]}>
+            Study Time
+          </Text>
         </View>
-        <View style={styles.todayGroup}>
+        <TouchableOpacity
+          style={styles.todayGroup}
+          onPress={() => {
+            if (interactive) {
+              router.push("/study-time" as any);
+            }
+          }}
+          activeOpacity={interactive ? 0.85 : 1}
+          disabled={!interactive}
+        >
           <Text style={[styles.todayValue, { color: theme.textColor }]}>
-            {formatDurationMs(today.studyMs)}
+            {formatDurationMs(summary.studyMs)}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-        </View>
+        </TouchableOpacity>
       </View>
 
-      {today.studyMs > 0 ? (
+      <SegmentedControl
+        values={STUDY_TIME_RANGE_LABELS}
+        selectedIndex={rangeIndex}
+        onChange={(event) => {
+          const index = event.nativeEvent.selectedSegmentIndex;
+          setRangeIndex(index);
+          setData(readStudyTimeRangeData(STUDY_TIME_RANGE_IDS[index]));
+        }}
+        style={styles.segmentedControl}
+        tintColor={theme.primary}
+        fontStyle={{ color: theme.textSecondary, fontSize: 12 }}
+        activeFontStyle={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+        enabled={interactive}
+      />
+
+      <View style={styles.chartHeaderRow}>
+        <Text style={[styles.chartTitle, { color: theme.textSecondary }]}>
+          {chartTitle}
+        </Text>
+      </View>
+      <View style={styles.chartRow}>
+        {series.map((bucket, index) => {
+          const barHeight =
+            bucket.studyMs > 0
+              ? Math.max(3, (bucket.studyMs / chartMaxMs) * CARD_CHART_HEIGHT)
+              : 2;
+          const shouldShowLabel =
+            bucket.isCurrent || index === 0 || index === series.length - 1;
+
+          return (
+            <View key={bucket.id} style={styles.chartColumn}>
+              <View style={styles.chartBarSlot}>
+                <View
+                  style={[
+                    styles.chartBar,
+                    {
+                      height: barHeight,
+                      backgroundColor:
+                        bucket.studyMs > 0
+                          ? bucket.isCurrent
+                            ? theme.primary
+                            : `${theme.primary}88`
+                          : trackColor,
+                    },
+                  ]}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.chartLabel,
+                  {
+                    color: bucket.isCurrent
+                      ? theme.textColor
+                      : theme.textSecondary,
+                    fontWeight: bucket.isCurrent ? "700" : "500",
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {shouldShowLabel ? bucket.label : ""}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {summary.studyMs > 0 ? (
         <>
           <View style={[styles.stackedBar, { backgroundColor: trackColor }]}>
             {activeCategories.map((category) => (
               <View
                 key={category}
                 style={{
-                  flex: today.byCategory[category],
+                  flex: summary.byCategory[category],
                   backgroundColor: STUDY_TIME_CATEGORY_META[category].color,
                 }}
               />
@@ -85,7 +195,7 @@ export default function StudyTimeCard() {
                 />
                 <Text style={[styles.chipLabel, { color: theme.textSecondary }]}>
                   {STUDY_TIME_CATEGORY_META[category].label}{" "}
-                  {formatDurationMs(today.byCategory[category])}
+                  {formatDurationMs(summary.byCategory[category])}
                 </Text>
               </View>
             ))}
@@ -93,49 +203,92 @@ export default function StudyTimeCard() {
         </>
       ) : (
         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-          No study time yet today. Time spent on reviews, lessons, extra study,
+          No study time in this range yet. Time spent on reviews, lessons, extra study,
           news, songs, reading, and videos shows up here.
         </Text>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 4,
+    borderWidth: 1,
     marginBottom: 16,
-    shadowColor: "rgba(0,0,0,0.15)",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 16,
+    overflow: "hidden",
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
   },
-  titleGroup: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
   },
   todayGroup: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flexShrink: 0,
   },
   todayValue: {
     fontSize: 16,
     fontWeight: "bold",
     fontVariant: ["tabular-nums"],
+  },
+  segmentedControl: {
+    height: 32,
+    marginTop: 14,
+  },
+  chartHeaderRow: {
+    marginTop: 14,
+  },
+  chartTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  chartRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    marginTop: 8,
+  },
+  chartColumn: {
+    flex: 1,
+    alignItems: "center",
+    minWidth: 0,
+  },
+  chartBarSlot: {
+    height: CARD_CHART_HEIGHT,
+    justifyContent: "flex-end",
+    alignSelf: "stretch",
+  },
+  chartBar: {
+    borderRadius: 3,
+    alignSelf: "stretch",
+  },
+  chartLabel: {
+    marginTop: 5,
+    minHeight: 12,
+    fontSize: 9,
   },
   stackedBar: {
     flexDirection: "row",

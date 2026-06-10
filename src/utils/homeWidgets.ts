@@ -14,6 +14,7 @@ export type HomeWidgetId =
   | "levelTiming"
   | "reviewStats"
   | "dailyStudyActivity"
+  | "studyTime"
   | "srsBreakdown";
 
 export type HomeWidgetSourceTab = "home" | "level" | "items" | "analytics";
@@ -114,6 +115,12 @@ export const HOME_WIDGET_DEFINITIONS: HomeWidgetDefinition[] = [
     id: "dailyStudyActivity",
     title: "Today's Study",
     description: "Lessons and reviews completed today.",
+    sourceTab: "analytics",
+  },
+  {
+    id: "studyTime",
+    title: "Study Time",
+    description: "Device-tracked time spent studying today.",
     sourceTab: "analytics",
   },
   {

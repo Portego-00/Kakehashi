@@ -24,6 +24,7 @@ import SrsBreakdown, {
   type SrsBreakdownGroupStagesScope,
   type SrsBreakdownViewMode,
 } from "./SrsBreakdown";
+import StudyTimeCard from "./StudyTimeCard";
 import TodayStudyActivityCard from "./TodayStudyActivityCard";
 import {
   BurnedItems,
@@ -611,6 +612,8 @@ export default function HomeDashboardWidget({
           style={style}
         />
       );
+    case "studyTime":
+      return <StudyTimeCard interactive={interactive} style={style} />;
     case "srsBreakdown":
       return (
         <View style={[styles.srsSection, style]}>

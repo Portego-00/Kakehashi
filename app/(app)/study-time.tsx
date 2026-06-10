@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import { router } from "expo-router";
-import { startOfMonth, startOfWeek } from "date-fns";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
@@ -17,10 +16,7 @@ import { GlassButton } from "../../src/components/GlassButton";
 import { STUDY_TIME_CATEGORY_META } from "../../src/constants/studyTimeCategories";
 import {
   ACTIVITY_CATEGORIES,
-  getLocalDateKey,
-  type RangeSummary,
 } from "../../src/services/timeTrackingCore";
-import { timeTrackingService } from "../../src/services/timeTrackingService";
 import {
   getDeviceId,
   getStudyTimeSyncStatus,
@@ -31,20 +27,18 @@ import {
   formatDurationMs,
   formatDurationMsCoarse,
 } from "../../src/utils/durationFormat";
+import {
+  readStudyTimeRangeData,
+  STUDY_TIME_RANGE_IDS,
+  STUDY_TIME_RANGE_LABELS,
+  type StudyTimeRangeData,
+  type StudyTimeRangeId,
+} from "../../src/utils/studyTimeRanges";
 import { useTheme } from "../../src/utils/theme";
 
-type RangeId = "today" | "week" | "month" | "all";
-
-const RANGE_LABELS = ["Today", "Week", "Month", "All"];
-const RANGE_IDS: RangeId[] = ["today", "week", "month", "all"];
-const CHART_DAY_COUNT = 14;
 const CHART_HEIGHT = 96;
 
-type ScreenData = {
-  summary: RangeSummary;
-  startKey: string;
-  elapsedDays: number;
-  series: { dateKey: string; studyMs: number }[];
+type ScreenData = StudyTimeRangeData & {
   syncStatus: StudyTimeSyncStatus;
 };
 
@@ -67,38 +61,9 @@ function formatTimeAgo(timestampMs: number | null): string {
   return `${hours}h ago`;
 }
 
-function parseDateKey(dateKey: string): Date {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, (month || 1) - 1, day || 1);
-}
-
-function daysBetweenInclusive(startKey: string, endKey: string): number {
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  const diff = Math.round(
-    (parseDateKey(endKey).getTime() - parseDateKey(startKey).getTime()) / oneDayMs
-  );
-  return Math.max(1, diff + 1);
-}
-
-function readScreenData(range: RangeId): ScreenData {
-  const now = new Date();
-  const todayKey = getLocalDateKey(now.getTime());
-
-  let startKey = todayKey;
-  if (range === "week") {
-    startKey = getLocalDateKey(startOfWeek(now, { weekStartsOn: 1 }).getTime());
-  } else if (range === "month") {
-    startKey = getLocalDateKey(startOfMonth(now).getTime());
-  } else if (range === "all") {
-    const { firstDayKey } = timeTrackingService.getAllTimeSummary();
-    startKey = firstDayKey ?? todayKey;
-  }
-
+function readScreenData(range: StudyTimeRangeId): ScreenData {
   return {
-    summary: timeTrackingService.getSummaryBetween(startKey, todayKey),
-    startKey,
-    elapsedDays: daysBetweenInclusive(startKey, todayKey),
-    series: timeTrackingService.getDailyStudySeries(CHART_DAY_COUNT),
+    ...readStudyTimeRangeData(range),
     syncStatus: getStudyTimeSyncStatus(),
   };
 }
@@ -107,9 +72,9 @@ export default function StudyTimeScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [rangeIndex, setRangeIndex] = useState(0);
-  const range = RANGE_IDS[rangeIndex];
+  const range = STUDY_TIME_RANGE_IDS[rangeIndex];
   const [data, setData] = useState<ScreenData>(() => readScreenData("today"));
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [selectedBucketId, setSelectedBucketId] = useState<string | null>(null);
 
   // Live refresh while focused; all reads are local and in-memory cached.
   useFocusEffect(
@@ -125,7 +90,7 @@ export default function StudyTimeScreen() {
     }, [range])
   );
 
-  const { summary, elapsedDays, series, syncStatus } = data;
+  const { summary, elapsedDays, series, syncStatus, chartTitle, chartUnit } = data;
 
   const activeCategories = useMemo(
     () =>
@@ -136,7 +101,8 @@ export default function StudyTimeScreen() {
   );
 
   const chartMaxMs = Math.max(1, ...series.map((day) => day.studyMs));
-  const selectedDay = series.find((day) => day.dateKey === selectedDateKey) ?? null;
+  const selectedBucket =
+    series.find((bucket) => bucket.id === selectedBucketId) ?? null;
   const averagePerDayMs = summary.studyMs / elapsedDays;
   const trackColor = theme.isDark ? "#2a2a2a" : "#f0f0f0";
   const cardStyle = [styles.card, { backgroundColor: theme.cardBackground }];
@@ -176,12 +142,13 @@ export default function StudyTimeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <SegmentedControl
-          values={RANGE_LABELS}
+          values={STUDY_TIME_RANGE_LABELS}
           selectedIndex={rangeIndex}
           onChange={(event) => {
             const index = event.nativeEvent.selectedSegmentIndex;
             setRangeIndex(index);
-            setData(readScreenData(RANGE_IDS[index]));
+            setSelectedBucketId(null);
+            setData(readScreenData(STUDY_TIME_RANGE_IDS[index]));
           }}
           style={styles.segmentedControl}
           tintColor={theme.primary}
@@ -279,32 +246,25 @@ export default function StudyTimeScreen() {
           )}
         </View>
 
-        {/* Daily chart */}
+        {/* Range chart */}
         <View style={cardStyle}>
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-            Last {CHART_DAY_COUNT} days
+            {chartTitle}
           </Text>
           <View style={styles.chartRow}>
-            {series.map((day) => {
-              const isToday = day.dateKey === timeTrackingService.getTodayDateKey();
-              const isSelected = day.dateKey === selectedDateKey;
+            {series.map((bucket) => {
+              const isSelected = bucket.id === selectedBucketId;
               const barHeight =
-                day.studyMs > 0
-                  ? Math.max(3, (day.studyMs / chartMaxMs) * CHART_HEIGHT)
+                bucket.studyMs > 0
+                  ? Math.max(3, (bucket.studyMs / chartMaxMs) * CHART_HEIGHT)
                   : 2;
-              const weekdayLetter = new Intl.DateTimeFormat(undefined, {
-                weekday: "short",
-              })
-                .format(parseDateKey(day.dateKey))
-                .slice(0, 1)
-                .toUpperCase();
 
               return (
                 <Pressable
-                  key={day.dateKey}
+                  key={bucket.id}
                   style={styles.chartColumn}
                   onPress={() =>
-                    setSelectedDateKey(isSelected ? null : day.dateKey)
+                    setSelectedBucketId(isSelected ? null : bucket.id)
                   }
                 >
                   <View style={styles.chartBarSlot}>
@@ -314,8 +274,8 @@ export default function StudyTimeScreen() {
                         {
                           height: barHeight,
                           backgroundColor:
-                            day.studyMs > 0
-                              ? isSelected || isToday
+                            bucket.studyMs > 0
+                              ? isSelected || bucket.isCurrent
                                 ? theme.primary
                                 : `${theme.primary}88`
                               : trackColor,
@@ -327,25 +287,22 @@ export default function StudyTimeScreen() {
                     style={[
                       styles.chartDayLabel,
                       {
-                        color: isToday ? theme.textColor : theme.textSecondary,
-                        fontWeight: isToday ? "700" : "400",
+                        color: bucket.isCurrent ? theme.textColor : theme.textSecondary,
+                        fontWeight: bucket.isCurrent ? "700" : "400",
                       },
                     ]}
+                    numberOfLines={1}
                   >
-                    {weekdayLetter}
+                    {bucket.label}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
           <Text style={[styles.chartCaption, { color: theme.textSecondary }]}>
-            {selectedDay
-              ? `${parseDateKey(selectedDay.dateKey).toLocaleDateString(undefined, {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })} — ${formatDurationMs(selectedDay.studyMs)}`
-              : "Tap a bar to see that day's total"}
+            {selectedBucket
+              ? `${selectedBucket.accessibilityLabel} — ${formatDurationMs(selectedBucket.studyMs)}`
+              : `Tap a ${chartUnit} bar to see that period's total`}
           </Text>
         </View>
 
