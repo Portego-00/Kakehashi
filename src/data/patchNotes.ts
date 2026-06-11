@@ -57,13 +57,13 @@ export const getCurrentPatchNotesVersion = (): string => {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: "1.2.78",
-    date: "2026-06-10",
+    date: "2026-06-11",
     changes: [
       {
         type: "feature",
         title: "Study Time Tracking",
         description:
-          "The app now tracks how long you spend on reviews, lessons, extra study, NHK news, songs, reading, and videos each day, stored privately on your device. Check daily, weekly, and monthly totals with averages from the new Study Time card in Analytics.",
+          "The app now saves how long you spend on reviews, lessons, extra study, NHK news, songs, reading, and videos each day. Check daily, weekly, and monthly totals with averages from the new Study Time card in Analytics.",
         link: {
           route: "/study-time",
           label: "Open Study Time",
