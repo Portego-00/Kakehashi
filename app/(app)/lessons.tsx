@@ -29,6 +29,7 @@ import {
   Subject as ApiSubject,
   getAvailableLessons,
   getAssignmentsOptimized,
+  getLiveLessonAssignmentIds,
   getUserData,
   getStudyMaterials,
   getSubjects,
@@ -51,6 +52,7 @@ import {
   savePersistedLessonSession,
   type PersistedLessonSessionState,
 } from "../../src/utils/lessonSessionPersistence";
+import { revalidatePersistedLessonState } from "../../src/utils/lessonSessionRevalidation";
 import { getRemainingDailyLessonSlots } from "../../src/utils/dailyLessonLimit";
 import { useSubjectColors } from "../../src/utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
@@ -478,15 +480,53 @@ export default function LessonsScreen() {
           userData?.id ?? null
         );
 
-        if (
-          persistedSession &&
-          restorePersistedLessonSession(
-            persistedSession.state,
-            persistedSession.createdAt
-          )
-        ) {
-          setIsLoading(false);
-          return;
+        if (persistedSession) {
+          let sessionState: PersistedLessonSessionState | null =
+            persistedSession.state;
+
+          // Lessons finished on the WaniKani website (or another client)
+          // since the session was saved must not be shown again on resume.
+          try {
+            const [availableAssignmentIds, pendingProgressIds] =
+              await Promise.all([
+                getLiveLessonAssignmentIds(apiToken),
+                getPendingProgressAssignmentIds().catch(() => ({
+                  lesson: new Set<number>(),
+                  review: new Set<number>(),
+                })),
+              ]);
+
+            const revalidation = revalidatePersistedLessonState(sessionState, {
+              availableAssignmentIds,
+              pendingLessonAssignmentIds: pendingProgressIds.lesson,
+            });
+
+            if (revalidation.removedCount > 0) {
+              console.log(
+                `[Lessons] Removed ${revalidation.removedCount} saved lesson(s) completed outside this session.`
+              );
+            }
+            sessionState = revalidation.state;
+          } catch (revalidationError) {
+            // Offline or API failure: resume the saved session as-is rather
+            // than dropping lessons based on stale cached data.
+            console.warn(
+              "[Lessons] Could not revalidate saved lesson session:",
+              revalidationError
+            );
+          }
+
+          if (!sessionState) {
+            await clearPersistedLessonSession();
+          } else if (
+            restorePersistedLessonSession(
+              sessionState,
+              persistedSession.createdAt
+            )
+          ) {
+            setIsLoading(false);
+            return;
+          }
         }
       }
 

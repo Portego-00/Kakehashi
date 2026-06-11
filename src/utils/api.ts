@@ -3185,6 +3185,23 @@ export async function getAvailableLessons(
 }
 
 /**
+ * Live-only lookup of the assignment IDs currently available for lessons.
+ * Unlike getAvailableLessons this never falls back to cached assignments, so
+ * callers can tell "WaniKani says these lessons are gone" apart from "we are
+ * offline" — it throws when the API can't be reached.
+ */
+export async function getLiveLessonAssignmentIds(
+  apiToken: string
+): Promise<Set<number>> {
+  const initialResponse = await getAssignments(apiToken, {
+    immediately_available_for_lessons: true,
+    burned: false,
+  });
+  const allPages = await fetchAllPages(initialResponse, apiToken);
+  return new Set(allPages.data.map((assignment) => assignment.id));
+}
+
+/**
  * Submit a review to WaniKani (will count towards SRS progression)
  * @param apiToken WaniKani API Token
  * @param assignmentId ID of the assignment being reviewed
