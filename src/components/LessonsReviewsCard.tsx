@@ -277,7 +277,6 @@ export default function LessonsReviewsCard({
             style={[
               styles.backgroundImage,
               !isTablet && styles.backgroundImageMobile,
-              displayCount === 0 && styles.noLessonsImage,
             ]}
             resizeMode="contain"
           />
@@ -290,7 +289,6 @@ export default function LessonsReviewsCard({
             }
             style={[
               styles.backgroundImage,
-              styles.reviewsBackgroundImage,
               !isTablet && styles.backgroundImageMobile,
             ]}
             resizeMode="contain"
@@ -587,22 +585,17 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     position: "absolute",
-    right: 18,
-    top: -20,
+    right: 12,
+    top: 0,
     width: 150,
+    height: 150,
     zIndex: 0,
   },
   backgroundImageMobile: {
     width: 100, // Smaller on mobile
+    height: 100,
     right: 10,
-    top: -40, // Higher position, even with negative margin
-  },
-  reviewsBackgroundImage: {
-    top: -30,
-    transform: [{ scale: 1.1 }],
-  },
-  noLessonsImage: {
-    top: -75, // Adjust for square image to center it better
+    top: 25, // Vertically centered in the 150pt card
   },
   titleRow: {
     flexDirection: "row",

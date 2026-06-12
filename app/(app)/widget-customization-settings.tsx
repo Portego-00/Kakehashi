@@ -53,11 +53,7 @@ const CARD_COLOR_FIELDS: Record<
     { key: "widgetReviewCardGradientStart", label: "Gradient Start" },
     { key: "widgetReviewCardGradientEnd", label: "Gradient End" },
   ],
-  streak: [
-    { key: "widgetStreakCardGradientStart", label: "Gradient Start" },
-    { key: "widgetStreakCardGradientMiddle", label: "Gradient Middle" },
-    { key: "widgetStreakCardGradientEnd", label: "Gradient End" },
-  ],
+  streak: [{ key: "widgetStreakCardGradientStart", label: "Flame Color" }],
 };
 
 const PREVIEW_STREAK_DAYS: UsageStreakDay[] = [
@@ -348,7 +344,7 @@ export default function WidgetCustomizationSettings() {
             Card Styles
           </Text>
           <Text style={[styles.sectionSubtext, { color: theme.textSecondary }]}>
-            Pick a card and customize its gradient colors.
+            Pick a card and customize its colors.
           </Text>
 
           <View style={styles.segmentRow}>

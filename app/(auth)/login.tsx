@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -34,8 +33,15 @@ import PrivacyPolicyModal from '../../src/components/PrivacyPolicyModal';
 
 type LoginMethod = 'email' | 'token';
 
+const EMAIL_PASSWORD_LOGIN_ENABLED = false;
+const LOGIN_METHODS: LoginMethod[] = EMAIL_PASSWORD_LOGIN_ENABLED ? ['token', 'email'] : ['token'];
+const LOGIN_METHOD_LABELS: Record<LoginMethod, string> = {
+  token: 'API Token',
+  email: 'Email Login',
+};
+
 export default function Login() {
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('email');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('token');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -145,7 +151,7 @@ export default function Login() {
 
   // Handle tab change with smooth animation
   const handleTabChange = (index: number) => {
-    const method: LoginMethod = index === 0 ? 'email' : 'token';
+    const method = LOGIN_METHODS[index] ?? 'token';
 
     // First, fade out form content only
     Animated.timing(formContentOpacity, {
@@ -320,18 +326,20 @@ export default function Login() {
             onLayout={handleFormContainerLayout}
           >
             <View style={styles.card}>
-              <SegmentedControl
-                values={['Email Login', 'API Token']}
-                selectedIndex={selectedIndex}
-                onChange={(event) => {
-                  handleTabChange(event.nativeEvent.selectedSegmentIndex);
-                }}
-                style={styles.segmentedControl}
-                tintColor="#00A3FF"
-                backgroundColor="#f5f5f5"
-                fontStyle={{ color: '#666', fontSize: 16 }}
-                activeFontStyle={{ color: 'white', fontSize: 16, fontWeight: '600' }}
-              />
+              {LOGIN_METHODS.length > 1 && (
+                <SegmentedControl
+                  values={LOGIN_METHODS.map((method) => LOGIN_METHOD_LABELS[method])}
+                  selectedIndex={selectedIndex}
+                  onChange={(event) => {
+                    handleTabChange(event.nativeEvent.selectedSegmentIndex);
+                  }}
+                  style={styles.segmentedControl}
+                  tintColor="#00A3FF"
+                  backgroundColor="#f5f5f5"
+                  fontStyle={{ color: '#666', fontSize: 16 }}
+                  activeFontStyle={{ color: 'white', fontSize: 16, fontWeight: '600' }}
+                />
+              )}
 
               <Animated.View
                 style={[
