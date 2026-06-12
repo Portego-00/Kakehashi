@@ -475,6 +475,8 @@ export default function LessonsScreen() {
       const selectedIdSet = selectedIds ? new Set(selectedIds) : null;
       const hasSelectedLessonFilter = selectedIdSet !== null;
 
+      let liveLessonAssignmentIds: Set<number> | null = null;
+
       if (!hasSelectedLessonFilter) {
         const persistedSession = await loadPersistedLessonSession(
           userData?.id ?? null
@@ -495,6 +497,7 @@ export default function LessonsScreen() {
                   review: new Set<number>(),
                 })),
               ]);
+            liveLessonAssignmentIds = availableAssignmentIds;
 
             const revalidation = revalidatePersistedLessonState(sessionState, {
               availableAssignmentIds,
@@ -518,20 +521,52 @@ export default function LessonsScreen() {
 
           if (!sessionState) {
             await clearPersistedLessonSession();
-          } else if (
-            restorePersistedLessonSession(
-              sessionState,
-              persistedSession.createdAt
-            )
-          ) {
-            setIsLoading(false);
-            return;
+          } else {
+            const { completedItems, totalItems } = sessionState.progress;
+            const shouldResume = await new Promise<boolean>((resolve) => {
+              Alert.alert(
+                "Resume Lessons?",
+                `You have a saved lesson session (${completedItems} of ${totalItems} completed). Resume it, or discard it and start fresh?`,
+                [
+                  {
+                    text: "Start Fresh",
+                    style: "destructive",
+                    onPress: () => resolve(false),
+                  },
+                  { text: "Resume", onPress: () => resolve(true) },
+                ],
+                { cancelable: false }
+              );
+            });
+
+            if (
+              shouldResume &&
+              restorePersistedLessonSession(
+                sessionState,
+                persistedSession.createdAt
+              )
+            ) {
+              setIsLoading(false);
+              return;
+            }
+
+            await clearPersistedLessonSession();
           }
         }
       }
 
       // Fetch available lessons
       const lessonsResponse = await getAvailableLessons(apiToken);
+
+      // When the live lesson queue was just fetched for session revalidation,
+      // trust it over getAvailableLessons' cached-assignments fallback, which
+      // doesn't know about lessons completed outside the app.
+      const liveIds = liveLessonAssignmentIds;
+      if (liveIds) {
+        lessonsResponse.data = lessonsResponse.data.filter((assignment) =>
+          liveIds.has(assignment.id)
+        );
+      }
 
       if (lessonsResponse.data.length === 0) {
         Alert.alert(

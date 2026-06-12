@@ -56,18 +56,6 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: "1.2.79",
-    date: "2026-06-11",
-    changes: [
-      {
-        type: "fix",
-        title: "Resume Lessons Stale Items",
-        description:
-          "Resuming a saved lesson session no longer shows items you already completed on the WaniKani website or another client.",
-      },
-    ],
-  },
-  {
     version: "1.2.78",
     date: "2026-06-11",
     changes: [
@@ -80,6 +68,18 @@ export const PATCH_NOTES: PatchNote[] = [
           route: "/study-time",
           label: "Open Study Time",
         },
+      },
+      {
+        type: "fix",
+        title: "Resume Lessons Stale Items",
+        description:
+          "Resuming a saved lesson session no longer shows items you already completed on the WaniKani website or another client.",
+      },
+      {
+        type: "improvement",
+        title: "Resume or Start Fresh",
+        description:
+          "Opening lessons with a saved session now asks whether to resume it or discard it and start fresh, instead of always resuming.",
       },
     ],
   },
