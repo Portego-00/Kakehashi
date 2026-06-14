@@ -1407,13 +1407,18 @@ export default function ReviewQuestionScreen({
     !isLessonFlow &&
     reviewSubjectLevel !== null &&
     reviewSrsStageInfo !== null;
-  const contextHintPanelMaxHeight = useMemo(() => {
+  const shouldShowReviewItemMetadataInLayout =
+    shouldShowReviewItemMetadata && !showContextHint;
+  const contextHintPanelHeight = useMemo(() => {
     const keyboardVisible = iosKeyboardVisible || androidKeyboardHeight > 0;
-    const viewportCap = Math.round(windowHeight * (keyboardVisible ? 0.18 : 0.28));
-    const absoluteCap = keyboardVisible ? 168 : 240;
+    const viewportCap = Math.round(windowHeight * (keyboardVisible ? 0.13 : 0.14));
+    const absoluteCap = keyboardVisible ? 108 : 116;
 
-    return Math.max(96, Math.min(absoluteCap, viewportCap));
+    return Math.max(84, Math.min(absoluteCap, viewportCap));
   }, [androidKeyboardHeight, iosKeyboardVisible, windowHeight]);
+  const contextHintPromptSize = showContextHint
+    ? Math.min(reviewPromptCharacterSize, 96)
+    : reviewPromptCharacterSize;
   const contextHintHighlightTerms = useMemo(() => {
     const subjectCharacters =
       typeof subject.data.characters === "string"
@@ -4514,7 +4519,7 @@ export default function ReviewQuestionScreen({
     isCurrentQuestionAnkiRevealed &&
     !effectiveAnkiButtonlessMode;
   const ankiPreCardOverlayJustification =
-    shouldShowReviewItemMetadata && showAnkiSkipChip
+    shouldShowReviewItemMetadataInLayout && showAnkiSkipChip
       ? "space-between"
       : showAnkiSkipChip
         ? "flex-end"
@@ -4906,7 +4911,7 @@ export default function ReviewQuestionScreen({
             ) : (
               <RadicalCharacterDisplay
                 subject={subject}
-                size={reviewPromptCharacterSize}
+                size={contextHintPromptSize}
                 forceDefaultFont={isUsingDefaultJitaiFont}
               />
             )}
@@ -4934,13 +4939,13 @@ export default function ReviewQuestionScreen({
                 <View
                   style={[
                     styles.contextHintContent,
-                    { maxHeight: contextHintPanelMaxHeight },
+                    { height: contextHintPanelHeight },
                   ]}
                 >
                   <ScrollView
                     style={[
                       styles.contextHintScrollView,
-                      { maxHeight: contextHintPanelMaxHeight },
+                      { height: contextHintPanelHeight },
                     ]}
                     contentContainerStyle={styles.contextHintScrollContent}
                     alwaysBounceVertical={false}
@@ -4999,14 +5004,14 @@ export default function ReviewQuestionScreen({
             >
             {((shouldShowSrsProgressionCard && !shouldUseCompactSrsProgressionCard) ||
               showAnkiSkipChip ||
-              shouldShowReviewItemMetadata) && (
+              shouldShowReviewItemMetadataInLayout) && (
               <View
                 style={[
                   styles.ankiPreCardOverlayRow,
                   { justifyContent: ankiPreCardOverlayJustification },
                 ]}
               >
-                {shouldShowReviewItemMetadata && renderReviewMetadata(true)}
+                {shouldShowReviewItemMetadataInLayout && renderReviewMetadata(true)}
                 {showAnkiSkipChip && (
                   <TouchableOpacity
                     style={[
@@ -5453,7 +5458,9 @@ export default function ReviewQuestionScreen({
               </Animated.View>
             )}
 
-            {!shouldUsePausedSubjectDetailsMode && renderReviewMetadata()}
+            {!shouldUsePausedSubjectDetailsMode &&
+              shouldShowReviewItemMetadataInLayout &&
+              renderReviewMetadata()}
 
             {/* Paused on wrong answer - show correct answer and actions */}
             {isPausedOnWrong && !shouldUsePausedSubjectDetailsMode && (
@@ -6288,6 +6295,8 @@ const styles = StyleSheet.create({
   characterWrapperWithOpenHint: {
     justifyContent: "flex-start",
     paddingTop: 8,
+    paddingBottom: 8,
+    overflow: "hidden",
   },
   characterWrapperWithDetails: {
     minHeight: 96,
