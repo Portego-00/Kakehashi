@@ -4938,10 +4938,15 @@ export default function ReviewQuestionScreen({
                   ]}
                 >
                   <ScrollView
-                    style={styles.contextHintScrollView}
+                    style={[
+                      styles.contextHintScrollView,
+                      { maxHeight: contextHintPanelMaxHeight },
+                    ]}
                     contentContainerStyle={styles.contextHintScrollContent}
+                    alwaysBounceVertical={false}
                     keyboardShouldPersistTaps="handled"
                     nestedScrollEnabled
+                    scrollEnabled
                     showsVerticalScrollIndicator
                   >
                     {contextSentencesHint
@@ -7242,8 +7247,7 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.95)",
   },
   contextHintSentenceHighlight: {
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
-    color: "#ffffff",
+    color: "#FFD166",
     fontWeight: "800",
   },
 });
