@@ -129,6 +129,7 @@ export default function ReviewScreen() {
     reviewBatchSize,
     reviewWrapUpTargetSubjects,
     autoplayVocabularyAudio,
+    showVocabContextSentencesInReviews,
   } = useSettingsStore();
   const shouldShowSrsProgression = srsProgressionCardDisplayMode !== "hidden";
   const effectiveAnkiGrouping =
@@ -1999,6 +2000,22 @@ export default function ReviewScreen() {
       return null;
     }
 
+    // Optional context sentence hints for vocabulary questions. English
+    // translations are omitted on meaning questions since they reveal the answer.
+    const isVocabularySubject =
+      item.subject.object === "vocabulary" ||
+      item.subject.object === "kana_vocabulary";
+    const contextSentencesHint =
+      showVocabContextSentencesInReviews && isVocabularySubject
+        ? ((item.subject.data as any).context_sentences ?? [])
+            .filter((sentence: any) => typeof sentence?.ja === "string")
+            .map((sentence: any) =>
+              currentQuestion.type === "reading"
+                ? { ja: sentence.ja, en: sentence.en }
+                : { ja: sentence.ja }
+            )
+        : undefined;
+
     return (
       <ReviewQuestionScreen
         item={{ id: item.id, subject: item.subject as any, srsStage: item.srsStage }}
@@ -2010,6 +2027,7 @@ export default function ReviewScreen() {
         onDismissReviewPermissionWarning={() => setReviewPermissionWarning(null)}
         studyMaterials={studyMaterialsMap.get(item.subjectId)}
         onSynonymAdded={handleSynonymAdded}
+        contextSentencesHint={contextSentencesHint}
         onExit={() => {
           const exitReviews = () => {
             void refreshRecentMistakes();

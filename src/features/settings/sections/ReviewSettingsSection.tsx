@@ -71,10 +71,12 @@ export function ReviewSettingsSection() {
     setShowAnswerStopDetailsPreview,
     setShowAnswerStopSubjectDetails,
     setShowReviewItemLevelAndSrsStage,
+    setShowVocabContextSentencesInReviews,
     setVoiceReviewAnswersEnabled,
     showAddSynonymButton,
     showAnswerStopSubjectDetails,
     showReviewItemLevelAndSrsStage,
+    showVocabContextSentencesInReviews,
     srsProgressionCardDisplayMode,
     theme,
     updateSectionOffset,
@@ -913,6 +915,33 @@ export function ReviewSettingsSection() {
           <Switch
             value={showReviewItemLevelAndSrsStage}
             onValueChange={setShowReviewItemLevelAndSrsStage}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="chatbubble-ellipses-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Vocabulary Context Sentence Hints
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show an on-demand context sentence hint on vocabulary review
+              questions. Translations are hidden on meaning questions to avoid
+              revealing the answer
+            </Text>
+          </View>
+          <Switch
+            value={showVocabContextSentencesInReviews}
+            onValueChange={setShowVocabContextSentencesInReviews}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
           />

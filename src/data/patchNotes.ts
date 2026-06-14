@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.79",
+    date: "2026-06-14",
+    changes: [
+      {
+        type: "feature",
+        title: "Vocabulary Context Sentence Hints",
+        description:
+          "Added an optional review setting that shows vocabulary context sentence hints on demand, with English translations hidden on meaning questions so the answer is not revealed.",
+      },
+    ],
+  },
+  {
     version: "1.2.78",
     date: "2026-06-11",
     changes: [

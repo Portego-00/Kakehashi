@@ -504,6 +504,7 @@ type SettingsState = {
   reviewCorrectKeyboardShortcuts: ReviewCorrectKeyboardShortcutSettings; // Shortcuts used while paused on correct answers
   showAnswerStopSubjectDetails: boolean; // Show subject details inline while paused after an answer
   showReviewItemLevelAndSrsStage: boolean; // Show subject level and current SRS stage during reviews
+  showVocabContextSentencesInReviews: boolean; // Show the on-demand context sentence hint on vocabulary review questions
   reviewAnimatePreviousQuestion: boolean; // Animate the previous answered card from center to top-left during reviews
   hapticFeedbackEnabled: boolean; // Enable haptic feedback throughout the app
 
@@ -675,6 +676,7 @@ type SettingsState = {
   ) => void;
   setShowAnswerStopSubjectDetails: (show: boolean) => void;
   setShowReviewItemLevelAndSrsStage: (show: boolean) => void;
+  setShowVocabContextSentencesInReviews: (show: boolean) => void;
   setReviewAnimatePreviousQuestion: (enabled: boolean) => void;
   setSrsProgressionCardDisplayMode: (
     mode: SrsProgressionCardDisplayMode
@@ -823,6 +825,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       showAnswerStopSubjectDetails: false, // Default to existing compact pause card behavior
       showReviewItemLevelAndSrsStage: false, // Default to false - keep review prompt minimal
+      showVocabContextSentencesInReviews: false, // Default to false - no context sentence hint during reviews
       reviewAnimatePreviousQuestion: true, // Default to true - keep center-to-corner animation for the previous answered card
       srsProgressionCardDisplayMode: "normal",
       radicalColor: "#3c9bff",
@@ -1039,6 +1042,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showAnswerStopSubjectDetails: show }),
       setShowReviewItemLevelAndSrsStage: (show) =>
         set({ showReviewItemLevelAndSrsStage: show }),
+      setShowVocabContextSentencesInReviews: (show) =>
+        set({ showVocabContextSentencesInReviews: show }),
       setReviewAnimatePreviousQuestion: (enabled) =>
         set({ reviewAnimatePreviousQuestion: enabled }),
       setSrsProgressionCardDisplayMode: (mode) =>
