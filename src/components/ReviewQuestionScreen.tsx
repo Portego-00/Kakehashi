@@ -1145,6 +1145,9 @@ export default function ReviewQuestionScreen({
     useState(false);
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
+  const [localStudyMaterials, setLocalStudyMaterials] = useState<
+    ReviewStudyMaterials | undefined
+  >(studyMaterials);
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const [inputResetNonce, setInputResetNonce] = useState(0);
   const [showContextHint, setShowContextHint] = useState(false);
@@ -1189,6 +1192,12 @@ export default function ReviewQuestionScreen({
   const vocabularyAudioSoundRef = useRef<AudioSound | null>(null);
   const vocabularyAudioRequestIdRef = useRef(0);
   const vocabularyAudioFinalizeRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    setLocalStudyMaterials(studyMaterials);
+  }, [item.subject.id, studyMaterials]);
+
+  const effectiveStudyMaterials = localStudyMaterials ?? studyMaterials;
 
   // Maintain input focus across question changes to avoid keyboard flicker
   useEffect(() => {
@@ -1595,7 +1604,7 @@ export default function ReviewQuestionScreen({
         candidateAnswer,
         subject,
         questionType,
-        studyMaterials,
+        effectiveStudyMaterials,
         questionType === "reading"
           ? {
               singleKanjiReadings:
@@ -1744,7 +1753,9 @@ export default function ReviewQuestionScreen({
         Boolean(meaning),
       );
     const synonyms =
-      studyMaterials?.meaning_synonyms?.map((synonym) => synonym.trim()) || [];
+      effectiveStudyMaterials?.meaning_synonyms?.map((synonym) =>
+        synonym.trim(),
+      ) || [];
     return Array.from(new Set([...meanings, ...synonyms])).slice(0, 20);
   };
 
@@ -2555,7 +2566,7 @@ export default function ReviewQuestionScreen({
       answer,
       item.subject,
       questionType,
-      studyMaterials,
+      effectiveStudyMaterials,
       questionType === "reading"
         ? {
             singleKanjiReadings:
@@ -3151,12 +3162,12 @@ export default function ReviewQuestionScreen({
       setEditingStudyMaterialNoteType(noteType);
       setEditingStudyMaterialNoteText(
         noteType === "meaning"
-          ? studyMaterials?.meaning_note || ""
-          : studyMaterials?.reading_note || "",
+          ? effectiveStudyMaterials?.meaning_note || ""
+          : effectiveStudyMaterials?.reading_note || "",
       );
       setStudyMaterialNoteModalVisible(true);
     },
-    [releasePausedShortcutFocus, studyMaterials],
+    [effectiveStudyMaterials, releasePausedShortcutFocus],
   );
 
   const closeStudyMaterialNoteModal = useCallback(() => {
@@ -3217,6 +3228,11 @@ export default function ReviewQuestionScreen({
       }
 
       await clearStudyMaterialsCache(subjectId);
+      setLocalStudyMaterials((previousStudyMaterials) => ({
+        ...(studyMaterials || {}),
+        ...(previousStudyMaterials || {}),
+        ...updates,
+      }));
       onStudyMaterialNoteUpdated?.(
         subjectId,
         editingStudyMaterialNoteType,
@@ -3241,6 +3257,7 @@ export default function ReviewQuestionScreen({
     isSavingStudyMaterialNote,
     item.subject.id,
     onStudyMaterialNoteUpdated,
+    studyMaterials,
   ]);
 
   const renderPausedSubjectDetails = () => {
@@ -3248,7 +3265,7 @@ export default function ReviewQuestionScreen({
     const data = getSubjectDataRecord(subject);
     const meanings = getSubjectMeanings(subject);
     const readings = getSubjectReadings(subject);
-    const userSynonyms = studyMaterials?.meaning_synonyms || [];
+    const userSynonyms = effectiveStudyMaterials?.meaning_synonyms || [];
     const srsStage =
       typeof item.srsStage === "number" ? item.srsStage : undefined;
     const progressionStatus: ReviewDetailProgressionStatus = "success";
@@ -3294,7 +3311,7 @@ export default function ReviewQuestionScreen({
             })),
             userSynonyms,
             srsStage,
-            meaningNote: studyMaterials?.meaning_note || "",
+            meaningNote: effectiveStudyMaterials?.meaning_note || "",
             onEditNote: () => handleReviewDetailNotePress("meaning"),
           }}
           progressionStatus={progressionStatus}
@@ -3346,8 +3363,8 @@ export default function ReviewQuestionScreen({
             ),
             userSynonyms,
             srsStage,
-            meaningNote: studyMaterials?.meaning_note || "",
-            readingNote: studyMaterials?.reading_note || "",
+            meaningNote: effectiveStudyMaterials?.meaning_note || "",
+            readingNote: effectiveStudyMaterials?.reading_note || "",
             onEditNote: handleReviewDetailNotePress,
           }}
           progressionStatus={progressionStatus}
@@ -3402,8 +3419,8 @@ export default function ReviewQuestionScreen({
             : [],
           userSynonyms,
           srsStage,
-          meaningNote: studyMaterials?.meaning_note || "",
-          readingNote: studyMaterials?.reading_note || "",
+          meaningNote: effectiveStudyMaterials?.meaning_note || "",
+          readingNote: effectiveStudyMaterials?.reading_note || "",
           onEditNote: handleReviewDetailNotePress,
         }}
         progressionStatus={progressionStatus}
@@ -3789,7 +3806,7 @@ export default function ReviewQuestionScreen({
       const newSynonym = wrongAnswerText.trim().toLowerCase();
 
       // Get existing synonyms
-      const existingSynonyms = studyMaterials?.meaning_synonyms || [];
+      const existingSynonyms = effectiveStudyMaterials?.meaning_synonyms || [];
 
       // Check if synonym already exists (shouldn't happen but be safe)
       if (existingSynonyms.some(s => s.toLowerCase() === newSynonym)) {
@@ -3821,6 +3838,11 @@ export default function ReviewQuestionScreen({
       }
 
       // Notify parent to update its studyMaterialsMap
+      setLocalStudyMaterials((previousStudyMaterials) => ({
+        ...(studyMaterials || {}),
+        ...(previousStudyMaterials || {}),
+        meaning_synonyms: updatedSynonyms,
+      }));
       if (onSynonymAdded) {
         onSynonymAdded(subjectId, updatedSynonyms);
       }
@@ -4307,8 +4329,9 @@ export default function ReviewQuestionScreen({
     [item.subject.data.readings],
   );
   const userSynonymAnswerOptions = useMemo(
-    () => uniqueNonEmptyAnswers(studyMaterials?.meaning_synonyms ?? []),
-    [studyMaterials?.meaning_synonyms],
+    () =>
+      uniqueNonEmptyAnswers(effectiveStudyMaterials?.meaning_synonyms ?? []),
+    [effectiveStudyMaterials?.meaning_synonyms],
   );
 
   const primaryMeaningAnswer = useMemo(() => {
