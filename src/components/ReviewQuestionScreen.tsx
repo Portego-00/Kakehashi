@@ -117,6 +117,8 @@ interface ReviewItem {
   srsStage?: number;
 }
 
+type ContextHintTranslationMode = "visible" | "toggle" | "hidden";
+
 interface PreviousAnswerItem {
   id: number;
   subject: WKSubject;
@@ -184,6 +186,8 @@ interface ReviewQuestionProps {
   contextSentencesHint?: { ja?: string; en?: string }[];
   // Maximum number of hint rows shown in the expandable hint panel.
   contextHintMaxItems?: number;
+  // Controls how English translations in the hint panel are shown.
+  contextHintTranslationMode?: ContextHintTranslationMode;
   // For custom modes (e.g., English -> Japanese), allow entering subject characters
   // on reading questions as a correct answer.
   acceptCharactersAsCorrectForReading?: boolean;
@@ -1010,6 +1014,7 @@ export default function ReviewQuestionScreen({
   onSynonymAdded,
   contextSentencesHint,
   contextHintMaxItems = 3,
+  contextHintTranslationMode = "visible",
   acceptCharactersAsCorrectForReading = false,
   requireSubjectCharactersForReading = false,
   showCharactersAndReadingForReadingQuestion = false,
@@ -1111,6 +1116,8 @@ export default function ReviewQuestionScreen({
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const [inputResetNonce, setInputResetNonce] = useState(0);
   const [showContextHint, setShowContextHint] = useState(false);
+  const [showContextHintTranslations, setShowContextHintTranslations] =
+    useState(false);
   const [isUsingDefaultJitaiFont, setIsUsingDefaultJitaiFont] = useState(false);
   const [isVoiceRecognizing, setIsVoiceRecognizing] = useState(false);
   const [voiceInterimTranscript, setVoiceInterimTranscript] = useState("");
@@ -1419,6 +1426,18 @@ export default function ReviewQuestionScreen({
   const contextHintPromptSize = showContextHint
     ? Math.min(reviewPromptCharacterSize, 96)
     : reviewPromptCharacterSize;
+  const displayedContextSentencesHint = useMemo(
+    () => (contextSentencesHint ?? []).slice(0, contextHintMaxItems),
+    [contextHintMaxItems, contextSentencesHint],
+  );
+  const hasContextHintTranslations = displayedContextSentencesHint.some(
+    (sentence) => typeof sentence.en === "string" && sentence.en.trim().length > 0,
+  );
+  const canToggleContextHintTranslations =
+    contextHintTranslationMode === "toggle" && hasContextHintTranslations;
+  const shouldShowContextHintTranslations =
+    contextHintTranslationMode === "visible" ||
+    (contextHintTranslationMode === "toggle" && showContextHintTranslations);
   const contextHintHighlightTerms = useMemo(() => {
     const subjectCharacters =
       typeof subject.data.characters === "string"
@@ -1433,6 +1452,7 @@ export default function ReviewQuestionScreen({
 
   useEffect(() => {
     setShowContextHint(false);
+    setShowContextHintTranslations(false);
   }, [currentQuestionKey]);
 
   const normalizedVoiceReadingHints = useMemo(() => {
@@ -1977,6 +1997,7 @@ export default function ReviewQuestionScreen({
       setIsReplayingAudio(false);
       setAnswerFeedback(null);
       setShowContextHint(false);
+      setShowContextHintTranslations(false);
       setIsUsingDefaultJitaiFont(false);
       setVoiceInterimTranscript("");
       setVoiceError(null);
@@ -4549,6 +4570,14 @@ export default function ReviewQuestionScreen({
     );
   };
 
+  const handleContextHintToggle = () => {
+    if (showContextHint) {
+      setShowContextHintTranslations(false);
+    }
+
+    setShowContextHint((current) => !current);
+  };
+
   const renderContextHintJapaneseSentence = (sentenceText: string) => {
     const highlightTerm = contextHintHighlightTerms.find((term) =>
       sentenceText.includes(term),
@@ -4920,20 +4949,47 @@ export default function ReviewQuestionScreen({
           {/* Context Hint Button - only show when context sentences are available */}
           {contextSentencesHint && contextSentencesHint.length > 0 && (
             <View style={styles.contextHintContainer}>
-              <TouchableOpacity
-                style={styles.contextHintButton}
-                onPress={() => setShowContextHint(!showContextHint)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={showContextHint ? "chevron-up" : "help-circle-outline"}
-                  size={18}
-                  color="rgba(255, 255, 255, 0.8)"
-                />
-                <Text style={styles.contextHintButtonText}>
-                  {showContextHint ? "Hide Hint" : "Show Context Hint"}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.contextHintButtonRow}>
+                <TouchableOpacity
+                  style={styles.contextHintButton}
+                  onPress={handleContextHintToggle}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showContextHint ? "chevron-up" : "help-circle-outline"}
+                    size={18}
+                    color="rgba(255, 255, 255, 0.8)"
+                  />
+                  <Text style={styles.contextHintButtonText}>
+                    {showContextHint ? "Hide Hint" : "Show Context Hint"}
+                  </Text>
+                </TouchableOpacity>
+
+                {showContextHint && canToggleContextHintTranslations && (
+                  <TouchableOpacity
+                    style={styles.contextHintButton}
+                    onPress={() =>
+                      setShowContextHintTranslations((current) => !current)
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={
+                        showContextHintTranslations
+                          ? "eye-off-outline"
+                          : "language-outline"
+                      }
+                      size={18}
+                      color="rgba(255, 255, 255, 0.8)"
+                    />
+                    <Text style={styles.contextHintButtonText}>
+                      {showContextHintTranslations
+                        ? "Hide Translation"
+                        : "Translate"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {showContextHint && (
                 <View
@@ -4954,36 +5010,34 @@ export default function ReviewQuestionScreen({
                     scrollEnabled
                     showsVerticalScrollIndicator
                   >
-                    {contextSentencesHint
-                      .slice(0, contextHintMaxItems)
-                      .map((sentence, index) => (
-                        <View
-                          key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
-                          style={styles.contextHintSentenceGroup}
-                        >
-                          {!!sentence.ja && (
-                            <Text
-                              selectable
-                              style={[
-                                styles.contextHintSentence,
-                                styles.contextHintSentenceJapanese,
-                                fontStyles.japaneseText,
-                              ]}
-                            >
-                              <Text>• </Text>
-                              {renderContextHintJapaneseSentence(sentence.ja)}
-                            </Text>
-                          )}
-                          {!!sentence.en && (
-                            <Text
-                              selectable
-                              style={styles.contextHintSentence}
-                            >
-                              • {sentence.en}
-                            </Text>
-                          )}
-                        </View>
-                      ))}
+                    {displayedContextSentencesHint.map((sentence, index) => (
+                      <View
+                        key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
+                        style={styles.contextHintSentenceGroup}
+                      >
+                        {!!sentence.ja && (
+                          <Text
+                            selectable
+                            style={[
+                              styles.contextHintSentence,
+                              styles.contextHintSentenceJapanese,
+                              fontStyles.japaneseText,
+                            ]}
+                          >
+                            <Text>• </Text>
+                            {renderContextHintJapaneseSentence(sentence.ja)}
+                          </Text>
+                        )}
+                        {shouldShowContextHintTranslations && !!sentence.en && (
+                          <Text
+                            selectable
+                            style={styles.contextHintSentence}
+                          >
+                            • {sentence.en}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
                   </ScrollView>
                 </View>
               )}
@@ -7212,6 +7266,13 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 20,
     flexShrink: 1,
+  },
+  contextHintButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
   contextHintButton: {
     flexDirection: "row",

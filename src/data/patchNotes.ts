@@ -63,7 +63,7 @@ export const PATCH_NOTES: PatchNote[] = [
         type: "feature",
         title: "Vocabulary Context Sentence Hints",
         description:
-          "Added an optional review setting that shows vocabulary context sentence hints on demand, with English translations hidden on meaning questions so the answer is not revealed.",
+          "Added an optional review setting that shows vocabulary context sentence hints on demand, with English translations hidden until you reveal them from the hint.",
       },
     ],
   },

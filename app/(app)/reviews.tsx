@@ -2000,8 +2000,8 @@ export default function ReviewScreen() {
       return null;
     }
 
-    // Optional context sentence hints for vocabulary questions. English
-    // translations are omitted on meaning questions since they reveal the answer.
+    // Optional context sentence hints for vocabulary questions. Review mode
+    // starts with Japanese only and lets users reveal translations manually.
     const isVocabularySubject =
       item.subject.object === "vocabulary" ||
       item.subject.object === "kana_vocabulary";
@@ -2009,11 +2009,7 @@ export default function ReviewScreen() {
       showVocabContextSentencesInReviews && isVocabularySubject
         ? ((item.subject.data as any).context_sentences ?? [])
             .filter((sentence: any) => typeof sentence?.ja === "string")
-            .map((sentence: any) =>
-              currentQuestion.type === "reading"
-                ? { ja: sentence.ja, en: sentence.en }
-                : { ja: sentence.ja }
-            )
+            .map((sentence: any) => ({ ja: sentence.ja, en: sentence.en }))
         : undefined;
 
     return (
@@ -2028,6 +2024,7 @@ export default function ReviewScreen() {
         studyMaterials={studyMaterialsMap.get(item.subjectId)}
         onSynonymAdded={handleSynonymAdded}
         contextSentencesHint={contextSentencesHint}
+        contextHintTranslationMode="toggle"
         onExit={() => {
           const exitReviews = () => {
             void refreshRecentMistakes();
