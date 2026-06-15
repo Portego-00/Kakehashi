@@ -1418,8 +1418,13 @@ export default function ReviewQuestionScreen({
     !isLessonFlow &&
     reviewSubjectLevel !== null &&
     reviewSrsStageInfo !== null;
+  const displayedContextSentencesHint = useMemo(
+    () => (contextSentencesHint ?? []).slice(0, contextHintMaxItems),
+    [contextHintMaxItems, contextSentencesHint],
+  );
+  const hasContextHint = displayedContextSentencesHint.length > 0;
   const isContextHintVisible =
-    contextHintDisplayMode === "visible" || showContextHint;
+    hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
   const shouldShowReviewItemMetadataInLayout =
     shouldShowReviewItemMetadata && !isContextHintVisible;
   const contextHintPanelHeight = useMemo(() => {
@@ -1432,10 +1437,6 @@ export default function ReviewQuestionScreen({
   const contextHintPromptSize = isContextHintVisible
     ? Math.min(reviewPromptCharacterSize, 96)
     : reviewPromptCharacterSize;
-  const displayedContextSentencesHint = useMemo(
-    () => (contextSentencesHint ?? []).slice(0, contextHintMaxItems),
-    [contextHintMaxItems, contextSentencesHint],
-  );
   const hasContextHintTranslations = displayedContextSentencesHint.some(
     (sentence) => typeof sentence.en === "string" && sentence.en.trim().length > 0,
   );
@@ -4957,7 +4958,7 @@ export default function ReviewQuestionScreen({
           </View>
 
           {/* Context Hint - review mode can show Japanese text immediately. */}
-          {contextSentencesHint && contextSentencesHint.length > 0 && (
+          {hasContextHint && (
             <View style={styles.contextHintContainer}>
               {shouldShowContextHintControls && (
                 <View style={styles.contextHintButtonRow}>
