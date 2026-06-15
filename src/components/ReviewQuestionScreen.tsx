@@ -118,6 +118,7 @@ interface ReviewItem {
 }
 
 type ContextHintTranslationMode = "visible" | "toggle" | "hidden";
+type ContextHintDisplayMode = "toggle" | "visible";
 
 interface PreviousAnswerItem {
   id: number;
@@ -182,10 +183,12 @@ interface ReviewQuestionProps {
   studyMaterials?: { meaning_synonyms?: string[] };
   // Callback when a synonym is added (to update parent's studyMaterialsMap)
   onSynonymAdded?: (subjectId: number, newSynonyms: string[]) => void;
-  // Context sentence hints shown on demand to help disambiguate similar meanings.
+  // Context sentence hints to help disambiguate similar meanings.
   contextSentencesHint?: { ja?: string; en?: string }[];
   // Maximum number of hint rows shown in the expandable hint panel.
   contextHintMaxItems?: number;
+  // Controls whether the Japanese hint panel is always visible or user-toggled.
+  contextHintDisplayMode?: ContextHintDisplayMode;
   // Controls how English translations in the hint panel are shown.
   contextHintTranslationMode?: ContextHintTranslationMode;
   // For custom modes (e.g., English -> Japanese), allow entering subject characters
@@ -1014,6 +1017,7 @@ export default function ReviewQuestionScreen({
   onSynonymAdded,
   contextSentencesHint,
   contextHintMaxItems = 3,
+  contextHintDisplayMode = "toggle",
   contextHintTranslationMode = "visible",
   acceptCharactersAsCorrectForReading = false,
   requireSubjectCharactersForReading = false,
@@ -1414,8 +1418,10 @@ export default function ReviewQuestionScreen({
     !isLessonFlow &&
     reviewSubjectLevel !== null &&
     reviewSrsStageInfo !== null;
+  const isContextHintVisible =
+    contextHintDisplayMode === "visible" || showContextHint;
   const shouldShowReviewItemMetadataInLayout =
-    shouldShowReviewItemMetadata && !showContextHint;
+    shouldShowReviewItemMetadata && !isContextHintVisible;
   const contextHintPanelHeight = useMemo(() => {
     const keyboardVisible = iosKeyboardVisible || androidKeyboardHeight > 0;
     const viewportCap = Math.round(windowHeight * (keyboardVisible ? 0.13 : 0.14));
@@ -1423,7 +1429,7 @@ export default function ReviewQuestionScreen({
 
     return Math.max(84, Math.min(absoluteCap, viewportCap));
   }, [androidKeyboardHeight, iosKeyboardVisible, windowHeight]);
-  const contextHintPromptSize = showContextHint
+  const contextHintPromptSize = isContextHintVisible
     ? Math.min(reviewPromptCharacterSize, 96)
     : reviewPromptCharacterSize;
   const displayedContextSentencesHint = useMemo(
@@ -1435,6 +1441,10 @@ export default function ReviewQuestionScreen({
   );
   const canToggleContextHintTranslations =
     contextHintTranslationMode === "toggle" && hasContextHintTranslations;
+  const shouldShowContextHintToggle = contextHintDisplayMode === "toggle";
+  const shouldShowContextHintControls =
+    shouldShowContextHintToggle ||
+    (isContextHintVisible && canToggleContextHintTranslations);
   const shouldShowContextHintTranslations =
     contextHintTranslationMode === "visible" ||
     (contextHintTranslationMode === "toggle" && showContextHintTranslations);
@@ -4910,7 +4920,7 @@ export default function ReviewQuestionScreen({
         <View
           style={[
             styles.characterWrapper,
-            showContextHint && styles.characterWrapperWithOpenHint,
+            isContextHintVisible && styles.characterWrapperWithOpenHint,
             shouldShowPausedSubjectDetails && styles.characterWrapperWithDetails,
           ]}
         >
@@ -4946,52 +4956,58 @@ export default function ReviewQuestionScreen({
             )}
           </View>
 
-          {/* Context Hint Button - only show when context sentences are available */}
+          {/* Context Hint - review mode can show Japanese text immediately. */}
           {contextSentencesHint && contextSentencesHint.length > 0 && (
             <View style={styles.contextHintContainer}>
-              <View style={styles.contextHintButtonRow}>
-                <TouchableOpacity
-                  style={styles.contextHintButton}
-                  onPress={handleContextHintToggle}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={showContextHint ? "chevron-up" : "help-circle-outline"}
-                    size={18}
-                    color="rgba(255, 255, 255, 0.8)"
-                  />
-                  <Text style={styles.contextHintButtonText}>
-                    {showContextHint ? "Hide Hint" : "Show Context Hint"}
-                  </Text>
-                </TouchableOpacity>
+              {shouldShowContextHintControls && (
+                <View style={styles.contextHintButtonRow}>
+                  {shouldShowContextHintToggle && (
+                    <TouchableOpacity
+                      style={styles.contextHintButton}
+                      onPress={handleContextHintToggle}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={
+                          showContextHint ? "chevron-up" : "help-circle-outline"
+                        }
+                        size={18}
+                        color="rgba(255, 255, 255, 0.8)"
+                      />
+                      <Text style={styles.contextHintButtonText}>
+                        {showContextHint ? "Hide Hint" : "Show Context Hint"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
-                {showContextHint && canToggleContextHintTranslations && (
-                  <TouchableOpacity
-                    style={styles.contextHintButton}
-                    onPress={() =>
-                      setShowContextHintTranslations((current) => !current)
-                    }
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={
-                        showContextHintTranslations
-                          ? "eye-off-outline"
-                          : "language-outline"
+                  {isContextHintVisible && canToggleContextHintTranslations && (
+                    <TouchableOpacity
+                      style={styles.contextHintButton}
+                      onPress={() =>
+                        setShowContextHintTranslations((current) => !current)
                       }
-                      size={18}
-                      color="rgba(255, 255, 255, 0.8)"
-                    />
-                    <Text style={styles.contextHintButtonText}>
-                      {showContextHintTranslations
-                        ? "Hide Translation"
-                        : "Translate"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={
+                          showContextHintTranslations
+                            ? "eye-off-outline"
+                            : "language-outline"
+                        }
+                        size={18}
+                        color="rgba(255, 255, 255, 0.8)"
+                      />
+                      <Text style={styles.contextHintButtonText}>
+                        {showContextHintTranslations
+                          ? "Hide Translation"
+                          : "Translate"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
-              {showContextHint && (
+              {isContextHintVisible && (
                 <View
                   style={[
                     styles.contextHintContent,

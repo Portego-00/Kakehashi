@@ -2024,6 +2024,7 @@ export default function ReviewScreen() {
         studyMaterials={studyMaterialsMap.get(item.subjectId)}
         onSynonymAdded={handleSynonymAdded}
         contextSentencesHint={contextSentencesHint}
+        contextHintDisplayMode="visible"
         contextHintTranslationMode="toggle"
         onExit={() => {
           const exitReviews = () => {

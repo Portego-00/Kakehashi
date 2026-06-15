@@ -934,7 +934,7 @@ export function ReviewSettingsSection() {
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
-              Show an on-demand context sentence hint on vocabulary review
+              Show context sentence hints during vocabulary review
               questions. Translations stay hidden until you reveal them from the
               hint
             </Text>
