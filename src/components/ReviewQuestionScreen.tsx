@@ -9,6 +9,7 @@ import {
 } from "expo-speech-recognition";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   type GestureResponderEvent,
   InteractionManager,
@@ -16,6 +17,7 @@ import {
   KeyboardAvoidingView,
   type KeyboardEvent,
   type LayoutChangeEvent,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -57,7 +59,11 @@ import {
   updateStudyMaterial,
   getStudyMaterials,
 } from "../utils/api";
-import { getAllSubjects, getSubjectById } from "../utils/cache";
+import {
+  clearStudyMaterialsCache,
+  getAllSubjects,
+  getSubjectById,
+} from "../utils/cache";
 import { fontStyles } from "../utils/fonts";
 import {
   DEFAULT_JITAI_FONT_FAMILY,
@@ -110,6 +116,14 @@ const FLOATING_REVIEW_TOOL_BUTTON_GAP = 8;
 const FLOATING_REVIEW_TOOL_BUTTON_RIGHT = 16;
 
 type QuestionType = "meaning" | "reading";
+
+type StudyMaterialNoteType = "meaning" | "reading";
+
+interface ReviewStudyMaterials {
+  meaning_synonyms?: string[];
+  meaning_note?: string;
+  reading_note?: string;
+}
 
 interface ReviewItem {
   id: number;
@@ -179,10 +193,15 @@ interface ReviewQuestionProps {
   wrapUpTargetSubjects?: number;
   remainingSubjectsCount?: number;
   onWrapUp?: () => void;
-  // Study materials for user synonyms
-  studyMaterials?: { meaning_synonyms?: string[] };
+  // Study materials for user synonyms and embedded pause details.
+  studyMaterials?: ReviewStudyMaterials;
   // Callback when a synonym is added (to update parent's studyMaterialsMap)
   onSynonymAdded?: (subjectId: number, newSynonyms: string[]) => void;
+  onStudyMaterialNoteUpdated?: (
+    subjectId: number,
+    noteType: StudyMaterialNoteType,
+    noteText: string,
+  ) => void;
   // Context sentence hints to help disambiguate similar meanings.
   contextSentencesHint?: { ja?: string; en?: string }[];
   // Maximum number of hint rows shown in the expandable hint panel.
@@ -1015,6 +1034,7 @@ export default function ReviewQuestionScreen({
   onWrapUp,
   studyMaterials,
   onSynonymAdded,
+  onStudyMaterialNoteUpdated,
   contextSentencesHint,
   contextHintMaxItems = 3,
   contextHintDisplayMode = "toggle",
@@ -1117,6 +1137,14 @@ export default function ReviewQuestionScreen({
       EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS,
     );
   const [isAddingSynonym, setIsAddingSynonym] = useState(false);
+  const [editingStudyMaterialNoteType, setEditingStudyMaterialNoteType] =
+    useState<StudyMaterialNoteType>("meaning");
+  const [editingStudyMaterialNoteText, setEditingStudyMaterialNoteText] =
+    useState("");
+  const [studyMaterialNoteModalVisible, setStudyMaterialNoteModalVisible] =
+    useState(false);
+  const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
+    useState(false);
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const [inputResetNonce, setInputResetNonce] = useState(0);
   const [showContextHint, setShowContextHint] = useState(false);
@@ -2007,6 +2035,8 @@ export default function ReviewQuestionScreen({
       setCorrectAnswerText(null);
       setIsReplayingAudio(false);
       setAnswerFeedback(null);
+      setStudyMaterialNoteModalVisible(false);
+      setEditingStudyMaterialNoteText("");
       setShowContextHint(false);
       setShowContextHintTranslations(false);
       setIsUsingDefaultJitaiFont(false);
@@ -2135,7 +2165,10 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    if (!isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect) {
+    if (
+      studyMaterialNoteModalVisible ||
+      (!isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect)
+    ) {
       pausedShortcutInputRef.current?.blur();
       return;
     }
@@ -2151,7 +2184,13 @@ export default function ReviewQuestionScreen({
     }, Platform.OS === "android" ? 140 : 90);
 
     return () => clearTimeout(focusTimer);
-  }, [isPausedOnWrong, isPausedOnCloseAnswer, isPausedOnCorrect, navigatingToDetail]);
+  }, [
+    isPausedOnWrong,
+    isPausedOnCloseAnswer,
+    isPausedOnCorrect,
+    navigatingToDetail,
+    studyMaterialNoteModalVisible,
+  ]);
 
   const completeAnswer = (feedbackType: "correct" | "incorrect" | "close") => {
     // Set answered state but don't animate the feedback overlay
@@ -3106,6 +3145,104 @@ export default function ReviewQuestionScreen({
     [apiToken, item.subject.id, onSynonymAdded],
   );
 
+  const handleReviewDetailNotePress = useCallback(
+    (noteType: StudyMaterialNoteType) => {
+      releasePausedShortcutFocus();
+      setEditingStudyMaterialNoteType(noteType);
+      setEditingStudyMaterialNoteText(
+        noteType === "meaning"
+          ? studyMaterials?.meaning_note || ""
+          : studyMaterials?.reading_note || "",
+      );
+      setStudyMaterialNoteModalVisible(true);
+    },
+    [releasePausedShortcutFocus, studyMaterials],
+  );
+
+  const closeStudyMaterialNoteModal = useCallback(() => {
+    if (isSavingStudyMaterialNote) {
+      return;
+    }
+
+    setStudyMaterialNoteModalVisible(false);
+  }, [isSavingStudyMaterialNote]);
+
+  const handleSaveStudyMaterialNote = useCallback(async () => {
+    if (!apiToken || isSavingStudyMaterialNote) {
+      return;
+    }
+
+    const subjectId = item.subject.id;
+    const updates =
+      editingStudyMaterialNoteType === "meaning"
+        ? { meaning_note: editingStudyMaterialNoteText }
+        : { reading_note: editingStudyMaterialNoteText };
+
+    setIsSavingStudyMaterialNote(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      const studyMaterialsResponse = await getStudyMaterials(
+        apiToken,
+        { subject_ids: [subjectId] },
+        { skipCache: true },
+      );
+      const existingMaterial = studyMaterialsResponse?.data?.[0];
+
+      if (existingMaterial) {
+        await updateStudyMaterial(apiToken, existingMaterial.id, updates);
+      } else {
+        try {
+          await createStudyMaterial(apiToken, {
+            subject_id: subjectId,
+            ...updates,
+          });
+        } catch (createError: any) {
+          if (!createError?.message?.includes("422")) {
+            throw createError;
+          }
+
+          const refreshedMaterials = await getStudyMaterials(
+            apiToken,
+            { subject_ids: [subjectId] },
+            { skipCache: true },
+          );
+          const refreshedMaterial = refreshedMaterials?.data?.[0];
+          if (!refreshedMaterial) {
+            throw createError;
+          }
+
+          await updateStudyMaterial(apiToken, refreshedMaterial.id, updates);
+        }
+      }
+
+      await clearStudyMaterialsCache(subjectId);
+      onStudyMaterialNoteUpdated?.(
+        subjectId,
+        editingStudyMaterialNoteType,
+        editingStudyMaterialNoteText,
+      );
+      setStudyMaterialNoteModalVisible(false);
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        "Error",
+        `Failed to save note: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    } finally {
+      setIsSavingStudyMaterialNote(false);
+    }
+  }, [
+    apiToken,
+    editingStudyMaterialNoteText,
+    editingStudyMaterialNoteType,
+    isSavingStudyMaterialNote,
+    item.subject.id,
+    onStudyMaterialNoteUpdated,
+  ]);
+
   const renderPausedSubjectDetails = () => {
     const subject = item.subject;
     const data = getSubjectDataRecord(subject);
@@ -3157,6 +3294,8 @@ export default function ReviewQuestionScreen({
             })),
             userSynonyms,
             srsStage,
+            meaningNote: studyMaterials?.meaning_note || "",
+            onEditNote: () => handleReviewDetailNotePress("meaning"),
           }}
           progressionStatus={progressionStatus}
           onSubjectPress={handleEmbeddedSubjectPress}
@@ -3207,6 +3346,9 @@ export default function ReviewQuestionScreen({
             ),
             userSynonyms,
             srsStage,
+            meaningNote: studyMaterials?.meaning_note || "",
+            readingNote: studyMaterials?.reading_note || "",
+            onEditNote: handleReviewDetailNotePress,
           }}
           progressionStatus={progressionStatus}
           onSubjectPress={handleEmbeddedSubjectPress}
@@ -3260,6 +3402,9 @@ export default function ReviewQuestionScreen({
             : [],
           userSynonyms,
           srsStage,
+          meaningNote: studyMaterials?.meaning_note || "",
+          readingNote: studyMaterials?.reading_note || "",
+          onEditNote: handleReviewDetailNotePress,
         }}
         progressionStatus={progressionStatus}
         onSubjectPress={handleEmbeddedSubjectPress}
@@ -3437,6 +3582,118 @@ export default function ReviewQuestionScreen({
       </View>
     );
   };
+
+  const renderStudyMaterialNoteModal = () => (
+    <Modal
+      visible={studyMaterialNoteModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={closeStudyMaterialNoteModal}
+    >
+      <KeyboardAvoidingView
+        style={styles.studyMaterialNoteModalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
+      >
+        <View
+          style={[
+            styles.studyMaterialNoteModalContent,
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
+            Platform.OS === "android" &&
+              androidKeyboardLift > 0 && {
+                transform: [{ translateY: -androidKeyboardLift }],
+              },
+          ]}
+        >
+          <View style={styles.studyMaterialNoteModalHeader}>
+            <Text
+              style={[
+                styles.studyMaterialNoteModalTitle,
+                { color: theme.textColor },
+              ]}
+            >
+              {editingStudyMaterialNoteType === "meaning"
+                ? "Meaning Note"
+                : "Reading Note"}
+            </Text>
+            <TouchableOpacity
+              style={styles.studyMaterialNoteModalCloseButton}
+              onPress={closeStudyMaterialNoteModal}
+              disabled={isSavingStudyMaterialNote}
+              accessibilityRole="button"
+              accessibilityLabel="Close note editor"
+            >
+              <Ionicons name="close" size={22} color={theme.textColor} />
+            </TouchableOpacity>
+          </View>
+
+          <TextInput
+            style={[
+              styles.studyMaterialNoteInput,
+              {
+                borderColor: theme.border,
+                color: theme.textColor,
+                backgroundColor: theme.isDark
+                  ? "rgba(255,255,255,0.05)"
+                  : "#ffffff",
+              },
+            ]}
+            multiline
+            autoFocus
+            value={editingStudyMaterialNoteText}
+            onChangeText={setEditingStudyMaterialNoteText}
+            onFocus={syncAndroidKeyboardMetrics}
+            placeholder={`Add your ${editingStudyMaterialNoteType} note here...`}
+            placeholderTextColor={theme.textLight}
+          />
+
+          <View style={styles.studyMaterialNoteModalButtons}>
+            <TouchableOpacity
+              style={[
+                styles.studyMaterialNoteModalButton,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.cardBackground,
+                },
+              ]}
+              onPress={closeStudyMaterialNoteModal}
+              disabled={isSavingStudyMaterialNote}
+            >
+              <Text
+                style={[
+                  styles.studyMaterialNoteModalButtonText,
+                  { color: theme.textColor },
+                ]}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.studyMaterialNoteModalButton,
+                styles.studyMaterialNoteSaveButton,
+                { backgroundColor: getItemColor(item.subject.object) },
+              ]}
+              onPress={handleSaveStudyMaterialNote}
+              disabled={isSavingStudyMaterialNote}
+            >
+              <Text
+                style={[
+                  styles.studyMaterialNoteModalButtonText,
+                  { color: "#ffffff" },
+                ]}
+              >
+                {isSavingStudyMaterialNote ? "Saving..." : "Save"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 
   const handleOpenReviewSearch = () => {
     Keyboard.dismiss();
@@ -5986,7 +6243,7 @@ export default function ReviewQuestionScreen({
 
               {shouldShowPausedSubjectDetails && renderPausedDetailsActions()}
 
-              {isPausedOnAnswer && (
+              {isPausedOnAnswer && !studyMaterialNoteModalVisible && (
                 <TextInput
                   ref={pausedShortcutInputRef}
                   value=""
@@ -6087,6 +6344,7 @@ export default function ReviewQuestionScreen({
             />
           )}
       </KeyboardAvoidingView>
+      {renderStudyMaterialNoteModal()}
     </SafeAreaView>
   );
 }
@@ -6547,6 +6805,69 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     flexShrink: 1,
+  },
+  studyMaterialNoteModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  studyMaterialNoteModalContent: {
+    width: "100%",
+    maxWidth: 460,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+  },
+  studyMaterialNoteModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  studyMaterialNoteModalTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  studyMaterialNoteModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  studyMaterialNoteInput: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    textAlignVertical: "top",
+  },
+  studyMaterialNoteModalButtons: {
+    marginTop: 16,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  studyMaterialNoteModalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 88,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  studyMaterialNoteSaveButton: {
+    borderColor: "transparent",
+    marginLeft: 8,
+  },
+  studyMaterialNoteModalButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   answerInput: {
     alignSelf: "stretch",

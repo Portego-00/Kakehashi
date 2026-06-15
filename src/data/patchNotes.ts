@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.80",
+    date: "2026-06-15",
+    changes: [
+      {
+        type: "fix",
+        title: "Paused Review Note Editing",
+        description:
+          "Fixed meaning and reading note cards in paused review details so they can be opened and saved after an incorrect answer.",
+      },
+    ],
+  },
+  {
     version: "1.2.79",
     date: "2026-06-14",
     changes: [

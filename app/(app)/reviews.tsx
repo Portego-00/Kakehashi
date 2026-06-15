@@ -52,6 +52,12 @@ type ReviewSubject = Subject & {
   object: "radical" | "kanji" | "vocabulary" | "kana_vocabulary";
 };
 
+type ReviewStudyMaterials = {
+  meaning_synonyms?: string[];
+  meaning_note?: string;
+  reading_note?: string;
+};
+
 // Define interface for review items
 interface ReviewItem {
   id: number;
@@ -129,6 +135,7 @@ export default function ReviewScreen() {
     reviewBatchSize,
     reviewWrapUpTargetSubjects,
     autoplayVocabularyAudio,
+    showAnswerStopSubjectDetails,
     showVocabContextSentencesInReviews,
   } = useSettingsStore();
   const shouldShowSrsProgression = srsProgressionCardDisplayMode !== "hidden";
@@ -182,8 +189,8 @@ export default function ReviewScreen() {
     DEFAULT_MAX_QUESTION_GAP
   );
 
-  // Study materials for user synonyms (keyed by subject ID)
-  const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, { meaning_synonyms?: string[] }>>(new Map());
+  // Study materials for answer checking and embedded pause details.
+  const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, ReviewStudyMaterials>>(new Map());
 
   const shouldKeepReviewAudioWarm =
     autoplayVocabularyAudio && !isLoading && !isFinished && isFocused;
@@ -206,10 +213,27 @@ export default function ReviewScreen() {
   const handleSynonymAdded = useCallback((subjectId: number, newSynonyms: string[]) => {
     setStudyMaterialsMap(prev => {
       const updated = new Map(prev);
-      updated.set(subjectId, { meaning_synonyms: newSynonyms });
+      updated.set(subjectId, {
+        ...(updated.get(subjectId) || {}),
+        meaning_synonyms: newSynonyms,
+      });
       return updated;
     });
   }, []);
+
+  const handleStudyMaterialNoteUpdated = useCallback(
+    (subjectId: number, noteType: "meaning" | "reading", noteText: string) => {
+      setStudyMaterialsMap(prev => {
+        const updated = new Map(prev);
+        updated.set(subjectId, {
+          ...(updated.get(subjectId) || {}),
+          [noteType === "meaning" ? "meaning_note" : "reading_note"]: noteText,
+        });
+        return updated;
+      });
+    },
+    []
+  );
 
   // Active queue settings
   const ACTIVE_QUEUE_SIZE = 10; // Number of questions to keep in active queue
@@ -595,28 +619,30 @@ export default function ReviewScreen() {
         (assignment: any) => assignment.data.subject_id
       );
 
-      // Fetch study materials for user synonyms if setting is enabled
-      if (acceptUserSynonymsAsAnswers) {
+      // Fetch study materials when answer checking or embedded pause details need them.
+      if (acceptUserSynonymsAsAnswers || showAnswerStopSubjectDetails) {
         try {
           const studyMaterialsResponse = await getStudyMaterials(apiToken, {
             subject_ids: subjectIds,
           });
 
           // Create a map of subject ID to study material data
-          const materialsMap = new Map<number, { meaning_synonyms?: string[] }>();
+          const materialsMap = new Map<number, ReviewStudyMaterials>();
           if (studyMaterialsResponse?.data) {
             studyMaterialsResponse.data.forEach((material: any) => {
               if (material.data?.subject_id) {
                 materialsMap.set(material.data.subject_id, {
                   meaning_synonyms: material.data.meaning_synonyms || [],
+                  meaning_note: material.data.meaning_note || "",
+                  reading_note: material.data.reading_note || "",
                 });
               }
             });
           }
           setStudyMaterialsMap(materialsMap);
-          console.log(`[User Synonyms] Loaded study materials for ${materialsMap.size} subjects`);
+          console.log(`[Study Materials] Loaded study materials for ${materialsMap.size} subjects`);
         } catch (error) {
-          console.warn("[User Synonyms] Failed to load study materials:", error);
+          console.warn("[Study Materials] Failed to load study materials:", error);
           // Continue without study materials - feature will gracefully degrade
         }
       }
@@ -680,7 +706,7 @@ export default function ReviewScreen() {
         return;
       }
 
-      console.log(`[Reviews] Prepared ${items.length} review items (API calls: 1 visible-count${cacheMatchesVisibleCount ? '' : ' + 1 assignments'}${acceptUserSynonymsAsAnswers ? ' + 1 study materials' : ''})`);
+      console.log(`[Reviews] Prepared ${items.length} review items (API calls: 1 visible-count${cacheMatchesVisibleCount ? '' : ' + 1 assignments'}${acceptUserSynonymsAsAnswers || showAnswerStopSubjectDetails ? ' + 1 study materials' : ''})`);
 
       // Sort items using the selected review-order strategy.
       const sortedItems = sortReviewItemsForQueue(items, {
@@ -774,7 +800,7 @@ export default function ReviewScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiToken, isAuthLoading, reviewOrder, reviewTypeOrderEnabled, reviewTypeOrder, prioritizeCriticalItems, acceptUserSynonymsAsAnswers, backToBackQuestions, reviewQuestionOrderEnabled, preferredQuestionType, effectiveAnkiGrouping, reviewBatchSizeEnabled, reviewBatchSize, REVIEW_MAX_QUESTION_GAP]);
+  }, [apiToken, isAuthLoading, reviewOrder, reviewTypeOrderEnabled, reviewTypeOrder, prioritizeCriticalItems, acceptUserSynonymsAsAnswers, showAnswerStopSubjectDetails, backToBackQuestions, reviewQuestionOrderEnabled, preferredQuestionType, effectiveAnkiGrouping, reviewBatchSizeEnabled, reviewBatchSize, REVIEW_MAX_QUESTION_GAP]);
 
   // Wrap up mode: reorder queue to complete exactly WRAP_UP_TARGET_SUBJECTS more subjects
   const handleWrapUp = useCallback(() => {
@@ -2023,6 +2049,7 @@ export default function ReviewScreen() {
         onDismissReviewPermissionWarning={() => setReviewPermissionWarning(null)}
         studyMaterials={studyMaterialsMap.get(item.subjectId)}
         onSynonymAdded={handleSynonymAdded}
+        onStudyMaterialNoteUpdated={handleStudyMaterialNoteUpdated}
         contextSentencesHint={contextSentencesHint}
         contextHintDisplayMode="visible"
         contextHintTranslationMode="toggle"
