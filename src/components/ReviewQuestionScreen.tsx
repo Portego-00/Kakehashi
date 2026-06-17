@@ -1464,6 +1464,8 @@ export default function ReviewQuestionScreen({
     hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
   const shouldShowReviewItemMetadataInLayout =
     shouldShowReviewItemMetadata && !isContextHintVisible;
+  const shouldShowAnkiReviewItemMetadata =
+    effectiveAnkiCardMode && shouldShowReviewItemMetadata;
   const contextHintPanelHeight = useMemo(() => {
     const keyboardVisible = iosKeyboardVisible || androidKeyboardHeight > 0;
     const viewportCap = Math.round(windowHeight * (keyboardVisible ? 0.13 : 0.14));
@@ -4831,7 +4833,7 @@ export default function ReviewQuestionScreen({
     isCurrentQuestionAnkiRevealed &&
     !effectiveAnkiButtonlessMode;
   const ankiPreCardOverlayJustification =
-    shouldShowReviewItemMetadataInLayout && showAnkiSkipChip
+    shouldShowAnkiReviewItemMetadata && showAnkiSkipChip
       ? "space-between"
       : showAnkiSkipChip
         ? "flex-end"
@@ -5362,14 +5364,14 @@ export default function ReviewQuestionScreen({
             >
             {((shouldShowSrsProgressionCard && !shouldUseCompactSrsProgressionCard) ||
               showAnkiSkipChip ||
-              shouldShowReviewItemMetadataInLayout) && (
+              shouldShowAnkiReviewItemMetadata) && (
               <View
                 style={[
                   styles.ankiPreCardOverlayRow,
                   { justifyContent: ankiPreCardOverlayJustification },
                 ]}
               >
-                {shouldShowReviewItemMetadataInLayout && renderReviewMetadata(true)}
+                {shouldShowAnkiReviewItemMetadata && renderReviewMetadata(true)}
                 {showAnkiSkipChip && (
                   <TouchableOpacity
                     style={[
