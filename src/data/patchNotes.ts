@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.81",
+    date: "2026-06-17",
+    changes: [
+      {
+        type: "fix",
+        title: "Review Wrap Up Toggle",
+        description:
+          "Fixed Wrap Up in reviews, custom reviews, and recent lesson reviews so tapping the wrapping-up pill restores the full remaining queue.",
+      },
+    ],
+  },
+  {
     version: "1.2.80",
     date: "2026-06-15",
     changes: [

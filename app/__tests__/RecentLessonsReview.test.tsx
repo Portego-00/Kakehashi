@@ -54,6 +54,10 @@ jest.mock('../../src/components/ReviewQuestionScreen', () => {
   return function MockReviewQuestionScreen({
     item,
     questionType,
+    isWrapUpAvailable,
+    isWrapUpMode,
+    remainingSubjectsCount,
+    onWrapUp,
   }: {
     item: {
       subject: {
@@ -65,9 +69,13 @@ jest.mock('../../src/components/ReviewQuestionScreen', () => {
       };
     };
     questionType: 'meaning' | 'reading';
+    isWrapUpAvailable?: boolean;
+    isWrapUpMode?: boolean;
+    remainingSubjectsCount?: number;
+    onWrapUp?: () => void;
   }) {
     const [answer, setAnswer] = React.useState('');
-    const [feedback, setFeedback] = React.useState<'correct' | 'incorrect' | null>(null);
+    const [feedback, setFeedback] = React.useState(null);
     const correctAnswer =
       item.subject.data.meanings.find((meaning) => meaning.primary)?.meaning ||
       item.subject.data.meanings[0]?.meaning ||
@@ -102,6 +110,15 @@ jest.mock('../../src/components/ReviewQuestionScreen', () => {
             <Text>{correctAnswer}</Text>
           </View>
         ) : null}
+        {isWrapUpMode ? (
+          <TouchableOpacity onPress={onWrapUp}>
+            <Text>Wrapping Up ({remainingSubjectsCount} left)</Text>
+          </TouchableOpacity>
+        ) : isWrapUpAvailable ? (
+          <TouchableOpacity onPress={onWrapUp}>
+            <Text>Wrap Up ({remainingSubjectsCount} left)</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   };
@@ -117,31 +134,31 @@ jest.mock('../../src/components/RecentLessonsResultsScreen', () => {
 });
 
 jest.mock('../../src/utils/reviewUtils', () => ({
-  prepareReviewData: jest.fn((subjects, assignments) => {
-    // Simple mock implementation that returns a formatted review item
-    return [
-      {
-        id: 0,
-        subjectId: 1001,
-        assignmentId: 123,
-        characters: '漢',
-        meanings: [
-          { meaning: 'Chinese', primary: true },
-        ],
-        readings: [
-          { reading: 'かん', primary: true },
-        ],
-        type: 'kanji',
-        meaningQuestion: {
-          type: 'meaning',
-          itemId: 0,
-        },
-        readingQuestion: {
-          type: 'reading',
-          itemId: 0,
-        }
-      }
-    ];
+  prepareReviewData: jest.fn((subjects: any[], assignments: any[]) => {
+    // Simple mock implementation that returns formatted review items.
+    return subjects.map((subject, index) => ({
+      id: index,
+      subjectId: subject.id,
+      assignmentId: assignments[index]?.id ?? index,
+      characters: subject.data.characters,
+      meanings: subject.data.meanings,
+      readings: subject.data.readings,
+      characterImages: subject.data.character_images,
+      pronunciationAudios: subject.data.pronunciation_audios,
+      type: subject.object,
+      srsStage: assignments[index]?.srs_stage,
+      meaningQuestion: {
+        type: 'meaning',
+        itemId: index,
+      },
+      readingQuestion:
+        Array.isArray(subject.data.readings) && subject.data.readings.length > 0
+          ? {
+              type: 'reading',
+              itemId: index,
+            }
+          : null,
+    }));
   }),
   shuffleArray: jest.fn(arr => arr), // Return array unchanged for predictability
 }));
@@ -164,7 +181,7 @@ describe('RecentLessonsReview Screen', () => {
     jest.clearAllMocks();
     
     // Setup auth store mock
-    (useAuthStore as jest.Mock).mockReturnValue({
+    (useAuthStore as unknown as jest.Mock).mockReturnValue({
       apiToken: 'test-token',
     });
 
@@ -277,6 +294,62 @@ describe('RecentLessonsReview Screen', () => {
       expect(getByText('Incorrect - Next')).toBeTruthy();
       expect(getByText('Correct answer:')).toBeTruthy();
       expect(getByText('Chinese')).toBeTruthy();
+    });
+  });
+
+  it('should toggle recent lesson wrap up back to the full queue', async () => {
+    const subjects = Array.from({ length: 12 }, (_, index) => ({
+      id: 1001 + index,
+      object: 'kanji',
+      data: {
+        characters: `漢${index}`,
+        level: 1,
+        meanings: [
+          { meaning: `Chinese ${index}`, primary: true },
+        ],
+        readings: [
+          { reading: 'かん', primary: true },
+        ],
+        character_images: [],
+        pronunciation_audios: [],
+      },
+    }));
+    const assignments = subjects.map((subject, index) => ({
+      id: 123 + index,
+      data: {
+        subject_id: subject.id,
+        subject_type: 'kanji',
+        srs_stage: 1,
+        started_at: new Date().toISOString(),
+        burned_at: null,
+        passed_at: null,
+      },
+    }));
+
+    (useDashboardData as jest.Mock).mockReturnValue({
+      isLoading: false,
+      dashboardData: {
+        assignments,
+        subjects,
+      },
+    });
+
+    const { getByText } = render(<RecentLessonsReview />);
+
+    await waitFor(() => {
+      expect(getByText('Wrap Up (12 left)')).toBeTruthy();
+    });
+
+    fireEvent.press(getByText('Wrap Up (12 left)'));
+
+    await waitFor(() => {
+      expect(getByText('Wrapping Up (10 left)')).toBeTruthy();
+    });
+
+    fireEvent.press(getByText('Wrapping Up (10 left)'));
+
+    await waitFor(() => {
+      expect(getByText('Wrap Up (12 left)')).toBeTruthy();
     });
   });
 });

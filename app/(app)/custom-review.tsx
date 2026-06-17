@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -76,6 +76,7 @@ interface CustomReviewSavedSession {
   currentQuestion: ReviewQueueQuestion | null;
   progress: CustomReviewProgressState;
   isWrapUpMode: boolean;
+  wrapUpDeferredQuestions?: ReviewQueueQuestion[];
   sessionUsesAnkiGrouping: boolean;
   studyMaterialEntries: [number, { meaning_synonyms?: string[] }][];
 }
@@ -127,6 +128,7 @@ export default function CustomReviewScreen() {
   const [hasError, setHasError] = useState(false);
   // Wrap up mode state
   const [isWrapUpMode, setIsWrapUpMode] = useState(false);
+  const wrapUpDeferredQuestionsRef = useRef<ReviewQueueQuestion[]>([]);
   const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, { meaning_synonyms?: string[] }>>(new Map());
   const [sessionUsesAnkiGrouping, setSessionUsesAnkiGrouping] = useState(
     effectiveAnkiGrouping,
@@ -242,6 +244,17 @@ export default function CustomReviewScreen() {
             typeof entry[1] === "object",
         )
       : [];
+    const restoredWrapUpDeferredQuestions = Array.isArray(
+      savedSession.wrapUpDeferredQuestions,
+    )
+      ? savedSession.wrapUpDeferredQuestions.filter(
+          (question): question is ReviewQueueQuestion =>
+            !!question &&
+            typeof question === "object" &&
+            typeof question.itemId === "number" &&
+            (question.type === "meaning" || question.type === "reading"),
+        )
+      : [];
 
     setReviewItems(savedSession.reviewItems as ReviewItem[]);
     setActiveQueue(restoredQueue);
@@ -251,6 +264,8 @@ export default function CustomReviewScreen() {
       ...(savedSession.progress || {}),
     });
     setIsWrapUpMode(savedSession.isWrapUpMode === true);
+    wrapUpDeferredQuestionsRef.current =
+      savedSession.isWrapUpMode === true ? restoredWrapUpDeferredQuestions : [];
     setStudyMaterialsMap(new Map(normalizedStudyMaterialEntries));
     setSessionUsesAnkiGrouping(
       typeof savedSession.sessionUsesAnkiGrouping === "boolean"
@@ -275,6 +290,7 @@ export default function CustomReviewScreen() {
       currentQuestion,
       progress,
       isWrapUpMode,
+      wrapUpDeferredQuestions: wrapUpDeferredQuestionsRef.current,
       sessionUsesAnkiGrouping,
       studyMaterialEntries: Array.from(studyMaterialsMap.entries()),
     };
@@ -312,6 +328,7 @@ export default function CustomReviewScreen() {
       setHasError(false);
       setIsFinished(false);
       setIsWrapUpMode(false);
+      wrapUpDeferredQuestionsRef.current = [];
       setSessionUsesAnkiGrouping(effectiveAnkiGrouping);
       await clearSavedCustomReviewSession();
 
@@ -500,9 +517,33 @@ export default function CustomReviewScreen() {
     loadCustomReview();
   }, [loadCustomReview]);
 
-  // Wrap up: restrict remaining queue to exactly WRAP_UP_TARGET_SUBJECTS subjects
+  // Wrap up: toggle between the trimmed queue and the full remaining queue.
   const handleWrapUp = useCallback(() => {
-    if (isWrapUpMode) return;
+    if (isWrapUpMode) {
+      const remainingInActive = currentQuestion
+        ? activeQueue.slice(1)
+        : activeQueue.slice();
+      const restoredQueue = currentQuestion
+        ? [
+            currentQuestion,
+            ...remainingInActive,
+            ...wrapUpDeferredQuestionsRef.current,
+          ]
+        : [...remainingInActive, ...wrapUpDeferredQuestionsRef.current];
+
+      wrapUpDeferredQuestionsRef.current = [];
+      setIsWrapUpMode(false);
+      setActiveQueue(restoredQueue);
+
+      if (restoredQueue.length > 0) {
+        setCurrentQuestion(restoredQueue[0]);
+        setIsFinished(false);
+      } else {
+        setCurrentQuestion(null);
+        setIsFinished(true);
+      }
+      return;
+    }
 
     setIsWrapUpMode(true);
 
@@ -568,6 +609,9 @@ export default function CustomReviewScreen() {
 
     // Filter remaining questions to only selected subjects
     const filteredRemaining = questionsAfterCurrent.filter(q => targetSubjectIds.includes(q.itemId));
+    wrapUpDeferredQuestionsRef.current = questionsAfterCurrent.filter(
+      q => !targetSubjectIds.includes(q.itemId)
+    );
 
     // Rebuild active queue: keep current question, then filtered remainder
     const newActive = currentQuestion ? [currentQuestion, ...filteredRemaining] : filteredRemaining;

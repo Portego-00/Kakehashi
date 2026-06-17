@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import RecentLessonsResultsScreen from "../../src/components/RecentLessonsResultsScreen";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
@@ -83,6 +83,7 @@ export default function RecentLessonsReview() {
 
   // Wrap up mode state
   const [isWrapUpMode, setIsWrapUpMode] = useState(false);
+  const wrapUpDeferredQuestionsRef = useRef<Question[]>([]);
   const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, { meaning_synonyms?: string[] }>>(new Map());
 
   // Handler for when a synonym is added from the review screen
@@ -139,9 +140,21 @@ export default function RecentLessonsReview() {
     return questions;
   }, [effectiveAnkiGrouping, reviewQuestionOrderEnabled, preferredQuestionType]);
 
-  // Wrap up mode: reorder remaining questions to complete exactly WRAP_UP_TARGET_SUBJECTS more subjects
+  // Wrap up mode: toggle between the trimmed queue and the full remaining queue.
   const handleWrapUp = useCallback(() => {
-    if (isWrapUpMode) return; // Already in wrap up mode
+    if (isWrapUpMode) {
+      const splitIndex = Math.min(currentQuestionIndex + 1, questions.length);
+      const restoredQuestions = [
+        ...questions.slice(0, splitIndex),
+        ...questions.slice(splitIndex),
+        ...wrapUpDeferredQuestionsRef.current,
+      ];
+
+      wrapUpDeferredQuestionsRef.current = [];
+      setIsWrapUpMode(false);
+      setQuestions(restoredQuestions);
+      return;
+    }
 
     console.log("[Recent Lessons Wrap Up] Activating wrap up mode");
     setIsWrapUpMode(true);
@@ -222,6 +235,9 @@ export default function RecentLessonsReview() {
     // Filter remaining questions to only include those belonging to the target subjects
     const filteredRemaining = questionsAfterCurrent.filter((q) =>
       targetSubjectIds.includes(q.itemId)
+    );
+    wrapUpDeferredQuestionsRef.current = questionsAfterCurrent.filter(
+      (q) => !targetSubjectIds.includes(q.itemId)
     );
 
     console.log(
@@ -407,6 +423,7 @@ export default function RecentLessonsReview() {
       setIncorrectAnswers(initialIncorrect);
       setAllCompleted(false);
       setIsWrapUpMode(false);
+      wrapUpDeferredQuestionsRef.current = [];
 
       // Mark as successfully loaded
       setLoadedWindow(recentLessonsWindow);

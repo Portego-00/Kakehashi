@@ -117,6 +117,7 @@ export default function ReviewScreen() {
   const pendingSubmissionCountRef = useRef(0);
   const hasShownReviewPermissionWarningRef = useRef(false);
   const skippedItemIdsRef = useRef<number[]>([]);
+  const wrapUpDeferredQuestionsRef = useRef<ReviewQueueQuestion[]>([]);
   const {
     ankiCardMode,
     ankiGroupQuestions,
@@ -425,6 +426,8 @@ export default function ReviewScreen() {
       pendingSubmissionCountRef.current = 0;
       hasShownReviewPermissionWarningRef.current = false;
       skippedItemIdsRef.current = [];
+      wrapUpDeferredQuestionsRef.current = [];
+      setIsWrapUpMode(false);
       setFailedSubmissions([]);
       setSubmittingResults(false);
       setReviewPermissionWarning(null);
@@ -802,9 +805,30 @@ export default function ReviewScreen() {
     }
   }, [apiToken, isAuthLoading, reviewOrder, reviewTypeOrderEnabled, reviewTypeOrder, prioritizeCriticalItems, acceptUserSynonymsAsAnswers, showAnswerStopSubjectDetails, backToBackQuestions, reviewQuestionOrderEnabled, preferredQuestionType, effectiveAnkiGrouping, reviewBatchSizeEnabled, reviewBatchSize, REVIEW_MAX_QUESTION_GAP]);
 
-  // Wrap up mode: reorder queue to complete exactly WRAP_UP_TARGET_SUBJECTS more subjects
+  // Wrap up mode: toggle between the trimmed wrap-up queue and the full pool.
   const handleWrapUp = useCallback(() => {
-    if (isWrapUpMode) return; // Already in wrap up mode
+    if (isWrapUpMode) {
+      const remainingInActive = currentQuestion
+        ? activeQueue.slice(1)
+        : activeQueue.slice();
+      const restoredQuestions = [
+        ...remainingInActive,
+        ...masterQueue,
+        ...wrapUpDeferredQuestionsRef.current,
+      ];
+      const restoredActiveQueue = currentQuestion
+        ? [currentQuestion, ...restoredQuestions.slice(0, ACTIVE_QUEUE_SIZE - 1)]
+        : restoredQuestions.slice(0, ACTIVE_QUEUE_SIZE);
+      const restoredMasterQueue = restoredQuestions.slice(
+        currentQuestion ? ACTIVE_QUEUE_SIZE - 1 : ACTIVE_QUEUE_SIZE
+      );
+
+      wrapUpDeferredQuestionsRef.current = [];
+      setIsWrapUpMode(false);
+      setActiveQueue(restoredActiveQueue);
+      setMasterQueue(restoredMasterQueue);
+      return;
+    }
 
     setIsWrapUpMode(true);
     
@@ -871,6 +895,9 @@ export default function ReviewScreen() {
 
     // Filter remaining questions to only include those belonging to the target subjects
     const filteredRemainingQuestions = questionsAfterCurrent.filter(q => targetSubjectIds.includes(q.itemId));
+    wrapUpDeferredQuestionsRef.current = questionsAfterCurrent.filter(
+      q => !targetSubjectIds.includes(q.itemId)
+    );
 
     // Rebuild the queues: keep current question, then only filtered remaining
     const newActiveQueue = currentQuestion
