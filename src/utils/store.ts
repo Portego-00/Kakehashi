@@ -54,8 +54,20 @@ import {
   type ExtraStudyModeId,
   normalizeHomeExtraStudyHiddenModeIds,
 } from "./extraStudyModes";
+import {
+  DEFAULT_APP_TEXT_SIZE_SCALE,
+  normalizeAppTextSizeScale,
+} from "./appTextSize";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
+
+export {
+  APP_TEXT_SIZE_OPTIONS,
+  APP_TEXT_SIZE_SCALE_MAX,
+  APP_TEXT_SIZE_SCALE_MIN,
+  DEFAULT_APP_TEXT_SIZE_SCALE,
+  formatAppTextSizeScale,
+} from "./appTextSize";
 
 export type VocabularyAudioVoicePreference =
   | "female"
@@ -133,7 +145,7 @@ export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 12;
+const SETTINGS_STORE_SCHEMA_VERSION = 14;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -509,6 +521,7 @@ type SettingsState = {
   hapticFeedbackEnabled: boolean; // Enable haptic feedback throughout the app
 
   // UI settings
+  appTextSizeScale: number;
   srsProgressionCardDisplayMode: SrsProgressionCardDisplayMode;
   radicalColor: string;
   kanjiColor: string;
@@ -681,6 +694,7 @@ type SettingsState = {
   setSrsProgressionCardDisplayMode: (
     mode: SrsProgressionCardDisplayMode
   ) => void;
+  setAppTextSizeScale: (scale: number) => void;
   setRadicalColor: (color: string) => void;
   setKanjiColor: (color: string) => void;
   setVocabularyColor: (color: string) => void;
@@ -827,6 +841,7 @@ export const useSettingsStore = create<SettingsState>()(
       showReviewItemLevelAndSrsStage: false, // Default to false - keep review prompt minimal
       showVocabContextSentencesInReviews: false, // Default to false - no context sentence hint during reviews
       reviewAnimatePreviousQuestion: true, // Default to true - keep center-to-corner animation for the previous answered card
+      appTextSizeScale: DEFAULT_APP_TEXT_SIZE_SCALE, // Default to the platform's normal text size
       srsProgressionCardDisplayMode: "normal",
       radicalColor: "#3c9bff",
       kanjiColor: "#fa1f62",
@@ -1051,6 +1066,8 @@ export const useSettingsStore = create<SettingsState>()(
           srsProgressionCardDisplayMode:
             normalizeSrsProgressionCardDisplayMode(mode),
         }),
+      setAppTextSizeScale: (scale) =>
+        set({ appTextSizeScale: normalizeAppTextSizeScale(scale) }),
       setRadicalColor: (color) => set({ radicalColor: color }),
       setKanjiColor: (color) => set({ kanjiColor: color }),
       setVocabularyColor: (color) => set({ vocabularyColor: color }),
@@ -1260,6 +1277,7 @@ export const useSettingsStore = create<SettingsState>()(
           customTabOrder?: unknown;
           lessonPickerViewMode?: unknown;
           reviewCharacterFontScale?: unknown;
+          appTextSizeScale?: unknown;
           hideVocabularyTooltipMeanings?: unknown;
           hideVocabularyTooltipReadings?: unknown;
           songsPlaybackSource?: unknown;
@@ -1362,6 +1380,9 @@ export const useSettingsStore = create<SettingsState>()(
           normalizeReviewCharacterFontScale(
             migratedRecord.reviewCharacterFontScale
           );
+        migratedRecord.appTextSizeScale = normalizeAppTextSizeScale(
+          migratedRecord.appTextSizeScale
+        );
         if (
           version < 11 ||
           typeof migratedRecord.hideVocabularyTooltipMeanings !== "boolean"

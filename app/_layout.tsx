@@ -30,6 +30,11 @@ import { syncPendingProgress } from "../src/services/offlineStudyProgressService
 import { queueOfflineVocabularyAudioDownloads } from "../src/services/offlineVocabularyAudioService";
 import { timeTrackingService } from "../src/services/timeTrackingService";
 import { initializeTimeTrackingSync } from "../src/services/timeTrackingSyncService";
+import {
+  applyAppTextSizeScale,
+  installAppTextSizePreprocessors,
+  normalizeAppTextSizeScale,
+} from "../src/utils/appTextSize";
 import { getAllSubjectsFromAPI, getUserData } from "../src/utils/api";
 import {
   initializeBadgeNotifications,
@@ -59,6 +64,7 @@ if (__DEV__) {
 
 // Keep the splash screen visible while we initialize the app
 SplashScreen.preventAutoHideAsync();
+installAppTextSizePreprocessors();
 
 type PendingDeepLinkIntent =
   | {
@@ -102,7 +108,13 @@ function RootLayoutContentInner() {
   const { session, isLoading } = useSession();
   const { theme } = useTheme();
   const router = useRouter();
-  const { gravatarEmail, offlineVocabularyAudioEnabled } = useSettingsStore();
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const normalizedAppTextSizeScale =
+    normalizeAppTextSizeScale(appTextSizeScale);
+  const gravatarEmail = useSettingsStore((state) => state.gravatarEmail);
+  const offlineVocabularyAudioEnabled = useSettingsStore(
+    (state) => state.offlineVocabularyAudioEnabled
+  );
   const pendingDeepLinkIntentRef = useRef<PendingDeepLinkIntent | null>(null);
   const pendingIssueNotificationIssueIdRef = useRef<string | null>(null);
   const didCheckInitialUrlRef = useRef(false);
@@ -123,6 +135,8 @@ function RootLayoutContentInner() {
   );
   const canNavigateForDeepLink =
     appIsReady && !showLoader && !isLoading && Boolean(session);
+
+  applyAppTextSizeScale(normalizedAppTextSizeScale);
 
   const queueOfflineAudioDownloadsForLevel = useCallback(
     (level?: number) => {
@@ -1067,7 +1081,7 @@ function RootLayoutContentInner() {
   return (
     <>
       {appIsReady && (
-        <DashboardProvider>
+        <DashboardProvider key={`app-text-size-${normalizedAppTextSizeScale}`}>
           <MusicPlayerProvider>
             <StatusBar style={theme.statusBarStyle} />
             <Slot />

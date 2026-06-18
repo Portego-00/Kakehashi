@@ -60,6 +60,12 @@ export const PATCH_NOTES: PatchNote[] = [
     date: "2026-06-18",
     changes: [
       {
+        type: "feature",
+        title: "App Text Size",
+        description:
+          "Added a setting to increase app text size for more comfortable reading on larger displays.",
+      },
+      {
         type: "fix",
         title: "WaniKani Mnemonic Tags",
         description:
