@@ -19,6 +19,7 @@ import { hiraganaToKata } from "../utils/katakanaMadness";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { type SubjectColors, useSubjectColors } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
+import { stripWaniKaniMnemonicMarkup } from "../utils/wanikaniMnemonic";
 
 const { width } = Dimensions.get("window");
 
@@ -184,14 +185,7 @@ export default function SubjectTabs({
   const cleanMnemonicText = (text: string) => {
     if (!text) return "";
 
-    // Replace HTML tags with plain text
-    return text
-      .replace(/<[^>]*>/g, "") // Remove HTML tags
-      .replace(/&lt;/g, "<") // Replace HTML entities
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&")
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'");
+    return stripWaniKaniMnemonicMarkup(text);
   };
 
   // Play audio for vocabulary items

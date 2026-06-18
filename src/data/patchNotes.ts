@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.82",
+    date: "2026-06-18",
+    changes: [
+      {
+        type: "fix",
+        title: "WaniKani Mnemonic Tags",
+        description:
+          "Fixed WaniKani mnemonic rendering so malformed reading tags no longer show tag fragments in review and subject details.",
+      },
+    ],
+  },
+  {
     version: "1.2.81",
     date: "2026-06-17",
     changes: [

@@ -42,6 +42,7 @@ import {
 } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
+import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
@@ -390,68 +391,46 @@ export default function RadicalDetails({
   const formatMnemonic = (mnemonic: string) => {
     if (!mnemonic) return null;
 
-    // Replace HTML entities
-    let processedText = mnemonic.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    // Strip <ja> tags (open/self-closing and closing) entirely
-    processedText = processedText
-      .replace(/<ja\s*\/?>/g, "")
-      .replace(/<\/ja\s*>/g, "");
+    const tokens = tokenizeWaniKaniMnemonic(mnemonic);
+    if (tokens.length === 0) return null;
 
-    // Split the text by these tags to process them
-    const segments: React.ReactNode[] = [];
-
-    // Regular expression to find <em>, <radical>, <reading>, <ja> tags
-    const regex = /<(em|radical|reading|ja)>(.*?)<\/\1>|([^<]+)/g;
-    let match;
-    let index = 0;
-
-    while ((match = regex.exec(processedText)) !== null) {
-      if (match[3]) {
-        // Regular text
-        segments.push(
+    const segments: React.ReactNode[] = tokens.map((token, index) => {
+      if (token.type === "em") {
+        return (
           <Text
-            key={index++}
-            style={[styles.mnemonicText, { color: theme.textColor }]}
-          >
-            {match[3]}
-          </Text>
-        );
-      } else if (match[1] === "em") {
-        // Emphasized text
-        segments.push(
-          <Text
-            key={index++}
+            key={index}
             style={[styles.emText, { color: theme.textColor }]}
           >
-            {match[2]}
-          </Text>
-        );
-      } else if (match[1] === "radical") {
-        // Radical text
-        segments.push(
-          <View key={index++} style={styles.inlineRadicalTag}>
-            <Text style={styles.radicalTagText}>{match[2]}</Text>
-          </View>
-        );
-      } else if (match[1] === "reading") {
-        // Reading text
-        segments.push(
-          <View key={index++} style={styles.inlineReadingTag}>
-            <Text style={styles.readingTagText}>{match[2]}</Text>
-          </View>
-        );
-      } else if (match[1] === "ja") {
-        // Japanese text (render as plain text)
-        segments.push(
-          <Text
-            key={index++}
-            style={[styles.mnemonicText, { color: theme.textColor }]}
-          >
-            {match[2]}
+            {token.text}
           </Text>
         );
       }
-    }
+
+      if (token.type === "radical") {
+        return (
+          <View key={index} style={styles.inlineRadicalTag}>
+            <Text style={styles.radicalTagText}>{token.text}</Text>
+          </View>
+        );
+      }
+
+      if (token.type === "reading") {
+        return (
+          <View key={index} style={styles.inlineReadingTag}>
+            <Text style={styles.readingTagText}>{token.text}</Text>
+          </View>
+        );
+      }
+
+      return (
+        <Text
+          key={index}
+          style={[styles.mnemonicText, { color: theme.textColor }]}
+        >
+          {token.text}
+        </Text>
+      );
+    });
 
     return <Text style={styles.mnemonicTextContainer}>{segments}</Text>;
   };

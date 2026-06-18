@@ -85,6 +85,7 @@ import {
 } from "../utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
+import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
@@ -1350,82 +1351,64 @@ const SubjectContent = ({
   const formatMnemonic = (mnemonic: string) => {
     if (!mnemonic) return null;
 
-    // Replace HTML entities
-    let processedText = mnemonic.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    // Strip <ja> tags (open/self-closing and closing) entirely
-    processedText = processedText
-      .replace(/<ja\s*\/?>/g, "")
-      .replace(/<\/ja\s*>/g, "");
+    const tokens = tokenizeWaniKaniMnemonic(mnemonic);
+    if (tokens.length === 0) return null;
 
-    // Split the text by these tags to process them
-    const segments: React.ReactNode[] = [];
-
-    // Regular expression to find <em>, <radical>, <kanji>, <vocabulary>, <reading>, <ja> tags
-    const regex =
-      /<(em|radical|kanji|vocabulary|reading|ja)>(.*?)<\/\1>|([^<]+)/g;
-    let match;
-    let index = 0;
-
-    while ((match = regex.exec(processedText)) !== null) {
-      if (match[3]) {
-        // Regular text
-        segments.push(
-          <Text key={index++} style={styles.mnemonicText}>
-            {match[3]}
-          </Text>
-        );
-      } else if (match[1] === "em") {
-        // Emphasized text
-        segments.push(
-          <Text key={index++} style={styles.emText}>
-            {match[2]}
-          </Text>
-        );
-      } else if (match[1] === "radical") {
-        // Radical text
-        segments.push(
-          <Text key={index++}>
-            <View style={styles.inlineRadicalTag}>
-              <Text style={styles.radicalTagText}>{match[2]}</Text>
-            </View>
-          </Text>
-        );
-      } else if (match[1] === "kanji") {
-        // Kanji text
-        segments.push(
-          <Text key={index++}>
-            <View style={styles.inlineKanjiTag}>
-              <Text style={styles.kanjiTagText}>{match[2]}</Text>
-            </View>
-          </Text>
-        );
-      } else if (match[1] === "vocabulary") {
-        // Vocabulary text
-        segments.push(
-          <Text key={index++}>
-            <View style={styles.inlineVocabTag}>
-              <Text style={styles.vocabTagText}>{match[2]}</Text>
-            </View>
-          </Text>
-        );
-      } else if (match[1] === "reading") {
-        // Reading text
-        segments.push(
-          <Text key={index++}>
-            <View style={styles.inlineReadingTag}>
-              <Text style={styles.readingTagText}>{match[2]}</Text>
-            </View>
-          </Text>
-        );
-      } else if (match[1] === "ja") {
-        // Japanese text (render as plain text)
-        segments.push(
-          <Text key={index++} style={styles.mnemonicText}>
-            {match[2]}
+    const segments: React.ReactNode[] = tokens.map((token, index) => {
+      if (token.type === "em") {
+        return (
+          <Text key={index} style={styles.emText}>
+            {token.text}
           </Text>
         );
       }
-    }
+
+      if (token.type === "radical") {
+        return (
+          <Text key={index}>
+            <View style={styles.inlineRadicalTag}>
+              <Text style={styles.radicalTagText}>{token.text}</Text>
+            </View>
+          </Text>
+        );
+      }
+
+      if (token.type === "kanji") {
+        return (
+          <Text key={index}>
+            <View style={styles.inlineKanjiTag}>
+              <Text style={styles.kanjiTagText}>{token.text}</Text>
+            </View>
+          </Text>
+        );
+      }
+
+      if (token.type === "vocabulary") {
+        return (
+          <Text key={index}>
+            <View style={styles.inlineVocabTag}>
+              <Text style={styles.vocabTagText}>{token.text}</Text>
+            </View>
+          </Text>
+        );
+      }
+
+      if (token.type === "reading") {
+        return (
+          <Text key={index}>
+            <View style={styles.inlineReadingTag}>
+              <Text style={styles.readingTagText}>{token.text}</Text>
+            </View>
+          </Text>
+        );
+      }
+
+      return (
+        <Text key={index} style={styles.mnemonicText}>
+          {token.text}
+        </Text>
+      );
+    });
 
     return <Text style={styles.mnemonicTextContainer}>{segments}</Text>;
   };
