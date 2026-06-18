@@ -1132,6 +1132,8 @@ export default function ReviewQuestionScreen({
   const [wrongAnswerText, setWrongAnswerText] = useState<string | null>(null);
   const [closeAnswerText, setCloseAnswerText] = useState<string | null>(null);
   const [correctAnswerText, setCorrectAnswerText] = useState<string | null>(null);
+  const [reviewDetailSubject, setReviewDetailSubject] =
+    useState<WKSubject | null>(null);
   const [reviewDetailRelatedSubjects, setReviewDetailRelatedSubjects] =
     useState<ReviewDetailRelatedSubjects>(
       EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS,
@@ -1226,6 +1228,7 @@ export default function ReviewQuestionScreen({
   useEffect(() => {
     let cancelled = false;
 
+    setReviewDetailSubject(null);
     setReviewDetailRelatedSubjects(EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS);
 
     if (!effectiveShowAnswerStopSubjectDetails) {
@@ -1235,7 +1238,16 @@ export default function ReviewQuestionScreen({
     }
 
     const loadReviewDetailRelatedSubjects = async () => {
-      const subjectData = getSubjectDataRecord(item.subject);
+      const cachedSubject = normalizeCachedSubject(
+        await getSubjectById(item.subject.id),
+      );
+      const detailSubject = cachedSubject ?? item.subject;
+
+      if (!cancelled && cachedSubject) {
+        setReviewDetailSubject(cachedSubject);
+      }
+
+      const subjectData = getSubjectDataRecord(detailSubject);
       const componentIds = getSubjectIdList(subjectData.component_subject_ids);
       const amalgamationIds = getSubjectIdList(
         subjectData.amalgamation_subject_ids,
@@ -1250,7 +1262,7 @@ export default function ReviewQuestionScreen({
       ]);
 
       let visuallySimilarSubjects: WKSubject[] = [];
-      if (item.subject.object === "kanji") {
+      if (detailSubject.object === "kanji") {
         if (visuallySimilarKanjiSource === "niai") {
           const kanjiCharacter = subjectData.characters;
           if (typeof kanjiCharacter === "string" && kanjiCharacter.length > 0) {
@@ -3263,7 +3275,10 @@ export default function ReviewQuestionScreen({
   ]);
 
   const renderPausedSubjectDetails = () => {
-    const subject = item.subject;
+    const subject =
+      reviewDetailSubject?.id === item.subject.id
+        ? reviewDetailSubject
+        : item.subject;
     const data = getSubjectDataRecord(subject);
     const meanings = getSubjectMeanings(subject);
     const readings = getSubjectReadings(subject);
