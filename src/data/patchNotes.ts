@@ -65,6 +65,12 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Added an Add to Subject List action to Recent Mistakes so the current mistake batch can be saved into custom subject lists for mixed review sessions.",
       },
+      {
+        type: "fix",
+        title: "Lesson Order Level Priority",
+        description:
+          "Fixed interleaved lessons so lowest-level-first ordering finishes older-level items before newly unlocked level items.",
+      },
     ],
   },
   {

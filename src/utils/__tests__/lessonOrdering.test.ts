@@ -99,6 +99,22 @@ describe("lessonOrdering", () => {
     expect(sorted.map((item) => item.id)).toEqual([1, 3, 2]);
   });
 
+  it("uses WaniKani subject order as the tie-breaker for lowest level first", () => {
+    const items = [
+      createTestItem({ id: 1, level: 5, subjectId: 30 }),
+      createTestItem({ id: 2, level: 5, subjectId: 10 }),
+      createTestItem({ id: 3, level: 5, subjectId: 20 }),
+      createTestItem({ id: 4, level: 6, subjectId: 1 }),
+    ];
+
+    const sorted = sortLessonItemsForQueue(items, {
+      lessonOrder: "lowestLevelFirst",
+      randomFn: constantRandom(0),
+    });
+
+    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1, 4]);
+  });
+
   it("prioritizes critical (current level radical/kanji) items", () => {
     const items = [
       createTestItem({ id: 1, subjectType: "vocabulary", level: 10 }),
@@ -216,6 +232,52 @@ describe("lessonOrdering", () => {
 
     const topTwoIds = sorted.slice(0, 2).map((item) => item.id).sort();
     expect(topTwoIds).toEqual([2, 3]);
+  });
+
+  it("keeps lower-level lessons ahead of new-level items when interleaving", () => {
+    const items = [
+      createTestItem({
+        id: 1,
+        subjectType: "radical",
+        level: 11,
+        subjectId: 100,
+      }),
+      createTestItem({
+        id: 2,
+        subjectType: "kanji",
+        level: 11,
+        subjectId: 200,
+      }),
+      createTestItem({
+        id: 3,
+        subjectType: "vocabulary",
+        level: 10,
+        subjectId: 3000,
+      }),
+      createTestItem({
+        id: 4,
+        subjectType: "vocabulary",
+        level: 10,
+        subjectId: 3001,
+      }),
+      createTestItem({
+        id: 5,
+        subjectType: "vocabulary",
+        level: 10,
+        subjectId: 3002,
+      }),
+    ];
+
+    const sorted = sortLessonItemsForQueue(items, {
+      lessonOrder: "lowestLevelFirst",
+      interleaveLessonTypesEnabled: true,
+      randomFn: constantRandom(0),
+    });
+
+    expect(sorted.map((item) => item.subject.data.level)).toEqual([
+      10, 10, 10, 11, 11,
+    ]);
+    expect(sorted.map((item) => item.id)).toEqual([3, 4, 5, 1, 2]);
   });
 
   it("pulls radicals and kanji into each batch when minimum type coverage is enabled", () => {

@@ -39,7 +39,8 @@ export const LESSON_ORDER_OPTIONS: readonly LessonOrderOption[] = [
   {
     value: "lowestLevelFirst",
     label: "Lowest level first",
-    description: "Prioritize lower-level (older) lessons first.",
+    description:
+      "Prioritize lower-level (older) lessons first, then WaniKani order.",
   },
   {
     value: "newestUnlockedFirst",
@@ -197,10 +198,18 @@ function compareByLessonOrder(
   switch (lessonOrder) {
     case "random":
       return 0;
-    case "currentLevelFirst":
-      return (right.subject.data.level ?? 0) - (left.subject.data.level ?? 0);
-    case "lowestLevelFirst":
-      return (left.subject.data.level ?? 0) - (right.subject.data.level ?? 0);
+    case "currentLevelFirst": {
+      const levelComparison =
+        (right.subject.data.level ?? 0) - (left.subject.data.level ?? 0);
+      if (levelComparison !== 0) return levelComparison;
+      return (left.subjectId ?? 0) - (right.subjectId ?? 0);
+    }
+    case "lowestLevelFirst": {
+      const levelComparison =
+        (left.subject.data.level ?? 0) - (right.subject.data.level ?? 0);
+      if (levelComparison !== 0) return levelComparison;
+      return (left.subjectId ?? 0) - (right.subjectId ?? 0);
+    }
     case "newestUnlockedFirst":
       return compareDateDescending(left.availableAt, right.availableAt);
     case "oldestUnlockedFirst":
@@ -364,6 +373,56 @@ function interleaveItemsBySubjectType<T extends OrderableLessonItem>(
   return interleaved;
 }
 
+function shouldInterleaveWithinLessonOrderGroups(
+  lessonOrder: LessonOrderSetting
+): boolean {
+  return (
+    lessonOrder === "currentLevelFirst" || lessonOrder === "lowestLevelFirst"
+  );
+}
+
+function getLessonOrderGroupKey(item: OrderableLessonItem): number {
+  return item.subject.data.level ?? 0;
+}
+
+function interleaveLessonOrderGroupsBySubjectType<T extends OrderableLessonItem>(
+  sortedItems: T[],
+  lessonOrder: LessonOrderSetting,
+  lessonTypeOrder: LessonTypeOrderSetting[]
+): T[] {
+  if (
+    sortedItems.length <= 1 ||
+    !shouldInterleaveWithinLessonOrderGroups(lessonOrder)
+  ) {
+    return interleaveItemsBySubjectType(sortedItems, lessonTypeOrder);
+  }
+
+  const interleaved: T[] = [];
+  let currentGroup: T[] = [];
+  let currentGroupKey: number | null = null;
+
+  sortedItems.forEach((item) => {
+    const groupKey = getLessonOrderGroupKey(item);
+    if (currentGroupKey !== null && groupKey !== currentGroupKey) {
+      interleaved.push(
+        ...interleaveItemsBySubjectType(currentGroup, lessonTypeOrder)
+      );
+      currentGroup = [];
+    }
+
+    currentGroupKey = groupKey;
+    currentGroup.push(item);
+  });
+
+  if (currentGroup.length > 0) {
+    interleaved.push(
+      ...interleaveItemsBySubjectType(currentGroup, lessonTypeOrder)
+    );
+  }
+
+  return interleaved;
+}
+
 function countBatchMinimumTypes<T extends OrderableLessonItem>(
   batch: T[],
   minimumTypes: LessonTypeOrderSetting[]
@@ -507,8 +566,9 @@ export function sortLessonItemsForQueue<T extends OrderableLessonItem>(
     );
 
     if (!prioritizeCriticalItems) {
-      sortedItems = interleaveItemsBySubjectType(
+      sortedItems = interleaveLessonOrderGroupsBySubjectType(
         baseSorted,
+        lessonOrder,
         normalizedTypeOrder
       );
     } else {
@@ -524,8 +584,16 @@ export function sortLessonItemsForQueue<T extends OrderableLessonItem>(
       });
 
       sortedItems = [
-        ...interleaveItemsBySubjectType(criticalItems, normalizedTypeOrder),
-        ...interleaveItemsBySubjectType(nonCriticalItems, normalizedTypeOrder),
+        ...interleaveLessonOrderGroupsBySubjectType(
+          criticalItems,
+          lessonOrder,
+          normalizedTypeOrder
+        ),
+        ...interleaveLessonOrderGroupsBySubjectType(
+          nonCriticalItems,
+          lessonOrder,
+          normalizedTypeOrder
+        ),
       ];
     }
   } else {
