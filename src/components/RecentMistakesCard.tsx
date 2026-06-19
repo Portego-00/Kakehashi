@@ -20,6 +20,7 @@ import { RecentMistake } from "../types/wanikani";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
+import AddToSubjectListsModal from "./AddToSubjectListsModal";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -78,6 +79,7 @@ export default function RecentMistakesCard({
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const [selectedIndex, setSelectedIndex] = useState(1); // Default to 24h (index 1)
+  const [isSubjectListModalVisible, setIsSubjectListModalVisible] = useState(false);
   const isFirstRender = useRef(true);
 
   const timePeriod = TIME_PERIODS[selectedIndex];
@@ -106,7 +108,27 @@ export default function RecentMistakesCard({
     );
   }, [recentMistakes, timePeriod]);
 
+  const currentBatchSubjectIds = useMemo(
+    () => filteredMistakes.map((mistake) => mistake.id),
+    [filteredMistakes]
+  );
+
   const hasMistakes = filteredMistakes.length > 0;
+  const actionButtonStateStyle = {
+    backgroundColor: hasMistakes
+      ? theme.isDark
+        ? "rgba(255,255,255,0.1)"
+        : "rgba(0,0,0,0.05)"
+      : theme.isDark
+        ? "rgba(255,255,255,0.03)"
+        : "rgba(0,0,0,0.02)",
+    borderColor: hasMistakes
+      ? theme.border
+      : theme.isDark
+        ? "rgba(255,255,255,0.05)"
+        : "rgba(0,0,0,0.03)",
+    opacity: hasMistakes ? 1 : 0.5,
+  };
 
   // Animate layout changes when filtered mistakes change (but not on first render)
   useEffect(() => {
@@ -169,6 +191,12 @@ export default function RecentMistakesCard({
       pathname: "/custom-lesson",
       params: { subjectIds },
     });
+  };
+
+  const handleAddToSubjectList = () => {
+    if (!hasMistakes) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsSubjectListModalVisible(true);
   };
 
   const getTypeColor = (type: string) => {
@@ -261,32 +289,82 @@ export default function RecentMistakesCard({
 
       {/* Action buttons - always visible but disabled when no mistakes */}
       <View style={styles.actionsContainer}>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, actionButtonStateStyle]}
+            onPress={handleExtraStudy}
+            activeOpacity={hasMistakes ? 0.7 : 1}
+            disabled={!hasMistakes}
+          >
+            <Text
+              style={[
+                styles.actionButtonText,
+                { color: hasMistakes ? theme.textColor : theme.textLight },
+              ]}
+            >
+              Extra Study
+            </Text>
+            {hasMistakes && (
+              <View
+                style={[
+                  styles.actionBadge,
+                  { backgroundColor: subjectColors.vocabulary },
+                ]}
+              >
+                <Text style={styles.actionBadgeText}>{filteredMistakes.length}</Text>
+              </View>
+            )}
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={hasMistakes ? theme.textSecondary : theme.textLight}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              styles.actionButtonSecondary,
+              actionButtonStateStyle,
+            ]}
+            onPress={handleRedoLessons}
+            activeOpacity={hasMistakes ? 0.7 : 1}
+            disabled={!hasMistakes}
+          >
+            <Text
+              style={[
+                styles.actionButtonText,
+                { color: hasMistakes ? theme.textColor : theme.textLight },
+              ]}
+            >
+              Redo Lessons
+            </Text>
+            <Ionicons
+              name="refresh"
+              size={14}
+              color={hasMistakes ? theme.textSecondary : theme.textLight}
+            />
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: hasMistakes
-                ? theme.isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)"
-                : theme.isDark
-                  ? "rgba(255,255,255,0.03)"
-                  : "rgba(0,0,0,0.02)",
-              borderColor: hasMistakes ? theme.border : theme.isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
-              opacity: hasMistakes ? 1 : 0.5,
-            },
-          ]}
-          onPress={handleExtraStudy}
+          style={[styles.actionButton, styles.actionButtonFull, actionButtonStateStyle]}
+          onPress={handleAddToSubjectList}
           activeOpacity={hasMistakes ? 0.7 : 1}
           disabled={!hasMistakes}
         >
+          <Ionicons
+            name="list-outline"
+            size={16}
+            color={hasMistakes ? theme.textSecondary : theme.textLight}
+          />
           <Text
             style={[
               styles.actionButtonText,
               { color: hasMistakes ? theme.textColor : theme.textLight },
             ]}
           >
-            Extra Study
+            Add to Subject List
           </Text>
           {hasMistakes && (
             <View
@@ -298,48 +376,16 @@ export default function RecentMistakesCard({
               <Text style={styles.actionBadgeText}>{filteredMistakes.length}</Text>
             </View>
           )}
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={hasMistakes ? theme.textSecondary : theme.textLight}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.actionButtonSecondary,
-            {
-              backgroundColor: hasMistakes
-                ? theme.isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)"
-                : theme.isDark
-                  ? "rgba(255,255,255,0.03)"
-                  : "rgba(0,0,0,0.02)",
-              borderColor: hasMistakes ? theme.border : theme.isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
-              opacity: hasMistakes ? 1 : 0.5,
-            },
-          ]}
-          onPress={handleRedoLessons}
-          activeOpacity={hasMistakes ? 0.7 : 1}
-          disabled={!hasMistakes}
-        >
-          <Text
-            style={[
-              styles.actionButtonText,
-              { color: hasMistakes ? theme.textColor : theme.textLight },
-            ]}
-          >
-            Redo Lessons
-          </Text>
-          <Ionicons
-            name="refresh"
-            size={14}
-            color={hasMistakes ? theme.textSecondary : theme.textLight}
-          />
         </TouchableOpacity>
       </View>
+
+      <AddToSubjectListsModal
+        visible={isSubjectListModalVisible}
+        subjectIds={currentBatchSubjectIds}
+        subjectLabel={`${getTimePeriodLabel()} mistakes (${currentBatchSubjectIds.length})`}
+        appendOnly
+        onClose={() => setIsSubjectListModalVisible(false)}
+      />
     </View>
   );
 }
@@ -421,8 +467,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   actionsContainer: {
-    flexDirection: "row",
     marginTop: 16,
+    gap: 10,
+  },
+  actionRow: {
+    flexDirection: "row",
     gap: 10,
   },
   actionButton: {
@@ -439,6 +488,10 @@ const styles = StyleSheet.create({
   actionButtonSecondary: {
     flex: 0,
     paddingHorizontal: 16,
+  },
+  actionButtonFull: {
+    flex: 0,
+    width: "100%",
   },
   actionButtonText: {
     fontSize: 14,

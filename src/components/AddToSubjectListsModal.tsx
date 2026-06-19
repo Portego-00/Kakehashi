@@ -28,6 +28,7 @@ interface AddToSubjectListsModalProps {
   subjectIds?: number[];
   subjectType?: string;
   subjectLabel?: string;
+  appendOnly?: boolean;
   onClose: () => void;
   onSaved?: () => void | Promise<void>;
 }
@@ -38,6 +39,7 @@ export default function AddToSubjectListsModal({
   subjectIds,
   subjectType,
   subjectLabel,
+  appendOnly = false,
   onClose,
   onSaved,
 }: AddToSubjectListsModalProps) {
@@ -66,7 +68,8 @@ export default function AddToSubjectListsModal({
     });
     return normalized;
   }, [subjectId, subjectIds]);
-  const isBulkMode = targetSubjectIds.length > 1;
+  const hasMultipleSubjects = targetSubjectIds.length > 1;
+  const isAddOnlyMode = appendOnly || hasMultipleSubjects;
   const singleSubjectId = targetSubjectIds[0];
 
   const subtitle = useMemo(() => {
@@ -76,7 +79,7 @@ export default function AddToSubjectListsModal({
     if (subjectLabel) {
       return subjectLabel;
     }
-    if (isBulkMode) {
+    if (hasMultipleSubjects) {
       return `${targetSubjectIds.length} subjects`;
     }
     if (subjectType) {
@@ -87,7 +90,7 @@ export default function AddToSubjectListsModal({
     }
     return "No subjects selected";
   }, [
-    isBulkMode,
+    hasMultipleSubjects,
     singleSubjectId,
     subjectLabel,
     subjectType,
@@ -100,7 +103,7 @@ export default function AddToSubjectListsModal({
     try {
       const [allLists, listIdsContainingSubject] = await Promise.all([
         getSubjectLists(),
-        !isBulkMode && singleSubjectId
+        !isAddOnlyMode && singleSubjectId
           ? getListIdsContainingSubject(singleSubjectId)
           : Promise.resolve([]),
       ]);
@@ -123,7 +126,7 @@ export default function AddToSubjectListsModal({
     } finally {
       setIsLoading(false);
     }
-  }, [isBulkMode, singleSubjectId]);
+  }, [isAddOnlyMode, singleSubjectId]);
 
   useEffect(() => {
     if (!visible) {
@@ -154,7 +157,7 @@ export default function AddToSubjectListsModal({
       setIsCreatingList(true);
       const created = await createSubjectList(
         name,
-        isBulkMode ? targetSubjectIds : []
+        isAddOnlyMode ? targetSubjectIds : []
       );
       setNewListName("");
       setLists((prev) => [created, ...prev]);
@@ -177,7 +180,7 @@ export default function AddToSubjectListsModal({
       setError("No subjects selected.");
       return;
     }
-    if (isBulkMode && selectedListIdArray.length === 0) {
+    if (isAddOnlyMode && selectedListIdArray.length === 0) {
       setError("Select at least one list.");
       return;
     }
@@ -185,7 +188,7 @@ export default function AddToSubjectListsModal({
     setIsSaving(true);
     setError(null);
     try {
-      if (isBulkMode) {
+      if (isAddOnlyMode) {
         await addSubjectsToLists(selectedListIdArray, targetSubjectIds);
       } else {
         if (!singleSubjectId) {
@@ -359,7 +362,11 @@ export default function AddToSubjectListsModal({
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
                 <Text style={styles.footerSaveButtonText}>
-                  {isBulkMode ? "Add All" : "Save"}
+                  {isAddOnlyMode
+                    ? hasMultipleSubjects
+                      ? "Add All"
+                      : "Add"
+                    : "Save"}
                 </Text>
               )}
             </TouchableOpacity>
