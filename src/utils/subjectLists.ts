@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuthStore } from "./store";
 
 const SUBJECT_LISTS_STORAGE_KEY = "subject_lists:v1";
-const LOCAL_SUBJECT_LISTS_SCHEMA_VERSION = 2;
+const LOCAL_SUBJECT_LISTS_SCHEMA_VERSION = 3;
 const MAX_LIST_NAME_LENGTH = 60;
 const SUBJECT_LISTS_SYNC_COOLDOWN_MS = 20_000;
 const SUBJECT_LISTS_TABLE_NAME = "subject_lists";
@@ -16,6 +16,7 @@ export interface SubjectList {
   subjectIds: number[];
   createdAt: string;
   updatedAt: string;
+  sortOrder: number;
 }
 
 interface SubjectListRecord extends SubjectList {
@@ -25,7 +26,7 @@ interface SubjectListRecord extends SubjectList {
 }
 
 interface SubjectListsPayload {
-  version: 2;
+  version: 3;
   lists: SubjectListRecord[];
 }
 
@@ -68,6 +69,28 @@ function compareUpdatedAtDesc(left: { updatedAt: string }, right: { updatedAt: s
     return rightTime - leftTime;
   }
   return 0;
+}
+
+function compareByLegacyDisplayOrder(
+  left: Pick<SubjectListRecord, "updatedAt" | "name" | "id">,
+  right: Pick<SubjectListRecord, "updatedAt" | "name" | "id">
+): number {
+  const byUpdatedAt = compareUpdatedAtDesc(left, right);
+  if (byUpdatedAt !== 0) {
+    return byUpdatedAt;
+  }
+  const byName = left.name.localeCompare(right.name);
+  if (byName !== 0) {
+    return byName;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+function normalizeSortOrder(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
 }
 
 function sanitizeListName(name: string): string {
@@ -144,6 +167,7 @@ function normalizeRecord(raw: Partial<SubjectListRecord>): SubjectListRecord {
     subjectIds: normalizeSubjectIds(raw.subjectIds),
     createdAt,
     updatedAt,
+    sortOrder: normalizeSortOrder(raw.sortOrder) ?? Number.MAX_SAFE_INTEGER,
     ownerUserId:
       typeof raw.ownerUserId === "string" && raw.ownerUserId.trim()
         ? raw.ownerUserId
@@ -169,7 +193,7 @@ function normalizePayload(rawPayload: unknown): SubjectListsPayload {
     const rawEntry = (entry ?? {}) as Partial<SubjectListRecord>;
     const normalizedEntry = normalizeRecord(rawEntry);
 
-    if (parsed.version === LOCAL_SUBJECT_LISTS_SCHEMA_VERSION) {
+    if (parsed.version === LOCAL_SUBJECT_LISTS_SCHEMA_VERSION || parsed.version === 2) {
       return normalizedEntry;
     }
 
@@ -184,22 +208,36 @@ function normalizePayload(rawPayload: unknown): SubjectListsPayload {
 
   return {
     version: LOCAL_SUBJECT_LISTS_SCHEMA_VERSION,
-    lists: sortRecords(lists),
+    lists: normalizeRecordOrder(lists),
   };
 }
 
 function sortRecords(records: SubjectListRecord[]): SubjectListRecord[] {
   return [...records].sort((left, right) => {
-    const byUpdatedAt = compareUpdatedAtDesc(left, right);
-    if (byUpdatedAt !== 0) {
-      return byUpdatedAt;
+    const leftSortOrder = normalizeSortOrder(left.sortOrder);
+    const rightSortOrder = normalizeSortOrder(right.sortOrder);
+
+    if (leftSortOrder !== null && rightSortOrder !== null && leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder;
     }
-    const byName = left.name.localeCompare(right.name);
-    if (byName !== 0) {
-      return byName;
+
+    if (leftSortOrder !== null && rightSortOrder === null) {
+      return -1;
     }
-    return left.id.localeCompare(right.id);
+
+    if (leftSortOrder === null && rightSortOrder !== null) {
+      return 1;
+    }
+
+    return compareByLegacyDisplayOrder(left, right);
   });
+}
+
+function normalizeRecordOrder(records: SubjectListRecord[]): SubjectListRecord[] {
+  return sortRecords(records).map((record, index) => ({
+    ...record,
+    sortOrder: index,
+  }));
 }
 
 function isLatestSchema(rawPayload: unknown): boolean {
@@ -254,6 +292,7 @@ function toPublicList(record: SubjectListRecord): SubjectList {
     subjectIds: [...record.subjectIds],
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    sortOrder: record.sortOrder,
   };
 }
 
@@ -534,7 +573,10 @@ async function mergeRemoteRows(
 
     if (remoteTime > localTime) {
       hasChanges = true;
-      return remote;
+      return {
+        ...remote,
+        sortOrder: record.sortOrder,
+      };
     }
 
     if (localTime > remoteTime) {
@@ -556,7 +598,10 @@ async function mergeRemoteRows(
       !areSubjectIdsEqual(record.subjectIds, remote.subjectIds)
     ) {
       hasChanges = true;
-      return remote;
+      return {
+        ...remote,
+        sortOrder: record.sortOrder,
+      };
     }
 
     return record;
@@ -702,6 +747,11 @@ export async function createSubjectList(
   const payload = await readPayload();
   const userId = getCurrentUserId();
   const timestamp = nowIso();
+  const visibleSortOrders = getVisibleRecords(payload, userId).map(
+    (record) => record.sortOrder
+  );
+  const topSortOrder =
+    visibleSortOrders.length > 0 ? Math.min(...visibleSortOrders) - 1 : 0;
 
   const newRecord = normalizeRecord({
     id: generateListId(),
@@ -710,6 +760,7 @@ export async function createSubjectList(
     subjectIds: initialSubjectIds,
     createdAt: timestamp,
     updatedAt: timestamp,
+    sortOrder: topSortOrder,
     deletedAt: null,
     syncStatus: "pending_upsert",
   });
@@ -718,6 +769,47 @@ export async function createSubjectList(
   await writePayload(payload);
   void queueSync({ force: true });
   return toPublicList(newRecord);
+}
+
+export async function reorderSubjectLists(
+  orderedListIds: string[]
+): Promise<SubjectList[]> {
+  const payload = await readPayload();
+  const userId = getCurrentUserId();
+  const visibleRecords = getVisibleRecords(payload, userId);
+  const visibleById = new Map(visibleRecords.map((record) => [record.id, record]));
+  const requestedIds = orderedListIds.filter((listId) => visibleById.has(listId));
+  const requestedIdSet = new Set(requestedIds);
+  const nextVisibleRecords = [
+    ...requestedIds.map((listId) => visibleById.get(listId)!),
+    ...visibleRecords.filter((record) => !requestedIdSet.has(record.id)),
+  ];
+  const nextSortOrderById = new Map(
+    nextVisibleRecords.map((record, index) => [record.id, index])
+  );
+
+  let hasChanges = false;
+  payload.lists = payload.lists.map((record) => {
+    const nextSortOrder = nextSortOrderById.get(record.id);
+    if (nextSortOrder === undefined || record.sortOrder === nextSortOrder) {
+      return record;
+    }
+
+    hasChanges = true;
+    return {
+      ...record,
+      sortOrder: nextSortOrder,
+    };
+  });
+
+  if (hasChanges) {
+    await writePayload(payload);
+  }
+
+  const refreshedPayload = hasChanges ? await readPayload() : payload;
+  return getVisibleRecords(refreshedPayload, userId).map((record) =>
+    toPublicList(record)
+  );
 }
 
 export async function renameSubjectList(

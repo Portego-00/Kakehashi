@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.84",
+    date: "2026-06-20",
+    changes: [
+      {
+        type: "feature",
+        title: "Compact Subject Lists",
+        description:
+          "Made Subject Lists easier to manage with tap-to-enter cards, rename from the edit icon, optional item previews, saved manual list ordering, and a settings menu for compact view controls.",
+        link: {
+          route: "/subject-lists",
+          label: "Open Subject Lists",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.83",
     date: "2026-06-19",
     changes: [

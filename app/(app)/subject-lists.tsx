@@ -1,13 +1,16 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import type { GestureResponderEvent } from "react-native";
 import {
   Alert,
   FlatList,
   Image,
   Modal,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -21,10 +24,15 @@ import {
   createSubjectList,
   deleteSubjectList,
   getSubjectLists,
+  renameSubjectList,
+  reorderSubjectLists,
   syncSubjectListsNow,
   SubjectList,
 } from "../../src/utils/subjectLists";
 const noListsIllustration = require("../../assets/images/NoLists.png");
+const SUBJECT_LISTS_SHOW_PREVIEW_KEY = "subject_lists:show_preview";
+const SUBJECT_LISTS_SHOW_REORDER_CONTROLS_KEY =
+  "subject_lists:show_reorder_controls";
 
 function getItemTypeColor(itemType: string): string {
   if (itemType === "radical" || itemType === "kanji" || itemType === "vocabulary" || itemType === "kana_vocabulary") {
@@ -66,6 +74,41 @@ export default function SubjectListsScreen() {
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [showItemPreview, setShowItemPreview] = useState(true);
+  const [showReorderControls, setShowReorderControls] = useState(false);
+  const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<SubjectList | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      AsyncStorage.getItem(SUBJECT_LISTS_SHOW_PREVIEW_KEY),
+      AsyncStorage.getItem(SUBJECT_LISTS_SHOW_REORDER_CONTROLS_KEY),
+    ])
+      .then(([storedPreviewValue, storedReorderValue]) => {
+        if (!isMounted) {
+          return;
+        }
+
+        if (storedPreviewValue !== null) {
+          setShowItemPreview(storedPreviewValue !== "false");
+        }
+        if (storedReorderValue !== null) {
+          setShowReorderControls(storedReorderValue === "true");
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to load subject list settings:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const openCreateModal = () => {
     setNewListName("");
@@ -75,6 +118,36 @@ export default function SubjectListsScreen() {
   const closeCreateModal = () => {
     setIsCreateModalVisible(false);
     setNewListName("");
+  };
+
+  const openRenameModal = (list: SubjectList) => {
+    setRenameTarget(list);
+    setRenameValue(list.name);
+  };
+
+  const closeRenameModal = () => {
+    if (isRenaming) return;
+    setRenameTarget(null);
+    setRenameValue("");
+  };
+
+  const handlePreviewToggle = (value: boolean) => {
+    setShowItemPreview(value);
+    AsyncStorage.setItem(SUBJECT_LISTS_SHOW_PREVIEW_KEY, value ? "true" : "false").catch(
+      (error) => {
+        console.warn("Failed to save subject list preview preference:", error);
+      }
+    );
+  };
+
+  const handleReorderControlsToggle = (value: boolean) => {
+    setShowReorderControls(value);
+    AsyncStorage.setItem(
+      SUBJECT_LISTS_SHOW_REORDER_CONTROLS_KEY,
+      value ? "true" : "false"
+    ).catch((error) => {
+      console.warn("Failed to save subject list reorder setting:", error);
+    });
   };
 
   const reload = useCallback(async () => {
@@ -143,6 +216,39 @@ export default function SubjectListsScreen() {
     }
   };
 
+  const handleRename = async () => {
+    if (!renameTarget) return;
+
+    const name = renameValue.trim();
+    const targetName = name.length > 0 ? name : "Untitled List";
+    if (targetName === renameTarget.name) {
+      closeRenameModal();
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      const renamed = await renameSubjectList(renameTarget.id, targetName);
+      if (!renamed) {
+        Alert.alert("Error", "Could not rename this list.");
+        return;
+      }
+
+      setLists((currentLists) =>
+        currentLists.map((list) =>
+          list.id === renamed.id ? { ...list, ...renamed } : list
+        )
+      );
+      setRenameTarget(null);
+      setRenameValue("");
+    } catch (error) {
+      console.error("Failed to rename list:", error);
+      Alert.alert("Error", "Failed to rename list.");
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   const handleDelete = (list: SubjectList) => {
     Alert.alert(
       "Delete List",
@@ -159,6 +265,41 @@ export default function SubjectListsScreen() {
         },
       ],
     );
+  };
+
+  const handleMoveList = async (listId: string, direction: -1 | 1) => {
+    if (isSavingOrder) return;
+
+    const currentIndex = lists.findIndex((list) => list.id === listId);
+    const nextIndex = currentIndex + direction;
+    if (
+      currentIndex === -1 ||
+      nextIndex < 0 ||
+      nextIndex >= lists.length
+    ) {
+      return;
+    }
+
+    const nextLists = [...lists];
+    const [movedList] = nextLists.splice(currentIndex, 1);
+    nextLists.splice(nextIndex, 0, movedList);
+    setLists(nextLists);
+    setIsSavingOrder(true);
+
+    try {
+      const reordered = await reorderSubjectLists(nextLists.map((list) => list.id));
+      setLists(reordered);
+    } catch (error) {
+      console.error("Failed to reorder subject lists:", error);
+      Alert.alert("Error", "Failed to reorder lists.");
+      await reload();
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const stopCardPress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
   };
 
   return (
@@ -182,12 +323,21 @@ export default function SubjectListsScreen() {
         <Text style={[styles.headerTitle, { color: theme.textColor }]}>
           Subject Lists
         </Text>
-        <GlassButton
-          iconName="add"
-          onPress={openCreateModal}
-          iconColor={theme.textColor}
-          variant={theme.isDark ? "colored" : "light"}
-        />
+        <View style={styles.headerActions}>
+          <GlassButton
+            iconName="add"
+            onPress={openCreateModal}
+            iconColor={theme.textColor}
+            variant={theme.isDark ? "colored" : "light"}
+          />
+          <GlassButton
+            iconName="settings-outline"
+            iconSize={20}
+            onPress={() => setIsSettingsModalVisible(true)}
+            iconColor={theme.textColor}
+            variant={theme.isDark ? "colored" : "light"}
+          />
+        </View>
       </View>
 
       {isLoading ? (
@@ -222,7 +372,7 @@ export default function SubjectListsScreen() {
               </TouchableOpacity>
             </View>
           }
-          renderItem={({ item }) =>
+          renderItem={({ item, index }) =>
             (() => {
               const previewSubjects = item.subjectIds
                 .slice(0, 4)
@@ -232,6 +382,9 @@ export default function SubjectListsScreen() {
                 0,
                 item.subjectIds.length - previewSubjects.length,
               );
+              const isMoveUpDisabled = index === 0 || isSavingOrder;
+              const isMoveDownDisabled =
+                index === lists.length - 1 || isSavingOrder;
 
               return (
                 <TouchableOpacity
@@ -258,7 +411,7 @@ export default function SubjectListsScreen() {
                       {item.subjectIds.length === 1 ? "" : "s"} • Updated{" "}
                       {formatUpdatedAt(item.updatedAt)}
                     </Text>
-                    {previewSubjects.length > 0 && (
+                    {showItemPreview && previewSubjects.length > 0 && (
                       <View style={styles.previewRow}>
                         {previewSubjects.map((subject) => (
                           <View
@@ -307,14 +460,70 @@ export default function SubjectListsScreen() {
                     )}
                   </View>
                   <View style={styles.actions}>
+                    {showReorderControls && (
+                      <View style={styles.reorderActions}>
+                        <TouchableOpacity
+                          style={[
+                            styles.reorderButton,
+                            {
+                              backgroundColor: theme.isDark
+                                ? "rgba(255,255,255,0.08)"
+                                : "rgba(0,0,0,0.05)",
+                              opacity: isMoveUpDisabled ? 0.4 : 1,
+                            },
+                          ]}
+                          onPress={(event) => {
+                            stopCardPress(event);
+                            if (!isMoveUpDisabled) {
+                              handleMoveList(item.id, -1);
+                            }
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Move ${item.name} up`}
+                          accessibilityState={{ disabled: isMoveUpDisabled }}
+                        >
+                          <Ionicons
+                            name="chevron-up"
+                            size={16}
+                            color={theme.textColor}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.reorderButton,
+                            {
+                              backgroundColor: theme.isDark
+                                ? "rgba(255,255,255,0.08)"
+                                : "rgba(0,0,0,0.05)",
+                              opacity: isMoveDownDisabled ? 0.4 : 1,
+                            },
+                          ]}
+                          onPress={(event) => {
+                            stopCardPress(event);
+                            if (!isMoveDownDisabled) {
+                              handleMoveList(item.id, 1);
+                            }
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Move ${item.name} down`}
+                          accessibilityState={{ disabled: isMoveDownDisabled }}
+                        >
+                          <Ionicons
+                            name="chevron-down"
+                            size={16}
+                            color={theme.textColor}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                     <TouchableOpacity
                       style={styles.actionButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/subject-list/[id]",
-                          params: { id: item.id },
-                        })
-                      }
+                      onPress={(event) => {
+                        stopCardPress(event);
+                        openRenameModal(item);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Rename ${item.name}`}
                     >
                       <Ionicons
                         name="create-outline"
@@ -324,7 +533,12 @@ export default function SubjectListsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionButton}
-                      onPress={() => handleDelete(item)}
+                      onPress={(event) => {
+                        stopCardPress(event);
+                        handleDelete(item);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${item.name}`}
                     >
                       <Ionicons
                         name="trash-outline"
@@ -339,6 +553,121 @@ export default function SubjectListsScreen() {
           }
         />
       )}
+
+      <Modal
+        visible={isSettingsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsSettingsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View style={styles.settingsModalHeader}>
+              <Text
+                style={[
+                  styles.modalTitle,
+                  styles.settingsModalTitle,
+                  { color: theme.textColor },
+                ]}
+              >
+                Subject List Settings
+              </Text>
+              <TouchableOpacity
+                style={styles.settingsCloseButton}
+                onPress={() => setIsSettingsModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close subject list settings"
+              >
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingsRows}>
+              <View
+                style={[
+                  styles.settingsRow,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.backgroundColor,
+                  },
+                ]}
+              >
+                <View style={styles.settingsRowIcon}>
+                  <Ionicons
+                    name="albums-outline"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </View>
+                <View style={styles.settingsRowText}>
+                  <Text style={[styles.settingsRowTitle, { color: theme.textColor }]}>
+                    Item Preview
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingsRowDescription,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Show sample items on list cards.
+                  </Text>
+                </View>
+                <Switch
+                  value={showItemPreview}
+                  onValueChange={handlePreviewToggle}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.settingsRow,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.backgroundColor,
+                  },
+                ]}
+              >
+                <View style={styles.settingsRowIcon}>
+                  <Ionicons
+                    name="reorder-three-outline"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </View>
+                <View style={styles.settingsRowText}>
+                  <Text style={[styles.settingsRowTitle, { color: theme.textColor }]}>
+                    Move Arrows
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingsRowDescription,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Show up and down controls for list order.
+                  </Text>
+                </View>
+                <Switch
+                  value={showReorderControls}
+                  onValueChange={handleReorderControlsToggle}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={isCreateModalVisible}
@@ -407,6 +736,74 @@ export default function SubjectListsScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={renameTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRenameModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+              Rename Subject List
+            </Text>
+            <TextInput
+              style={[
+                styles.modalInput,
+                {
+                  borderColor: theme.border,
+                  color: theme.textColor,
+                  backgroundColor: theme.backgroundColor,
+                },
+              ]}
+              value={renameValue}
+              onChangeText={setRenameValue}
+              placeholder="List name"
+              placeholderTextColor={theme.textLight}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleRename}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, { borderColor: theme.border }]}
+                onPress={closeRenameModal}
+                disabled={isRenaming}
+              >
+                <Text
+                  style={[styles.modalButtonText, { color: theme.textColor }]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: theme.primary,
+                    opacity: isRenaming ? 0.7 : 1,
+                  },
+                ]}
+                onPress={handleRename}
+                disabled={isRenaming}
+              >
+                <Text style={styles.modalPrimaryButtonText}>
+                  {isRenaming ? "Renaming..." : "Rename"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -427,6 +824,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 20,
@@ -434,8 +836,8 @@ const styles = StyleSheet.create({
   },
   listCard: {
     borderRadius: 14,
-    marginBottom: 10,
-    padding: 14,
+    marginBottom: 8,
+    padding: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -496,7 +898,18 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 8,
+  },
+  reorderActions: {
+    gap: 4,
+  },
+  reorderButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionButton: {
     width: 34,
@@ -558,6 +971,53 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 12,
+  },
+  settingsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 12,
+  },
+  settingsModalTitle: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  settingsCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsRows: {
+    gap: 10,
+  },
+  settingsRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  settingsRowIcon: {
+    width: 24,
+    alignItems: "center",
+  },
+  settingsRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  settingsRowTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  settingsRowDescription: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
   },
   modalInput: {
     borderWidth: 1,
