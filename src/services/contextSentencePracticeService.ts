@@ -27,6 +27,14 @@ const VERB_CONJUGATION_SUFFIX_PATTERN =
 const I_ADJECTIVE_SUFFIX_PATTERN =
   "(?:くなかった|くない|かった|くて|ければ|い)";
 
+function uniqueById(subjects: Subject[]): Subject[] {
+  return Array.from(new Map(subjects.map((subject) => [subject.id, subject])).values());
+}
+
+function shuffle<T>(items: T[]): T[] {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
 function getStageIds(config: ContextSentencePracticeConfig): number[] {
   const stageMap = {
     apprentice: [1, 2, 3, 4],
@@ -185,41 +193,159 @@ function createKanjiChoices(correct: Subject, distractors: Subject[]): KanjiChoi
   return choices.sort(() => Math.random() - 0.5);
 }
 
-function generateDistractors(correct: Subject, allVocabs: Subject[], count: number): Subject[] {
+function normalizePartOfSpeech(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function getNormalizedPartsOfSpeech(subject: Subject): string[] {
+  const partsOfSpeech = subject.data.parts_of_speech ?? [];
+  return Array.from(
+    new Set(
+      partsOfSpeech
+        .map(normalizePartOfSpeech)
+        .filter((partOfSpeech) => partOfSpeech.length > 0)
+    )
+  ).sort();
+}
+
+function getPartOfSpeechSignature(subject: Subject): string | null {
+  const normalizedParts = getNormalizedPartsOfSpeech(subject);
+  if (normalizedParts.length === 0) {
+    return null;
+  }
+
+  return normalizedParts.join("|");
+}
+
+function getGrammarPartOfSpeechTags(partOfSpeech: string): string[] {
+  const tags: string[] = [];
+
+  if (
+    partOfSpeech.includes("い adjective") ||
+    partOfSpeech.includes("i adjective") ||
+    partOfSpeech.includes("adj i")
+  ) {
+    tags.push("i-adjective");
+  } else if (
+    partOfSpeech.includes("な adjective") ||
+    partOfSpeech.includes("na adjective") ||
+    partOfSpeech.includes("adj na")
+  ) {
+    tags.push("na-adjective");
+  } else if (
+    partOfSpeech.includes("の adjective") ||
+    partOfSpeech.includes("no adjective") ||
+    partOfSpeech.includes("adj no")
+  ) {
+    tags.push("no-adjective");
+  } else if (partOfSpeech.includes("adjective")) {
+    tags.push("adjective");
+  }
+
+  if (partOfSpeech.includes("adverb")) {
+    tags.push("adverb");
+  }
+
+  if (/(^|\s)verb(\s|$)/.test(partOfSpeech)) {
+    tags.push("verb");
+  }
+
+  if (partOfSpeech.includes("noun")) {
+    tags.push("noun");
+  }
+
+  for (const tag of [
+    "counter",
+    "expression",
+    "interjection",
+    "conjunction",
+    "prefix",
+    "suffix",
+    "numeral",
+  ]) {
+    if (partOfSpeech.includes(tag)) {
+      tags.push(tag);
+    }
+  }
+
+  return tags.length > 0 ? tags : [partOfSpeech];
+}
+
+function getSubjectGrammarTags(subject: Subject): string[] {
+  return Array.from(
+    new Set(getNormalizedPartsOfSpeech(subject).flatMap(getGrammarPartOfSpeechTags))
+  ).sort();
+}
+
+function hasCompatiblePartOfSpeech(correct: Subject, candidate: Subject): boolean {
+  const correctTags = getSubjectGrammarTags(correct);
+  if (correctTags.length === 0) {
+    return false;
+  }
+
+  const candidateTags = new Set(getSubjectGrammarTags(candidate));
+  return correctTags.some((tag) => candidateTags.has(tag));
+}
+
+function rankDistractorCandidates(correct: Subject, candidates: Subject[]): Subject[] {
   const getReading = (subject: Subject) =>
     subject.data.readings?.[0]?.reading || subject.data.characters || "";
 
   const correctReading = getReading(correct);
   const correctLevel = correct.data.level;
 
-  const similarReading = allVocabs.filter((subject) => {
-    if (subject.id === correct.id) return false;
+  const similarReading = candidates.filter((subject) => {
     const reading = getReading(subject);
     const lengthDiff = Math.abs(correctReading.length - reading.length);
     return lengthDiff <= 1;
   });
 
-  const sameLevel = allVocabs.filter(
-    (subject) => subject.id !== correct.id && subject.data.level === correctLevel
+  const sameLevel = candidates.filter(
+    (subject) => subject.data.level === correctLevel
   );
 
-  const sameFirstChar = allVocabs.filter((subject) => {
-    if (subject.id === correct.id) return false;
+  const sameFirstChar = candidates.filter((subject) => {
     const correctFirst = correct.data.characters?.[0];
     const subjectFirst = subject.data.characters?.[0];
     return Boolean(correctFirst && subjectFirst && correctFirst === subjectFirst);
   });
 
-  const randomPool = allVocabs.filter((subject) => subject.id !== correct.id);
-  const pool = [
-    ...similarReading.slice(0, 2),
-    ...sameFirstChar.slice(0, 1),
-    ...sameLevel.slice(0, 2),
-    ...randomPool,
-  ];
+  return uniqueById([
+    ...shuffle(similarReading).slice(0, 2),
+    ...shuffle(sameFirstChar).slice(0, 1),
+    ...shuffle(sameLevel).slice(0, 2),
+    ...shuffle(candidates),
+  ]);
+}
 
-  const uniquePool = Array.from(new Map(pool.map((subject) => [subject.id, subject])).values());
-  return uniquePool.sort(() => Math.random() - 0.5).slice(0, count);
+function generateDistractors(correct: Subject, allVocabs: Subject[], count: number): Subject[] {
+  const candidates = allVocabs.filter((subject) => subject.id !== correct.id);
+  const correctPartOfSpeechSignature = getPartOfSpeechSignature(correct);
+
+  const exactPartOfSpeechCandidates = correctPartOfSpeechSignature
+    ? candidates.filter(
+        (subject) => getPartOfSpeechSignature(subject) === correctPartOfSpeechSignature
+      )
+    : [];
+  const compatiblePartOfSpeechCandidates = correctPartOfSpeechSignature
+    ? candidates.filter(
+        (subject) =>
+          getPartOfSpeechSignature(subject) !== correctPartOfSpeechSignature &&
+          hasCompatiblePartOfSpeech(correct, subject)
+      )
+    : [];
+
+  const rankedPool = uniqueById([
+    ...rankDistractorCandidates(correct, exactPartOfSpeechCandidates),
+    ...rankDistractorCandidates(correct, compatiblePartOfSpeechCandidates),
+    ...rankDistractorCandidates(correct, candidates),
+  ]);
+
+  return rankedPool.slice(0, count);
 }
 
 function passesLevelRange(subject: Subject, config: ContextSentencePracticeConfig): boolean {

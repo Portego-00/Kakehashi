@@ -69,6 +69,12 @@ export const PATCH_NOTES: PatchNote[] = [
           label: "Open Subject Lists",
         },
       },
+      {
+        type: "fix",
+        title: "Context Sentence Choices",
+        description:
+          "Multiple-choice context sentence practice now prefers answer choices with matching parts of speech, making distractors less obvious from grammar alone.",
+      },
     ],
   },
   {
