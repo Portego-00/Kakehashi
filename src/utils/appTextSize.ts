@@ -2,7 +2,7 @@ import { StyleSheet } from "react-native";
 
 export const DEFAULT_APP_TEXT_SIZE_SCALE = 1;
 export const APP_TEXT_SIZE_SCALE_MIN = 1;
-export const APP_TEXT_SIZE_SCALE_MAX = 1.5;
+export const APP_TEXT_SIZE_SCALE_MAX = 3;
 
 export const APP_TEXT_SIZE_OPTIONS = [
   {
@@ -22,8 +22,18 @@ export const APP_TEXT_SIZE_OPTIONS = [
   },
   {
     label: "Largest",
-    description: "Maximum app text size.",
+    description: "Maximum text size for phones and tablets.",
     scale: 1.5,
+  },
+  {
+    label: "Huge",
+    description: "Larger text for desktop-sized displays.",
+    scale: 2,
+  },
+  {
+    label: "Ultra",
+    description: "Extra large text for distant viewing.",
+    scale: 3,
   },
 ] as const;
 

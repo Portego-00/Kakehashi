@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.85",
+    date: "2026-06-21",
+    changes: [
+      {
+        type: "improvement",
+        title: "Expanded App Text Size",
+        description:
+          "Added 200% and 300% app text size options for more comfortable reading on Mac and other large displays.",
+      },
+    ],
+  },
+  {
     version: "1.2.84",
     date: "2026-06-20",
     changes: [
