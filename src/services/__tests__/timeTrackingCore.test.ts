@@ -263,6 +263,7 @@ describe('aggregation', () => {
       custom_lesson: 1,
       test_session: 1,
       meaning_reading: 1,
+      similar_kanji: 1,
       kana_kanji: 1,
       writing_practice: 1,
       writing_freehand: 1,
@@ -275,7 +276,7 @@ describe('aggregation', () => {
       epub: 1,
       video: 1,
     });
-    expect(summary.studyMs).toBe(20);
+    expect(summary.studyMs).toBe(21);
   });
 });
 

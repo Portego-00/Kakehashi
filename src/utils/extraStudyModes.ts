@@ -6,6 +6,7 @@ export type ExtraStudyModeId =
   | "random-test"
   | "reading-test"
   | "hiragana-vocab-meaning"
+  | "similar-kanji"
   | "kana-kanji-test"
   | "listening-practice"
   | "context-sentence-practice"
@@ -57,6 +58,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     icon: "text",
     iconText: "あ",
     route: "/hiragana-vocab-meaning-config",
+  },
+  {
+    id: "similar-kanji",
+    title: "Similar Kanji",
+    subtitle: "Match lookalike kanji to their meanings",
+    icon: "git-compare",
+    route: "/similar-kanji-config",
   },
   {
     id: "kana-kanji-test",
@@ -145,6 +153,7 @@ export const RESUMABLE_EXTRA_STUDY_MODE_SESSION_KEYS: Partial<
   "reading-test": EXTRA_STUDY_SESSION_STORAGE_KEYS.MEANING_READING,
   "hiragana-vocab-meaning":
     EXTRA_STUDY_SESSION_STORAGE_KEYS.HIRAGANA_VOCAB_MEANING,
+  "similar-kanji": EXTRA_STUDY_SESSION_STORAGE_KEYS.SIMILAR_KANJI,
   "kana-kanji-test": EXTRA_STUDY_SESSION_STORAGE_KEYS.KANA_KANJI,
   "listening-practice": EXTRA_STUDY_SESSION_STORAGE_KEYS.LISTENING_PRACTICE,
   "context-sentence-practice":

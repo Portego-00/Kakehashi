@@ -205,6 +205,8 @@ export default function HomeDashboardWidget({
         return [withAlpha(theme.accent, 0.92), withAlpha(theme.secondary, 0.74)];
       case "hiragana-vocab-meaning":
         return [withAlpha(theme.secondary, 0.9), withAlpha(theme.primary, 0.72)];
+      case "similar-kanji":
+        return [withAlpha(theme.primary, 0.84), withAlpha(theme.secondary, 0.7)];
       case "kana-kanji-test":
         return [withAlpha(theme.primary, 0.86), withAlpha(theme.accent, 0.76)];
       case "listening-practice":

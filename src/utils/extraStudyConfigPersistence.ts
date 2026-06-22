@@ -5,6 +5,7 @@ export const EXTRA_STUDY_CONFIG_STORAGE_KEYS = {
   KANA_KANJI: "extra_study_config:kana_kanji",
   MEANING_READING: "extra_study_config:meaning_reading",
   HIRAGANA_VOCAB_MEANING: "extra_study_config:hiragana_vocab_meaning",
+  SIMILAR_KANJI: "extra_study_config:similar_kanji",
   LISTENING_PRACTICE: "extra_study_config:listening_practice",
   CONTEXT_SENTENCE_PRACTICE: "extra_study_config:context_sentence_practice",
   WRITING_PRACTICE: "extra_study_config:writing_practice",

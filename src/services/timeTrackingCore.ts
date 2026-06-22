@@ -22,6 +22,7 @@ export type ActivityKey =
   | "custom_lesson"
   | "test_session"
   | "meaning_reading"
+  | "similar_kanji"
   | "kana_kanji"
   | "writing_practice"
   | "writing_freehand"
@@ -53,6 +54,7 @@ export const CATEGORY_BY_ACTIVITY: Record<ActivityKey, ActivityCategory> = {
   custom_lesson: "extra_study",
   test_session: "extra_study",
   meaning_reading: "extra_study",
+  similar_kanji: "extra_study",
   kana_kanji: "extra_study",
   writing_practice: "extra_study",
   writing_freehand: "extra_study",

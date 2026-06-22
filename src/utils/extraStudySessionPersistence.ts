@@ -4,6 +4,7 @@ export const EXTRA_STUDY_SESSION_STORAGE_KEYS = {
   CUSTOM_REVIEW: "extra_study_session:custom_review",
   MEANING_READING: "extra_study_session:meaning_reading",
   HIRAGANA_VOCAB_MEANING: "extra_study_session:hiragana_vocab_meaning",
+  SIMILAR_KANJI: "extra_study_session:similar_kanji",
   RANDOM_TEST: "extra_study_session:random_test",
   LISTENING_PRACTICE: "extra_study_session:listening_practice",
   CONTEXT_SENTENCE_PRACTICE: "extra_study_session:context_sentence_practice",
