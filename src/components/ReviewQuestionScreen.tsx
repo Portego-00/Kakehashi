@@ -74,6 +74,7 @@ import {
 import { pickPreferredPronunciationAudios } from "../utils/pronunciationAudio";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
+import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getCachedOrDownloadVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
   doesReviewShortcutMatchKey,
@@ -1060,6 +1061,7 @@ export default function ReviewQuestionScreen({
     ankiShowReplayAudioButton,
     ankiShowOtherAcceptedAnswersAndUserSynonyms,
     ankiShowWaniKaniGrammarTags,
+    ankiShowPitchAccentNumbers,
     autoplayVocabularyAudio,
     vocabularyAudioVoice,
     allowSkippingReviews,
@@ -4349,6 +4351,38 @@ export default function ReviewQuestionScreen({
       ),
     [item.subject.data.readings],
   );
+  const pitchAccentCandidateReadings = useMemo(
+    () =>
+      uniqueNonEmptyAnswers([
+        ...((item.subject.data.readings ?? [])
+          .map((reading: any) => reading?.reading)
+          .filter(
+            (reading: unknown): reading is string => typeof reading === "string",
+          )),
+        item.subject.data.characters,
+      ]),
+    [item.subject.data.characters, item.subject.data.readings],
+  );
+  const ankiPitchAccentNumberValues = useMemo(() => {
+    if (
+      !ankiShowPitchAccentNumbers ||
+      (item.subject.object !== "vocabulary" &&
+        item.subject.object !== "kana_vocabulary")
+    ) {
+      return [];
+    }
+
+    return (
+      getWaniKaniPitchAccent(item.subject.id, pitchAccentCandidateReadings)?.p.map(
+        (accent) => String(accent),
+      ) ?? []
+    );
+  }, [
+    ankiShowPitchAccentNumbers,
+    item.subject.id,
+    item.subject.object,
+    pitchAccentCandidateReadings,
+  ]);
   const userSynonymAnswerOptions = useMemo(
     () =>
       uniqueNonEmptyAnswers(effectiveStudyMaterials?.meaning_synonyms ?? []),
@@ -4506,8 +4540,14 @@ export default function ReviewQuestionScreen({
       ankiShowOtherAcceptedAnswersAndUserSynonyms;
     const shouldShowPartOfSpeech =
       ankiShowWaniKaniGrammarTags && ankiPartOfSpeechValues.length > 0;
+    const shouldShowPitchAccentNumbers =
+      ankiShowPitchAccentNumbers && ankiPitchAccentNumberValues.length > 0;
 
-    if (!shouldShowAcceptedAnswersAndSynonyms && !shouldShowPartOfSpeech) {
+    if (
+      !shouldShowAcceptedAnswersAndSynonyms &&
+      !shouldShowPartOfSpeech &&
+      !shouldShowPitchAccentNumbers
+    ) {
       return rows;
     }
 
@@ -4525,6 +4565,13 @@ export default function ReviewQuestionScreen({
           label: "Other reading answers",
           values: otherAcceptedReadingAnswers,
           japanese: true,
+        });
+      }
+      if (shouldShowPitchAccentNumbers) {
+        rows.push({
+          key: "pitch-accent-numbers",
+          label: "Pitch accent",
+          values: ankiPitchAccentNumberValues,
         });
       }
       if (shouldShowPartOfSpeech) {
@@ -4552,6 +4599,13 @@ export default function ReviewQuestionScreen({
           values: otherAcceptedMeaningAnswers,
         });
       }
+      if (shouldShowPitchAccentNumbers) {
+        rows.push({
+          key: "pitch-accent-numbers",
+          label: "Pitch accent",
+          values: ankiPitchAccentNumberValues,
+        });
+      }
       if (shouldShowPartOfSpeech) {
         rows.push({
           key: "wanikani-part-of-speech",
@@ -4577,6 +4631,13 @@ export default function ReviewQuestionScreen({
         japanese: true,
       });
     }
+    if (shouldShowPitchAccentNumbers) {
+      rows.push({
+        key: "pitch-accent-numbers",
+        label: "Pitch accent",
+        values: ankiPitchAccentNumberValues,
+      });
+    }
     if (shouldShowPartOfSpeech) {
       rows.push({
         key: "wanikani-part-of-speech",
@@ -4589,7 +4650,9 @@ export default function ReviewQuestionScreen({
   }, [
     ankiShowOtherAcceptedAnswersAndUserSynonyms,
     ankiShowWaniKaniGrammarTags,
+    ankiShowPitchAccentNumbers,
     ankiPartOfSpeechValues,
+    ankiPitchAccentNumberValues,
     effectiveAnkiGroupQuestions,
     otherAcceptedMeaningAnswers,
     otherAcceptedReadingAnswers,
