@@ -108,6 +108,10 @@ export default function PitchAccentVisualization({
   const highY = compact ? 7 : 8;
   const lowY = compact ? 24 : 30;
   const chartWidth = horizontalPadding * 2 + (moras.length + 1) * pointSpacing;
+  const compactContainerWidth = Math.max(
+    chartWidth + horizontalPadding * 2,
+    showHeader ? 132 : 0,
+  );
   const primaryAccent = normalizedAccents[0];
   const accentSummary = normalizedAccents.join(", ");
   const primaryAccentType = getPitchAccentTypeLabel(
@@ -120,6 +124,9 @@ export default function PitchAccentVisualization({
       style={[
         styles.container,
         compact && styles.containerCompact,
+        compact && {
+          width: compactContainerWidth,
+        },
         {
           borderColor: theme.border,
           backgroundColor: theme.isDark ? "#222" : "#f7f7fb",
@@ -239,7 +246,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   containerCompact: {
+    alignSelf: "center",
     borderRadius: 10,
+    flexGrow: 0,
+    flexShrink: 0,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -279,10 +289,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   patternRow: {
+    alignItems: "center",
     marginBottom: 3,
   },
   patternContent: {
-    flex: 1,
+    alignItems: "center",
   },
   moraRow: {
     flexDirection: "row",
