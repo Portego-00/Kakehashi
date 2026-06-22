@@ -74,7 +74,11 @@ import {
 import { pickPreferredPronunciationAudios } from "../utils/pronunciationAudio";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
-import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
+import {
+  formatPitchAccentNotation,
+  getWaniKaniPitchAccent,
+  type WaniKaniPitchAccentEntry,
+} from "../utils/pitchAccent";
 import { getCachedOrDownloadVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
   doesReviewShortcutMatchKey,
@@ -87,6 +91,7 @@ import KanjiDetails from "./KanjiDetails";
 import RadicalDetails from "./RadicalDetails";
 import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
 import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
+import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 
 // Get screen dimensions for animations
@@ -143,6 +148,14 @@ interface PreviousAnswerItem {
   backgroundColor: string;
   isCorrect: boolean;
   questionType: QuestionType;
+}
+
+interface AnkiSupplementaryAnswerRow {
+  key: string;
+  label: string;
+  values?: string[];
+  japanese?: boolean;
+  pitchAccentGraph?: WaniKaniPitchAccentEntry;
 }
 
 interface SRSProgressionInfo {
@@ -1062,6 +1075,7 @@ export default function ReviewQuestionScreen({
     ankiShowOtherAcceptedAnswersAndUserSynonyms,
     ankiShowWaniKaniGrammarTags,
     ankiShowPitchAccentNumbers,
+    ankiShowPitchAccentGraph,
     autoplayVocabularyAudio,
     vocabularyAudioVoice,
     allowSkippingReviews,
@@ -4363,26 +4377,33 @@ export default function ReviewQuestionScreen({
       ]),
     [item.subject.data.characters, item.subject.data.readings],
   );
-  const ankiPitchAccentNumberValues = useMemo(() => {
+  const ankiPitchAccentEntry = useMemo<WaniKaniPitchAccentEntry | null>(() => {
     if (
-      !ankiShowPitchAccentNumbers ||
+      (!ankiShowPitchAccentNumbers && !ankiShowPitchAccentGraph) ||
       (item.subject.object !== "vocabulary" &&
         item.subject.object !== "kana_vocabulary")
     ) {
-      return [];
+      return null;
     }
 
-    return (
-      getWaniKaniPitchAccent(item.subject.id, pitchAccentCandidateReadings)?.p.map(
-        (accent) => String(accent),
-      ) ?? []
-    );
+    return getWaniKaniPitchAccent(item.subject.id, pitchAccentCandidateReadings);
   }, [
+    ankiShowPitchAccentGraph,
     ankiShowPitchAccentNumbers,
     item.subject.id,
     item.subject.object,
     pitchAccentCandidateReadings,
   ]);
+  const ankiPitchAccentDisplayValues = useMemo(() => {
+    if (!ankiShowPitchAccentNumbers || !ankiPitchAccentEntry) {
+      return [];
+    }
+
+    return formatPitchAccentNotation(
+      ankiPitchAccentEntry.r,
+      ankiPitchAccentEntry.p,
+    );
+  }, [ankiPitchAccentEntry, ankiShowPitchAccentNumbers]);
   const userSynonymAnswerOptions = useMemo(
     () =>
       uniqueNonEmptyAnswers(effectiveStudyMaterials?.meaning_synonyms ?? []),
@@ -4521,59 +4542,114 @@ export default function ReviewQuestionScreen({
     return primaryReadingAnswer;
   };
 
-  const ankiSupplementaryAnswerRows = useMemo<
-    {
-      key: string;
-      label: string;
-      values: string[];
-      japanese?: boolean;
-    }[]
-  >(() => {
-    const rows: {
-      key: string;
-      label: string;
-      values: string[];
-      japanese?: boolean;
-    }[] = [];
+  const ankiSupplementaryAnswerRows = useMemo<AnkiSupplementaryAnswerRow[]>(
+    () => {
+      const rows: AnkiSupplementaryAnswerRow[] = [];
 
-    const shouldShowAcceptedAnswersAndSynonyms =
-      ankiShowOtherAcceptedAnswersAndUserSynonyms;
-    const shouldShowPartOfSpeech =
-      ankiShowWaniKaniGrammarTags && ankiPartOfSpeechValues.length > 0;
-    const shouldShowPitchAccentNumbers =
-      ankiShowPitchAccentNumbers && ankiPitchAccentNumberValues.length > 0;
+      const shouldShowAcceptedAnswersAndSynonyms =
+        ankiShowOtherAcceptedAnswersAndUserSynonyms;
+      const shouldShowPartOfSpeech =
+        ankiShowWaniKaniGrammarTags && ankiPartOfSpeechValues.length > 0;
+      const shouldShowPitchAccentText =
+        ankiShowPitchAccentNumbers && ankiPitchAccentDisplayValues.length > 0;
+      const shouldShowPitchAccentGraph =
+        ankiShowPitchAccentGraph && !!ankiPitchAccentEntry;
 
-    if (
-      !shouldShowAcceptedAnswersAndSynonyms &&
-      !shouldShowPartOfSpeech &&
-      !shouldShowPitchAccentNumbers
-    ) {
-      return rows;
-    }
+      const addPitchAccentRow = () => {
+        if (!shouldShowPitchAccentText && !shouldShowPitchAccentGraph) {
+          return;
+        }
 
-    if (effectiveAnkiGroupQuestions) {
-      if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
         rows.push({
-          key: "other-accepted-meanings",
-          label: "Other meaning answers",
-          values: otherAcceptedMeaningAnswers,
+          key: "pitch-accent",
+          label: "Pitch accent",
+          values: shouldShowPitchAccentText
+            ? ankiPitchAccentDisplayValues
+            : undefined,
+          pitchAccentGraph: shouldShowPitchAccentGraph
+            ? (ankiPitchAccentEntry ?? undefined)
+            : undefined,
         });
+      };
+
+      if (
+        !shouldShowAcceptedAnswersAndSynonyms &&
+        !shouldShowPartOfSpeech &&
+        !shouldShowPitchAccentText &&
+        !shouldShowPitchAccentGraph
+      ) {
+        return rows;
       }
+
+      if (effectiveAnkiGroupQuestions) {
+        if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
+          rows.push({
+            key: "other-accepted-meanings",
+            label: "Other meaning answers",
+            values: otherAcceptedMeaningAnswers,
+          });
+        }
+        if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedReadingAnswers.length > 0) {
+          rows.push({
+            key: "other-accepted-readings",
+            label: "Other reading answers",
+            values: otherAcceptedReadingAnswers,
+            japanese: true,
+          });
+        }
+        addPitchAccentRow();
+        if (shouldShowPartOfSpeech) {
+          rows.push({
+            key: "wanikani-part-of-speech",
+            label: "Part of speech",
+            values: ankiPartOfSpeechValues,
+          });
+        }
+        if (shouldShowAcceptedAnswersAndSynonyms && userSynonymsForAnki.length > 0) {
+          rows.push({
+            key: "user-synonyms",
+            label: "User synonyms",
+            values: userSynonymsForAnki,
+          });
+        }
+        return rows;
+      }
+
+      if (questionType === "meaning") {
+        if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
+          rows.push({
+            key: "other-accepted-meanings",
+            label: "Other accepted answers",
+            values: otherAcceptedMeaningAnswers,
+          });
+        }
+        addPitchAccentRow();
+        if (shouldShowPartOfSpeech) {
+          rows.push({
+            key: "wanikani-part-of-speech",
+            label: "Part of speech",
+            values: ankiPartOfSpeechValues,
+          });
+        }
+        if (shouldShowAcceptedAnswersAndSynonyms && userSynonymsForAnki.length > 0) {
+          rows.push({
+            key: "user-synonyms",
+            label: "User synonyms",
+            values: userSynonymsForAnki,
+          });
+        }
+        return rows;
+      }
+
       if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedReadingAnswers.length > 0) {
         rows.push({
           key: "other-accepted-readings",
-          label: "Other reading answers",
+          label: "Other accepted answers",
           values: otherAcceptedReadingAnswers,
           japanese: true,
         });
       }
-      if (shouldShowPitchAccentNumbers) {
-        rows.push({
-          key: "pitch-accent-numbers",
-          label: "Pitch accent",
-          values: ankiPitchAccentNumberValues,
-        });
-      }
+      addPitchAccentRow();
       if (shouldShowPartOfSpeech) {
         rows.push({
           key: "wanikani-part-of-speech",
@@ -4581,84 +4657,24 @@ export default function ReviewQuestionScreen({
           values: ankiPartOfSpeechValues,
         });
       }
-      if (shouldShowAcceptedAnswersAndSynonyms && userSynonymsForAnki.length > 0) {
-        rows.push({
-          key: "user-synonyms",
-          label: "User synonyms",
-          values: userSynonymsForAnki,
-        });
-      }
+
       return rows;
-    }
-
-    if (questionType === "meaning") {
-      if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
-        rows.push({
-          key: "other-accepted-meanings",
-          label: "Other accepted answers",
-          values: otherAcceptedMeaningAnswers,
-        });
-      }
-      if (shouldShowPitchAccentNumbers) {
-        rows.push({
-          key: "pitch-accent-numbers",
-          label: "Pitch accent",
-          values: ankiPitchAccentNumberValues,
-        });
-      }
-      if (shouldShowPartOfSpeech) {
-        rows.push({
-          key: "wanikani-part-of-speech",
-          label: "Part of speech",
-          values: ankiPartOfSpeechValues,
-        });
-      }
-      if (shouldShowAcceptedAnswersAndSynonyms && userSynonymsForAnki.length > 0) {
-        rows.push({
-          key: "user-synonyms",
-          label: "User synonyms",
-          values: userSynonymsForAnki,
-        });
-      }
-      return rows;
-    }
-
-    if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedReadingAnswers.length > 0) {
-      rows.push({
-        key: "other-accepted-readings",
-        label: "Other accepted answers",
-        values: otherAcceptedReadingAnswers,
-        japanese: true,
-      });
-    }
-    if (shouldShowPitchAccentNumbers) {
-      rows.push({
-        key: "pitch-accent-numbers",
-        label: "Pitch accent",
-        values: ankiPitchAccentNumberValues,
-      });
-    }
-    if (shouldShowPartOfSpeech) {
-      rows.push({
-        key: "wanikani-part-of-speech",
-        label: "Part of speech",
-        values: ankiPartOfSpeechValues,
-      });
-    }
-
-    return rows;
-  }, [
-    ankiShowOtherAcceptedAnswersAndUserSynonyms,
-    ankiShowWaniKaniGrammarTags,
-    ankiShowPitchAccentNumbers,
-    ankiPartOfSpeechValues,
-    ankiPitchAccentNumberValues,
-    effectiveAnkiGroupQuestions,
-    otherAcceptedMeaningAnswers,
-    otherAcceptedReadingAnswers,
-    questionType,
-    userSynonymsForAnki,
-  ]);
+    },
+    [
+      ankiShowOtherAcceptedAnswersAndUserSynonyms,
+      ankiShowWaniKaniGrammarTags,
+      ankiShowPitchAccentGraph,
+      ankiShowPitchAccentNumbers,
+      ankiPartOfSpeechValues,
+      ankiPitchAccentDisplayValues,
+      ankiPitchAccentEntry,
+      effectiveAnkiGroupQuestions,
+      otherAcceptedMeaningAnswers,
+      otherAcceptedReadingAnswers,
+      questionType,
+      userSynonymsForAnki,
+    ],
+  );
 
   const pausedCorrectAnswerText =
     overridePausedCorrectAnswerText ??
@@ -5654,15 +5670,28 @@ export default function ReviewQuestionScreen({
                                 >
                                   {row.label}
                                 </Text>
-                                <Text
-                                  style={[
-                                    styles.ankiSupplementaryAnswerValue,
-                                    row.japanese && fontStyles.japaneseText,
-                                    theme.isDark && { color: "#F4F4F5" },
-                                  ]}
-                                >
-                                  {row.values.join(", ")}
-                                </Text>
+                                {row.values && row.values.length > 0 && (
+                                  <Text
+                                    style={[
+                                      styles.ankiSupplementaryAnswerValue,
+                                      row.japanese && fontStyles.japaneseText,
+                                      theme.isDark && { color: "#F4F4F5" },
+                                    ]}
+                                  >
+                                    {row.values.join(", ")}
+                                  </Text>
+                                )}
+                                {row.pitchAccentGraph && (
+                                  <PitchAccentVisualization
+                                    reading={row.pitchAccentGraph.r}
+                                    accents={row.pitchAccentGraph.p}
+                                    compact
+                                    showHeader={
+                                      !row.values || row.values.length === 0
+                                    }
+                                    containerStyle={styles.ankiPitchAccentGraph}
+                                  />
+                                )}
                               </View>
                             ))}
                           </View>
@@ -7263,6 +7292,11 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#2A2A2A",
     textAlign: "center",
+  },
+  ankiPitchAccentGraph: {
+    alignSelf: "center",
+    marginTop: 6,
+    maxWidth: "100%",
   },
   ankiBlurOverlay: {
     position: "absolute",

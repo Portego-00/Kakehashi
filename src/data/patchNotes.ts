@@ -63,7 +63,7 @@ export const PATCH_NOTES: PatchNote[] = [
         type: "feature",
         title: "Anki Pitch Accent Numbers",
         description:
-          "Added an Anki setting to show compact pitch accent numbers after revealing vocabulary cards.",
+          "Added Anki settings to show compact pitch accent labels, numbers, and an optional mini graph after revealing vocabulary cards.",
         link: {
           route: "/anki-settings",
           label: "Open Anki Settings",
