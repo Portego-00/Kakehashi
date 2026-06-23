@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.87",
+    date: "2026-06-23",
+    changes: [
+      {
+        type: "fix",
+        title: "Radical Name Questions",
+        description:
+          "Radical review and lesson quiz prompts now ask for the radical name instead of calling it a meaning question.",
+      },
+    ],
+  },
+  {
     version: "1.2.86",
     date: "2026-06-22",
     changes: [

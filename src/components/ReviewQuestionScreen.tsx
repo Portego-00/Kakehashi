@@ -125,6 +125,17 @@ type QuestionType = "meaning" | "reading";
 
 type StudyMaterialNoteType = "meaning" | "reading";
 
+function getQuestionTypeDisplayLabel(
+  subject: WKSubject,
+  questionType: QuestionType,
+): "Name" | "Meaning" | "Reading" {
+  if (subject.object === "radical" && questionType === "meaning") {
+    return "Name";
+  }
+
+  return questionType === "meaning" ? "Meaning" : "Reading";
+}
+
 interface ReviewStudyMaterials {
   meaning_synonyms?: string[];
   meaning_note?: string;
@@ -1473,6 +1484,16 @@ export default function ReviewQuestionScreen({
     completedCount,
   );
   const subject = item.subject;
+  const questionTypeDisplayLabel = getQuestionTypeDisplayLabel(
+    subject,
+    questionType,
+  );
+  const meaningAnswerDisplayLabel =
+    subject.object === "radical" ? "name" : "meaning";
+  const groupedQuestionDisplayLabel =
+    effectiveAnkiGroupQuestions && subject.object !== "radical"
+      ? "Meaning & Reading"
+      : questionTypeDisplayLabel;
   const currentQuestionKey = `${item.id}:${questionType}:${currentItem}`;
   const isCurrentQuestionAnkiRevealed =
     ankiAnswerRevealed && ankiRevealQuestionKey === currentQuestionKey;
@@ -4585,7 +4606,7 @@ export default function ReviewQuestionScreen({
         if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
           rows.push({
             key: "other-accepted-meanings",
-            label: "Other meaning answers",
+            label: `Other ${meaningAnswerDisplayLabel} answers`,
             values: otherAcceptedMeaningAnswers,
           });
         }
@@ -4619,7 +4640,10 @@ export default function ReviewQuestionScreen({
         if (shouldShowAcceptedAnswersAndSynonyms && otherAcceptedMeaningAnswers.length > 0) {
           rows.push({
             key: "other-accepted-meanings",
-            label: "Other accepted answers",
+            label:
+              meaningAnswerDisplayLabel === "name"
+                ? "Other accepted names"
+                : "Other accepted answers",
             values: otherAcceptedMeaningAnswers,
           });
         }
@@ -4669,6 +4693,7 @@ export default function ReviewQuestionScreen({
       ankiPitchAccentDisplayValues,
       ankiPitchAccentEntry,
       effectiveAnkiGroupQuestions,
+      meaningAnswerDisplayLabel,
       otherAcceptedMeaningAnswers,
       otherAcceptedReadingAnswers,
       questionType,
@@ -5591,11 +5616,7 @@ export default function ReviewQuestionScreen({
               >
                 {getSubjectTypeLabel()}{" "}
                 <Text style={styles.bannerTextBold}>
-                  {effectiveAnkiGroupQuestions
-                    ? "Meaning & Reading"
-                    : questionType === "meaning"
-                      ? "Meaning"
-                      : "Reading"}
+                  {groupedQuestionDisplayLabel}
                 </Text>
               </Text>
             </View>
@@ -6254,7 +6275,7 @@ export default function ReviewQuestionScreen({
                   >
                     {getSubjectTypeLabel()}{" "}
                     <Text style={styles.bannerTextBold}>
-                      {questionType === "meaning" ? "Meaning" : "Reading"}
+                      {questionTypeDisplayLabel}
                     </Text>
                   </Text>
                 </View>
