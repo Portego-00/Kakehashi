@@ -65,6 +65,12 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Added a new Extra Study mode for practicing visually similar kanji by matching them to their meanings.",
       },
+      {
+        type: "fix",
+        title: "Level Timing Exclusions",
+        description:
+          "Level Timing now keeps excluded bars saved more reliably across refreshes, reloads, and app restarts.",
+      },
     ],
   },
   {

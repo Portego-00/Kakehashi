@@ -156,6 +156,7 @@ export default function LevelTimingChart({
     (state) => state.widgetLevelTimingResetColor,
   );
   const scrollViewRef = useRef<ScrollView>(null);
+  const shouldPersistDisabledLevelsRef = useRef(false);
   const [disabledLevels, setDisabledLevels] = useState<number[]>([]);
   const [disabledLevelsHydrated, setDisabledLevelsHydrated] = useState(false);
 
@@ -232,8 +233,8 @@ export default function LevelTimingChart({
 
   useEffect(() => {
     let isCancelled = false;
-    setDisabledLevels([]);
     setDisabledLevelsHydrated(false);
+    shouldPersistDisabledLevelsRef.current = false;
 
     const loadDisabledLevels = async () => {
       try {
@@ -263,10 +264,11 @@ export default function LevelTimingChart({
   }, [authUserId]);
 
   useEffect(() => {
-    if (!disabledLevelsHydrated) {
+    if (!disabledLevelsHydrated || !shouldPersistDisabledLevelsRef.current) {
       return;
     }
 
+    shouldPersistDisabledLevelsRef.current = false;
     saveLevelTimingExcludedLevels(authUserId, disabledLevels).catch((error) => {
       console.warn("Failed to save level timing excluded levels", error);
     });
@@ -300,38 +302,28 @@ export default function LevelTimingChart({
     return levels;
   }, [levelTimingData]);
 
-  useEffect(() => {
-    if (!disabledLevelsHydrated) {
-      return;
-    }
-
-    setDisabledLevels((current) => {
-      const filtered = current.filter((level) =>
-        toggleableCompletedLevelSet.has(level),
-      );
-      if (filtered.length === current.length) {
-        return current;
-      }
-      return filtered;
-    });
-  }, [disabledLevelsHydrated, toggleableCompletedLevelSet]);
+  const activeDisabledLevels = useMemo(
+    () => (disabledLevelsHydrated ? disabledLevels : []),
+    [disabledLevels, disabledLevelsHydrated],
+  );
 
   const excludedCompletedLevelSet = useMemo(() => {
     const levels = new Set<number>();
-    for (const level of disabledLevels) {
+    for (const level of activeDisabledLevels) {
       if (toggleableCompletedLevelSet.has(level)) {
         levels.add(level);
       }
     }
     return levels;
-  }, [disabledLevels, toggleableCompletedLevelSet]);
+  }, [activeDisabledLevels, toggleableCompletedLevelSet]);
 
   const toggleLevelExclusion = useCallback(
     (level: number) => {
-      if (!toggleableCompletedLevelSet.has(level)) {
+      if (!disabledLevelsHydrated || !toggleableCompletedLevelSet.has(level)) {
         return;
       }
 
+      shouldPersistDisabledLevelsRef.current = true;
       setDisabledLevels((current) => {
         if (current.includes(level)) {
           return current.filter((item) => item !== level);
@@ -340,7 +332,7 @@ export default function LevelTimingChart({
         return [...current, level].sort((a, b) => a - b);
       });
     },
-    [toggleableCompletedLevelSet],
+    [disabledLevelsHydrated, toggleableCompletedLevelSet],
   );
 
   const chartRenderItems: ChartRenderItem[] = useMemo(() => {
@@ -650,86 +642,87 @@ export default function LevelTimingChart({
             const barHeight = Math.max((levelData.timeInDays / maxTime) * 120, 8);
             const barColor = getBarColor(levelData);
             const isExcluded = excludedCompletedLevelSet.has(levelData.level);
-            const isToggleable = levelData.isComplete && !levelData.isCurrent;
+            const isToggleable =
+              disabledLevelsHydrated && levelData.isComplete && !levelData.isCurrent;
 
             return (
               <Animated.View
                 key={item.key}
                 entering={FadeInDown.delay(index * 50).duration(300)}
-                  style={[
-                    styles.chartBarContainer,
-                    { width: BAR_CONTAINER_WIDTH },
+                style={[
+                  styles.chartBarContainer,
+                  { width: BAR_CONTAINER_WIDTH },
+                ]}
+              >
+                <Pressable
+                  onPress={() => toggleLevelExclusion(levelData.level)}
+                  disabled={!isToggleable}
+                  hitSlop={6}
+                  style={({ pressed }) => [
+                    styles.levelBarPressable,
+                    pressed && isToggleable && styles.levelBarPressablePressed,
                   ]}
+                  accessibilityRole={isToggleable ? "button" : undefined}
+                  accessibilityState={
+                    isToggleable ? { selected: isExcluded } : undefined
+                  }
+                  accessibilityLabel={
+                    isToggleable
+                      ? `Level ${levelData.level}, ${isExcluded ? "excluded" : "included"} in averages`
+                      : `Level ${levelData.level}`
+                  }
                 >
-                  <Pressable
-                    onPress={() => toggleLevelExclusion(levelData.level)}
-                    disabled={!isToggleable}
-                    hitSlop={6}
-                    style={({ pressed }) => [
-                      styles.levelBarPressable,
-                      pressed && isToggleable && styles.levelBarPressablePressed,
+                  <Text
+                    style={[
+                      styles.chartBarValue,
+                      {
+                        color: isExcluded ? theme.textLight : theme.textSecondary,
+                        fontSize: VALUE_FONT_SIZE,
+                      },
                     ]}
-                    accessibilityRole={isToggleable ? "button" : undefined}
-                    accessibilityState={
-                      isToggleable ? { selected: isExcluded } : undefined
-                    }
-                    accessibilityLabel={
-                      isToggleable
-                        ? `Level ${levelData.level}, ${isExcluded ? "excluded" : "included"} in averages`
-                        : `Level ${levelData.level}`
-                    }
                   >
-                    <Text
-                      style={[
-                        styles.chartBarValue,
-                        {
-                          color: isExcluded ? theme.textLight : theme.textSecondary,
-                          fontSize: VALUE_FONT_SIZE,
-                        },
-                      ]}
-                    >
-                      {levelData.timeInDays < 10
-                        ? levelData.timeInDays.toFixed(1)
-                        : Math.round(levelData.timeInDays).toString()}
-                      {levelData.isCurrent && "+"}
-                    </Text>
-                    <View
-                      style={[
-                        styles.chartBar,
-                        {
-                          height: barHeight,
-                          backgroundColor: barColor,
-                          opacity: levelData.isCurrent ? 0.7 : 1,
-                          width: BAR_WIDTH,
-                          borderWidth: isExcluded ? 1 : 0,
-                          borderColor: isExcluded
-                            ? withAlpha(theme.textSecondary, theme.isDark ? 0.42 : 0.3)
-                            : "transparent",
-                        },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.chartBarLabel,
-                        {
-                          color: levelData.isCurrent
-                            ? theme.primary
-                            : isExcluded
-                              ? theme.textLight
-                              : theme.textSecondary,
-                          fontWeight: levelData.isCurrent
-                            ? "bold"
-                            : isExcluded
-                              ? "600"
-                              : "normal",
-                          fontSize: LABEL_FONT_size,
-                          textDecorationLine: isExcluded ? "line-through" : "none",
-                        },
-                      ]}
-                    >
-                      {numberToJapanese(levelData.level)}
-                    </Text>
-                  </Pressable>
+                    {levelData.timeInDays < 10
+                      ? levelData.timeInDays.toFixed(1)
+                      : Math.round(levelData.timeInDays).toString()}
+                    {levelData.isCurrent && "+"}
+                  </Text>
+                  <View
+                    style={[
+                      styles.chartBar,
+                      {
+                        height: barHeight,
+                        backgroundColor: barColor,
+                        opacity: levelData.isCurrent ? 0.7 : 1,
+                        width: BAR_WIDTH,
+                        borderWidth: isExcluded ? 1 : 0,
+                        borderColor: isExcluded
+                          ? withAlpha(theme.textSecondary, theme.isDark ? 0.42 : 0.3)
+                          : "transparent",
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.chartBarLabel,
+                      {
+                        color: levelData.isCurrent
+                          ? theme.primary
+                          : isExcluded
+                            ? theme.textLight
+                            : theme.textSecondary,
+                        fontWeight: levelData.isCurrent
+                          ? "bold"
+                          : isExcluded
+                            ? "600"
+                            : "normal",
+                        fontSize: LABEL_FONT_size,
+                        textDecorationLine: isExcluded ? "line-through" : "none",
+                      },
+                    ]}
+                  >
+                    {numberToJapanese(levelData.level)}
+                  </Text>
+                </Pressable>
               </Animated.View>
             );
           })}
