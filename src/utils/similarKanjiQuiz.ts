@@ -1,33 +1,47 @@
 import type { Subject as ApiSubject } from "./api";
 
+export type SimilarKanjiSource = "wanikani" | "niai";
+
 export interface SimilarKanjiMeaningChoice {
+  id: number;
   subjectId: number;
   meaning: string;
 }
 
-export interface SimilarKanjiQuestion<
+export interface SimilarKanjiRoundItem<
   TSubject extends SimilarKanjiQuizSubject = SimilarKanjiQuizSubject,
 > {
   id: number;
-  targetSubject: TSubject;
-  similarSubject: TSubject;
-  choices: [SimilarKanjiMeaningChoice, SimilarKanjiMeaningChoice];
-  correctChoiceSubjectId: number;
+  subject: TSubject;
+  meaning: string;
+}
+
+export interface SimilarKanjiRound<
+  TSubject extends SimilarKanjiQuizSubject = SimilarKanjiQuizSubject,
+> {
+  id: number;
+  items: SimilarKanjiRoundItem<TSubject>[];
+  meaningChoices: SimilarKanjiMeaningChoice[];
 }
 
 export type SimilarKanjiQuizSubject = Pick<ApiSubject, "id" | "object"> & {
-  data: Pick<ApiSubject["data"], "characters" | "meanings">;
+  data: Pick<
+    ApiSubject["data"],
+    "characters" | "meanings" | "visually_similar_subject_ids"
+  >;
 };
 
-interface BuildSimilarKanjiQuestionsOptions<
+interface BuildSimilarKanjiRoundsOptions<
   TSubject extends SimilarKanjiQuizSubject,
 > {
   targetSubjects: TSubject[];
   allKanjiSubjects: TSubject[];
   learnedKanjiSubjectIds: ReadonlySet<number>;
   includeUnlearnedSimilarKanji: boolean;
-  numberOfQuestions: number;
-  getSimilarKanji: (kanji: string) => string[];
+  numberOfRounds: number;
+  maxKanjiPerRound: number;
+  source: SimilarKanjiSource;
+  getNiaiSimilarKanji: (kanji: string) => string[];
   randomFn?: () => number;
 }
 
@@ -43,14 +57,6 @@ function shuffleCopy<T>(items: T[], randomFn: () => number): T[] {
   }
 
   return shuffled;
-}
-
-function sampleOne<T>(items: T[], randomFn: () => number): T | null {
-  if (items.length === 0) {
-    return null;
-  }
-
-  return items[Math.floor(randomFn() * items.length)] ?? items[0];
 }
 
 export function getPrimaryKanjiMeaning(
@@ -87,28 +93,63 @@ function normalizeMeaningForComparison(meaning: string): string {
   return meaning.trim().toLocaleLowerCase();
 }
 
-export function buildSimilarKanjiQuestions<
+function getSimilarCandidates<TSubject extends SimilarKanjiQuizSubject>(
+  targetSubject: TSubject,
+  source: SimilarKanjiSource,
+  subjectById: Map<number, TSubject>,
+  subjectByCharacters: Map<string, TSubject>,
+  getNiaiSimilarKanji: (kanji: string) => string[],
+): TSubject[] {
+  if (source === "wanikani") {
+    const subjectIds = targetSubject.data.visually_similar_subject_ids;
+    if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
+      return [];
+    }
+
+    return subjectIds
+      .map((subjectId) => subjectById.get(subjectId))
+      .filter((subject): subject is TSubject => Boolean(subject));
+  }
+
+  const characters = getKanjiCharacters(targetSubject);
+  if (!characters) {
+    return [];
+  }
+
+  return getNiaiSimilarKanji(characters)
+    .map((kanji) => subjectByCharacters.get(kanji))
+    .filter((subject): subject is TSubject => Boolean(subject));
+}
+
+export function buildSimilarKanjiRounds<
   TSubject extends SimilarKanjiQuizSubject,
 >({
   targetSubjects,
   allKanjiSubjects,
   learnedKanjiSubjectIds,
   includeUnlearnedSimilarKanji,
-  numberOfQuestions,
-  getSimilarKanji,
+  numberOfRounds,
+  maxKanjiPerRound,
+  source,
+  getNiaiSimilarKanji,
   randomFn = Math.random,
-}: BuildSimilarKanjiQuestionsOptions<TSubject>): SimilarKanjiQuestion<TSubject>[] {
-  const maxQuestions = Math.max(0, Math.floor(numberOfQuestions));
-  if (maxQuestions === 0) {
+}: BuildSimilarKanjiRoundsOptions<TSubject>): SimilarKanjiRound<TSubject>[] {
+  const maxRounds = Math.max(0, Math.floor(numberOfRounds));
+  const maxItemsPerRound = Math.max(2, Math.floor(maxKanjiPerRound));
+  if (maxRounds === 0) {
     return [];
   }
 
+  const subjectById = new Map<number, TSubject>();
   const subjectByCharacters = new Map<string, TSubject>();
   allKanjiSubjects.forEach((subject) => {
     const characters = getKanjiCharacters(subject);
-    if (characters && hasUsableMeaning(subject)) {
-      subjectByCharacters.set(characters, subject);
+    if (!characters || !hasUsableMeaning(subject)) {
+      return;
     }
+
+    subjectById.set(subject.id, subject);
+    subjectByCharacters.set(characters, subject);
   });
 
   const shuffledTargets = shuffleCopy(
@@ -118,65 +159,87 @@ export function buildSimilarKanjiQuestions<
     }),
     randomFn,
   );
-  const questions: SimilarKanjiQuestion<TSubject>[] = [];
+  const rounds: SimilarKanjiRound<TSubject>[] = [];
+  let nextRoundItemId = 1;
 
   for (const targetSubject of shuffledTargets) {
-    if (questions.length >= maxQuestions) {
+    if (rounds.length >= maxRounds) {
       break;
     }
 
-    const targetCharacters = getKanjiCharacters(targetSubject);
     const targetMeaning = getPrimaryKanjiMeaning(targetSubject);
-    if (!targetCharacters || !targetMeaning) {
+    if (!targetMeaning) {
       continue;
     }
 
-    const targetMeaningKey = normalizeMeaningForComparison(targetMeaning);
-    const similarCandidates = getSimilarKanji(targetCharacters)
-      .map((characters) => subjectByCharacters.get(characters))
-      .filter((subject): subject is TSubject => {
-        if (!subject || subject.id === targetSubject.id) {
-          return false;
-        }
-
-        if (
-          !includeUnlearnedSimilarKanji &&
-          !learnedKanjiSubjectIds.has(subject.id)
-        ) {
-          return false;
-        }
-
-        const meaning = getPrimaryKanjiMeaning(subject);
-        return Boolean(
-          meaning &&
-            normalizeMeaningForComparison(meaning) !== targetMeaningKey,
-        );
-      });
-
-    const similarSubject = sampleOne(similarCandidates, randomFn);
-    const similarMeaning = similarSubject
-      ? getPrimaryKanjiMeaning(similarSubject)
-      : null;
-    if (!similarSubject || !similarMeaning) {
-      continue;
-    }
-
-    const choices = shuffleCopy(
-      [
-        { subjectId: targetSubject.id, meaning: targetMeaning },
-        { subjectId: similarSubject.id, meaning: similarMeaning },
-      ],
+    const selectedSubjects: TSubject[] = [targetSubject];
+    const usedMeaningKeys = new Set([
+      normalizeMeaningForComparison(targetMeaning),
+    ]);
+    const similarCandidates = shuffleCopy(
+      getSimilarCandidates(
+        targetSubject,
+        source,
+        subjectById,
+        subjectByCharacters,
+        getNiaiSimilarKanji,
+      ),
       randomFn,
-    ) as [SimilarKanjiMeaningChoice, SimilarKanjiMeaningChoice];
+    );
 
-    questions.push({
-      id: questions.length,
-      targetSubject,
-      similarSubject,
-      choices,
-      correctChoiceSubjectId: targetSubject.id,
+    for (const subject of similarCandidates) {
+      if (selectedSubjects.length >= maxItemsPerRound) {
+        break;
+      }
+
+      if (subject.id === targetSubject.id) {
+        continue;
+      }
+
+      if (
+        !includeUnlearnedSimilarKanji &&
+        !learnedKanjiSubjectIds.has(subject.id)
+      ) {
+        continue;
+      }
+
+      const meaning = getPrimaryKanjiMeaning(subject);
+      if (!meaning) {
+        continue;
+      }
+
+      const meaningKey = normalizeMeaningForComparison(meaning);
+      if (usedMeaningKeys.has(meaningKey)) {
+        continue;
+      }
+
+      selectedSubjects.push(subject);
+      usedMeaningKeys.add(meaningKey);
+    }
+
+    if (selectedSubjects.length < 2) {
+      continue;
+    }
+
+    const items = selectedSubjects.map((subject) => ({
+      id: nextRoundItemId++,
+      subject,
+      meaning: getPrimaryKanjiMeaning(subject) ?? "",
+    }));
+
+    rounds.push({
+      id: rounds.length,
+      items,
+      meaningChoices: shuffleCopy(
+        items.map((item) => ({
+          id: item.id,
+          subjectId: item.subject.id,
+          meaning: item.meaning,
+        })),
+        randomFn,
+      ),
     });
   }
 
-  return questions;
+  return rounds;
 }

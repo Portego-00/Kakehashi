@@ -30,6 +30,7 @@ import {
   hasExtraStudySessionState,
 } from "../../src/utils/extraStudySessionPersistence";
 import { parseSelectedListIds } from "../../src/utils/extraStudySubjectLists";
+import type { SimilarKanjiSource } from "../../src/utils/similarKanjiQuiz";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
@@ -47,6 +48,8 @@ interface SimilarKanjiConfig {
   maxLevel: number;
   selectedListIds: string[];
   onlyLearnedSimilarKanji: boolean;
+  kanjiPerQuestion: number;
+  similarKanjiSource: SimilarKanjiSource;
 }
 
 const createDefaultConfig = (userLevel: number): SimilarKanjiConfig => ({
@@ -63,7 +66,17 @@ const createDefaultConfig = (userLevel: number): SimilarKanjiConfig => ({
   maxLevel: userLevel,
   selectedListIds: [],
   onlyLearnedSimilarKanji: true,
+  kanjiPerQuestion: 4,
+  similarKanjiSource: "niai",
 });
+
+const SIMILAR_KANJI_SOURCE_OPTIONS: {
+  value: SimilarKanjiSource;
+  label: string;
+}[] = [
+  { value: "niai", label: "Niai" },
+  { value: "wanikani", label: "WaniKani" },
+];
 
 const sanitizeConfig = (
   rawConfig: Partial<SimilarKanjiConfig>,
@@ -109,6 +122,17 @@ const sanitizeConfig = (
       rawConfig.onlyLearnedSimilarKanji,
       defaults.onlyLearnedSimilarKanji,
     ),
+    kanjiPerQuestion: clampNumber(
+      rawConfig.kanjiPerQuestion,
+      2,
+      6,
+      defaults.kanjiPerQuestion,
+    ),
+    similarKanjiSource:
+      rawConfig.similarKanjiSource === "wanikani" ||
+      rawConfig.similarKanjiSource === "niai"
+        ? rawConfig.similarKanjiSource
+        : defaults.similarKanjiSource,
   };
 };
 
@@ -174,6 +198,8 @@ export default function SimilarKanjiConfigScreen() {
           maxLevel: String(config.maxLevel),
           selectedListIds: config.selectedListIds.join(","),
           onlyLearnedSimilarKanji: String(config.onlyLearnedSimilarKanji),
+          kanjiPerQuestion: String(config.kanjiPerQuestion),
+          similarKanjiSource: config.similarKanjiSource,
         },
       });
     }
@@ -315,7 +341,7 @@ export default function SimilarKanjiConfigScreen() {
       >
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-            Number of Questions
+            Number of Rounds
           </Text>
           <View style={styles.sliderContainer}>
             <Text style={[styles.sliderCount, { color: theme.textColor }]}>
@@ -339,6 +365,68 @@ export default function SimilarKanjiConfigScreen() {
 
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Kanji per Round
+          </Text>
+          <View style={styles.sliderContainer}>
+            <Text style={[styles.sliderCount, { color: theme.textColor }]}>
+              {config.kanjiPerQuestion}
+            </Text>
+            <Slider
+              style={{ flex: 1, height: 40 }}
+              minimumValue={2}
+              maximumValue={6}
+              step={1}
+              value={config.kanjiPerQuestion}
+              onValueChange={(value) =>
+                updateConfig("kanjiPerQuestion", Math.round(value))
+              }
+              minimumTrackTintColor={theme.secondary}
+              maximumTrackTintColor={theme.border}
+              thumbTintColor={theme.secondary}
+            />
+          </View>
+        </View>
+
+        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Similar Kanji Source
+          </Text>
+          <View style={styles.segmentedControl}>
+            {SIMILAR_KANJI_SOURCE_OPTIONS.map((option) => {
+              const selected = config.similarKanjiSource === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.segmentButton,
+                    {
+                      backgroundColor: selected
+                        ? `${theme.primary}18`
+                        : "transparent",
+                      borderColor: selected ? theme.primary : theme.border,
+                    },
+                  ]}
+                  onPress={() =>
+                    updateConfig("similarKanjiSource", option.value)
+                  }
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      { color: selected ? theme.primary : theme.textColor },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
             Similar Kanji Pool
           </Text>
           <Text
@@ -347,7 +435,7 @@ export default function SimilarKanjiConfigScreen() {
               { color: theme.textSecondary, marginBottom: 10 },
             ]}
           >
-            Keep pairs limited to kanji with active WaniKani assignments.
+            Keep rounds limited to kanji with active WaniKani assignments.
           </Text>
 
           <View
@@ -672,6 +760,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     lineHeight: 40,
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+  },
+  segmentButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
   chipsContainer: {
     flexDirection: "row",
