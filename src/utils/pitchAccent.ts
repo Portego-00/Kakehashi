@@ -5,11 +5,41 @@ export type WaniKaniPitchAccentEntry = {
   p: number[];
 };
 
+export type PitchAccentTypeLabel =
+  | "Heiban"
+  | "Atamadaka"
+  | "Nakadaka"
+  | "Odaka";
+
 const pitchAccentBySubjectId =
   wanikaniPitchAccents as Record<string, unknown>;
 
 const KATAKANA_RANGE = /[\u30A1-\u30F6]/g;
 const WAVY_DASHES = /[〜～]/g;
+const COMBINING_SMALL_KANA = new Set([
+  "ゃ",
+  "ゅ",
+  "ょ",
+  "ぁ",
+  "ぃ",
+  "ぅ",
+  "ぇ",
+  "ぉ",
+  "ゎ",
+  "ゕ",
+  "ゖ",
+  "ャ",
+  "ュ",
+  "ョ",
+  "ァ",
+  "ィ",
+  "ゥ",
+  "ェ",
+  "ォ",
+  "ヮ",
+  "ヵ",
+  "ヶ",
+]);
 
 function normalizeReading(reading: string): string {
   return reading
@@ -53,6 +83,57 @@ function normalizeEntry(rawEntry: unknown): WaniKaniPitchAccentEntry | null {
     r: maybeEntry.r,
     p: normalizedAccents,
   };
+}
+
+export function splitReadingIntoMoras(reading: string): string[] {
+  const moras: string[] = [];
+
+  for (const character of Array.from(reading.trim())) {
+    if (COMBINING_SMALL_KANA.has(character) && moras.length > 0) {
+      moras[moras.length - 1] += character;
+      continue;
+    }
+
+    moras.push(character);
+  }
+
+  return moras;
+}
+
+export function getPitchAccentTypeLabel(
+  accent: number,
+  moraCount: number,
+): PitchAccentTypeLabel {
+  const clampedAccent = Math.max(0, Math.min(accent, moraCount));
+
+  if (clampedAccent === 0) {
+    return "Heiban";
+  }
+
+  if (clampedAccent === 1) {
+    return "Atamadaka";
+  }
+
+  if (clampedAccent >= moraCount) {
+    return "Odaka";
+  }
+
+  return "Nakadaka";
+}
+
+export function formatPitchAccentNotation(
+  reading: string,
+  accents: number[],
+): string[] {
+  const moraCount = splitReadingIntoMoras(reading).length;
+
+  if (!reading || moraCount === 0) {
+    return accents.map((accent) => String(accent));
+  }
+
+  return accents.map(
+    (accent) => `${getPitchAccentTypeLabel(accent, moraCount)} (${accent})`,
+  );
 }
 
 export function getWaniKaniPitchAccents(

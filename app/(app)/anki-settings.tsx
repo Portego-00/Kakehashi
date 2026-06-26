@@ -38,6 +38,10 @@ export default function AnkiSettingsScreen() {
     setAnkiShowOtherAcceptedAnswersAndUserSynonyms,
     ankiShowWaniKaniGrammarTags,
     setAnkiShowWaniKaniGrammarTags,
+    ankiShowPitchAccentNumbers,
+    setAnkiShowPitchAccentNumbers,
+    ankiShowPitchAccentGraph,
+    setAnkiShowPitchAccentGraph,
   } = useSettingsStore();
 
   const handleScopeChange = (scope: AnkiScope) => {
@@ -272,6 +276,58 @@ export default function AnkiSettingsScreen() {
             <Switch
               value={ankiShowOtherAcceptedAnswersAndUserSynonyms}
               onValueChange={setAnkiShowOtherAcceptedAnswersAndUserSynonyms}
+              trackColor={{ false: "#767577", true: theme.primary }}
+              thumbColor="#f4f3f4"
+            />
+          </View>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <Ionicons
+              name="text-outline"
+              size={20}
+              color={theme.primary}
+              style={styles.settingIcon}
+            />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>
+                Show Pitch Accent Number
+              </Text>
+              <Text
+                style={[styles.settingSubtext, { color: theme.textSecondary }]}
+              >
+                In Anki cards, show compact pitch accent notation after reveal
+                when WaniKani pitch data is available.
+              </Text>
+            </View>
+            <Switch
+              value={ankiShowPitchAccentNumbers}
+              onValueChange={setAnkiShowPitchAccentNumbers}
+              trackColor={{ false: "#767577", true: theme.primary }}
+              thumbColor="#f4f3f4"
+            />
+          </View>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <Ionicons
+              name="pulse-outline"
+              size={20}
+              color={theme.primary}
+              style={styles.settingIcon}
+            />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>
+                Show Pitch Accent Graph
+              </Text>
+              <Text
+                style={[styles.settingSubtext, { color: theme.textSecondary }]}
+              >
+                In Anki cards, also show a compact pitch accent graph after
+                reveal when WaniKani pitch data is available.
+              </Text>
+            </View>
+            <Switch
+              value={ankiShowPitchAccentGraph}
+              onValueChange={setAnkiShowPitchAccentGraph}
               trackColor={{ false: "#767577", true: theme.primary }}
               thumbColor="#f4f3f4"
             />

@@ -494,6 +494,8 @@ type SettingsState = {
   ankiHideAnswerCompletely: boolean;
   ankiShowOtherAcceptedAnswersAndUserSynonyms: boolean;
   ankiShowWaniKaniGrammarTags: boolean;
+  ankiShowPitchAccentNumbers: boolean;
+  ankiShowPitchAccentGraph: boolean;
   ankiButtonlessMode: boolean;
   ankiShowReplayAudioButton: boolean;
   reviewOrder: ReviewOrderSetting;
@@ -662,6 +664,8 @@ type SettingsState = {
   setAnkiHideAnswerCompletely: (hide: boolean) => void;
   setAnkiShowOtherAcceptedAnswersAndUserSynonyms: (show: boolean) => void;
   setAnkiShowWaniKaniGrammarTags: (show: boolean) => void;
+  setAnkiShowPitchAccentNumbers: (show: boolean) => void;
+  setAnkiShowPitchAccentGraph: (show: boolean) => void;
   setAnkiButtonlessMode: (enabled: boolean) => void;
   setAnkiShowReplayAudioButton: (show: boolean) => void;
   setReviewOrder: (order: ReviewOrderSetting) => void;
@@ -812,6 +816,8 @@ export const useSettingsStore = create<SettingsState>()(
       ankiHideAnswerCompletely: false, // Default to false - keep blurred reveal style
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false, // Default to false - only show primary answer on Anki cards
       ankiShowWaniKaniGrammarTags: false, // Default to false - keep Anki cards free of grammar metadata
+      ankiShowPitchAccentNumbers: false, // Default to false - keep compact pitch notation opt-in
+      ankiShowPitchAccentGraph: false, // Default to false - graph stays opt-in on compact Anki reveals
       ankiButtonlessMode: false, // Default to false - show standard Anki self-grade buttons
       ankiShowReplayAudioButton: false, // Default to false - keep reveal actions focused on grading
       reviewOrder: DEFAULT_REVIEW_ORDER,
@@ -1008,6 +1014,10 @@ export const useSettingsStore = create<SettingsState>()(
         set({ ankiShowOtherAcceptedAnswersAndUserSynonyms: show }),
       setAnkiShowWaniKaniGrammarTags: (show) =>
         set({ ankiShowWaniKaniGrammarTags: show }),
+      setAnkiShowPitchAccentNumbers: (show) =>
+        set({ ankiShowPitchAccentNumbers: show }),
+      setAnkiShowPitchAccentGraph: (show) =>
+        set({ ankiShowPitchAccentGraph: show }),
       setAnkiButtonlessMode: (enabled) => set({ ankiButtonlessMode: enabled }),
       setAnkiShowReplayAudioButton: (show) =>
         set({ ankiShowReplayAudioButton: show }),

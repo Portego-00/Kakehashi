@@ -8,6 +8,10 @@ import {
 } from "react-native";
 import Svg, { Circle, Polyline } from "react-native-svg";
 import { fontStyles } from "../utils/fonts";
+import {
+  getPitchAccentTypeLabel,
+  splitReadingIntoMoras,
+} from "../utils/pitchAccent";
 import { useTheme } from "../utils/theme";
 
 type PitchLevel = "high" | "low";
@@ -16,47 +20,9 @@ type PitchAccentVisualizationProps = {
   reading: string;
   accents: number[];
   containerStyle?: StyleProp<ViewStyle>;
+  compact?: boolean;
+  showHeader?: boolean;
 };
-
-const COMBINING_SMALL_KANA = new Set([
-  "ゃ",
-  "ゅ",
-  "ょ",
-  "ぁ",
-  "ぃ",
-  "ぅ",
-  "ぇ",
-  "ぉ",
-  "ゎ",
-  "ゕ",
-  "ゖ",
-  "ャ",
-  "ュ",
-  "ョ",
-  "ァ",
-  "ィ",
-  "ゥ",
-  "ェ",
-  "ォ",
-  "ヮ",
-  "ヵ",
-  "ヶ",
-]);
-
-function splitReadingIntoMoras(reading: string): string[] {
-  const moras: string[] = [];
-
-  for (const character of Array.from(reading.trim())) {
-    if (COMBINING_SMALL_KANA.has(character) && moras.length > 0) {
-      moras[moras.length - 1] += character;
-      continue;
-    }
-
-    moras.push(character);
-  }
-
-  return moras;
-}
 
 function getPitchLevels(moraCount: number, accent: number): PitchLevel[] {
   if (moraCount === 0) {
@@ -99,28 +65,12 @@ function getFollowingPitchLevel(moraCount: number, accent: number): PitchLevel {
   return clampedAccent === 0 ? "high" : "low";
 }
 
-function getAccentTypeLabel(accent: number, moraCount: number): string {
-  const clampedAccent = Math.max(0, Math.min(accent, moraCount));
-
-  if (clampedAccent === 0) {
-    return "Heiban";
-  }
-
-  if (clampedAccent === 1) {
-    return "Atamadaka";
-  }
-
-  if (clampedAccent >= moraCount) {
-    return "Odaka";
-  }
-
-  return "Nakadaka";
-}
-
 export default function PitchAccentVisualization({
   reading,
   accents,
   containerStyle,
+  compact = false,
+  showHeader = true,
 }: PitchAccentVisualizationProps) {
   const { theme } = useTheme();
 
@@ -142,20 +92,41 @@ export default function PitchAccentVisualization({
     return null;
   }
 
-  const pointSpacing = 28;
-  const horizontalPadding = 10;
-  const chartHeight = 42;
-  const highY = 8;
-  const lowY = 30;
+  const horizontalPadding = compact ? 8 : 10;
+  const compactMaxChartWidth = 220;
+  const basePointSpacing = compact ? 20 : 28;
+  const pointSpacing = compact
+    ? Math.max(
+        12,
+        Math.min(
+          basePointSpacing,
+          (compactMaxChartWidth - horizontalPadding * 2) / (moras.length + 1),
+        ),
+      )
+    : basePointSpacing;
+  const chartHeight = compact ? 34 : 42;
+  const highY = compact ? 7 : 8;
+  const lowY = compact ? 24 : 30;
   const chartWidth = horizontalPadding * 2 + (moras.length + 1) * pointSpacing;
+  const compactContainerWidth = Math.max(
+    chartWidth + horizontalPadding * 2,
+    showHeader ? 132 : 0,
+  );
   const primaryAccent = normalizedAccents[0];
   const accentSummary = normalizedAccents.join(", ");
-  const primaryAccentType = getAccentTypeLabel(primaryAccent, moras.length);
+  const primaryAccentType = getPitchAccentTypeLabel(
+    primaryAccent,
+    moras.length,
+  );
 
   return (
     <View
       style={[
         styles.container,
+        compact && styles.containerCompact,
+        compact && {
+          width: compactContainerWidth,
+        },
         {
           borderColor: theme.border,
           backgroundColor: theme.isDark ? "#222" : "#f7f7fb",
@@ -163,25 +134,40 @@ export default function PitchAccentVisualization({
         containerStyle,
       ]}
     >
-      <View style={styles.headerRow}>
-        <Text style={[styles.accentTypeLabel, { color: theme.textSecondary }]}>
-          {primaryAccentType}
-        </Text>
-        <View
-          style={[
-            styles.numberBadge,
-            {
-              backgroundColor: theme.isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.06)",
-            },
-          ]}
-        >
-          <Text style={[styles.numberBadgeText, { color: theme.textColor }]}>
-            {accentSummary}
+      {showHeader && (
+        <View style={[styles.headerRow, compact && styles.headerRowCompact]}>
+          <Text
+            style={[
+              styles.accentTypeLabel,
+              compact && styles.accentTypeLabelCompact,
+              { color: theme.textSecondary },
+            ]}
+          >
+            {primaryAccentType}
           </Text>
+          <View
+            style={[
+              styles.numberBadge,
+              {
+                backgroundColor: theme.isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.06)",
+              },
+              compact && styles.numberBadgeCompact,
+            ]}
+          >
+            <Text
+              style={[
+                styles.numberBadgeText,
+                compact && styles.numberBadgeTextCompact,
+                { color: theme.textColor },
+              ]}
+            >
+              {accentSummary}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {normalizedAccents.map((accent) => {
         const pitchLevels = getPitchLevels(moras.length, accent);
@@ -206,7 +192,7 @@ export default function PitchAccentVisualization({
                   points={points}
                   fill="none"
                   stroke={theme.primary}
-                  strokeWidth={2.5}
+                  strokeWidth={compact ? 2 : 2.5}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -215,17 +201,17 @@ export default function PitchAccentVisualization({
                     key={`point-${accent}-${index}`}
                     cx={horizontalPadding + pointSpacing / 2 + index * pointSpacing}
                     cy={level === "high" ? highY : lowY}
-                    r={3.2}
+                    r={compact ? 2.6 : 3.2}
                     fill={theme.primary}
                   />
                 ))}
                 <Circle
                   cx={trailingPointX}
                   cy={trailingPointY}
-                  r={4.2}
+                  r={compact ? 3.3 : 4.2}
                   fill={theme.isDark ? "#222" : "#f7f7fb"}
                   stroke={theme.primary}
-                  strokeWidth={2}
+                  strokeWidth={compact ? 1.8 : 2}
                 />
               </Svg>
 
@@ -235,6 +221,7 @@ export default function PitchAccentVisualization({
                     key={`mora-${accent}-${index}`}
                     style={[
                       styles.moraText,
+                      compact && styles.moraTextCompact,
                       { color: theme.textSecondary, width: pointSpacing },
                       fontStyles.japaneseText,
                     ]}
@@ -258,15 +245,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
+  containerCompact: {
+    alignSelf: "center",
+    borderRadius: 10,
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
   },
+  headerRowCompact: {
+    marginBottom: 2,
+  },
   accentTypeLabel: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  accentTypeLabelCompact: {
+    fontSize: 12,
   },
   numberBadge: {
     paddingHorizontal: 8,
@@ -274,15 +275,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginLeft: 8,
   },
+  numberBadgeCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 9,
+    marginLeft: 6,
+  },
   numberBadgeText: {
     fontSize: 12,
     fontWeight: "700",
   },
+  numberBadgeTextCompact: {
+    fontSize: 10,
+  },
   patternRow: {
+    alignItems: "center",
     marginBottom: 3,
   },
   patternContent: {
-    flex: 1,
+    alignItems: "center",
   },
   moraRow: {
     flexDirection: "row",
@@ -291,5 +302,8 @@ const styles = StyleSheet.create({
   moraText: {
     textAlign: "center",
     fontSize: 13,
+  },
+  moraTextCompact: {
+    fontSize: 11,
   },
 });
