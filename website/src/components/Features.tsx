@@ -7,7 +7,6 @@ import {
   Mic,
   Camera,
   Music,
-  BookOpen,
   BarChart3,
   Lightbulb,
   Newspaper,
@@ -15,16 +14,6 @@ import {
 import Image from 'next/image'
 
 const features = [
-  {
-    id: 'reviews',
-    icon: BookOpen,
-    title: 'Reviews & Lessons',
-    subtitle: 'Master Your Kanji',
-    description:
-      'Complete your WaniKani reviews with a beautiful, optimized mobile interface. Study new radicals, kanji, and vocabulary with detailed explanations and mnemonics.',
-    gradient: 'from-blue-500 to-cyan-500',
-    screenshot: '/images/ReviewsAndLessons.png',
-  },
   {
     id: 'mnemonics',
     icon: Lightbulb,
@@ -213,7 +202,7 @@ export function Features() {
 
             <p className="text-base lg:text-lg text-gray-400 mb-6 lg:mb-8 leading-relaxed">{activeFeature.description}</p>
 
-            {/* iOS badge */}
+            {/* Platform badge */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
               <motion.a
                 href="#download"
@@ -225,7 +214,7 @@ export function Features() {
               </motion.a>
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm text-gray-300">
                 <span className="w-2 h-2 rounded-full bg-green-400" />
-                Available on iOS
+                Available on iOS and Android
               </span>
             </div>
           </motion.div>

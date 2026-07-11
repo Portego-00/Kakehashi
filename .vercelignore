@@ -1,0 +1,14 @@
+*
+!website
+!website/src
+!website/src/**
+!website/public
+!website/public/**
+!website/package.json
+!website/package-lock.json
+!website/next.config.js
+!website/postcss.config.js
+!website/tailwind.config.ts
+!website/tsconfig.json
+!vercel.json
+!.vercelignore

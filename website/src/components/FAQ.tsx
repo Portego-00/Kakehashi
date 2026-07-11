@@ -33,7 +33,7 @@ const faqs = [
   {
     question: 'What devices are supported?',
     answer:
-      'Kakehashi is available for iPhone and iPad. We recommend iOS 26 or later for the best experience.',
+      'Kakehashi is available for iPhone, iPad, and Android. We recommend iOS 26 or later for the best Apple device experience.',
   },
 ]
 

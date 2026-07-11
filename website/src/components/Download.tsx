@@ -39,7 +39,7 @@ export function Download() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-8"
           >
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-sm text-gray-300">Available on iOS</span>
+            <span className="text-sm text-gray-300">Available on iOS and Android</span>
           </motion.div>
 
           <h2 className="section-title mb-6">
@@ -53,8 +53,8 @@ export function Download() {
             It&apos;s completely free, with no ads or tracking.
           </p>
 
-          {/* Download button - Official App Store Badge */}
-          <div className="flex justify-center mb-12">
+          {/* Store badges */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
             <motion.a
               href="https://apps.apple.com/app/kakehashi-wanikani-companion/id6757765444"
               target="_blank"
@@ -82,6 +82,34 @@ export function Download() {
                     <path d="M37.826 8.731a2.64 2.64 0 012.808 2.965c0 1.906-1.03 3.002-2.808 3.002h-2.155V8.731zm-1.228 5.123h1.125a1.876 1.876 0 001.967-2.146 1.881 1.881 0 00-1.967-2.134h-1.125zM41.68 12.444a2.133 2.133 0 114.248 0 2.134 2.134 0 11-4.247 0zm3.334 0c0-.976-.439-1.547-1.208-1.547-.773 0-1.207.571-1.207 1.547 0 .984.434 1.55 1.207 1.55.77 0 1.208-.57 1.208-1.55zM51.573 14.698h-.922l-.93-3.317h-.07l-.927 3.317h-.913l-1.242-4.503h.902l.806 3.436h.067l.926-3.436h.852l.926 3.436h.07l.803-3.436h.889zM53.854 10.195h.855v.715h.066a1.348 1.348 0 011.344-.802 1.465 1.465 0 011.559 1.675v2.915h-.889v-2.692c0-.724-.314-1.084-.972-1.084a1.033 1.033 0 00-1.075 1.141v2.635h-.888zM59.094 8.437h.888v6.26h-.888zM61.218 12.444a2.133 2.133 0 114.247 0 2.134 2.134 0 11-4.247 0zm3.333 0c0-.976-.439-1.547-1.208-1.547-.773 0-1.207.571-1.207 1.547 0 .984.434 1.55 1.207 1.55.77 0 1.208-.57 1.208-1.55zM66.4 13.424c0-.81.604-1.278 1.676-1.344l1.22-.07v-.389c0-.476-.315-.744-.922-.744-.497 0-.84.182-.939.5h-.86c.09-.773.818-1.27 1.84-1.27 1.128 0 1.765.563 1.765 1.514v3.077h-.855v-.633h-.07a1.515 1.515 0 01-1.353.707 1.36 1.36 0 01-1.501-1.348zm2.895-.384v-.377l-1.1.07c-.62.042-.9.253-.9.65 0 .405.351.64.834.64a1.062 1.062 0 001.166-.983zM71.348 12.444c0-1.423.732-2.324 1.87-2.324a1.484 1.484 0 011.38.79h.067V8.437h.888v6.26h-.851v-.71h-.07a1.563 1.563 0 01-1.415.785c-1.145 0-1.869-.901-1.869-2.328zm.918 0c0 .955.45 1.53 1.203 1.53.75 0 1.212-.583 1.212-1.526 0-.938-.468-1.53-1.212-1.53-.748 0-1.203.579-1.203 1.526zM79.23 12.444a2.133 2.133 0 114.247 0 2.134 2.134 0 11-4.247 0zm3.333 0c0-.976-.438-1.547-1.208-1.547-.772 0-1.207.571-1.207 1.547 0 .984.435 1.55 1.207 1.55.77 0 1.208-.57 1.208-1.55zM84.67 10.195h.855v.715h.066a1.348 1.348 0 011.344-.802 1.465 1.465 0 011.559 1.675v2.915h-.889v-2.692c0-.724-.314-1.084-.972-1.084a1.033 1.033 0 00-1.075 1.141v2.635h-.888zM93.515 9.074v1.141h.976v.749h-.976v2.315c0 .472.194.679.637.679a2.967 2.967 0 00.339-.021v.74a2.916 2.916 0 01-.484.046c-.988 0-1.381-.348-1.381-1.216v-2.543h-.715v-.749h.715V9.074zM95.705 8.437h.88v2.481h.07a1.386 1.386 0 011.374-.806 1.483 1.483 0 011.55 1.679v2.907h-.889V12.01c0-.72-.335-1.084-.963-1.084a1.052 1.052 0 00-1.134 1.142v2.63h-.888zM104.761 13.482a1.828 1.828 0 01-1.95 1.303 2.045 2.045 0 01-2.081-2.325 2.077 2.077 0 012.076-2.352c1.253 0 2.009.856 2.009 2.27v.31h-3.18v.05a1.19 1.19 0 001.2 1.29 1.08 1.08 0 001.07-.546zm-3.126-1.451h2.275a1.086 1.086 0 00-1.109-1.167 1.152 1.152 0 00-1.166 1.167z" />
                   </g>
                 </g>
+              </svg>
+            </motion.a>
+            <motion.a
+              href="https://play.google.com/store/apps/details?id=com.portego00.kakehashi"
+              target="_blank"
+              rel="noopener noreferrer"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="transition-transform"
+            >
+              <svg
+                viewBox="0 0 150 40"
+                className="h-14 w-auto"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <title>Get it on Google Play</title>
+                <rect width="150" height="40" rx="6" fill="#000" />
+                <rect x="0.5" y="0.5" width="149" height="39" rx="5.5" fill="none" stroke="#A6A6A6" />
+                <path d="M16.3 8.2c-.6.3-1 .9-1 1.8v20c0 .9.4 1.5 1 1.8l11.5-11.8L16.3 8.2z" fill="#00F076" />
+                <path d="M27.8 20 31.4 16 18.2 8.6c-.7-.4-1.4-.5-1.9-.3L27.8 20z" fill="#00D3FF" />
+                <path d="M27.8 20 16.3 31.8c.5.2 1.2.1 1.9-.3l13.2-7.5L27.8 20z" fill="#FFEA00" />
+                <path d="M31.4 16 27.8 20l3.6 4 3.8-2.1c1.1-.6 1.1-2.2 0-2.8L31.4 16z" fill="#FF3A44" />
+                <text x="45" y="14" fill="#fff" fontSize="8" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="0.5">
+                  GET IT ON
+                </text>
+                <text x="45" y="29" fill="#fff" fontSize="16" fontFamily="Arial, Helvetica, sans-serif" fontWeight="600">
+                  Google Play
+                </text>
               </svg>
             </motion.a>
           </div>

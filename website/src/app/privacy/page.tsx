@@ -124,7 +124,7 @@ export default function PrivacyPolicy() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-white mb-4">Data Storage</h2>
               <p className="text-gray-400 leading-relaxed">
-                Most app data is stored locally on your device using secure storage mechanisms provided by iOS. Your API token is stored using the device&apos;s secure keychain. Server-backed features store only the records needed to provide those features.
+                Most app data is stored locally on your device using secure storage mechanisms provided by your operating system. Your API token is stored using secure device storage. Server-backed features store only the records needed to provide those features.
               </p>
             </section>
 

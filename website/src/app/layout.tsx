@@ -4,7 +4,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Kakehashi - Your Japanese Learning Companion',
   description: 'The ultimate WaniKani companion app. Master Japanese with listening practice, speech recognition, music lyrics, and more.',
-  keywords: ['Japanese', 'WaniKani', 'Kanji', 'Learning', 'App', 'iOS', 'Study'],
+  keywords: ['Japanese', 'WaniKani', 'Kanji', 'Learning', 'App', 'iOS', 'Android', 'Study'],
   authors: [{ name: 'Kakehashi' }],
   openGraph: {
     title: 'Kakehashi - Your Japanese Learning Companion',

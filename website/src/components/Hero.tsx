@@ -254,31 +254,6 @@ export function Hero() {
                 </div>
               </motion.div>
 
-              {/* Far back right phone */}
-              <motion.div
-                className="absolute -right-4 top-16 z-[5]"
-                initial={{ opacity: 0, x: 40, rotate: 25 }}
-                animate={{ opacity: 0.7, x: 0, rotate: 20, y: [-6, 6, -6] }}
-                transition={{
-                  opacity: { duration: 0.8, delay: 0.35 },
-                  x: { duration: 0.8, delay: 0.35 },
-                  rotate: { duration: 0.8, delay: 0.35 },
-                  y: { duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }
-                }}
-              >
-                <div className="relative w-[160px] h-[340px] bg-gradient-to-b from-gray-800 to-gray-900 rounded-[28px] p-1.5 shadow-lg">
-                  <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-[55px] h-[16px] bg-black rounded-full z-20" />
-                  <div className="w-full h-full rounded-[24px] overflow-hidden bg-black relative">
-                    <Image
-                      src="/images/ReviewsAndLessons.png"
-                      alt="Reviews"
-                      fill
-                      className="object-cover object-top"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-
               {/* Front center phone (main) */}
               <motion.div
                 className="absolute left-1/2 -translate-x-1/2 top-0 z-20"
