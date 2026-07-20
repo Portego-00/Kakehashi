@@ -17,6 +17,7 @@ export function ReadingDefaultsSection() {
     setNewsDefaultStudyMode,
     setSongsLyricsDefaultStudyMode,
     songsLyricsDefaultStudyMode,
+    SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS,
     STUDY_MODE_DEFAULT_OPTIONS,
     StyleSheet,
     theme,
@@ -205,12 +206,12 @@ export function ReadingDefaultsSection() {
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
-                Pick the default highlight mode for lyric lines.
+                Pick the default study mode for lyric lines.
               </Text>
             </View>
           </View>
           <View style={styles.playbackSelector}>
-            {STUDY_MODE_DEFAULT_OPTIONS.map((option) => {
+            {SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS.map((option) => {
               const isBlocked = option.value === "full" && !hasStoredJpdbApiKey;
 
               return (

@@ -24,6 +24,7 @@ export default function GlobalMiniPlayer() {
     currentTime,
     duration,
     playerRef,
+    setIsPlaying,
     togglePlayPause,
     skipForward,
     skipBackward,
@@ -280,10 +281,12 @@ export default function GlobalMiniPlayer() {
       songTitle={songTitle}
       artist={artist}
       currentTime={currentTime}
+      onCurrentTimeChange={setCurrentTime}
       duration={duration}
       timedLyrics={timedLyrics}
       lyricsTimingOffsetMs={lyricsTimingOffsetMs}
       onPlayPause={togglePlayPause}
+      onSetPlaying={setIsPlaying}
       onSkipBackward={skipBackward}
       onSkipForward={skipForward}
       onStateChange={onStateChange}

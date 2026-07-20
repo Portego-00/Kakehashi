@@ -75,6 +75,7 @@ export type VocabularyAudioVoicePreference =
   | "random"
   | "both";
 export type StudyModePreference = "none" | "wk" | "full";
+export type SongLyricsStudyModePreference = StudyModePreference | "quiz";
 export type SongsPlaybackSource = "youtube" | "appleMusic" | "spotify";
 export type SpotifyAuthStatus =
   | "authorized"
@@ -578,7 +579,7 @@ type SettingsState = {
   hideVocabularyTooltipReadings: boolean;
   songsMusicSource: "spotify" | "apple";
   songsPlaybackSource: SongsPlaybackSource;
-  songsLyricsDefaultStudyMode: StudyModePreference;
+  songsLyricsDefaultStudyMode: SongLyricsStudyModePreference;
   songsLyricsLineTranslationsEnabled: boolean;
   appleMusicAuthStatus:
     | "authorized"
@@ -742,7 +743,7 @@ type SettingsState = {
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
   setSongsMusicSource: (source: "spotify" | "apple") => void;
   setSongsPlaybackSource: (source: SongsPlaybackSource) => void;
-  setSongsLyricsDefaultStudyMode: (mode: StudyModePreference) => void;
+  setSongsLyricsDefaultStudyMode: (mode: SongLyricsStudyModePreference) => void;
   setSongsLyricsLineTranslationsEnabled: (enabled: boolean) => void;
   setAppleMusicAuthStatus: (
     status:

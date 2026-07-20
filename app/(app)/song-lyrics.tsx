@@ -58,14 +58,23 @@ import {
 } from "../../src/utils/jpdbApi";
 import { withAlpha } from "../../src/utils/subjectColors";
 import {
-  type StudyModePreference,
+  type SongLyricsStudyModePreference,
   useAuthStore,
   useSettingsStore,
 } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
+import * as Haptics from "../../src/utils/haptics";
+import {
+  buildLyricsQuizQuestions,
+  getLyricsQuizSessionKey,
+  type LyricsQuizQuestion,
+} from "../../src/utils/lyricsQuiz";
+import { useLyricsQuizStore } from "../../src/utils/lyricsQuizStore";
 
 import { CoachMarks, CoachMarkStep } from "../../src/components/CoachMarks";
 import { GlassButton } from "../../src/components/GlassButton";
+import { LyricsQuizLine } from "../../src/components/LyricsQuizLine";
+import { LyricsQuizResultsModal } from "../../src/components/LyricsQuizResultsModal";
 import { VocabularyTooltip } from "../../src/components/VocabularyTooltip";
 import {
   findVocabularyMatchesWithJpdbFirstPass as findMatches,
@@ -100,6 +109,8 @@ const LYRICS_SKELETON_LINE_WIDTHS = [
   [83, 67, 79, 89],
   [71, 85],
 ] as const;
+const EMPTY_LYRICS_QUIZ_ANSWERS: Record<number, string> = {};
+const EMPTY_LYRICS_QUIZ_ATTEMPTS: Record<number, string[]> = {};
 
 function clampLyricsTimingOffsetMs(offsetMs: number): number {
   if (!Number.isFinite(offsetMs)) {
@@ -375,6 +386,7 @@ export default function SongLyricsScreen() {
     isPlayerExpanded,
     setSongInfo,
     setIsPlaying,
+    setCurrentTime,
     setTimedLyrics: setGlobalTimedLyrics,
     lyricsTimingOffsetMs,
     setLyricsTimingOffsetMs,
@@ -466,12 +478,13 @@ export default function SongLyricsScreen() {
     (Platform.OS as string) === "macos";
   const supportsNativeHeaderStudyMenu =
     Platform.OS === "ios" && Boolean(SwiftUI);
-  const activeStudyMode: StudyModePreference =
+  const activeStudyMode: SongLyricsStudyModePreference =
     songsLyricsDefaultStudyMode === "full" && !hasStoredJpdbApiKey
       ? "wk"
       : songsLyricsDefaultStudyMode;
   const fullAnalysisEnabled = activeStudyMode === "full";
   const wkStudyModeEnabled = activeStudyMode === "wk";
+  const lyricsQuizModeEnabled = activeStudyMode === "quiz";
   const lineTranslationsEnabled =
     songsLyricsLineTranslationsEnabled && hasStoredJpdbApiKey;
   const songLyricsCacheBaseKey = useMemo(() => {
@@ -604,6 +617,227 @@ export default function SongLyricsScreen() {
 
     return offsets;
   }, [lyrics, timedLyrics]);
+  const lyricsQuizQuestions = useMemo(
+    () =>
+      lyricsQuizModeEnabled
+        ? buildLyricsQuizQuestions(timedLyrics, vocabularyMatches, userLevel)
+        : [],
+    [
+      lyricsQuizModeEnabled,
+      timedLyrics,
+      userLevel,
+      vocabularyMatches,
+    ],
+  );
+  const lyricsQuizQuestionsByLine = useMemo(
+    () =>
+      new Map(
+        lyricsQuizQuestions.map((question) => [question.lineIndex, question]),
+      ),
+    [lyricsQuizQuestions],
+  );
+  const lyricsQuizSessionKey = useMemo(
+    () =>
+      getLyricsQuizSessionKey(
+        String(songTitle ?? ""),
+        String(artist ?? ""),
+        timedLyrics,
+      ),
+    [artist, songTitle, timedLyrics],
+  );
+  const quizStoreSessionKey = useLyricsQuizStore((state) => state.sessionKey);
+  const storedLyricsQuizAnswers = useLyricsQuizStore((state) => state.answers);
+  const storedLyricsQuizAttempts = useLyricsQuizStore(
+    (state) => state.attempts,
+  );
+  const storedLyricsQuizBypassedLineIndex = useLyricsQuizStore(
+    (state) => state.bypassedLineIndex,
+  );
+  const storedLyricsQuizPausedLineIndex = useLyricsQuizStore(
+    (state) => state.pausedLineIndex,
+  );
+  const storedLyricsQuizResultsPresented = useLyricsQuizStore(
+    (state) => state.resultsPresented,
+  );
+  const recordLyricsQuizAnswer = useLyricsQuizStore(
+    (state) => state.recordAnswer,
+  );
+  const markLyricsQuizPaused = useLyricsQuizStore((state) => state.markPaused);
+  const continuePastLyricsQuizPause = useLyricsQuizStore(
+    (state) => state.continuePastPause,
+  );
+  const rearmLyricsQuizQuestions = useLyricsQuizStore(
+    (state) => state.rearmQuestions,
+  );
+  const clearLyricsQuizBypass = useLyricsQuizStore(
+    (state) => state.clearBypass,
+  );
+  const markLyricsQuizResultsPresented = useLyricsQuizStore(
+    (state) => state.markResultsPresented,
+  );
+  const resetLyricsQuiz = useLyricsQuizStore((state) => state.reset);
+  const lyricsQuizAnswers =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizAnswers
+      : EMPTY_LYRICS_QUIZ_ANSWERS;
+  const lyricsQuizPausedLineIndex =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizPausedLineIndex
+      : null;
+  const lyricsQuizAttempts =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizAttempts
+      : EMPTY_LYRICS_QUIZ_ATTEMPTS;
+  const lyricsQuizBypassedLineIndex =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizBypassedLineIndex
+      : null;
+  const lyricsQuizResultsPresented =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizResultsPresented
+      : false;
+  const currentTimedLineIndex = useMemo(() => {
+    if (timedLyrics.length === 0) {
+      return -1;
+    }
+
+    const adjustedCurrentTimeMs =
+      currentTime * 1000 - activeLyricsTimingOffsetMs;
+    return timedLyrics.findIndex((line, index) => {
+      const nextLine = timedLyrics[index + 1];
+      return (
+        adjustedCurrentTimeMs >= line.startTimeMs &&
+        (!nextLine || adjustedCurrentTimeMs < nextLine.startTimeMs)
+      );
+    });
+  }, [activeLyricsTimingOffsetMs, currentTime, timedLyrics]);
+  const completedLyricsQuizQuestionCount = useMemo(
+    () =>
+      lyricsQuizQuestions.reduce(
+        (count, question) =>
+          count +
+          (lyricsQuizAnswers[question.lineIndex] === question.answer ? 1 : 0),
+        0,
+      ),
+    [lyricsQuizAnswers, lyricsQuizQuestions],
+  );
+  const isLyricsQuizComplete =
+    lyricsQuizQuestions.length > 0 &&
+    completedLyricsQuizQuestionCount === lyricsQuizQuestions.length;
+  const [isLyricsQuizResultsVisible, setIsLyricsQuizResultsVisible] =
+    useState(false);
+
+  useEffect(() => {
+    if (lyricsQuizModeEnabled && timedLyrics.length > 0 && !isTimedMode) {
+      setIsTimedMode(true);
+      setIsAutoscrollEnabled(true);
+    }
+  }, [isTimedMode, lyricsQuizModeEnabled, timedLyrics.length]);
+
+  useEffect(() => {
+    if (
+      !isPlayerExpanded &&
+      isLyricsQuizComplete &&
+      !lyricsQuizResultsPresented
+    ) {
+      markLyricsQuizResultsPresented(lyricsQuizSessionKey);
+      setIsLyricsQuizResultsVisible(true);
+    }
+  }, [
+    isLyricsQuizComplete,
+    isPlayerExpanded,
+    lyricsQuizResultsPresented,
+    lyricsQuizSessionKey,
+    markLyricsQuizResultsPresented,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isPlayerExpanded &&
+      lyricsQuizBypassedLineIndex !== null &&
+      currentTimedLineIndex !== lyricsQuizBypassedLineIndex
+    ) {
+      clearLyricsQuizBypass(lyricsQuizSessionKey);
+    }
+  }, [
+    clearLyricsQuizBypass,
+    currentTimedLineIndex,
+    isPlayerExpanded,
+    lyricsQuizBypassedLineIndex,
+    lyricsQuizSessionKey,
+  ]);
+
+  useEffect(() => {
+    if (
+      !lyricsQuizModeEnabled ||
+      isPlayerExpanded ||
+      !isTimedMode ||
+      !isPlaying ||
+      currentTimedLineIndex < 0
+    ) {
+      return;
+    }
+
+    const question = lyricsQuizQuestionsByLine.get(currentTimedLineIndex);
+    if (
+      !question ||
+      lyricsQuizAnswers[question.lineIndex] === question.answer ||
+      lyricsQuizBypassedLineIndex === question.lineIndex
+    ) {
+      return;
+    }
+
+    const adjustedCurrentTimeMs =
+      currentTime * 1000 - activeLyricsTimingOffsetMs;
+    if (
+      adjustedCurrentTimeMs >= question.pauseTimeMs &&
+      adjustedCurrentTimeMs < question.lineEndTimeMs
+    ) {
+      markLyricsQuizPaused(lyricsQuizSessionKey, question.lineIndex);
+      setIsPlaying(false);
+    }
+  }, [
+    activeLyricsTimingOffsetMs,
+    currentTime,
+    currentTimedLineIndex,
+    isPlayerExpanded,
+    isPlaying,
+    isTimedMode,
+    lyricsQuizAnswers,
+    lyricsQuizBypassedLineIndex,
+    lyricsQuizModeEnabled,
+    lyricsQuizQuestionsByLine,
+    lyricsQuizSessionKey,
+    markLyricsQuizPaused,
+    setIsPlaying,
+  ]);
+
+  const handleLyricsQuizAnswer = useCallback(
+    (question: LyricsQuizQuestion, answer: string) => {
+      const isCorrectAnswer = answer === question.answer;
+      recordLyricsQuizAnswer(lyricsQuizSessionKey, question.lineIndex, answer);
+      void Haptics.notificationAsync(
+        isCorrectAnswer
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Error,
+      );
+
+      if (
+        isCorrectAnswer &&
+        lyricsQuizPausedLineIndex === question.lineIndex
+      ) {
+        rearmLyricsQuizQuestions(lyricsQuizSessionKey);
+        setIsPlaying(true);
+      }
+    },
+    [
+      lyricsQuizPausedLineIndex,
+      lyricsQuizSessionKey,
+      recordLyricsQuizAnswer,
+      rearmLyricsQuizQuestions,
+      setIsPlaying,
+    ],
+  );
 
   useEffect(() => {
     let didCancel = false;
@@ -1728,6 +1962,29 @@ export default function SongLyricsScreen() {
     [handleCloseTooltip, router],
   );
 
+  const handleOpenLyricsQuizResultItem = useCallback(
+    (question: LyricsQuizQuestion) => {
+      if (!isWaniKaniBackedMatch(question.answerItem)) {
+        return;
+      }
+
+      setIsLyricsQuizResultsVisible(false);
+      router.push({
+        pathname: "/subject/[id]",
+        params: {
+          id: question.answerItem.id.toString(),
+          from: "song-lyrics",
+        },
+      });
+    },
+    [router],
+  );
+
+  const handleRestartLyricsQuiz = useCallback(() => {
+    resetLyricsQuiz(lyricsQuizSessionKey);
+    setIsLyricsQuizResultsVisible(false);
+  }, [lyricsQuizSessionKey, resetLyricsQuiz]);
+
   const handleClose = useCallback(() => {
     router.back();
   }, [router]);
@@ -1740,7 +1997,7 @@ export default function SongLyricsScreen() {
   }, [router]);
 
   const selectStudyMode = useCallback(
-    (mode: StudyModePreference) => {
+    (mode: SongLyricsStudyModePreference) => {
       if (mode === "full" && !hasStoredJpdbApiKey) {
         Alert.alert(
           "JPDB API Key Required",
@@ -1756,12 +2013,43 @@ export default function SongLyricsScreen() {
         return;
       }
 
+      if (
+        mode === "quiz" &&
+        timedLyricsStatus !== "loading" &&
+        timedLyrics.length === 0
+      ) {
+        Alert.alert(
+          "Synced Lyrics Required",
+          "Fill-the-blank mode needs time-synced lyrics. Try the manual lyrics search to find a synced version of this song.",
+        );
+        return;
+      }
+
+      if (mode !== "quiz" && activeStudyMode === "quiz") {
+        rearmLyricsQuizQuestions(lyricsQuizSessionKey);
+        if (lyricsQuizPausedLineIndex !== null) {
+          setIsPlaying(true);
+        }
+      }
+
+      if (mode === "quiz") {
+        setIsTimedMode(true);
+        setIsAutoscrollEnabled(true);
+      }
+
       setSongsLyricsDefaultStudyMode(mode);
     },
     [
+      activeStudyMode,
       hasStoredJpdbApiKey,
+      lyricsQuizPausedLineIndex,
+      lyricsQuizSessionKey,
       openJpdbApiKeySettings,
+      rearmLyricsQuizQuestions,
+      setIsPlaying,
       setSongsLyricsDefaultStudyMode,
+      timedLyrics.length,
+      timedLyricsStatus,
     ],
   );
 
@@ -1944,24 +2232,55 @@ export default function SongLyricsScreen() {
 
   const seekToTime = useCallback(
     async (timeInSeconds: number) => {
+      rearmLyricsQuizQuestions(lyricsQuizSessionKey);
       if (!playerRef.current) return;
 
       try {
         await playerRef.current.seekTo(timeInSeconds);
+        setCurrentTime(timeInSeconds);
         // Re-enable autoscroll when user clicks on a lyric line
         setIsAutoscrollEnabled(true);
       } catch (error) {
         console.error("Error seeking to time:", error);
       }
     },
-    [playerRef],
+    [
+      lyricsQuizSessionKey,
+      playerRef,
+      rearmLyricsQuizQuestions,
+      setCurrentTime,
+    ],
   );
+
+  const handleLyricsQuizReplay = useCallback(
+    async (question: LyricsQuizQuestion) => {
+      const line = timedLyrics[question.lineIndex];
+      if (!line) return;
+
+      const seekTimeSeconds = Math.max(
+        0,
+        (line.startTimeMs + activeLyricsTimingOffsetMs) / 1000,
+      );
+      await seekToTime(seekTimeSeconds);
+      setIsPlaying(true);
+    },
+    [
+      activeLyricsTimingOffsetMs,
+      seekToTime,
+      setIsPlaying,
+      timedLyrics,
+    ],
+  );
+
+  const handleLyricsQuizSkip = useCallback(() => {
+    continuePastLyricsQuizPause(lyricsQuizSessionKey);
+    setIsPlaying(true);
+  }, [continuePastLyricsQuizPause, lyricsQuizSessionKey, setIsPlaying]);
 
   // Auto-scroll to current timed lyric line (only if autoscroll is enabled)
   useEffect(() => {
     if (
       !isTimedMode ||
-      !isPlaying ||
       timedLyrics.length === 0 ||
       !isAutoscrollEnabled
     )
@@ -1996,7 +2315,6 @@ export default function SongLyricsScreen() {
     currentTime,
     activeLyricsTimingOffsetMs,
     isTimedMode,
-    isPlaying,
     timedLyrics,
     isAutoscrollEnabled,
     isPlayerExpanded,
@@ -2334,8 +2652,14 @@ export default function SongLyricsScreen() {
 
           const isPastLine =
             adjustedCurrentTimeMs > line.startTimeMs && !isCurrentLine;
+          const quizQuestion = lyricsQuizQuestionsByLine.get(index);
+          const selectedQuizAnswer = lyricsQuizAnswers[index];
+          const isQuizQuestionComplete =
+            quizQuestion && selectedQuizAnswer === quizQuestion.answer;
           const translatedLineText =
-            timedLineTranslationsForDisplay[index] ?? null;
+            lyricsQuizModeEnabled && quizQuestion && !isQuizQuestionComplete
+              ? null
+              : timedLineTranslationsForDisplay[index] ?? null;
           const seekTimeSeconds = Math.max(
             0,
             (line.startTimeMs + activeLyricsTimingOffsetMs) / 1000,
@@ -2356,7 +2680,40 @@ export default function SongLyricsScreen() {
               disabled={fullAnalysisEnabled}
               activeOpacity={fullAnalysisEnabled ? 1 : 0.7}
             >
-              {fullAnalysisEnabled ? (
+              {lyricsQuizModeEnabled && quizQuestion ? (
+                <LyricsQuizLine
+                  question={quizQuestion}
+                  selectedAnswer={selectedQuizAnswer}
+                  showOptions={
+                    isCurrentLine || lyricsQuizPausedLineIndex === index
+                  }
+                  isPlaybackPaused={lyricsQuizPausedLineIndex === index}
+                  onSelectAnswer={(answer) =>
+                    handleLyricsQuizAnswer(quizQuestion, answer)
+                  }
+                  onOpenAnswerDetails={(event) =>
+                    handleVocabularyPress(
+                      quizQuestion.answerItem.id,
+                      quizQuestion.answer,
+                      event,
+                      quizQuestion.answerItem,
+                      `lyrics-quiz-answer-${index}`,
+                    )
+                  }
+                  onReplay={() => handleLyricsQuizReplay(quizQuestion)}
+                  onSkip={handleLyricsQuizSkip}
+                  textStyle={[
+                    styles.timedLyricText,
+                    isCurrentLine && styles.currentTimedLyric,
+                    isPastLine && styles.pastTimedLyric,
+                  ]}
+                  accentColor={theme.primary}
+                  borderColor={theme.border}
+                  textColor={theme.textColor}
+                  mutedTextColor={theme.textSecondary}
+                  surfaceColor={theme.backgroundColor}
+                />
+              ) : fullAnalysisEnabled ? (
                 renderUnderlinedAnalyzedText(
                   line.words,
                   timedLineOffsets[index] ?? 0,
@@ -2629,6 +2986,15 @@ export default function SongLyricsScreen() {
                     onPress={() => selectStudyMode("wk")}
                   />
                   <SwiftUI.Button
+                    label="Fill the blank"
+                    systemImage={
+                      activeStudyMode === "quiz"
+                        ? "checkmark.circle.fill"
+                        : "circle"
+                    }
+                    onPress={() => selectStudyMode("quiz")}
+                  />
+                  <SwiftUI.Button
                     label="Full grammar study mode"
                     systemImage={
                       !hasStoredJpdbApiKey
@@ -2776,6 +3142,9 @@ export default function SongLyricsScreen() {
                     <Switch
                       value={isTimedMode}
                       onValueChange={(value) => {
+                        if (!value && lyricsQuizModeEnabled) {
+                          return;
+                        }
                         setIsTimedMode(value);
                         if (value) {
                           setIsAutoscrollEnabled(true);
@@ -2785,8 +3154,32 @@ export default function SongLyricsScreen() {
                       }}
                       trackColor={{ false: "#767577", true: theme.primary }}
                       thumbColor="#f4f3f4"
+                      disabled={lyricsQuizModeEnabled}
                     />
                   </View>
+                  {lyricsQuizModeEnabled &&
+                  lyricsQuizQuestions.length > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${completedLyricsQuizQuestionCount} of ${lyricsQuizQuestions.length} lyric quiz answers correct`}
+                      accessibilityHint="Opens the song quiz results"
+                      onPress={() => setIsLyricsQuizResultsVisible(true)}
+                      style={({ pressed }) => [
+                        styles.lyricsQuizCounterButton,
+                        { opacity: pressed ? 0.55 : 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.lyricsQuizCounter,
+                          { color: theme.primary },
+                        ]}
+                      >
+                        {completedLyricsQuizQuestionCount}/
+                        {lyricsQuizQuestions.length}
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               )}
             </View>
@@ -3010,6 +3403,35 @@ export default function SongLyricsScreen() {
                 </View>
               )}
 
+            {lyricsQuizModeEnabled &&
+            timedLyricsStatus !== "loading" &&
+            timedLyrics.length > 0 &&
+            lyricsQuizQuestions.length === 0 ? (
+              <View
+                style={[
+                  styles.infoMessage,
+                  { backgroundColor: theme.border },
+                ]}
+              >
+                <View style={styles.infoMessageContent}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.infoMessageText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    This song does not contain enough recognized vocabulary to
+                    build four-choice lyric questions.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
             <View ref={lyricsContentRef} style={styles.lyricsContent}>
               {timedLyricsStatus === "loading" ? (
                 <View style={styles.skeletonContainer}>
@@ -3046,6 +3468,18 @@ export default function SongLyricsScreen() {
           <Animated.View style={animatedSpacerStyle} />
         </ScrollView>
       )}
+
+      <LyricsQuizResultsModal
+        visible={isLyricsQuizResultsVisible}
+        songTitle={String(songTitle ?? "")}
+        artist={String(artist ?? "")}
+        questions={lyricsQuizQuestions}
+        answers={lyricsQuizAnswers}
+        attempts={lyricsQuizAttempts}
+        onClose={() => setIsLyricsQuizResultsVisible(false)}
+        onRestart={handleRestartLyricsQuiz}
+        onOpenItem={handleOpenLyricsQuizResultItem}
+      />
 
       {/* Tooltip Modal */}
       <VocabularyTooltip
@@ -3113,8 +3547,8 @@ export default function SongLyricsScreen() {
                         { color: theme.textSecondary },
                       ]}
                     >
-                      Choose between plain lyrics, WK chips, or full JPDB
-                      grammar underlines.
+                      Choose plain lyrics, vocabulary help, JPDB analysis, or a
+                      timed fill-the-blank challenge.
                     </Text>
                   </View>
                 </View>
@@ -3151,6 +3585,35 @@ export default function SongLyricsScreen() {
                       ]}
                     >
                       Normal
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.analysisModeSelectorButton,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor:
+                          activeStudyMode === "quiz"
+                            ? theme.primary
+                            : "transparent",
+                      },
+                    ]}
+                    onPress={() => selectStudyMode("quiz")}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.analysisModeSelectorButtonText,
+                        {
+                          color:
+                            activeStudyMode === "quiz"
+                              ? "#fff"
+                              : theme.textColor,
+                        },
+                      ]}
+                    >
+                      Quiz
                     </Text>
                   </TouchableOpacity>
 
@@ -3986,6 +4449,19 @@ const styles = StyleSheet.create({
   translationStatusText: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  lyricsQuizCounter: {
+    fontSize: 15,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+    minWidth: 36,
+    textAlign: "right",
+  },
+  lyricsQuizCounterButton: {
+    minWidth: 40,
+    minHeight: 32,
+    alignItems: "flex-end",
+    justifyContent: "center",
   },
   timedLyricLine: {
     paddingVertical: 4,

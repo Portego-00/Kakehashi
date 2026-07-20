@@ -10,6 +10,7 @@ export type ExtraStudyModeId =
   | "kana-kanji-test"
   | "listening-practice"
   | "context-sentence-practice"
+  | "text-analysis"
   | "writing-practice"
   | "crossword"
   | "wordle"
@@ -86,6 +87,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     subtitle: "Fill the missing vocab from sentence context",
     icon: "chatbubble-ellipses",
     route: "/context-sentence-practice-config",
+  },
+  {
+    id: "text-analysis",
+    title: "Japanese Text",
+    subtitle: "Analyze pasted grammar and vocabulary",
+    icon: "document-text",
+    route: "/text-reader",
   },
   {
     id: "writing-practice",

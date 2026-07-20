@@ -106,6 +106,7 @@ import {
   REVIEW_CHARACTER_FONT_SCALE_MAX,
   REVIEW_CHARACTER_FONT_SCALE_MIN,
   REVIEW_CHARACTER_FONT_SCALE_STEP,
+  type SongLyricsStudyModePreference,
   type SrsProgressionCardDisplayMode,
   type StudyModePreference,
   type VocabularyAudioVoicePreference,
@@ -157,6 +158,16 @@ const STUDY_MODE_DEFAULT_OPTIONS: {
 }[] = [
   { value: "none", label: "Normal" },
   { value: "wk", label: "Vocab" },
+  { value: "full", label: "Full" },
+];
+
+const SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS: {
+  value: SongLyricsStudyModePreference;
+  label: string;
+}[] = [
+  { value: "none", label: "Normal" },
+  { value: "wk", label: "Vocab" },
+  { value: "quiz", label: "Quiz" },
   { value: "full", label: "Full" },
 ];
 
@@ -3183,6 +3194,7 @@ export function useSettingsController() {
     skipCustomLessonQuiz,
     songsLyricsDefaultStudyMode,
     songsPlaybackSource,
+    SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS,
     spotifyAuthError,
     spotifyAuthStatus,
     spotifyDisplayName,

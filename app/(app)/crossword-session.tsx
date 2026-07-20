@@ -73,6 +73,7 @@ import { useTheme } from "../../src/utils/theme";
 
 const HIRAGANA_RANGE_REGEX = /^[぀-ゟー]+$/;
 const KATAKANA_REGEX = /[ァ-ヴー]/;
+const KANJI_REGEX = /[一-龯]/;
 const JAPANESE_CHARACTER_REGEX = /[一-龯ぁ-ゟァ-ヿ]/;
 
 const CROSSWORD_SESSION_KEY = EXTRA_STUDY_SESSION_STORAGE_KEYS.CROSSWORD;
@@ -111,11 +112,13 @@ interface CrosswordConfig {
   selectedListIds: string[];
   hiraganaOnly: boolean;
   clueDisplayMode: CrosswordClueDisplayMode;
+  showKanjiInSolutions: boolean;
   playAudioOnCorrectAnswer: boolean;
 }
 
 interface CrosswordWordResultEntry {
   subjectId: number;
+  kanji: string | null;
   hiragana: string;
   meaning: string;
   number: number;
@@ -124,6 +127,7 @@ interface CrosswordWordResultEntry {
   attempts: number;
   solved: boolean;
   revealed: boolean;
+  hasAudio: boolean;
 }
 
 interface SavedCrosswordSession {
@@ -161,6 +165,7 @@ function getDefaultCrosswordConfig(userLevel: number): CrosswordConfig {
     selectedListIds: [],
     hiraganaOnly: false,
     clueDisplayMode: "english",
+    showKanjiInSolutions: false,
     playAudioOnCorrectAnswer: true,
   };
 }
@@ -228,6 +233,10 @@ function sanitizeCrosswordConfig(
       rawConfig.clueDisplayMode === "english_kanji"
         ? rawConfig.clueDisplayMode
         : "english",
+    showKanjiInSolutions:
+      typeof rawConfig.showKanjiInSolutions === "boolean"
+        ? rawConfig.showKanjiInSolutions
+        : defaults.showKanjiInSolutions,
     playAudioOnCorrectAnswer:
       typeof rawConfig.playAudioOnCorrectAnswer === "boolean"
         ? rawConfig.playAudioOnCorrectAnswer
@@ -406,6 +415,29 @@ function getSubjectKanjiForm(
   return characters;
 }
 
+function subjectHasPronunciationAudio(subject: ApiSubject | null): boolean {
+  const pronunciationAudios = subject?.data?.pronunciation_audios;
+  return Array.isArray(pronunciationAudios) && pronunciationAudios.length > 0;
+}
+
+function getSubjectKanjiSolutionForm(
+  subject: ApiSubject | null,
+  fallbackReading: string
+): string | null {
+  const characters = getSubjectKanjiForm(subject, fallbackReading);
+  return characters && KANJI_REGEX.test(characters) ? characters : null;
+}
+
+function subjectSupportsKanjiAudioHint(
+  subject: ApiSubject | null,
+  word: PlacedCrosswordWord
+): boolean {
+  return (
+    getSubjectKanjiSolutionForm(subject, word.word) !== null &&
+    subjectHasPronunciationAudio(subject)
+  );
+}
+
 function getClueTextForWord(
   word: PlacedCrosswordWord,
   clueDisplayMode: CrosswordClueDisplayMode,
@@ -472,6 +504,9 @@ export default function CrosswordSessionScreen() {
   >({});
   const [hintAvailableCountByWordId, setHintAvailableCountByWordId] = useState<
     Record<string, number>
+  >({});
+  const [audioHintAvailableByWordId, setAudioHintAvailableByWordId] = useState<
+    Record<string, boolean>
   >({});
   const [wordCompletionAnimation, setWordCompletionAnimation] =
     useState<WordCompletionAnimationState | null>(null);
@@ -565,6 +600,7 @@ export default function CrosswordSessionScreen() {
     setHintStageByWordId({});
     setHintMessagesByWordId({});
     setHintAvailableCountByWordId({});
+    setAudioHintAvailableByWordId({});
     return true;
   }, [clearSavedSession, userLevel]);
 
@@ -626,6 +662,7 @@ export default function CrosswordSessionScreen() {
             params.clueDisplayMode === "english_kanji"
               ? (params.clueDisplayMode as CrosswordClueDisplayMode)
               : "english",
+          showKanjiInSolutions: params.showKanjiInSolutions === "true",
           playAudioOnCorrectAnswer: params.playAudioOnCorrectAnswer !== "false",
         }, userLevel));
       }
@@ -644,6 +681,7 @@ export default function CrosswordSessionScreen() {
     params.playAudioOnCorrectAnswer,
     params.resume,
     params.selectedListIds,
+    params.showKanjiInSolutions,
     params.sessionId,
     params.size,
     params.srsApprentice,
@@ -739,7 +777,9 @@ export default function CrosswordSessionScreen() {
 
             const fromMemoryCache = await getSubjectById(subjectId);
             if (fromMemoryCache) {
-              candidates.push(fromMemoryCache as ApiSubject);
+              const resolvedSubject = fromMemoryCache as ApiSubject;
+              subjectById.set(subjectId, resolvedSubject);
+              candidates.push(resolvedSubject);
             }
           }
         } catch (err) {
@@ -869,6 +909,7 @@ export default function CrosswordSessionScreen() {
       setHintStageByWordId({});
       setHintMessagesByWordId({});
       setHintAvailableCountByWordId({});
+      setAudioHintAvailableByWordId({});
       subjectByIdRef.current = subjectById;
     } catch (error) {
       console.error("Failed to build crossword:", error);
@@ -1301,35 +1342,49 @@ export default function CrosswordSessionScreen() {
     [unloadVocabularySound, vocabularyAudioVoice]
   );
 
+  const resolveVocabularySubject = useCallback(
+    async (subjectId: number): Promise<ApiSubject | null> => {
+      let subject = subjectByIdRef.current.get(subjectId) ?? null;
+      if (!subject) {
+        const fetched = await getSubjectById(subjectId);
+        if (fetched) {
+          subject = fetched as ApiSubject;
+          subjectByIdRef.current.set(subjectId, subject);
+        }
+      }
+
+      if (
+        subject?.object !== "vocabulary" &&
+        subject?.object !== "kana_vocabulary"
+      ) {
+        return null;
+      }
+
+      return subject;
+    },
+    []
+  );
+
+  const playVocabularyAudioBySubjectId = useCallback(
+    async (subjectId: number) => {
+      const subject = await resolveVocabularySubject(subjectId);
+      if (!subject) {
+        return;
+      }
+      await playWaniKaniVocabularyAudio(subject);
+    },
+    [playWaniKaniVocabularyAudio, resolveVocabularySubject]
+  );
+
   const playCorrectAnswerAudio = useCallback(
     async (word: PlacedCrosswordWord) => {
       if (!config?.playAudioOnCorrectAnswer) {
         return;
       }
 
-      let subject = subjectByIdRef.current.get(word.subjectId) ?? null;
-      if (!subject) {
-        const fetched = await getSubjectById(word.subjectId);
-        if (fetched) {
-          subject = fetched as ApiSubject;
-          subjectByIdRef.current.set(word.subjectId, subject);
-        }
-      }
-
-      if (!subject) {
-        return;
-      }
-
-      if (
-        subject.object !== "vocabulary" &&
-        subject.object !== "kana_vocabulary"
-      ) {
-        return;
-      }
-
-      await playWaniKaniVocabularyAudio(subject);
+      await playVocabularyAudioBySubjectId(word.subjectId);
     },
-    [config?.playAudioOnCorrectAnswer, playWaniKaniVocabularyAudio]
+    [config?.playAudioOnCorrectAnswer, playVocabularyAudioBySubjectId]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -1488,6 +1543,19 @@ export default function CrosswordSessionScreen() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [clueDisplayMode, hintStageByWordId, selectedWord]);
 
+  const handleAudioHint = useCallback(async () => {
+    if (!selectedWord) {
+      return;
+    }
+    const subject = await resolveVocabularySubject(selectedWord.subjectId);
+    if (!subject || !subjectSupportsKanjiAudioHint(subject, selectedWord)) {
+      return;
+    }
+
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await playWaniKaniVocabularyAudio(subject);
+  }, [playWaniKaniVocabularyAudio, resolveVocabularySubject, selectedWord]);
+
   const handleExit = useCallback(() => {
     if (isComplete) {
       router.back();
@@ -1566,7 +1634,11 @@ export default function CrosswordSessionScreen() {
     if (!selectedWord) {
       return;
     }
-    if (typeof hintAvailableCountByWordId[selectedWord.id] === "number") {
+    const hasHintCount =
+      typeof hintAvailableCountByWordId[selectedWord.id] === "number";
+    const hasAudioAvailability =
+      typeof audioHintAvailableByWordId[selectedWord.id] === "boolean";
+    if (hasHintCount && hasAudioAvailability) {
       return;
     }
 
@@ -1591,15 +1663,21 @@ export default function CrosswordSessionScreen() {
         subject,
         clueDisplayMode
       ).length;
-      setHintAvailableCountByWordId((prev) => {
-        if (prev[selectedWord.id] === hintCount) {
-          return prev;
-        }
-        return {
+      if (!hasHintCount) {
+        setHintAvailableCountByWordId((prev) => ({
           ...prev,
           [selectedWord.id]: hintCount,
-        };
-      });
+        }));
+      }
+      if (!hasAudioAvailability) {
+        setAudioHintAvailableByWordId((prev) => ({
+          ...prev,
+          [selectedWord.id]: subjectSupportsKanjiAudioHint(
+            subject,
+            selectedWord
+          ),
+        }));
+      }
     };
 
     void loadHintCount();
@@ -1607,7 +1685,12 @@ export default function CrosswordSessionScreen() {
     return () => {
       isCancelled = true;
     };
-  }, [clueDisplayMode, hintAvailableCountByWordId, selectedWord]);
+  }, [
+    audioHintAvailableByWordId,
+    clueDisplayMode,
+    hintAvailableCountByWordId,
+    selectedWord,
+  ]);
 
   const selectedHintTotal = selectedWord
     ? hintAvailableCountByWordId[selectedWord.id]
@@ -1618,6 +1701,12 @@ export default function CrosswordSessionScreen() {
     !!selectedWord &&
     !isAnswerAnimating &&
     (!isHintCountKnown || selectedHintStage < resolvedSelectedHintTotal);
+  const canUseAudioHint =
+    !!selectedWord &&
+    !isAnswerAnimating &&
+    isHintCountKnown &&
+    selectedHintStage >= resolvedSelectedHintTotal &&
+    audioHintAvailableByWordId[selectedWord.id] === true;
   const hintButtonLabel = !selectedWord
     ? "Hint"
     : !isHintCountKnown
@@ -1682,12 +1771,15 @@ export default function CrosswordSessionScreen() {
     return (
       <CrosswordSummary
         puzzle={puzzle}
+        showKanjiInSolutions={config?.showKanjiInSolutions ?? false}
+        subjectById={subjectByIdRef.current}
         completedWordIds={completedWordIds}
         revealedWordIds={revealedWordIds}
         revealCount={revealCount}
         attemptsByWordId={attemptsByWordId}
         mistakes={mistakes}
         elapsedMs={elapsedMs}
+        onPlayAudio={playVocabularyAudioBySubjectId}
         onPlayAgain={handlePlayAgain}
         onBackToDashboard={handleBackToDashboard}
       />
@@ -1892,47 +1984,73 @@ export default function CrosswordSessionScreen() {
                 : "Select a word"}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={handleRevealLetter}
-            style={styles.revealButton}
-            activeOpacity={0.7}
-            disabled={!selectedWord || isAnswerAnimating}
-          >
-            <Ionicons
-              name="bulb-outline"
-              size={16}
-              color={theme.textSecondary}
-            />
-            <Text
-              style={[styles.revealText, { color: theme.textSecondary }]}
+          <View style={styles.hintActions}>
+            <TouchableOpacity
+              onPress={() => void handleHint()}
+              style={styles.revealButton}
+              activeOpacity={0.7}
+              disabled={!canUseHint}
             >
-              Reveal
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => void handleHint()}
-            style={styles.revealButton}
-            activeOpacity={0.7}
-            disabled={!canUseHint}
-          >
-            <Ionicons
-              name="sparkles-outline"
-              size={16}
-              color={
-                canUseHint ? theme.textSecondary : theme.textLight
-              }
-            />
-            <Text
-              style={[
-                styles.revealText,
-                {
-                  color: canUseHint ? theme.textSecondary : theme.textLight,
-                },
-              ]}
+              <Ionicons
+                name="sparkles-outline"
+                size={16}
+                color={canUseHint ? theme.textSecondary : theme.textLight}
+              />
+              <Text
+                style={[
+                  styles.revealText,
+                  {
+                    color: canUseHint ? theme.textSecondary : theme.textLight,
+                  },
+                ]}
+              >
+                {hintButtonLabel}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => void handleAudioHint()}
+              style={styles.revealButton}
+              activeOpacity={0.7}
+              disabled={!canUseAudioHint}
+              accessibilityRole="button"
+              accessibilityLabel="Play word audio as a final hint"
             >
-              {hintButtonLabel}
-            </Text>
-          </TouchableOpacity>
+              <Ionicons
+                name="volume-high-outline"
+                size={16}
+                color={canUseAudioHint ? theme.textSecondary : theme.textLight}
+              />
+              <Text
+                style={[
+                  styles.revealText,
+                  {
+                    color: canUseAudioHint
+                      ? theme.textSecondary
+                      : theme.textLight,
+                  },
+                ]}
+              >
+                Audio
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleRevealLetter}
+              style={styles.revealButton}
+              activeOpacity={0.7}
+              disabled={!selectedWord || isAnswerAnimating}
+            >
+              <Ionicons
+                name="bulb-outline"
+                size={16}
+                color={theme.textSecondary}
+              />
+              <Text
+                style={[styles.revealText, { color: theme.textSecondary }]}
+              >
+                Reveal
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <Text
           style={[
@@ -2414,24 +2532,30 @@ function CrosswordCompletionCheckpoint({
 
 interface CrosswordSummaryProps {
   puzzle: CrosswordPuzzle;
+  showKanjiInSolutions: boolean;
+  subjectById: Map<number, ApiSubject>;
   completedWordIds: Set<string>;
   revealedWordIds: Set<string>;
   revealCount: number;
   attemptsByWordId: Record<string, number>;
   mistakes: number;
   elapsedMs: number;
+  onPlayAudio: (subjectId: number) => Promise<void>;
   onPlayAgain: () => void;
   onBackToDashboard: () => void;
 }
 
 function CrosswordSummary({
   puzzle,
+  showKanjiInSolutions,
+  subjectById,
   completedWordIds,
   revealedWordIds,
   revealCount,
   attemptsByWordId,
   mistakes,
   elapsedMs,
+  onPlayAudio,
   onPlayAgain,
   onBackToDashboard,
 }: CrosswordSummaryProps) {
@@ -2452,17 +2576,22 @@ function CrosswordSummary({
   const entries: CrosswordWordResultEntry[] = puzzle.words
     .slice()
     .sort((a, b) => a.number - b.number)
-    .map((w) => ({
-      subjectId: w.subjectId,
-      hiragana: w.word,
-      meaning: w.meaning,
-      number: w.number,
-      direction: w.direction,
-      level: w.level,
-      attempts: attemptsByWordId[w.id] ?? 0,
-      solved: completedWordIds.has(w.id),
-      revealed: revealedWordIds.has(w.id),
-    }));
+    .map((w) => {
+      const subject = subjectById.get(w.subjectId) ?? null;
+      return {
+        subjectId: w.subjectId,
+        kanji: getSubjectKanjiSolutionForm(subject, w.word),
+        hiragana: w.word,
+        meaning: w.meaning,
+        number: w.number,
+        direction: w.direction,
+        level: w.level,
+        attempts: attemptsByWordId[w.id] ?? 0,
+        solved: completedWordIds.has(w.id),
+        revealed: revealedWordIds.has(w.id),
+        hasAudio: subjectSupportsKanjiAudioHint(subject, w),
+      };
+    });
 
   return (
     <SafeAreaView
@@ -2570,10 +2699,8 @@ function CrosswordSummary({
           ]}
         >
           {entries.map((entry, index) => (
-            <TouchableOpacity
+            <View
               key={`${entry.subjectId}-${entry.number}-${entry.direction}`}
-              onPress={() => router.push(`/subject/${entry.subjectId}` as any)}
-              activeOpacity={0.75}
               style={[
                 styles.summaryRow,
                 index < entries.length - 1
@@ -2581,83 +2708,126 @@ function CrosswordSummary({
                   : null,
               ]}
             >
-              <View
-                style={[
-                  styles.summaryRowNumber,
-                  { backgroundColor: `${theme.primary}1A` },
-                ]}
+              <TouchableOpacity
+                onPress={() =>
+                  router.push(`/subject/${entry.subjectId}` as any)
+                }
+                activeOpacity={0.75}
+                style={styles.summaryRowMain}
               >
-                <Text
+                <View
                   style={[
-                    styles.summaryRowNumberText,
-                    { color: theme.primary },
+                    styles.summaryRowNumber,
+                    { backgroundColor: `${theme.primary}1A` },
                   ]}
                 >
-                  {entry.number}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.summaryHiragana,
-                    fontStyles.japaneseBold,
-                    { color: theme.textColor },
-                  ]}
-                >
-                  {entry.hiragana}
-                </Text>
-                <Text
-                  style={[
-                    styles.summaryMeaning,
-                    { color: theme.textSecondary },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {entry.meaning}
-                </Text>
-              </View>
-              <View style={styles.summaryRight}>
-                <Text
-                  style={[
-                    styles.summaryDirection,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  {entry.direction === "across" ? "Across" : "Down"}
-                </Text>
-                <View style={styles.summaryAttempts}>
-                  {entry.revealed ? (
-                    <Ionicons name="bulb" size={18} color={theme.primary} />
-                  ) : entry.solved ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={18}
-                      color={CROSSWORD_SUCCESS_COLOR}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="ellipse-outline"
-                      size={18}
-                      color={theme.textSecondary}
-                    />
-                  )}
                   <Text
                     style={[
-                      styles.summaryAttemptsText,
+                      styles.summaryRowNumberText,
+                      { color: theme.primary },
+                    ]}
+                  >
+                    {entry.number}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.summaryHiragana,
+                      fontStyles.japaneseBold,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    {showKanjiInSolutions && entry.kanji ? (
+                      <>
+                        <Text>{entry.kanji}</Text>
+                        <Text
+                          style={[
+                            styles.summaryReading,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          {`  ${entry.hiragana}`}
+                        </Text>
+                      </>
+                    ) : (
+                      entry.hiragana
+                    )}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.summaryMeaning,
+                      { color: theme.textSecondary },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {entry.meaning}
+                  </Text>
+                </View>
+                <View style={styles.summaryRight}>
+                  <Text
+                    style={[
+                      styles.summaryDirection,
                       { color: theme.textSecondary },
                     ]}
                   >
-                    {entry.revealed
-                      ? "Revealed"
-                      : entry.attempts > 0
-                      ? `${entry.attempts} ${
-                          entry.attempts === 1 ? "try" : "tries"
-                        }`
-                      : "Skipped"}
+                    {entry.direction === "across" ? "Across" : "Down"}
                   </Text>
+                  <View style={styles.summaryAttempts}>
+                    {entry.revealed ? (
+                      <Ionicons name="bulb" size={18} color={theme.primary} />
+                    ) : entry.solved ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color={CROSSWORD_SUCCESS_COLOR}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="ellipse-outline"
+                        size={18}
+                        color={theme.textSecondary}
+                      />
+                    )}
+                    <Text
+                      style={[
+                        styles.summaryAttemptsText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {entry.revealed
+                        ? "Revealed"
+                        : entry.attempts > 0
+                        ? `${entry.attempts} ${
+                            entry.attempts === 1 ? "try" : "tries"
+                          }`
+                        : "Skipped"}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              {entry.hasAudio && (
+                <TouchableOpacity
+                  onPress={() => void onPlayAudio(entry.subjectId)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.summaryAudioButton,
+                    {
+                      backgroundColor: `${theme.primary}14`,
+                      borderColor: `${theme.primary}40`,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Play ${entry.kanji ?? entry.hiragana} pronunciation`}
+                >
+                  <Ionicons
+                    name="volume-high-outline"
+                    size={18}
+                    color={theme.primary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           ))}
         </View>
       </ScrollView>
@@ -2878,6 +3048,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 6,
+    gap: 8,
+  },
+  hintActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   cluePill: {
     paddingHorizontal: 10,
@@ -3000,6 +3176,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 10,
   },
+  summaryRowMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   summaryRowNumber: {
     width: 28,
     height: 28,
@@ -3009,7 +3191,16 @@ const styles = StyleSheet.create({
   },
   summaryRowNumberText: { fontSize: 13, fontWeight: "800" },
   summaryHiragana: { fontSize: 18, fontWeight: "700" },
+  summaryReading: { fontSize: 15, fontWeight: "600" },
   summaryMeaning: { fontSize: 12, marginTop: 2 },
+  summaryAudioButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   summaryRight: { alignItems: "flex-end", gap: 4 },
   summaryDirection: { fontSize: 11, fontWeight: "600" },
   summaryAttempts: {

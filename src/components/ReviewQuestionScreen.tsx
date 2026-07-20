@@ -2327,7 +2327,7 @@ export default function ReviewQuestionScreen({
   };
 
   const animateAnsweredItemBox = () => {
-    const topMargin = 140; // Distance from top edge of screen
+    const topMargin = 130; // Keep the scaled preview clear of long question text
     const targetX = -(width / 2); // Move left
     const targetY = -(height / 2) + topMargin; // Move up
     const targetScale = 0.6;

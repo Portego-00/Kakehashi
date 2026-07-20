@@ -41,7 +41,14 @@ import YoutubePlayer from "react-native-youtube-iframe";
 import { TimedLyricsLine } from "../services/lyricsService";
 import { getAllSubjects } from "../utils/cache";
 import { fontStyles } from "../utils/fonts";
+import * as Haptics from "../utils/haptics";
 import { getStoredJpdbApiKey } from "../utils/jpdbApi";
+import {
+  buildLyricsQuizQuestions,
+  getLyricsQuizSessionKey,
+  type LyricsQuizQuestion,
+} from "../utils/lyricsQuiz";
+import { useLyricsQuizStore } from "../utils/lyricsQuizStore";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import {
   findVocabularyMatchesWithJpdbFirstPass,
@@ -54,10 +61,14 @@ import {
 } from "../utils/textHighlighting";
 import { withAlpha } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
+import { LyricsQuizLine } from "./LyricsQuizLine";
+import { LyricsQuizResultsModal } from "./LyricsQuizResultsModal";
 import { VocabularyTooltip } from "./VocabularyTooltip";
 
 const GRAMMAR_TOOLTIP_ID_MIN = -9100000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
+const EMPTY_LYRICS_QUIZ_ANSWERS: Record<number, string> = {};
+const EMPTY_LYRICS_QUIZ_ATTEMPTS: Record<number, string[]> = {};
 
 function buildGrammarTooltipItem(
   token: JpdbParsedTokenAnnotation
@@ -89,8 +100,10 @@ interface MiniPlayerProps {
   songTitle: string;
   artist: string;
   currentTime: number;
+  onCurrentTimeChange: (time: number) => void;
   duration: number;
   onPlayPause: () => void;
+  onSetPlaying: (playing: boolean) => void;
   onSkipBackward: () => void;
   onSkipForward: () => void;
   onStateChange?: (state: string) => void;
@@ -113,8 +126,10 @@ export default function MiniPlayer({
   songTitle,
   artist,
   currentTime,
+  onCurrentTimeChange,
   duration,
   onPlayPause,
+  onSetPlaying,
   onSkipBackward,
   onSkipForward,
   onStateChange,
@@ -154,6 +169,7 @@ export default function MiniPlayer({
   const fullAnalysisEnabled =
     activeStudyMode === "full";
   const wkStudyModeEnabled = activeStudyMode === "wk";
+  const lyricsQuizModeEnabled = activeStudyMode === "quiz";
 
   // Lyrics Highlighting State
   const [vocabularyMatches, setVocabularyMatches] = useState<VocabularyMatch[]>(
@@ -182,6 +198,95 @@ export default function MiniPlayer({
       return start;
     });
   }, [timedLyrics]);
+  const lyricsQuizQuestions = useMemo(
+    () =>
+      lyricsQuizModeEnabled
+        ? buildLyricsQuizQuestions(timedLyrics, vocabularyMatches, userLevel)
+        : [],
+    [
+      lyricsQuizModeEnabled,
+      timedLyrics,
+      userLevel,
+      vocabularyMatches,
+    ]
+  );
+  const lyricsQuizQuestionsByLine = useMemo(
+    () =>
+      new Map(
+        lyricsQuizQuestions.map((question) => [question.lineIndex, question])
+      ),
+    [lyricsQuizQuestions]
+  );
+  const lyricsQuizSessionKey = useMemo(
+    () => getLyricsQuizSessionKey(songTitle, artist, timedLyrics),
+    [artist, songTitle, timedLyrics]
+  );
+  const quizStoreSessionKey = useLyricsQuizStore((state) => state.sessionKey);
+  const storedLyricsQuizAnswers = useLyricsQuizStore((state) => state.answers);
+  const storedLyricsQuizAttempts = useLyricsQuizStore(
+    (state) => state.attempts
+  );
+  const storedLyricsQuizBypassedLineIndex = useLyricsQuizStore(
+    (state) => state.bypassedLineIndex
+  );
+  const storedLyricsQuizPausedLineIndex = useLyricsQuizStore(
+    (state) => state.pausedLineIndex
+  );
+  const storedLyricsQuizResultsPresented = useLyricsQuizStore(
+    (state) => state.resultsPresented
+  );
+  const recordLyricsQuizAnswer = useLyricsQuizStore(
+    (state) => state.recordAnswer
+  );
+  const markLyricsQuizPaused = useLyricsQuizStore((state) => state.markPaused);
+  const continuePastLyricsQuizPause = useLyricsQuizStore(
+    (state) => state.continuePastPause
+  );
+  const rearmLyricsQuizQuestions = useLyricsQuizStore(
+    (state) => state.rearmQuestions
+  );
+  const clearLyricsQuizBypass = useLyricsQuizStore(
+    (state) => state.clearBypass
+  );
+  const markLyricsQuizResultsPresented = useLyricsQuizStore(
+    (state) => state.markResultsPresented
+  );
+  const resetLyricsQuiz = useLyricsQuizStore((state) => state.reset);
+  const lyricsQuizAnswers =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizAnswers
+      : EMPTY_LYRICS_QUIZ_ANSWERS;
+  const lyricsQuizPausedLineIndex =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizPausedLineIndex
+      : null;
+  const lyricsQuizAttempts =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizAttempts
+      : EMPTY_LYRICS_QUIZ_ATTEMPTS;
+  const lyricsQuizBypassedLineIndex =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizBypassedLineIndex
+      : null;
+  const lyricsQuizResultsPresented =
+    quizStoreSessionKey === lyricsQuizSessionKey
+      ? storedLyricsQuizResultsPresented
+      : false;
+  const completedLyricsQuizQuestionCount = useMemo(
+    () =>
+      lyricsQuizQuestions.reduce(
+        (count, question) =>
+          count +
+          (lyricsQuizAnswers[question.lineIndex] === question.answer ? 1 : 0),
+        0
+      ),
+    [lyricsQuizAnswers, lyricsQuizQuestions]
+  );
+  const isLyricsQuizComplete =
+    lyricsQuizQuestions.length > 0 &&
+    completedLyricsQuizQuestionCount === lyricsQuizQuestions.length;
+  const [isLyricsQuizResultsVisible, setIsLyricsQuizResultsVisible] =
+    useState(false);
 
   // Tooltip State
   const [selectedItem, setSelectedItem] = useState<
@@ -226,6 +331,40 @@ export default function MiniPlayer({
   const [screenWidth, setScreenWidth] = useState(
     Dimensions.get("window").width
   );
+
+  // A skipped question is bypassed only until playback leaves its lyric line.
+  useEffect(() => {
+    if (
+      isExpanded &&
+      lyricsQuizBypassedLineIndex !== null &&
+      currentIndex !== lyricsQuizBypassedLineIndex
+    ) {
+      clearLyricsQuizBypass(lyricsQuizSessionKey);
+    }
+  }, [
+    clearLyricsQuizBypass,
+    currentIndex,
+    isExpanded,
+    lyricsQuizBypassedLineIndex,
+    lyricsQuizSessionKey,
+  ]);
+
+  useEffect(() => {
+    if (
+      isExpanded &&
+      isLyricsQuizComplete &&
+      !lyricsQuizResultsPresented
+    ) {
+      markLyricsQuizResultsPresented(lyricsQuizSessionKey);
+      setIsLyricsQuizResultsVisible(true);
+    }
+  }, [
+    isExpanded,
+    isLyricsQuizComplete,
+    lyricsQuizResultsPresented,
+    lyricsQuizSessionKey,
+    markLyricsQuizResultsPresented,
+  ]);
 
   // Listen to dimension changes (device rotation)
   useEffect(() => {
@@ -421,6 +560,76 @@ export default function MiniPlayer({
     }
   }, [currentTime, lyricsTimingOffsetMs, timedLyrics, currentIndex]);
 
+  useEffect(() => {
+    if (
+      !lyricsQuizModeEnabled ||
+      !isExpanded ||
+      !isPlaying ||
+      currentIndex < 0
+    ) {
+      return;
+    }
+
+    const question = lyricsQuizQuestionsByLine.get(currentIndex);
+    if (
+      !question ||
+      lyricsQuizAnswers[question.lineIndex] === question.answer ||
+      lyricsQuizBypassedLineIndex === question.lineIndex
+    ) {
+      return;
+    }
+
+    const adjustedCurrentTimeMs =
+      currentTime * 1000 - lyricsTimingOffsetMs;
+    if (
+      adjustedCurrentTimeMs >= question.pauseTimeMs &&
+      adjustedCurrentTimeMs < question.lineEndTimeMs
+    ) {
+      markLyricsQuizPaused(lyricsQuizSessionKey, question.lineIndex);
+      onSetPlaying(false);
+    }
+  }, [
+    currentIndex,
+    currentTime,
+    isExpanded,
+    isPlaying,
+    lyricsQuizAnswers,
+    lyricsQuizBypassedLineIndex,
+    lyricsQuizModeEnabled,
+    lyricsQuizQuestionsByLine,
+    lyricsQuizSessionKey,
+    lyricsTimingOffsetMs,
+    markLyricsQuizPaused,
+    onSetPlaying,
+  ]);
+
+  const handleLyricsQuizAnswer = useCallback(
+    (question: LyricsQuizQuestion, answer: string) => {
+      const isCorrectAnswer = answer === question.answer;
+      recordLyricsQuizAnswer(lyricsQuizSessionKey, question.lineIndex, answer);
+      void Haptics.notificationAsync(
+        isCorrectAnswer
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Error
+      );
+
+      if (
+        isCorrectAnswer &&
+        lyricsQuizPausedLineIndex === question.lineIndex
+      ) {
+        rearmLyricsQuizQuestions(lyricsQuizSessionKey);
+        onSetPlaying(true);
+      }
+    },
+    [
+      lyricsQuizPausedLineIndex,
+      lyricsQuizSessionKey,
+      onSetPlaying,
+      rearmLyricsQuizQuestions,
+      recordLyricsQuizAnswer,
+    ]
+  );
+
   // Scroll to active line
   useEffect(() => {
     // If expanded and we have a valid index, scroll to it
@@ -524,24 +733,89 @@ export default function MiniPlayer({
     setSliderValue(value);
   };
 
-  const handleSeekComplete = async (value: number) => {
-    if (playerRef?.current) {
-      try {
-        // Set the seek target and keep slider at this position
-        setSeekTarget(value);
-        setSliderValue(value);
-        setIsSeeking(false);
-        await playerRef.current.seekTo(value);
-      } catch (error) {
-        console.error("Error seeking:", error);
+  const rearmLyricsQuizPlayback = useCallback(() => {
+    if (
+      lyricsQuizPausedLineIndex !== null ||
+      lyricsQuizBypassedLineIndex !== null
+    ) {
+      rearmLyricsQuizQuestions(lyricsQuizSessionKey);
+    }
+  }, [
+    lyricsQuizBypassedLineIndex,
+    lyricsQuizPausedLineIndex,
+    lyricsQuizSessionKey,
+    rearmLyricsQuizQuestions,
+  ]);
+
+  const continuePastLyricsQuizQuestion = useCallback(() => {
+    if (lyricsQuizPausedLineIndex !== null) {
+      continuePastLyricsQuizPause(lyricsQuizSessionKey);
+    }
+  }, [
+    continuePastLyricsQuizPause,
+    lyricsQuizPausedLineIndex,
+    lyricsQuizSessionKey,
+  ]);
+
+  const handleSeekComplete = useCallback(
+    async (value: number) => {
+      rearmLyricsQuizPlayback();
+
+      if (playerRef?.current) {
+        try {
+          // Set the seek target and keep slider at this position
+          setSeekTarget(value);
+          setSliderValue(value);
+          setIsSeeking(false);
+          await playerRef.current.seekTo(value);
+          onCurrentTimeChange(value);
+        } catch (error) {
+          console.error("Error seeking:", error);
+          setIsSeeking(false);
+          setSeekTarget(null);
+        }
+      } else {
         setIsSeeking(false);
         setSeekTarget(null);
       }
-    } else {
-      setIsSeeking(false);
-      setSeekTarget(null);
-    }
-  };
+    },
+    [onCurrentTimeChange, playerRef, rearmLyricsQuizPlayback]
+  );
+
+  const handleQuizAwarePlayPause = useCallback(() => {
+    continuePastLyricsQuizQuestion();
+    onPlayPause();
+  }, [continuePastLyricsQuizQuestion, onPlayPause]);
+
+  const handleQuizAwareSkipBackward = useCallback(() => {
+    rearmLyricsQuizPlayback();
+    onSkipBackward();
+  }, [onSkipBackward, rearmLyricsQuizPlayback]);
+
+  const handleQuizAwareSkipForward = useCallback(() => {
+    rearmLyricsQuizPlayback();
+    onSkipForward();
+  }, [onSkipForward, rearmLyricsQuizPlayback]);
+
+  const handleLyricsQuizReplay = useCallback(
+    async (question: LyricsQuizQuestion) => {
+      const line = timedLyrics[question.lineIndex];
+      if (!line) return;
+
+      const seekTime = Math.max(
+        0,
+        line.startTimeMs / 1000 + lyricsTimingOffsetMs / 1000
+      );
+      await handleSeekComplete(seekTime);
+      onSetPlaying(true);
+    },
+    [handleSeekComplete, lyricsTimingOffsetMs, onSetPlaying, timedLyrics]
+  );
+
+  const handleLyricsQuizSkip = useCallback(() => {
+    continuePastLyricsQuizQuestion();
+    onSetPlaying(true);
+  }, [continuePastLyricsQuizQuestion, onSetPlaying]);
 
   const handleOpenTrackUrl = useCallback(() => {
     if (!trackUrl) return;
@@ -807,6 +1081,29 @@ export default function MiniPlayer({
     },
     [handleCollapse, router]
   );
+
+  const handleOpenLyricsQuizResultItem = (
+    question: LyricsQuizQuestion
+  ) => {
+    if (!isWaniKaniBackedMatch(question.answerItem)) {
+      return;
+    }
+
+    setIsLyricsQuizResultsVisible(false);
+    handleCollapse();
+    router.push({
+      pathname: "/subject/[id]",
+      params: {
+        id: question.answerItem.id.toString(),
+        from: "mini-player",
+      },
+    });
+  };
+
+  const handleRestartLyricsQuiz = useCallback(() => {
+    resetLyricsQuiz(lyricsQuizSessionKey);
+    setIsLyricsQuizResultsVisible(false);
+  }, [lyricsQuizSessionKey, resetLyricsQuiz]);
 
   const renderUnderlinedAnalyzedLyricLine = (
     text: string,
@@ -1087,6 +1384,8 @@ export default function MiniPlayer({
     ({ item, index }: { item: TimedLyricsLine; index: number }) => {
       const isActive = index === currentIndex;
       const isPast = index < currentIndex;
+      const quizQuestion = lyricsQuizQuestionsByLine.get(index);
+      const selectedQuizAnswer = lyricsQuizAnswers[index];
 
       return (
         <TouchableOpacity
@@ -1107,7 +1406,39 @@ export default function MiniPlayer({
           disabled={fullAnalysisEnabled}
           activeOpacity={fullAnalysisEnabled ? 1 : 0.7}
         >
-          {fullAnalysisEnabled ? (
+          {lyricsQuizModeEnabled && quizQuestion ? (
+            <LyricsQuizLine
+              question={quizQuestion}
+              selectedAnswer={selectedQuizAnswer}
+              showOptions={
+                isActive || lyricsQuizPausedLineIndex === quizQuestion.lineIndex
+              }
+              isPlaybackPaused={
+                lyricsQuizPausedLineIndex === quizQuestion.lineIndex
+              }
+              onSelectAnswer={(answer) =>
+                handleLyricsQuizAnswer(quizQuestion, answer)
+              }
+              onOpenAnswerDetails={(event) =>
+                handleVocabularyPress(
+                  quizQuestion.answerItem.id,
+                  quizQuestion.answer,
+                  event,
+                  quizQuestion.answerItem,
+                  `lyrics-quiz-answer-${index}`
+                )
+              }
+              onReplay={() => handleLyricsQuizReplay(quizQuestion)}
+              onSkip={handleLyricsQuizSkip}
+              textStyle={[
+                styles.timedLyricText,
+                isActive && styles.currentTimedLyric,
+                isPast && styles.pastTimedLyric,
+              ]}
+              variant="player"
+              borderColor="rgba(255,255,255,0.28)"
+            />
+          ) : fullAnalysisEnabled ? (
             renderUnderlinedAnalyzedLyricLine(
               item.words,
               timedLineOffsets[index] ?? 0,
@@ -1148,6 +1479,14 @@ export default function MiniPlayer({
       currentIndex,
       playerRef,
       fullAnalysisEnabled,
+      handleLyricsQuizAnswer,
+      handleLyricsQuizReplay,
+      handleLyricsQuizSkip,
+      handleVocabularyPress,
+      lyricsQuizAnswers,
+      lyricsQuizModeEnabled,
+      lyricsQuizPausedLineIndex,
+      lyricsQuizQuestionsByLine,
       wkStudyModeEnabled,
       timedLineOffsets,
       lyricsTimingOffsetMs,
@@ -1284,14 +1623,14 @@ export default function MiniPlayer({
               <View style={styles.miniPlayerControls}>
                 <TouchableOpacity
                   style={styles.miniControlButton}
-                  onPress={onSkipBackward}
+                  onPress={handleQuizAwareSkipBackward}
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="replay-10" size={24} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.miniMainControlButton}
-                  onPress={onPlayPause}
+                  onPress={handleQuizAwarePlayPause}
                   activeOpacity={0.7}
                 >
                   <Ionicons
@@ -1302,7 +1641,7 @@ export default function MiniPlayer({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.miniControlButton}
-                  onPress={onSkipForward}
+                  onPress={handleQuizAwareSkipForward}
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="forward-10" size={24} color="white" />
@@ -1392,8 +1731,45 @@ export default function MiniPlayer({
               {/* Lyrics Preview with Auto-Scroll */}
               {timedLyrics.length > 0 ? (
                 <View style={styles.lyricsPreviewContainer}>
+                  {lyricsQuizModeEnabled ? (
+                    <View style={styles.lyricsQuizHeader}>
+                      <TouchableOpacity
+                        style={styles.lyricsQuizHeaderInfo}
+                        accessibilityRole={
+                          lyricsQuizQuestions.length > 0 ? "button" : undefined
+                        }
+                        accessibilityLabel={
+                          lyricsQuizQuestions.length > 0
+                            ? "Open song quiz results"
+                            : undefined
+                        }
+                        disabled={lyricsQuizQuestions.length === 0}
+                        onPress={() => setIsLyricsQuizResultsVisible(true)}
+                        activeOpacity={0.65}
+                      >
+                        <Ionicons name="ear-outline" size={16} color="white" />
+                        <Text style={styles.lyricsQuizHeaderText}>
+                          {lyricsQuizQuestions.length > 0
+                            ? `Quiz · ${completedLyricsQuizQuestionCount} of ${lyricsQuizQuestions.length}`
+                            : "Not enough recognized vocabulary for a quiz"}
+                        </Text>
+                      </TouchableOpacity>
+                      {lyricsQuizQuestions.length > 0 ? (
+                        <TouchableOpacity
+                          style={styles.lyricsQuizResetButton}
+                          accessibilityRole="button"
+                          accessibilityLabel="Reset lyric quiz progress"
+                          onPress={() => resetLyricsQuiz(lyricsQuizSessionKey)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="refresh" size={15} color="white" />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ) : null}
                   <FlatList
                     ref={flatListRef}
+                    style={styles.lyricsQuizList}
                     data={timedLyrics}
                     renderItem={renderLyricItem}
                     keyExtractor={(item, index) => index.toString()}
@@ -1445,14 +1821,14 @@ export default function MiniPlayer({
               <View style={styles.expandedControls}>
                 <TouchableOpacity
                   style={styles.expandedControlButton}
-                  onPress={onSkipBackward}
+                  onPress={handleQuizAwareSkipBackward}
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="replay-10" size={32} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.expandedMainControlButton}
-                  onPress={onPlayPause}
+                  onPress={handleQuizAwarePlayPause}
                   activeOpacity={0.7}
                 >
                   <Ionicons
@@ -1463,7 +1839,7 @@ export default function MiniPlayer({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.expandedControlButton}
-                  onPress={onSkipForward}
+                  onPress={handleQuizAwareSkipForward}
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="forward-10" size={32} color="white" />
@@ -1473,6 +1849,17 @@ export default function MiniPlayer({
           </Animated.View>
         )}
       </Animated.View>
+      <LyricsQuizResultsModal
+        visible={isLyricsQuizResultsVisible}
+        songTitle={songTitle}
+        artist={artist}
+        questions={lyricsQuizQuestions}
+        answers={lyricsQuizAnswers}
+        attempts={lyricsQuizAttempts}
+        onClose={() => setIsLyricsQuizResultsVisible(false)}
+        onRestart={handleRestartLyricsQuiz}
+        onOpenItem={handleOpenLyricsQuizResultItem}
+      />
       {tooltipReady && (
         <VocabularyTooltip
           selectedItem={selectedItem}
@@ -1615,6 +2002,42 @@ const styles = StyleSheet.create({
     height: "100%", // Fill available space
     width: "100%",
     paddingHorizontal: 0, // Removed padding
+  },
+  lyricsQuizHeader: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginHorizontal: 4,
+    paddingLeft: 11,
+    paddingRight: 6,
+    borderRadius: 10,
+    borderCurve: "continuous",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  lyricsQuizHeaderInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  lyricsQuizHeaderText: {
+    flex: 1,
+    color: "white",
+    fontSize: 12,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  lyricsQuizResetButton: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+  lyricsQuizList: {
+    flex: 1,
   },
   lyricsLinePrimary: {
     fontSize: 18,

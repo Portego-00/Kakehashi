@@ -498,6 +498,8 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       const current = await playerRef.current.getCurrentTime();
       const newTime = current + 10;
       await playerRef.current.seekTo(newTime);
+      setCurrentTime(newTime);
+      currentTimeRef.current = newTime;
     } catch (error) {
       console.error("Error skipping forward:", error);
     }
@@ -531,6 +533,8 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       const current = await playerRef.current.getCurrentTime();
       const newTime = Math.max(current - 10, 0);
       await playerRef.current.seekTo(newTime);
+      setCurrentTime(newTime);
+      currentTimeRef.current = newTime;
     } catch (error) {
       console.error("Error skipping backward:", error);
     }

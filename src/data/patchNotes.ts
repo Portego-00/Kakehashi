@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.89",
+    date: "2026-07-20",
+    changes: [
+      {
+        type: "feature",
+        title: "Song Lyrics Quiz",
+        description: "Added a level-aware fill-in-the-blank mode for songs.",
+      },
+      {
+        type: "improvement",
+        title: "Crossword Reinforcement",
+        description: "Added optional kanji-first solutions and audio hints.",
+      },
+    ],
+  },
+  {
     version: "1.2.88",
     date: "2026-06-26",
     changes: [
@@ -70,6 +86,12 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Level Timing Exclusions",
         description:
           "Level Timing now keeps excluded bars saved more reliably across refreshes, reloads, and app restarts.",
+      },
+      {
+        type: "feature",
+        title: "Japanese Text Analysis",
+        description:
+          "Paste Japanese text in Extra Study to analyze its grammar and vocabulary, with optional English translation.",
       },
     ],
   },

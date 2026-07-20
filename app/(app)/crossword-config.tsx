@@ -92,6 +92,7 @@ interface CrosswordConfig {
   selectedListIds: string[];
   hiraganaOnly: boolean;
   clueDisplayMode: CrosswordClueDisplayMode;
+  showKanjiInSolutions: boolean;
   playAudioOnCorrectAnswer: boolean;
 }
 
@@ -112,6 +113,7 @@ const createDefaultConfig = (userLevel: number): CrosswordConfig => ({
   selectedListIds: [],
   hiraganaOnly: false,
   clueDisplayMode: "english",
+  showKanjiInSolutions: false,
   playAudioOnCorrectAnswer: true,
 });
 
@@ -167,6 +169,10 @@ const sanitizeConfig = (
       rawConfig.clueDisplayMode === "english_kanji"
         ? rawConfig.clueDisplayMode
         : "english",
+    showKanjiInSolutions: pickBoolean(
+      rawConfig.showKanjiInSolutions,
+      defaults.showKanjiInSolutions
+    ),
     playAudioOnCorrectAnswer: pickBoolean(
       rawConfig.playAudioOnCorrectAnswer,
       defaults.playAudioOnCorrectAnswer
@@ -249,6 +255,7 @@ export default function CrosswordConfigScreen() {
           selectedListIds: config.selectedListIds.join(","),
           hiraganaOnly: String(config.hiraganaOnly),
           clueDisplayMode: config.clueDisplayMode,
+          showKanjiInSolutions: String(config.showKanjiInSolutions),
           playAudioOnCorrectAnswer: String(config.playAudioOnCorrectAnswer),
         },
       });
@@ -775,6 +782,56 @@ export default function CrosswordConfigScreen() {
                 </TouchableOpacity>
               );
             })}
+          </View>
+        </View>
+
+        <View
+          style={[styles.section, { backgroundColor: theme.cardBackground }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Solution Review
+          </Text>
+          <Text
+            style={[
+              styles.sectionDescription,
+              { color: theme.textSecondary },
+            ]}
+          >
+            Choose how completed words appear in your statistics.
+          </Text>
+          <View
+            style={[
+              styles.toggleRow,
+              {
+                borderColor: config.showKanjiInSolutions
+                  ? theme.primary
+                  : theme.border,
+                backgroundColor: config.showKanjiInSolutions
+                  ? `${theme.primary}15`
+                  : "transparent",
+                marginBottom: 0,
+              },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.toggleText, { color: theme.textColor }]}>
+                Show kanji before readings
+              </Text>
+              <Text
+                style={[
+                  styles.helperText,
+                  { color: theme.textSecondary, marginTop: 2 },
+                ]}
+              >
+                Show kanji, then hiragana, with the English meaning below
+              </Text>
+            </View>
+            <Switch
+              value={config.showKanjiInSolutions}
+              onValueChange={(v) => updateConfig("showKanjiInSolutions", v)}
+              trackColor={{ false: "#767577", true: theme.primary }}
+              thumbColor="#f4f3f4"
+            />
           </View>
         </View>
 
