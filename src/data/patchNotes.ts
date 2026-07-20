@@ -69,6 +69,11 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Crossword Reinforcement",
         description: "Added optional kanji-first solutions and audio hints.",
       },
+      {
+        type: "feature",
+        title: "Weekend Lesson Reminders",
+        description: "Added an option to turn off lesson reminders on weekends.",
+      },
     ],
   },
   {

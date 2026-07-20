@@ -11,11 +11,13 @@ export function LessonSettingsSection() {
     dailyLessonLimitMax,
     dailyLessonLimitMin,
     dailyLessonLimitStep,
+    dailyLessonReminderIncludeWeekends,
     excludeKanaVocabularyFromLessons,
     getLessonOrderLabel,
     getNextDailyLessonLimit,
     getPreviousDailyLessonLimit,
     handleDailyLessonLimitToggle,
+    handleDailyLessonReminderIncludeWeekendsChange,
     interleaveLessonTypesEnabled,
     isDailyLessonLimitEnabled,
     lessonBatchSize,
@@ -246,6 +248,35 @@ export function LessonSettingsSection() {
             </View>
           </View>
         )}
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="calendar-clear-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Weekend Lesson Reminders
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Send lesson reminders on Saturdays and Sundays
+            </Text>
+          </View>
+          <Switch
+            value={dailyLessonReminderIncludeWeekends}
+            onValueChange={(includeWeekends) => {
+              void handleDailyLessonReminderIncludeWeekendsChange(
+                includeWeekends,
+              );
+            }}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
 
         <TouchableOpacity
           style={[styles.settingItem, { borderBottomColor: theme.border }]}

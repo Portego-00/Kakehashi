@@ -550,6 +550,7 @@ type SettingsState = {
   dailyReviewReminderMinute: number;
   dailyLessonReminderEnabled: boolean;
   dailyLessonReminderMinimum: number;
+  dailyLessonReminderIncludeWeekends: boolean;
 
   // User Profile settings
   gravatarEmail: string | null;
@@ -722,6 +723,7 @@ type SettingsState = {
   setDailyReviewReminderMinute: (minute: number) => void;
   setDailyLessonReminderEnabled: (enable: boolean) => void;
   setDailyLessonReminderMinimum: (minimum: number) => void;
+  setDailyLessonReminderIncludeWeekends: (include: boolean) => void;
   setGravatarEmail: (email: string | null) => void;
   setVocabTooltipEnabled: (enabled: boolean) => void;
   setJitaiEnabled: (enabled: boolean) => void;
@@ -871,6 +873,7 @@ export const useSettingsStore = create<SettingsState>()(
       dailyReviewReminderMinute: 0,
       dailyLessonReminderEnabled: false, // Default to disabled
       dailyLessonReminderMinimum: 5, // Default lesson goal for reminders
+      dailyLessonReminderIncludeWeekends: true, // Preserve daily reminders on weekends unless the user opts out
       gravatarEmail: null,
 
       vocabTooltipEnabled: true, // Default to true
@@ -1121,6 +1124,8 @@ export const useSettingsStore = create<SettingsState>()(
             Math.max(5, Math.floor(minimum))
           ),
         }),
+      setDailyLessonReminderIncludeWeekends: (include) =>
+        set({ dailyLessonReminderIncludeWeekends: include }),
       setGravatarEmail: (email) => set({ gravatarEmail: email }),
       setVocabTooltipEnabled: (enabled) =>
         set({ vocabTooltipEnabled: enabled }),

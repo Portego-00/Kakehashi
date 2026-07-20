@@ -415,6 +415,8 @@ export function useSettingsController() {
     setDailyLessonReminderEnabled,
     dailyLessonReminderMinimum,
     setDailyLessonReminderMinimum,
+    dailyLessonReminderIncludeWeekends,
+    setDailyLessonReminderIncludeWeekends,
     ankiCardMode,
     setAnkiCardMode,
     ankiGroupQuestions,
@@ -1789,12 +1791,14 @@ export function useSettingsController() {
     reviewEnabled = dailyReviewReminderEnabled,
     lessonEnabled = dailyLessonReminderEnabled,
     lessonMinimum = dailyLessonReminderMinimum,
+    lessonIncludeWeekends = dailyLessonReminderIncludeWeekends,
     hour = dailyReviewReminderHour,
     minute = dailyReviewReminderMinute,
   }: {
     reviewEnabled?: boolean;
     lessonEnabled?: boolean;
     lessonMinimum?: number;
+    lessonIncludeWeekends?: boolean;
     hour?: number;
     minute?: number;
   } = {}) => ({
@@ -1808,6 +1812,7 @@ export function useSettingsController() {
       hour,
       minute,
       minimumLessons: lessonMinimum,
+      includeWeekends: lessonIncludeWeekends,
     },
   });
 
@@ -2048,6 +2053,15 @@ export function useSettingsController() {
     setDailyLessonReminderMinimum(normalizedMinimum);
     await syncDailyReminderNotifications(
       getDailyReminderSyncOptions({ lessonMinimum: normalizedMinimum })
+    );
+  };
+
+  const handleDailyLessonReminderIncludeWeekendsChange = async (
+    includeWeekends: boolean,
+  ) => {
+    setDailyLessonReminderIncludeWeekends(includeWeekends);
+    await syncDailyReminderNotifications(
+      getDailyReminderSyncOptions({ lessonIncludeWeekends: includeWeekends }),
     );
   };
 
@@ -2849,6 +2863,7 @@ export function useSettingsController() {
     dailyLessonLimitMin,
     dailyLessonLimitStep,
     dailyLessonReminderEnabled,
+    dailyLessonReminderIncludeWeekends,
     dailyLessonReminderMinimum,
     dailyLessonReminderMinimumMax,
     dailyLessonReminderMinimumMin,
@@ -2907,6 +2922,7 @@ export function useSettingsController() {
     handleConfirmLevelAnalyticsExport,
     handleDailyLessonLimitToggle,
     handleDailyLessonReminderChange,
+    handleDailyLessonReminderIncludeWeekendsChange,
     handleDailyLessonReminderMinimumChange,
     handleDailyReviewReminderChange,
     handleDetailedSubjectsAnalysis,
@@ -3060,6 +3076,7 @@ export function useSettingsController() {
     setCapturingReviewShortcutKey,
     setDailyLessonLimit,
     setDailyLessonReminderEnabled,
+    setDailyLessonReminderIncludeWeekends,
     setDailyLessonReminderMinimum,
     setDailyReviewReminderEnabled,
     setDailyReviewReminderHour,
