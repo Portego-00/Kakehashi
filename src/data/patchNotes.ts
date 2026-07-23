@@ -76,6 +76,11 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Inline Radical Reminders",
         description:
           "Optionally view radical mnemonics and illustrations directly from kanji details.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
       },
     ],
   },
