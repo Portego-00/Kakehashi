@@ -89,6 +89,7 @@ import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
+import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 
 // Get screen dimensions
 const { height } = Dimensions.get("window");
@@ -5180,6 +5181,10 @@ export default function LessonDetailScreen({
                       "No meaning available"}
                   </Text>
                 </View>
+                {(pageSubject.object === "vocabulary" ||
+                  pageSubject.object === "kana_vocabulary") && (
+                  <VocabularyFrequencyBadge subject={pageSubject} />
+                )}
                 {/* Show reading in header for vocabulary/kanji in single page view */}
                 {singlePageLessonView &&
                   (pageSubject.object === "vocabulary" ||

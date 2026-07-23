@@ -24,6 +24,11 @@ import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
 import { SRS_COLORS } from "../constants/srsColors";
 import { hiraganaToKata } from "../utils/katakanaMadness";
+import {
+  getMnemonicImageAsset,
+  getMnemonicImageUrlFromDocument,
+  inlineSvgClassStyles,
+} from "../utils/mnemonicImage";
 import { getWaniKaniPitchAccents } from "../utils/pitchAccent";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import {
@@ -43,6 +48,26 @@ import { SynonymsModal } from "./SynonymsModal";
 // Turn on Reanimated's global layout animations (required on Fabric / new‑arch)
 enableLayoutAnimations(true);
 
+interface KanjiRadicalComponentSubject {
+  id: number;
+  characters: string | null;
+  meanings: string[];
+  characterImages?: {
+    url: string;
+    content_type: string;
+    metadata: {
+      inline_styles?: boolean;
+      color?: string;
+      dimensions?: string;
+      style_name?: string;
+    };
+  }[];
+  imageUrl?: string | null;
+  level: number;
+  mnemonic?: string;
+  documentUrl?: string | null;
+}
+
 interface KanjiDetailsProps {
   kanji: {
     id: number;
@@ -59,23 +84,7 @@ interface KanjiDetailsProps {
     readingMnemonic: string;
     meaningHint?: string | null;
     readingHint?: string | null;
-    componentSubjects?: {
-      id: number;
-      characters: string | null;
-      meanings: string[];
-      characterImages?: {
-        url: string;
-        content_type: string;
-        metadata: {
-          inline_styles?: boolean;
-          color?: string;
-          dimensions?: string;
-          style_name?: string;
-        };
-      }[];
-      imageUrl?: string | null;
-      level: number;
-    }[];
+    componentSubjects?: KanjiRadicalComponentSubject[];
     amalgamationSubjects?: {
       id: number;
       characters: string;
@@ -128,27 +137,14 @@ const imageCache: Record<string, string> = {};
 
 // Helper component to render a single radical with SVG/image fallback
 interface RadicalComponentProps {
-  component: {
-    id: number;
-    characters: string | null;
-    meanings: string[];
-    characterImages?: {
-      url: string;
-      content_type: string;
-      metadata: {
-        inline_styles?: boolean;
-        color?: string;
-        dimensions?: string;
-        style_name?: string;
-      };
-    }[];
-    imageUrl?: string | null;
-    level: number;
-  };
+  component: KanjiRadicalComponentSubject;
   width: number;
   height: number;
   gridSpacing: number;
   onPress: () => void;
+  reminderEnabled: boolean;
+  disabled?: boolean;
+  isExpanded?: boolean;
   isAboveUserLevel?: boolean;
   styles: ReturnType<typeof createStyles>;
   radicalContentColor?: string;
@@ -162,6 +158,9 @@ const RadicalComponent = React.memo(
     height,
     gridSpacing,
     onPress,
+    reminderEnabled,
+    disabled = false,
+    isExpanded = false,
     isAboveUserLevel = false,
     styles,
     radicalContentColor = "#ffffff",
@@ -191,6 +190,7 @@ const RadicalComponent = React.memo(
       <TouchableOpacity
         style={[
           styles.componentItem,
+          isExpanded && styles.componentItemExpanded,
           {
             width: width,
             height: height,
@@ -199,6 +199,22 @@ const RadicalComponent = React.memo(
           },
         ]}
         onPress={onPress}
+        disabled={disabled}
+        accessibilityRole={disabled ? undefined : "button"}
+        accessibilityLabel={
+          disabled
+            ? undefined
+            : reminderEnabled
+              ? `${isExpanded ? "Hide" : "Show"} ${
+                  component.meanings[0] || "radical"
+                } radical reminder`
+              : `Open full details for ${
+                  component.meanings[0] || "radical"
+                } radical`
+        }
+        accessibilityState={
+          reminderEnabled ? { expanded: isExpanded } : undefined
+        }
       >
         {component.characters ? (
           <Text
@@ -246,6 +262,131 @@ const RadicalComponent = React.memo(
 
 RadicalComponent.displayName = "RadicalComponent";
 
+interface RadicalMnemonicIllustrationProps {
+  documentUrl?: string | null;
+  radicalId: number;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function RadicalMnemonicIllustration({
+  documentUrl,
+  radicalId,
+  styles,
+}: RadicalMnemonicIllustrationProps) {
+  const { showMnemonicIllustrations } = useSettingsStore();
+  const { theme } = useTheme();
+  const subjectColors = useSubjectColors();
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageKind, setImageKind] = useState<"unknown" | "svg" | "raster">(
+    "unknown"
+  );
+  const [svgXml, setSvgXml] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const trimmedDocumentUrl = documentUrl?.trim();
+
+    setImageUrl(null);
+    setSvgXml(null);
+    setImageKind("unknown");
+
+    if (!showMnemonicIllustrations || !trimmedDocumentUrl) {
+      setIsResolving(false);
+      return;
+    }
+
+    setIsResolving(true);
+    getMnemonicImageUrlFromDocument(trimmedDocumentUrl)
+      .then((nextImageUrl) => {
+        if (cancelled) return;
+        setImageUrl(nextImageUrl);
+        if (!nextImageUrl) setIsResolving(false);
+      })
+      .catch(() => {
+        if (!cancelled) setIsResolving(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentUrl, radicalId, showMnemonicIllustrations]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showMnemonicIllustrations || !imageUrl) return;
+
+    getMnemonicImageAsset(imageUrl)
+      .then((asset) => {
+        if (cancelled) return;
+        if (asset.kind === "svg") {
+          setSvgXml(asset.svgXml);
+          setImageKind("svg");
+        } else {
+          setSvgXml(null);
+          setImageKind("raster");
+        }
+        setIsResolving(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSvgXml(null);
+        setImageKind("raster");
+        setIsResolving(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl, radicalId, showMnemonicIllustrations]);
+
+  const themedSvgXml = useMemo(
+    () =>
+      svgXml
+        ? inlineSvgClassStyles(
+            svgXml,
+            theme.textColor,
+            theme.isDark,
+            theme.textColor
+          )
+        : null,
+    [svgXml, theme.isDark, theme.textColor]
+  );
+
+  if (!showMnemonicIllustrations || !documentUrl?.trim()) return null;
+
+  if (isResolving) {
+    return (
+      <View style={styles.radicalReminderImageLoading}>
+        <ActivityIndicator size="small" color={subjectColors.radical} />
+      </View>
+    );
+  }
+
+  if (!imageUrl) return null;
+
+  if (imageKind === "svg" && themedSvgXml) {
+    return (
+      <View style={styles.radicalReminderSvgContainer}>
+        <SvgXml xml={themedSvgXml} width="100%" height="100%" />
+      </View>
+    );
+  }
+
+  if (imageKind === "raster") {
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        style={styles.radicalReminderImage}
+        resizeMode="contain"
+      />
+    );
+  }
+
+  return null;
+}
+
 export default function KanjiDetails({
   kanji,
   progressionStatus,
@@ -257,8 +398,12 @@ export default function KanjiDetails({
   onSynonymsChange,
   embedded = false,
 }: KanjiDetailsProps) {
-  const { showStrokeOrder, showOnyomiInKatakana, showPitchAccent } =
-    useSettingsStore();
+  const {
+    showInlineRadicalReminders,
+    showOnyomiInKatakana,
+    showPitchAccent,
+    showStrokeOrder,
+  } = useSettingsStore();
   const subjectColors = useSubjectColors();
   const styles = useMemo(
     () => createStyles(subjectColors),
@@ -270,6 +415,9 @@ export default function KanjiDetails({
   const navigation = useNavigation();
   const [showAllSimilar, setShowAllSimilar] = useState(false);
   const [showAllVocab, setShowAllVocab] = useState(false);
+  const [expandedComponentId, setExpandedComponentId] = useState<number | null>(
+    null
+  );
   const [synonymsModalVisible, setSynonymsModalVisible] = useState(false);
   const [practiceModalVisible, setPracticeModalVisible] = useState(false);
   const [onyomiPitchPage, setOnyomiPitchPage] = useState(0);
@@ -290,6 +438,10 @@ export default function KanjiDetails({
   const meaningScrollRef = useAnimatedRef<Animated.ScrollView>();
   const readingScrollRef = useAnimatedRef<Animated.ScrollView>();
   const strokeScrollRef = useAnimatedRef<Animated.ScrollView>();
+
+  useEffect(() => {
+    setExpandedComponentId(null);
+  }, [kanji.id, showInlineRadicalReminders]);
 
   // Compute responsive metrics per render
   const isTablet = screenWidth > 768;
@@ -445,6 +597,11 @@ export default function KanjiDetails({
   const sortedComponentSubjects = kanji.componentSubjects
     ? [...kanji.componentSubjects].sort((a, b) => a.level - b.level)
     : [];
+  const expandedComponent = showInlineRadicalReminders
+    ? sortedComponentSubjects.find(
+        (component) => component.id === expandedComponentId
+      ) || null
+    : null;
 
   // Visually Similar Kanji - sort by level and limit to first 8 initially
   const maxInitialSimilarItems = 8;
@@ -1176,11 +1333,139 @@ export default function KanjiDetails({
                     height={smallCardHeight}
                     gridSpacing={gridSpacing}
                     styles={styles}
-                    onPress={() => onSubjectPress?.(component.id)}
+                    onPress={() => {
+                      if (showInlineRadicalReminders) {
+                        setExpandedComponentId((currentId) =>
+                          currentId === component.id ? null : component.id
+                        );
+                        return;
+                      }
+                      onSubjectPress?.(component.id);
+                    }}
+                    reminderEnabled={showInlineRadicalReminders}
+                    disabled={!showInlineRadicalReminders && !onSubjectPress}
+                    isExpanded={
+                      showInlineRadicalReminders &&
+                      expandedComponentId === component.id
+                    }
                     isAboveUserLevel={component.level > userLevel}
                   />
                 ))}
               </Animated.View>
+              {showInlineRadicalReminders && (
+                <Text
+                  style={[
+                    styles.radicalReminderHint,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Tap a radical to see its reminder here.
+                </Text>
+              )}
+              {showInlineRadicalReminders && expandedComponent && (
+                <Animated.View
+                  entering={FadeInDown.duration(160)}
+                  exiting={FadeOutUp.duration(120)}
+                  layout={LinearTransition.duration(180)}
+                  style={[
+                    styles.radicalReminder,
+                    {
+                      backgroundColor: theme.backgroundColor,
+                      borderColor: subjectColors.radical,
+                    },
+                  ]}
+                >
+                  <View style={styles.radicalReminderHeader}>
+                    <View style={styles.radicalReminderHeading}>
+                      <Text
+                        style={[
+                          styles.radicalReminderTitle,
+                          { color: theme.textColor },
+                        ]}
+                      >
+                        {expandedComponent.meanings[0] || "Radical"}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.radicalReminderMeta,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Radical · Level {expandedComponent.level}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setExpandedComponentId(null)}
+                      style={styles.radicalReminderClose}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close radical reminder"
+                    >
+                      <Ionicons
+                        name="close"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.radicalReminderLabel,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Mnemonic
+                  </Text>
+                  {expandedComponent.mnemonic ? (
+                    <View style={styles.mnemonicContainer}>
+                      {formatMnemonic(expandedComponent.mnemonic)}
+                    </View>
+                  ) : (
+                    <Text
+                      style={[
+                        styles.radicalReminderUnavailable,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      No mnemonic is available for this radical.
+                    </Text>
+                  )}
+
+                  <RadicalMnemonicIllustration
+                    documentUrl={expandedComponent.documentUrl}
+                    radicalId={expandedComponent.id}
+                    styles={styles}
+                  />
+
+                  {onSubjectPress && (
+                    <TouchableOpacity
+                      style={[
+                        styles.radicalReminderOpenButton,
+                        { borderColor: theme.border },
+                      ]}
+                      onPress={() => onSubjectPress(expandedComponent.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open full details for ${
+                        expandedComponent.meanings[0] || "radical"
+                      }`}
+                    >
+                      <Text
+                        style={[
+                          styles.radicalReminderOpenText,
+                          { color: subjectColors.radical },
+                        ]}
+                      >
+                        Open full radical page
+                      </Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={16}
+                        color={subjectColors.radical}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </Animated.View>
+              )}
             </View>
           </View>
         )}
@@ -2321,6 +2606,10 @@ const createStyles = (subjectColors: SubjectColors) =>
     flexShrink: 0,
     position: "relative",
   },
+  componentItemExpanded: {
+    borderWidth: 3,
+    borderColor: "white",
+  },
   componentCharacter: {
     fontSize: 22,
     color: "white",
@@ -2345,6 +2634,91 @@ const createStyles = (subjectColors: SubjectColors) =>
     fontWeight: "500",
     marginTop: 4,
     paddingHorizontal: 4,
+  },
+  radicalReminderHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+    marginHorizontal: 4,
+  },
+  radicalReminder: {
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    marginTop: 12,
+    padding: 14,
+  },
+  radicalReminderHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  radicalReminderHeading: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  radicalReminderTitle: {
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "700",
+  },
+  radicalReminderMeta: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  radicalReminderClose: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -6,
+    marginRight: -6,
+  },
+  radicalReminderLabel: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 6,
+  },
+  radicalReminderUnavailable: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: "italic",
+  },
+  radicalReminderImage: {
+    width: "100%",
+    height: 140,
+    marginTop: 14,
+  },
+  radicalReminderSvgContainer: {
+    width: "100%",
+    height: 210,
+    marginTop: 14,
+  },
+  radicalReminderImageLoading: {
+    width: "100%",
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+  },
+  radicalReminderOpenButton: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderRadius: 9,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  radicalReminderOpenText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   similarKanjiItem: {
     backgroundColor: subjectColors.kanji,

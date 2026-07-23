@@ -946,6 +946,8 @@ export default function SubjectDetailsScreen() {
         characterImages: subject.data.character_images || [],
         imageUrl: subject.data.character_images?.[0]?.url || null,
         level: subject.data.level,
+        mnemonic: subject.data.meaning_mnemonic || "",
+        documentUrl: subject.data.document_url || null,
       })),
       visuallySimilarSubjects: visuallySimilarSubjects.map((subject) => ({
         id: subject.id,

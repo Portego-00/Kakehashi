@@ -6,15 +6,18 @@ import { apiDebugger } from "./apiDebugger";
 import { isIOSOnMac } from "./platformSupport";
 import {
     CACHE_TTL,
+    clearStudyMaterialsCache,
     getCachedSubject,
     getDataUpdatedAt,
     getETag,
     getFromCache,
     getLastModified,
+    getStudyMaterialsFromPermanentCache,
     getSubjectById,
     saveDataUpdatedAt,
     saveETag,
     saveLastModified,
+    saveStudyMaterialsToPermanentCache,
     saveToCache
 } from "./cache";
 import { startPerformanceTimer } from "./performanceLogger";
@@ -2471,14 +2474,55 @@ export async function getStudyMaterials(
     .toString()
     .replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-  const cachedEntry = options?.skipCache ? null : await getFromCache<any>(cacheKey, undefined, {
+  const requestedSubjectIds = params.subject_ids || [];
+  const persistStudyMaterials = async (collection: any) => {
+    const isCompleteResponse = !collection?.pages?.next_url;
+    const responseCoversRequestedSubjects =
+      params.ids === undefined && params.updated_after === undefined;
+    await saveStudyMaterialsToPermanentCache(
+      requestedSubjectIds,
+      Array.isArray(collection?.data) ? collection.data : [],
+      {
+        completeResponse:
+          isCompleteResponse && responseCoversRequestedSubjects,
+        completeCollection:
+          requestedSubjectIds.length === 0 &&
+          responseCoversRequestedSubjects &&
+          isCompleteResponse,
+      }
+    );
+  };
+  const buildOfflineCollection = (materials: any[]) => ({
+    object: "collection",
+    url: url.toString(),
+    pages: {
+      per_page: 500,
+      next_url: null,
+      previous_url: null,
+    },
+    total_count: materials.length,
+    data_updated_at: null,
+    data: materials,
+  });
+
+  const cachedEntry = await getFromCache<any>(cacheKey, undefined, {
     ignoreTTL: true,
   });
   const hasCached = Boolean(cachedEntry && cachedEntry.data);
   const isExpired = hasCached
     ? Date.now() - cachedEntry!.timestamp > CACHE_TTL
     : false;
-  if (hasCached && !isExpired) return cachedEntry!.data;
+  if (hasCached) {
+    await persistStudyMaterials(cachedEntry!.data).catch(() => {});
+  }
+  if (
+    !options?.skipCache &&
+    hasCached &&
+    !isExpired &&
+    !cachedEntry!.data.pages?.next_url
+  ) {
+    return cachedEntry!.data;
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiToken}`,
@@ -2491,29 +2535,59 @@ export async function getStudyMaterials(
     else if (lastMod) headers["If-Modified-Since"] = lastMod;
   }
 
-  const response = await fetchWaniKaniApi(url.toString(), { method: "GET", headers });
+  try {
+    const response = await fetchWaniKaniApi(url.toString(), {
+      method: "GET",
+      headers,
+    });
 
-  if (response.status === 304 && hasCached) {
-    await saveToCache(cacheKey, cachedEntry!.data, cachedEntry!.dataUpdatedAt);
-    return cachedEntry!.data;
+    if (response.status === 304 && hasCached) {
+      const data = cachedEntry!.data.pages?.next_url
+        ? await fetchAllPages(cachedEntry!.data, apiToken)
+        : cachedEntry!.data;
+
+      await saveToCache(cacheKey, data, data.data_updated_at);
+      await persistStudyMaterials(data).catch(() => {});
+      return data;
+    }
+
+    if (!response.ok) {
+      const txt = await response
+        .text()
+        .catch(() => "Could not read error response");
+      console.error(`API error ${response.status} for study materials:`, txt);
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const newEtag = getResponseHeader(response, "ETag");
+    const newLast = getResponseHeader(response, "Last-Modified");
+    if (newEtag) await saveETag(url.toString(), newEtag);
+    if (newLast) await saveLastModified(url.toString(), newLast);
+
+    const initialData = await response.json();
+    const data = initialData?.pages?.next_url
+      ? await fetchAllPages(initialData, apiToken)
+      : initialData;
+    await saveToCache(cacheKey, data, data.data_updated_at);
+    await persistStudyMaterials(data).catch((cacheError) => {
+      console.warn(
+        "[Study Materials] Failed to update permanent offline cache:",
+        cacheError
+      );
+    });
+    return data;
+  } catch (error) {
+    if (requestedSubjectIds.length > 0) {
+      const offlineMaterials = await getStudyMaterialsFromPermanentCache(
+        requestedSubjectIds
+      ).catch(() => null);
+      if (offlineMaterials !== null) {
+        return buildOfflineCollection(offlineMaterials);
+      }
+    }
+
+    throw error;
   }
-
-  if (!response.ok) {
-    const txt = await response
-      .text()
-      .catch(() => "Could not read error response");
-    console.error(`API error ${response.status} for study materials:`, txt);
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  const newEtag = getResponseHeader(response, "ETag");
-  const newLast = getResponseHeader(response, "Last-Modified");
-  if (newEtag) await saveETag(url.toString(), newEtag);
-  if (newLast) await saveLastModified(url.toString(), newLast);
-
-  const data = await response.json();
-  await saveToCache(cacheKey, data, data.data_updated_at);
-  return data;
 }
 
 // Get SRS systems with caching
@@ -2612,7 +2686,14 @@ export async function createStudyMaterial(
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  await clearStudyMaterialsCache(params.subject_id);
+  await saveStudyMaterialsToPermanentCache(
+    [params.subject_id],
+    [data],
+    { completeResponse: true }
+  ).catch(() => {});
+  return data;
 }
 
 // Update an existing study material
@@ -2648,7 +2729,17 @@ export async function updateStudyMaterial(
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  const subjectId = data?.data?.subject_id;
+  if (Number.isInteger(subjectId) && subjectId > 0) {
+    await clearStudyMaterialsCache(subjectId);
+    await saveStudyMaterialsToPermanentCache(
+      [subjectId],
+      [data],
+      { completeResponse: true }
+    ).catch(() => {});
+  }
+  return data;
 }
 
 // Get reviews with pagination support

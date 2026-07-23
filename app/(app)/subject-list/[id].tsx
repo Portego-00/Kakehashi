@@ -40,6 +40,7 @@ import {
   saveToCache,
 } from "../../../src/utils/cache";
 import { fontStyles } from "../../../src/utils/fonts";
+import { getJLPTLevelForSubject } from "../../../src/utils/jlptClassification";
 import { pickBestImage, useRemoteSvg } from "../../../src/utils/radicalSvg";
 import { getSubjectTypeColor } from "../../../src/utils/subjectColors";
 import {
@@ -301,7 +302,12 @@ export default function SubjectListEditorScreen() {
       )
       .filter((subject) =>
         filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
-      );
+      )
+      .filter((subject) => {
+        if (filters.jlptLevels.size === 0) return true;
+        const jlptLevel = getJLPTLevelForSubject(subject);
+        return jlptLevel !== null && filters.jlptLevels.has(jlptLevel);
+      });
 
     const query = searchQuery.trim();
     let filtered = query
@@ -425,7 +431,8 @@ export default function SubjectListEditorScreen() {
     filters.minLevel > 1 ||
     filters.maxLevel < 60 ||
     filters.types.size < 4 ||
-    hasNonDefaultSrsSelection;
+    hasNonDefaultSrsSelection ||
+    filters.jlptLevels.size > 0;
 
   const toggleSelectAllMatching = () => {
     if (matchingSubjectIds.length === 0) return;
@@ -639,6 +646,7 @@ export default function SubjectListEditorScreen() {
     const isSelected = selectedSubjectIds.has(item.id);
     const typeColor = getItemTypeColor(item.object);
     const srsStage = subjectSrsStageMap.get(item.id) ?? 0;
+    const jlptLevel = getJLPTLevelForSubject(item);
     return (
       <TouchableOpacity
         style={[
@@ -686,6 +694,11 @@ export default function SubjectListEditorScreen() {
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
               {item.object}
             </Text>
+            {jlptLevel && (
+              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                {jlptLevel}
+              </Text>
+            )}
             <Text style={[styles.itemLevel, { color: theme.textLight }]}>
               {formatLevelWithSrsStage(item.data.level, srsStage)}
             </Text>
@@ -703,6 +716,7 @@ export default function SubjectListEditorScreen() {
   const renderSelectedSubjectItem = ({ item }: { item: Subject }) => {
     const typeColor = getItemTypeColor(item.object);
     const srsStage = subjectSrsStageMap.get(item.id) ?? 0;
+    const jlptLevel = getJLPTLevelForSubject(item);
     return (
       <View
         style={[
@@ -746,6 +760,11 @@ export default function SubjectListEditorScreen() {
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
               {item.object}
             </Text>
+            {jlptLevel && (
+              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                {jlptLevel}
+              </Text>
+            )}
             <Text style={[styles.itemLevel, { color: theme.textLight }]}>
               {formatLevelWithSrsStage(item.data.level, srsStage)}
             </Text>
@@ -1150,6 +1169,7 @@ export default function SubjectListEditorScreen() {
             setFilters(nextFilters);
             setShowFilters(false);
           }}
+          showJlptFilters
         />
         <CommonFilterModal
           visible={showSelectedSortModal && activeTab === "selected"}

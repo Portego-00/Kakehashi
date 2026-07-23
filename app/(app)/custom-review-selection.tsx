@@ -57,6 +57,7 @@ import {
 } from "../../src/utils/subjectSearch";
 import { formatLevelWithSrsStage } from "../../src/utils/srsStageLabel";
 import { useTheme } from "../../src/utils/theme";
+import { getJLPTLevelForSubject } from "../../src/utils/jlptClassification";
 
 //
 
@@ -374,7 +375,15 @@ export default function CustomReviewSelectionScreen() {
       )
       .filter((subject) =>
         filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
-      );
+      )
+      .filter((subject) => {
+        if (filters.jlptLevels.size === 0) {
+          return true;
+        }
+
+        const jlptLevel = getJLPTLevelForSubject(subject);
+        return jlptLevel !== null && filters.jlptLevels.has(jlptLevel);
+      });
 
     const query = searchQuery.trim();
     let filtered = query
@@ -441,6 +450,7 @@ export default function CustomReviewSelectionScreen() {
     filters.maxLevel < 60 ||
     filters.types.size < 4 ||
     filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
+    filters.jlptLevels.size > 0 ||
     selectedListIds.length > 0;
 
   const allMatchingSelected =
@@ -611,6 +621,7 @@ export default function CustomReviewSelectionScreen() {
     const isSelected = isSubjectSelected(item.id);
     const typeColor = getItemTypeColor(item.object);
     const srsStage = subjectSrsStageMap.get(item.id) ?? 0;
+    const jlptLevel = getJLPTLevelForSubject(item);
 
     return (
       <TouchableOpacity
@@ -658,6 +669,11 @@ export default function CustomReviewSelectionScreen() {
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
               {item.object}
             </Text>
+            {jlptLevel && (
+              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                {jlptLevel}
+              </Text>
+            )}
             <Text style={[styles.itemLevel, { color: theme.textLight }]}>
               {formatLevelWithSrsStage(item.data.level, srsStage)}
             </Text>
@@ -876,7 +892,8 @@ export default function CustomReviewSelectionScreen() {
                 filters.minLevel > 1 ||
                 filters.maxLevel < 60 ||
                 filters.types.size < 4 ||
-                filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length
+                filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
+                filters.jlptLevels.size > 0
                   ? "No subjects found matching your search and filters"
                   : "No subjects available"}
               </Text>
@@ -1034,6 +1051,7 @@ export default function CustomReviewSelectionScreen() {
         currentFilters={filters}
         onClose={handleCloseFilters}
         onApply={handleApplyFilters}
+        showJlptFilters
       />
     </View>
   );

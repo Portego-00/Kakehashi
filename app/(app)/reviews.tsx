@@ -58,6 +58,16 @@ type ReviewStudyMaterials = {
   reading_note?: string;
 };
 
+class AcceptedAnswersUnavailableError extends Error {
+  readonly originalError: unknown;
+
+  constructor(originalError: unknown) {
+    super("User synonyms are unavailable for this review session.");
+    this.name = "AcceptedAnswersUnavailableError";
+    this.originalError = originalError;
+  }
+}
+
 // Define interface for review items
 interface ReviewItem {
   id: number;
@@ -625,9 +635,11 @@ export default function ReviewScreen() {
       // Fetch study materials when answer checking or embedded pause details need them.
       if (acceptUserSynonymsAsAnswers || showAnswerStopSubjectDetails) {
         try {
-          const studyMaterialsResponse = await getStudyMaterials(apiToken, {
-            subject_ids: subjectIds,
-          });
+          const studyMaterialsResponse = await getStudyMaterials(
+            apiToken,
+            { subject_ids: subjectIds },
+            acceptUserSynonymsAsAnswers ? { skipCache: true } : undefined
+          );
 
           // Create a map of subject ID to study material data
           const materialsMap = new Map<number, ReviewStudyMaterials>();
@@ -646,7 +658,10 @@ export default function ReviewScreen() {
           console.log(`[Study Materials] Loaded study materials for ${materialsMap.size} subjects`);
         } catch (error) {
           console.warn("[Study Materials] Failed to load study materials:", error);
-          // Continue without study materials - feature will gracefully degrade
+          if (acceptUserSynonymsAsAnswers) {
+            throw new AcceptedAnswersUnavailableError(error);
+          }
+          // Notes/details can gracefully degrade when they are the only consumer.
         }
       }
 
@@ -775,7 +790,11 @@ export default function ReviewScreen() {
 
       // Log the error to Supabase with context
       const errorObj = error instanceof Error ? error : new Error(String(error));
-      const isRateLimit = isRateLimitError(error);
+      const underlyingError =
+        error instanceof AcceptedAnswersUnavailableError
+          ? error.originalError
+          : error;
+      const isRateLimit = isRateLimitError(underlyingError);
       errorService.logError(errorObj, {
         extra: {
           context: "reviews_load",
@@ -789,7 +808,13 @@ export default function ReviewScreen() {
         },
       });
 
-      if (isRateLimit) {
+      if (error instanceof AcceptedAnswersUnavailableError) {
+        Alert.alert(
+          "Accepted Answers Unavailable",
+          "Your user synonyms are not cached for this review set and WaniKani could not be reached. Connect once, or disable Accept User Synonyms to continue offline.",
+          [{ text: "OK", onPress: () => router.back() }]
+        );
+      } else if (isRateLimit) {
         Alert.alert(
           "Too Many Requests",
           "You've made too many requests to WaniKani. The rate limit resets every minute. Please wait a moment and try again.",

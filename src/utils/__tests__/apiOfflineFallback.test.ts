@@ -80,21 +80,29 @@ describe("api offline assignment fallbacks", () => {
     permanentAssignments?: any[];
   } = {}) => {
     const getFromCacheMock = jest.fn(async () => null);
+    const getStudyMaterialsFromPermanentCacheMock = jest.fn<
+      Promise<any[] | null>,
+      [number[]]
+    >(async () => null);
     const saveAssignmentsToPermanentStorageMock = jest.fn(
       async () => undefined
     );
 
     jest.doMock("../cache", () => ({
       CACHE_TTL: 24 * 60 * 60 * 1000,
+      clearStudyMaterialsCache: jest.fn(async () => undefined),
       getCachedSubject: jest.fn(),
       getDataUpdatedAt: jest.fn(async () => null),
       getETag: jest.fn(async () => null),
       getFromCache: getFromCacheMock,
       getLastModified: jest.fn(async () => null),
+      getStudyMaterialsFromPermanentCache:
+        getStudyMaterialsFromPermanentCacheMock,
       getSubjectById: jest.fn(async () => null),
       saveDataUpdatedAt: jest.fn(async () => undefined),
       saveETag: jest.fn(async () => undefined),
       saveLastModified: jest.fn(async () => undefined),
+      saveStudyMaterialsToPermanentCache: jest.fn(async () => undefined),
       saveToCache: jest.fn(async () => undefined),
     }));
 
@@ -138,6 +146,7 @@ describe("api offline assignment fallbacks", () => {
     return {
       api,
       getFromCacheMock,
+      getStudyMaterialsFromPermanentCacheMock,
       saveAssignmentsToPermanentStorageMock,
     };
   };
@@ -189,5 +198,55 @@ describe("api offline assignment fallbacks", () => {
       [availableLesson, startedLesson],
       "2026-05-28T08:00:00.000Z"
     );
+  });
+
+  it("uses subject-keyed study materials when the request is offline", async () => {
+    const cachedMaterial = {
+      id: 77,
+      object: "study_material",
+      data: {
+        subject_id: 1001,
+        meaning_synonyms: ["grown-up"],
+      },
+    };
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const {
+      api,
+      getStudyMaterialsFromPermanentCacheMock,
+    } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue([
+      cachedMaterial,
+    ]);
+
+    const result = await api.getStudyMaterials(
+      "test-token",
+      { subject_ids: [1001] },
+      { skipCache: true }
+    );
+
+    expect(result.data).toEqual([cachedMaterial]);
+    expect(result.pages.next_url).toBeNull();
+    expect(getStudyMaterialsFromPermanentCacheMock).toHaveBeenCalledWith([
+      1001,
+    ]);
+  });
+
+  it("fails instead of returning incomplete accepted answers offline", async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const {
+      api,
+      getStudyMaterialsFromPermanentCacheMock,
+    } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue(null);
+
+    await expect(
+      api.getStudyMaterials(
+        "test-token",
+        { subject_ids: [1001] },
+        { skipCache: true }
+      )
+    ).rejects.toThrow("offline");
   });
 });

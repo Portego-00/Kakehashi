@@ -531,6 +531,7 @@ type SettingsState = {
   vocabularyColor: string;
   forecastShowSubjectColors: boolean;
   showPitchAccent: boolean;
+  showVocabularyFrequency: boolean;
   showPatternsOfUse: boolean;
   showSimilarVocabulary: boolean;
   showSingleKanjiVocabularySimilarKanji: boolean;
@@ -538,6 +539,7 @@ type SettingsState = {
   hideContextSentenceTranslations: boolean;
   showContextSentenceSpeedControl: boolean;
   showMnemonicIllustrations: boolean; // Show radical mnemonic illustrations in subject details and lessons
+  showInlineRadicalReminders: boolean; // Expand radical mnemonics inline from kanji details
   myAnimeListUsername: string | null;
   aniListUsername: string | null;
   immersionKitAnimes: string[] | null;
@@ -706,6 +708,7 @@ type SettingsState = {
   setVocabularyColor: (color: string) => void;
   setForecastShowSubjectColors: (show: boolean) => void;
   setShowPitchAccent: (show: boolean) => void;
+  setShowVocabularyFrequency: (show: boolean) => void;
   setShowPatternsOfUse: (show: boolean) => void;
   setShowSimilarVocabulary: (show: boolean) => void;
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
@@ -713,6 +716,7 @@ type SettingsState = {
   setHideContextSentenceTranslations: (hide: boolean) => void;
   setShowContextSentenceSpeedControl: (show: boolean) => void;
   setShowMnemonicIllustrations: (show: boolean) => void;
+  setShowInlineRadicalReminders: (show: boolean) => void;
   setMyAnimeListUsername: (username: string | null) => void;
   setAniListUsername: (username: string | null) => void;
   setImmersionKitAnimes: (animes: string[] | null) => void;
@@ -857,6 +861,7 @@ export const useSettingsStore = create<SettingsState>()(
       vocabularyColor: "#9c38d9",
       forecastShowSubjectColors: false, // Default to disabled (traditional single color)
       showPitchAccent: false, // Default to disabled (optional pronunciation visualization)
+      showVocabularyFrequency: false, // Jiten requests stay off until the user opts in
       showPatternsOfUse: false, // Default to disabled (optional collocation/pattern examples)
       showSimilarVocabulary: false, // Default to disabled (optional similar reading/meaning lookup)
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
@@ -864,6 +869,7 @@ export const useSettingsStore = create<SettingsState>()(
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
+      showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
       myAnimeListUsername: null, // No MyAnimeList user configured by default
       aniListUsername: null, // No AniList user configured by default
       showBadgeNotifications: true, // Default to enabled
@@ -1088,6 +1094,8 @@ export const useSettingsStore = create<SettingsState>()(
       setForecastShowSubjectColors: (show) =>
         set({ forecastShowSubjectColors: show }),
       setShowPitchAccent: (show) => set({ showPitchAccent: show }),
+      setShowVocabularyFrequency: (show) =>
+        set({ showVocabularyFrequency: show }),
       setShowPatternsOfUse: (show) => set({ showPatternsOfUse: show }),
       setShowSimilarVocabulary: (show) => set({ showSimilarVocabulary: show }),
       setShowSingleKanjiVocabularySimilarKanji: (show) =>
@@ -1100,6 +1108,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showContextSentenceSpeedControl: show }),
       setShowMnemonicIllustrations: (show) =>
         set({ showMnemonicIllustrations: show }),
+      setShowInlineRadicalReminders: (show) =>
+        set({ showInlineRadicalReminders: show }),
       setMyAnimeListUsername: (username) =>
         set({ myAnimeListUsername: username }),
       setAniListUsername: (username) =>

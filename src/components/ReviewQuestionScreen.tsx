@@ -93,6 +93,7 @@ import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
 import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
+import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -386,6 +387,10 @@ function mapSubjectForDetailGrid(subject: WKSubject) {
     characterImages,
     imageUrl: characterImages[0]?.url || null,
     level: Number(data.level ?? 0),
+    mnemonic:
+      typeof data.meaning_mnemonic === "string" ? data.meaning_mnemonic : "",
+    documentUrl:
+      typeof data.document_url === "string" ? data.document_url : null,
   };
 }
 
@@ -1231,6 +1236,9 @@ export default function ReviewQuestionScreen({
   }, [item.subject.id, studyMaterials]);
 
   const effectiveStudyMaterials = localStudyMaterials ?? studyMaterials;
+  const answerCheckStudyMaterials = acceptUserSynonymsAsAnswers
+    ? effectiveStudyMaterials
+    : undefined;
 
   // Maintain input focus across question changes to avoid keyboard flicker
   useEffect(() => {
@@ -1659,7 +1667,7 @@ export default function ReviewQuestionScreen({
         candidateAnswer,
         subject,
         questionType,
-        effectiveStudyMaterials,
+        answerCheckStudyMaterials,
         questionType === "reading"
           ? {
               singleKanjiReadings:
@@ -1808,7 +1816,7 @@ export default function ReviewQuestionScreen({
         Boolean(meaning),
       );
     const synonyms =
-      effectiveStudyMaterials?.meaning_synonyms?.map((synonym) =>
+      answerCheckStudyMaterials?.meaning_synonyms?.map((synonym) =>
         synonym.trim(),
       ) || [];
     return Array.from(new Set([...meanings, ...synonyms])).slice(0, 20);
@@ -2621,7 +2629,7 @@ export default function ReviewQuestionScreen({
       answer,
       item.subject,
       questionType,
-      effectiveStudyMaterials,
+      answerCheckStudyMaterials,
       questionType === "reading"
         ? {
             singleKanjiReadings:
@@ -5368,6 +5376,12 @@ export default function ReviewQuestionScreen({
               />
             )}
           </View>
+
+          {!isLessonFlow &&
+            (subject.object === "vocabulary" ||
+              subject.object === "kana_vocabulary") && (
+              <VocabularyFrequencyBadge subject={subject} />
+            )}
 
           {/* Context Hint - review mode can show Japanese text immediately. */}
           {hasContextHint && (

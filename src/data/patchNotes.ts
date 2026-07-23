@@ -56,6 +56,30 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.90",
+    date: "2026-07-23",
+    changes: [
+      {
+        type: "feature",
+        title: "Combined JLPT Filters",
+        description:
+          "Filter Custom Reviews and Subject Lists by one or more JLPT levels.",
+      },
+      {
+        type: "feature",
+        title: "Vocabulary Frequency",
+        description:
+          "Optionally show vocabulary frequency ranks in lessons, reviews, and subject details.",
+      },
+      {
+        type: "feature",
+        title: "Inline Radical Reminders",
+        description:
+          "Optionally view radical mnemonics and illustrations directly from kanji details.",
+      },
+    ],
+  },
+  {
     version: "1.2.89",
     date: "2026-07-20",
     changes: [

@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import SrsLevelIcon from "./SrsLevelIcon";
+import { JLPT_LEVELS, type JLPTLevel } from "../utils/jlptClassification";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
 
@@ -37,6 +38,7 @@ export interface SearchFilters {
   maxLevel: number;
   types: Set<WaniKaniItemType>;
   srsStages: Set<number>;
+  jlptLevels: Set<JLPTLevel>;
 }
 
 export const createDefaultSearchFilters = (): SearchFilters => ({
@@ -44,6 +46,7 @@ export const createDefaultSearchFilters = (): SearchFilters => ({
   maxLevel: 60,
   types: new Set(DEFAULT_SEARCH_ITEM_TYPES),
   srsStages: new Set(ALL_SEARCH_SRS_STAGES),
+  jlptLevels: new Set(),
 });
 
 interface SearchFilterModalProps {
@@ -51,6 +54,7 @@ interface SearchFilterModalProps {
   currentFilters: SearchFilters;
   onClose: () => void;
   onApply: (filters: SearchFilters) => void;
+  showJlptFilters?: boolean;
 }
 
 export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
@@ -58,6 +62,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   currentFilters,
   onClose,
   onApply,
+  showJlptFilters = false,
 }) => {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
@@ -79,6 +84,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
         ...currentFilters,
         types: new Set(currentFilters.types),
         srsStages: new Set(currentFilters.srsStages ?? ALL_SEARCH_SRS_STAGES),
+        jlptLevels: new Set(currentFilters.jlptLevels ?? []),
       });
       Animated.parallel([
         Animated.timing(filterPanelAnimation, {
@@ -192,6 +198,21 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
     });
   }, []);
 
+  const handleJlptFilterPress = useCallback((level: JLPTLevel) => {
+    setPendingFilters((prev) => {
+      if (!prev) return null;
+
+      const nextLevels = new Set(prev.jlptLevels);
+      if (nextLevels.has(level)) {
+        nextLevels.delete(level);
+      } else {
+        nextLevels.add(level);
+      }
+
+      return { ...prev, jlptLevels: nextLevels };
+    });
+  }, []);
+
   // We render the Modal always if visible is true, OR if we are animating out?
   // Let's rely on the parent keeping `visible` true until we call `onClose`.
 
@@ -266,6 +287,13 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
             </TouchableOpacity>
           </View>
 
+          <ScrollView
+            style={styles.filterSectionsScroll}
+            contentContainerStyle={styles.filterSectionsContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+
           <View style={styles.filterSection}>
             <Text
               style={[
@@ -333,6 +361,60 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
               })}
             </View>
           </View>
+
+          {showJlptFilters && (
+            <View style={styles.filterSection}>
+              <Text
+                style={[
+                  styles.filterSectionTitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Estimated JLPT
+              </Text>
+              <Text
+                style={[
+                  styles.filterSectionDescription,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Select one or more kanji and vocabulary levels
+              </Text>
+              <View style={styles.jlptFiltersRow}>
+                {JLPT_LEVELS.map((level) => {
+                  const isSelected = filtersToDisplay.jlptLevels.has(level);
+                  return (
+                    <TouchableOpacity
+                      key={level}
+                      style={[
+                        styles.jlptChip,
+                        {
+                          backgroundColor: isSelected
+                            ? theme.primary
+                            : theme.cardBackground,
+                          borderColor: isSelected ? theme.primary : theme.border,
+                        },
+                      ]}
+                      onPress={() => handleJlptFilterPress(level)}
+                      activeOpacity={0.7}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isSelected }}
+                      accessibilityLabel={`${level} estimated JLPT filter`}
+                    >
+                      <Text
+                        style={[
+                          styles.jlptChipText,
+                          { color: isSelected ? "white" : theme.textColor },
+                        ]}
+                      >
+                        {level}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           <View style={styles.filterSection}>
             <Text
@@ -546,6 +628,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
               })}
             </View>
           </View>
+          </ScrollView>
 
           <View style={styles.modalFooter}>
             <TouchableOpacity
@@ -751,6 +834,7 @@ const styles = StyleSheet.create({
     zIndex: 100000,
   },
   filterPanelContent: {
+    flexShrink: 1,
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 40,
@@ -779,12 +863,24 @@ const styles = StyleSheet.create({
   filterSection: {
     marginBottom: 32,
   },
+  filterSectionsScroll: {
+    flexShrink: 1,
+  },
+  filterSectionsContent: {
+    paddingBottom: 4,
+  },
   filterSectionTitle: {
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 16,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  filterSectionDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: -10,
+    marginBottom: 12,
   },
   typeFiltersRow: {
     flexDirection: "row",
@@ -842,6 +938,22 @@ const styles = StyleSheet.create({
   quickLevelText: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  jlptFiltersRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  jlptChip: {
+    flex: 1,
+    minHeight: 38,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  jlptChipText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   srsFiltersGrid: {
     flexDirection: "row",

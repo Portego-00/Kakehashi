@@ -7,10 +7,12 @@ import { styles } from "../styles";
 
 export function KanjiLearningSection() {
   const {
+    setShowInlineRadicalReminders,
     setShowOnyomiInKatakana,
     setShowStrokeOrder,
     setStrokeLeniency,
     setVisuallySimilarKanjiSource,
+    showInlineRadicalReminders,
     showOnyomiInKatakana,
     showStrokeOrder,
     strokeLeniency,
@@ -65,6 +67,32 @@ export function KanjiLearningSection() {
             onValueChange={setShowStrokeOrder}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="information-circle-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Inline Radical Reminders
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show radical mnemonics and illustrations inside kanji details
+            </Text>
+          </View>
+          <Switch
+            value={showInlineRadicalReminders}
+            onValueChange={setShowInlineRadicalReminders}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Show inline radical reminders"
           />
         </View>
 

@@ -16,12 +16,14 @@ export function VocabularyContextSection() {
     setShowPitchAccent,
     setShowSimilarVocabulary,
     setShowSingleKanjiVocabularySimilarKanji,
+    setShowVocabularyFrequency,
     showContextSentenceSpeedControl,
     showMediaContextSentences,
     showPatternsOfUse,
     showPitchAccent,
     showSimilarVocabulary,
     showSingleKanjiVocabularySimilarKanji,
+    showVocabularyFrequency,
     theme,
     updateSectionOffset,
   } = useSettingsControllerContext();
@@ -75,6 +77,34 @@ export function VocabularyContextSection() {
             onValueChange={setShowPitchAccent}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
+          />
+        </View>
+        <View
+          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+        >
+          <Ionicons
+            name="stats-chart-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Vocabulary Frequency
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show Jiten frequency ranks in lessons, reviews, and vocabulary
+              details
+            </Text>
+          </View>
+          <Switch
+            value={showVocabularyFrequency}
+            onValueChange={setShowVocabularyFrequency}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Show vocabulary frequency ranks"
           />
         </View>
         <View

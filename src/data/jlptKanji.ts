@@ -1,8 +1,8 @@
 /**
- * Real JLPT Kanji Lists
- * Source: Official JLPT kanji lists
- * 
- * Each kanji is mapped to its JLPT level for accurate progress tracking
+ * Community-estimated JLPT Kanji Lists
+ *
+ * The modern JLPT does not publish an official kanji specification. Each kanji
+ * is mapped to one commonly used estimated level for progress and filtering.
  */
 
 export const JLPT_KANJI_LISTS = {
