@@ -34,6 +34,19 @@ const makeAssignmentsCollection = (assignments: any[]) => ({
   data: assignments,
 });
 
+const makeStudyMaterialsCollection = (materials: any[]) => ({
+  object: "collection",
+  url: "https://api.wanikani.com/v2/study_materials",
+  pages: {
+    per_page: 500,
+    next_url: null,
+    previous_url: null,
+  },
+  total_count: materials.length,
+  data_updated_at: "2026-05-28T08:00:00.000Z",
+  data: materials,
+});
+
 const mockResponse = (data: any) => {
   const body = JSON.stringify(data);
 
@@ -248,5 +261,75 @@ describe("api offline assignment fallbacks", () => {
         { skipCache: true }
       )
     ).rejects.toThrow("offline");
+  });
+
+  it("uses a complete study-material snapshot for unfiltered offline reads", async () => {
+    const cachedMaterial = {
+      id: 88,
+      object: "study_material",
+      data: {
+        subject_id: 1002,
+        meaning_synonyms: ["adult"],
+      },
+    };
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const {
+      api,
+      getStudyMaterialsFromPermanentCacheMock,
+    } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue([
+      cachedMaterial,
+    ]);
+
+    const result = await api.getStudyMaterials(
+      "test-token",
+      {},
+      { skipCache: true }
+    );
+
+    expect(result.data).toEqual([cachedMaterial]);
+    expect(getStudyMaterialsFromPermanentCacheMock).toHaveBeenCalledWith([]);
+  });
+
+  it("batches large subject filters and merges study materials", async () => {
+    const subjectIds = Array.from({ length: 101 }, (_, index) => 1001 + index);
+
+    (global.fetch as jest.Mock).mockImplementation((input: string) => {
+      const requestUrl = new URL(String(input));
+      const batchSubjectIds = requestUrl.searchParams
+        .get("subject_ids")!
+        .split(",")
+        .map(Number);
+      const firstSubjectId = batchSubjectIds[0];
+
+      expect(batchSubjectIds.length).toBeLessThanOrEqual(100);
+
+      return mockResponse(
+        makeStudyMaterialsCollection([
+          {
+            id: firstSubjectId,
+            object: "study_material",
+            data: {
+              subject_id: firstSubjectId,
+              meaning_synonyms: [`synonym-${firstSubjectId}`],
+            },
+          },
+        ])
+      );
+    });
+
+    const { api } = loadApi();
+    const result = await api.getStudyMaterials(
+      "test-token",
+      { subject_ids: subjectIds },
+      { skipCache: true }
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(
+      result.data.map((material: any) => material.data.subject_id)
+    ).toEqual([1001, 1101]);
+    expect(result.pages.next_url).toBeNull();
   });
 });

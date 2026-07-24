@@ -260,6 +260,17 @@ export async function getStudyMaterialsFromPermanentCache(
 ): Promise<CachedStudyMaterialRecord[] | null> {
   const requestedIds = normalizeStudyMaterialSubjectIds(subjectIds);
   const cached = await getPersistedStudyMaterialsCache();
+
+  if (requestedIds.length === 0) {
+    if (!cached.isCompleteCollection) {
+      return null;
+    }
+
+    return Object.values(cached.bySubjectId).filter(
+      (material): material is CachedStudyMaterialRecord => material !== null
+    );
+  }
+
   const materials: CachedStudyMaterialRecord[] = [];
 
   for (const subjectId of requestedIds) {

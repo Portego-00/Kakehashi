@@ -128,4 +128,39 @@ describe("study materials permanent cache", () => {
     ).resolves.toEqual([]);
   });
 
+  it("returns all materials only when the complete collection is cached", async () => {
+    getFromPermanentStorageMock.mockResolvedValue({
+      timestamp: Date.now(),
+      dataUpdatedAt: new Date().toISOString(),
+      data: {
+        version: 1,
+        isCompleteCollection: true,
+        bySubjectId: {
+          "1001": material,
+          "1002": null,
+        },
+      },
+    });
+
+    await expect(
+      getStudyMaterialsFromPermanentCache([])
+    ).resolves.toEqual([material]);
+
+    getFromPermanentStorageMock.mockResolvedValue({
+      timestamp: Date.now(),
+      dataUpdatedAt: new Date().toISOString(),
+      data: {
+        version: 1,
+        isCompleteCollection: false,
+        bySubjectId: {
+          "1001": material,
+        },
+      },
+    });
+
+    await expect(
+      getStudyMaterialsFromPermanentCache([])
+    ).resolves.toBeNull();
+  });
+
 });

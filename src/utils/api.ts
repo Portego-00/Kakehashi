@@ -34,6 +34,7 @@ const API_REVISION = "20170710";
 const MIN_CREATED_AT_AGE_MS = 15 * 60 * 1000; // 15 minutes
 const API_RATE_LIMIT_PER_MINUTE = 60;
 const API_RATE_LIMIT_SAFETY_BUFFER = 1;
+const STUDY_MATERIAL_SUBJECT_BATCH_SIZE = 100;
 const ENABLE_API_TRACKER_LOGS = __DEV__;
 
 type ReservedApiSlot = {
@@ -2463,8 +2464,76 @@ export async function getStudyMaterials(
   } = {},
   options?: { skipCache?: boolean }
 ): Promise<any> {
+  const uniqueSubjectIds = Array.from(
+    new Set(
+      (params.subject_ids ?? []).filter(
+        (subjectId) => Number.isInteger(subjectId) && subjectId > 0
+      )
+    )
+  );
+
+  if (uniqueSubjectIds.length > STUDY_MATERIAL_SUBJECT_BATCH_SIZE) {
+    const collections: any[] = [];
+
+    for (
+      let index = 0;
+      index < uniqueSubjectIds.length;
+      index += STUDY_MATERIAL_SUBJECT_BATCH_SIZE
+    ) {
+      const subjectIdBatch = uniqueSubjectIds.slice(
+        index,
+        index + STUDY_MATERIAL_SUBJECT_BATCH_SIZE
+      );
+      collections.push(
+        await getStudyMaterials(
+          apiToken,
+          { ...params, subject_ids: subjectIdBatch },
+          options
+        )
+      );
+    }
+
+    const materialsBySubjectId = new Map<number, any>();
+    collections.forEach((collection) => {
+      if (!Array.isArray(collection?.data)) {
+        return;
+      }
+      collection.data.forEach((material: any) => {
+        const subjectId = material?.data?.subject_id;
+        if (Number.isInteger(subjectId) && subjectId > 0) {
+          materialsBySubjectId.set(subjectId, material);
+        }
+      });
+    });
+
+    const data = Array.from(materialsBySubjectId.values());
+    const dataUpdatedAtValues = collections
+      .map((collection) => collection?.data_updated_at)
+      .filter((value): value is string => typeof value === "string")
+      .sort();
+    const latestDataUpdatedAt =
+      dataUpdatedAtValues[dataUpdatedAtValues.length - 1] ?? null;
+
+    return {
+      object: "collection",
+      url: `${API_BASE_URL}/study_materials`,
+      pages: {
+        per_page: 500,
+        next_url: null,
+        previous_url: null,
+      },
+      total_count: data.length,
+      data_updated_at: latestDataUpdatedAt,
+      data,
+    };
+  }
+
+  const effectiveParams =
+    params.subject_ids === undefined
+      ? params
+      : { ...params, subject_ids: uniqueSubjectIds };
   const url = new URL(`${API_BASE_URL}/study_materials`);
-  Object.entries(params).forEach(
+  Object.entries(effectiveParams).forEach(
     ([k, v]) =>
       v !== undefined &&
       url.searchParams.append(k, Array.isArray(v) ? v.join(",") : String(v))
@@ -2474,11 +2543,12 @@ export async function getStudyMaterials(
     .toString()
     .replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-  const requestedSubjectIds = params.subject_ids || [];
+  const requestedSubjectIds = effectiveParams.subject_ids || [];
   const persistStudyMaterials = async (collection: any) => {
     const isCompleteResponse = !collection?.pages?.next_url;
     const responseCoversRequestedSubjects =
-      params.ids === undefined && params.updated_after === undefined;
+      effectiveParams.ids === undefined &&
+      effectiveParams.updated_after === undefined;
     await saveStudyMaterialsToPermanentCache(
       requestedSubjectIds,
       Array.isArray(collection?.data) ? collection.data : [],
@@ -2577,13 +2647,11 @@ export async function getStudyMaterials(
     });
     return data;
   } catch (error) {
-    if (requestedSubjectIds.length > 0) {
-      const offlineMaterials = await getStudyMaterialsFromPermanentCache(
-        requestedSubjectIds
-      ).catch(() => null);
-      if (offlineMaterials !== null) {
-        return buildOfflineCollection(offlineMaterials);
-      }
+    const offlineMaterials = await getStudyMaterialsFromPermanentCache(
+      requestedSubjectIds
+    ).catch(() => null);
+    if (offlineMaterials !== null) {
+      return buildOfflineCollection(offlineMaterials);
     }
 
     throw error;

@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.91",
+    date: "2026-07-24",
+    changes: [
+      {
+        type: "feature",
+        title: "Custom Jitai Fonts",
+        description:
+          "Import TTF or OTF font files into the Jitai randomizer, with new downloadable Japanese calligraphy fonts also available.",
+        link: {
+          route: "/jitai-font-settings",
+          label: "Manage Jitai Fonts",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.90",
     date: "2026-07-23",
     changes: [

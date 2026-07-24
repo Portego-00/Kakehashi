@@ -445,15 +445,12 @@ export default function LessonsScreen() {
     setStudyMaterialsMap(new Map());
     setLoadedStudyMaterialsRequestKey(null);
     setStudyMaterialsLoadError(false);
-    const subjectIds = studyMaterialsRequestKey
-      .split(",")
-      .map((subjectId) => Number(subjectId));
 
     const loadStudyMaterials = async () => {
       try {
         const response = await getStudyMaterials(
           apiToken,
-          { subject_ids: subjectIds },
+          {},
           { skipCache: true }
         );
 
@@ -1475,7 +1472,7 @@ export default function LessonsScreen() {
               { color: theme.textColor },
             ]}
           >
-            Accepted answers unavailable
+            User synonyms unavailable
           </Text>
           <Text
             style={[
@@ -1484,8 +1481,8 @@ export default function LessonsScreen() {
               { color: theme.textSecondary },
             ]}
           >
-            Connect once to cache your user synonyms, or disable Accept User
-            Synonyms to continue offline.
+            Retry loading your user synonyms, or continue this lesson review
+            without accepting them.
           </Text>
           <TouchableOpacity
             style={[
@@ -1495,6 +1492,22 @@ export default function LessonsScreen() {
             onPress={() => setStudyMaterialsRetryNonce((value) => value + 1)}
           >
             <Text style={styles.buttonText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.buttonContainer,
+              styles.acceptedAnswersSecondaryButton,
+              { borderColor: theme.border },
+            ]}
+            onPress={() => {
+              setStudyMaterialsMap(new Map());
+              setLoadedStudyMaterialsRequestKey(studyMaterialsRequestKey);
+              setStudyMaterialsLoadError(false);
+            }}
+          >
+            <Text style={[styles.buttonText, { color: theme.textColor }]}>
+              Continue without synonyms
+            </Text>
           </TouchableOpacity>
         </View>
         {renderPendingLessonSyncBadge()}
@@ -1978,6 +1991,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 28,
     maxWidth: 420,
     textAlign: "center",
+  },
+  acceptedAnswersSecondaryButton: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
   },
   buttonContainer: {
     backgroundColor: "transparent",
