@@ -40,6 +40,7 @@ import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import KanjiPracticeModal from "./KanjiPracticeModal";
+import KanjiReadingExamples from "./KanjiReadingExamples";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import SrsLevelIcon from "./SrsLevelIcon";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
@@ -89,6 +90,10 @@ interface KanjiDetailsProps {
       id: number;
       characters: string;
       meanings: string[];
+      readings: {
+        reading: string;
+        primary?: boolean;
+      }[];
       level: number;
     }[];
     visuallySimilarSubjects?: {
@@ -131,9 +136,6 @@ interface KanjiDetailsProps {
 const BACK_BUTTON_HIT_SLOP = { top: 10, right: 10, bottom: 10, left: 10 };
 const HEADER_TOP_OFFSET = 64;
 const BACK_BUTTON_SIZE = 40;
-
-// Create a memoized image cache to avoid re-renders
-const imageCache: Record<string, string> = {};
 
 // Helper component to render a single radical with SVG/image fallback
 interface RadicalComponentProps {
@@ -399,22 +401,30 @@ export default function KanjiDetails({
   embedded = false,
 }: KanjiDetailsProps) {
   const {
+    groupKanjiVocabularyExamplesByReading,
     showInlineRadicalReminders,
     showOnyomiInKatakana,
     showPitchAccent,
     showStrokeOrder,
   } = useSettingsStore();
   const subjectColors = useSubjectColors();
+  const radicalColor = subjectColors.radical;
+  const kanjiColor = subjectColors.kanji;
+  const vocabularyColor = subjectColors.vocabulary;
   const styles = useMemo(
-    () => createStyles(subjectColors),
-    [subjectColors.kanji, subjectColors.radical, subjectColors.vocabulary]
+    () =>
+      createStyles({
+        radical: radicalColor,
+        kanji: kanjiColor,
+        vocabulary: vocabularyColor,
+      }),
+    [kanjiColor, radicalColor, vocabularyColor]
   );
   const [activeTab, setActiveTab] = useState<"meaning" | "reading" | "stroke">(
     showStrokeOrder || initialTab !== "stroke" ? initialTab : "meaning"
   );
   const navigation = useNavigation();
   const [showAllSimilar, setShowAllSimilar] = useState(false);
-  const [showAllVocab, setShowAllVocab] = useState(false);
   const [expandedComponentId, setExpandedComponentId] = useState<number | null>(
     null
   );
@@ -447,27 +457,12 @@ export default function KanjiDetails({
   const isTablet = screenWidth > 768;
   const horizontalPadding = 32;
   const gridSpacing = isTablet ? 12 : 8;
-  // Vocab grid columns
-  const vocabCols = isTablet ? 4 : screenWidth > 400 ? 3 : 2;
   const smallItemCols = isTablet ? 5 : screenWidth > 400 ? 4 : 3;
   const availableWidth = screenWidth - horizontalPadding;
-  const baseVocabItemWidth = Math.floor(
-    (availableWidth - gridSpacing * (vocabCols + 1)) / vocabCols
-  );
   const baseSmallItemWidth = Math.floor(
     (availableWidth - gridSpacing * (smallItemCols + 1)) / smallItemCols
   );
   const smallCardHeight = isTablet ? 70 : 64; // smaller fixed small card height
-  const vocabCardHeight = isTablet ? 84 : 78; // smaller fixed vocab card height
-  const smallItemMaxWidth = Math.min(
-    Math.floor(availableWidth - gridSpacing * 2),
-    Math.floor(baseSmallItemWidth * 1.5)
-  );
-  const vocabItemMaxWidth = Math.min(
-    Math.floor(availableWidth - gridSpacing * 2),
-    Math.floor(baseVocabItemWidth * 1.8)
-  );
-  const minVocabCardWidth = Platform.OS === "android" ? 80 : baseVocabItemWidth;
   const readingPitchCardGap = 12;
   const readingPitchCardWidth = Math.max(220, screenWidth - 64 - readingPitchCardGap);
   const readingPitchSnapInterval = readingPitchCardWidth + readingPitchCardGap;
@@ -613,16 +608,6 @@ export default function KanjiDetails({
     ? sortedSimilarSubjects
     : sortedSimilarSubjects.slice(0, maxInitialSimilarItems);
 
-  // Found In Vocabulary - sort by level and limit to first 6 initially
-  const maxInitialVocabItems = 6;
-  const sortedVocabSubjects = kanji.amalgamationSubjects
-    ? [...kanji.amalgamationSubjects].sort((a, b) => a.level - b.level)
-    : [];
-  const hasMoreVocabItems = sortedVocabSubjects.length > maxInitialVocabItems;
-  const displayVocabItems = showAllVocab
-    ? sortedVocabSubjects
-    : sortedVocabSubjects.slice(0, maxInitialVocabItems);
-
   // Helper function to format mnemonic text with special tags
   const formatMnemonic = (mnemonic: string) => {
     if (!mnemonic) return null;
@@ -692,16 +677,9 @@ export default function KanjiDetails({
     setShowAllSimilar((prev) => !prev);
   };
 
-  // Toggle show all vocabulary
-  const toggleShowAllVocab = () => {
-    setShowAllVocab((prev) => !prev);
-  };
-
   // Skip heavy per‑item stagger if list is large
   const shouldStaggerSimilar =
     displaySimilarItems && displaySimilarItems.length <= 30;
-  const shouldStaggerVocab =
-    displayVocabItems && displayVocabItems.length <= 30;
 
   useEffect(() => {
     if (!showStrokeOrder && activeTab === "stroke") {
@@ -1578,11 +1556,13 @@ export default function KanjiDetails({
           </View>
         )}
 
-        {/* Found In Vocabulary Section */}
-        {sortedVocabSubjects.length > 0 && (
+        {/* Vocabulary examples grouped by the reading used for this kanji. */}
+        {(kanji.amalgamationSubjects?.length ?? 0) > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-              Found In Vocabulary
+              {groupKanjiVocabularyExamplesByReading
+                ? "Examples by Reading"
+                : "Vocabulary Examples"}
             </Text>
             <View
               style={[
@@ -1590,113 +1570,14 @@ export default function KanjiDetails({
                 { backgroundColor: theme.cardBackground },
               ]}
             >
-              <Animated.View
-                style={styles.vocabGrid}
-                entering={FadeIn.duration(150)}
-                exiting={FadeOutUp.duration(120)}
-                layout={LinearTransition.duration(180)}
-              >
-                {displayVocabItems?.map((vocab, idx) => {
-                  const isAboveUserLevel = vocab.level > userLevel;
-                  return (
-                    <Animated.View
-                      key={vocab.id}
-                      entering={
-                        shouldStaggerVocab
-                          ? FadeInDown.duration(140).delay(idx * 10)
-                          : FadeInDown.duration(140)
-                      }
-                      exiting={FadeOutUp.duration(120)}
-                      layout={LinearTransition.duration(180)}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.vocabItem,
-                          {
-                            width: Math.min(
-                              Math.max(
-                                minVocabCardWidth,
-                                80 + (vocab.characters?.length || 0) * 18
-                              ),
-                              vocabItemMaxWidth
-                            ),
-                            height: vocabCardHeight,
-                            margin: gridSpacing / 2,
-                            opacity: isAboveUserLevel ? 0.8 : 1,
-                          },
-                        ]}
-                        onPress={() => onSubjectPress?.(vocab.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.vocabCharacter,
-                            // Adjust font size for longer vocabulary words
-                            vocab.characters && vocab.characters.length > 3
-                              ? {
-                                  fontSize: Math.max(
-                                    14,
-                                    22 - (vocab.characters.length - 3) * 2
-                                  ),
-                                }
-                              : null,
-                          ]}
-                          adjustsFontSizeToFit={true}
-                          numberOfLines={1}
-                        >
-                          {vocab.characters}
-                        </Text>
-                        <Text
-                          style={styles.vocabMeaning}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >
-                          {vocab.meanings[0]}
-                        </Text>
-                        {isAboveUserLevel && (
-                          <View style={styles.itemLevelBadgeVocab}>
-                            <Text style={styles.itemLevelBadgeText}>
-                              {vocab.level}
-                            </Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    </Animated.View>
-                  );
-                })}
-              </Animated.View>
-              {hasMoreVocabItems && (
-                <Animated.View
-                  entering={FadeInDown.duration(200)}
-                  exiting={FadeOutUp.duration(200)}
-                  layout={LinearTransition.duration(180)}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.showMoreButton,
-                      { borderTopColor: theme.border },
-                    ]}
-                    onPress={toggleShowAllVocab}
-                  >
-                    <Text
-                      style={[
-                        styles.showMoreText,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      {showAllVocab
-                        ? "Show Less"
-                        : `Show ${
-                            sortedVocabSubjects.length - maxInitialVocabItems
-                          } More`}
-                    </Text>
-                    <Ionicons
-                      name={showAllVocab ? "chevron-up" : "chevron-down"}
-                      size={16}
-                      color={subjectColors.vocabulary}
-                    />
-                  </TouchableOpacity>
-                </Animated.View>
-              )}
+              <KanjiReadingExamples
+                key={`${kanji.id}-${groupKanjiVocabularyExamplesByReading}`}
+                groupByReading={groupKanjiVocabularyExamplesByReading}
+                kanjiCharacters={kanji.characters}
+                kanjiReadings={kanji.readings}
+                vocabulary={kanji.amalgamationSubjects ?? []}
+                onSubjectPress={onSubjectPress}
+              />
             </View>
           </View>
         )}
@@ -2745,38 +2626,6 @@ const createStyles = (subjectColors: SubjectColors) =>
     marginTop: 4,
     paddingHorizontal: 4,
   },
-  vocabGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
-    alignItems: "flex-start",
-  },
-  vocabItem: {
-    backgroundColor: subjectColors.vocabulary,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    minWidth: 80,
-    flexShrink: 0,
-    position: "relative",
-  },
-  vocabCharacter: {
-    fontSize: 20,
-    color: "white",
-    fontWeight: "bold",
-    fontFamily: "SourceHanSansJP-Bold",
-  },
-  vocabMeaning: {
-    fontSize: 12,
-    color: "white",
-    textAlign: "center",
-    lineHeight: 14,
-    fontWeight: "500",
-    marginTop: 4,
-    paddingHorizontal: 6,
-  },
   constellationButton: {
     position: "absolute",
     bottom: 20,
@@ -3017,24 +2866,6 @@ const createStyles = (subjectColors: SubjectColors) =>
     height: 26,
     borderRadius: 13,
     backgroundColor: subjectColors.radical,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "white",
-    shadowColor: "rgba(0,0,0,0.5)",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.8,
-    shadowRadius: 2,
-    elevation: 5,
-  },
-  itemLevelBadgeVocab: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: subjectColors.vocabulary,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,

@@ -2,11 +2,17 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
 export function KanjiLearningSection() {
   const {
+    groupKanjiVocabularyExamplesByReading,
+    setGroupKanjiVocabularyExamplesByReading,
     setShowInlineRadicalReminders,
     setShowOnyomiInKatakana,
     setShowStrokeOrder,
@@ -45,6 +51,7 @@ export function KanjiLearningSection() {
           Kanji Learning
         </Text>
 
+        <AdvancedSettingsGroup>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="brush"
@@ -96,6 +103,7 @@ export function KanjiLearningSection() {
           />
         </View>
 
+        <AdvancedSetting>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="create-outline"
@@ -182,6 +190,33 @@ export function KanjiLearningSection() {
         </View>
 
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="list-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Group Vocabulary by Reading
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Organize kanji examples under On&apos;yomi, Kun&apos;yomi, and
+              Nanori readings
+            </Text>
+          </View>
+          <Switch
+            value={groupKanjiVocabularyExamplesByReading}
+            onValueChange={setGroupKanjiVocabularyExamplesByReading}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Group kanji vocabulary examples by reading"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Text
             style={[
               styles.settingIcon,
@@ -250,6 +285,8 @@ export function KanjiLearningSection() {
             </Text>
           </TouchableOpacity>
         </View>
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );

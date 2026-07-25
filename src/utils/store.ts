@@ -569,6 +569,7 @@ type SettingsState = {
   showAddSynonymButton: boolean;
   acceptAnyKanjiOnyomiReading: boolean;
   showOnyomiInKatakana: boolean;
+  groupKanjiVocabularyExamplesByReading: boolean;
   backToBackQuestions: boolean;
   strokeLeniency: number; // 0.8 = very strict, 1.2 = strict, 1.8 = lenient, 2.5 = very lenient
   visuallySimilarKanjiSource: "wanikani" | "niai"; // Source for visually similar kanji data
@@ -740,6 +741,7 @@ type SettingsState = {
   setShowAddSynonymButton: (show: boolean) => void;
   setAcceptAnyKanjiOnyomiReading: (accept: boolean) => void;
   setShowOnyomiInKatakana: (show: boolean) => void;
+  setGroupKanjiVocabularyExamplesByReading: (group: boolean) => void;
   setBackToBackQuestions: (enabled: boolean) => void;
   setStrokeLeniency: (leniency: number) => void;
   setVisuallySimilarKanjiSource: (source: "wanikani" | "niai") => void;
@@ -899,6 +901,7 @@ export const useSettingsStore = create<SettingsState>()(
       showAddSynonymButton: true, // Default to true - preserve the existing paused-wrong synonym action
       acceptAnyKanjiOnyomiReading: false, // Default to false - require primary reading for kanji unless enabled
       showOnyomiInKatakana: false, // Default to false - show on'yomi readings in katakana (Katakana Madness)
+      groupKanjiVocabularyExamplesByReading: true, // Default to categorized On/Kun examples
       backToBackQuestions: false, // Default to false - show meaning and reading questions back-to-back
       strokeLeniency: 1.5, // Default to 1.5 (lenient) - higher values are more forgiving
       visuallySimilarKanjiSource: "wanikani", // Default to WaniKani's built-in similar kanji
@@ -1155,6 +1158,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAcceptAnyKanjiOnyomiReading: (accept) =>
         set({ acceptAnyKanjiOnyomiReading: accept }),
       setShowOnyomiInKatakana: (show) => set({ showOnyomiInKatakana: show }),
+      setGroupKanjiVocabularyExamplesByReading: (group) =>
+        set({ groupKanjiVocabularyExamplesByReading: group }),
       setBackToBackQuestions: (enabled) => set({ backToBackQuestions: enabled }),
       setStrokeLeniency: (leniency) => set({ strokeLeniency: leniency }),
       setVisuallySimilarKanjiSource: (source) => set({ visuallySimilarKanjiSource: source }),

@@ -33,10 +33,13 @@ import Svg, { Line, SvgXml } from "react-native-svg";
 import { useDashboardData } from "../../src/hooks/useDashboardData";
 import { Subject } from "../../src/types/wanikani";
 import { getSubjects } from "../../src/utils/api";
+import {
+  getUniqueKanjiReadingCandidates,
+  matchVocabularyToKanjiReading,
+} from "../../src/utils/kanji-reading-examples";
 import { pickBestImage, useRemoteSvg } from "../../src/utils/radicalSvg";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useTheme } from "../../src/utils/theme";
-import { toHiragana } from "wanakana";
 
 const { width, height } = Dimensions.get("window");
 // Android can hard-crash on extremely large render surfaces (GPU texture/canvas limits).
@@ -71,25 +74,6 @@ const CLUSTER_RING_BASE_RADIUS = 86 * SUPERSAMPLE;
 const CLUSTER_RING_GAP = 90 * SUPERSAMPLE;
 const CLUSTER_ARC_SPAN = Math.PI * 1.2;
 
-const normalizeReading = (reading: string) =>
-  toHiragana(reading).replace(/[.\u30fb]/g, "").trim();
-
-const stripSokuon = (reading: string) => reading.replace(/っ/g, "");
-
-const commonPrefixLength = (a: string, b: string) => {
-  const limit = Math.min(a.length, b.length);
-  let i = 0;
-  while (i < limit && a[i] === b[i]) i += 1;
-  return i;
-};
-
-const commonSuffixLength = (a: string, b: string) => {
-  const limit = Math.min(a.length, b.length);
-  let i = 0;
-  while (i < limit && a[a.length - 1 - i] === b[b.length - 1 - i]) i += 1;
-  return i;
-};
-
 interface Node {
   id: number;
   x: number;
@@ -114,15 +98,6 @@ interface ReadingAnchor {
   y: number;
   angle: number;
 }
-
-interface NormalizedReadingEntry {
-  label: string;
-  normalized: string;
-  type: string;
-  noSokuon: string;
-}
-
-type SubjectReading = NonNullable<Subject["data"]["readings"]>[number];
 
 export default function ConstellationScreen() {
   const { id, rootId, constellationDepth } = useLocalSearchParams();
@@ -368,38 +343,8 @@ export default function ConstellationScreen() {
       MAX_AMALGAMATIONS
     );
 
-    const readingsByNormalized = (subject.data.readings ?? []).reduce(
-      (acc, reading: SubjectReading) => {
-        const label = reading.reading.trim();
-        const normalized = normalizeReading(label);
-        if (!normalized) return acc;
-
-        const readingType = reading.type ?? "unknown";
-        const existing = acc.get(normalized);
-
-        if (!existing) {
-          acc.set(normalized, {
-            label,
-            normalized,
-            type: readingType,
-            noSokuon: stripSokuon(normalized),
-          });
-        } else if (existing.type === "nanori" && readingType !== "nanori") {
-          // Prefer onyomi/kunyomi over nanori when the normalized reading collides.
-          acc.set(normalized, {
-            label,
-            normalized,
-            type: readingType,
-            noSokuon: stripSokuon(normalized),
-          });
-        }
-
-        return acc;
-      },
-      new Map<string, NormalizedReadingEntry>()
-    );
-    const uniqueKanjiReadings: NormalizedReadingEntry[] = Array.from(
-      readingsByNormalized.values()
+    const uniqueKanjiReadings = getUniqueKanjiReadingCandidates(
+      subject.data.readings ?? []
     );
     const shouldClusterByReading =
       subject.object === "kanji" &&
@@ -449,15 +394,15 @@ export default function ConstellationScreen() {
         (index / Math.max(uniqueKanjiReadings.length, 1)) * 2 * Math.PI -
         Math.PI / 2;
       const anchor: ReadingAnchor = {
-        reading: readingEntry.label,
+        reading: readingEntry.reading,
         angle,
         x: CENTER_X + dynamicAnchorRadius * Math.cos(angle),
         y: CENTER_Y + dynamicAnchorRadius * Math.sin(angle),
       };
       readingAnchors.push(anchor);
-      readingAnchorsByReading.set(readingEntry.normalized, anchor);
+      readingAnchorsByReading.set(readingEntry.normalizedReading, anchor);
       connections.push({
-        key: `center-reading-${readingEntry.normalized}-${index}`,
+        key: `center-reading-${readingEntry.normalizedReading}-${index}`,
         x1: centerNode.x,
         y1: centerNode.y,
         x2: anchor.x,
@@ -468,10 +413,10 @@ export default function ConstellationScreen() {
     });
 
     const groupCounts = new Map<string, number>(
-      uniqueKanjiReadings.map((reading) => [reading.normalized, 0])
+      uniqueKanjiReadings.map((reading) => [reading.normalizedReading, 0])
     );
     const groupedAmalgamations = new Map<string, Subject[]>(
-      uniqueKanjiReadings.map((reading) => [reading.normalized, []])
+      uniqueKanjiReadings.map((reading) => [reading.normalizedReading, []])
     );
     const preferredFallbackReadings =
       uniqueKanjiReadings.filter((reading) => reading.type !== "nanori").length >
@@ -482,144 +427,23 @@ export default function ConstellationScreen() {
     const kanjiChar = subject.data.characters ?? "";
 
     const getBestReadingGroup = (amalgamation: Subject) => {
-      const vocabReadings = (amalgamation.data.readings ?? [])
-        .map((reading) => normalizeReading(reading.reading))
-        .filter(Boolean);
-
-      // Locate where the center kanji sits inside the vocab so we can prefer
-      // readings that align with that position (e.g. 日 in 火曜日 is the trailing
-      // character so its reading should match the END of かようび, not the start).
-      const vocabChars = amalgamation.data.characters ?? "";
-      const kanjiIndex =
-        kanjiChar && vocabChars ? vocabChars.indexOf(kanjiChar) : -1;
-      type KanjiPosition = "prefix" | "suffix" | "middle" | "unknown";
-      let kanjiPosition: KanjiPosition;
-      if (kanjiIndex === -1 || !vocabChars) {
-        kanjiPosition = "unknown";
-      } else if (vocabChars.length === 1 || kanjiIndex === 0) {
-        kanjiPosition = "prefix";
-      } else if (kanjiIndex === vocabChars.length - 1) {
-        kanjiPosition = "suffix";
-      } else {
-        kanjiPosition = "middle";
+      const match = matchVocabularyToKanjiReading({
+        kanjiCharacters: kanjiChar,
+        kanjiReadings: subject.data.readings ?? [],
+        vocabularyCharacters: amalgamation.data.characters ?? "",
+        vocabularyReadings: amalgamation.data.readings ?? [],
+      });
+      if (match) {
+        return match.normalizedReading;
       }
 
-      if (vocabReadings.length > 0 && uniqueKanjiReadings.length > 0) {
-        let bestMatch = uniqueKanjiReadings[0];
-        let bestScore = Number.NEGATIVE_INFINITY;
-
-        uniqueKanjiReadings.forEach((readingEntry) => {
-          vocabReadings.forEach((vocabReading) => {
-            const vocabNoSokuon = stripSokuon(vocabReading);
-            let score = 0;
-
-            if (vocabReading === readingEntry.normalized) {
-              score += 1000;
-            }
-
-            if (
-              vocabReading.includes(readingEntry.normalized) ||
-              readingEntry.normalized.includes(vocabReading)
-            ) {
-              score += 160;
-            }
-
-            if (
-              vocabNoSokuon.includes(readingEntry.noSokuon) ||
-              readingEntry.noSokuon.includes(vocabNoSokuon)
-            ) {
-              score += 120;
-            }
-
-            // Position-conditional alignment scoring.
-            if (kanjiPosition === "prefix" || kanjiPosition === "unknown") {
-              const prefixScore =
-                commonPrefixLength(vocabReading, readingEntry.normalized) * 28;
-              const prefixScoreNoSokuon =
-                commonPrefixLength(vocabNoSokuon, readingEntry.noSokuon) * 22;
-              score += Math.max(prefixScore, prefixScoreNoSokuon);
-            } else if (kanjiPosition === "suffix") {
-              const suffixScore =
-                commonSuffixLength(vocabReading, readingEntry.normalized) * 28;
-              const suffixScoreNoSokuon =
-                commonSuffixLength(vocabNoSokuon, readingEntry.noSokuon) * 22;
-              score += Math.max(suffixScore, suffixScoreNoSokuon);
-            }
-            // "middle" gets no edge-aligned bonus; the substring +160/+120 above
-            // is enough signal without rewarding either edge.
-
-            // Positional placement bonus / wrong-edge penalty using indexOf.
-            if (kanjiPosition !== "unknown") {
-              const idx = vocabReading.indexOf(readingEntry.normalized);
-              const expectedSuffixIdx =
-                vocabReading.length - readingEntry.normalized.length;
-              const idxNoSokuon = vocabNoSokuon.indexOf(readingEntry.noSokuon);
-              const expectedSuffixIdxNoSokuon =
-                vocabNoSokuon.length - readingEntry.noSokuon.length;
-
-              if (kanjiPosition === "prefix") {
-                if (idx === 0 || idxNoSokuon === 0) {
-                  score += 80;
-                } else if (idx > 0) {
-                  score -= 60;
-                }
-              } else if (kanjiPosition === "suffix") {
-                const atEnd =
-                  (idx >= 0 && idx === expectedSuffixIdx) ||
-                  (idxNoSokuon >= 0 &&
-                    idxNoSokuon === expectedSuffixIdxNoSokuon);
-                if (atEnd) {
-                  score += 150;
-                } else if (
-                  idx === 0 &&
-                  readingEntry.normalized.length < vocabReading.length
-                ) {
-                  // Reading was found, but only at the front - this is the
-                  // か-in-かようび-for-日 trap. Penalize.
-                  score -= 120;
-                }
-              } else if (kanjiPosition === "middle") {
-                if (
-                  idx > 0 &&
-                  idx < expectedSuffixIdx &&
-                  readingEntry.normalized.length < vocabReading.length
-                ) {
-                  score += 60;
-                }
-              }
-            }
-
-            if (readingEntry.type === "nanori") {
-              score -= 140;
-            } else {
-              score += 24;
-            }
-
-            if (
-              score > bestScore ||
-              (score === bestScore &&
-                (groupCounts.get(readingEntry.normalized) ?? 0) <
-                  (groupCounts.get(bestMatch.normalized) ?? 0))
-            ) {
-              bestScore = score;
-              bestMatch = readingEntry;
-            }
-          });
-        });
-
-        // Require at least a weak phonetic signal before accepting the match.
-        if (bestScore >= 30) {
-          return bestMatch.normalized;
-        }
-      }
-
-      let fallbackReading = preferredFallbackReadings[0].normalized;
+      let fallbackReading = preferredFallbackReadings[0].normalizedReading;
       let lowestCount = Number.MAX_SAFE_INTEGER;
       preferredFallbackReadings.forEach((readingEntry) => {
-        const count = groupCounts.get(readingEntry.normalized) ?? 0;
+        const count = groupCounts.get(readingEntry.normalizedReading) ?? 0;
         if (count < lowestCount) {
           lowestCount = count;
-          fallbackReading = readingEntry.normalized;
+          fallbackReading = readingEntry.normalizedReading;
         }
       });
       return fallbackReading;
@@ -632,9 +456,9 @@ export default function ConstellationScreen() {
     });
 
     uniqueKanjiReadings.forEach((readingEntry) => {
-      const anchor = readingAnchorsByReading.get(readingEntry.normalized);
+      const anchor = readingAnchorsByReading.get(readingEntry.normalizedReading);
       const group = (
-        groupedAmalgamations.get(readingEntry.normalized) ?? []
+        groupedAmalgamations.get(readingEntry.normalizedReading) ?? []
       ).slice(0, MAX_AMALGAMATIONS_PER_READING);
       if (!anchor || group.length === 0) return;
 
@@ -669,7 +493,7 @@ export default function ConstellationScreen() {
           });
 
           connections.push({
-            key: `reading-amalgamation-${readingEntry.normalized}-${amalgamation.id}`,
+            key: `reading-amalgamation-${readingEntry.normalizedReading}-${amalgamation.id}`,
             x1: anchor.x,
             y1: anchor.y,
             x2: x,

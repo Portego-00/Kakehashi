@@ -384,6 +384,10 @@ function mapSubjectForDetailGrid(subject: WKSubject) {
     id: subject.id,
     characters: typeof data.characters === "string" ? data.characters : null,
     meanings: getSubjectMeanings(subject).map((meaning) => meaning.meaning),
+    readings: getSubjectReadings(subject).map((reading) => ({
+      reading: reading.reading,
+      primary: reading.primary,
+    })),
     characterImages,
     imageUrl: characterImages[0]?.url || null,
     level: Number(data.level ?? 0),
@@ -3373,6 +3377,7 @@ export default function ReviewQuestionScreen({
               id: relatedSubject.id,
               characters: relatedSubject.characters || "",
               meanings: relatedSubject.meanings,
+              readings: relatedSubject.readings,
               level: relatedSubject.level,
             })),
             userSynonyms,
@@ -3417,6 +3422,7 @@ export default function ReviewQuestionScreen({
               id: relatedSubject.id,
               characters: relatedSubject.characters || "",
               meanings: relatedSubject.meanings,
+              readings: relatedSubject.readings,
               level: relatedSubject.level,
             })),
             visuallySimilarSubjects: visuallySimilarSubjects.map(

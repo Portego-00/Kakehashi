@@ -87,6 +87,7 @@ import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
+import KanjiReadingExamples from "./KanjiReadingExamples";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
@@ -359,6 +360,7 @@ const SubjectContent = ({
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const {
+    groupKanjiVocabularyExamplesByReading,
     showPitchAccent,
     showPatternsOfUse,
     showSimilarVocabulary,
@@ -741,6 +743,46 @@ const SubjectContent = ({
     subject.object,
     subject.data.component_subject_ids,
     subject.data.characters,
+    relatedSubjects,
+  ]);
+  const kanjiVocabularyExamples = useMemo(() => {
+    if (subject.object !== "kanji") {
+      return [];
+    }
+
+    const vocabularyIds = Array.isArray(subject.data.amalgamation_subject_ids)
+      ? subject.data.amalgamation_subject_ids
+      : [];
+
+    return vocabularyIds.flatMap((id: number) => {
+      const vocabularySubject = relatedSubjects[id];
+      if (
+        vocabularySubject?.object !== "vocabulary" ||
+        typeof vocabularySubject.data?.characters !== "string"
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          id: vocabularySubject.id,
+          characters: vocabularySubject.data.characters,
+          meanings: (vocabularySubject.data.meanings ?? []).map(
+            (meaning: { meaning: string }) => meaning.meaning
+          ),
+          readings: (vocabularySubject.data.readings ?? []).map(
+            (reading: { reading: string; primary?: boolean }) => ({
+              reading: reading.reading,
+              primary: reading.primary,
+            })
+          ),
+          level: vocabularySubject.data.level,
+        },
+      ];
+    });
+  }, [
+    subject.object,
+    subject.data.amalgamation_subject_ids,
     relatedSubjects,
   ]);
   const singleKanjiVocabularyCharacter = useMemo(
@@ -2608,58 +2650,19 @@ const SubjectContent = ({
 
               {/* Examples Section */}
               <View style={styles.infoSection}>
-                <Text style={styles.sectionTitle}>Vocabulary Examples</Text>
-                {subject.data.amalgamation_subject_ids &&
-                subject.data.amalgamation_subject_ids.length > 0 ? (
-                  (() => {
-                    const vocabularyIds = subject.data.amalgamation_subject_ids
-                      .filter(
-                        (id: number) =>
-                          relatedSubjects[id]?.object === "vocabulary" &&
-                          (relatedSubjects[id]?.data?.characters?.length ?? 0) <=
-                            3
-                      )
-                      .slice(0, 6);
-                    if (vocabularyIds.length === 0) {
-                      return (
-                        <Text style={styles.noteText}>
-                          No short vocabulary examples available for this kanji
-                          yet.
-                        </Text>
-                      );
-                    }
-                    return (
-                      <View style={styles.relatedItemsGrid}>
-                        {vocabularyIds.map((id: number) => (
-                          <TouchableOpacity
-                            key={id}
-                            style={[
-                              styles.relatedItem,
-                              { backgroundColor: subjectColors.vocabulary },
-                            ]}
-                            onPress={() => onSubjectPress?.(id)}
-                          >
-                            <RelatedSubjectCharacter
-                              subj={relatedSubjects[id]}
-                            />
-                            <Text style={styles.relatedItemMeaning}>
-                              {relatedSubjects[id]?.data.meanings.find(
-                                (m: any) => m.primary
-                              )?.meaning ||
-                                relatedSubjects[id]?.data.meanings[0]
-                                  ?.meaning ||
-                                "Loading..."}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })()
-                ) : (
-                  <Text style={styles.noteText}>
-                    No vocabulary examples available for this kanji yet.
-                  </Text>
-                )}
+                <Text style={styles.sectionTitle}>
+                  {groupKanjiVocabularyExamplesByReading
+                    ? "Examples by Reading"
+                    : "Vocabulary Examples"}
+                </Text>
+                <KanjiReadingExamples
+                  key={`${subject.id}-${groupKanjiVocabularyExamplesByReading}`}
+                  groupByReading={groupKanjiVocabularyExamplesByReading}
+                  kanjiCharacters={subject.data.characters ?? ""}
+                  kanjiReadings={subject.data.readings ?? []}
+                  vocabulary={kanjiVocabularyExamples}
+                  onSubjectPress={onSubjectPress}
+                />
               </View>
 
             </View>
@@ -3352,60 +3355,19 @@ const SubjectContent = ({
                 // Examples tab
                 <View>
                   <View style={styles.infoSection}>
-                    <Text style={styles.sectionTitle}>Vocabulary Examples</Text>
-
-                    {subject.data.amalgamation_subject_ids &&
-                    subject.data.amalgamation_subject_ids.length > 0 ? (
-                      (() => {
-                        const vocabularyIds =
-                          subject.data.amalgamation_subject_ids
-                            .filter(
-                              (id: number) =>
-                                relatedSubjects[id]?.object === "vocabulary" &&
-                                (relatedSubjects[id]?.data?.characters
-                                  ?.length ?? 0) <= 3
-                            )
-                            .slice(0, 6);
-                        if (vocabularyIds.length === 0) {
-                          return (
-                            <Text style={styles.noteText}>
-                              No short vocabulary examples available for this
-                              kanji yet.
-                            </Text>
-                          );
-                        }
-                        return (
-                          <View style={styles.relatedItemsGrid}>
-                            {vocabularyIds.map((id: number) => (
-                              <TouchableOpacity
-                                key={id}
-                                style={[
-                                  styles.relatedItem,
-                                  { backgroundColor: subjectColors.vocabulary },
-                                ]}
-                                onPress={() => onSubjectPress?.(id)}
-                              >
-                                <RelatedSubjectCharacter
-                                  subj={relatedSubjects[id]}
-                                />
-                                <Text style={styles.relatedItemMeaning}>
-                                  {relatedSubjects[id]?.data.meanings.find(
-                                    (m: any) => m.primary
-                                  )?.meaning ||
-                                    relatedSubjects[id]?.data.meanings[0]
-                                      ?.meaning ||
-                                    "Loading..."}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        );
-                      })()
-                    ) : (
-                      <Text style={styles.noteText}>
-                        No vocabulary examples available for this kanji yet.
-                      </Text>
-                    )}
+                    <Text style={styles.sectionTitle}>
+                      {groupKanjiVocabularyExamplesByReading
+                        ? "Examples by Reading"
+                        : "Vocabulary Examples"}
+                    </Text>
+                    <KanjiReadingExamples
+                      key={`${subject.id}-${groupKanjiVocabularyExamplesByReading}`}
+                      groupByReading={groupKanjiVocabularyExamplesByReading}
+                      kanjiCharacters={subject.data.characters ?? ""}
+                      kanjiReadings={subject.data.readings ?? []}
+                      vocabulary={kanjiVocabularyExamples}
+                      onSubjectPress={onSubjectPress}
+                    />
                   </View>
 
                 </View>

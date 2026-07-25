@@ -3,6 +3,10 @@ import { LevelRecapIcon } from "../../../components/wrapped/LevelRecapIcon";
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
@@ -42,6 +46,7 @@ export function LevelRecapSection() {
             Level Recap
           </Text>
 
+          <AdvancedSettingsGroup>
           {dashboardData.currentLevel > 1 && (
             <TouchableOpacity
               style={[styles.settingItem, { borderBottomColor: theme.border }]}
@@ -73,6 +78,7 @@ export function LevelRecapSection() {
             </TouchableOpacity>
           )}
 
+          <AdvancedSetting>
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: "transparent" }]}
             onPress={() => {
@@ -106,6 +112,8 @@ export function LevelRecapSection() {
               />
             )}
           </TouchableOpacity>
+          </AdvancedSetting>
+          </AdvancedSettingsGroup>
         </View>
       )}
     </>

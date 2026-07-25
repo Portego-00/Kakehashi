@@ -2,6 +2,10 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
@@ -333,6 +337,8 @@ export function NotificationsSection() {
         )}
 
         {__DEV__ && (
+          <AdvancedSettingsGroup>
+          <AdvancedSetting>
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: "transparent" }]}
             onPress={handleShowPendingNotifications}
@@ -359,6 +365,8 @@ export function NotificationsSection() {
               color={theme.textSecondary}
             />
           </TouchableOpacity>
+          </AdvancedSetting>
+          </AdvancedSettingsGroup>
         )}
       </View>
     </>

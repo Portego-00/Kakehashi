@@ -56,6 +56,23 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.92",
+    date: "2026-07-25",
+    changes: [
+      {
+        type: "feature",
+        title: "Kanji Examples by Reading",
+        description:
+          "Added a setting to group vocabulary examples by On’yomi, Kun’yomi, and Nanori.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.91",
     date: "2026-07-24",
     changes: [

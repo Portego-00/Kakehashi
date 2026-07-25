@@ -2,6 +2,10 @@ import React from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
@@ -52,6 +56,7 @@ export function VocabularyContextSection() {
           Vocabulary Context
         </Text>
 
+        <AdvancedSettingsGroup>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >
@@ -79,6 +84,63 @@ export function VocabularyContextSection() {
             thumbColor="#f4f3f4"
           />
         </View>
+
+        <View
+          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+        >
+          <Ionicons
+            name="eye-off"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Hide translations
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Hide English translations in vocabulary details and lessons until
+              you tap to reveal
+            </Text>
+          </View>
+          <Switch
+            value={hideContextSentenceTranslations}
+            onValueChange={setHideContextSentenceTranslations}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View
+          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+        >
+          <Ionicons
+            name="film"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Media Context Sentences
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show vocabulary examples from anime, dramas, and games
+            </Text>
+          </View>
+          <Switch
+            value={showMediaContextSentences}
+            onValueChange={setShowMediaContextSentences}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <AdvancedSetting>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >
@@ -187,34 +249,6 @@ export function VocabularyContextSection() {
             thumbColor="#f4f3f4"
           />
         </View>
-
-        <View
-          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
-        >
-          <Ionicons
-            name="eye-off"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Hide translations
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              Hide English translations in vocabulary details and lessons until
-              you tap to reveal
-            </Text>
-          </View>
-          <Switch
-            value={hideContextSentenceTranslations}
-            onValueChange={setHideContextSentenceTranslations}
-            trackColor={{ false: "#767577", true: theme.primary }}
-            thumbColor="#f4f3f4"
-          />
-        </View>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >
@@ -237,32 +271,6 @@ export function VocabularyContextSection() {
           <Switch
             value={showContextSentenceSpeedControl}
             onValueChange={setShowContextSentenceSpeedControl}
-            trackColor={{ false: "#767577", true: theme.primary }}
-            thumbColor="#f4f3f4"
-          />
-        </View>
-        <View
-          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
-        >
-          <Ionicons
-            name="film"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Media Context Sentences
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              Show vocabulary examples from anime, dramas, and games
-            </Text>
-          </View>
-          <Switch
-            value={showMediaContextSentences}
-            onValueChange={setShowMediaContextSentences}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
           />
@@ -301,6 +309,8 @@ export function VocabularyContextSection() {
             />
           </TouchableOpacity>
         )}
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );

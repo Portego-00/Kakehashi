@@ -2,6 +2,10 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
@@ -75,6 +79,7 @@ export function LessonSettingsSection() {
           Lesson Settings
         </Text>
 
+        <AdvancedSettingsGroup>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >
@@ -249,6 +254,34 @@ export function LessonSettingsSection() {
           </View>
         )}
 
+        <TouchableOpacity
+          style={[styles.settingItem, { borderBottomColor: theme.border }]}
+          onPress={() => router.push("/lesson-order-settings")}
+        >
+          <Ionicons
+            name="funnel"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Lesson Order
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              {lessonOrderSummary}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={theme.textSecondary}
+          />
+        </TouchableOpacity>
+
+        <AdvancedSetting>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="calendar-clear-outline"
@@ -277,34 +310,6 @@ export function LessonSettingsSection() {
             thumbColor="#f4f3f4"
           />
         </View>
-
-        <TouchableOpacity
-          style={[styles.settingItem, { borderBottomColor: theme.border }]}
-          onPress={() => router.push("/lesson-order-settings")}
-        >
-          <Ionicons
-            name="funnel"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Lesson Order
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              {lessonOrderSummary}
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={theme.textSecondary}
-          />
-        </TouchableOpacity>
-
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="list-outline"
@@ -433,6 +438,8 @@ export function LessonSettingsSection() {
             thumbColor="#f4f3f4"
           />
         </View>
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );
