@@ -70,6 +70,16 @@ export const PATCH_NOTES: PatchNote[] = [
           label: "Open Kanji Settings",
         },
       },
+      {
+        type: "feature",
+        title: "Subject List Review Shortcuts",
+        description:
+          "Use the shortcut on a subject list row, or open the study menu from the list editor and Custom Review headers, to choose Standard Review, Kanji Match, Custom Lessons, Random Test, Similar Kanji, or Kanji Writing.",
+        link: {
+          route: "/subject-lists",
+          label: "Open Subject Lists",
+        },
+      },
     ],
   },
   {

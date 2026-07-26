@@ -520,6 +520,25 @@ export default function SubjectListsScreen() {
                       style={styles.actionButton}
                       onPress={(event) => {
                         stopCardPress(event);
+                        router.push({
+                          pathname: "/custom-review-selection",
+                          params: { listId: item.id },
+                        });
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Review ${item.name}`}
+                      accessibilityHint="Opens Custom Review with this list selected"
+                    >
+                      <Ionicons
+                        name="play-circle-outline"
+                        size={21}
+                        color={theme.primary}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={(event) => {
+                        stopCardPress(event);
                         openRenameModal(item);
                       }}
                       accessibilityRole="button"

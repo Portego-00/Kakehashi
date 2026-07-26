@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,6 +22,7 @@ import {
   SearchFilterModal,
   SearchFilters,
 } from "../../src/components/SearchFilterModal";
+import SubjectListStudyMenu from "../../src/components/SubjectListStudyMenu";
 //
 import { SvgXml } from "react-native-svg";
 import { WaniKaniItemType } from "../../src/types/wanikani";
@@ -64,6 +66,7 @@ import { getJLPTLevelForSubject } from "../../src/utils/jlptClassification";
 export default function CustomReviewSelectionScreen() {
   const { apiToken, userData } = useAuthStore();
   const { theme } = useTheme();
+  const params = useLocalSearchParams<{ listId?: string | string[] }>();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<number>>(
     new Set()
@@ -92,7 +95,11 @@ export default function CustomReviewSelectionScreen() {
     createDefaultSearchFilters()
   );
   const hasAppliedUserLevelDefaultRef = useRef(false);
+  const hasAppliedInitialListRef = useRef(false);
   const hasCheckedForResumableSessionRef = useRef(false);
+  const initialListId = Array.isArray(params.listId)
+    ? params.listId[0]
+    : params.listId;
 
   useEffect(() => {
     if (hasAppliedUserLevelDefaultRef.current) return;
@@ -122,10 +129,44 @@ export default function CustomReviewSelectionScreen() {
 
     let isMounted = true;
     const checkForSavedSession = async () => {
-      const hasSavedSession = await hasExtraStudySessionState(
-        EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW,
-      );
-      if (!hasSavedSession || !isMounted) {
+      const [hasSavedReview, hasSavedKanjiMatch] = await Promise.all([
+        hasExtraStudySessionState(
+          EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW,
+        ),
+        hasExtraStudySessionState(
+          EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_KANJI_MATCH,
+        ),
+      ]);
+      if ((!hasSavedReview && !hasSavedKanjiMatch) || !isMounted) {
+        return;
+      }
+
+      if (hasSavedKanjiMatch && !hasSavedReview) {
+        Alert.alert(
+          "Resume Kanji Match?",
+          "You have a custom kanji match in progress.",
+          [
+            { text: "Not Now", style: "cancel" },
+            {
+              text: "Discard",
+              style: "destructive",
+              onPress: () => {
+                void clearExtraStudySessionState(
+                  EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_KANJI_MATCH,
+                );
+              },
+            },
+            {
+              text: "Resume",
+              onPress: () => {
+                router.push({
+                  pathname: "/similar-kanji-session" as any,
+                  params: { resume: "true", matchMode: "custom" },
+                });
+              },
+            },
+          ],
+        );
         return;
       }
 
@@ -292,6 +333,21 @@ export default function CustomReviewSelectionScreen() {
     loadAvailableLists();
   }, [loadAvailableLists]);
 
+  useEffect(() => {
+    if (hasAppliedInitialListRef.current || !initialListId) {
+      return;
+    }
+
+    const initialList = availableLists.find((list) => list.id === initialListId);
+    if (!initialList) {
+      return;
+    }
+
+    hasAppliedInitialListRef.current = true;
+    setSelectedListIds([initialList.id]);
+    setSelectedSubjectIds(new Set(initialList.subjectIds));
+  }, [availableLists, initialListId]);
+
   const rebuildCache = useCallback(async () => {
     if (!apiToken) return;
 
@@ -428,6 +484,20 @@ export default function CustomReviewSelectionScreen() {
   const isSubjectSelected = (subjectId: number) =>
     selectedSubjectIds.has(subjectId);
 
+  const selectedKanjiIds = useMemo(
+    () =>
+      (allSubjects ?? [])
+        .filter(
+          (subject) =>
+            selectedSubjectIds.has(subject.id) &&
+            subject.object === "kanji" &&
+            Boolean(subject.data.characters?.trim()) &&
+            subject.data.meanings.length > 0,
+        )
+        .map((subject) => subject.id),
+    [allSubjects, selectedSubjectIds],
+  );
+
   const startCustomReview = async () => {
     if (selectedSubjectIds.size === 0) return;
     await clearExtraStudySessionState(
@@ -437,6 +507,95 @@ export default function CustomReviewSelectionScreen() {
     router.push({
       pathname: "/custom-review",
       params: { subjectIds: ids.join(",") },
+    });
+  };
+
+  const startKanjiMatch = async () => {
+    if (selectedKanjiIds.length < 2) {
+      Alert.alert(
+        "Select More Kanji",
+        "Choose at least two kanji to start a matching review.",
+      );
+      return;
+    }
+
+    await clearExtraStudySessionState(
+      EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_KANJI_MATCH,
+    );
+
+    const config = {
+      matchMode: "custom",
+      selectedSubjectIds: selectedKanjiIds,
+      selectedListIds,
+      numberOfQuestions: Math.ceil(selectedKanjiIds.length / 4),
+      srsGroups: {
+        apprentice: true,
+        guru: true,
+        master: true,
+        enlightened: true,
+        burned: true,
+      },
+      useCustomLevelRange: false,
+      minLevel: 1,
+      maxLevel: 60,
+      onlyLearnedSimilarKanji: true,
+      kanjiPerQuestion: 4,
+      similarKanjiSource: "niai",
+    };
+
+    try {
+      const sessionId = `custom_kanji_match_${Date.now()}`;
+      await AsyncStorage.setItem(
+        `similar_kanji_config_${sessionId}`,
+        JSON.stringify(config),
+      );
+      router.push({
+        pathname: "/similar-kanji-session" as any,
+        params: { sessionId, matchMode: "custom" },
+      });
+    } catch (error) {
+      console.error("Failed to save custom kanji match config:", error);
+      router.push({
+        pathname: "/similar-kanji-session" as any,
+        params: {
+          matchMode: "custom",
+          subjectIds: selectedKanjiIds.join(","),
+          kanjiPerQuestion: "4",
+        },
+      });
+    }
+  };
+
+  const startCustomLessons = () => {
+    if (selectedSubjectIds.size === 0) {
+      return;
+    }
+
+    router.push({
+      pathname: "/custom-lesson",
+      params: {
+        subjectIds: Array.from(selectedSubjectIds.values()).join(","),
+      },
+    });
+  };
+
+  const openListStudyConfig = (
+    pathname:
+      | "/test-config"
+      | "/similar-kanji-config"
+      | "/writing-practice-config",
+  ) => {
+    if (selectedListIds.length === 0) {
+      Alert.alert(
+        "Select a Subject List",
+        "This study mode needs a subject list selection.",
+      );
+      return;
+    }
+
+    router.push({
+      pathname: pathname as any,
+      params: { selectedListIds: selectedListIds.join(",") },
     });
   };
 
@@ -539,6 +698,23 @@ export default function CustomReviewSelectionScreen() {
     });
     return uniqueSubjectIds.size;
   }, [availableLists, selectedListIds, selectedSubjectIds]);
+
+  const headerSelectionSummary = useMemo(() => {
+    if (selectedListIds.length === 1) {
+      const selectedList = availableLists.find(
+        (list) => list.id === selectedListIds[0],
+      );
+      if (selectedList) {
+        return `${selectedList.name} · ${selectedSubjectIds.size} selected`;
+      }
+    }
+
+    if (selectedListIds.length > 1) {
+      return `${selectedListIds.length} lists · ${selectedSubjectIds.size} selected`;
+    }
+
+    return `${selectedSubjectIds.size} selected`;
+  }, [availableLists, selectedListIds, selectedSubjectIds.size]);
 
   //
 
@@ -701,12 +877,35 @@ export default function CustomReviewSelectionScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={theme.textColor} />
         </TouchableOpacity>
-        <Text
-          style={[styles.headerTitle, { color: theme.textColor }]}
-          onLongPress={handleDebugLongPress}
-        >
-          Custom Review
-        </Text>
+        <View style={styles.headerTitleContainer}>
+          <Text
+            style={[styles.headerTitle, { color: theme.textColor }]}
+            onLongPress={handleDebugLongPress}
+          >
+            Custom Review
+          </Text>
+          <Text
+            style={[styles.headerSubtitle, { color: theme.textSecondary }]}
+            numberOfLines={1}
+          >
+            {headerSelectionSummary}
+          </Text>
+        </View>
+        <SubjectListStudyMenu
+          selectedItemCount={selectedSubjectIds.size}
+          selectedKanjiCount={selectedKanjiIds.length}
+          hasSelectedLists={selectedListIds.length > 0}
+          onStandardReview={startCustomReview}
+          onKanjiMatch={startKanjiMatch}
+          onCustomLessons={startCustomLessons}
+          onRandomTest={() => openListStudyConfig("/test-config")}
+          onSimilarKanji={() =>
+            openListStudyConfig("/similar-kanji-config")
+          }
+          onKanjiWriting={() =>
+            openListStudyConfig("/writing-practice-config")
+          }
+        />
       </View>
 
       <View style={styles.searchRow}>
@@ -902,21 +1101,6 @@ export default function CustomReviewSelectionScreen() {
         />
       )}
 
-      {/* Start Review Button */}
-      {selectedSubjectIds.size > 0 && (
-        <TouchableOpacity
-          style={[styles.startButton, { backgroundColor: theme.primary }]}
-          onPress={startCustomReview}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="play" size={24} color="white" />
-          <Text style={styles.startButtonText}>
-            Start Review ({selectedSubjectIds.size} item
-            {selectedSubjectIds.size !== 1 ? "s" : ""})
-          </Text>
-        </TouchableOpacity>
-      )}
-
       <Modal
         visible={showListFilterModal}
         transparent
@@ -1064,6 +1248,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 60,
     paddingBottom: 8,
@@ -1078,28 +1263,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginLeft: 12,
-  },
-  headerRight: {
-    width: 32,
   },
   headerTitleContainer: {
     flex: 1,
     alignItems: "center",
+    paddingHorizontal: 8,
   },
-  filterHeaderButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.1)",
-    shadowColor: "rgba(0, 0, 0, 0.05)",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 2,
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
   },
   searchRow: {
     flexDirection: "row",
@@ -1198,7 +1370,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 100,
+    paddingBottom: 24,
   },
   itemContainer: {
     flexDirection: "row",
@@ -1263,28 +1435,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: "center",
-  },
-  startButton: {
-    position: "absolute",
-    bottom: 30,
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 18,
-    borderRadius: 16,
-    shadowColor: "rgba(0, 0, 0, 0.2)",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  startButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,

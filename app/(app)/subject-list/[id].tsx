@@ -28,6 +28,7 @@ import {
 import { CommonFilterModal } from "../../../src/components/CommonFilterModal";
 import { GlassButton } from "../../../src/components/GlassButton";
 import { WaniKaniItemType } from "../../../src/types/wanikani";
+import SubjectListStudyMenu from "../../../src/components/SubjectListStudyMenu";
 import {
   fetchAllPages,
   getAllAssignmentsCached,
@@ -57,6 +58,10 @@ import {
 } from "../../../src/utils/subjectSearch";
 import { formatLevelWithSrsStage } from "../../../src/utils/srsStageLabel";
 import { useTheme } from "../../../src/utils/theme";
+import {
+  clearExtraStudySessionState,
+  EXTRA_STUDY_SESSION_STORAGE_KEYS,
+} from "../../../src/utils/extraStudySessionPersistence";
 import {
   DEFAULT_SUBJECT_LIST_ITEM_SORT_MODE,
   isSubjectListItemSortMode,
@@ -417,6 +422,20 @@ export default function SubjectListEditorScreen() {
     subjectSrsStageMap,
   ]);
 
+  const selectedKanjiIds = useMemo(
+    () =>
+      (allSubjects ?? [])
+        .filter(
+          (subject) =>
+            selectedSubjectIds.has(subject.id) &&
+            subject.object === "kanji" &&
+            Boolean(subject.data.characters?.trim()) &&
+            subject.data.meanings.length > 0,
+        )
+        .map((subject) => subject.id),
+    [allSubjects, selectedSubjectIds],
+  );
+
   const allMatchingSelected =
     matchingSubjectIds.length > 0 &&
     matchingSubjectIds.every((subjectId) => selectedSubjectIds.has(subjectId));
@@ -523,8 +542,8 @@ export default function SubjectListEditorScreen() {
     );
   };
 
-  const handleSave = async () => {
-    if (!list || !id) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!list || !id) return false;
     setIsSaving(true);
     try {
       const trimmedName = listName.trim();
@@ -544,12 +563,131 @@ export default function SubjectListEditorScreen() {
             }
           : prev
       );
+      return true;
     } catch (error) {
       console.error("Failed to save list:", error);
       Alert.alert("Error", "Failed to save list changes.");
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const prepareListForStudy = async (): Promise<boolean> => {
+    if (!hasUnsavedChanges) {
+      return true;
+    }
+    return handleSave();
+  };
+
+  const startStandardReview = async () => {
+    if (selectedSubjectIds.size === 0 || !(await prepareListForStudy())) {
+      return;
+    }
+
+    await clearExtraStudySessionState(
+      EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW,
+    );
+    router.push({
+      pathname: "/custom-review",
+      params: {
+        subjectIds: Array.from(selectedSubjectIds.values()).join(","),
+      },
+    });
+  };
+
+  const startKanjiMatch = async () => {
+    if (!list) {
+      return;
+    }
+    if (selectedKanjiIds.length < 2) {
+      Alert.alert(
+        "Select More Kanji",
+        "Choose at least two kanji to start a matching review.",
+      );
+      return;
+    }
+    if (!(await prepareListForStudy())) {
+      return;
+    }
+
+    await clearExtraStudySessionState(
+      EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_KANJI_MATCH,
+    );
+
+    const config = {
+      matchMode: "custom",
+      selectedSubjectIds: selectedKanjiIds,
+      selectedListIds: [list.id],
+      numberOfQuestions: Math.ceil(selectedKanjiIds.length / 4),
+      srsGroups: {
+        apprentice: true,
+        guru: true,
+        master: true,
+        enlightened: true,
+        burned: true,
+      },
+      useCustomLevelRange: false,
+      minLevel: 1,
+      maxLevel: 60,
+      onlyLearnedSimilarKanji: true,
+      kanjiPerQuestion: 4,
+      similarKanjiSource: "niai",
+    };
+
+    try {
+      const sessionId = `custom_kanji_match_${Date.now()}`;
+      await AsyncStorage.setItem(
+        `similar_kanji_config_${sessionId}`,
+        JSON.stringify(config),
+      );
+      router.push({
+        pathname: "/similar-kanji-session" as any,
+        params: { sessionId, matchMode: "custom" },
+      });
+    } catch (error) {
+      console.error("Failed to save custom kanji match config:", error);
+      router.push({
+        pathname: "/similar-kanji-session" as any,
+        params: {
+          matchMode: "custom",
+          subjectIds: selectedKanjiIds.join(","),
+          kanjiPerQuestion: "4",
+        },
+      });
+    }
+  };
+
+  const startCustomLessons = async () => {
+    if (selectedSubjectIds.size === 0 || !(await prepareListForStudy())) {
+      return;
+    }
+
+    router.push({
+      pathname: "/custom-lesson",
+      params: {
+        subjectIds: Array.from(selectedSubjectIds.values()).join(","),
+      },
+    });
+  };
+
+  const openListStudyConfig = async (
+    pathname:
+      | "/test-config"
+      | "/similar-kanji-config"
+      | "/writing-practice-config",
+  ) => {
+    if (!list) {
+      return;
+    }
+    if (!(await prepareListForStudy())) {
+      return;
+    }
+
+    router.push({
+      pathname: pathname as any,
+      params: { selectedListIds: list.id },
+    });
   };
 
   const handleDelete = () => {
@@ -823,55 +961,73 @@ export default function SubjectListEditorScreen() {
               {selectedSubjectIds.size === 1 ? "" : "s"} in list
             </Text>
           </View>
-          {Platform.OS === "ios" && SwiftUI ? (
-            <SwiftUI.Host matchContents style={styles.headerIconButton}>
-              <SwiftUI.Menu
-                label={
-                  <SwiftUI.RNHostView matchContents>
-                    <GlassButton
-                      iconName="ellipsis-horizontal"
-                      iconColor={theme.textColor}
-                      style={styles.headerIconButton}
-                      variant={theme.isDark ? "colored" : "light"}
-                    />
-                  </SwiftUI.RNHostView>
-                }
-              >
-                <SwiftUI.Button
-                  label="Sort Items"
-                  systemImage="arrow.up.arrow.down"
-                  onPress={handleOpenSelectedSort}
-                />
-                {selectedSubjectIds.size > 0 ? (
-                  <SwiftUI.Button
-                    label="Remove All From List"
-                    systemImage="trash.slash"
-                    role="destructive"
-                    onPress={clearSelection}
-                  />
-                ) : null}
-                <SwiftUI.Button
-                  label="Rename"
-                  systemImage="pencil"
-                  onPress={handleStartRename}
-                />
-                <SwiftUI.Button
-                  label="Delete"
-                  systemImage="trash"
-                  role="destructive"
-                  onPress={handleDelete}
-                />
-              </SwiftUI.Menu>
-            </SwiftUI.Host>
-          ) : (
-            <GlassButton
-              iconName="ellipsis-horizontal"
-              onPress={openHeaderMenu}
-              iconColor={theme.textColor}
-              style={styles.headerIconButton}
-              variant={theme.isDark ? "colored" : "light"}
+          <View style={styles.headerActions}>
+            <SubjectListStudyMenu
+              selectedItemCount={selectedSubjectIds.size}
+              selectedKanjiCount={selectedKanjiIds.length}
+              hasSelectedLists
+              triggerStyle={styles.headerIconButton}
+              onStandardReview={startStandardReview}
+              onKanjiMatch={startKanjiMatch}
+              onCustomLessons={startCustomLessons}
+              onRandomTest={() => openListStudyConfig("/test-config")}
+              onSimilarKanji={() =>
+                openListStudyConfig("/similar-kanji-config")
+              }
+              onKanjiWriting={() =>
+                openListStudyConfig("/writing-practice-config")
+              }
             />
-          )}
+            {Platform.OS === "ios" && SwiftUI ? (
+              <SwiftUI.Host matchContents style={styles.headerIconButton}>
+                <SwiftUI.Menu
+                  label={
+                    <SwiftUI.RNHostView matchContents>
+                      <GlassButton
+                        iconName="ellipsis-horizontal"
+                        iconColor={theme.textColor}
+                        style={styles.headerIconButton}
+                        variant={theme.isDark ? "colored" : "light"}
+                      />
+                    </SwiftUI.RNHostView>
+                  }
+                >
+                  <SwiftUI.Button
+                    label="Sort Items"
+                    systemImage="arrow.up.arrow.down"
+                    onPress={handleOpenSelectedSort}
+                  />
+                  {selectedSubjectIds.size > 0 ? (
+                    <SwiftUI.Button
+                      label="Remove All From List"
+                      systemImage="trash.slash"
+                      role="destructive"
+                      onPress={clearSelection}
+                    />
+                  ) : null}
+                  <SwiftUI.Button
+                    label="Rename"
+                    systemImage="pencil"
+                    onPress={handleStartRename}
+                  />
+                  <SwiftUI.Button
+                    label="Delete"
+                    systemImage="trash"
+                    role="destructive"
+                    onPress={handleDelete}
+                  />
+                </SwiftUI.Menu>
+              </SwiftUI.Host>
+            ) : (
+              <GlassButton
+                iconName="ellipsis-horizontal"
+                onPress={openHeaderMenu}
+                iconColor={theme.textColor}
+                style={styles.headerIconButton}
+                variant={theme.isDark ? "colored" : "light"}
+              />
+            )}
+          </View>
         </View>
 
         <View
@@ -1205,6 +1361,11 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   headerTitleContainer: {
     flex: 1,
