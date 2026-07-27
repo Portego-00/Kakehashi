@@ -2,6 +2,9 @@ import {
   getJLPTLevelForSubject,
   getJLPTLevelForVocabulary,
   normalizeJLPTVocabularyReading,
+  sanitizeJLPTLevels,
+  subjectMatchesJLPTLevels,
+  type JLPTLevel,
 } from "../jlptClassification";
 
 describe("JLPT classification", () => {
@@ -55,5 +58,28 @@ describe("JLPT classification", () => {
         },
       }),
     ).toBe("N5");
+  });
+
+  it("sanitizes persisted JLPT selections in display order", () => {
+    expect(sanitizeJLPTLevels(["N1", "invalid", "N5", "N1"])).toEqual([
+      "N5",
+      "N1",
+    ]);
+    expect(sanitizeJLPTLevels(null)).toEqual([]);
+  });
+
+  it("matches kana vocabulary against selected JLPT levels", () => {
+    const subject = {
+      object: "kana_vocabulary",
+      data: { characters: "テレビ" },
+    };
+
+    expect(subjectMatchesJLPTLevels(subject, new Set<JLPTLevel>())).toBe(true);
+    expect(subjectMatchesJLPTLevels(subject, new Set<JLPTLevel>(["N5"]))).toBe(
+      true
+    );
+    expect(subjectMatchesJLPTLevels(subject, new Set<JLPTLevel>(["N1"]))).toBe(
+      false
+    );
   });
 });

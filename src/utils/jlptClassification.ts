@@ -22,6 +22,15 @@ const vocabularyLevelByForm = new Map<string, JLPTLevel>();
 const vocabularyLevelsByExpression = new Map<string, Set<JLPTLevel>>();
 const vocabularyData = jlptVocabularyData as unknown as VocabularyData;
 
+export function sanitizeJLPTLevels(value: unknown): JLPTLevel[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const requestedLevels = new Set(value);
+  return JLPT_LEVELS.filter((level) => requestedLevels.has(level));
+}
+
 function normalizeMarkerCharacters(value: string): string {
   return value.replace(/[~〜～]/g, "");
 }
@@ -120,4 +129,16 @@ export function getJLPTLevelForSubject(
     : [];
 
   return getJLPTLevelForVocabulary(characters, readings);
+}
+
+export function subjectMatchesJLPTLevels(
+  subject: JLPTClassifiableSubject,
+  selectedLevels: ReadonlySet<JLPTLevel>,
+): boolean {
+  if (selectedLevels.size === 0) {
+    return true;
+  }
+
+  const level = getJLPTLevelForSubject(subject);
+  return level !== null && selectedLevels.has(level);
 }

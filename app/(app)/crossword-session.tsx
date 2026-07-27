@@ -66,8 +66,16 @@ import {
 } from "../../src/utils/extraStudySubjectLists";
 import { fontStyles } from "../../src/utils/fonts";
 import * as Haptics from "../../src/utils/haptics";
+import {
+  sanitizeJLPTLevels,
+  subjectMatchesJLPTLevels,
+  type JLPTLevel,
+} from "../../src/utils/jlptClassification";
 import { getAssignmentsFromPermanentStorage } from "../../src/utils/permanentStorage";
-import { pickPreferredPronunciationAudios } from "../../src/utils/pronunciationAudio";
+import {
+  hasPronunciationAudio,
+  pickPreferredPronunciationAudios,
+} from "../../src/utils/pronunciationAudio";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
@@ -109,6 +117,7 @@ interface CrosswordConfig {
   useCustomLevelRange: boolean;
   minLevel: number;
   maxLevel: number;
+  jlptLevels: JLPTLevel[];
   selectedListIds: string[];
   hiraganaOnly: boolean;
   clueDisplayMode: CrosswordClueDisplayMode;
@@ -162,6 +171,7 @@ function getDefaultCrosswordConfig(userLevel: number): CrosswordConfig {
     useCustomLevelRange: false,
     minLevel: 1,
     maxLevel: userLevel,
+    jlptLevels: [],
     selectedListIds: [],
     hiraganaOnly: false,
     clueDisplayMode: "english",
@@ -182,7 +192,6 @@ function sanitizeCrosswordConfig(
       ? rawConfig.size
       : defaults.size;
   const fallbackMaxWords = SIZE_BY_ID[size].defaultMaxWords;
-
   return {
     size,
     maxWords:
@@ -223,6 +232,7 @@ function sanitizeCrosswordConfig(
       typeof rawConfig.maxLevel === "number" && Number.isFinite(rawConfig.maxLevel)
         ? Math.max(1, Math.round(rawConfig.maxLevel))
         : defaults.maxLevel,
+    jlptLevels: sanitizeJLPTLevels(rawConfig.jlptLevels),
     selectedListIds: parseSelectedListIds(rawConfig.selectedListIds),
     hiraganaOnly:
       typeof rawConfig.hiraganaOnly === "boolean"
@@ -416,8 +426,7 @@ function getSubjectKanjiForm(
 }
 
 function subjectHasPronunciationAudio(subject: ApiSubject | null): boolean {
-  const pronunciationAudios = subject?.data?.pronunciation_audios;
-  return Array.isArray(pronunciationAudios) && pronunciationAudios.length > 0;
+  return hasPronunciationAudio(subject?.data?.pronunciation_audios);
 }
 
 function getSubjectKanjiSolutionForm(
@@ -651,6 +660,10 @@ export default function CrosswordSessionScreen() {
           maxLevel: params.maxLevel
             ? parseInt(params.maxLevel as string, 10)
             : 60,
+          jlptLevels:
+            typeof params.jlptLevels === "string"
+              ? sanitizeJLPTLevels((params.jlptLevels as string).split(","))
+              : [],
           selectedListIds: parseSelectedListIds(
             typeof params.selectedListIds === "string"
               ? (params.selectedListIds as string).split(",")
@@ -675,6 +688,7 @@ export default function CrosswordSessionScreen() {
   }, [
     params.hiraganaOnly,
     params.clueDisplayMode,
+    params.jlptLevels,
     params.maxLevel,
     params.maxWords,
     params.minLevel,
@@ -803,6 +817,7 @@ export default function CrosswordSessionScreen() {
         ? config.maxLevel
         : userLevel;
       const effectiveMaxLevel = Math.min(requestedMaxLevel, userLevel);
+      const selectedJlptLevels = new Set(config.jlptLevels);
 
       const filtered = candidates.filter((subject) => {
         const level = subject.data?.level;
@@ -811,6 +826,7 @@ export default function CrosswordSessionScreen() {
           level >= effectiveMinLevel &&
           level <= effectiveMaxLevel;
         if (!inLevelRange) return false;
+        if (!subjectMatchesJLPTLevels(subject, selectedJlptLevels)) return false;
         return subjectMatchesSelectedLists(
           subject.id,
           config.selectedListIds || [],
@@ -2589,7 +2605,7 @@ function CrosswordSummary({
         attempts: attemptsByWordId[w.id] ?? 0,
         solved: completedWordIds.has(w.id),
         revealed: revealedWordIds.has(w.id),
-        hasAudio: subjectSupportsKanjiAudioHint(subject, w),
+        hasAudio: subjectHasPronunciationAudio(subject),
       };
     });
 

@@ -30,6 +30,11 @@ import {
   hasExtraStudySessionState,
 } from "../../src/utils/extraStudySessionPersistence";
 import { parseSelectedListIds } from "../../src/utils/extraStudySubjectLists";
+import {
+  JLPT_LEVELS,
+  sanitizeJLPTLevels,
+  type JLPTLevel,
+} from "../../src/utils/jlptClassification";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
@@ -89,6 +94,7 @@ interface CrosswordConfig {
   useCustomLevelRange: boolean;
   minLevel: number;
   maxLevel: number;
+  jlptLevels: JLPTLevel[];
   selectedListIds: string[];
   hiraganaOnly: boolean;
   clueDisplayMode: CrosswordClueDisplayMode;
@@ -110,6 +116,7 @@ const createDefaultConfig = (userLevel: number): CrosswordConfig => ({
   useCustomLevelRange: false,
   minLevel: 1,
   maxLevel: userLevel,
+  jlptLevels: [],
   selectedListIds: [],
   hiraganaOnly: false,
   clueDisplayMode: "english",
@@ -133,7 +140,6 @@ const sanitizeConfig = (
     rawConfig.maxLevel,
     userLevel
   );
-
   return {
     size: sizeId,
     maxWords: clampNumber(
@@ -162,6 +168,7 @@ const sanitizeConfig = (
     ),
     minLevel,
     maxLevel,
+    jlptLevels: sanitizeJLPTLevels(rawConfig.jlptLevels),
     selectedListIds: parseSelectedListIds(rawConfig.selectedListIds),
     hiraganaOnly: pickBoolean(rawConfig.hiraganaOnly, defaults.hiraganaOnly),
     clueDisplayMode:
@@ -252,6 +259,7 @@ export default function CrosswordConfigScreen() {
           useCustomLevelRange: String(config.useCustomLevelRange),
           minLevel: String(config.minLevel),
           maxLevel: String(config.maxLevel),
+          jlptLevels: config.jlptLevels.join(","),
           selectedListIds: config.selectedListIds.join(","),
           hiraganaOnly: String(config.hiraganaOnly),
           clueDisplayMode: config.clueDisplayMode,
@@ -696,6 +704,66 @@ export default function CrosswordConfigScreen() {
           style={[styles.section, { backgroundColor: theme.cardBackground }]}
         >
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Estimated JLPT
+          </Text>
+          <Text
+            style={[
+              styles.sectionDescription,
+              { color: theme.textSecondary },
+            ]}
+          >
+            Optional: only include vocabulary from the selected JLPT levels.
+          </Text>
+          <View style={styles.jlptFiltersRow}>
+            {JLPT_LEVELS.map((level) => {
+              const selected = config.jlptLevels.includes(level);
+              return (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.jlptChip,
+                    {
+                      backgroundColor: selected
+                        ? theme.primary
+                        : theme.cardBackground,
+                      borderColor: selected ? theme.primary : theme.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    updateConfig(
+                      "jlptLevels",
+                      selected
+                        ? config.jlptLevels.filter((item) => item !== level)
+                        : JLPT_LEVELS.filter(
+                            (item) =>
+                              item === level ||
+                              config.jlptLevels.includes(item)
+                          )
+                    );
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  accessibilityLabel={`${level} estimated JLPT filter`}
+                >
+                  <Text
+                    style={[
+                      styles.jlptChipText,
+                      { color: selected ? "white" : theme.textColor },
+                    ]}
+                  >
+                    {level}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View
+          style={[styles.section, { backgroundColor: theme.cardBackground }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
             Vocabulary Filter
           </Text>
           <View
@@ -985,6 +1053,22 @@ const styles = StyleSheet.create({
   sizeOptionDetail: { fontSize: 12, fontWeight: "500", marginBottom: 4 },
   sizeOptionDescription: { fontSize: 12, lineHeight: 16 },
   chipsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  jlptFiltersRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  jlptChip: {
+    flex: 1,
+    minHeight: 38,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  jlptChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
   chip: {
     flexDirection: "row",
     alignItems: "center",

@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.93",
+    date: "2026-07-27",
+    changes: [
+      {
+        type: "improvement",
+        title: "Crossword JLPT and Kana Audio",
+        description:
+          "Added JLPT word filters and audio replay for kana-only words in crossword statistics.",
+      },
+    ],
+  },
+  {
     version: "1.2.92",
     date: "2026-07-25",
     changes: [

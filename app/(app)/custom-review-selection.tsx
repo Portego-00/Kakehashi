@@ -59,7 +59,10 @@ import {
 } from "../../src/utils/subjectSearch";
 import { formatLevelWithSrsStage } from "../../src/utils/srsStageLabel";
 import { useTheme } from "../../src/utils/theme";
-import { getJLPTLevelForSubject } from "../../src/utils/jlptClassification";
+import {
+  getJLPTLevelForSubject,
+  subjectMatchesJLPTLevels,
+} from "../../src/utils/jlptClassification";
 
 //
 
@@ -432,14 +435,9 @@ export default function CustomReviewSelectionScreen() {
       .filter((subject) =>
         filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
       )
-      .filter((subject) => {
-        if (filters.jlptLevels.size === 0) {
-          return true;
-        }
-
-        const jlptLevel = getJLPTLevelForSubject(subject);
-        return jlptLevel !== null && filters.jlptLevels.has(jlptLevel);
-      });
+      .filter((subject) =>
+        subjectMatchesJLPTLevels(subject, filters.jlptLevels)
+      );
 
     const query = searchQuery.trim();
     let filtered = query
