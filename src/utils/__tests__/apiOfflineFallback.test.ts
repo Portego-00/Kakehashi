@@ -188,6 +188,46 @@ describe("api offline assignment fallbacks", () => {
     expect(result.pages.next_url).toBeNull();
   });
 
+  it("uses the permanent assignment snapshot for subject details while offline", async () => {
+    const subjectAssignment = makeAssignment(1, {
+      srs_stage: 3,
+      started_at: "2026-05-28T09:00:00.000Z",
+    });
+    const otherAssignment = makeAssignment(2);
+
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const { api } = loadApi({
+      permanentAssignments: [subjectAssignment, otherAssignment],
+    });
+
+    const result = await api.getAssignmentsForSubjectsCached(
+      "test-token",
+      [1001]
+    );
+
+    expect(result.data).toEqual([subjectAssignment]);
+    expect(result.total_count).toBe(1);
+  });
+
+  it("returns a definitive empty subject assignment result from an offline snapshot", async () => {
+    const otherAssignment = makeAssignment(2);
+
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const { api } = loadApi({
+      permanentAssignments: [otherAssignment],
+    });
+
+    const result = await api.getAssignmentsForSubjectsCached(
+      "test-token",
+      [1001]
+    );
+
+    expect(result.data).toEqual([]);
+    expect(result.total_count).toBe(0);
+  });
+
   it("reconciles an empty live lesson response against assignment data", async () => {
     const availableLesson = makeAssignment(4);
     const startedLesson = makeAssignment(5, {

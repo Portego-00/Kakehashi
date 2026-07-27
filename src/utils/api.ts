@@ -1253,6 +1253,56 @@ export async function getAssignments(
 }
 
 /**
+ * Fetch assignments for specific subjects, falling back to the complete
+ * permanent assignment snapshot when the network is unavailable.
+ *
+ * An empty successful response is meaningful: it means none of the requested
+ * subjects has an assignment yet, so callers can safely render "Not Started".
+ */
+export async function getAssignmentsForSubjectsCached(
+  apiToken: string,
+  subjectIds: number[]
+): Promise<CollectionResponse<Assignment>> {
+  const normalizedSubjectIds = Array.from(
+    new Set(
+      subjectIds.filter(
+        (subjectId) => Number.isInteger(subjectId) && subjectId > 0
+      )
+    )
+  );
+
+  if (normalizedSubjectIds.length === 0) {
+    return buildAssignmentsCollectionFromLocalData([]);
+  }
+
+  try {
+    const response = await getAssignments(apiToken, {
+      subject_ids: normalizedSubjectIds,
+    });
+    return response.pages.next_url
+      ? await fetchAllPages(response, apiToken)
+      : response;
+  } catch (error) {
+    const permanentAssignments = await getPermanentAssignmentsCollection();
+    if (!permanentAssignments) {
+      throw error;
+    }
+
+    const requestedSubjectIds = new Set(normalizedSubjectIds);
+    const matchingAssignments = permanentAssignments.data.filter(
+      (assignment) =>
+        requestedSubjectIds.has(assignment.data.subject_id)
+    );
+
+    return {
+      ...permanentAssignments,
+      data: matchingAssignments,
+      total_count: matchingAssignments.length,
+    };
+  }
+}
+
+/**
  * Smart wrapper for getAssignments that uses updated_after filter to minimize data transfer.
  * Implements WaniKani Best Practice #3: "Leveraging the updated_after Filter"
  * 

@@ -25,7 +25,7 @@ import RadicalDetails from "../../../src/components/RadicalDetails";
 import VocabularyDetails from "../../../src/components/VocabularyDetails";
 import {
   createStudyMaterial,
-  getAssignments,
+  getAssignmentsForSubjectsCached,
   getReviewStatistics,
   getSpacedRepetitionSystems,
   getStudyMaterials,
@@ -365,7 +365,7 @@ export default function SubjectDetailsScreen() {
           const [assignmentResult, studyMaterialResult, reviewStatsResult] =
             await Promise.allSettled([
               withTimeout(
-                getAssignments(apiToken, { subject_ids: [parsedId] }),
+                getAssignmentsForSubjectsCached(apiToken, [parsedId]),
                 PROGRESSION_REQUEST_TIMEOUT_MS,
                 "assignments"
               ),
@@ -437,9 +437,8 @@ export default function SubjectDetailsScreen() {
             return;
           }
 
-          const hasAnyProgressData = Boolean(
-            nextAssignmentData || nextStudyMaterial || nextReviewStatistics
-          );
+          const canDetermineProgression =
+            assignmentResult.status === "fulfilled";
 
           startTransition(() => {
             if (!isCurrentRequest()) {
@@ -449,7 +448,9 @@ export default function SubjectDetailsScreen() {
             setStudyMaterial(nextStudyMaterial);
             setReviewStatistics(nextReviewStatistics);
             setSrsSystem(nextSrsSystem);
-            setProgressionStatus(hasAnyProgressData ? "success" : "offline");
+            setProgressionStatus(
+              canDetermineProgression ? "success" : "offline"
+            );
           });
         } catch (err) {
           if (!isCurrentRequest()) {
@@ -895,7 +896,7 @@ export default function SubjectDetailsScreen() {
         level: subject.data.level,
       })),
       userSynonyms,
-      srsStage: assignmentSrsStage || 0,
+      srsStage: assignmentSrsStage,
       srsSystem: srsSystem?.data,
       currentStreak: meaningCurrentStreak,
       longestStreak: meaningMaxStreak,
@@ -966,7 +967,7 @@ export default function SubjectDetailsScreen() {
         level: subject.data.level,
       })),
       userSynonyms,
-      srsStage: assignmentSrsStage || 0,
+      srsStage: assignmentSrsStage,
       srsSystem: srsSystem?.data,
       currentStreak: meaningCurrentStreak,
       longestStreak: meaningMaxStreak,
@@ -1034,7 +1035,7 @@ export default function SubjectDetailsScreen() {
       ),
       audioFiles: subjectData.data.pronunciation_audios || [],
       userSynonyms,
-      srsStage: assignmentSrsStage || 0,
+      srsStage: assignmentSrsStage,
       srsSystem: srsSystem?.data,
       currentStreak: meaningCurrentStreak,
       longestStreak: meaningMaxStreak,

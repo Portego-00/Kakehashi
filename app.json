@@ -217,7 +217,7 @@
         "projectId": "22fd8bf2-11b1-439f-b818-80b2ef36b90b"
       }
     },
-    "runtimeVersion": "1.4.6",
+    "runtimeVersion": "1.4.7",
     "updates": {
       "url": "https://u.expo.dev/22fd8bf2-11b1-439f-b818-80b2ef36b90b",
       "checkAutomatically": "ON_ERROR_RECOVERY"
