@@ -6,6 +6,8 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "generate:jlpt-vocabulary": "node ./scripts/generateJlptVocabularyData.mjs",
+    "generate:kanji-etymology": "node ./scripts/generateKanjiEtymologyData.mjs",
+    "refresh:kanji-etymology": "node ./scripts/generateKanjiEtymologyData.mjs --refresh-catalog",
     "import:wanikani-patterns-repo": "node ./scripts/importWaniKaniPatternsFromRepo.mjs",
     "scrape:wanikani-patterns": "node ./scripts/scrapeWaniKaniPatterns.mjs",
     "scrape:wanikani-patterns:retry-failures": "ONLY_RETRY_PREVIOUS_FAILURES=1 node ./scripts/scrapeWaniKaniPatterns.mjs",

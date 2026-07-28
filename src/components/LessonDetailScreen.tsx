@@ -87,6 +87,7 @@ import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
+import KanjiLessonEtymologySection from "./KanjiLessonEtymologySection";
 import KanjiReadingExamples from "./KanjiReadingExamples";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
@@ -373,6 +374,7 @@ const SubjectContent = ({
     immersionKitAnimes,
     showStrokeOrder,
     showOnyomiInKatakana,
+    showKanjiEtymology,
     visuallySimilarKanjiSource,
   } = useSettingsStore();
   const { userData } = useAuthStore();
@@ -2545,6 +2547,11 @@ const SubjectContent = ({
                 )}
               </View>
 
+              <KanjiLessonEtymologySection
+                subject={subject}
+                visible={showKanjiEtymology}
+              />
+
               {renderMeaningHintSection()}
 
               {renderNoteCard("meaning")}
@@ -3215,6 +3222,11 @@ const SubjectContent = ({
                       </Text>
                     )}
                   </View>
+
+                  <KanjiLessonEtymologySection
+                    subject={subject}
+                    visible={showKanjiEtymology}
+                  />
 
                   {renderMeaningHintSection()}
 

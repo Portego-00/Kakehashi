@@ -1531,13 +1531,6 @@ export default function ReviewQuestionScreen({
     shouldShowReviewItemMetadata && !isContextHintVisible;
   const shouldShowAnkiReviewItemMetadata =
     effectiveAnkiCardMode && shouldShowReviewItemMetadata;
-  const contextHintPanelHeight = useMemo(() => {
-    const keyboardVisible = iosKeyboardVisible || androidKeyboardHeight > 0;
-    const viewportCap = Math.round(windowHeight * (keyboardVisible ? 0.13 : 0.14));
-    const absoluteCap = keyboardVisible ? 108 : 116;
-
-    return Math.max(84, Math.min(absoluteCap, viewportCap));
-  }, [androidKeyboardHeight, iosKeyboardVisible, windowHeight]);
   const contextHintPromptSize = isContextHintVisible
     ? Math.min(reviewPromptCharacterSize, 96)
     : reviewPromptCharacterSize;
@@ -5344,12 +5337,20 @@ export default function ReviewQuestionScreen({
           ]}
         >
         {/* Character display (or overridden prompt) */}
-        <View
-          style={[
+        <ScrollView
+          key={currentQuestionKey}
+          style={styles.characterScrollView}
+          contentContainerStyle={[
             styles.characterWrapper,
             isContextHintVisible && styles.characterWrapperWithOpenHint,
             shouldShowPausedSubjectDetails && styles.characterWrapperWithDetails,
           ]}
+          alwaysBounceVertical={false}
+          bounces={isContextHintVisible}
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={isContextHintVisible}
+          showsVerticalScrollIndicator={isContextHintVisible}
         >
           <View style={styles.characterContainer}>
             {overridePromptText ? (
@@ -5441,24 +5442,8 @@ export default function ReviewQuestionScreen({
               )}
 
               {isContextHintVisible && (
-                <View
-                  style={[
-                    styles.contextHintContent,
-                    { height: contextHintPanelHeight },
-                  ]}
-                >
-                  <ScrollView
-                    style={[
-                      styles.contextHintScrollView,
-                      { height: contextHintPanelHeight },
-                    ]}
-                    contentContainerStyle={styles.contextHintScrollContent}
-                    alwaysBounceVertical={false}
-                    keyboardShouldPersistTaps="handled"
-                    nestedScrollEnabled
-                    scrollEnabled
-                    showsVerticalScrollIndicator
-                  >
+                <View style={styles.contextHintContent}>
+                  <View style={styles.contextHintContentInner}>
                     {displayedContextSentencesHint.map((sentence, index) => (
                       <View
                         key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
@@ -5487,12 +5472,12 @@ export default function ReviewQuestionScreen({
                         )}
                       </View>
                     ))}
-                  </ScrollView>
+                  </View>
                 </View>
               )}
             </View>
           )}
-        </View>
+        </ScrollView>
 
         {effectiveAnkiCardMode ? (
           /* Anki Card Mode */
@@ -6799,8 +6784,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     minHeight: 220,
   },
-  characterWrapper: {
+  characterScrollView: {
     flex: 1,
+    minHeight: 0,
+  },
+  characterWrapper: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     minHeight: 0,
@@ -6809,7 +6798,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingTop: 8,
     paddingBottom: 8,
-    overflow: "hidden",
   },
   characterWrapperWithDetails: {
     minHeight: 96,
@@ -7823,10 +7811,7 @@ const styles = StyleSheet.create({
     maxWidth: 350,
     overflow: "hidden",
   },
-  contextHintScrollView: {
-    width: "100%",
-  },
-  contextHintScrollContent: {
+  contextHintContentInner: {
     padding: 14,
     paddingBottom: 6,
   },

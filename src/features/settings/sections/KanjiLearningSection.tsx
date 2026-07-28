@@ -14,11 +14,13 @@ export function KanjiLearningSection() {
     groupKanjiVocabularyExamplesByReading,
     setGroupKanjiVocabularyExamplesByReading,
     setShowInlineRadicalReminders,
+    setShowKanjiEtymology,
     setShowOnyomiInKatakana,
     setShowStrokeOrder,
     setStrokeLeniency,
     setVisuallySimilarKanjiSource,
     showInlineRadicalReminders,
+    showKanjiEtymology,
     showOnyomiInKatakana,
     showStrokeOrder,
     strokeLeniency,
@@ -100,6 +102,32 @@ export function KanjiLearningSection() {
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
             accessibilityLabel="Show inline radical reminders"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="book-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Kanji Etymology
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show character origins and structure in details and lessons
+            </Text>
+          </View>
+          <Switch
+            value={showKanjiEtymology}
+            onValueChange={setShowKanjiEtymology}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Show kanji etymology"
           />
         </View>
 

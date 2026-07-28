@@ -56,6 +56,29 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.94",
+    date: "2026-07-28",
+    changes: [
+      {
+        type: "fix",
+        title: "Scrollable Review Context Sentences",
+        description:
+          "Context sentences in vocabulary reviews can now be scrolled into view while the keyboard is open.",
+      },
+      {
+        type: "feature",
+        title: "Kanji Etymology",
+        description:
+          "Added an optional setting to show sourced character origins and formation notes in kanji details and lessons.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.93",
     date: "2026-07-27",
     changes: [

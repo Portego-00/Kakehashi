@@ -39,6 +39,7 @@ import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import KanjiEtymologySection from "./KanjiEtymologySection";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import KanjiReadingExamples from "./KanjiReadingExamples";
 import PitchAccentVisualization from "./PitchAccentVisualization";
@@ -406,6 +407,7 @@ export default function KanjiDetails({
     showOnyomiInKatakana,
     showPitchAccent,
     showStrokeOrder,
+    showKanjiEtymology,
   } = useSettingsStore();
   const subjectColors = useSubjectColors();
   const radicalColor = subjectColors.radical;
@@ -983,6 +985,12 @@ export default function KanjiDetails({
                 </View>
               </View>
             </View>
+
+            <KanjiEtymologySection
+              characters={kanji.characters}
+              presentation="details"
+              visible={showKanjiEtymology}
+            />
 
             {/* Meaning Hint Section */}
             {kanji.meaningHint && (
