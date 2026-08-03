@@ -56,6 +56,40 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.96",
+    date: "2026-08-01",
+    changes: [
+      {
+        type: "feature",
+        title: "SRS Lesson Thresholds",
+        description:
+          "Set Apprentice and Guru item thresholds to pause home-page lessons until reviews bring those counts back down.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "lessons" },
+          label: "Open Lesson Settings",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.95",
+    date: "2026-07-29",
+    changes: [
+      {
+        type: "feature",
+        title: "Kanji Reading Speech",
+        description:
+          "Optionally tap On’yomi, Kun’yomi, and Nanori readings to hear them with your device’s Japanese voice in kanji details and lessons.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.2.94",
     date: "2026-07-28",
     changes: [

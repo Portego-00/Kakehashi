@@ -59,6 +59,7 @@ import {
   getEffectiveLessonCount,
   getRemainingDailyLessonSlots,
 } from "../../../src/utils/dailyLessonLimit";
+import { getLessonSrsThresholdStatus } from "../../../src/utils/lessonSrsThreshold";
 import { shouldUseNativeReviewNotificationSystem } from "../../../src/utils/reviewNotificationIntegration";
 import { updateLastReviewCount } from "../../../src/utils/reviewNotifications";
 import { isPortegoUsername } from "../../../src/utils/portegoAccess";
@@ -136,6 +137,12 @@ export default function StudyTab() {
   } = useAuthStore();
   const gravatarEmail = useSettingsStore((state) => state.gravatarEmail);
   const dailyLessonLimit = useSettingsStore((state) => state.dailyLessonLimit);
+  const apprenticeLessonThreshold = useSettingsStore(
+    (state) => state.apprenticeLessonThreshold,
+  );
+  const guruLessonThreshold = useSettingsStore(
+    (state) => state.guruLessonThreshold,
+  );
   const excludeKanaVocabularyFromLessons = useSettingsStore(
     (state) => state.excludeKanaVocabularyFromLessons,
   );
@@ -246,6 +253,19 @@ export default function StudyTab() {
         dashboardData.assignments,
       ),
     [availableLessonCount, dailyLessonLimit, dashboardData.assignments],
+  );
+  const lessonSrsThresholdStatus = useMemo(
+    () =>
+      getLessonSrsThresholdStatus(
+        dashboardData.assignments,
+        apprenticeLessonThreshold,
+        guruLessonThreshold,
+      ),
+    [
+      apprenticeLessonThreshold,
+      dashboardData.assignments,
+      guruLessonThreshold,
+    ],
   );
   const isDailyLessonLimitReached =
     dailyLessonLimit > 0 &&
@@ -794,7 +814,10 @@ export default function StudyTab() {
   }, [isRefreshing, refreshData, refreshStreak]);
 
   const handleLessonsPress = () => {
-    if (effectiveLessonCount <= 0 && !hasResumableLessonSession) {
+    if (
+      lessonSrsThresholdStatus.isBlocked ||
+      (effectiveLessonCount <= 0 && !hasResumableLessonSession)
+    ) {
       return;
     }
 
@@ -803,6 +826,10 @@ export default function StudyTab() {
   };
 
   const handleLessonPicker = () => {
+    if (lessonSrsThresholdStatus.isBlocked) {
+      return;
+    }
+
     // Navigate to lesson picker screen
     router.push("/lesson-picker");
   };
@@ -888,6 +915,7 @@ export default function StudyTab() {
                 userData={userData}
                 effectiveLessonCount={effectiveLessonCount}
                 isDailyLessonLimitReached={isDailyLessonLimitReached}
+                lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                 hasResumableLessonSession={hasResumableLessonSession}
                 isIPadLandscape={isIPadLandscape}
                 shouldShowRecentMistakes={shouldShowRecentMistakes}
@@ -913,6 +941,7 @@ export default function StudyTab() {
                 userData={userData}
                 effectiveLessonCount={effectiveLessonCount}
                 isDailyLessonLimitReached={isDailyLessonLimitReached}
+                lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                 hasResumableLessonSession={hasResumableLessonSession}
                 isIPadLandscape={isIPadLandscape}
                 shouldShowRecentMistakes={shouldShowRecentMistakes}
@@ -951,6 +980,7 @@ export default function StudyTab() {
                   userData={userData}
                   effectiveLessonCount={effectiveLessonCount}
                   isDailyLessonLimitReached={isDailyLessonLimitReached}
+                  lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                   hasResumableLessonSession={hasResumableLessonSession}
                   isIPadLandscape={isIPadLandscape}
                   shouldShowRecentMistakes={shouldShowRecentMistakes}
@@ -978,6 +1008,7 @@ export default function StudyTab() {
                   userData={userData}
                   effectiveLessonCount={effectiveLessonCount}
                   isDailyLessonLimitReached={isDailyLessonLimitReached}
+                  lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                   hasResumableLessonSession={hasResumableLessonSession}
                   isIPadLandscape={isIPadLandscape}
                   shouldShowRecentMistakes={shouldShowRecentMistakes}
@@ -1011,6 +1042,7 @@ export default function StudyTab() {
             userData={userData}
             effectiveLessonCount={effectiveLessonCount}
             isDailyLessonLimitReached={isDailyLessonLimitReached}
+            lessonSrsThresholdStatus={lessonSrsThresholdStatus}
             hasResumableLessonSession={hasResumableLessonSession}
             isIPadLandscape={isIPadLandscape}
             shouldShowRecentMistakes={shouldShowRecentMistakes}
@@ -1038,6 +1070,7 @@ export default function StudyTab() {
             userData={userData}
             effectiveLessonCount={effectiveLessonCount}
             isDailyLessonLimitReached={isDailyLessonLimitReached}
+            lessonSrsThresholdStatus={lessonSrsThresholdStatus}
             hasResumableLessonSession={hasResumableLessonSession}
             isIPadLandscape={isIPadLandscape}
             shouldShowRecentMistakes={shouldShowRecentMistakes}
@@ -1068,6 +1101,7 @@ export default function StudyTab() {
           userData={userData}
           effectiveLessonCount={effectiveLessonCount}
           isDailyLessonLimitReached={isDailyLessonLimitReached}
+          lessonSrsThresholdStatus={lessonSrsThresholdStatus}
           hasResumableLessonSession={hasResumableLessonSession}
           isIPadLandscape={isIPadLandscape}
           shouldShowRecentMistakes={shouldShowRecentMistakes}

@@ -33,6 +33,7 @@ import {
   getEffectiveLessonCount,
   getRemainingDailyLessonSlots,
 } from "../../src/utils/dailyLessonLimit";
+import { getLessonSrsThresholdStatus } from "../../src/utils/lessonSrsThreshold";
 import {
   DEFAULT_ANALYTICS_WIDGET_STYLE_COLORS,
   normalizeAnalyticsWidgetColor,
@@ -248,6 +249,8 @@ export default function HomeCustomizationSettings() {
   const { userData } = useAuthStore();
   const {
     dailyLessonLimit,
+    apprenticeLessonThreshold,
+    guruLessonThreshold,
     homeWidgetOrder,
     setHomeWidgetOrder,
     removeHomeWidget,
@@ -297,6 +300,8 @@ export default function HomeCustomizationSettings() {
   } = useSettingsStore(
     useShallow((state) => ({
       dailyLessonLimit: state.dailyLessonLimit,
+      apprenticeLessonThreshold: state.apprenticeLessonThreshold,
+      guruLessonThreshold: state.guruLessonThreshold,
       homeWidgetOrder: state.homeWidgetOrder,
       setHomeWidgetOrder: state.setHomeWidgetOrder,
       removeHomeWidget: state.removeHomeWidget,
@@ -434,6 +439,19 @@ export default function HomeCustomizationSettings() {
         dashboardData.assignments,
       ),
     [dailyLessonLimit, dashboardData.assignments, dashboardData.lessonCount],
+  );
+  const lessonSrsThresholdStatus = useMemo(
+    () =>
+      getLessonSrsThresholdStatus(
+        dashboardData.assignments,
+        apprenticeLessonThreshold,
+        guruLessonThreshold,
+      ),
+    [
+      apprenticeLessonThreshold,
+      dashboardData.assignments,
+      guruLessonThreshold,
+    ],
   );
   const isDailyLessonLimitReached =
     dailyLessonLimit > 0 &&
@@ -1117,6 +1135,7 @@ export default function HomeCustomizationSettings() {
                           userData={userData}
                           effectiveLessonCount={effectiveLessonCount}
                           isDailyLessonLimitReached={isDailyLessonLimitReached}
+                          lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                           isIPadLandscape={isIPadLandscape}
                           shouldShowRecentMistakes={shouldShowRecentMistakes}
                           currentStreak={currentStreak}
@@ -1144,6 +1163,7 @@ export default function HomeCustomizationSettings() {
                           userData={userData}
                           effectiveLessonCount={effectiveLessonCount}
                           isDailyLessonLimitReached={isDailyLessonLimitReached}
+                          lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                           isIPadLandscape={isIPadLandscape}
                           shouldShowRecentMistakes={shouldShowRecentMistakes}
                           currentStreak={currentStreak}
@@ -1173,6 +1193,7 @@ export default function HomeCustomizationSettings() {
                         userData={userData}
                         effectiveLessonCount={effectiveLessonCount}
                         isDailyLessonLimitReached={isDailyLessonLimitReached}
+                        lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                         isIPadLandscape={isIPadLandscape}
                         shouldShowRecentMistakes={shouldShowRecentMistakes}
                         currentStreak={currentStreak}
@@ -1197,6 +1218,7 @@ export default function HomeCustomizationSettings() {
                         userData={userData}
                         effectiveLessonCount={effectiveLessonCount}
                         isDailyLessonLimitReached={isDailyLessonLimitReached}
+                        lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                         isIPadLandscape={isIPadLandscape}
                         shouldShowRecentMistakes={shouldShowRecentMistakes}
                         currentStreak={currentStreak}
@@ -1224,6 +1246,7 @@ export default function HomeCustomizationSettings() {
                     userData={userData}
                     effectiveLessonCount={effectiveLessonCount}
                     isDailyLessonLimitReached={isDailyLessonLimitReached}
+                    lessonSrsThresholdStatus={lessonSrsThresholdStatus}
                     isIPadLandscape={isIPadLandscape}
                     shouldShowRecentMistakes={shouldShowRecentMistakes}
                     currentStreak={currentStreak}

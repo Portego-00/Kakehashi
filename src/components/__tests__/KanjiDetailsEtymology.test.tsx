@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 
 import { useSettingsStore } from "../../utils/store";
@@ -6,6 +6,11 @@ import KanjiDetails from "../KanjiDetails";
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: () => null,
+}));
+
+jest.mock("expo-speech", () => ({
+  speak: jest.fn(),
+  stop: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock("@react-navigation/native", () => ({
@@ -137,11 +142,15 @@ const kanji = {
   readingMnemonic: "Remember the reading.",
 };
 
-function mockSettings(showKanjiEtymology: boolean) {
+function mockSettings(
+  showKanjiEtymology: boolean,
+  kanjiReadingTextToSpeechEnabled = false
+) {
   (useSettingsStore as unknown as jest.Mock).mockReturnValue({
     groupKanjiVocabularyExamplesByReading: false,
     showInlineRadicalReminders: false,
     showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
     showOnyomiInKatakana: false,
     showPitchAccent: false,
     showStrokeOrder: false,
@@ -175,4 +184,28 @@ describe("KanjiDetails etymology integration", () => {
       expect(screen.getByText(visibilityLabel)).toBeTruthy();
     }
   );
+
+  it("speaks a kanji reading when reading speech is enabled", async () => {
+    const Speech = jest.requireMock<typeof import("expo-speech")>(
+      "expo-speech"
+    );
+    mockSettings(false, true);
+
+    const screen = render(
+      <KanjiDetails kanji={kanji} progressionStatus="success" embedded />
+    );
+
+    fireEvent.press(
+      screen.getByLabelText("Speak Japanese pronunciation きゅう")
+    );
+
+    await Promise.resolve();
+
+    expect(Speech.stop).toHaveBeenCalledTimes(1);
+    expect(Speech.speak).toHaveBeenCalledWith("きゅう", {
+      language: "ja-JP",
+      pitch: 1,
+      rate: 0.8,
+    });
+  });
 });

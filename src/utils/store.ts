@@ -58,6 +58,7 @@ import {
   DEFAULT_APP_TEXT_SIZE_SCALE,
   normalizeAppTextSizeScale,
 } from "./appTextSize";
+import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
 
@@ -146,7 +147,7 @@ export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 14;
+const SETTINGS_STORE_SCHEMA_VERSION = 15;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -472,6 +473,8 @@ type SettingsState = {
   // Lesson settings
   lessonBatchSize: number;
   dailyLessonLimit: number; // Maximum lessons per day in the user's timezone (0 = unlimited)
+  apprenticeLessonThreshold: number; // Block home-page lessons above this Apprentice count (0 = disabled)
+  guruLessonThreshold: number; // Block home-page lessons above this Guru count (0 = disabled)
   lessonPickerViewMode: LessonPickerViewMode; // Default visual style for lesson picker subject selection
   singlePageLessonView: boolean; // Show all lesson content in a single scrollable page instead of tabs
   skipCustomLessonQuiz: boolean; // Skip custom lesson quiz and jump straight to batch completion
@@ -541,6 +544,7 @@ type SettingsState = {
   showMnemonicIllustrations: boolean; // Show radical mnemonic illustrations in subject details and lessons
   showInlineRadicalReminders: boolean; // Expand radical mnemonics inline from kanji details
   showKanjiEtymology: boolean; // Show kanji etymology in subject details and lessons
+  kanjiReadingTextToSpeechEnabled: boolean; // Make kanji reading chips speak their Japanese pronunciation
   myAnimeListUsername: string | null;
   aniListUsername: string | null;
   immersionKitAnimes: string[] | null;
@@ -649,6 +653,8 @@ type SettingsState = {
   // Update functions
   setLessonBatchSize: (size: number) => void;
   setDailyLessonLimit: (limit: number) => void;
+  setApprenticeLessonThreshold: (threshold: number) => void;
+  setGuruLessonThreshold: (threshold: number) => void;
   setLessonPickerViewMode: (mode: LessonPickerViewMode) => void;
   setSinglePageLessonView: (enabled: boolean) => void;
   setSkipCustomLessonQuiz: (enabled: boolean) => void;
@@ -720,6 +726,7 @@ type SettingsState = {
   setShowMnemonicIllustrations: (show: boolean) => void;
   setShowInlineRadicalReminders: (show: boolean) => void;
   setShowKanjiEtymology: (show: boolean) => void;
+  setKanjiReadingTextToSpeechEnabled: (enabled: boolean) => void;
   setMyAnimeListUsername: (username: string | null) => void;
   setAniListUsername: (username: string | null) => void;
   setImmersionKitAnimes: (animes: string[] | null) => void;
@@ -806,6 +813,8 @@ export const useSettingsStore = create<SettingsState>()(
       // Default settings
       lessonBatchSize: 5,
       dailyLessonLimit: 0, // 0 means no daily limit
+      apprenticeLessonThreshold: 0, // 0 means no Apprentice threshold
+      guruLessonThreshold: 0, // 0 means no Guru threshold
       lessonPickerViewMode: "cards", // Default to card grid selection in lesson picker
       singlePageLessonView: false, // Default to tab-based view
       skipCustomLessonQuiz: false, // Default to false - keep custom lesson review quiz enabled
@@ -875,6 +884,7 @@ export const useSettingsStore = create<SettingsState>()(
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
       showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
       showKanjiEtymology: false, // Default to disabled so etymology stays opt-in
+      kanjiReadingTextToSpeechEnabled: false, // Default to disabled so reading chips remain non-interactive
       myAnimeListUsername: null, // No MyAnimeList user configured by default
       aniListUsername: null, // No AniList user configured by default
       showBadgeNotifications: true, // Default to enabled
@@ -993,6 +1003,12 @@ export const useSettingsStore = create<SettingsState>()(
       // Update functions
       setLessonBatchSize: (size) => set({ lessonBatchSize: size }),
       setDailyLessonLimit: (limit) => set({ dailyLessonLimit: limit }),
+      setApprenticeLessonThreshold: (threshold) =>
+        set({
+          apprenticeLessonThreshold: normalizeLessonSrsThreshold(threshold),
+        }),
+      setGuruLessonThreshold: (threshold) =>
+        set({ guruLessonThreshold: normalizeLessonSrsThreshold(threshold) }),
       setLessonPickerViewMode: (mode) =>
         set({ lessonPickerViewMode: normalizeLessonPickerViewMode(mode) }),
       setSinglePageLessonView: (enabled) => set({ singlePageLessonView: enabled }),
@@ -1117,6 +1133,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShowInlineRadicalReminders: (show) =>
         set({ showInlineRadicalReminders: show }),
       setShowKanjiEtymology: (show) => set({ showKanjiEtymology: show }),
+      setKanjiReadingTextToSpeechEnabled: (enabled) =>
+        set({ kanjiReadingTextToSpeechEnabled: enabled }),
       setMyAnimeListUsername: (username) =>
         set({ myAnimeListUsername: username }),
       setAniListUsername: (username) =>
@@ -1318,6 +1336,7 @@ export const useSettingsStore = create<SettingsState>()(
           songsPlaybackSource?: unknown;
           spotifyAuthStatus?: unknown;
           spotifyDisplayName?: unknown;
+          kanjiReadingTextToSpeechEnabled?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1447,6 +1466,11 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (typeof migratedRecord.spotifyDisplayName !== "string") {
           migratedRecord.spotifyDisplayName = null;
+        }
+        if (
+          typeof migratedRecord.kanjiReadingTextToSpeechEnabled !== "boolean"
+        ) {
+          migratedRecord.kanjiReadingTextToSpeechEnabled = false;
         }
 
         return migrated;

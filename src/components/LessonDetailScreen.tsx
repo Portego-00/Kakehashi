@@ -64,6 +64,7 @@ import { SynonymsModal } from "./SynonymsModal";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
+import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
@@ -375,12 +376,68 @@ const SubjectContent = ({
     showStrokeOrder,
     showOnyomiInKatakana,
     showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
     visuallySimilarKanjiSource,
   } = useSettingsStore();
   const { userData } = useAuthStore();
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const styles = createStyles(theme, subjectColors);
+
+  const renderKanjiReadingBadge = (
+    reading: { reading: string; primary?: boolean },
+    key: string,
+    displayReading: string = reading.reading
+  ) => {
+    const badgeStyle = [
+      styles.readingBadge,
+      reading.primary && { backgroundColor: subjectTypeColor },
+    ];
+    const readingText = (
+      <Text
+        selectable
+        style={[
+          styles.readingBadgeText,
+          reading.primary && styles.primaryReadingBadgeText,
+          fontStyles.japaneseText,
+        ]}
+      >
+        {displayReading}
+      </Text>
+    );
+
+    if (!kanjiReadingTextToSpeechEnabled) {
+      return (
+        <View key={key} style={badgeStyle}>
+          {readingText}
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={key}
+        accessibilityRole="button"
+        accessibilityLabel={`Speak Japanese pronunciation ${displayReading}`}
+        accessibilityHint="Plays this kanji reading using your device voice"
+        activeOpacity={0.7}
+        onPress={() => {
+          void speakKanjiReading(reading.reading);
+        }}
+        style={badgeStyle}
+      >
+        <View style={styles.readingBadgeContent}>
+          {readingText}
+          <Ionicons
+            name="volume-high-outline"
+            size={14}
+            color={reading.primary ? "#fff" : theme.textSecondary}
+            style={styles.readingBadgeAudioIcon}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
   const [mediaSentences, setMediaSentences] = useState<ImmersionKitSentence[]>(
     []
   );
@@ -2571,29 +2628,15 @@ const SubjectContent = ({
                         <View style={styles.readingBadges}>
                           {subject.data.readings
                             .filter((r: any) => r.type === "onyomi")
-                            .map((r: any, idx: number) => (
-                              <View
-                                key={`on-${idx}`}
-                                style={[
-                                  styles.readingBadge,
-                                  r.primary && {
-                                    backgroundColor: subjectTypeColor,
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.readingBadgeText,
-                                    r.primary && styles.primaryReadingBadgeText,
-                                    fontStyles.japaneseText,
-                                  ]}
-                                >
-                                  {showOnyomiInKatakana
-                                    ? hiraganaToKata(r.reading)
-                                    : r.reading}
-                                </Text>
-                              </View>
-                            ))}
+                            .map((r: any, idx: number) =>
+                              renderKanjiReadingBadge(
+                                r,
+                                `on-${idx}`,
+                                showOnyomiInKatakana
+                                  ? hiraganaToKata(r.reading)
+                                  : r.reading
+                              )
+                            )}
                         </View>
                       </View>
                     )}
@@ -2607,27 +2650,23 @@ const SubjectContent = ({
                         <View style={styles.readingBadges}>
                           {subject.data.readings
                             .filter((r: any) => r.type === "kunyomi")
-                            .map((r: any, idx: number) => (
-                              <View
-                                key={`kun-${idx}`}
-                                style={[
-                                  styles.readingBadge,
-                                  r.primary && {
-                                    backgroundColor: subjectTypeColor,
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.readingBadgeText,
-                                    r.primary && styles.primaryReadingBadgeText,
-                                    fontStyles.japaneseText,
-                                  ]}
-                                >
-                                  {r.reading}
-                                </Text>
-                              </View>
-                            ))}
+                            .map((r: any, idx: number) =>
+                              renderKanjiReadingBadge(r, `kun-${idx}`)
+                            )}
+                        </View>
+                      </View>
+                    )}
+                    {subject.data.readings.filter(
+                      (r: any) => r.type === "nanori"
+                    ).length > 0 && (
+                      <View style={styles.readingsContainer}>
+                        <Text style={styles.readingTypeLabel}>Nanori:</Text>
+                        <View style={styles.readingBadges}>
+                          {subject.data.readings
+                            .filter((r: any) => r.type === "nanori")
+                            .map((r: any, idx: number) =>
+                              renderKanjiReadingBadge(r, `nanori-${idx}`)
+                            )}
                         </View>
                       </View>
                     )}
@@ -3275,30 +3314,15 @@ const SubjectContent = ({
                             <View style={styles.readingBadges}>
                               {subject.data.readings
                                 .filter((r: any) => r.type === "onyomi")
-                                .map((r: any, index: number) => (
-                                  <View
-                                    key={`on-${index}`}
-                                    style={[
-                                      styles.readingBadge,
-                                      r.primary && {
-                                        backgroundColor: subjectTypeColor,
-                                      },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.readingBadgeText,
-                                        r.primary &&
-                                          styles.primaryReadingBadgeText,
-                                        fontStyles.japaneseText,
-                                      ]}
-                                    >
-                                      {showOnyomiInKatakana
-                                        ? hiraganaToKata(r.reading)
-                                        : r.reading}
-                                    </Text>
-                                  </View>
-                                ))}
+                                .map((r: any, index: number) =>
+                                  renderKanjiReadingBadge(
+                                    r,
+                                    `on-${index}`,
+                                    showOnyomiInKatakana
+                                      ? hiraganaToKata(r.reading)
+                                      : r.reading
+                                  )
+                                )}
                             </View>
                           </View>
                         )}
@@ -3313,28 +3337,27 @@ const SubjectContent = ({
                             <View style={styles.readingBadges}>
                               {subject.data.readings
                                 .filter((r: any) => r.type === "kunyomi")
-                                .map((r: any, index: number) => (
-                                  <View
-                                    key={`kun-${index}`}
-                                    style={[
-                                      styles.readingBadge,
-                                      r.primary && {
-                                        backgroundColor: subjectTypeColor,
-                                      },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.readingBadgeText,
-                                        r.primary &&
-                                          styles.primaryReadingBadgeText,
-                                        fontStyles.japaneseText,
-                                      ]}
-                                    >
-                                      {r.reading}
-                                    </Text>
-                                  </View>
-                                ))}
+                                .map((r: any, index: number) =>
+                                  renderKanjiReadingBadge(r, `kun-${index}`)
+                                )}
+                            </View>
+                          </View>
+                        )}
+
+                        {subject.data.readings.filter(
+                          (r: any) => r.type === "nanori"
+                        ).length > 0 && (
+                          <View style={styles.readingsContainer}>
+                            <Text style={styles.readingTypeLabel}>Nanori:</Text>
+                            <View style={styles.readingBadges}>
+                              {subject.data.readings
+                                .filter((r: any) => r.type === "nanori")
+                                .map((r: any, index: number) =>
+                                  renderKanjiReadingBadge(
+                                    r,
+                                    `nanori-${index}`
+                                  )
+                                )}
                             </View>
                           </View>
                         )}
@@ -5908,6 +5931,13 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       paddingHorizontal: 12,
       paddingVertical: 6,
       margin: 4,
+    },
+    readingBadgeContent: {
+      alignItems: "center",
+      flexDirection: "row",
+    },
+    readingBadgeAudioIcon: {
+      marginLeft: 6,
     },
     readingBadgeText: {
       color: theme.textSecondary,

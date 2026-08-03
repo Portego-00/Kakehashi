@@ -24,6 +24,7 @@ import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
 import { SRS_COLORS } from "../constants/srsColors";
 import { hiraganaToKata } from "../utils/katakanaMadness";
+import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import {
   getMnemonicImageAsset,
   getMnemonicImageUrlFromDocument,
@@ -408,6 +409,7 @@ export default function KanjiDetails({
     showPitchAccent,
     showStrokeOrder,
     showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
   } = useSettingsStore();
   const subjectColors = useSubjectColors();
   const radicalColor = subjectColors.radical;
@@ -509,6 +511,64 @@ export default function KanjiDetails({
       ),
     [kanji.id, nanoriReadings]
   );
+
+  const renderReadingBadge = (
+    reading: { reading: string; primary?: boolean },
+    key: string,
+    displayReading: string = reading.reading
+  ) => {
+    const badgeStyle = [
+      styles.readingBadge,
+      {
+        backgroundColor: theme.isDark ? "#333" : "#f5f5f5",
+      },
+      reading.primary && styles.primaryReadingBadge,
+    ];
+    const readingText = (
+      <Text
+        selectable
+        style={[
+          styles.readingBadgeText,
+          { color: theme.textSecondary },
+          reading.primary && styles.primaryReadingBadgeText,
+        ]}
+      >
+        {displayReading}
+      </Text>
+    );
+
+    if (!kanjiReadingTextToSpeechEnabled) {
+      return (
+        <View key={key} style={badgeStyle}>
+          {readingText}
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={key}
+        accessibilityRole="button"
+        accessibilityLabel={`Speak Japanese pronunciation ${displayReading}`}
+        accessibilityHint="Plays this kanji reading using your device voice"
+        activeOpacity={0.7}
+        onPress={() => {
+          void speakKanjiReading(reading.reading);
+        }}
+        style={badgeStyle}
+      >
+        <View style={styles.readingBadgeContent}>
+          {readingText}
+          <Ionicons
+            name="volume-high-outline"
+            size={14}
+            color={reading.primary ? "#fff" : theme.textSecondary}
+            style={styles.readingBadgeAudioIcon}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   // SRS stage name lookup (if available)
   const srsName = (() => {
@@ -1046,32 +1106,15 @@ export default function KanjiDetails({
                       On&apos;yomi
                     </Text>
                     <View style={styles.readingValues}>
-                      {onyomiReadings.map((reading, index) => (
-                        <View
-                          key={`on-${index}`}
-                          style={[
-                            styles.readingBadge,
-                            {
-                              backgroundColor: theme.isDark
-                                ? "#333"
-                                : "#f5f5f5",
-                            },
-                            reading.primary && styles.primaryReadingBadge,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.readingBadgeText,
-                              { color: theme.textSecondary },
-                              reading.primary && styles.primaryReadingBadgeText,
-                            ]}
-                          >
-                            {showOnyomiInKatakana
-                              ? hiraganaToKata(reading.reading)
-                              : reading.reading}
-                          </Text>
-                        </View>
-                      ))}
+                      {onyomiReadings.map((reading, index) =>
+                        renderReadingBadge(
+                          reading,
+                          `on-${index}`,
+                          showOnyomiInKatakana
+                            ? hiraganaToKata(reading.reading)
+                            : reading.reading
+                        )
+                      )}
                     </View>
                     {renderReadingPitchAccentSwiper(
                       onyomiPitchAccentEntries,
@@ -1096,30 +1139,9 @@ export default function KanjiDetails({
                       Kun&apos;yomi
                     </Text>
                     <View style={styles.readingValues}>
-                      {kunyomiReadings.map((reading, index) => (
-                        <View
-                          key={`kun-${index}`}
-                          style={[
-                            styles.readingBadge,
-                            {
-                              backgroundColor: theme.isDark
-                                ? "#333"
-                                : "#f5f5f5",
-                            },
-                            reading.primary && styles.primaryReadingBadge,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.readingBadgeText,
-                              { color: theme.textSecondary },
-                              reading.primary && styles.primaryReadingBadgeText,
-                            ]}
-                          >
-                            {reading.reading}
-                          </Text>
-                        </View>
-                      ))}
+                      {kunyomiReadings.map((reading, index) =>
+                        renderReadingBadge(reading, `kun-${index}`)
+                      )}
                     </View>
                     {renderReadingPitchAccentSwiper(
                       kunyomiPitchAccentEntries,
@@ -1137,28 +1159,9 @@ export default function KanjiDetails({
                       Nanori
                     </Text>
                     <View style={styles.readingValues}>
-                      {nanoriReadings.map((reading, index) => (
-                        <View
-                          key={`nanori-${index}`}
-                          style={[
-                            styles.readingBadge,
-                            {
-                              backgroundColor: theme.isDark
-                                ? "#333"
-                                : "#f5f5f5",
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.readingBadgeText,
-                              { color: theme.textSecondary },
-                            ]}
-                          >
-                            {reading.reading}
-                          </Text>
-                        </View>
-                      ))}
+                      {nanoriReadings.map((reading, index) =>
+                        renderReadingBadge(reading, `nanori-${index}`)
+                      )}
                     </View>
                     {renderReadingPitchAccentSwiper(
                       nanoriPitchAccentEntries,
@@ -2459,6 +2462,13 @@ const createStyles = (subjectColors: SubjectColors) =>
     paddingHorizontal: 12,
     paddingVertical: 6,
     margin: 4,
+  },
+  readingBadgeContent: {
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  readingBadgeAudioIcon: {
+    marginLeft: 6,
   },
   primaryReadingBadge: {
     backgroundColor: subjectColors.kanji,
