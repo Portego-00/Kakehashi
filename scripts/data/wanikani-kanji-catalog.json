@@ -1,0 +1,8422 @@
+{
+  "generatedAt": "2026-07-27T20:11:06.983Z",
+  "source": "Official public WaniKani kanji level pages",
+  "sourceUrls": [
+    "https://www.wanikani.com/kanji?difficulty=pleasant",
+    "https://www.wanikani.com/kanji?difficulty=painful",
+    "https://www.wanikani.com/kanji?difficulty=death",
+    "https://www.wanikani.com/kanji?difficulty=hell",
+    "https://www.wanikani.com/kanji?difficulty=paradise",
+    "https://www.wanikani.com/kanji?difficulty=reality"
+  ],
+  "items": [
+    {
+      "character": "上",
+      "level": 1
+    },
+    {
+      "character": "下",
+      "level": 1
+    },
+    {
+      "character": "大",
+      "level": 1
+    },
+    {
+      "character": "工",
+      "level": 1
+    },
+    {
+      "character": "八",
+      "level": 1
+    },
+    {
+      "character": "入",
+      "level": 1
+    },
+    {
+      "character": "山",
+      "level": 1
+    },
+    {
+      "character": "口",
+      "level": 1
+    },
+    {
+      "character": "九",
+      "level": 1
+    },
+    {
+      "character": "一",
+      "level": 1
+    },
+    {
+      "character": "人",
+      "level": 1
+    },
+    {
+      "character": "力",
+      "level": 1
+    },
+    {
+      "character": "川",
+      "level": 1
+    },
+    {
+      "character": "七",
+      "level": 1
+    },
+    {
+      "character": "十",
+      "level": 1
+    },
+    {
+      "character": "三",
+      "level": 1
+    },
+    {
+      "character": "二",
+      "level": 1
+    },
+    {
+      "character": "女",
+      "level": 1
+    },
+    {
+      "character": "玉",
+      "level": 2
+    },
+    {
+      "character": "本",
+      "level": 2
+    },
+    {
+      "character": "子",
+      "level": 2
+    },
+    {
+      "character": "丸",
+      "level": 2
+    },
+    {
+      "character": "正",
+      "level": 2
+    },
+    {
+      "character": "土",
+      "level": 2
+    },
+    {
+      "character": "犬",
+      "level": 2
+    },
+    {
+      "character": "夕",
+      "level": 2
+    },
+    {
+      "character": "出",
+      "level": 2
+    },
+    {
+      "character": "目",
+      "level": 2
+    },
+    {
+      "character": "火",
+      "level": 2
+    },
+    {
+      "character": "五",
+      "level": 2
+    },
+    {
+      "character": "四",
+      "level": 2
+    },
+    {
+      "character": "手",
+      "level": 2
+    },
+    {
+      "character": "天",
+      "level": 2
+    },
+    {
+      "character": "王",
+      "level": 2
+    },
+    {
+      "character": "左",
+      "level": 2
+    },
+    {
+      "character": "中",
+      "level": 2
+    },
+    {
+      "character": "月",
+      "level": 2
+    },
+    {
+      "character": "々",
+      "level": 2
+    },
+    {
+      "character": "田",
+      "level": 2
+    },
+    {
+      "character": "右",
+      "level": 2
+    },
+    {
+      "character": "六",
+      "level": 2
+    },
+    {
+      "character": "小",
+      "level": 2
+    },
+    {
+      "character": "立",
+      "level": 2
+    },
+    {
+      "character": "丁",
+      "level": 2
+    },
+    {
+      "character": "日",
+      "level": 2
+    },
+    {
+      "character": "刀",
+      "level": 2
+    },
+    {
+      "character": "才",
+      "level": 2
+    },
+    {
+      "character": "千",
+      "level": 2
+    },
+    {
+      "character": "木",
+      "level": 2
+    },
+    {
+      "character": "水",
+      "level": 2
+    },
+    {
+      "character": "白",
+      "level": 2
+    },
+    {
+      "character": "文",
+      "level": 2
+    },
+    {
+      "character": "円",
+      "level": 2
+    },
+    {
+      "character": "矢",
+      "level": 3
+    },
+    {
+      "character": "明",
+      "level": 3
+    },
+    {
+      "character": "市",
+      "level": 3
+    },
+    {
+      "character": "牛",
+      "level": 3
+    },
+    {
+      "character": "切",
+      "level": 3
+    },
+    {
+      "character": "方",
+      "level": 3
+    },
+    {
+      "character": "戸",
+      "level": 3
+    },
+    {
+      "character": "太",
+      "level": 3
+    },
+    {
+      "character": "父",
+      "level": 3
+    },
+    {
+      "character": "少",
+      "level": 3
+    },
+    {
+      "character": "友",
+      "level": 3
+    },
+    {
+      "character": "毛",
+      "level": 3
+    },
+    {
+      "character": "半",
+      "level": 3
+    },
+    {
+      "character": "心",
+      "level": 3
+    },
+    {
+      "character": "字",
+      "level": 3
+    },
+    {
+      "character": "生",
+      "level": 3
+    },
+    {
+      "character": "台",
+      "level": 3
+    },
+    {
+      "character": "母",
+      "level": 3
+    },
+    {
+      "character": "午",
+      "level": 3
+    },
+    {
+      "character": "北",
+      "level": 3
+    },
+    {
+      "character": "今",
+      "level": 3
+    },
+    {
+      "character": "古",
+      "level": 3
+    },
+    {
+      "character": "外",
+      "level": 3
+    },
+    {
+      "character": "分",
+      "level": 3
+    },
+    {
+      "character": "引",
+      "level": 3
+    },
+    {
+      "character": "止",
+      "level": 3
+    },
+    {
+      "character": "用",
+      "level": 3
+    },
+    {
+      "character": "万",
+      "level": 3
+    },
+    {
+      "character": "広",
+      "level": 3
+    },
+    {
+      "character": "冬",
+      "level": 3
+    },
+    {
+      "character": "竹",
+      "level": 4
+    },
+    {
+      "character": "車",
+      "level": 4
+    },
+    {
+      "character": "央",
+      "level": 4
+    },
+    {
+      "character": "写",
+      "level": 4
+    },
+    {
+      "character": "仕",
+      "level": 4
+    },
+    {
+      "character": "耳",
+      "level": 4
+    },
+    {
+      "character": "早",
+      "level": 4
+    },
+    {
+      "character": "気",
+      "level": 4
+    },
+    {
+      "character": "平",
+      "level": 4
+    },
+    {
+      "character": "花",
+      "level": 4
+    },
+    {
+      "character": "足",
+      "level": 4
+    },
+    {
+      "character": "打",
+      "level": 4
+    },
+    {
+      "character": "穴",
+      "level": 4
+    },
+    {
+      "character": "百",
+      "level": 4
+    },
+    {
+      "character": "氷",
+      "level": 4
+    },
+    {
+      "character": "虫",
+      "level": 4
+    },
+    {
+      "character": "内",
+      "level": 4
+    },
+    {
+      "character": "男",
+      "level": 4
+    },
+    {
+      "character": "主",
+      "level": 4
+    },
+    {
+      "character": "名",
+      "level": 4
+    },
+    {
+      "character": "不",
+      "level": 4
+    },
+    {
+      "character": "号",
+      "level": 4
+    },
+    {
+      "character": "元",
+      "level": 4
+    },
+    {
+      "character": "他",
+      "level": 4
+    },
+    {
+      "character": "去",
+      "level": 4
+    },
+    {
+      "character": "皿",
+      "level": 4
+    },
+    {
+      "character": "先",
+      "level": 4
+    },
+    {
+      "character": "赤",
+      "level": 4
+    },
+    {
+      "character": "休",
+      "level": 4
+    },
+    {
+      "character": "申",
+      "level": 4
+    },
+    {
+      "character": "見",
+      "level": 4
+    },
+    {
+      "character": "貝",
+      "level": 4
+    },
+    {
+      "character": "石",
+      "level": 4
+    },
+    {
+      "character": "礼",
+      "level": 4
+    },
+    {
+      "character": "糸",
+      "level": 4
+    },
+    {
+      "character": "町",
+      "level": 4
+    },
+    {
+      "character": "宝",
+      "level": 4
+    },
+    {
+      "character": "村",
+      "level": 4
+    },
+    {
+      "character": "世",
+      "level": 4
+    },
+    {
+      "character": "年",
+      "level": 4
+    },
+    {
+      "character": "角",
+      "level": 5
+    },
+    {
+      "character": "斤",
+      "level": 5
+    },
+    {
+      "character": "青",
+      "level": 5
+    },
+    {
+      "character": "体",
+      "level": 5
+    },
+    {
+      "character": "色",
+      "level": 5
+    },
+    {
+      "character": "来",
+      "level": 5
+    },
+    {
+      "character": "社",
+      "level": 5
+    },
+    {
+      "character": "当",
+      "level": 5
+    },
+    {
+      "character": "図",
+      "level": 5
+    },
+    {
+      "character": "毎",
+      "level": 5
+    },
+    {
+      "character": "羽",
+      "level": 5
+    },
+    {
+      "character": "林",
+      "level": 5
+    },
+    {
+      "character": "行",
+      "level": 5
+    },
+    {
+      "character": "金",
+      "level": 5
+    },
+    {
+      "character": "草",
+      "level": 5
+    },
+    {
+      "character": "里",
+      "level": 5
+    },
+    {
+      "character": "光",
+      "level": 5
+    },
+    {
+      "character": "作",
+      "level": 5
+    },
+    {
+      "character": "多",
+      "level": 5
+    },
+    {
+      "character": "肉",
+      "level": 5
+    },
+    {
+      "character": "会",
+      "level": 5
+    },
+    {
+      "character": "交",
+      "level": 5
+    },
+    {
+      "character": "近",
+      "level": 5
+    },
+    {
+      "character": "夜",
+      "level": 5
+    },
+    {
+      "character": "兄",
+      "level": 5
+    },
+    {
+      "character": "豚",
+      "level": 5
+    },
+    {
+      "character": "雨",
+      "level": 5
+    },
+    {
+      "character": "米",
+      "level": 5
+    },
+    {
+      "character": "走",
+      "level": 5
+    },
+    {
+      "character": "同",
+      "level": 5
+    },
+    {
+      "character": "言",
+      "level": 5
+    },
+    {
+      "character": "自",
+      "level": 5
+    },
+    {
+      "character": "形",
+      "level": 5
+    },
+    {
+      "character": "皮",
+      "level": 5
+    },
+    {
+      "character": "空",
+      "level": 5
+    },
+    {
+      "character": "音",
+      "level": 5
+    },
+    {
+      "character": "学",
+      "level": 5
+    },
+    {
+      "character": "代",
+      "level": 5
+    },
+    {
+      "character": "考",
+      "level": 5
+    },
+    {
+      "character": "回",
+      "level": 5
+    },
+    {
+      "character": "谷",
+      "level": 5
+    },
+    {
+      "character": "声",
+      "level": 5
+    },
+    {
+      "character": "西",
+      "level": 5
+    },
+    {
+      "character": "何",
+      "level": 5
+    },
+    {
+      "character": "麦",
+      "level": 5
+    },
+    {
+      "character": "弟",
+      "level": 5
+    },
+    {
+      "character": "全",
+      "level": 6
+    },
+    {
+      "character": "後",
+      "level": 6
+    },
+    {
+      "character": "血",
+      "level": 6
+    },
+    {
+      "character": "両",
+      "level": 6
+    },
+    {
+      "character": "化",
+      "level": 6
+    },
+    {
+      "character": "国",
+      "level": 6
+    },
+    {
+      "character": "亡",
+      "level": 6
+    },
+    {
+      "character": "死",
+      "level": 6
+    },
+    {
+      "character": "地",
+      "level": 6
+    },
+    {
+      "character": "東",
+      "level": 6
+    },
+    {
+      "character": "食",
+      "level": 6
+    },
+    {
+      "character": "前",
+      "level": 6
+    },
+    {
+      "character": "有",
+      "level": 6
+    },
+    {
+      "character": "家",
+      "level": 6
+    },
+    {
+      "character": "私",
+      "level": 6
+    },
+    {
+      "character": "知",
+      "level": 6
+    },
+    {
+      "character": "活",
+      "level": 6
+    },
+    {
+      "character": "長",
+      "level": 6
+    },
+    {
+      "character": "曲",
+      "level": 6
+    },
+    {
+      "character": "首",
+      "level": 6
+    },
+    {
+      "character": "姉",
+      "level": 6
+    },
+    {
+      "character": "点",
+      "level": 6
+    },
+    {
+      "character": "安",
+      "level": 6
+    },
+    {
+      "character": "室",
+      "level": 6
+    },
+    {
+      "character": "科",
+      "level": 6
+    },
+    {
+      "character": "海",
+      "level": 6
+    },
+    {
+      "character": "羊",
+      "level": 6
+    },
+    {
+      "character": "店",
+      "level": 6
+    },
+    {
+      "character": "星",
+      "level": 6
+    },
+    {
+      "character": "州",
+      "level": 6
+    },
+    {
+      "character": "取",
+      "level": 6
+    },
+    {
+      "character": "茶",
+      "level": 6
+    },
+    {
+      "character": "思",
+      "level": 6
+    },
+    {
+      "character": "歩",
+      "level": 6
+    },
+    {
+      "character": "向",
+      "level": 6
+    },
+    {
+      "character": "妹",
+      "level": 6
+    },
+    {
+      "character": "辺",
+      "level": 7
+    },
+    {
+      "character": "付",
+      "level": 7
+    },
+    {
+      "character": "札",
+      "level": 7
+    },
+    {
+      "character": "鳥",
+      "level": 7
+    },
+    {
+      "character": "黒",
+      "level": 7
+    },
+    {
+      "character": "船",
+      "level": 7
+    },
+    {
+      "character": "必",
+      "level": 7
+    },
+    {
+      "character": "象",
+      "level": 7
+    },
+    {
+      "character": "末",
+      "level": 7
+    },
+    {
+      "character": "氏",
+      "level": 7
+    },
+    {
+      "character": "失",
+      "level": 7
+    },
+    {
+      "character": "魚",
+      "level": 7
+    },
+    {
+      "character": "床",
+      "level": 7
+    },
+    {
+      "character": "以",
+      "level": 7
+    },
+    {
+      "character": "組",
+      "level": 7
+    },
+    {
+      "character": "画",
+      "level": 7
+    },
+    {
+      "character": "欠",
+      "level": 7
+    },
+    {
+      "character": "未",
+      "level": 7
+    },
+    {
+      "character": "紙",
+      "level": 7
+    },
+    {
+      "character": "通",
+      "level": 7
+    },
+    {
+      "character": "民",
+      "level": 7
+    },
+    {
+      "character": "由",
+      "level": 7
+    },
+    {
+      "character": "理",
+      "level": 7
+    },
+    {
+      "character": "映",
+      "level": 7
+    },
+    {
+      "character": "校",
+      "level": 7
+    },
+    {
+      "character": "雪",
+      "level": 7
+    },
+    {
+      "character": "南",
+      "level": 7
+    },
+    {
+      "character": "強",
+      "level": 7
+    },
+    {
+      "character": "夏",
+      "level": 7
+    },
+    {
+      "character": "高",
+      "level": 7
+    },
+    {
+      "character": "教",
+      "level": 7
+    },
+    {
+      "character": "時",
+      "level": 7
+    },
+    {
+      "character": "弱",
+      "level": 7
+    },
+    {
+      "character": "週",
+      "level": 7
+    },
+    {
+      "character": "風",
+      "level": 7
+    },
+    {
+      "character": "記",
+      "level": 7
+    },
+    {
+      "character": "黄",
+      "level": 7
+    },
+    {
+      "character": "答",
+      "level": 8
+    },
+    {
+      "character": "反",
+      "level": 8
+    },
+    {
+      "character": "身",
+      "level": 8
+    },
+    {
+      "character": "君",
+      "level": 8
+    },
+    {
+      "character": "局",
+      "level": 8
+    },
+    {
+      "character": "買",
+      "level": 8
+    },
+    {
+      "character": "京",
+      "level": 8
+    },
+    {
+      "character": "雲",
+      "level": 8
+    },
+    {
+      "character": "楽",
+      "level": 8
+    },
+    {
+      "character": "数",
+      "level": 8
+    },
+    {
+      "character": "決",
+      "level": 8
+    },
+    {
+      "character": "住",
+      "level": 8
+    },
+    {
+      "character": "電",
+      "level": 8
+    },
+    {
+      "character": "森",
+      "level": 8
+    },
+    {
+      "character": "助",
+      "level": 8
+    },
+    {
+      "character": "馬",
+      "level": 8
+    },
+    {
+      "character": "間",
+      "level": 8
+    },
+    {
+      "character": "場",
+      "level": 8
+    },
+    {
+      "character": "医",
+      "level": 8
+    },
+    {
+      "character": "朝",
+      "level": 8
+    },
+    {
+      "character": "次",
+      "level": 8
+    },
+    {
+      "character": "番",
+      "level": 8
+    },
+    {
+      "character": "絵",
+      "level": 8
+    },
+    {
+      "character": "所",
+      "level": 8
+    },
+    {
+      "character": "池",
+      "level": 8
+    },
+    {
+      "character": "究",
+      "level": 8
+    },
+    {
+      "character": "道",
+      "level": 8
+    },
+    {
+      "character": "役",
+      "level": 8
+    },
+    {
+      "character": "研",
+      "level": 8
+    },
+    {
+      "character": "者",
+      "level": 8
+    },
+    {
+      "character": "支",
+      "level": 8
+    },
+    {
+      "character": "話",
+      "level": 8
+    },
+    {
+      "character": "投",
+      "level": 8
+    },
+    {
+      "character": "対",
+      "level": 8
+    },
+    {
+      "character": "受",
+      "level": 9
+    },
+    {
+      "character": "美",
+      "level": 9
+    },
+    {
+      "character": "予",
+      "level": 9
+    },
+    {
+      "character": "服",
+      "level": 9
+    },
+    {
+      "character": "比",
+      "level": 9
+    },
+    {
+      "character": "度",
+      "level": 9
+    },
+    {
+      "character": "発",
+      "level": 9
+    },
+    {
+      "character": "定",
+      "level": 9
+    },
+    {
+      "character": "表",
+      "level": 9
+    },
+    {
+      "character": "客",
+      "level": 9
+    },
+    {
+      "character": "重",
+      "level": 9
+    },
+    {
+      "character": "持",
+      "level": 9
+    },
+    {
+      "character": "像",
+      "level": 9
+    },
+    {
+      "character": "負",
+      "level": 9
+    },
+    {
+      "character": "相",
+      "level": 9
+    },
+    {
+      "character": "要",
+      "level": 9
+    },
+    {
+      "character": "新",
+      "level": 9
+    },
+    {
+      "character": "事",
+      "level": 9
+    },
+    {
+      "character": "部",
+      "level": 9
+    },
+    {
+      "character": "和",
+      "level": 9
+    },
+    {
+      "character": "県",
+      "level": 9
+    },
+    {
+      "character": "保",
+      "level": 9
+    },
+    {
+      "character": "返",
+      "level": 9
+    },
+    {
+      "character": "乗",
+      "level": 9
+    },
+    {
+      "character": "屋",
+      "level": 9
+    },
+    {
+      "character": "売",
+      "level": 9
+    },
+    {
+      "character": "送",
+      "level": 9
+    },
+    {
+      "character": "辛",
+      "level": 9
+    },
+    {
+      "character": "苦",
+      "level": 9
+    },
+    {
+      "character": "泳",
+      "level": 9
+    },
+    {
+      "character": "談",
+      "level": 9
+    },
+    {
+      "character": "仮",
+      "level": 9
+    },
+    {
+      "character": "験",
+      "level": 9
+    },
+    {
+      "character": "物",
+      "level": 9
+    },
+    {
+      "character": "具",
+      "level": 9
+    },
+    {
+      "character": "実",
+      "level": 9
+    },
+    {
+      "character": "試",
+      "level": 9
+    },
+    {
+      "character": "使",
+      "level": 9
+    },
+    {
+      "character": "勝",
+      "level": 9
+    },
+    {
+      "character": "界",
+      "level": 9
+    },
+    {
+      "character": "進",
+      "level": 10
+    },
+    {
+      "character": "酒",
+      "level": 10
+    },
+    {
+      "character": "始",
+      "level": 10
+    },
+    {
+      "character": "業",
+      "level": 10
+    },
+    {
+      "character": "算",
+      "level": 10
+    },
+    {
+      "character": "運",
+      "level": 10
+    },
+    {
+      "character": "漢",
+      "level": 10
+    },
+    {
+      "character": "鳴",
+      "level": 10
+    },
+    {
+      "character": "集",
+      "level": 10
+    },
+    {
+      "character": "配",
+      "level": 10
+    },
+    {
+      "character": "飲",
+      "level": 10
+    },
+    {
+      "character": "終",
+      "level": 10
+    },
+    {
+      "character": "顔",
+      "level": 10
+    },
+    {
+      "character": "落",
+      "level": 10
+    },
+    {
+      "character": "農",
+      "level": 10
+    },
+    {
+      "character": "速",
+      "level": 10
+    },
+    {
+      "character": "了",
+      "level": 10
+    },
+    {
+      "character": "頭",
+      "level": 10
+    },
+    {
+      "character": "聞",
+      "level": 10
+    },
+    {
+      "character": "院",
+      "level": 10
+    },
+    {
+      "character": "調",
+      "level": 10
+    },
+    {
+      "character": "鉄",
+      "level": 10
+    },
+    {
+      "character": "語",
+      "level": 10
+    },
+    {
+      "character": "葉",
+      "level": 10
+    },
+    {
+      "character": "習",
+      "level": 10
+    },
+    {
+      "character": "軽",
+      "level": 10
+    },
+    {
+      "character": "線",
+      "level": 10
+    },
+    {
+      "character": "最",
+      "level": 10
+    },
+    {
+      "character": "開",
+      "level": 10
+    },
+    {
+      "character": "頁",
+      "level": 10
+    },
+    {
+      "character": "親",
+      "level": 10
+    },
+    {
+      "character": "公",
+      "level": 10
+    },
+    {
+      "character": "読",
+      "level": 10
+    },
+    {
+      "character": "求",
+      "level": 10
+    },
+    {
+      "character": "転",
+      "level": 10
+    },
+    {
+      "character": "路",
+      "level": 10
+    },
+    {
+      "character": "病",
+      "level": 10
+    },
+    {
+      "character": "横",
+      "level": 10
+    },
+    {
+      "character": "解",
+      "level": 10
+    },
+    {
+      "character": "歌",
+      "level": 10
+    },
+    {
+      "character": "直",
+      "level": 10
+    },
+    {
+      "character": "起",
+      "level": 10
+    },
+    {
+      "character": "功",
+      "level": 11
+    },
+    {
+      "character": "成",
+      "level": 11
+    },
+    {
+      "character": "競",
+      "level": 11
+    },
+    {
+      "character": "争",
+      "level": 11
+    },
+    {
+      "character": "便",
+      "level": 11
+    },
+    {
+      "character": "老",
+      "level": 11
+    },
+    {
+      "character": "命",
+      "level": 11
+    },
+    {
+      "character": "指",
+      "level": 11
+    },
+    {
+      "character": "初",
+      "level": 11
+    },
+    {
+      "character": "味",
+      "level": 11
+    },
+    {
+      "character": "追",
+      "level": 11
+    },
+    {
+      "character": "神",
+      "level": 11
+    },
+    {
+      "character": "良",
+      "level": 11
+    },
+    {
+      "character": "意",
+      "level": 11
+    },
+    {
+      "character": "労",
+      "level": 11
+    },
+    {
+      "character": "級",
+      "level": 11
+    },
+    {
+      "character": "好",
+      "level": 11
+    },
+    {
+      "character": "昔",
+      "level": 11
+    },
+    {
+      "character": "低",
+      "level": 11
+    },
+    {
+      "character": "育",
+      "level": 11
+    },
+    {
+      "character": "令",
+      "level": 11
+    },
+    {
+      "character": "拾",
+      "level": 11
+    },
+    {
+      "character": "注",
+      "level": 11
+    },
+    {
+      "character": "利",
+      "level": 11
+    },
+    {
+      "character": "位",
+      "level": 11
+    },
+    {
+      "character": "仲",
+      "level": 11
+    },
+    {
+      "character": "放",
+      "level": 11
+    },
+    {
+      "character": "秒",
+      "level": 11
+    },
+    {
+      "character": "別",
+      "level": 11
+    },
+    {
+      "character": "岸",
+      "level": 11
+    },
+    {
+      "character": "特",
+      "level": 11
+    },
+    {
+      "character": "共",
+      "level": 11
+    },
+    {
+      "character": "努",
+      "level": 11
+    },
+    {
+      "character": "伝",
+      "level": 11
+    },
+    {
+      "character": "戦",
+      "level": 11
+    },
+    {
+      "character": "波",
+      "level": 11
+    },
+    {
+      "character": "洋",
+      "level": 11
+    },
+    {
+      "character": "誰",
+      "level": 11
+    },
+    {
+      "character": "働",
+      "level": 11
+    },
+    {
+      "character": "悪",
+      "level": 12
+    },
+    {
+      "character": "息",
+      "level": 12
+    },
+    {
+      "character": "章",
+      "level": 12
+    },
+    {
+      "character": "登",
+      "level": 12
+    },
+    {
+      "character": "寒",
+      "level": 12
+    },
+    {
+      "character": "深",
+      "level": 12
+    },
+    {
+      "character": "倍",
+      "level": 12
+    },
+    {
+      "character": "勉",
+      "level": 12
+    },
+    {
+      "character": "消",
+      "level": 12
+    },
+    {
+      "character": "祭",
+      "level": 12
+    },
+    {
+      "character": "野",
+      "level": 12
+    },
+    {
+      "character": "階",
+      "level": 12
+    },
+    {
+      "character": "庭",
+      "level": 12
+    },
+    {
+      "character": "港",
+      "level": 12
+    },
+    {
+      "character": "彼",
+      "level": 12
+    },
+    {
+      "character": "暑",
+      "level": 12
+    },
+    {
+      "character": "湯",
+      "level": 12
+    },
+    {
+      "character": "僕",
+      "level": 12
+    },
+    {
+      "character": "島",
+      "level": 12
+    },
+    {
+      "character": "童",
+      "level": 12
+    },
+    {
+      "character": "員",
+      "level": 12
+    },
+    {
+      "character": "商",
+      "level": 12
+    },
+    {
+      "character": "都",
+      "level": 12
+    },
+    {
+      "character": "動",
+      "level": 12
+    },
+    {
+      "character": "第",
+      "level": 12
+    },
+    {
+      "character": "期",
+      "level": 12
+    },
+    {
+      "character": "植",
+      "level": 12
+    },
+    {
+      "character": "根",
+      "level": 12
+    },
+    {
+      "character": "短",
+      "level": 12
+    },
+    {
+      "character": "球",
+      "level": 12
+    },
+    {
+      "character": "泉",
+      "level": 12
+    },
+    {
+      "character": "流",
+      "level": 12
+    },
+    {
+      "character": "合",
+      "level": 12
+    },
+    {
+      "character": "疲",
+      "level": 12
+    },
+    {
+      "character": "歯",
+      "level": 12
+    },
+    {
+      "character": "族",
+      "level": 12
+    },
+    {
+      "character": "旅",
+      "level": 12
+    },
+    {
+      "character": "待",
+      "level": 12
+    },
+    {
+      "character": "温",
+      "level": 12
+    },
+    {
+      "character": "着",
+      "level": 12
+    },
+    {
+      "character": "皆",
+      "level": 13
+    },
+    {
+      "character": "謝",
+      "level": 13
+    },
+    {
+      "character": "整",
+      "level": 13
+    },
+    {
+      "character": "橋",
+      "level": 13
+    },
+    {
+      "character": "缶",
+      "level": 13
+    },
+    {
+      "character": "選",
+      "level": 13
+    },
+    {
+      "character": "器",
+      "level": 13
+    },
+    {
+      "character": "暗",
+      "level": 13
+    },
+    {
+      "character": "疑",
+      "level": 13
+    },
+    {
+      "character": "料",
+      "level": 13
+    },
+    {
+      "character": "情",
+      "level": 13
+    },
+    {
+      "character": "感",
+      "level": 13
+    },
+    {
+      "character": "様",
+      "level": 13
+    },
+    {
+      "character": "養",
+      "level": 13
+    },
+    {
+      "character": "緑",
+      "level": 13
+    },
+    {
+      "character": "熱",
+      "level": 13
+    },
+    {
+      "character": "億",
+      "level": 13
+    },
+    {
+      "character": "俺",
+      "level": 13
+    },
+    {
+      "character": "想",
+      "level": 13
+    },
+    {
+      "character": "殺",
+      "level": 13
+    },
+    {
+      "character": "宿",
+      "level": 13
+    },
+    {
+      "character": "鏡",
+      "level": 13
+    },
+    {
+      "character": "然",
+      "level": 13
+    },
+    {
+      "character": "詩",
+      "level": 13
+    },
+    {
+      "character": "練",
+      "level": 13
+    },
+    {
+      "character": "賞",
+      "level": 13
+    },
+    {
+      "character": "問",
+      "level": 13
+    },
+    {
+      "character": "館",
+      "level": 13
+    },
+    {
+      "character": "士",
+      "level": 13
+    },
+    {
+      "character": "課",
+      "level": 13
+    },
+    {
+      "character": "標",
+      "level": 13
+    },
+    {
+      "character": "銀",
+      "level": 13
+    },
+    {
+      "character": "駅",
+      "level": 13
+    },
+    {
+      "character": "題",
+      "level": 13
+    },
+    {
+      "character": "輪",
+      "level": 13
+    },
+    {
+      "character": "能",
+      "level": 14
+    },
+    {
+      "character": "芸",
+      "level": 14
+    },
+    {
+      "character": "雰",
+      "level": 14
+    },
+    {
+      "character": "骨",
+      "level": 14
+    },
+    {
+      "character": "束",
+      "level": 14
+    },
+    {
+      "character": "周",
+      "level": 14
+    },
+    {
+      "character": "閉",
+      "level": 14
+    },
+    {
+      "character": "協",
+      "level": 14
+    },
+    {
+      "character": "例",
+      "level": 14
+    },
+    {
+      "character": "折",
+      "level": 14
+    },
+    {
+      "character": "基",
+      "level": 14
+    },
+    {
+      "character": "性",
+      "level": 14
+    },
+    {
+      "character": "妥",
+      "level": 14
+    },
+    {
+      "character": "卒",
+      "level": 14
+    },
+    {
+      "character": "固",
+      "level": 14
+    },
+    {
+      "character": "望",
+      "level": 14
+    },
+    {
+      "character": "材",
+      "level": 14
+    },
+    {
+      "character": "参",
+      "level": 14
+    },
+    {
+      "character": "完",
+      "level": 14
+    },
+    {
+      "character": "松",
+      "level": 14
+    },
+    {
+      "character": "約",
+      "level": 14
+    },
+    {
+      "character": "残",
+      "level": 14
+    },
+    {
+      "character": "願",
+      "level": 14
+    },
+    {
+      "character": "季",
+      "level": 14
+    },
+    {
+      "character": "格",
+      "level": 14
+    },
+    {
+      "character": "苺",
+      "level": 14
+    },
+    {
+      "character": "頑",
+      "level": 14
+    },
+    {
+      "character": "囲",
+      "level": 14
+    },
+    {
+      "character": "的",
+      "level": 14
+    },
+    {
+      "character": "念",
+      "level": 14
+    },
+    {
+      "character": "井",
+      "level": 14
+    },
+    {
+      "character": "希",
+      "level": 14
+    },
+    {
+      "character": "狼",
+      "level": 14
+    },
+    {
+      "character": "紀",
+      "level": 15
+    },
+    {
+      "character": "軍",
+      "level": 15
+    },
+    {
+      "character": "秋",
+      "level": 15
+    },
+    {
+      "character": "信",
+      "level": 15
+    },
+    {
+      "character": "岩",
+      "level": 15
+    },
+    {
+      "character": "仏",
+      "level": 15
+    },
+    {
+      "character": "猫",
+      "level": 15
+    },
+    {
+      "character": "変",
+      "level": 15
+    },
+    {
+      "character": "晴",
+      "level": 15
+    },
+    {
+      "character": "勇",
+      "level": 15
+    },
+    {
+      "character": "泣",
+      "level": 15
+    },
+    {
+      "character": "司",
+      "level": 15
+    },
+    {
+      "character": "区",
+      "level": 15
+    },
+    {
+      "character": "英",
+      "level": 15
+    },
+    {
+      "character": "丈",
+      "level": 15
+    },
+    {
+      "character": "夫",
+      "level": 15
+    },
+    {
+      "character": "舐",
+      "level": 15
+    },
+    {
+      "character": "福",
+      "level": 15
+    },
+    {
+      "character": "飯",
+      "level": 15
+    },
+    {
+      "character": "計",
+      "level": 15
+    },
+    {
+      "character": "法",
+      "level": 15
+    },
+    {
+      "character": "晩",
+      "level": 15
+    },
+    {
+      "character": "昼",
+      "level": 15
+    },
+    {
+      "character": "払",
+      "level": 15
+    },
+    {
+      "character": "毒",
+      "level": 15
+    },
+    {
+      "character": "昨",
+      "level": 15
+    },
+    {
+      "character": "帰",
+      "level": 15
+    },
+    {
+      "character": "式",
+      "level": 15
+    },
+    {
+      "character": "列",
+      "level": 15
+    },
+    {
+      "character": "浅",
+      "level": 15
+    },
+    {
+      "character": "単",
+      "level": 15
+    },
+    {
+      "character": "技",
+      "level": 15
+    },
+    {
+      "character": "坂",
+      "level": 15
+    },
+    {
+      "character": "匹",
+      "level": 15
+    },
+    {
+      "character": "春",
+      "level": 15
+    },
+    {
+      "character": "陽",
+      "level": 15
+    },
+    {
+      "character": "術",
+      "level": 15
+    },
+    {
+      "character": "寺",
+      "level": 15
+    },
+    {
+      "character": "浴",
+      "level": 16
+    },
+    {
+      "character": "箱",
+      "level": 16
+    },
+    {
+      "character": "係",
+      "level": 16
+    },
+    {
+      "character": "治",
+      "level": 16
+    },
+    {
+      "character": "危",
+      "level": 16
+    },
+    {
+      "character": "冒",
+      "level": 16
+    },
+    {
+      "character": "曜",
+      "level": 16
+    },
+    {
+      "character": "留",
+      "level": 16
+    },
+    {
+      "character": "弁",
+      "level": 16
+    },
+    {
+      "character": "証",
+      "level": 16
+    },
+    {
+      "character": "存",
+      "level": 16
+    },
+    {
+      "character": "面",
+      "level": 16
+    },
+    {
+      "character": "遠",
+      "level": 16
+    },
+    {
+      "character": "園",
+      "level": 16
+    },
+    {
+      "character": "門",
+      "level": 16
+    },
+    {
+      "character": "府",
+      "level": 16
+    },
+    {
+      "character": "幸",
+      "level": 16
+    },
+    {
+      "character": "急",
+      "level": 16
+    },
+    {
+      "character": "笑",
+      "level": 16
+    },
+    {
+      "character": "荷",
+      "level": 16
+    },
+    {
+      "character": "阪",
+      "level": 16
+    },
+    {
+      "character": "企",
+      "level": 16
+    },
+    {
+      "character": "政",
+      "level": 16
+    },
+    {
+      "character": "品",
+      "level": 16
+    },
+    {
+      "character": "守",
+      "level": 16
+    },
+    {
+      "character": "辞",
+      "level": 16
+    },
+    {
+      "character": "真",
+      "level": 16
+    },
+    {
+      "character": "関",
+      "level": 16
+    },
+    {
+      "character": "険",
+      "level": 16
+    },
+    {
+      "character": "典",
+      "level": 16
+    },
+    {
+      "character": "専",
+      "level": 16
+    },
+    {
+      "character": "冗",
+      "level": 16
+    },
+    {
+      "character": "書",
+      "level": 16
+    },
+    {
+      "character": "是",
+      "level": 17
+    },
+    {
+      "character": "結",
+      "level": 17
+    },
+    {
+      "character": "底",
+      "level": 17
+    },
+    {
+      "character": "因",
+      "level": 17
+    },
+    {
+      "character": "詳",
+      "level": 17
+    },
+    {
+      "character": "識",
+      "level": 17
+    },
+    {
+      "character": "劇",
+      "level": 17
+    },
+    {
+      "character": "干",
+      "level": 17
+    },
+    {
+      "character": "敗",
+      "level": 17
+    },
+    {
+      "character": "渉",
+      "level": 17
+    },
+    {
+      "character": "果",
+      "level": 17
+    },
+    {
+      "character": "官",
+      "level": 17
+    },
+    {
+      "character": "署",
+      "level": 17
+    },
+    {
+      "character": "察",
+      "level": 17
+    },
+    {
+      "character": "堂",
+      "level": 17
+    },
+    {
+      "character": "幻",
+      "level": 17
+    },
+    {
+      "character": "非",
+      "level": 17
+    },
+    {
+      "character": "愛",
+      "level": 17
+    },
+    {
+      "character": "薬",
+      "level": 17
+    },
+    {
+      "character": "覚",
+      "level": 17
+    },
+    {
+      "character": "常",
+      "level": 17
+    },
+    {
+      "character": "鼻",
+      "level": 17
+    },
+    {
+      "character": "無",
+      "level": 17
+    },
+    {
+      "character": "原",
+      "level": 17
+    },
+    {
+      "character": "喜",
+      "level": 17
+    },
+    {
+      "character": "恋",
+      "level": 17
+    },
+    {
+      "character": "悲",
+      "level": 17
+    },
+    {
+      "character": "塩",
+      "level": 17
+    },
+    {
+      "character": "席",
+      "level": 17
+    },
+    {
+      "character": "側",
+      "level": 17
+    },
+    {
+      "character": "兵",
+      "level": 17
+    },
+    {
+      "character": "説",
+      "level": 17
+    },
+    {
+      "character": "細",
+      "level": 17
+    },
+    {
+      "character": "梅",
+      "level": 17
+    },
+    {
+      "character": "警",
+      "level": 17
+    },
+    {
+      "character": "告",
+      "level": 18
+    },
+    {
+      "character": "達",
+      "level": 18
+    },
+    {
+      "character": "焼",
+      "level": 18
+    },
+    {
+      "character": "借",
+      "level": 18
+    },
+    {
+      "character": "弓",
+      "level": 18
+    },
+    {
+      "character": "脳",
+      "level": 18
+    },
+    {
+      "character": "飴",
+      "level": 18
+    },
+    {
+      "character": "胸",
+      "level": 18
+    },
+    {
+      "character": "繋",
+      "level": 18
+    },
+    {
+      "character": "喫",
+      "level": 18
+    },
+    {
+      "character": "等",
+      "level": 18
+    },
+    {
+      "character": "枚",
+      "level": 18
+    },
+    {
+      "character": "忘",
+      "level": 18
+    },
+    {
+      "character": "苛",
+      "level": 18
+    },
+    {
+      "character": "訓",
+      "level": 18
+    },
+    {
+      "character": "種",
+      "level": 18
+    },
+    {
+      "character": "報",
+      "level": 18
+    },
+    {
+      "character": "句",
+      "level": 18
+    },
+    {
+      "character": "許",
+      "level": 18
+    },
+    {
+      "character": "可",
+      "level": 18
+    },
+    {
+      "character": "僧",
+      "level": 18
+    },
+    {
+      "character": "禁",
+      "level": 18
+    },
+    {
+      "character": "静",
+      "level": 18
+    },
+    {
+      "character": "座",
+      "level": 18
+    },
+    {
+      "character": "煙",
+      "level": 18
+    },
+    {
+      "character": "汽",
+      "level": 18
+    },
+    {
+      "character": "叩",
+      "level": 18
+    },
+    {
+      "character": "喉",
+      "level": 18
+    },
+    {
+      "character": "類",
+      "level": 18
+    },
+    {
+      "character": "洗",
+      "level": 18
+    },
+    {
+      "character": "禅",
+      "level": 18
+    },
+    {
+      "character": "得",
+      "level": 19
+    },
+    {
+      "character": "加",
+      "level": 19
+    },
+    {
+      "character": "冊",
+      "level": 19
+    },
+    {
+      "character": "埋",
+      "level": 19
+    },
+    {
+      "character": "忙",
+      "level": 19
+    },
+    {
+      "character": "閥",
+      "level": 19
+    },
+    {
+      "character": "布",
+      "level": 19
+    },
+    {
+      "character": "歴",
+      "level": 19
+    },
+    {
+      "character": "続",
+      "level": 19
+    },
+    {
+      "character": "減",
+      "level": 19
+    },
+    {
+      "character": "易",
+      "level": 19
+    },
+    {
+      "character": "絡",
+      "level": 19
+    },
+    {
+      "character": "笛",
+      "level": 19
+    },
+    {
+      "character": "履",
+      "level": 19
+    },
+    {
+      "character": "容",
+      "level": 19
+    },
+    {
+      "character": "団",
+      "level": 19
+    },
+    {
+      "character": "史",
+      "level": 19
+    },
+    {
+      "character": "昆",
+      "level": 19
+    },
+    {
+      "character": "徒",
+      "level": 19
+    },
+    {
+      "character": "宙",
+      "level": 19
+    },
+    {
+      "character": "混",
+      "level": 19
+    },
+    {
+      "character": "善",
+      "level": 19
+    },
+    {
+      "character": "順",
+      "level": 19
+    },
+    {
+      "character": "宇",
+      "level": 19
+    },
+    {
+      "character": "詞",
+      "level": 19
+    },
+    {
+      "character": "芋",
+      "level": 19
+    },
+    {
+      "character": "改",
+      "level": 19
+    },
+    {
+      "character": "乱",
+      "level": 19
+    },
+    {
+      "character": "節",
+      "level": 19
+    },
+    {
+      "character": "連",
+      "level": 19
+    },
+    {
+      "character": "舌",
+      "level": 19
+    },
+    {
+      "character": "暴",
+      "level": 19
+    },
+    {
+      "character": "財",
+      "level": 19
+    },
+    {
+      "character": "若",
+      "level": 19
+    },
+    {
+      "character": "裕",
+      "level": 20
+    },
+    {
+      "character": "尻",
+      "level": 20
+    },
+    {
+      "character": "確",
+      "level": 20
+    },
+    {
+      "character": "械",
+      "level": 20
+    },
+    {
+      "character": "被",
+      "level": 20
+    },
+    {
+      "character": "犯",
+      "level": 20
+    },
+    {
+      "character": "害",
+      "level": 20
+    },
+    {
+      "character": "議",
+      "level": 20
+    },
+    {
+      "character": "難",
+      "level": 20
+    },
+    {
+      "character": "災",
+      "level": 20
+    },
+    {
+      "character": "嫌",
+      "level": 20
+    },
+    {
+      "character": "困",
+      "level": 20
+    },
+    {
+      "character": "夢",
+      "level": 20
+    },
+    {
+      "character": "震",
+      "level": 20
+    },
+    {
+      "character": "在",
+      "level": 20
+    },
+    {
+      "character": "飛",
+      "level": 20
+    },
+    {
+      "character": "産",
+      "level": 20
+    },
+    {
+      "character": "罪",
+      "level": 20
+    },
+    {
+      "character": "個",
+      "level": 20
+    },
+    {
+      "character": "機",
+      "level": 20
+    },
+    {
+      "character": "倒",
+      "level": 20
+    },
+    {
+      "character": "経",
+      "level": 20
+    },
+    {
+      "character": "率",
+      "level": 20
+    },
+    {
+      "character": "圧",
+      "level": 20
+    },
+    {
+      "character": "防",
+      "level": 20
+    },
+    {
+      "character": "刺",
+      "level": 20
+    },
+    {
+      "character": "臭",
+      "level": 20
+    },
+    {
+      "character": "余",
+      "level": 20
+    },
+    {
+      "character": "尾",
+      "level": 20
+    },
+    {
+      "character": "論",
+      "level": 20
+    },
+    {
+      "character": "厚",
+      "level": 20
+    },
+    {
+      "character": "妻",
+      "level": 20
+    },
+    {
+      "character": "責",
+      "level": 21
+    },
+    {
+      "character": "建",
+      "level": 21
+    },
+    {
+      "character": "条",
+      "level": 21
+    },
+    {
+      "character": "済",
+      "level": 21
+    },
+    {
+      "character": "叶",
+      "level": 21
+    },
+    {
+      "character": "委",
+      "level": 21
+    },
+    {
+      "character": "省",
+      "level": 21
+    },
+    {
+      "character": "制",
+      "level": 21
+    },
+    {
+      "character": "批",
+      "level": 21
+    },
+    {
+      "character": "断",
+      "level": 21
+    },
+    {
+      "character": "任",
+      "level": 21
+    },
+    {
+      "character": "素",
+      "level": 21
+    },
+    {
+      "character": "敵",
+      "level": 21
+    },
+    {
+      "character": "羨",
+      "level": 21
+    },
+    {
+      "character": "設",
+      "level": 21
+    },
+    {
+      "character": "検",
+      "level": 21
+    },
+    {
+      "character": "餌",
+      "level": 21
+    },
+    {
+      "character": "岡",
+      "level": 21
+    },
+    {
+      "character": "増",
+      "level": 21
+    },
+    {
+      "character": "査",
+      "level": 21
+    },
+    {
+      "character": "判",
+      "level": 21
+    },
+    {
+      "character": "件",
+      "level": 21
+    },
+    {
+      "character": "際",
+      "level": 21
+    },
+    {
+      "character": "祈",
+      "level": 21
+    },
+    {
+      "character": "挙",
+      "level": 21
+    },
+    {
+      "character": "貰",
+      "level": 21
+    },
+    {
+      "character": "認",
+      "level": 21
+    },
+    {
+      "character": "資",
+      "level": 21
+    },
+    {
+      "character": "義",
+      "level": 21
+    },
+    {
+      "character": "権",
+      "level": 21
+    },
+    {
+      "character": "派",
+      "level": 21
+    },
+    {
+      "character": "務",
+      "level": 21
+    },
+    {
+      "character": "税",
+      "level": 21
+    },
+    {
+      "character": "総",
+      "level": 21
+    },
+    {
+      "character": "援",
+      "level": 22
+    },
+    {
+      "character": "態",
+      "level": 22
+    },
+    {
+      "character": "誕",
+      "level": 22
+    },
+    {
+      "character": "衣",
+      "level": 22
+    },
+    {
+      "character": "状",
+      "level": 22
+    },
+    {
+      "character": "賀",
+      "level": 22
+    },
+    {
+      "character": "築",
+      "level": 22
+    },
+    {
+      "character": "降",
+      "level": 22
+    },
+    {
+      "character": "各",
+      "level": 22
+    },
+    {
+      "character": "評",
+      "level": 22
+    },
+    {
+      "character": "費",
+      "level": 22
+    },
+    {
+      "character": "姿",
+      "level": 22
+    },
+    {
+      "character": "勢",
+      "level": 22
+    },
+    {
+      "character": "諦",
+      "level": 22
+    },
+    {
+      "character": "示",
+      "level": 22
+    },
+    {
+      "character": "寝",
+      "level": 22
+    },
+    {
+      "character": "営",
+      "level": 22
+    },
+    {
+      "character": "坊",
+      "level": 22
+    },
+    {
+      "character": "罰",
+      "level": 22
+    },
+    {
+      "character": "策",
+      "level": 22
+    },
+    {
+      "character": "案",
+      "level": 22
+    },
+    {
+      "character": "提",
+      "level": 22
+    },
+    {
+      "character": "置",
+      "level": 22
+    },
+    {
+      "character": "域",
+      "level": 22
+    },
+    {
+      "character": "更",
+      "level": 22
+    },
+    {
+      "character": "応",
+      "level": 22
+    },
+    {
+      "character": "宮",
+      "level": 22
+    },
+    {
+      "character": "袖",
+      "level": 22
+    },
+    {
+      "character": "吸",
+      "level": 22
+    },
+    {
+      "character": "過",
+      "level": 22
+    },
+    {
+      "character": "領",
+      "level": 22
+    },
+    {
+      "character": "脱",
+      "level": 22
+    },
+    {
+      "character": "統",
+      "level": 22
+    },
+    {
+      "character": "価",
+      "level": 22
+    },
+    {
+      "character": "値",
+      "level": 22
+    },
+    {
+      "character": "副",
+      "level": 22
+    },
+    {
+      "character": "観",
+      "level": 22
+    },
+    {
+      "character": "藤",
+      "level": 22
+    },
+    {
+      "character": "演",
+      "level": 23
+    },
+    {
+      "character": "呼",
+      "level": 23
+    },
+    {
+      "character": "崎",
+      "level": 23
+    },
+    {
+      "character": "施",
+      "level": 23
+    },
+    {
+      "character": "城",
+      "level": 23
+    },
+    {
+      "character": "護",
+      "level": 23
+    },
+    {
+      "character": "鬼",
+      "level": 23
+    },
+    {
+      "character": "割",
+      "level": 23
+    },
+    {
+      "character": "効",
+      "level": 23
+    },
+    {
+      "character": "職",
+      "level": 23
+    },
+    {
+      "character": "秀",
+      "level": 23
+    },
+    {
+      "character": "贅",
+      "level": 23
+    },
+    {
+      "character": "俳",
+      "level": 23
+    },
+    {
+      "character": "停",
+      "level": 23
+    },
+    {
+      "character": "宅",
+      "level": 23
+    },
+    {
+      "character": "痒",
+      "level": 23
+    },
+    {
+      "character": "裁",
+      "level": 23
+    },
+    {
+      "character": "律",
+      "level": 23
+    },
+    {
+      "character": "導",
+      "level": 23
+    },
+    {
+      "character": "革",
+      "level": 23
+    },
+    {
+      "character": "乳",
+      "level": 23
+    },
+    {
+      "character": "収",
+      "level": 23
+    },
+    {
+      "character": "痛",
+      "level": 23
+    },
+    {
+      "character": "現",
+      "level": 23
+    },
+    {
+      "character": "備",
+      "level": 23
+    },
+    {
+      "character": "紫",
+      "level": 23
+    },
+    {
+      "character": "則",
+      "level": 23
+    },
+    {
+      "character": "棚",
+      "level": 23
+    },
+    {
+      "character": "突",
+      "level": 23
+    },
+    {
+      "character": "準",
+      "level": 23
+    },
+    {
+      "character": "張",
+      "level": 23
+    },
+    {
+      "character": "優",
+      "level": 23
+    },
+    {
+      "character": "沢",
+      "level": 23
+    },
+    {
+      "character": "師",
+      "level": 23
+    },
+    {
+      "character": "幹",
+      "level": 23
+    },
+    {
+      "character": "看",
+      "level": 23
+    },
+    {
+      "character": "庁",
+      "level": 24
+    },
+    {
+      "character": "額",
+      "level": 24
+    },
+    {
+      "character": "腕",
+      "level": 24
+    },
+    {
+      "character": "腹",
+      "level": 24
+    },
+    {
+      "character": "境",
+      "level": 24
+    },
+    {
+      "character": "燃",
+      "level": 24
+    },
+    {
+      "character": "担",
+      "level": 24
+    },
+    {
+      "character": "祝",
+      "level": 24
+    },
+    {
+      "character": "届",
+      "level": 24
+    },
+    {
+      "character": "違",
+      "level": 24
+    },
+    {
+      "character": "差",
+      "level": 24
+    },
+    {
+      "character": "展",
+      "level": 24
+    },
+    {
+      "character": "審",
+      "level": 24
+    },
+    {
+      "character": "層",
+      "level": 24
+    },
+    {
+      "character": "視",
+      "level": 24
+    },
+    {
+      "character": "環",
+      "level": 24
+    },
+    {
+      "character": "製",
+      "level": 24
+    },
+    {
+      "character": "述",
+      "level": 24
+    },
+    {
+      "character": "武",
+      "level": 24
+    },
+    {
+      "character": "型",
+      "level": 24
+    },
+    {
+      "character": "狭",
+      "level": 24
+    },
+    {
+      "character": "供",
+      "level": 24
+    },
+    {
+      "character": "管",
+      "level": 24
+    },
+    {
+      "character": "載",
+      "level": 24
+    },
+    {
+      "character": "質",
+      "level": 24
+    },
+    {
+      "character": "量",
+      "level": 24
+    },
+    {
+      "character": "販",
+      "level": 24
+    },
+    {
+      "character": "肩",
+      "level": 24
+    },
+    {
+      "character": "規",
+      "level": 24
+    },
+    {
+      "character": "株",
+      "level": 24
+    },
+    {
+      "character": "触",
+      "level": 24
+    },
+    {
+      "character": "輸",
+      "level": 24
+    },
+    {
+      "character": "腰",
+      "level": 24
+    },
+    {
+      "character": "慣",
+      "level": 25
+    },
+    {
+      "character": "居",
+      "level": 25
+    },
+    {
+      "character": "逮",
+      "level": 25
+    },
+    {
+      "character": "票",
+      "level": 25
+    },
+    {
+      "character": "属",
+      "level": 25
+    },
+    {
+      "character": "捕",
+      "level": 25
+    },
+    {
+      "character": "候",
+      "level": 25
+    },
+    {
+      "character": "輩",
+      "level": 25
+    },
+    {
+      "character": "況",
+      "level": 25
+    },
+    {
+      "character": "涼",
+      "level": 25
+    },
+    {
+      "character": "響",
+      "level": 25
+    },
+    {
+      "character": "莫",
+      "level": 25
+    },
+    {
+      "character": "絶",
+      "level": 25
+    },
+    {
+      "character": "鮮",
+      "level": 25
+    },
+    {
+      "character": "満",
+      "level": 25
+    },
+    {
+      "character": "与",
+      "level": 25
+    },
+    {
+      "character": "掛",
+      "level": 25
+    },
+    {
+      "character": "隠",
+      "level": 25
+    },
+    {
+      "character": "模",
+      "level": 25
+    },
+    {
+      "character": "含",
+      "level": 25
+    },
+    {
+      "character": "訟",
+      "level": 25
+    },
+    {
+      "character": "限",
+      "level": 25
+    },
+    {
+      "character": "肥",
+      "level": 25
+    },
+    {
+      "character": "豊",
+      "level": 25
+    },
+    {
+      "character": "栄",
+      "level": 25
+    },
+    {
+      "character": "抜",
+      "level": 25
+    },
+    {
+      "character": "替",
+      "level": 25
+    },
+    {
+      "character": "給",
+      "level": 25
+    },
+    {
+      "character": "景",
+      "level": 25
+    },
+    {
+      "character": "巻",
+      "level": 25
+    },
+    {
+      "character": "捜",
+      "level": 25
+    },
+    {
+      "character": "構",
+      "level": 25
+    },
+    {
+      "character": "影",
+      "level": 25
+    },
+    {
+      "character": "絞",
+      "level": 25
+    },
+    {
+      "character": "訴",
+      "level": 25
+    },
+    {
+      "character": "補",
+      "level": 25
+    },
+    {
+      "character": "渡",
+      "level": 25
+    },
+    {
+      "character": "接",
+      "level": 26
+    },
+    {
+      "character": "再",
+      "level": 26
+    },
+    {
+      "character": "独",
+      "level": 26
+    },
+    {
+      "character": "獣",
+      "level": 26
+    },
+    {
+      "character": "菓",
+      "level": 26
+    },
+    {
+      "character": "討",
+      "level": 26
+    },
+    {
+      "character": "故",
+      "level": 26
+    },
+    {
+      "character": "較",
+      "level": 26
+    },
+    {
+      "character": "造",
+      "level": 26
+    },
+    {
+      "character": "創",
+      "level": 26
+    },
+    {
+      "character": "垂",
+      "level": 26
+    },
+    {
+      "character": "励",
+      "level": 26
+    },
+    {
+      "character": "激",
+      "level": 26
+    },
+    {
+      "character": "占",
+      "level": 26
+    },
+    {
+      "character": "障",
+      "level": 26
+    },
+    {
+      "character": "我",
+      "level": 26
+    },
+    {
+      "character": "徴",
+      "level": 26
+    },
+    {
+      "character": "授",
+      "level": 26
+    },
+    {
+      "character": "往",
+      "level": 26
+    },
+    {
+      "character": "鉛",
+      "level": 26
+    },
+    {
+      "character": "郵",
+      "level": 26
+    },
+    {
+      "character": "針",
+      "level": 26
+    },
+    {
+      "character": "従",
+      "level": 26
+    },
+    {
+      "character": "復",
+      "level": 26
+    },
+    {
+      "character": "河",
+      "level": 26
+    },
+    {
+      "character": "貯",
+      "level": 26
+    },
+    {
+      "character": "印",
+      "level": 26
+    },
+    {
+      "character": "振",
+      "level": 26
+    },
+    {
+      "character": "挫",
+      "level": 26
+    },
+    {
+      "character": "怪",
+      "level": 26
+    },
+    {
+      "character": "汗",
+      "level": 26
+    },
+    {
+      "character": "捻",
+      "level": 26
+    },
+    {
+      "character": "拭",
+      "level": 26
+    },
+    {
+      "character": "筆",
+      "level": 26
+    },
+    {
+      "character": "怒",
+      "level": 27
+    },
+    {
+      "character": "昇",
+      "level": 27
+    },
+    {
+      "character": "迷",
+      "level": 27
+    },
+    {
+      "character": "招",
+      "level": 27
+    },
+    {
+      "character": "濃",
+      "level": 27
+    },
+    {
+      "character": "睡",
+      "level": 27
+    },
+    {
+      "character": "康",
+      "level": 27
+    },
+    {
+      "character": "端",
+      "level": 27
+    },
+    {
+      "character": "極",
+      "level": 27
+    },
+    {
+      "character": "就",
+      "level": 27
+    },
+    {
+      "character": "郎",
+      "level": 27
+    },
+    {
+      "character": "健",
+      "level": 27
+    },
+    {
+      "character": "誘",
+      "level": 27
+    },
+    {
+      "character": "貸",
+      "level": 27
+    },
+    {
+      "character": "憧",
+      "level": 27
+    },
+    {
+      "character": "惑",
+      "level": 27
+    },
+    {
+      "character": "退",
+      "level": 27
+    },
+    {
+      "character": "途",
+      "level": 27
+    },
+    {
+      "character": "靴",
+      "level": 27
+    },
+    {
+      "character": "眠",
+      "level": 27
+    },
+    {
+      "character": "暇",
+      "level": 27
+    },
+    {
+      "character": "段",
+      "level": 27
+    },
+    {
+      "character": "症",
+      "level": 27
+    },
+    {
+      "character": "締",
+      "level": 27
+    },
+    {
+      "character": "迫",
+      "level": 27
+    },
+    {
+      "character": "訪",
+      "level": 27
+    },
+    {
+      "character": "織",
+      "level": 27
+    },
+    {
+      "character": "悩",
+      "level": 27
+    },
+    {
+      "character": "屈",
+      "level": 27
+    },
+    {
+      "character": "攻",
+      "level": 28
+    },
+    {
+      "character": "撃",
+      "level": 28
+    },
+    {
+      "character": "浜",
+      "level": 28
+    },
+    {
+      "character": "綺",
+      "level": 28
+    },
+    {
+      "character": "益",
+      "level": 28
+    },
+    {
+      "character": "沼",
+      "level": 28
+    },
+    {
+      "character": "児",
+      "level": 28
+    },
+    {
+      "character": "揃",
+      "level": 28
+    },
+    {
+      "character": "憲",
+      "level": 28
+    },
+    {
+      "character": "冷",
+      "level": 28
+    },
+    {
+      "character": "処",
+      "level": 28
+    },
+    {
+      "character": "微",
+      "level": 28
+    },
+    {
+      "character": "博",
+      "level": 28
+    },
+    {
+      "character": "程",
+      "level": 28
+    },
+    {
+      "character": "凍",
+      "level": 28
+    },
+    {
+      "character": "巨",
+      "level": 28
+    },
+    {
+      "character": "稚",
+      "level": 28
+    },
+    {
+      "character": "幼",
+      "level": 28
+    },
+    {
+      "character": "婦",
+      "level": 28
+    },
+    {
+      "character": "並",
+      "level": 28
+    },
+    {
+      "character": "麗",
+      "level": 28
+    },
+    {
+      "character": "修",
+      "level": 28
+    },
+    {
+      "character": "奇",
+      "level": 28
+    },
+    {
+      "character": "妙",
+      "level": 28
+    },
+    {
+      "character": "衆",
+      "level": 28
+    },
+    {
+      "character": "潔",
+      "level": 28
+    },
+    {
+      "character": "清",
+      "level": 28
+    },
+    {
+      "character": "録",
+      "level": 28
+    },
+    {
+      "character": "逆",
+      "level": 28
+    },
+    {
+      "character": "移",
+      "level": 28
+    },
+    {
+      "character": "精",
+      "level": 28
+    },
+    {
+      "character": "隊",
+      "level": 28
+    },
+    {
+      "character": "庫",
+      "level": 28
+    },
+    {
+      "character": "券",
+      "level": 28
+    },
+    {
+      "character": "傘",
+      "level": 28
+    },
+    {
+      "character": "略",
+      "level": 29
+    },
+    {
+      "character": "積",
+      "level": 29
+    },
+    {
+      "character": "添",
+      "level": 29
+    },
+    {
+      "character": "宴",
+      "level": 29
+    },
+    {
+      "character": "板",
+      "level": 29
+    },
+    {
+      "character": "壊",
+      "level": 29
+    },
+    {
+      "character": "僚",
+      "level": 29
+    },
+    {
+      "character": "杯",
+      "level": 29
+    },
+    {
+      "character": "娘",
+      "level": 29
+    },
+    {
+      "character": "診",
+      "level": 29
+    },
+    {
+      "character": "督",
+      "level": 29
+    },
+    {
+      "character": "寄",
+      "level": 29
+    },
+    {
+      "character": "乾",
+      "level": 29
+    },
+    {
+      "character": "欧",
+      "level": 29
+    },
+    {
+      "character": "恐",
+      "level": 29
+    },
+    {
+      "character": "猛",
+      "level": 29
+    },
+    {
+      "character": "江",
+      "level": 29
+    },
+    {
+      "character": "韓",
+      "level": 29
+    },
+    {
+      "character": "雄",
+      "level": 29
+    },
+    {
+      "character": "玄",
+      "level": 29
+    },
+    {
+      "character": "航",
+      "level": 29
+    },
+    {
+      "character": "監",
+      "level": 29
+    },
+    {
+      "character": "勧",
+      "level": 29
+    },
+    {
+      "character": "宗",
+      "level": 29
+    },
+    {
+      "character": "請",
+      "level": 29
+    },
+    {
+      "character": "怖",
+      "level": 29
+    },
+    {
+      "character": "索",
+      "level": 29
+    },
+    {
+      "character": "臣",
+      "level": 29
+    },
+    {
+      "character": "催",
+      "level": 29
+    },
+    {
+      "character": "街",
+      "level": 29
+    },
+    {
+      "character": "詰",
+      "level": 29
+    },
+    {
+      "character": "緊",
+      "level": 29
+    },
+    {
+      "character": "閣",
+      "level": 29
+    },
+    {
+      "character": "促",
+      "level": 29
+    },
+    {
+      "character": "烈",
+      "level": 29
+    },
+    {
+      "character": "魅",
+      "level": 30
+    },
+    {
+      "character": "背",
+      "level": 30
+    },
+    {
+      "character": "騒",
+      "level": 30
+    },
+    {
+      "character": "飾",
+      "level": 30
+    },
+    {
+      "character": "預",
+      "level": 30
+    },
+    {
+      "character": "渇",
+      "level": 30
+    },
+    {
+      "character": "版",
+      "level": 30
+    },
+    {
+      "character": "柵",
+      "level": 30
+    },
+    {
+      "character": "旗",
+      "level": 30
+    },
+    {
+      "character": "浮",
+      "level": 30
+    },
+    {
+      "character": "越",
+      "level": 30
+    },
+    {
+      "character": "照",
+      "level": 30
+    },
+    {
+      "character": "灯",
+      "level": 30
+    },
+    {
+      "character": "漏",
+      "level": 30
+    },
+    {
+      "character": "系",
+      "level": 30
+    },
+    {
+      "character": "覧",
+      "level": 30
+    },
+    {
+      "character": "婚",
+      "level": 30
+    },
+    {
+      "character": "姪",
+      "level": 30
+    },
+    {
+      "character": "懐",
+      "level": 30
+    },
+    {
+      "character": "撮",
+      "level": 30
+    },
+    {
+      "character": "枕",
+      "level": 30
+    },
+    {
+      "character": "遊",
+      "level": 30
+    },
+    {
+      "character": "快",
+      "level": 30
+    },
+    {
+      "character": "貧",
+      "level": 30
+    },
+    {
+      "character": "延",
+      "level": 30
+    },
+    {
+      "character": "購",
+      "level": 30
+    },
+    {
+      "character": "押",
+      "level": 30
+    },
+    {
+      "character": "乏",
+      "level": 30
+    },
+    {
+      "character": "匂",
+      "level": 30
+    },
+    {
+      "character": "盗",
+      "level": 30
+    },
+    {
+      "character": "適",
+      "level": 30
+    },
+    {
+      "character": "翌",
+      "level": 30
+    },
+    {
+      "character": "符",
+      "level": 30
+    },
+    {
+      "character": "濡",
+      "level": 30
+    },
+    {
+      "character": "帯",
+      "level": 31
+    },
+    {
+      "character": "廊",
+      "level": 31
+    },
+    {
+      "character": "離",
+      "level": 31
+    },
+    {
+      "character": "径",
+      "level": 31
+    },
+    {
+      "character": "融",
+      "level": 31
+    },
+    {
+      "character": "均",
+      "level": 31
+    },
+    {
+      "character": "豪",
+      "level": 31
+    },
+    {
+      "character": "除",
+      "level": 31
+    },
+    {
+      "character": "貨",
+      "level": 31
+    },
+    {
+      "character": "孫",
+      "level": 31
+    },
+    {
+      "character": "墓",
+      "level": 31
+    },
+    {
+      "character": "幾",
+      "level": 31
+    },
+    {
+      "character": "尋",
+      "level": 31
+    },
+    {
+      "character": "編",
+      "level": 31
+    },
+    {
+      "character": "陸",
+      "level": 31
+    },
+    {
+      "character": "探",
+      "level": 31
+    },
+    {
+      "character": "鑑",
+      "level": 31
+    },
+    {
+      "character": "泥",
+      "level": 31
+    },
+    {
+      "character": "巣",
+      "level": 31
+    },
+    {
+      "character": "普",
+      "level": 31
+    },
+    {
+      "character": "妨",
+      "level": 31
+    },
+    {
+      "character": "棒",
+      "level": 31
+    },
+    {
+      "character": "粉",
+      "level": 31
+    },
+    {
+      "character": "既",
+      "level": 31
+    },
+    {
+      "character": "救",
+      "level": 31
+    },
+    {
+      "character": "似",
+      "level": 31
+    },
+    {
+      "character": "富",
+      "level": 31
+    },
+    {
+      "character": "散",
+      "level": 31
+    },
+    {
+      "character": "華",
+      "level": 31
+    },
+    {
+      "character": "嘆",
+      "level": 31
+    },
+    {
+      "character": "偵",
+      "level": 31
+    },
+    {
+      "character": "胃",
+      "level": 31
+    },
+    {
+      "character": "驚",
+      "level": 31
+    },
+    {
+      "character": "掃",
+      "level": 31
+    },
+    {
+      "character": "菜",
+      "level": 31
+    },
+    {
+      "character": "脈",
+      "level": 31
+    },
+    {
+      "character": "徳",
+      "level": 31
+    },
+    {
+      "character": "倉",
+      "level": 31
+    },
+    {
+      "character": "績",
+      "level": 32
+    },
+    {
+      "character": "酸",
+      "level": 32
+    },
+    {
+      "character": "賛",
+      "level": 32
+    },
+    {
+      "character": "祖",
+      "level": 32
+    },
+    {
+      "character": "銭",
+      "level": 32
+    },
+    {
+      "character": "衛",
+      "level": 32
+    },
+    {
+      "character": "机",
+      "level": 32
+    },
+    {
+      "character": "汚",
+      "level": 32
+    },
+    {
+      "character": "飼",
+      "level": 32
+    },
+    {
+      "character": "複",
+      "level": 32
+    },
+    {
+      "character": "染",
+      "level": 32
+    },
+    {
+      "character": "卵",
+      "level": 32
+    },
+    {
+      "character": "永",
+      "level": 32
+    },
+    {
+      "character": "眼",
+      "level": 32
+    },
+    {
+      "character": "液",
+      "level": 32
+    },
+    {
+      "character": "採",
+      "level": 32
+    },
+    {
+      "character": "志",
+      "level": 32
+    },
+    {
+      "character": "興",
+      "level": 32
+    },
+    {
+      "character": "込",
+      "level": 32
+    },
+    {
+      "character": "恩",
+      "level": 32
+    },
+    {
+      "character": "久",
+      "level": 32
+    },
+    {
+      "character": "党",
+      "level": 32
+    },
+    {
+      "character": "序",
+      "level": 32
+    },
+    {
+      "character": "雑",
+      "level": 32
+    },
+    {
+      "character": "桜",
+      "level": 32
+    },
+    {
+      "character": "密",
+      "level": 32
+    },
+    {
+      "character": "秘",
+      "level": 32
+    },
+    {
+      "character": "厳",
+      "level": 32
+    },
+    {
+      "character": "捨",
+      "level": 32
+    },
+    {
+      "character": "訳",
+      "level": 32
+    },
+    {
+      "character": "騙",
+      "level": 32
+    },
+    {
+      "character": "欲",
+      "level": 32
+    },
+    {
+      "character": "暖",
+      "level": 32
+    },
+    {
+      "character": "迎",
+      "level": 32
+    },
+    {
+      "character": "傷",
+      "level": 32
+    },
+    {
+      "character": "灰",
+      "level": 33
+    },
+    {
+      "character": "装",
+      "level": 33
+    },
+    {
+      "character": "著",
+      "level": 33
+    },
+    {
+      "character": "裏",
+      "level": 33
+    },
+    {
+      "character": "股",
+      "level": 33
+    },
+    {
+      "character": "異",
+      "level": 33
+    },
+    {
+      "character": "皇",
+      "level": 33
+    },
+    {
+      "character": "拡",
+      "level": 33
+    },
+    {
+      "character": "屁",
+      "level": 33
+    },
+    {
+      "character": "暮",
+      "level": 33
+    },
+    {
+      "character": "忠",
+      "level": 33
+    },
+    {
+      "character": "肺",
+      "level": 33
+    },
+    {
+      "character": "誌",
+      "level": 33
+    },
+    {
+      "character": "儲",
+      "level": 33
+    },
+    {
+      "character": "操",
+      "level": 33
+    },
+    {
+      "character": "筋",
+      "level": 33
+    },
+    {
+      "character": "甥",
+      "level": 33
+    },
+    {
+      "character": "否",
+      "level": 33
+    },
+    {
+      "character": "盛",
+      "level": 33
+    },
+    {
+      "character": "宣",
+      "level": 33
+    },
+    {
+      "character": "賃",
+      "level": 33
+    },
+    {
+      "character": "敬",
+      "level": 33
+    },
+    {
+      "character": "尊",
+      "level": 33
+    },
+    {
+      "character": "熟",
+      "level": 33
+    },
+    {
+      "character": "噂",
+      "level": 33
+    },
+    {
+      "character": "砂",
+      "level": 33
+    },
+    {
+      "character": "簡",
+      "level": 33
+    },
+    {
+      "character": "僅",
+      "level": 33
+    },
+    {
+      "character": "蒸",
+      "level": 33
+    },
+    {
+      "character": "蔵",
+      "level": 33
+    },
+    {
+      "character": "糖",
+      "level": 33
+    },
+    {
+      "character": "納",
+      "level": 33
+    },
+    {
+      "character": "諸",
+      "level": 33
+    },
+    {
+      "character": "窓",
+      "level": 33
+    },
+    {
+      "character": "豆",
+      "level": 34
+    },
+    {
+      "character": "枝",
+      "level": 34
+    },
+    {
+      "character": "揮",
+      "level": 34
+    },
+    {
+      "character": "刻",
+      "level": 34
+    },
+    {
+      "character": "爪",
+      "level": 34
+    },
+    {
+      "character": "承",
+      "level": 34
+    },
+    {
+      "character": "咳",
+      "level": 34
+    },
+    {
+      "character": "幕",
+      "level": 34
+    },
+    {
+      "character": "紅",
+      "level": 34
+    },
+    {
+      "character": "歓",
+      "level": 34
+    },
+    {
+      "character": "奴",
+      "level": 34
+    },
+    {
+      "character": "聖",
+      "level": 34
+    },
+    {
+      "character": "推",
+      "level": 34
+    },
+    {
+      "character": "臓",
+      "level": 34
+    },
+    {
+      "character": "損",
+      "level": 34
+    },
+    {
+      "character": "磁",
+      "level": 34
+    },
+    {
+      "character": "誤",
+      "level": 34
+    },
+    {
+      "character": "源",
+      "level": 34
+    },
+    {
+      "character": "純",
+      "level": 34
+    },
+    {
+      "character": "薦",
+      "level": 34
+    },
+    {
+      "character": "丼",
+      "level": 34
+    },
+    {
+      "character": "腐",
+      "level": 34
+    },
+    {
+      "character": "沿",
+      "level": 34
+    },
+    {
+      "character": "射",
+      "level": 34
+    },
+    {
+      "character": "縮",
+      "level": 34
+    },
+    {
+      "character": "隷",
+      "level": 34
+    },
+    {
+      "character": "粋",
+      "level": 34
+    },
+    {
+      "character": "痩",
+      "level": 34
+    },
+    {
+      "character": "吐",
+      "level": 34
+    },
+    {
+      "character": "貴",
+      "level": 34
+    },
+    {
+      "character": "縦",
+      "level": 34
+    },
+    {
+      "character": "勤",
+      "level": 34
+    },
+    {
+      "character": "拝",
+      "level": 34
+    },
+    {
+      "character": "熊",
+      "level": 35
+    },
+    {
+      "character": "噌",
+      "level": 35
+    },
+    {
+      "character": "彫",
+      "level": 35
+    },
+    {
+      "character": "捉",
+      "level": 35
+    },
+    {
+      "character": "杉",
+      "level": 35
+    },
+    {
+      "character": "喋",
+      "level": 35
+    },
+    {
+      "character": "鍋",
+      "level": 35
+    },
+    {
+      "character": "銅",
+      "level": 35
+    },
+    {
+      "character": "舎",
+      "level": 35
+    },
+    {
+      "character": "潰",
+      "level": 35
+    },
+    {
+      "character": "漠",
+      "level": 35
+    },
+    {
+      "character": "酔",
+      "level": 35
+    },
+    {
+      "character": "炎",
+      "level": 35
+    },
+    {
+      "character": "軒",
+      "level": 35
+    },
+    {
+      "character": "紹",
+      "level": 35
+    },
+    {
+      "character": "介",
+      "level": 35
+    },
+    {
+      "character": "湖",
+      "level": 35
+    },
+    {
+      "character": "講",
+      "level": 35
+    },
+    {
+      "character": "寿",
+      "level": 35
+    },
+    {
+      "character": "測",
+      "level": 35
+    },
+    {
+      "character": "厄",
+      "level": 35
+    },
+    {
+      "character": "互",
+      "level": 35
+    },
+    {
+      "character": "油",
+      "level": 35
+    },
+    {
+      "character": "己",
+      "level": 35
+    },
+    {
+      "character": "獄",
+      "level": 35
+    },
+    {
+      "character": "戚",
+      "level": 35
+    },
+    {
+      "character": "為",
+      "level": 35
+    },
+    {
+      "character": "唾",
+      "level": 35
+    },
+    {
+      "character": "恥",
+      "level": 35
+    },
+    {
+      "character": "遅",
+      "level": 35
+    },
+    {
+      "character": "汁",
+      "level": 35
+    },
+    {
+      "character": "醤",
+      "level": 35
+    },
+    {
+      "character": "滞",
+      "level": 35
+    },
+    {
+      "character": "剣",
+      "level": 35
+    },
+    {
+      "character": "破",
+      "level": 35
+    },
+    {
+      "character": "涙",
+      "level": 35
+    },
+    {
+      "character": "亀",
+      "level": 35
+    },
+    {
+      "character": "酢",
+      "level": 35
+    },
+    {
+      "character": "諾",
+      "level": 36
+    },
+    {
+      "character": "盟",
+      "level": 36
+    },
+    {
+      "character": "将",
+      "level": 36
+    },
+    {
+      "character": "舞",
+      "level": 36
+    },
+    {
+      "character": "債",
+      "level": 36
+    },
+    {
+      "character": "伎",
+      "level": 36
+    },
+    {
+      "character": "鹿",
+      "level": 36
+    },
+    {
+      "character": "換",
+      "level": 36
+    },
+    {
+      "character": "姓",
+      "level": 36
+    },
+    {
+      "character": "牙",
+      "level": 36
+    },
+    {
+      "character": "旧",
+      "level": 36
+    },
+    {
+      "character": "炒",
+      "level": 36
+    },
+    {
+      "character": "般",
+      "level": 36
+    },
+    {
+      "character": "津",
+      "level": 36
+    },
+    {
+      "character": "療",
+      "level": 36
+    },
+    {
+      "character": "継",
+      "level": 36
+    },
+    {
+      "character": "遺",
+      "level": 36
+    },
+    {
+      "character": "維",
+      "level": 36
+    },
+    {
+      "character": "奈",
+      "level": 36
+    },
+    {
+      "character": "核",
+      "level": 36
+    },
+    {
+      "character": "廃",
+      "level": 36
+    },
+    {
+      "character": "献",
+      "level": 36
+    },
+    {
+      "character": "沖",
+      "level": 36
+    },
+    {
+      "character": "漬",
+      "level": 36
+    },
+    {
+      "character": "摘",
+      "level": 36
+    },
+    {
+      "character": "及",
+      "level": 36
+    },
+    {
+      "character": "依",
+      "level": 36
+    },
+    {
+      "character": "縄",
+      "level": 36
+    },
+    {
+      "character": "鮭",
+      "level": 36
+    },
+    {
+      "character": "踏",
+      "level": 36
+    },
+    {
+      "character": "伸",
+      "level": 36
+    },
+    {
+      "character": "甘",
+      "level": 36
+    },
+    {
+      "character": "貿",
+      "level": 36
+    },
+    {
+      "character": "頼",
+      "level": 36
+    },
+    {
+      "character": "超",
+      "level": 36
+    },
+    {
+      "character": "叔",
+      "level": 36
+    },
+    {
+      "character": "湧",
+      "level": 36
+    },
+    {
+      "character": "幅",
+      "level": 36
+    },
+    {
+      "character": "患",
+      "level": 37
+    },
+    {
+      "character": "狙",
+      "level": 37
+    },
+    {
+      "character": "陣",
+      "level": 37
+    },
+    {
+      "character": "塁",
+      "level": 37
+    },
+    {
+      "character": "弾",
+      "level": 37
+    },
+    {
+      "character": "葬",
+      "level": 37
+    },
+    {
+      "character": "抗",
+      "level": 37
+    },
+    {
+      "character": "崩",
+      "level": 37
+    },
+    {
+      "character": "遣",
+      "level": 37
+    },
+    {
+      "character": "掲",
+      "level": 37
+    },
+    {
+      "character": "爆",
+      "level": 37
+    },
+    {
+      "character": "眉",
+      "level": 37
+    },
+    {
+      "character": "恵",
+      "level": 37
+    },
+    {
+      "character": "闘",
+      "level": 37
+    },
+    {
+      "character": "漁",
+      "level": 37
+    },
+    {
+      "character": "香",
+      "level": 37
+    },
+    {
+      "character": "湾",
+      "level": 37
+    },
+    {
+      "character": "跳",
+      "level": 37
+    },
+    {
+      "character": "抱",
+      "level": 37
+    },
+    {
+      "character": "旬",
+      "level": 37
+    },
+    {
+      "character": "聴",
+      "level": 37
+    },
+    {
+      "character": "臨",
+      "level": 37
+    },
+    {
+      "character": "兆",
+      "level": 37
+    },
+    {
+      "character": "契",
+      "level": 37
+    },
+    {
+      "character": "刑",
+      "level": 37
+    },
+    {
+      "character": "募",
+      "level": 37
+    },
+    {
+      "character": "償",
+      "level": 37
+    },
+    {
+      "character": "抵",
+      "level": 37
+    },
+    {
+      "character": "戻",
+      "level": 37
+    },
+    {
+      "character": "昭",
+      "level": 37
+    },
+    {
+      "character": "絹",
+      "level": 37
+    },
+    {
+      "character": "串",
+      "level": 37
+    },
+    {
+      "character": "執",
+      "level": 37
+    },
+    {
+      "character": "跡",
+      "level": 37
+    },
+    {
+      "character": "削",
+      "level": 37
+    },
+    {
+      "character": "伴",
+      "level": 38
+    },
+    {
+      "character": "齢",
+      "level": 38
+    },
+    {
+      "character": "鞄",
+      "level": 38
+    },
+    {
+      "character": "宜",
+      "level": 38
+    },
+    {
+      "character": "噛",
+      "level": 38
+    },
+    {
+      "character": "賄",
+      "level": 38
+    },
+    {
+      "character": "賂",
+      "level": 38
+    },
+    {
+      "character": "房",
+      "level": 38
+    },
+    {
+      "character": "慮",
+      "level": 38
+    },
+    {
+      "character": "託",
+      "level": 38
+    },
+    {
+      "character": "却",
+      "level": 38
+    },
+    {
+      "character": "緒",
+      "level": 38
+    },
+    {
+      "character": "需",
+      "level": 38
+    },
+    {
+      "character": "璧",
+      "level": 38
+    },
+    {
+      "character": "致",
+      "level": 38
+    },
+    {
+      "character": "避",
+      "level": 38
+    },
+    {
+      "character": "描",
+      "level": 38
+    },
+    {
+      "character": "刊",
+      "level": 38
+    },
+    {
+      "character": "逃",
+      "level": 38
+    },
+    {
+      "character": "扱",
+      "level": 38
+    },
+    {
+      "character": "奥",
+      "level": 38
+    },
+    {
+      "character": "併",
+      "level": 38
+    },
+    {
+      "character": "膝",
+      "level": 38
+    },
+    {
+      "character": "傾",
+      "level": 38
+    },
+    {
+      "character": "緩",
+      "level": 38
+    },
+    {
+      "character": "覗",
+      "level": 38
+    },
+    {
+      "character": "奏",
+      "level": 38
+    },
+    {
+      "character": "娠",
+      "level": 38
+    },
+    {
+      "character": "妊",
+      "level": 38
+    },
+    {
+      "character": "贈",
+      "level": 38
+    },
+    {
+      "character": "択",
+      "level": 38
+    },
+    {
+      "character": "還",
+      "level": 38
+    },
+    {
+      "character": "繰",
+      "level": 38
+    },
+    {
+      "character": "抑",
+      "level": 38
+    },
+    {
+      "character": "懸",
+      "level": 38
+    },
+    {
+      "character": "称",
+      "level": 38
+    },
+    {
+      "character": "盤",
+      "level": 38
+    },
+    {
+      "character": "控",
+      "level": 39
+    },
+    {
+      "character": "宛",
+      "level": 39
+    },
+    {
+      "character": "充",
+      "level": 39
+    },
+    {
+      "character": "渋",
+      "level": 39
+    },
+    {
+      "character": "岐",
+      "level": 39
+    },
+    {
+      "character": "鈴",
+      "level": 39
+    },
+    {
+      "character": "埼",
+      "level": 39
+    },
+    {
+      "character": "囚",
+      "level": 39
+    },
+    {
+      "character": "譲",
+      "level": 39
+    },
+    {
+      "character": "雇",
+      "level": 39
+    },
+    {
+      "character": "免",
+      "level": 39
+    },
+    {
+      "character": "群",
+      "level": 39
+    },
+    {
+      "character": "枠",
+      "level": 39
+    },
+    {
+      "character": "銃",
+      "level": 39
+    },
+    {
+      "character": "仙",
+      "level": 39
+    },
+    {
+      "character": "邦",
+      "level": 39
+    },
+    {
+      "character": "御",
+      "level": 39
+    },
+    {
+      "character": "慎",
+      "level": 39
+    },
+    {
+      "character": "棋",
+      "level": 39
+    },
+    {
+      "character": "躍",
+      "level": 39
+    },
+    {
+      "character": "謙",
+      "level": 39
+    },
+    {
+      "character": "阜",
+      "level": 39
+    },
+    {
+      "character": "片",
+      "level": 39
+    },
+    {
+      "character": "項",
+      "level": 39
+    },
+    {
+      "character": "斐",
+      "level": 39
+    },
+    {
+      "character": "隆",
+      "level": 39
+    },
+    {
+      "character": "圏",
+      "level": 39
+    },
+    {
+      "character": "拒",
+      "level": 39
+    },
+    {
+      "character": "稲",
+      "level": 39
+    },
+    {
+      "character": "奪",
+      "level": 39
+    },
+    {
+      "character": "鋼",
+      "level": 39
+    },
+    {
+      "character": "腫",
+      "level": 39
+    },
+    {
+      "character": "甲",
+      "level": 39
+    },
+    {
+      "character": "虚",
+      "level": 39
+    },
+    {
+      "character": "壁",
+      "level": 39
+    },
+    {
+      "character": "祉",
+      "level": 39
+    },
+    {
+      "character": "拉",
+      "level": 40
+    },
+    {
+      "character": "敏",
+      "level": 40
+    },
+    {
+      "character": "吹",
+      "level": 40
+    },
+    {
+      "character": "唱",
+      "level": 40
+    },
+    {
+      "character": "衝",
+      "level": 40
+    },
+    {
+      "character": "戒",
+      "level": 40
+    },
+    {
+      "character": "兼",
+      "level": 40
+    },
+    {
+      "character": "薄",
+      "level": 40
+    },
+    {
+      "character": "堀",
+      "level": 40
+    },
+    {
+      "character": "剤",
+      "level": 40
+    },
+    {
+      "character": "雅",
+      "level": 40
+    },
+    {
+      "character": "排",
+      "level": 40
+    },
+    {
+      "character": "孝",
+      "level": 40
+    },
+    {
+      "character": "頻",
+      "level": 40
+    },
+    {
+      "character": "駆",
+      "level": 40
+    },
+    {
+      "character": "俊",
+      "level": 40
+    },
+    {
+      "character": "嬉",
+      "level": 40
+    },
+    {
+      "character": "誉",
+      "level": 40
+    },
+    {
+      "character": "茂",
+      "level": 40
+    },
+    {
+      "character": "殿",
+      "level": 40
+    },
+    {
+      "character": "殖",
+      "level": 40
+    },
+    {
+      "character": "隣",
+      "level": 40
+    },
+    {
+      "character": "麺",
+      "level": 40
+    },
+    {
+      "character": "繁",
+      "level": 40
+    },
+    {
+      "character": "巡",
+      "level": 40
+    },
+    {
+      "character": "柱",
+      "level": 40
+    },
+    {
+      "character": "携",
+      "level": 40
+    },
+    {
+      "character": "褒",
+      "level": 40
+    },
+    {
+      "character": "駐",
+      "level": 40
+    },
+    {
+      "character": "顧",
+      "level": 40
+    },
+    {
+      "character": "犠",
+      "level": 40
+    },
+    {
+      "character": "獲",
+      "level": 40
+    },
+    {
+      "character": "鋭",
+      "level": 40
+    },
+    {
+      "character": "敷",
+      "level": 40
+    },
+    {
+      "character": "妖",
+      "level": 40
+    },
+    {
+      "character": "透",
+      "level": 40
+    },
+    {
+      "character": "棄",
+      "level": 41
+    },
+    {
+      "character": "凄",
+      "level": 41
+    },
+    {
+      "character": "至",
+      "level": 41
+    },
+    {
+      "character": "拠",
+      "level": 41
+    },
+    {
+      "character": "蜂",
+      "level": 41
+    },
+    {
+      "character": "儀",
+      "level": 41
+    },
+    {
+      "character": "炭",
+      "level": 41
+    },
+    {
+      "character": "潜",
+      "level": 41
+    },
+    {
+      "character": "偽",
+      "level": 41
+    },
+    {
+      "character": "畑",
+      "level": 41
+    },
+    {
+      "character": "蛍",
+      "level": 41
+    },
+    {
+      "character": "拳",
+      "level": 41
+    },
+    {
+      "character": "酎",
+      "level": 41
+    },
+    {
+      "character": "郷",
+      "level": 41
+    },
+    {
+      "character": "蜜",
+      "level": 41
+    },
+    {
+      "character": "仁",
+      "level": 41
+    },
+    {
+      "character": "遜",
+      "level": 41
+    },
+    {
+      "character": "伺",
+      "level": 41
+    },
+    {
+      "character": "侵",
+      "level": 41
+    },
+    {
+      "character": "嘘",
+      "level": 41
+    },
+    {
+      "character": "鉱",
+      "level": 41
+    },
+    {
+      "character": "喧",
+      "level": 41
+    },
+    {
+      "character": "徹",
+      "level": 41
+    },
+    {
+      "character": "瀬",
+      "level": 41
+    },
+    {
+      "character": "嘩",
+      "level": 41
+    },
+    {
+      "character": "墟",
+      "level": 41
+    },
+    {
+      "character": "措",
+      "level": 41
+    },
+    {
+      "character": "誠",
+      "level": 41
+    },
+    {
+      "character": "虎",
+      "level": 41
+    },
+    {
+      "character": "艦",
+      "level": 41
+    },
+    {
+      "character": "撤",
+      "level": 41
+    },
+    {
+      "character": "樹",
+      "level": 41
+    },
+    {
+      "character": "包",
+      "level": 41
+    },
+    {
+      "character": "析",
+      "level": 42
+    },
+    {
+      "character": "弧",
+      "level": 42
+    },
+    {
+      "character": "到",
+      "level": 42
+    },
+    {
+      "character": "軸",
+      "level": 42
+    },
+    {
+      "character": "賑",
+      "level": 42
+    },
+    {
+      "character": "挑",
+      "level": 42
+    },
+    {
+      "character": "焦",
+      "level": 42
+    },
+    {
+      "character": "掘",
+      "level": 42
+    },
+    {
+      "character": "紛",
+      "level": 42
+    },
+    {
+      "character": "範",
+      "level": 42
+    },
+    {
+      "character": "括",
+      "level": 42
+    },
+    {
+      "character": "握",
+      "level": 42
+    },
+    {
+      "character": "枢",
+      "level": 42
+    },
+    {
+      "character": "揚",
+      "level": 42
+    },
+    {
+      "character": "潟",
+      "level": 42
+    },
+    {
+      "character": "芝",
+      "level": 42
+    },
+    {
+      "character": "肝",
+      "level": 42
+    },
+    {
+      "character": "餅",
+      "level": 42
+    },
+    {
+      "character": "喪",
+      "level": 42
+    },
+    {
+      "character": "網",
+      "level": 42
+    },
+    {
+      "character": "克",
+      "level": 42
+    },
+    {
+      "character": "泊",
+      "level": 42
+    },
+    {
+      "character": "双",
+      "level": 42
+    },
+    {
+      "character": "柄",
+      "level": 42
+    },
+    {
+      "character": "哲",
+      "level": 42
+    },
+    {
+      "character": "斎",
+      "level": 42
+    },
+    {
+      "character": "綱",
+      "level": 42
+    },
+    {
+      "character": "袋",
+      "level": 42
+    },
+    {
+      "character": "揺",
+      "level": 42
+    },
+    {
+      "character": "滑",
+      "level": 42
+    },
+    {
+      "character": "堅",
+      "level": 42
+    },
+    {
+      "character": "暫",
+      "level": 42
+    },
+    {
+      "character": "糾",
+      "level": 42
+    },
+    {
+      "character": "荒",
+      "level": 42
+    },
+    {
+      "character": "襲",
+      "level": 43
+    },
+    {
+      "character": "惹",
+      "level": 43
+    },
+    {
+      "character": "朗",
+      "level": 43
+    },
+    {
+      "character": "摩",
+      "level": 43
+    },
+    {
+      "character": "趣",
+      "level": 43
+    },
+    {
+      "character": "懲",
+      "level": 43
+    },
+    {
+      "character": "慰",
+      "level": 43
+    },
+    {
+      "character": "懇",
+      "level": 43
+    },
+    {
+      "character": "晶",
+      "level": 43
+    },
+    {
+      "character": "筒",
+      "level": 43
+    },
+    {
+      "character": "滅",
+      "level": 43
+    },
+    {
+      "character": "威",
+      "level": 43
+    },
+    {
+      "character": "距",
+      "level": 43
+    },
+    {
+      "character": "露",
+      "level": 43
+    },
+    {
+      "character": "炉",
+      "level": 43
+    },
+    {
+      "character": "柔",
+      "level": 43
+    },
+    {
+      "character": "琴",
+      "level": 43
+    },
+    {
+      "character": "垣",
+      "level": 43
+    },
+    {
+      "character": "即",
+      "level": 43
+    },
+    {
+      "character": "滋",
+      "level": 43
+    },
+    {
+      "character": "牧",
+      "level": 43
+    },
+    {
+      "character": "泰",
+      "level": 43
+    },
+    {
+      "character": "旨",
+      "level": 43
+    },
+    {
+      "character": "刷",
+      "level": 43
+    },
+    {
+      "character": "珍",
+      "level": 43
+    },
+    {
+      "character": "籍",
+      "level": 43
+    },
+    {
+      "character": "擦",
+      "level": 43
+    },
+    {
+      "character": "封",
+      "level": 43
+    },
+    {
+      "character": "斉",
+      "level": 43
+    },
+    {
+      "character": "沈",
+      "level": 43
+    },
+    {
+      "character": "撲",
+      "level": 43
+    },
+    {
+      "character": "裂",
+      "level": 43
+    },
+    {
+      "character": "潮",
+      "level": 43
+    },
+    {
+      "character": "貢",
+      "level": 43
+    },
+    {
+      "character": "刃",
+      "level": 44
+    },
+    {
+      "character": "砲",
+      "level": 44
+    },
+    {
+      "character": "笠",
+      "level": 44
+    },
+    {
+      "character": "竜",
+      "level": 44
+    },
+    {
+      "character": "拶",
+      "level": 44
+    },
+    {
+      "character": "縁",
+      "level": 44
+    },
+    {
+      "character": "忍",
+      "level": 44
+    },
+    {
+      "character": "釣",
+      "level": 44
+    },
+    {
+      "character": "狐",
+      "level": 44
+    },
+    {
+      "character": "吉",
+      "level": 44
+    },
+    {
+      "character": "遡",
+      "level": 44
+    },
+    {
+      "character": "粒",
+      "level": 44
+    },
+    {
+      "character": "髪",
+      "level": 44
+    },
+    {
+      "character": "丘",
+      "level": 44
+    },
+    {
+      "character": "斗",
+      "level": 44
+    },
+    {
+      "character": "肢",
+      "level": 44
+    },
+    {
+      "character": "寸",
+      "level": 44
+    },
+    {
+      "character": "謎",
+      "level": 44
+    },
+    {
+      "character": "桃",
+      "level": 44
+    },
+    {
+      "character": "梨",
+      "level": 44
+    },
+    {
+      "character": "姫",
+      "level": 44
+    },
+    {
+      "character": "挨",
+      "level": 44
+    },
+    {
+      "character": "娯",
+      "level": 44
+    },
+    {
+      "character": "侍",
+      "level": 44
+    },
+    {
+      "character": "叱",
+      "level": 44
+    },
+    {
+      "character": "叫",
+      "level": 44
+    },
+    {
+      "character": "芽",
+      "level": 44
+    },
+    {
+      "character": "嵐",
+      "level": 44
+    },
+    {
+      "character": "雷",
+      "level": 44
+    },
+    {
+      "character": "塔",
+      "level": 44
+    },
+    {
+      "character": "朱",
+      "level": 44
+    },
+    {
+      "character": "翼",
+      "level": 44
+    },
+    {
+      "character": "頃",
+      "level": 45
+    },
+    {
+      "character": "菌",
+      "level": 45
+    },
+    {
+      "character": "鐘",
+      "level": 45
+    },
+    {
+      "character": "舟",
+      "level": 45
+    },
+    {
+      "character": "嫁",
+      "level": 45
+    },
+    {
+      "character": "暦",
+      "level": 45
+    },
+    {
+      "character": "曇",
+      "level": 45
+    },
+    {
+      "character": "也",
+      "level": 45
+    },
+    {
+      "character": "塾",
+      "level": 45
+    },
+    {
+      "character": "呪",
+      "level": 45
+    },
+    {
+      "character": "湿",
+      "level": 45
+    },
+    {
+      "character": "稼",
+      "level": 45
+    },
+    {
+      "character": "翔",
+      "level": 45
+    },
+    {
+      "character": "賭",
+      "level": 45
+    },
+    {
+      "character": "霊",
+      "level": 45
+    },
+    {
+      "character": "溝",
+      "level": 45
+    },
+    {
+      "character": "狩",
+      "level": 45
+    },
+    {
+      "character": "脚",
+      "level": 45
+    },
+    {
+      "character": "澄",
+      "level": 45
+    },
+    {
+      "character": "塊",
+      "level": 45
+    },
+    {
+      "character": "狂",
+      "level": 45
+    },
+    {
+      "character": "嬢",
+      "level": 45
+    },
+    {
+      "character": "裸",
+      "level": 45
+    },
+    {
+      "character": "岳",
+      "level": 45
+    },
+    {
+      "character": "磨",
+      "level": 45
+    },
+    {
+      "character": "陰",
+      "level": 45
+    },
+    {
+      "character": "肌",
+      "level": 45
+    },
+    {
+      "character": "魂",
+      "level": 45
+    },
+    {
+      "character": "矛",
+      "level": 45
+    },
+    {
+      "character": "眺",
+      "level": 45
+    },
+    {
+      "character": "硬",
+      "level": 45
+    },
+    {
+      "character": "卓",
+      "level": 45
+    },
+    {
+      "character": "凶",
+      "level": 45
+    },
+    {
+      "character": "滝",
+      "level": 45
+    },
+    {
+      "character": "墨",
+      "level": 46
+    },
+    {
+      "character": "瞬",
+      "level": 46
+    },
+    {
+      "character": "泡",
+      "level": 46
+    },
+    {
+      "character": "棟",
+      "level": 46
+    },
+    {
+      "character": "穏",
+      "level": 46
+    },
+    {
+      "character": "孔",
+      "level": 46
+    },
+    {
+      "character": "椅",
+      "level": 46
+    },
+    {
+      "character": "菊",
+      "level": 46
+    },
+    {
+      "character": "綿",
+      "level": 46
+    },
+    {
+      "character": "魔",
+      "level": 46
+    },
+    {
+      "character": "寮",
+      "level": 46
+    },
+    {
+      "character": "鳩",
+      "level": 46
+    },
+    {
+      "character": "鈍",
+      "level": 46
+    },
+    {
+      "character": "鍛",
+      "level": 46
+    },
+    {
+      "character": "碁",
+      "level": 46
+    },
+    {
+      "character": "賜",
+      "level": 46
+    },
+    {
+      "character": "癖",
+      "level": 46
+    },
+    {
+      "character": "穂",
+      "level": 46
+    },
+    {
+      "character": "吾",
+      "level": 46
+    },
+    {
+      "character": "鍵",
+      "level": 46
+    },
+    {
+      "character": "猿",
+      "level": 46
+    },
+    {
+      "character": "誇",
+      "level": 46
+    },
+    {
+      "character": "瞳",
+      "level": 46
+    },
+    {
+      "character": "寧",
+      "level": 46
+    },
+    {
+      "character": "幽",
+      "level": 46
+    },
+    {
+      "character": "架",
+      "level": 46
+    },
+    {
+      "character": "黙",
+      "level": 46
+    },
+    {
+      "character": "斬",
+      "level": 46
+    },
+    {
+      "character": "帝",
+      "level": 46
+    },
+    {
+      "character": "俵",
+      "level": 46
+    },
+    {
+      "character": "租",
+      "level": 46
+    },
+    {
+      "character": "錬",
+      "level": 46
+    },
+    {
+      "character": "阻",
+      "level": 46
+    },
+    {
+      "character": "盆",
+      "level": 46
+    },
+    {
+      "character": "歳",
+      "level": 46
+    },
+    {
+      "character": "零",
+      "level": 46
+    },
+    {
+      "character": "幣",
+      "level": 47
+    },
+    {
+      "character": "箸",
+      "level": 47
+    },
+    {
+      "character": "瞭",
+      "level": 47
+    },
+    {
+      "character": "崖",
+      "level": 47
+    },
+    {
+      "character": "炊",
+      "level": 47
+    },
+    {
+      "character": "粧",
+      "level": 47
+    },
+    {
+      "character": "墜",
+      "level": 47
+    },
+    {
+      "character": "欺",
+      "level": 47
+    },
+    {
+      "character": "扉",
+      "level": 47
+    },
+    {
+      "character": "滴",
+      "level": 47
+    },
+    {
+      "character": "塀",
+      "level": 47
+    },
+    {
+      "character": "霧",
+      "level": 47
+    },
+    {
+      "character": "扇",
+      "level": 47
+    },
+    {
+      "character": "恨",
+      "level": 47
+    },
+    {
+      "character": "帽",
+      "level": 47
+    },
+    {
+      "character": "憎",
+      "level": 47
+    },
+    {
+      "character": "佐",
+      "level": 47
+    },
+    {
+      "character": "挿",
+      "level": 47
+    },
+    {
+      "character": "伊",
+      "level": 47
+    },
+    {
+      "character": "詐",
+      "level": 47
+    },
+    {
+      "character": "如",
+      "level": 47
+    },
+    {
+      "character": "唇",
+      "level": 47
+    },
+    {
+      "character": "婆",
+      "level": 47
+    },
+    {
+      "character": "掌",
+      "level": 47
+    },
+    {
+      "character": "哀",
+      "level": 47
+    },
+    {
+      "character": "虹",
+      "level": 47
+    },
+    {
+      "character": "爽",
+      "level": 47
+    },
+    {
+      "character": "憩",
+      "level": 47
+    },
+    {
+      "character": "煎",
+      "level": 47
+    },
+    {
+      "character": "尺",
+      "level": 47
+    },
+    {
+      "character": "砕",
+      "level": 47
+    },
+    {
+      "character": "粘",
+      "level": 47
+    },
+    {
+      "character": "畳",
+      "level": 47
+    },
+    {
+      "character": "胴",
+      "level": 47
+    },
+    {
+      "character": "巾",
+      "level": 47
+    },
+    {
+      "character": "芯",
+      "level": 47
+    },
+    {
+      "character": "柳",
+      "level": 47
+    },
+    {
+      "character": "遂",
+      "level": 48
+    },
+    {
+      "character": "蓄",
+      "level": 48
+    },
+    {
+      "character": "脇",
+      "level": 48
+    },
+    {
+      "character": "咲",
+      "level": 48
+    },
+    {
+      "character": "賢",
+      "level": 48
+    },
+    {
+      "character": "彩",
+      "level": 48
+    },
+    {
+      "character": "隙",
+      "level": 48
+    },
+    {
+      "character": "培",
+      "level": 48
+    },
+    {
+      "character": "踊",
+      "level": 48
+    },
+    {
+      "character": "闇",
+      "level": 48
+    },
+    {
+      "character": "斜",
+      "level": 48
+    },
+    {
+      "character": "鉢",
+      "level": 48
+    },
+    {
+      "character": "霜",
+      "level": 48
+    },
+    {
+      "character": "穫",
+      "level": 48
+    },
+    {
+      "character": "麻",
+      "level": 48
+    },
+    {
+      "character": "騎",
+      "level": 48
+    },
+    {
+      "character": "辱",
+      "level": 48
+    },
+    {
+      "character": "畜",
+      "level": 48
+    },
+    {
+      "character": "溶",
+      "level": 48
+    },
+    {
+      "character": "蚊",
+      "level": 48
+    },
+    {
+      "character": "帳",
+      "level": 48
+    },
+    {
+      "character": "塗",
+      "level": 48
+    },
+    {
+      "character": "貼",
+      "level": 48
+    },
+    {
+      "character": "殴",
+      "level": 48
+    },
+    {
+      "character": "輝",
+      "level": 48
+    },
+    {
+      "character": "憶",
+      "level": 48
+    },
+    {
+      "character": "悔",
+      "level": 48
+    },
+    {
+      "character": "耐",
+      "level": 48
+    },
+    {
+      "character": "盾",
+      "level": 48
+    },
+    {
+      "character": "蛇",
+      "level": 48
+    },
+    {
+      "character": "班",
+      "level": 48
+    },
+    {
+      "character": "餓",
+      "level": 48
+    },
+    {
+      "character": "飢",
+      "level": 48
+    },
+    {
+      "character": "迅",
+      "level": 48
+    },
+    {
+      "character": "脅",
+      "level": 48
+    },
+    {
+      "character": "尽",
+      "level": 48
+    },
+    {
+      "character": "概",
+      "level": 49
+    },
+    {
+      "character": "拘",
+      "level": 49
+    },
+    {
+      "character": "煮",
+      "level": 49
+    },
+    {
+      "character": "覆",
+      "level": 49
+    },
+    {
+      "character": "駒",
+      "level": 49
+    },
+    {
+      "character": "慌",
+      "level": 49
+    },
+    {
+      "character": "謀",
+      "level": 49
+    },
+    {
+      "character": "鶴",
+      "level": 49
+    },
+    {
+      "character": "拓",
+      "level": 49
+    },
+    {
+      "character": "衰",
+      "level": 49
+    },
+    {
+      "character": "奨",
+      "level": 49
+    },
+    {
+      "character": "抽",
+      "level": 49
+    },
+    {
+      "character": "淡",
+      "level": 49
+    },
+    {
+      "character": "礎",
+      "level": 49
+    },
+    {
+      "character": "陛",
+      "level": 49
+    },
+    {
+      "character": "浸",
+      "level": 49
+    },
+    {
+      "character": "劣",
+      "level": 49
+    },
+    {
+      "character": "勘",
+      "level": 49
+    },
+    {
+      "character": "隔",
+      "level": 49
+    },
+    {
+      "character": "蹴",
+      "level": 49
+    },
+    {
+      "character": "桑",
+      "level": 49
+    },
+    {
+      "character": "尼",
+      "level": 49
+    },
+    {
+      "character": "珠",
+      "level": 49
+    },
+    {
+      "character": "壇",
+      "level": 49
+    },
+    {
+      "character": "陶",
+      "level": 49
+    },
+    {
+      "character": "刈",
+      "level": 49
+    },
+    {
+      "character": "悟",
+      "level": 49
+    },
+    {
+      "character": "妃",
+      "level": 49
+    },
+    {
+      "character": "准",
+      "level": 49
+    },
+    {
+      "character": "唯",
+      "level": 49
+    },
+    {
+      "character": "剛",
+      "level": 49
+    },
+    {
+      "character": "征",
+      "level": 49
+    },
+    {
+      "character": "誓",
+      "level": 49
+    },
+    {
+      "character": "俗",
+      "level": 49
+    },
+    {
+      "character": "潤",
+      "level": 49
+    },
+    {
+      "character": "偶",
+      "level": 50
+    },
+    {
+      "character": "巧",
+      "level": 50
+    },
+    {
+      "character": "鰐",
+      "level": 50
+    },
+    {
+      "character": "把",
+      "level": 50
+    },
+    {
+      "character": "駄",
+      "level": 50
+    },
+    {
+      "character": "洞",
+      "level": 50
+    },
+    {
+      "character": "伯",
+      "level": 50
+    },
+    {
+      "character": "唐",
+      "level": 50
+    },
+    {
+      "character": "彰",
+      "level": 50
+    },
+    {
+      "character": "漫",
+      "level": 50
+    },
+    {
+      "character": "諮",
+      "level": 50
+    },
+    {
+      "character": "廷",
+      "level": 50
+    },
+    {
+      "character": "蟹",
+      "level": 50
+    },
+    {
+      "character": "堰",
+      "level": 50
+    },
+    {
+      "character": "漂",
+      "level": 50
+    },
+    {
+      "character": "淀",
+      "level": 50
+    },
+    {
+      "character": "堤",
+      "level": 50
+    },
+    {
+      "character": "后",
+      "level": 50
+    },
+    {
+      "character": "疫",
+      "level": 50
+    },
+    {
+      "character": "翻",
+      "level": 50
+    },
+    {
+      "character": "鬱",
+      "level": 50
+    },
+    {
+      "character": "涯",
+      "level": 50
+    },
+    {
+      "character": "銘",
+      "level": 50
+    },
+    {
+      "character": "仰",
+      "level": 50
+    },
+    {
+      "character": "壺",
+      "level": 50
+    },
+    {
+      "character": "簿",
+      "level": 50
+    },
+    {
+      "character": "亭",
+      "level": 50
+    },
+    {
+      "character": "訂",
+      "level": 50
+    },
+    {
+      "character": "壮",
+      "level": 50
+    },
+    {
+      "character": "軌",
+      "level": 50
+    },
+    {
+      "character": "奮",
+      "level": 50
+    },
+    {
+      "character": "峰",
+      "level": 50
+    },
+    {
+      "character": "墳",
+      "level": 50
+    },
+    {
+      "character": "搬",
+      "level": 50
+    },
+    {
+      "character": "邪",
+      "level": 50
+    },
+    {
+      "character": "又",
+      "level": 51
+    },
+    {
+      "character": "肯",
+      "level": 51
+    },
+    {
+      "character": "浦",
+      "level": 51
+    },
+    {
+      "character": "沸",
+      "level": 51
+    },
+    {
+      "character": "瓶",
+      "level": 51
+    },
+    {
+      "character": "召",
+      "level": 51
+    },
+    {
+      "character": "貞",
+      "level": 51
+    },
+    {
+      "character": "亮",
+      "level": 51
+    },
+    {
+      "character": "襟",
+      "level": 51
+    },
+    {
+      "character": "隅",
+      "level": 51
+    },
+    {
+      "character": "郡",
+      "level": 51
+    },
+    {
+      "character": "燥",
+      "level": 51
+    },
+    {
+      "character": "釈",
+      "level": 51
+    },
+    {
+      "character": "肪",
+      "level": 51
+    },
+    {
+      "character": "脂",
+      "level": 51
+    },
+    {
+      "character": "偉",
+      "level": 51
+    },
+    {
+      "character": "蓮",
+      "level": 51
+    },
+    {
+      "character": "慈",
+      "level": 51
+    },
+    {
+      "character": "塚",
+      "level": 51
+    },
+    {
+      "character": "耕",
+      "level": 51
+    },
+    {
+      "character": "媛",
+      "level": 51
+    },
+    {
+      "character": "挟",
+      "level": 51
+    },
+    {
+      "character": "邸",
+      "level": 51
+    },
+    {
+      "character": "喚",
+      "level": 51
+    },
+    {
+      "character": "苗",
+      "level": 51
+    },
+    {
+      "character": "隻",
+      "level": 51
+    },
+    {
+      "character": "膚",
+      "level": 51
+    },
+    {
+      "character": "軟",
+      "level": 51
+    },
+    {
+      "character": "郊",
+      "level": 51
+    },
+    {
+      "character": "頂",
+      "level": 51
+    },
+    {
+      "character": "濯",
+      "level": 51
+    },
+    {
+      "character": "渦",
+      "level": 51
+    },
+    {
+      "character": "聡",
+      "level": 51
+    },
+    {
+      "character": "枯",
+      "level": 51
+    },
+    {
+      "character": "芳",
+      "level": 52
+    },
+    {
+      "character": "祥",
+      "level": 52
+    },
+    {
+      "character": "呂",
+      "level": 52
+    },
+    {
+      "character": "偏",
+      "level": 52
+    },
+    {
+      "character": "茨",
+      "level": 52
+    },
+    {
+      "character": "陥",
+      "level": 52
+    },
+    {
+      "character": "鎖",
+      "level": 52
+    },
+    {
+      "character": "賠",
+      "level": 52
+    },
+    {
+      "character": "恒",
+      "level": 52
+    },
+    {
+      "character": "綾",
+      "level": 52
+    },
+    {
+      "character": "没",
+      "level": 52
+    },
+    {
+      "character": "擁",
+      "level": 52
+    },
+    {
+      "character": "遭",
+      "level": 52
+    },
+    {
+      "character": "噴",
+      "level": 52
+    },
+    {
+      "character": "殊",
+      "level": 52
+    },
+    {
+      "character": "倫",
+      "level": 52
+    },
+    {
+      "character": "陳",
+      "level": 52
+    },
+    {
+      "character": "隼",
+      "level": 52
+    },
+    {
+      "character": "乃",
+      "level": 52
+    },
+    {
+      "character": "輔",
+      "level": 52
+    },
+    {
+      "character": "猟",
+      "level": 52
+    },
+    {
+      "character": "唆",
+      "level": 52
+    },
+    {
+      "character": "怠",
+      "level": 52
+    },
+    {
+      "character": "惰",
+      "level": 52
+    },
+    {
+      "character": "覇",
+      "level": 52
+    },
+    {
+      "character": "須",
+      "level": 52
+    },
+    {
+      "character": "牲",
+      "level": 52
+    },
+    {
+      "character": "秩",
+      "level": 52
+    },
+    {
+      "character": "孤",
+      "level": 52
+    },
+    {
+      "character": "慢",
+      "level": 52
+    },
+    {
+      "character": "貫",
+      "level": 52
+    },
+    {
+      "character": "糧",
+      "level": 52
+    },
+    {
+      "character": "颯",
+      "level": 52
+    },
+    {
+      "character": "蘇",
+      "level": 52
+    },
+    {
+      "character": "膨",
+      "level": 52
+    },
+    {
+      "character": "遇",
+      "level": 52
+    },
+    {
+      "character": "諭",
+      "level": 53
+    },
+    {
+      "character": "随",
+      "level": 53
+    },
+    {
+      "character": "胡",
+      "level": 53
+    },
+    {
+      "character": "搭",
+      "level": 53
+    },
+    {
+      "character": "錦",
+      "level": 53
+    },
+    {
+      "character": "鯉",
+      "level": 53
+    },
+    {
+      "character": "胞",
+      "level": 53
+    },
+    {
+      "character": "浄",
+      "level": 53
+    },
+    {
+      "character": "帥",
+      "level": 53
+    },
+    {
+      "character": "諒",
+      "level": 53
+    },
+    {
+      "character": "蒙",
+      "level": 53
+    },
+    {
+      "character": "曙",
+      "level": 53
+    },
+    {
+      "character": "惨",
+      "level": 53
+    },
+    {
+      "character": "稿",
+      "level": 53
+    },
+    {
+      "character": "啓",
+      "level": 53
+    },
+    {
+      "character": "披",
+      "level": 53
+    },
+    {
+      "character": "繊",
+      "level": 53
+    },
+    {
+      "character": "徐",
+      "level": 53
+    },
+    {
+      "character": "葵",
+      "level": 53
+    },
+    {
+      "character": "騰",
+      "level": 53
+    },
+    {
+      "character": "据",
+      "level": 53
+    },
+    {
+      "character": "莉",
+      "level": 53
+    },
+    {
+      "character": "緯",
+      "level": 53
+    },
+    {
+      "character": "瓜",
+      "level": 53
+    },
+    {
+      "character": "虐",
+      "level": 53
+    },
+    {
+      "character": "戴",
+      "level": 53
+    },
+    {
+      "character": "艇",
+      "level": 53
+    },
+    {
+      "character": "丹",
+      "level": 53
+    },
+    {
+      "character": "緋",
+      "level": 53
+    },
+    {
+      "character": "舗",
+      "level": 53
+    },
+    {
+      "character": "壌",
+      "level": 53
+    },
+    {
+      "character": "駿",
+      "level": 53
+    },
+    {
+      "character": "剰",
+      "level": 53
+    },
+    {
+      "character": "寛",
+      "level": 53
+    },
+    {
+      "character": "且",
+      "level": 54
+    },
+    {
+      "character": "顕",
+      "level": 54
+    },
+    {
+      "character": "杏",
+      "level": 54
+    },
+    {
+      "character": "栞",
+      "level": 54
+    },
+    {
+      "character": "欄",
+      "level": 54
+    },
+    {
+      "character": "庶",
+      "level": 54
+    },
+    {
+      "character": "冠",
+      "level": 54
+    },
+    {
+      "character": "酷",
+      "level": 54
+    },
+    {
+      "character": "叙",
+      "level": 54
+    },
+    {
+      "character": "逸",
+      "level": 54
+    },
+    {
+      "character": "紋",
+      "level": 54
+    },
+    {
+      "character": "阿",
+      "level": 54
+    },
+    {
+      "character": "愚",
+      "level": 54
+    },
+    {
+      "character": "尚",
+      "level": 54
+    },
+    {
+      "character": "拐",
+      "level": 54
+    },
+    {
+      "character": "悠",
+      "level": 54
+    },
+    {
+      "character": "勲",
+      "level": 54
+    },
+    {
+      "character": "疎",
+      "level": 54
+    },
+    {
+      "character": "謡",
+      "level": 54
+    },
+    {
+      "character": "栽",
+      "level": 54
+    },
+    {
+      "character": "践",
+      "level": 54
+    },
+    {
+      "character": "呈",
+      "level": 54
+    },
+    {
+      "character": "傲",
+      "level": 54
+    },
+    {
+      "character": "疾",
+      "level": 54
+    },
+    {
+      "character": "酬",
+      "level": 54
+    },
+    {
+      "character": "茜",
+      "level": 54
+    },
+    {
+      "character": "呆",
+      "level": 54
+    },
+    {
+      "character": "鎌",
+      "level": 54
+    },
+    {
+      "character": "粛",
+      "level": 54
+    },
+    {
+      "character": "茎",
+      "level": 54
+    },
+    {
+      "character": "痴",
+      "level": 54
+    },
+    {
+      "character": "哺",
+      "level": 54
+    },
+    {
+      "character": "荘",
+      "level": 54
+    },
+    {
+      "character": "鯨",
+      "level": 54
+    },
+    {
+      "character": "卸",
+      "level": 54
+    },
+    {
+      "character": "累",
+      "level": 55
+    },
+    {
+      "character": "伏",
+      "level": 55
+    },
+    {
+      "character": "虜",
+      "level": 55
+    },
+    {
+      "character": "循",
+      "level": 55
+    },
+    {
+      "character": "粗",
+      "level": 55
+    },
+    {
+      "character": "凝",
+      "level": 55
+    },
+    {
+      "character": "栓",
+      "level": 55
+    },
+    {
+      "character": "瑛",
+      "level": 55
+    },
+    {
+      "character": "旦",
+      "level": 55
+    },
+    {
+      "character": "奉",
+      "level": 55
+    },
+    {
+      "character": "遼",
+      "level": 55
+    },
+    {
+      "character": "郭",
+      "level": 55
+    },
+    {
+      "character": "抹",
+      "level": 55
+    },
+    {
+      "character": "佳",
+      "level": 55
+    },
+    {
+      "character": "惜",
+      "level": 55
+    },
+    {
+      "character": "憂",
+      "level": 55
+    },
+    {
+      "character": "悼",
+      "level": 55
+    },
+    {
+      "character": "癒",
+      "level": 55
+    },
+    {
+      "character": "栃",
+      "level": 55
+    },
+    {
+      "character": "龍",
+      "level": 55
+    },
+    {
+      "character": "弥",
+      "level": 55
+    },
+    {
+      "character": "髄",
+      "level": 55
+    },
+    {
+      "character": "勿",
+      "level": 55
+    },
+    {
+      "character": "傍",
+      "level": 55
+    },
+    {
+      "character": "愉",
+      "level": 55
+    },
+    {
+      "character": "赴",
+      "level": 55
+    },
+    {
+      "character": "昌",
+      "level": 55
+    },
+    {
+      "character": "憾",
+      "level": 55
+    },
+    {
+      "character": "朴",
+      "level": 55
+    },
+    {
+      "character": "該",
+      "level": 55
+    },
+    {
+      "character": "之",
+      "level": 55
+    },
+    {
+      "character": "鎮",
+      "level": 55
+    },
+    {
+      "character": "尿",
+      "level": 55
+    },
+    {
+      "character": "賓",
+      "level": 55
+    },
+    {
+      "character": "那",
+      "level": 55
+    },
+    {
+      "character": "匠",
+      "level": 56
+    },
+    {
+      "character": "拍",
+      "level": 56
+    },
+    {
+      "character": "縛",
+      "level": 56
+    },
+    {
+      "character": "飽",
+      "level": 56
+    },
+    {
+      "character": "柴",
+      "level": 56
+    },
+    {
+      "character": "蝶",
+      "level": 56
+    },
+    {
+      "character": "弦",
+      "level": 56
+    },
+    {
+      "character": "凛",
+      "level": 56
+    },
+    {
+      "character": "庸",
+      "level": 56
+    },
+    {
+      "character": "錯",
+      "level": 56
+    },
+    {
+      "character": "轄",
+      "level": 56
+    },
+    {
+      "character": "悦",
+      "level": 56
+    },
+    {
+      "character": "窮",
+      "level": 56
+    },
+    {
+      "character": "嘉",
+      "level": 56
+    },
+    {
+      "character": "弊",
+      "level": 56
+    },
+    {
+      "character": "遥",
+      "level": 56
+    },
+    {
+      "character": "洪",
+      "level": 56
+    },
+    {
+      "character": "紳",
+      "level": 56
+    },
+    {
+      "character": "呉",
+      "level": 56
+    },
+    {
+      "character": "穀",
+      "level": 56
+    },
+    {
+      "character": "摂",
+      "level": 56
+    },
+    {
+      "character": "寂",
+      "level": 56
+    },
+    {
+      "character": "宰",
+      "level": 56
+    },
+    {
+      "character": "陵",
+      "level": 56
+    },
+    {
+      "character": "凡",
+      "level": 56
+    },
+    {
+      "character": "尉",
+      "level": 56
+    },
+    {
+      "character": "靖",
+      "level": 56
+    },
+    {
+      "character": "恭",
+      "level": 56
+    },
+    {
+      "character": "縫",
+      "level": 56
+    },
+    {
+      "character": "舶",
+      "level": 56
+    },
+    {
+      "character": "搾",
+      "level": 56
+    },
+    {
+      "character": "猶",
+      "level": 56
+    },
+    {
+      "character": "窒",
+      "level": 56
+    },
+    {
+      "character": "碑",
+      "level": 56
+    },
+    {
+      "character": "智",
+      "level": 56
+    },
+    {
+      "character": "坪",
+      "level": 57
+    },
+    {
+      "character": "盲",
+      "level": 57
+    },
+    {
+      "character": "醸",
+      "level": 57
+    },
+    {
+      "character": "萌",
+      "level": 57
+    },
+    {
+      "character": "凹",
+      "level": 57
+    },
+    {
+      "character": "弔",
+      "level": 57
+    },
+    {
+      "character": "凸",
+      "level": 57
+    },
+    {
+      "character": "烏",
+      "level": 57
+    },
+    {
+      "character": "敢",
+      "level": 57
+    },
+    {
+      "character": "堕",
+      "level": 57
+    },
+    {
+      "character": "鼓",
+      "level": 57
+    },
+    {
+      "character": "衡",
+      "level": 57
+    },
+    {
+      "character": "伐",
+      "level": 57
+    },
+    {
+      "character": "酵",
+      "level": 57
+    },
+    {
+      "character": "閲",
+      "level": 57
+    },
+    {
+      "character": "遮",
+      "level": 57
+    },
+    {
+      "character": "腸",
+      "level": 57
+    },
+    {
+      "character": "乙",
+      "level": 57
+    },
+    {
+      "character": "楓",
+      "level": 57
+    },
+    {
+      "character": "膜",
+      "level": 57
+    },
+    {
+      "character": "紺",
+      "level": 57
+    },
+    {
+      "character": "蒼",
+      "level": 57
+    },
+    {
+      "character": "哉",
+      "level": 57
+    },
+    {
+      "character": "峡",
+      "level": 57
+    },
+    {
+      "character": "賊",
+      "level": 57
+    },
+    {
+      "character": "旋",
+      "level": 57
+    },
+    {
+      "character": "俸",
+      "level": 57
+    },
+    {
+      "character": "喝",
+      "level": 57
+    },
+    {
+      "character": "蚕",
+      "level": 57
+    },
+    {
+      "character": "羅",
+      "level": 57
+    },
+    {
+      "character": "脊",
+      "level": 57
+    },
+    {
+      "character": "槽",
+      "level": 57
+    },
+    {
+      "character": "遍",
+      "level": 57
+    },
+    {
+      "character": "胎",
+      "level": 57
+    },
+    {
+      "character": "陪",
+      "level": 58
+    },
+    {
+      "character": "扶",
+      "level": 58
+    },
+    {
+      "character": "迭",
+      "level": 58
+    },
+    {
+      "character": "鶏",
+      "level": 58
+    },
+    {
+      "character": "瑞",
+      "level": 58
+    },
+    {
+      "character": "暁",
+      "level": 58
+    },
+    {
+      "character": "剖",
+      "level": 58
+    },
+    {
+      "character": "凌",
+      "level": 58
+    },
+    {
+      "character": "藩",
+      "level": 58
+    },
+    {
+      "character": "譜",
+      "level": 58
+    },
+    {
+      "character": "璃",
+      "level": 58
+    },
+    {
+      "character": "淑",
+      "level": 58
+    },
+    {
+      "character": "傑",
+      "level": 58
+    },
+    {
+      "character": "殻",
+      "level": 58
+    },
+    {
+      "character": "瑠",
+      "level": 58
+    },
+    {
+      "character": "錠",
+      "level": 58
+    },
+    {
+      "character": "媒",
+      "level": 58
+    },
+    {
+      "character": "濁",
+      "level": 58
+    },
+    {
+      "character": "赦",
+      "level": 58
+    },
+    {
+      "character": "戯",
+      "level": 58
+    },
+    {
+      "character": "享",
+      "level": 58
+    },
+    {
+      "character": "嘱",
+      "level": 58
+    },
+    {
+      "character": "肖",
+      "level": 58
+    },
+    {
+      "character": "憤",
+      "level": 58
+    },
+    {
+      "character": "朽",
+      "level": 58
+    },
+    {
+      "character": "奔",
+      "level": 58
+    },
+    {
+      "character": "帆",
+      "level": 58
+    },
+    {
+      "character": "菅",
+      "level": 58
+    },
+    {
+      "character": "酌",
+      "level": 58
+    },
+    {
+      "character": "慨",
+      "level": 58
+    },
+    {
+      "character": "椎",
+      "level": 58
+    },
+    {
+      "character": "窃",
+      "level": 58
+    },
+    {
+      "character": "硫",
+      "level": 58
+    },
+    {
+      "character": "亜",
+      "level": 59
+    },
+    {
+      "character": "屯",
+      "level": 59
+    },
+    {
+      "character": "岬",
+      "level": 59
+    },
+    {
+      "character": "鋳",
+      "level": 59
+    },
+    {
+      "character": "拙",
+      "level": 59
+    },
+    {
+      "character": "詠",
+      "level": 59
+    },
+    {
+      "character": "慶",
+      "level": 59
+    },
+    {
+      "character": "酪",
+      "level": 59
+    },
+    {
+      "character": "篤",
+      "level": 59
+    },
+    {
+      "character": "侮",
+      "level": 59
+    },
+    {
+      "character": "堪",
+      "level": 59
+    },
+    {
+      "character": "禍",
+      "level": 59
+    },
+    {
+      "character": "雌",
+      "level": 59
+    },
+    {
+      "character": "睦",
+      "level": 59
+    },
+    {
+      "character": "胆",
+      "level": 59
+    },
+    {
+      "character": "擬",
+      "level": 59
+    },
+    {
+      "character": "梓",
+      "level": 59
+    },
+    {
+      "character": "漆",
+      "level": 59
+    },
+    {
+      "character": "閑",
+      "level": 59
+    },
+    {
+      "character": "卑",
+      "level": 59
+    },
+    {
+      "character": "姻",
+      "level": 59
+    },
+    {
+      "character": "峠",
+      "level": 59
+    },
+    {
+      "character": "忌",
+      "level": 59
+    },
+    {
+      "character": "曹",
+      "level": 59
+    },
+    {
+      "character": "吟",
+      "level": 59
+    },
+    {
+      "character": "礁",
+      "level": 59
+    },
+    {
+      "character": "沙",
+      "level": 59
+    },
+    {
+      "character": "蔑",
+      "level": 59
+    },
+    {
+      "character": "汰",
+      "level": 59
+    },
+    {
+      "character": "紡",
+      "level": 59
+    },
+    {
+      "character": "遷",
+      "level": 59
+    },
+    {
+      "character": "甚",
+      "level": 59
+    },
+    {
+      "character": "浪",
+      "level": 59
+    },
+    {
+      "character": "崇",
+      "level": 59
+    },
+    {
+      "character": "煩",
+      "level": 60
+    },
+    {
+      "character": "款",
+      "level": 60
+    },
+    {
+      "character": "蛮",
+      "level": 60
+    },
+    {
+      "character": "廉",
+      "level": 60
+    },
+    {
+      "character": "劾",
+      "level": 60
+    },
+    {
+      "character": "某",
+      "level": 60
+    },
+    {
+      "character": "矯",
+      "level": 60
+    },
+    {
+      "character": "痢",
+      "level": 60
+    },
+    {
+      "character": "逝",
+      "level": 60
+    },
+    {
+      "character": "漸",
+      "level": 60
+    },
+    {
+      "character": "升",
+      "level": 60
+    },
+    {
+      "character": "婿",
+      "level": 60
+    },
+    {
+      "character": "匿",
+      "level": 60
+    },
+    {
+      "character": "謹",
+      "level": 60
+    },
+    {
+      "character": "藍",
+      "level": 60
+    },
+    {
+      "character": "桟",
+      "level": 60
+    },
+    {
+      "character": "庄",
+      "level": 60
+    },
+    {
+      "character": "殉",
+      "level": 60
+    },
+    {
+      "character": "坑",
+      "level": 60
+    },
+    {
+      "character": "罷",
+      "level": 60
+    },
+    {
+      "character": "妄",
+      "level": 60
+    },
+    {
+      "character": "漣",
+      "level": 60
+    },
+    {
+      "character": "藻",
+      "level": 60
+    },
+    {
+      "character": "泌",
+      "level": 60
+    },
+    {
+      "character": "唄",
+      "level": 60
+    },
+    {
+      "character": "畔",
+      "level": 60
+    },
+    {
+      "character": "倹",
+      "level": 60
+    },
+    {
+      "character": "拷",
+      "level": 60
+    },
+    {
+      "character": "醜",
+      "level": 60
+    },
+    {
+      "character": "冥",
+      "level": 60
+    },
+    {
+      "character": "渓",
+      "level": 60
+    },
+    {
+      "character": "寡",
+      "level": 60
+    },
+    {
+      "character": "慕",
+      "level": 60
+    }
+  ]
+}

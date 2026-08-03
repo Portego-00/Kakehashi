@@ -1,0 +1,87 @@
+# Third-party notices for bundled kanji formation data
+
+These notices apply to `src/data/kanjiEtymology.generated.ts`, its build-time
+inputs, and the kanji catalog snapshot used to validate its coverage. They do
+not change the MIT license of the rest of the Kakehashi application.
+
+## Make Me a Hanzi
+
+Most formation records are adapted from `dictionary.txt` in Make Me a Hanzi:
+
+- Project: https://github.com/skishore/makemeahanzi
+- Pinned revision: `bddc96d41bef78427ed0e034e9f7e31d71fd1b92`
+- Source file: https://github.com/skishore/makemeahanzi/blob/bddc96d41bef78427ed0e034e9f7e31d71fd1b92/dictionary.txt
+- License: GNU Lesser General Public License, version 3 or later
+- License copy: `licenses/MAKE_ME_A_HANZI_LGPL.txt`
+
+Kakehashi selects the WaniKani kanji subset, maps documented Japanese modern
+forms to old forms where necessary, converts the source schema into concise
+English formation notes, and omits unrelated Mandarin definitions,
+pronunciations, and stroke data. The generated records derived from this source
+remain under the source's LGPL terms. The pinned upstream `dictionary.txt` and
+`scripts/generateKanjiEtymologyData.mjs` provide the corresponding,
+replaceable source data and transformation.
+
+## kyujipy
+
+Japanese Shinjitai-to-Kyūjitai mappings used during generation are adapted from
+kyujipy:
+
+- Project: https://github.com/cjkvsoft/kyujipy
+- Pinned revision: `11b9c6f2a9ec1e303cc6ca52cb0a417735e300c4`
+- Source file: `kyujipy/data/kyujitai_simplified.cson`
+- Copyright: Emmanuel Ternon, 2017–2025
+- License: MIT
+- License copy: `licenses/KYUJIPY_MIT.txt`
+
+The mapping data is build-time input only; it is not shown as etymology.
+
+## Chinese Lexicon
+
+Fallback historical notes are adapted from Chinese Lexicon:
+
+- Project: https://github.com/peterolson/chinese-lexicon
+- Author: Peter Olson
+- Pinned revision: `de64ca4c5d3fef6694a1270f943726c5f622bb03`
+- Source directory: https://github.com/peterolson/chinese-lexicon/tree/de64ca4c5d3fef6694a1270f943726c5f622bb03/etymology
+- License: ISC
+- License copy: `licenses/CHINESE_LEXICON_ISC.txt`
+
+Kakehashi selects only entries not covered with a formation note by Make Me a
+Hanzi, normalizes whitespace and obvious typographical errors, and omits image,
+pronunciation, and stroke-fragment metadata.
+
+## English Wiktionary
+
+The residual entries and the corrected traditional formation for `気` are
+adapted from English Wiktionary:
+
+- Project: https://en.wiktionary.org/
+- Authors: the contributors to each linked page revision
+- Pinned revisions: `scripts/data/wiktionary-kanji-fallback-revisions.json`
+  and the exact `oldid` URL stored on each generated record
+- License: Creative Commons Attribution-ShareAlike 4.0 International
+- License URL: https://creativecommons.org/licenses/by-sa/4.0/
+
+Kakehashi converts the source's character-formation templates and Ideographic
+Description Sequences into short English descriptions. It omits dictionary
+senses, pronunciations, examples, and unrelated language sections. Wording is
+paraphrased where appropriate, and structural-only entries explicitly state
+that modern glyph decomposition does not prove historical origin. Records
+derived from Wiktionary remain available under CC BY-SA 4.0.
+
+## WaniKani catalog snapshot
+
+Coverage is based on the public kanji level pages:
+
+- https://www.wanikani.com/kanji?difficulty=pleasant
+- https://www.wanikani.com/kanji?difficulty=painful
+- https://www.wanikani.com/kanji?difficulty=death
+- https://www.wanikani.com/kanji?difficulty=hell
+- https://www.wanikani.com/kanji?difficulty=paradise
+- https://www.wanikani.com/kanji?difficulty=reality
+
+The snapshot contains only the kanji character and level needed to prove
+coverage. It contains no WaniKani mnemonics, readings, meanings, or vocabulary.
+Kakehashi is not affiliated with WaniKani or Tofugu LLC.
+

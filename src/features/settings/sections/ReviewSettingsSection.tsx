@@ -3,6 +3,10 @@ import SrsProgressionSettingIcon from "../../../components/SrsProgressionSetting
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
@@ -107,61 +111,7 @@ export function ReviewSettingsSection() {
           Review Settings
         </Text>
 
-        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
-          <Ionicons
-            name="shuffle"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Jitai (Font Randomizer)
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              Randomize Japanese fonts during reviews and lesson quizzes to
-              improve reading ability
-            </Text>
-          </View>
-          <Switch
-            value={jitaiEnabled}
-            onValueChange={setJitaiEnabled}
-            trackColor={{ false: "#767577", true: theme.primary }}
-            thumbColor="#f4f3f4"
-          />
-        </View>
-
-        {jitaiEnabled && (
-          <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: theme.border }]}
-            onPress={() => router.push("/jitai-font-settings")}
-          >
-            <Ionicons
-              name="text"
-              size={24}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Jitai Font Pool
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                {`${jitaiSelectedFontIds.length} selected. Manage fonts and downloads.`}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
-        )}
-
+        <AdvancedSettingsGroup>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="resize-outline"
@@ -246,6 +196,117 @@ export function ReviewSettingsSection() {
           </View>
         </View>
 
+        <TouchableOpacity
+          style={[styles.settingItem, { borderBottomColor: theme.border }]}
+          onPress={() => router.push("/review-order-settings")}
+        >
+          <Ionicons
+            name="funnel"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Review Order
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              {`Reviews: ${
+                reviewTypeOrderEnabled
+                  ? `${getReviewOrderLabel(reviewOrder)} + type groups`
+                  : getReviewOrderLabel(reviewOrder)
+              } · Custom: ${getReviewOrderLabel(customReviewOrder)}`}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={theme.textSecondary}
+          />
+        </TouchableOpacity>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="pause-circle"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Pause on Wrong Answer
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show correct answer and options before progressing
+            </Text>
+          </View>
+          <Switch
+            value={disableAutoProgressOnWrong}
+            onValueChange={setDisableAutoProgressOnWrong}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="shuffle"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Jitai (Font Randomizer)
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Randomize Japanese fonts during reviews and lesson quizzes to
+              improve reading ability
+            </Text>
+          </View>
+          <Switch
+            value={jitaiEnabled}
+            onValueChange={setJitaiEnabled}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        {jitaiEnabled && (
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: theme.border }]}
+            onPress={() => router.push("/jitai-font-settings")}
+          >
+            <Ionicons
+              name="text"
+              size={24}
+              color={theme.primary}
+              style={styles.settingIcon}
+            />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>
+                Jitai Font Pool
+              </Text>
+              <Text
+                style={[styles.settingSubtext, { color: theme.textSecondary }]}
+              >
+                {`${jitaiSelectedFontIds.length} selected. Manage fonts and downloads.`}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
+
         <View
           style={[
             styles.settingItem,
@@ -316,37 +377,7 @@ export function ReviewSettingsSection() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={[styles.settingItem, { borderBottomColor: theme.border }]}
-          onPress={() => router.push("/review-order-settings")}
-        >
-          <Ionicons
-            name="funnel"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Review Order
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              {`Reviews: ${
-                reviewTypeOrderEnabled
-                  ? `${getReviewOrderLabel(reviewOrder)} + type groups`
-                  : getReviewOrderLabel(reviewOrder)
-              } · Custom: ${getReviewOrderLabel(customReviewOrder)}`}
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={theme.textSecondary}
-          />
-        </TouchableOpacity>
-
+        <AdvancedSetting>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="trending-up"
@@ -367,31 +398,6 @@ export function ReviewSettingsSection() {
           <Switch
             value={prioritizeCriticalItems}
             onValueChange={setPrioritizeCriticalItems}
-            trackColor={{ false: "#767577", true: theme.primary }}
-            thumbColor="#f4f3f4"
-          />
-        </View>
-
-        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
-          <Ionicons
-            name="pause-circle"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Pause on Wrong Answer
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              Show correct answer and options before progressing
-            </Text>
-          </View>
-          <Switch
-            value={disableAutoProgressOnWrong}
-            onValueChange={setDisableAutoProgressOnWrong}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
           />
@@ -1074,6 +1080,8 @@ export function ReviewSettingsSection() {
             </View>
           </View>
         )}
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );

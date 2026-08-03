@@ -56,6 +56,168 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.96",
+    date: "2026-08-01",
+    changes: [
+      {
+        type: "feature",
+        title: "SRS Lesson Thresholds",
+        description:
+          "Set Apprentice and Guru item thresholds to pause home-page lessons until reviews bring those counts back down.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "lessons" },
+          label: "Open Lesson Settings",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.95",
+    date: "2026-07-29",
+    changes: [
+      {
+        type: "feature",
+        title: "Kanji Reading Speech",
+        description:
+          "Optionally tap On’yomi, Kun’yomi, and Nanori readings to hear them with your device’s Japanese voice in kanji details and lessons.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.94",
+    date: "2026-07-28",
+    changes: [
+      {
+        type: "fix",
+        title: "Scrollable Review Context Sentences",
+        description:
+          "Context sentences in vocabulary reviews can now be scrolled into view while the keyboard is open.",
+      },
+      {
+        type: "feature",
+        title: "Kanji Etymology",
+        description:
+          "Added an optional setting to show sourced character origins and formation notes in kanji details and lessons.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.93",
+    date: "2026-07-27",
+    changes: [
+      {
+        type: "improvement",
+        title: "Crossword JLPT and Kana Audio",
+        description:
+          "Added JLPT word filters and audio replay for kana-only words in crossword statistics.",
+      },
+    ],
+  },
+  {
+    version: "1.2.92",
+    date: "2026-07-25",
+    changes: [
+      {
+        type: "feature",
+        title: "Kanji Examples by Reading",
+        description:
+          "Added a setting to group vocabulary examples by On’yomi, Kun’yomi, and Nanori.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+      {
+        type: "feature",
+        title: "Subject List Review Shortcuts",
+        description:
+          "Use the shortcut on a subject list row, or open the study menu from the list editor and Custom Review headers, to choose Standard Review, Kanji Match, Custom Lessons, Random Test, Similar Kanji, or Kanji Writing.",
+        link: {
+          route: "/subject-lists",
+          label: "Open Subject Lists",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.91",
+    date: "2026-07-24",
+    changes: [
+      {
+        type: "feature",
+        title: "Custom Jitai Fonts",
+        description:
+          "Import TTF or OTF font files into the Jitai randomizer, with new downloadable Japanese calligraphy fonts also available.",
+        link: {
+          route: "/jitai-font-settings",
+          label: "Manage Jitai Fonts",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.90",
+    date: "2026-07-23",
+    changes: [
+      {
+        type: "feature",
+        title: "Combined JLPT Filters",
+        description:
+          "Filter Custom Reviews and Subject Lists by one or more JLPT levels.",
+      },
+      {
+        type: "feature",
+        title: "Vocabulary Frequency",
+        description:
+          "Optionally show vocabulary frequency ranks in lessons, reviews, and subject details.",
+      },
+      {
+        type: "feature",
+        title: "Inline Radical Reminders",
+        description:
+          "Optionally view radical mnemonics and illustrations directly from kanji details.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "kanji" },
+          label: "Open Kanji Settings",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.2.89",
+    date: "2026-07-20",
+    changes: [
+      {
+        type: "feature",
+        title: "Song Lyrics Quiz",
+        description: "Added a level-aware fill-in-the-blank mode for songs.",
+      },
+      {
+        type: "improvement",
+        title: "Crossword Reinforcement",
+        description: "Added optional kanji-first solutions and audio hints.",
+      },
+      {
+        type: "feature",
+        title: "Weekend Lesson Reminders",
+        description: "Added an option to turn off lesson reminders on weekends.",
+      },
+    ],
+  },
+  {
     version: "1.2.88",
     date: "2026-06-26",
     changes: [
@@ -70,6 +232,12 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Level Timing Exclusions",
         description:
           "Level Timing now keeps excluded bars saved more reliably across refreshes, reloads, and app restarts.",
+      },
+      {
+        type: "feature",
+        title: "Japanese Text Analysis",
+        description:
+          "Paste Japanese text in Extra Study to analyze its grammar and vocabulary, with optional English translation.",
       },
     ],
   },

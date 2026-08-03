@@ -93,6 +93,7 @@ import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
 import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
+import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -383,9 +384,17 @@ function mapSubjectForDetailGrid(subject: WKSubject) {
     id: subject.id,
     characters: typeof data.characters === "string" ? data.characters : null,
     meanings: getSubjectMeanings(subject).map((meaning) => meaning.meaning),
+    readings: getSubjectReadings(subject).map((reading) => ({
+      reading: reading.reading,
+      primary: reading.primary,
+    })),
     characterImages,
     imageUrl: characterImages[0]?.url || null,
     level: Number(data.level ?? 0),
+    mnemonic:
+      typeof data.meaning_mnemonic === "string" ? data.meaning_mnemonic : "",
+    documentUrl:
+      typeof data.document_url === "string" ? data.document_url : null,
   };
 }
 
@@ -1231,6 +1240,9 @@ export default function ReviewQuestionScreen({
   }, [item.subject.id, studyMaterials]);
 
   const effectiveStudyMaterials = localStudyMaterials ?? studyMaterials;
+  const answerCheckStudyMaterials = acceptUserSynonymsAsAnswers
+    ? effectiveStudyMaterials
+    : undefined;
 
   // Maintain input focus across question changes to avoid keyboard flicker
   useEffect(() => {
@@ -1519,13 +1531,6 @@ export default function ReviewQuestionScreen({
     shouldShowReviewItemMetadata && !isContextHintVisible;
   const shouldShowAnkiReviewItemMetadata =
     effectiveAnkiCardMode && shouldShowReviewItemMetadata;
-  const contextHintPanelHeight = useMemo(() => {
-    const keyboardVisible = iosKeyboardVisible || androidKeyboardHeight > 0;
-    const viewportCap = Math.round(windowHeight * (keyboardVisible ? 0.13 : 0.14));
-    const absoluteCap = keyboardVisible ? 108 : 116;
-
-    return Math.max(84, Math.min(absoluteCap, viewportCap));
-  }, [androidKeyboardHeight, iosKeyboardVisible, windowHeight]);
   const contextHintPromptSize = isContextHintVisible
     ? Math.min(reviewPromptCharacterSize, 96)
     : reviewPromptCharacterSize;
@@ -1659,7 +1664,7 @@ export default function ReviewQuestionScreen({
         candidateAnswer,
         subject,
         questionType,
-        effectiveStudyMaterials,
+        answerCheckStudyMaterials,
         questionType === "reading"
           ? {
               singleKanjiReadings:
@@ -1808,7 +1813,7 @@ export default function ReviewQuestionScreen({
         Boolean(meaning),
       );
     const synonyms =
-      effectiveStudyMaterials?.meaning_synonyms?.map((synonym) =>
+      answerCheckStudyMaterials?.meaning_synonyms?.map((synonym) =>
         synonym.trim(),
       ) || [];
     return Array.from(new Set([...meanings, ...synonyms])).slice(0, 20);
@@ -2327,7 +2332,7 @@ export default function ReviewQuestionScreen({
   };
 
   const animateAnsweredItemBox = () => {
-    const topMargin = 140; // Distance from top edge of screen
+    const topMargin = 130; // Keep the scaled preview clear of long question text
     const targetX = -(width / 2); // Move left
     const targetY = -(height / 2) + topMargin; // Move up
     const targetScale = 0.6;
@@ -2621,7 +2626,7 @@ export default function ReviewQuestionScreen({
       answer,
       item.subject,
       questionType,
-      effectiveStudyMaterials,
+      answerCheckStudyMaterials,
       questionType === "reading"
         ? {
             singleKanjiReadings:
@@ -3365,6 +3370,7 @@ export default function ReviewQuestionScreen({
               id: relatedSubject.id,
               characters: relatedSubject.characters || "",
               meanings: relatedSubject.meanings,
+              readings: relatedSubject.readings,
               level: relatedSubject.level,
             })),
             userSynonyms,
@@ -3409,6 +3415,7 @@ export default function ReviewQuestionScreen({
               id: relatedSubject.id,
               characters: relatedSubject.characters || "",
               meanings: relatedSubject.meanings,
+              readings: relatedSubject.readings,
               level: relatedSubject.level,
             })),
             visuallySimilarSubjects: visuallySimilarSubjects.map(
@@ -5330,12 +5337,20 @@ export default function ReviewQuestionScreen({
           ]}
         >
         {/* Character display (or overridden prompt) */}
-        <View
-          style={[
+        <ScrollView
+          key={currentQuestionKey}
+          style={styles.characterScrollView}
+          contentContainerStyle={[
             styles.characterWrapper,
             isContextHintVisible && styles.characterWrapperWithOpenHint,
             shouldShowPausedSubjectDetails && styles.characterWrapperWithDetails,
           ]}
+          alwaysBounceVertical={false}
+          bounces={isContextHintVisible}
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={isContextHintVisible}
+          showsVerticalScrollIndicator={isContextHintVisible}
         >
           <View style={styles.characterContainer}>
             {overridePromptText ? (
@@ -5368,6 +5383,12 @@ export default function ReviewQuestionScreen({
               />
             )}
           </View>
+
+          {!isLessonFlow &&
+            (subject.object === "vocabulary" ||
+              subject.object === "kana_vocabulary") && (
+              <VocabularyFrequencyBadge subject={subject} />
+            )}
 
           {/* Context Hint - review mode can show Japanese text immediately. */}
           {hasContextHint && (
@@ -5421,24 +5442,8 @@ export default function ReviewQuestionScreen({
               )}
 
               {isContextHintVisible && (
-                <View
-                  style={[
-                    styles.contextHintContent,
-                    { height: contextHintPanelHeight },
-                  ]}
-                >
-                  <ScrollView
-                    style={[
-                      styles.contextHintScrollView,
-                      { height: contextHintPanelHeight },
-                    ]}
-                    contentContainerStyle={styles.contextHintScrollContent}
-                    alwaysBounceVertical={false}
-                    keyboardShouldPersistTaps="handled"
-                    nestedScrollEnabled
-                    scrollEnabled
-                    showsVerticalScrollIndicator
-                  >
+                <View style={styles.contextHintContent}>
+                  <View style={styles.contextHintContentInner}>
                     {displayedContextSentencesHint.map((sentence, index) => (
                       <View
                         key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
@@ -5467,12 +5472,12 @@ export default function ReviewQuestionScreen({
                         )}
                       </View>
                     ))}
-                  </ScrollView>
+                  </View>
                 </View>
               )}
             </View>
           )}
-        </View>
+        </ScrollView>
 
         {effectiveAnkiCardMode ? (
           /* Anki Card Mode */
@@ -6779,8 +6784,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     minHeight: 220,
   },
-  characterWrapper: {
+  characterScrollView: {
     flex: 1,
+    minHeight: 0,
+  },
+  characterWrapper: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     minHeight: 0,
@@ -6789,7 +6798,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingTop: 8,
     paddingBottom: 8,
-    overflow: "hidden",
   },
   characterWrapperWithDetails: {
     minHeight: 96,
@@ -7803,10 +7811,7 @@ const styles = StyleSheet.create({
     maxWidth: 350,
     overflow: "hidden",
   },
-  contextHintScrollView: {
-    width: "100%",
-  },
-  contextHintScrollContent: {
+  contextHintContentInner: {
     padding: 14,
     paddingBottom: 6,
   },

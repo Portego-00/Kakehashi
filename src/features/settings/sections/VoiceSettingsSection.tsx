@@ -8,6 +8,10 @@ import {
   View,
 } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
@@ -60,6 +64,7 @@ export function VoiceSettingsSection() {
           Japanese Voice
         </Text>
 
+        <AdvancedSettingsGroup>
         <TouchableOpacity
           style={[styles.settingItem, { borderBottomColor: theme.border }]}
           onPress={handleVoiceSelection}
@@ -190,6 +195,7 @@ export function VoiceSettingsSection() {
           </View>
         )}
 
+        <AdvancedSetting>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >
@@ -265,6 +271,8 @@ export function VoiceSettingsSection() {
             </TouchableOpacity>
           </View>
         )}
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );

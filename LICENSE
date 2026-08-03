@@ -51,6 +51,32 @@ assets/patterns/wanikani_vocabulary_patterns.json and
 assets/pitch/wanikani_pitch_accents.json should be reviewed against their source
 terms before redistribution.
 
+JLPT vocabulary reference data
+
+src/data/jlptVocabularyData.json is generated from elzup/jlpt-word-list,
+copyright (c) 2020 Jamie Sinclair and copyright (c) 2020 elzup, and is used
+under the MIT License. The upstream data is community-maintained and is not an
+official JLPT test-content specification. Source:
+https://github.com/elzup/jlpt-word-list
+
+Jiten vocabulary frequency data
+
+Vocabulary frequency ranks are requested individually from the Jiten API and
+cached locally; they are not bundled with this source tree. Jiten states that
+decks, frequency lists, and derived data are licensed under CC BY-SA 4.0 and
+that its service is intended for personal, educational, non-commercial use.
+Deployments must comply with the current Jiten terms. Sources:
+https://jiten.moe/terms
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Kanji formation reference data
+
+src/data/kanjiEtymology.generated.ts combines attributed records from Make Me
+a Hanzi (LGPL-3.0-or-later), kyujipy mappings (MIT), Chinese Lexicon (ISC), and
+selected revision-pinned English Wiktionary pages (CC BY-SA 4.0). These
+third-party data portions are not relicensed under Kakehashi's MIT license.
+See THIRD_PARTY_NOTICES.md and the license copies in licenses/.
+
 Brand assets
 
 The Kakehashi name, app icons, screenshots, and other brand assets are included

@@ -6,15 +6,18 @@ import { apiDebugger } from "./apiDebugger";
 import { isIOSOnMac } from "./platformSupport";
 import {
     CACHE_TTL,
+    clearStudyMaterialsCache,
     getCachedSubject,
     getDataUpdatedAt,
     getETag,
     getFromCache,
     getLastModified,
+    getStudyMaterialsFromPermanentCache,
     getSubjectById,
     saveDataUpdatedAt,
     saveETag,
     saveLastModified,
+    saveStudyMaterialsToPermanentCache,
     saveToCache
 } from "./cache";
 import { startPerformanceTimer } from "./performanceLogger";
@@ -31,6 +34,7 @@ const API_REVISION = "20170710";
 const MIN_CREATED_AT_AGE_MS = 15 * 60 * 1000; // 15 minutes
 const API_RATE_LIMIT_PER_MINUTE = 60;
 const API_RATE_LIMIT_SAFETY_BUFFER = 1;
+const STUDY_MATERIAL_SUBJECT_BATCH_SIZE = 100;
 const ENABLE_API_TRACKER_LOGS = __DEV__;
 
 type ReservedApiSlot = {
@@ -1249,6 +1253,56 @@ export async function getAssignments(
 }
 
 /**
+ * Fetch assignments for specific subjects, falling back to the complete
+ * permanent assignment snapshot when the network is unavailable.
+ *
+ * An empty successful response is meaningful: it means none of the requested
+ * subjects has an assignment yet, so callers can safely render "Not Started".
+ */
+export async function getAssignmentsForSubjectsCached(
+  apiToken: string,
+  subjectIds: number[]
+): Promise<CollectionResponse<Assignment>> {
+  const normalizedSubjectIds = Array.from(
+    new Set(
+      subjectIds.filter(
+        (subjectId) => Number.isInteger(subjectId) && subjectId > 0
+      )
+    )
+  );
+
+  if (normalizedSubjectIds.length === 0) {
+    return buildAssignmentsCollectionFromLocalData([]);
+  }
+
+  try {
+    const response = await getAssignments(apiToken, {
+      subject_ids: normalizedSubjectIds,
+    });
+    return response.pages.next_url
+      ? await fetchAllPages(response, apiToken)
+      : response;
+  } catch (error) {
+    const permanentAssignments = await getPermanentAssignmentsCollection();
+    if (!permanentAssignments) {
+      throw error;
+    }
+
+    const requestedSubjectIds = new Set(normalizedSubjectIds);
+    const matchingAssignments = permanentAssignments.data.filter(
+      (assignment) =>
+        requestedSubjectIds.has(assignment.data.subject_id)
+    );
+
+    return {
+      ...permanentAssignments,
+      data: matchingAssignments,
+      total_count: matchingAssignments.length,
+    };
+  }
+}
+
+/**
  * Smart wrapper for getAssignments that uses updated_after filter to minimize data transfer.
  * Implements WaniKani Best Practice #3: "Leveraging the updated_after Filter"
  * 
@@ -2460,8 +2514,76 @@ export async function getStudyMaterials(
   } = {},
   options?: { skipCache?: boolean }
 ): Promise<any> {
+  const uniqueSubjectIds = Array.from(
+    new Set(
+      (params.subject_ids ?? []).filter(
+        (subjectId) => Number.isInteger(subjectId) && subjectId > 0
+      )
+    )
+  );
+
+  if (uniqueSubjectIds.length > STUDY_MATERIAL_SUBJECT_BATCH_SIZE) {
+    const collections: any[] = [];
+
+    for (
+      let index = 0;
+      index < uniqueSubjectIds.length;
+      index += STUDY_MATERIAL_SUBJECT_BATCH_SIZE
+    ) {
+      const subjectIdBatch = uniqueSubjectIds.slice(
+        index,
+        index + STUDY_MATERIAL_SUBJECT_BATCH_SIZE
+      );
+      collections.push(
+        await getStudyMaterials(
+          apiToken,
+          { ...params, subject_ids: subjectIdBatch },
+          options
+        )
+      );
+    }
+
+    const materialsBySubjectId = new Map<number, any>();
+    collections.forEach((collection) => {
+      if (!Array.isArray(collection?.data)) {
+        return;
+      }
+      collection.data.forEach((material: any) => {
+        const subjectId = material?.data?.subject_id;
+        if (Number.isInteger(subjectId) && subjectId > 0) {
+          materialsBySubjectId.set(subjectId, material);
+        }
+      });
+    });
+
+    const data = Array.from(materialsBySubjectId.values());
+    const dataUpdatedAtValues = collections
+      .map((collection) => collection?.data_updated_at)
+      .filter((value): value is string => typeof value === "string")
+      .sort();
+    const latestDataUpdatedAt =
+      dataUpdatedAtValues[dataUpdatedAtValues.length - 1] ?? null;
+
+    return {
+      object: "collection",
+      url: `${API_BASE_URL}/study_materials`,
+      pages: {
+        per_page: 500,
+        next_url: null,
+        previous_url: null,
+      },
+      total_count: data.length,
+      data_updated_at: latestDataUpdatedAt,
+      data,
+    };
+  }
+
+  const effectiveParams =
+    params.subject_ids === undefined
+      ? params
+      : { ...params, subject_ids: uniqueSubjectIds };
   const url = new URL(`${API_BASE_URL}/study_materials`);
-  Object.entries(params).forEach(
+  Object.entries(effectiveParams).forEach(
     ([k, v]) =>
       v !== undefined &&
       url.searchParams.append(k, Array.isArray(v) ? v.join(",") : String(v))
@@ -2471,14 +2593,56 @@ export async function getStudyMaterials(
     .toString()
     .replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-  const cachedEntry = options?.skipCache ? null : await getFromCache<any>(cacheKey, undefined, {
+  const requestedSubjectIds = effectiveParams.subject_ids || [];
+  const persistStudyMaterials = async (collection: any) => {
+    const isCompleteResponse = !collection?.pages?.next_url;
+    const responseCoversRequestedSubjects =
+      effectiveParams.ids === undefined &&
+      effectiveParams.updated_after === undefined;
+    await saveStudyMaterialsToPermanentCache(
+      requestedSubjectIds,
+      Array.isArray(collection?.data) ? collection.data : [],
+      {
+        completeResponse:
+          isCompleteResponse && responseCoversRequestedSubjects,
+        completeCollection:
+          requestedSubjectIds.length === 0 &&
+          responseCoversRequestedSubjects &&
+          isCompleteResponse,
+      }
+    );
+  };
+  const buildOfflineCollection = (materials: any[]) => ({
+    object: "collection",
+    url: url.toString(),
+    pages: {
+      per_page: 500,
+      next_url: null,
+      previous_url: null,
+    },
+    total_count: materials.length,
+    data_updated_at: null,
+    data: materials,
+  });
+
+  const cachedEntry = await getFromCache<any>(cacheKey, undefined, {
     ignoreTTL: true,
   });
   const hasCached = Boolean(cachedEntry && cachedEntry.data);
   const isExpired = hasCached
     ? Date.now() - cachedEntry!.timestamp > CACHE_TTL
     : false;
-  if (hasCached && !isExpired) return cachedEntry!.data;
+  if (hasCached) {
+    await persistStudyMaterials(cachedEntry!.data).catch(() => {});
+  }
+  if (
+    !options?.skipCache &&
+    hasCached &&
+    !isExpired &&
+    !cachedEntry!.data.pages?.next_url
+  ) {
+    return cachedEntry!.data;
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiToken}`,
@@ -2491,29 +2655,57 @@ export async function getStudyMaterials(
     else if (lastMod) headers["If-Modified-Since"] = lastMod;
   }
 
-  const response = await fetchWaniKaniApi(url.toString(), { method: "GET", headers });
+  try {
+    const response = await fetchWaniKaniApi(url.toString(), {
+      method: "GET",
+      headers,
+    });
 
-  if (response.status === 304 && hasCached) {
-    await saveToCache(cacheKey, cachedEntry!.data, cachedEntry!.dataUpdatedAt);
-    return cachedEntry!.data;
+    if (response.status === 304 && hasCached) {
+      const data = cachedEntry!.data.pages?.next_url
+        ? await fetchAllPages(cachedEntry!.data, apiToken)
+        : cachedEntry!.data;
+
+      await saveToCache(cacheKey, data, data.data_updated_at);
+      await persistStudyMaterials(data).catch(() => {});
+      return data;
+    }
+
+    if (!response.ok) {
+      const txt = await response
+        .text()
+        .catch(() => "Could not read error response");
+      console.error(`API error ${response.status} for study materials:`, txt);
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const newEtag = getResponseHeader(response, "ETag");
+    const newLast = getResponseHeader(response, "Last-Modified");
+    if (newEtag) await saveETag(url.toString(), newEtag);
+    if (newLast) await saveLastModified(url.toString(), newLast);
+
+    const initialData = await response.json();
+    const data = initialData?.pages?.next_url
+      ? await fetchAllPages(initialData, apiToken)
+      : initialData;
+    await saveToCache(cacheKey, data, data.data_updated_at);
+    await persistStudyMaterials(data).catch((cacheError) => {
+      console.warn(
+        "[Study Materials] Failed to update permanent offline cache:",
+        cacheError
+      );
+    });
+    return data;
+  } catch (error) {
+    const offlineMaterials = await getStudyMaterialsFromPermanentCache(
+      requestedSubjectIds
+    ).catch(() => null);
+    if (offlineMaterials !== null) {
+      return buildOfflineCollection(offlineMaterials);
+    }
+
+    throw error;
   }
-
-  if (!response.ok) {
-    const txt = await response
-      .text()
-      .catch(() => "Could not read error response");
-    console.error(`API error ${response.status} for study materials:`, txt);
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  const newEtag = getResponseHeader(response, "ETag");
-  const newLast = getResponseHeader(response, "Last-Modified");
-  if (newEtag) await saveETag(url.toString(), newEtag);
-  if (newLast) await saveLastModified(url.toString(), newLast);
-
-  const data = await response.json();
-  await saveToCache(cacheKey, data, data.data_updated_at);
-  return data;
 }
 
 // Get SRS systems with caching
@@ -2612,7 +2804,14 @@ export async function createStudyMaterial(
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  await clearStudyMaterialsCache(params.subject_id);
+  await saveStudyMaterialsToPermanentCache(
+    [params.subject_id],
+    [data],
+    { completeResponse: true }
+  ).catch(() => {});
+  return data;
 }
 
 // Update an existing study material
@@ -2648,7 +2847,17 @@ export async function updateStudyMaterial(
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  const subjectId = data?.data?.subject_id;
+  if (Number.isInteger(subjectId) && subjectId > 0) {
+    await clearStudyMaterialsCache(subjectId);
+    await saveStudyMaterialsToPermanentCache(
+      [subjectId],
+      [data],
+      { completeResponse: true }
+    ).catch(() => {});
+  }
+  return data;
 }
 
 // Get reviews with pagination support

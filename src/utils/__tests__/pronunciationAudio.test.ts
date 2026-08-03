@@ -2,6 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 import {
   getFilteredPronunciationAudios,
   getUniquePronunciationAudiosByVoiceActor,
+  hasPronunciationAudio,
   pickPreferredPronunciationAudios,
   pickPreferredPronunciationAudio,
   sortPronunciationAudiosByReadingAndGender,
@@ -51,6 +52,19 @@ const everyMonthAudios: PronunciationAudio[] = [
 ];
 
 describe("pronunciationAudio", () => {
+  it("reports whether replayable pronunciation audio is present", () => {
+    expect(hasPronunciationAudio(null)).toBe(false);
+    expect(hasPronunciationAudio([])).toBe(false);
+    expect(
+      hasPronunciationAudio([
+        {
+          url: "https://example.com/kana.mp3",
+          content_type: "audio/mpeg",
+        },
+      ])
+    ).toBe(true);
+  });
+
   it("filters out audio entries that do not match accepted readings", () => {
     const filtered = getFilteredPronunciationAudios(
       everyMonthAudios,

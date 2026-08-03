@@ -58,6 +58,7 @@ import {
   DEFAULT_APP_TEXT_SIZE_SCALE,
   normalizeAppTextSizeScale,
 } from "./appTextSize";
+import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
 
@@ -75,6 +76,7 @@ export type VocabularyAudioVoicePreference =
   | "random"
   | "both";
 export type StudyModePreference = "none" | "wk" | "full";
+export type SongLyricsStudyModePreference = StudyModePreference | "quiz";
 export type SongsPlaybackSource = "youtube" | "appleMusic" | "spotify";
 export type SpotifyAuthStatus =
   | "authorized"
@@ -145,7 +147,7 @@ export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 14;
+const SETTINGS_STORE_SCHEMA_VERSION = 15;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -471,6 +473,8 @@ type SettingsState = {
   // Lesson settings
   lessonBatchSize: number;
   dailyLessonLimit: number; // Maximum lessons per day in the user's timezone (0 = unlimited)
+  apprenticeLessonThreshold: number; // Block home-page lessons above this Apprentice count (0 = disabled)
+  guruLessonThreshold: number; // Block home-page lessons above this Guru count (0 = disabled)
   lessonPickerViewMode: LessonPickerViewMode; // Default visual style for lesson picker subject selection
   singlePageLessonView: boolean; // Show all lesson content in a single scrollable page instead of tabs
   skipCustomLessonQuiz: boolean; // Skip custom lesson quiz and jump straight to batch completion
@@ -530,6 +534,7 @@ type SettingsState = {
   vocabularyColor: string;
   forecastShowSubjectColors: boolean;
   showPitchAccent: boolean;
+  showVocabularyFrequency: boolean;
   showPatternsOfUse: boolean;
   showSimilarVocabulary: boolean;
   showSingleKanjiVocabularySimilarKanji: boolean;
@@ -537,6 +542,9 @@ type SettingsState = {
   hideContextSentenceTranslations: boolean;
   showContextSentenceSpeedControl: boolean;
   showMnemonicIllustrations: boolean; // Show radical mnemonic illustrations in subject details and lessons
+  showInlineRadicalReminders: boolean; // Expand radical mnemonics inline from kanji details
+  showKanjiEtymology: boolean; // Show kanji etymology in subject details and lessons
+  kanjiReadingTextToSpeechEnabled: boolean; // Make kanji reading chips speak their Japanese pronunciation
   myAnimeListUsername: string | null;
   aniListUsername: string | null;
   immersionKitAnimes: string[] | null;
@@ -549,6 +557,7 @@ type SettingsState = {
   dailyReviewReminderMinute: number;
   dailyLessonReminderEnabled: boolean;
   dailyLessonReminderMinimum: number;
+  dailyLessonReminderIncludeWeekends: boolean;
 
   // User Profile settings
   gravatarEmail: string | null;
@@ -565,6 +574,7 @@ type SettingsState = {
   showAddSynonymButton: boolean;
   acceptAnyKanjiOnyomiReading: boolean;
   showOnyomiInKatakana: boolean;
+  groupKanjiVocabularyExamplesByReading: boolean;
   backToBackQuestions: boolean;
   strokeLeniency: number; // 0.8 = very strict, 1.2 = strict, 1.8 = lenient, 2.5 = very lenient
   visuallySimilarKanjiSource: "wanikani" | "niai"; // Source for visually similar kanji data
@@ -578,7 +588,7 @@ type SettingsState = {
   hideVocabularyTooltipReadings: boolean;
   songsMusicSource: "spotify" | "apple";
   songsPlaybackSource: SongsPlaybackSource;
-  songsLyricsDefaultStudyMode: StudyModePreference;
+  songsLyricsDefaultStudyMode: SongLyricsStudyModePreference;
   songsLyricsLineTranslationsEnabled: boolean;
   appleMusicAuthStatus:
     | "authorized"
@@ -643,6 +653,8 @@ type SettingsState = {
   // Update functions
   setLessonBatchSize: (size: number) => void;
   setDailyLessonLimit: (limit: number) => void;
+  setApprenticeLessonThreshold: (threshold: number) => void;
+  setGuruLessonThreshold: (threshold: number) => void;
   setLessonPickerViewMode: (mode: LessonPickerViewMode) => void;
   setSinglePageLessonView: (enabled: boolean) => void;
   setSkipCustomLessonQuiz: (enabled: boolean) => void;
@@ -704,6 +716,7 @@ type SettingsState = {
   setVocabularyColor: (color: string) => void;
   setForecastShowSubjectColors: (show: boolean) => void;
   setShowPitchAccent: (show: boolean) => void;
+  setShowVocabularyFrequency: (show: boolean) => void;
   setShowPatternsOfUse: (show: boolean) => void;
   setShowSimilarVocabulary: (show: boolean) => void;
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
@@ -711,6 +724,9 @@ type SettingsState = {
   setHideContextSentenceTranslations: (hide: boolean) => void;
   setShowContextSentenceSpeedControl: (show: boolean) => void;
   setShowMnemonicIllustrations: (show: boolean) => void;
+  setShowInlineRadicalReminders: (show: boolean) => void;
+  setShowKanjiEtymology: (show: boolean) => void;
+  setKanjiReadingTextToSpeechEnabled: (enabled: boolean) => void;
   setMyAnimeListUsername: (username: string | null) => void;
   setAniListUsername: (username: string | null) => void;
   setImmersionKitAnimes: (animes: string[] | null) => void;
@@ -721,6 +737,7 @@ type SettingsState = {
   setDailyReviewReminderMinute: (minute: number) => void;
   setDailyLessonReminderEnabled: (enable: boolean) => void;
   setDailyLessonReminderMinimum: (minimum: number) => void;
+  setDailyLessonReminderIncludeWeekends: (include: boolean) => void;
   setGravatarEmail: (email: string | null) => void;
   setVocabTooltipEnabled: (enabled: boolean) => void;
   setJitaiEnabled: (enabled: boolean) => void;
@@ -733,6 +750,7 @@ type SettingsState = {
   setShowAddSynonymButton: (show: boolean) => void;
   setAcceptAnyKanjiOnyomiReading: (accept: boolean) => void;
   setShowOnyomiInKatakana: (show: boolean) => void;
+  setGroupKanjiVocabularyExamplesByReading: (group: boolean) => void;
   setBackToBackQuestions: (enabled: boolean) => void;
   setStrokeLeniency: (leniency: number) => void;
   setVisuallySimilarKanjiSource: (source: "wanikani" | "niai") => void;
@@ -742,7 +760,7 @@ type SettingsState = {
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
   setSongsMusicSource: (source: "spotify" | "apple") => void;
   setSongsPlaybackSource: (source: SongsPlaybackSource) => void;
-  setSongsLyricsDefaultStudyMode: (mode: StudyModePreference) => void;
+  setSongsLyricsDefaultStudyMode: (mode: SongLyricsStudyModePreference) => void;
   setSongsLyricsLineTranslationsEnabled: (enabled: boolean) => void;
   setAppleMusicAuthStatus: (
     status:
@@ -795,6 +813,8 @@ export const useSettingsStore = create<SettingsState>()(
       // Default settings
       lessonBatchSize: 5,
       dailyLessonLimit: 0, // 0 means no daily limit
+      apprenticeLessonThreshold: 0, // 0 means no Apprentice threshold
+      guruLessonThreshold: 0, // 0 means no Guru threshold
       lessonPickerViewMode: "cards", // Default to card grid selection in lesson picker
       singlePageLessonView: false, // Default to tab-based view
       skipCustomLessonQuiz: false, // Default to false - keep custom lesson review quiz enabled
@@ -854,6 +874,7 @@ export const useSettingsStore = create<SettingsState>()(
       vocabularyColor: "#9c38d9",
       forecastShowSubjectColors: false, // Default to disabled (traditional single color)
       showPitchAccent: false, // Default to disabled (optional pronunciation visualization)
+      showVocabularyFrequency: false, // Jiten requests stay off until the user opts in
       showPatternsOfUse: false, // Default to disabled (optional collocation/pattern examples)
       showSimilarVocabulary: false, // Default to disabled (optional similar reading/meaning lookup)
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
@@ -861,6 +882,9 @@ export const useSettingsStore = create<SettingsState>()(
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
+      showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
+      showKanjiEtymology: false, // Default to disabled so etymology stays opt-in
+      kanjiReadingTextToSpeechEnabled: false, // Default to disabled so reading chips remain non-interactive
       myAnimeListUsername: null, // No MyAnimeList user configured by default
       aniListUsername: null, // No AniList user configured by default
       showBadgeNotifications: true, // Default to enabled
@@ -870,6 +894,7 @@ export const useSettingsStore = create<SettingsState>()(
       dailyReviewReminderMinute: 0,
       dailyLessonReminderEnabled: false, // Default to disabled
       dailyLessonReminderMinimum: 5, // Default lesson goal for reminders
+      dailyLessonReminderIncludeWeekends: true, // Preserve daily reminders on weekends unless the user opts out
       gravatarEmail: null,
 
       vocabTooltipEnabled: true, // Default to true
@@ -889,6 +914,7 @@ export const useSettingsStore = create<SettingsState>()(
       showAddSynonymButton: true, // Default to true - preserve the existing paused-wrong synonym action
       acceptAnyKanjiOnyomiReading: false, // Default to false - require primary reading for kanji unless enabled
       showOnyomiInKatakana: false, // Default to false - show on'yomi readings in katakana (Katakana Madness)
+      groupKanjiVocabularyExamplesByReading: true, // Default to categorized On/Kun examples
       backToBackQuestions: false, // Default to false - show meaning and reading questions back-to-back
       strokeLeniency: 1.5, // Default to 1.5 (lenient) - higher values are more forgiving
       visuallySimilarKanjiSource: "wanikani", // Default to WaniKani's built-in similar kanji
@@ -977,6 +1003,12 @@ export const useSettingsStore = create<SettingsState>()(
       // Update functions
       setLessonBatchSize: (size) => set({ lessonBatchSize: size }),
       setDailyLessonLimit: (limit) => set({ dailyLessonLimit: limit }),
+      setApprenticeLessonThreshold: (threshold) =>
+        set({
+          apprenticeLessonThreshold: normalizeLessonSrsThreshold(threshold),
+        }),
+      setGuruLessonThreshold: (threshold) =>
+        set({ guruLessonThreshold: normalizeLessonSrsThreshold(threshold) }),
       setLessonPickerViewMode: (mode) =>
         set({ lessonPickerViewMode: normalizeLessonPickerViewMode(mode) }),
       setSinglePageLessonView: (enabled) => set({ singlePageLessonView: enabled }),
@@ -1084,6 +1116,8 @@ export const useSettingsStore = create<SettingsState>()(
       setForecastShowSubjectColors: (show) =>
         set({ forecastShowSubjectColors: show }),
       setShowPitchAccent: (show) => set({ showPitchAccent: show }),
+      setShowVocabularyFrequency: (show) =>
+        set({ showVocabularyFrequency: show }),
       setShowPatternsOfUse: (show) => set({ showPatternsOfUse: show }),
       setShowSimilarVocabulary: (show) => set({ showSimilarVocabulary: show }),
       setShowSingleKanjiVocabularySimilarKanji: (show) =>
@@ -1096,6 +1130,11 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showContextSentenceSpeedControl: show }),
       setShowMnemonicIllustrations: (show) =>
         set({ showMnemonicIllustrations: show }),
+      setShowInlineRadicalReminders: (show) =>
+        set({ showInlineRadicalReminders: show }),
+      setShowKanjiEtymology: (show) => set({ showKanjiEtymology: show }),
+      setKanjiReadingTextToSpeechEnabled: (enabled) =>
+        set({ kanjiReadingTextToSpeechEnabled: enabled }),
       setMyAnimeListUsername: (username) =>
         set({ myAnimeListUsername: username }),
       setAniListUsername: (username) =>
@@ -1120,6 +1159,8 @@ export const useSettingsStore = create<SettingsState>()(
             Math.max(5, Math.floor(minimum))
           ),
         }),
+      setDailyLessonReminderIncludeWeekends: (include) =>
+        set({ dailyLessonReminderIncludeWeekends: include }),
       setGravatarEmail: (email) => set({ gravatarEmail: email }),
       setVocabTooltipEnabled: (enabled) =>
         set({ vocabTooltipEnabled: enabled }),
@@ -1139,6 +1180,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAcceptAnyKanjiOnyomiReading: (accept) =>
         set({ acceptAnyKanjiOnyomiReading: accept }),
       setShowOnyomiInKatakana: (show) => set({ showOnyomiInKatakana: show }),
+      setGroupKanjiVocabularyExamplesByReading: (group) =>
+        set({ groupKanjiVocabularyExamplesByReading: group }),
       setBackToBackQuestions: (enabled) => set({ backToBackQuestions: enabled }),
       setStrokeLeniency: (leniency) => set({ strokeLeniency: leniency }),
       setVisuallySimilarKanjiSource: (source) => set({ visuallySimilarKanjiSource: source }),
@@ -1293,6 +1336,7 @@ export const useSettingsStore = create<SettingsState>()(
           songsPlaybackSource?: unknown;
           spotifyAuthStatus?: unknown;
           spotifyDisplayName?: unknown;
+          kanjiReadingTextToSpeechEnabled?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1422,6 +1466,11 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (typeof migratedRecord.spotifyDisplayName !== "string") {
           migratedRecord.spotifyDisplayName = null;
+        }
+        if (
+          typeof migratedRecord.kanjiReadingTextToSpeechEnabled !== "boolean"
+        ) {
+          migratedRecord.kanjiReadingTextToSpeechEnabled = false;
         }
 
         return migrated;

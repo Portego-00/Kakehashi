@@ -1,21 +1,99 @@
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Switch, Text, TouchableOpacity, View } from "react-native";
+import { Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
+import {
+  LESSON_SRS_THRESHOLD_MAX,
+  normalizeLessonSrsThreshold,
+} from "../../../utils/lessonSrsThreshold";
+import { useSettingsStore } from "../../../utils/store";
+
+function LessonThresholdInput({
+  accessibilityLabel,
+  borderColor,
+  textColor,
+  value,
+  onChange,
+}: {
+  accessibilityLabel: string;
+  borderColor: string;
+  textColor: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [draftValue, setDraftValue] = React.useState(String(value));
+  const [isEditing, setIsEditing] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isEditing) {
+      setDraftValue(String(value));
+    }
+  }, [isEditing, value]);
+
+  const commitDraftValue = () => {
+    const normalizedValue = normalizeLessonSrsThreshold(
+      draftValue.length > 0 ? Number(draftValue) : 0,
+    );
+    onChange(normalizedValue);
+    setDraftValue(String(normalizedValue));
+    setIsEditing(false);
+  };
+
+  return (
+    <TextInput
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Enter zero to disable this limit"
+      style={[styles.lessonThresholdInput, { borderColor, color: textColor }]}
+      value={draftValue}
+      onFocus={() => {
+        setIsEditing(true);
+        if (value === 0) {
+          setDraftValue("");
+        }
+      }}
+      onChangeText={(text) => setDraftValue(text.replace(/\D/g, ""))}
+      onBlur={commitDraftValue}
+      onSubmitEditing={commitDraftValue}
+      keyboardType="number-pad"
+      inputMode="numeric"
+      maxLength={String(LESSON_SRS_THRESHOLD_MAX).length}
+      selectTextOnFocus={value > 0}
+      textAlign="center"
+    />
+  );
+}
 
 export function LessonSettingsSection() {
+  const apprenticeLessonThreshold = useSettingsStore(
+    (state) => state.apprenticeLessonThreshold,
+  );
+  const guruLessonThreshold = useSettingsStore(
+    (state) => state.guruLessonThreshold,
+  );
+  const setApprenticeLessonThreshold = useSettingsStore(
+    (state) => state.setApprenticeLessonThreshold,
+  );
+  const setGuruLessonThreshold = useSettingsStore(
+    (state) => state.setGuruLessonThreshold,
+  );
   const {
     dailyLessonLimit,
     dailyLessonLimitMax,
     dailyLessonLimitMin,
     dailyLessonLimitStep,
+    dailyLessonReminderIncludeWeekends,
     excludeKanaVocabularyFromLessons,
     getLessonOrderLabel,
     getNextDailyLessonLimit,
     getPreviousDailyLessonLimit,
     handleDailyLessonLimitToggle,
+    handleDailyLessonReminderIncludeWeekendsChange,
     interleaveLessonTypesEnabled,
     isDailyLessonLimitEnabled,
     lessonBatchSize,
@@ -73,6 +151,7 @@ export function LessonSettingsSection() {
           Lesson Settings
         </Text>
 
+        <AdvancedSettingsGroup>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >
@@ -141,9 +220,7 @@ export function LessonSettingsSection() {
           style={[
             styles.settingItem,
             {
-              borderBottomColor: isDailyLessonLimitEnabled
-                ? theme.border
-                : "transparent",
+              borderBottomColor: theme.border,
             },
           ]}
         >
@@ -173,7 +250,7 @@ export function LessonSettingsSection() {
 
         {isDailyLessonLimitEnabled && (
           <View
-            style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+            style={[styles.settingItem, { borderBottomColor: theme.border }]}
           >
             <Ionicons
               name="options"
@@ -247,6 +324,58 @@ export function LessonSettingsSection() {
           </View>
         )}
 
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="school-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Apprentice Lesson Threshold
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Stop offering home-page lessons above this count (0 = no limit)
+            </Text>
+          </View>
+          <LessonThresholdInput
+            accessibilityLabel="Apprentice lesson threshold"
+            borderColor={theme.border}
+            textColor={theme.textColor}
+            value={apprenticeLessonThreshold}
+            onChange={setApprenticeLessonThreshold}
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="snow-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Guru Lesson Threshold
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Stop offering home-page lessons above this count (0 = no limit)
+            </Text>
+          </View>
+          <LessonThresholdInput
+            accessibilityLabel="Guru lesson threshold"
+            borderColor={theme.border}
+            textColor={theme.textColor}
+            value={guruLessonThreshold}
+            onChange={setGuruLessonThreshold}
+          />
+        </View>
+
         <TouchableOpacity
           style={[styles.settingItem, { borderBottomColor: theme.border }]}
           onPress={() => router.push("/lesson-order-settings")}
@@ -274,6 +403,35 @@ export function LessonSettingsSection() {
           />
         </TouchableOpacity>
 
+        <AdvancedSetting>
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="calendar-clear-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Weekend Lesson Reminders
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Send lesson reminders on Saturdays and Sundays
+            </Text>
+          </View>
+          <Switch
+            value={dailyLessonReminderIncludeWeekends}
+            onValueChange={(includeWeekends) => {
+              void handleDailyLessonReminderIncludeWeekendsChange(
+                includeWeekends,
+              );
+            }}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="list-outline"
@@ -402,6 +560,8 @@ export function LessonSettingsSection() {
             thumbColor="#f4f3f4"
           />
         </View>
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );

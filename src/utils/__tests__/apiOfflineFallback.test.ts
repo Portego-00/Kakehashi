@@ -34,6 +34,19 @@ const makeAssignmentsCollection = (assignments: any[]) => ({
   data: assignments,
 });
 
+const makeStudyMaterialsCollection = (materials: any[]) => ({
+  object: "collection",
+  url: "https://api.wanikani.com/v2/study_materials",
+  pages: {
+    per_page: 500,
+    next_url: null,
+    previous_url: null,
+  },
+  total_count: materials.length,
+  data_updated_at: "2026-05-28T08:00:00.000Z",
+  data: materials,
+});
+
 const mockResponse = (data: any) => {
   const body = JSON.stringify(data);
 
@@ -80,21 +93,29 @@ describe("api offline assignment fallbacks", () => {
     permanentAssignments?: any[];
   } = {}) => {
     const getFromCacheMock = jest.fn(async () => null);
+    const getStudyMaterialsFromPermanentCacheMock = jest.fn<
+      Promise<any[] | null>,
+      [number[]]
+    >(async () => null);
     const saveAssignmentsToPermanentStorageMock = jest.fn(
       async () => undefined
     );
 
     jest.doMock("../cache", () => ({
       CACHE_TTL: 24 * 60 * 60 * 1000,
+      clearStudyMaterialsCache: jest.fn(async () => undefined),
       getCachedSubject: jest.fn(),
       getDataUpdatedAt: jest.fn(async () => null),
       getETag: jest.fn(async () => null),
       getFromCache: getFromCacheMock,
       getLastModified: jest.fn(async () => null),
+      getStudyMaterialsFromPermanentCache:
+        getStudyMaterialsFromPermanentCacheMock,
       getSubjectById: jest.fn(async () => null),
       saveDataUpdatedAt: jest.fn(async () => undefined),
       saveETag: jest.fn(async () => undefined),
       saveLastModified: jest.fn(async () => undefined),
+      saveStudyMaterialsToPermanentCache: jest.fn(async () => undefined),
       saveToCache: jest.fn(async () => undefined),
     }));
 
@@ -138,6 +159,7 @@ describe("api offline assignment fallbacks", () => {
     return {
       api,
       getFromCacheMock,
+      getStudyMaterialsFromPermanentCacheMock,
       saveAssignmentsToPermanentStorageMock,
     };
   };
@@ -166,6 +188,46 @@ describe("api offline assignment fallbacks", () => {
     expect(result.pages.next_url).toBeNull();
   });
 
+  it("uses the permanent assignment snapshot for subject details while offline", async () => {
+    const subjectAssignment = makeAssignment(1, {
+      srs_stage: 3,
+      started_at: "2026-05-28T09:00:00.000Z",
+    });
+    const otherAssignment = makeAssignment(2);
+
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const { api } = loadApi({
+      permanentAssignments: [subjectAssignment, otherAssignment],
+    });
+
+    const result = await api.getAssignmentsForSubjectsCached(
+      "test-token",
+      [1001]
+    );
+
+    expect(result.data).toEqual([subjectAssignment]);
+    expect(result.total_count).toBe(1);
+  });
+
+  it("returns a definitive empty subject assignment result from an offline snapshot", async () => {
+    const otherAssignment = makeAssignment(2);
+
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const { api } = loadApi({
+      permanentAssignments: [otherAssignment],
+    });
+
+    const result = await api.getAssignmentsForSubjectsCached(
+      "test-token",
+      [1001]
+    );
+
+    expect(result.data).toEqual([]);
+    expect(result.total_count).toBe(0);
+  });
+
   it("reconciles an empty live lesson response against assignment data", async () => {
     const availableLesson = makeAssignment(4);
     const startedLesson = makeAssignment(5, {
@@ -189,5 +251,125 @@ describe("api offline assignment fallbacks", () => {
       [availableLesson, startedLesson],
       "2026-05-28T08:00:00.000Z"
     );
+  });
+
+  it("uses subject-keyed study materials when the request is offline", async () => {
+    const cachedMaterial = {
+      id: 77,
+      object: "study_material",
+      data: {
+        subject_id: 1001,
+        meaning_synonyms: ["grown-up"],
+      },
+    };
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const {
+      api,
+      getStudyMaterialsFromPermanentCacheMock,
+    } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue([
+      cachedMaterial,
+    ]);
+
+    const result = await api.getStudyMaterials(
+      "test-token",
+      { subject_ids: [1001] },
+      { skipCache: true }
+    );
+
+    expect(result.data).toEqual([cachedMaterial]);
+    expect(result.pages.next_url).toBeNull();
+    expect(getStudyMaterialsFromPermanentCacheMock).toHaveBeenCalledWith([
+      1001,
+    ]);
+  });
+
+  it("fails instead of returning incomplete accepted answers offline", async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const {
+      api,
+      getStudyMaterialsFromPermanentCacheMock,
+    } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue(null);
+
+    await expect(
+      api.getStudyMaterials(
+        "test-token",
+        { subject_ids: [1001] },
+        { skipCache: true }
+      )
+    ).rejects.toThrow("offline");
+  });
+
+  it("uses a complete study-material snapshot for unfiltered offline reads", async () => {
+    const cachedMaterial = {
+      id: 88,
+      object: "study_material",
+      data: {
+        subject_id: 1002,
+        meaning_synonyms: ["adult"],
+      },
+    };
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+
+    const {
+      api,
+      getStudyMaterialsFromPermanentCacheMock,
+    } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue([
+      cachedMaterial,
+    ]);
+
+    const result = await api.getStudyMaterials(
+      "test-token",
+      {},
+      { skipCache: true }
+    );
+
+    expect(result.data).toEqual([cachedMaterial]);
+    expect(getStudyMaterialsFromPermanentCacheMock).toHaveBeenCalledWith([]);
+  });
+
+  it("batches large subject filters and merges study materials", async () => {
+    const subjectIds = Array.from({ length: 101 }, (_, index) => 1001 + index);
+
+    (global.fetch as jest.Mock).mockImplementation((input: string) => {
+      const requestUrl = new URL(String(input));
+      const batchSubjectIds = requestUrl.searchParams
+        .get("subject_ids")!
+        .split(",")
+        .map(Number);
+      const firstSubjectId = batchSubjectIds[0];
+
+      expect(batchSubjectIds.length).toBeLessThanOrEqual(100);
+
+      return mockResponse(
+        makeStudyMaterialsCollection([
+          {
+            id: firstSubjectId,
+            object: "study_material",
+            data: {
+              subject_id: firstSubjectId,
+              meaning_synonyms: [`synonym-${firstSubjectId}`],
+            },
+          },
+        ])
+      );
+    });
+
+    const { api } = loadApi();
+    const result = await api.getStudyMaterials(
+      "test-token",
+      { subject_ids: subjectIds },
+      { skipCache: true }
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(
+      result.data.map((material: any) => material.data.subject_id)
+    ).toEqual([1001, 1101]);
+    expect(result.pages.next_url).toBeNull();
   });
 });

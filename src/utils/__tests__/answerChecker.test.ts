@@ -147,3 +147,26 @@ describe('answerChecker reading validation', () => {
     expect(result).toBe(AnswerCheckerResult.Incorrect);
   });
 });
+
+describe('answerChecker user synonyms', () => {
+  it('accepts a user synonym as a precise meaning answer when supplied', () => {
+    const subject = buildSubject({});
+
+    const result = checkAnswerWithDetails(
+      'grown-up',
+      subject,
+      'meaning',
+      { meaning_synonyms: ['grown-up'] },
+    );
+
+    expect(result).toBe(AnswerCheckerResult.Precise);
+  });
+
+  it('does not accept a user synonym when study materials are omitted', () => {
+    const subject = buildSubject({});
+
+    const result = checkAnswerWithDetails('grown-up', subject, 'meaning');
+
+    expect(result).toBe(AnswerCheckerResult.Incorrect);
+  });
+});

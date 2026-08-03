@@ -44,6 +44,7 @@ import {
   getRecentLessonsWindowSubtitle,
   type RecentLessonsWindow,
 } from "../utils/recentLessonsWindow";
+import { type LessonSrsThresholdStatus } from "../utils/lessonSrsThreshold";
 import { getReadableTextColor, withAlpha } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
@@ -54,6 +55,7 @@ type HomeDashboardWidgetProps = {
   userData: any;
   effectiveLessonCount: number;
   isDailyLessonLimitReached: boolean;
+  lessonSrsThresholdStatus: LessonSrsThresholdStatus;
   hasResumableLessonSession?: boolean;
   isIPadLandscape: boolean;
   shouldShowRecentMistakes: boolean;
@@ -82,6 +84,7 @@ export default function HomeDashboardWidget({
   userData,
   effectiveLessonCount,
   isDailyLessonLimitReached,
+  lessonSrsThresholdStatus,
   hasResumableLessonSession = false,
   isIPadLandscape,
   shouldShowRecentMistakes,
@@ -321,7 +324,9 @@ export default function HomeDashboardWidget({
         </View>
       ) : (
         <LessonsReviewsCardPair
-          lessonCount={effectiveLessonCount}
+          lessonCount={
+            lessonSrsThresholdStatus.isBlocked ? 0 : effectiveLessonCount
+          }
           totalLessonCount={availableLessonCountBeforeDailyLimit}
           reviewCount={dashboardData.reviewCount}
           pendingLessonSyncCount={dashboardData.pendingLessonSyncCount ?? 0}
@@ -335,6 +340,7 @@ export default function HomeDashboardWidget({
           onReviewsPress={onReviewsPress}
           isDoneLessons={effectiveLessonCount === 0}
           isLessonDailyLimitReached={isDailyLessonLimitReached}
+          lessonSrsThresholdStatus={lessonSrsThresholdStatus}
           nextLessonTime={dashboardData.nextLessonDate || undefined}
           nextReviewTime={dashboardData.nextReviewDate || undefined}
           isIPadLandscape={isIPadLandscape}

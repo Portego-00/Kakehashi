@@ -1,4 +1,5 @@
 import {
+  buildKanjiMeaningMatchRounds,
   buildSimilarKanjiRounds,
   getPrimaryKanjiMeaning,
 } from "../similarKanjiQuiz";
@@ -144,5 +145,62 @@ describe("similarKanjiQuiz", () => {
     expect(rounds).toHaveLength(1);
     expect(rounds[0].items).toHaveLength(2);
     expect(rounds[0].meaningChoices).toHaveLength(2);
+  });
+
+  it("builds custom kanji-to-meaning rounds from the selected subjects", () => {
+    const subjects = [
+      makeKanjiSubject(1, "一", "One"),
+      makeKanjiSubject(2, "二", "Two"),
+      makeKanjiSubject(3, "三", "Three"),
+      makeKanjiSubject(4, "四", "Four"),
+      makeKanjiSubject(5, "五", "Five"),
+    ];
+
+    const rounds = buildKanjiMeaningMatchRounds({
+      subjects,
+      maxKanjiPerRound: 4,
+      randomFn: () => 0,
+    });
+
+    expect(rounds.map((round) => round.items.length)).toEqual([3, 2]);
+    expect(
+      rounds
+        .flatMap((round) => round.items.map((item) => item.subject.id))
+        .sort((left, right) => left - right),
+    ).toEqual([1, 2, 3, 4, 5]);
+    rounds.forEach((round) => {
+      expect(round.meaningChoices.map((choice) => choice.id).sort()).toEqual(
+        round.items.map((item) => item.id).sort(),
+      );
+    });
+  });
+
+  it("requires at least two usable kanji for a custom match", () => {
+    expect(
+      buildKanjiMeaningMatchRounds({
+        subjects: [makeKanjiSubject(1, "一", "One")],
+        maxKanjiPerRound: 4,
+      }),
+    ).toEqual([]);
+  });
+
+  it("separates duplicate meanings across custom match rounds", () => {
+    const rounds = buildKanjiMeaningMatchRounds({
+      subjects: [
+        makeKanjiSubject(1, "上", "Above"),
+        makeKanjiSubject(2, "昇", "Above"),
+        makeKanjiSubject(3, "下", "Below"),
+        makeKanjiSubject(4, "左", "Left"),
+      ],
+      maxKanjiPerRound: 2,
+      randomFn: () => 0,
+    });
+
+    expect(rounds).toHaveLength(2);
+    rounds.forEach((round) => {
+      expect(new Set(round.items.map((item) => item.meaning)).size).toBe(
+        round.items.length,
+      );
+    });
   });
 });

@@ -15,6 +15,7 @@ export interface JitaiDownloadableFont {
   downloadUrl: string;
   fileName: string;
   sizeBytes: number;
+  styleLabel?: string;
 }
 
 export interface DownloadedJitaiFont {
@@ -23,21 +24,33 @@ export interface DownloadedJitaiFont {
   displayName: string;
   fileUri: string;
   downloadedAt: string;
+  origin?: "catalog" | "custom";
+  originalFileName?: string;
+  sizeBytes?: number;
 }
 
 export interface InstalledJitaiFont {
   id: string;
   family: string;
   displayName: string;
-  source: "bundled" | "downloaded";
+  source: "bundled" | "downloaded" | "custom";
+}
+
+export interface CustomJitaiFontFile {
+  uri: string;
+  name: string;
+  size?: number | null;
 }
 
 const JITAI_DOWNLOAD_MANIFEST_KEY = "jitai_downloaded_fonts_v1";
 const JITAI_FONT_DIRECTORY = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}jitai-fonts`
   : null;
+const CUSTOM_JITAI_FONT_ID_PREFIX = "custom-";
+const SUPPORTED_CUSTOM_FONT_EXTENSIONS = new Set(["otf", "ttf"]);
 
 export const DEFAULT_JITAI_FONT_FAMILY = "SourceHanSansJP-Regular";
+export const MAX_CUSTOM_JITAI_FONT_SIZE_BYTES = 25 * 1024 * 1024;
 
 export const JITAI_BUNDLED_FONTS: readonly JitaiBundledFont[] = [
   {
@@ -122,6 +135,36 @@ export const JITAI_DOWNLOADABLE_FONTS: readonly JitaiDownloadableFont[] = [
     fileName: "Yomogi-Regular.ttf",
     sizeBytes: 4039220,
   },
+  {
+    id: "yuji-mai",
+    family: "YujiMai-Regular",
+    displayName: "Yuji Mai",
+    downloadUrl:
+      "https://raw.githubusercontent.com/google/fonts/main/ofl/yujimai/YujiMai-Regular.ttf",
+    fileName: "YujiMai-Regular.ttf",
+    sizeBytes: 8496292,
+    styleLabel: "Brush calligraphy",
+  },
+  {
+    id: "yuji-boku",
+    family: "YujiBoku-Regular",
+    displayName: "Yuji Boku",
+    downloadUrl:
+      "https://raw.githubusercontent.com/google/fonts/main/ofl/yujiboku/YujiBoku-Regular.ttf",
+    fileName: "YujiBoku-Regular.ttf",
+    sizeBytes: 8525588,
+    styleLabel: "Brush calligraphy",
+  },
+  {
+    id: "kaisei-harunoumi",
+    family: "KaiseiHarunoUmi-Regular",
+    displayName: "Kaisei HarunoUmi",
+    downloadUrl:
+      "https://raw.githubusercontent.com/google/fonts/main/ofl/kaiseiharunoumi/KaiseiHarunoUmi-Regular.ttf",
+    fileName: "KaiseiHarunoUmi-Regular.ttf",
+    sizeBytes: 4571780,
+    styleLabel: "Calligraphy",
+  },
 ] as const;
 
 const bundledFontsById = new Map(JITAI_BUNDLED_FONTS.map((font) => [font.id, font]));
@@ -147,7 +190,16 @@ function isDownloadedJitaiFont(value: unknown): value is DownloadedJitaiFont {
     typeof candidate.family === "string" &&
     typeof candidate.displayName === "string" &&
     typeof candidate.fileUri === "string" &&
-    typeof candidate.downloadedAt === "string"
+    typeof candidate.downloadedAt === "string" &&
+    (candidate.origin === undefined ||
+      candidate.origin === "catalog" ||
+      candidate.origin === "custom") &&
+    (candidate.originalFileName === undefined ||
+      typeof candidate.originalFileName === "string") &&
+    (candidate.sizeBytes === undefined ||
+      (typeof candidate.sizeBytes === "number" &&
+        Number.isFinite(candidate.sizeBytes) &&
+        candidate.sizeBytes >= 0))
   );
 }
 
@@ -198,7 +250,7 @@ async function ensureFontIsLoaded(font: DownloadedJitaiFont): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    console.error(`Failed to load downloaded Jitai font ${font.id}:`, error);
+    console.error(`Failed to load stored Jitai font ${font.id}:`, error);
     return false;
   }
 }
@@ -214,20 +266,26 @@ function toDownloadedFont(
     displayName: font.displayName,
     fileUri,
     downloadedAt: downloadedAt ?? new Date().toISOString(),
+    origin: "catalog",
   };
 }
 
-function getExpectedDownloadedFontUri(fontId: string): string | null {
+function getExpectedStoredFontUri(font: DownloadedJitaiFont): string | null {
   if (!JITAI_FONT_DIRECTORY) {
     return null;
   }
 
-  const downloadableFont = downloadableFontsById.get(fontId);
-  if (!downloadableFont) {
+  const downloadableFont = downloadableFontsById.get(font.id);
+  if (downloadableFont) {
+    return `${JITAI_FONT_DIRECTORY}/${downloadableFont.fileName}`;
+  }
+
+  const fileName = font.fileUri.split(/[?#]/, 1)[0]?.split("/").pop();
+  if (!fileName || !/^[a-z0-9._-]+$/i.test(fileName)) {
     return null;
   }
 
-  return `${JITAI_FONT_DIRECTORY}/${downloadableFont.fileName}`;
+  return `${JITAI_FONT_DIRECTORY}/${fileName}`;
 }
 
 async function fileExists(uri: string): Promise<boolean> {
@@ -244,6 +302,26 @@ export function formatJitaiFontSize(sizeBytes: number): string {
   return `${sizeInMb.toFixed(1)} MB`;
 }
 
+export function getCustomJitaiFontFileValidationError(
+  file: Pick<CustomJitaiFontFile, "name" | "size">,
+): string | null {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (!extension || !SUPPORTED_CUSTOM_FONT_EXTENSIONS.has(extension)) {
+    return "Choose a TrueType (.ttf) or OpenType (.otf) font file.";
+  }
+
+  if (
+    typeof file.size === "number" &&
+    file.size > MAX_CUSTOM_JITAI_FONT_SIZE_BYTES
+  ) {
+    return `Choose a font smaller than ${formatJitaiFontSize(
+      MAX_CUSTOM_JITAI_FONT_SIZE_BYTES,
+    )}.`;
+  }
+
+  return null;
+}
+
 export function getInstalledJitaiFonts(
   downloadedFonts: DownloadedJitaiFont[],
 ): InstalledJitaiFont[] {
@@ -255,7 +333,11 @@ export function getInstalledJitaiFonts(
     id: font.id,
     family: font.family,
     displayName: font.displayName,
-    source: "downloaded" as const,
+    source:
+      font.origin === "custom" ||
+      font.id.startsWith(CUSTOM_JITAI_FONT_ID_PREFIX)
+        ? ("custom" as const)
+        : ("downloaded" as const),
   }));
 
   return [...bundled, ...downloaded];
@@ -322,7 +404,7 @@ export async function loadDownloadedJitaiFonts(): Promise<DownloadedJitaiFont[]>
       let exists = await fileExists(font.fileUri);
 
       if (!exists) {
-        const fallbackUri = getExpectedDownloadedFontUri(font.id);
+        const fallbackUri = getExpectedStoredFontUri(font);
         if (fallbackUri && fallbackUri !== font.fileUri) {
           exists = await fileExists(fallbackUri);
           if (exists) {
@@ -457,6 +539,91 @@ export async function downloadJitaiFont(fontId: string): Promise<DownloadedJitai
   await writeDownloadedFontManifest(nextManifest);
 
   return downloadedFont;
+}
+
+export async function importCustomJitaiFont(
+  file: CustomJitaiFontFile,
+): Promise<DownloadedJitaiFont> {
+  const validationError = getCustomJitaiFontFileValidationError(file);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  const directory = await ensureJitaiFontDirectory();
+  const extension = file.name.split(".").pop()!.toLowerCase();
+  const manifestFonts = await readDownloadedFontManifest();
+
+  let token = "";
+  let id = "";
+  do {
+    token = `${Date.now().toString(36)}${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    id = `${CUSTOM_JITAI_FONT_ID_PREFIX}${token}`;
+  } while (manifestFonts.some((font) => font.id === id));
+
+  const family = `JitaiCustom_${token}`;
+  const fileUri = `${directory}/${id}.${extension}`;
+  const nameWithoutExtension = file.name.slice(
+    0,
+    -(extension.length + 1),
+  );
+  const displayName =
+    nameWithoutExtension.replace(/_/g, " ").trim().slice(0, 80) ||
+    "Custom font";
+  let didCopyFile = false;
+
+  try {
+    await FileSystem.copyAsync({ from: file.uri, to: fileUri });
+    didCopyFile = true;
+
+    const copiedFile = await FileSystem.getInfoAsync(fileUri);
+    if (!copiedFile.exists) {
+      throw new Error("The selected font could not be copied.");
+    }
+
+    if (
+      typeof copiedFile.size === "number" &&
+      copiedFile.size > MAX_CUSTOM_JITAI_FONT_SIZE_BYTES
+    ) {
+      throw new Error(
+        `Choose a font smaller than ${formatJitaiFontSize(
+          MAX_CUSTOM_JITAI_FONT_SIZE_BYTES,
+        )}.`,
+      );
+    }
+
+    const customFont: DownloadedJitaiFont = {
+      id,
+      family,
+      displayName,
+      fileUri,
+      downloadedAt: new Date().toISOString(),
+      origin: "custom",
+      originalFileName: file.name,
+      sizeBytes:
+        typeof copiedFile.size === "number" ? copiedFile.size : file.size ?? undefined,
+    };
+
+    const loaded = await ensureFontIsLoaded(customFont);
+    if (!loaded) {
+      throw new Error(
+        "This font could not be loaded. Try a non-variable TTF or OTF font.",
+      );
+    }
+
+    await writeDownloadedFontManifest([...manifestFonts, customFont]);
+    return customFont;
+  } catch (error) {
+    if (didCopyFile) {
+      try {
+        await FileSystem.deleteAsync(fileUri, { idempotent: true });
+      } catch (cleanupError) {
+        console.error("Failed to clean up custom Jitai font:", cleanupError);
+      }
+    }
+    throw error;
+  }
 }
 
 export async function removeDownloadedJitaiFont(fontId: string): Promise<boolean> {

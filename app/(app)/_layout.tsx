@@ -29,6 +29,7 @@ export default function AppLayout() {
       <Stack.Screen name="custom-lesson" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="test-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="meaning-reading-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
+      <Stack.Screen name="similar-kanji-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="kana-kanji-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="writing-practice-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen

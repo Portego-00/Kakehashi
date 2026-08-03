@@ -64,6 +64,7 @@ import { SynonymsModal } from "./SynonymsModal";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
+import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
@@ -87,8 +88,11 @@ import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
+import KanjiLessonEtymologySection from "./KanjiLessonEtymologySection";
+import KanjiReadingExamples from "./KanjiReadingExamples";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
+import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 
 // Get screen dimensions
 const { height } = Dimensions.get("window");
@@ -358,6 +362,7 @@ const SubjectContent = ({
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const {
+    groupKanjiVocabularyExamplesByReading,
     showPitchAccent,
     showPatternsOfUse,
     showSimilarVocabulary,
@@ -370,12 +375,69 @@ const SubjectContent = ({
     immersionKitAnimes,
     showStrokeOrder,
     showOnyomiInKatakana,
+    showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
     visuallySimilarKanjiSource,
   } = useSettingsStore();
   const { userData } = useAuthStore();
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const styles = createStyles(theme, subjectColors);
+
+  const renderKanjiReadingBadge = (
+    reading: { reading: string; primary?: boolean },
+    key: string,
+    displayReading: string = reading.reading
+  ) => {
+    const badgeStyle = [
+      styles.readingBadge,
+      reading.primary && { backgroundColor: subjectTypeColor },
+    ];
+    const readingText = (
+      <Text
+        selectable
+        style={[
+          styles.readingBadgeText,
+          reading.primary && styles.primaryReadingBadgeText,
+          fontStyles.japaneseText,
+        ]}
+      >
+        {displayReading}
+      </Text>
+    );
+
+    if (!kanjiReadingTextToSpeechEnabled) {
+      return (
+        <View key={key} style={badgeStyle}>
+          {readingText}
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={key}
+        accessibilityRole="button"
+        accessibilityLabel={`Speak Japanese pronunciation ${displayReading}`}
+        accessibilityHint="Plays this kanji reading using your device voice"
+        activeOpacity={0.7}
+        onPress={() => {
+          void speakKanjiReading(reading.reading);
+        }}
+        style={badgeStyle}
+      >
+        <View style={styles.readingBadgeContent}>
+          {readingText}
+          <Ionicons
+            name="volume-high-outline"
+            size={14}
+            color={reading.primary ? "#fff" : theme.textSecondary}
+            style={styles.readingBadgeAudioIcon}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
   const [mediaSentences, setMediaSentences] = useState<ImmersionKitSentence[]>(
     []
   );
@@ -740,6 +802,46 @@ const SubjectContent = ({
     subject.object,
     subject.data.component_subject_ids,
     subject.data.characters,
+    relatedSubjects,
+  ]);
+  const kanjiVocabularyExamples = useMemo(() => {
+    if (subject.object !== "kanji") {
+      return [];
+    }
+
+    const vocabularyIds = Array.isArray(subject.data.amalgamation_subject_ids)
+      ? subject.data.amalgamation_subject_ids
+      : [];
+
+    return vocabularyIds.flatMap((id: number) => {
+      const vocabularySubject = relatedSubjects[id];
+      if (
+        vocabularySubject?.object !== "vocabulary" ||
+        typeof vocabularySubject.data?.characters !== "string"
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          id: vocabularySubject.id,
+          characters: vocabularySubject.data.characters,
+          meanings: (vocabularySubject.data.meanings ?? []).map(
+            (meaning: { meaning: string }) => meaning.meaning
+          ),
+          readings: (vocabularySubject.data.readings ?? []).map(
+            (reading: { reading: string; primary?: boolean }) => ({
+              reading: reading.reading,
+              primary: reading.primary,
+            })
+          ),
+          level: vocabularySubject.data.level,
+        },
+      ];
+    });
+  }, [
+    subject.object,
+    subject.data.amalgamation_subject_ids,
     relatedSubjects,
   ]);
   const singleKanjiVocabularyCharacter = useMemo(
@@ -2502,6 +2604,11 @@ const SubjectContent = ({
                 )}
               </View>
 
+              <KanjiLessonEtymologySection
+                subject={subject}
+                visible={showKanjiEtymology}
+              />
+
               {renderMeaningHintSection()}
 
               {renderNoteCard("meaning")}
@@ -2521,29 +2628,15 @@ const SubjectContent = ({
                         <View style={styles.readingBadges}>
                           {subject.data.readings
                             .filter((r: any) => r.type === "onyomi")
-                            .map((r: any, idx: number) => (
-                              <View
-                                key={`on-${idx}`}
-                                style={[
-                                  styles.readingBadge,
-                                  r.primary && {
-                                    backgroundColor: subjectTypeColor,
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.readingBadgeText,
-                                    r.primary && styles.primaryReadingBadgeText,
-                                    fontStyles.japaneseText,
-                                  ]}
-                                >
-                                  {showOnyomiInKatakana
-                                    ? hiraganaToKata(r.reading)
-                                    : r.reading}
-                                </Text>
-                              </View>
-                            ))}
+                            .map((r: any, idx: number) =>
+                              renderKanjiReadingBadge(
+                                r,
+                                `on-${idx}`,
+                                showOnyomiInKatakana
+                                  ? hiraganaToKata(r.reading)
+                                  : r.reading
+                              )
+                            )}
                         </View>
                       </View>
                     )}
@@ -2557,27 +2650,23 @@ const SubjectContent = ({
                         <View style={styles.readingBadges}>
                           {subject.data.readings
                             .filter((r: any) => r.type === "kunyomi")
-                            .map((r: any, idx: number) => (
-                              <View
-                                key={`kun-${idx}`}
-                                style={[
-                                  styles.readingBadge,
-                                  r.primary && {
-                                    backgroundColor: subjectTypeColor,
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.readingBadgeText,
-                                    r.primary && styles.primaryReadingBadgeText,
-                                    fontStyles.japaneseText,
-                                  ]}
-                                >
-                                  {r.reading}
-                                </Text>
-                              </View>
-                            ))}
+                            .map((r: any, idx: number) =>
+                              renderKanjiReadingBadge(r, `kun-${idx}`)
+                            )}
+                        </View>
+                      </View>
+                    )}
+                    {subject.data.readings.filter(
+                      (r: any) => r.type === "nanori"
+                    ).length > 0 && (
+                      <View style={styles.readingsContainer}>
+                        <Text style={styles.readingTypeLabel}>Nanori:</Text>
+                        <View style={styles.readingBadges}>
+                          {subject.data.readings
+                            .filter((r: any) => r.type === "nanori")
+                            .map((r: any, idx: number) =>
+                              renderKanjiReadingBadge(r, `nanori-${idx}`)
+                            )}
                         </View>
                       </View>
                     )}
@@ -2607,58 +2696,19 @@ const SubjectContent = ({
 
               {/* Examples Section */}
               <View style={styles.infoSection}>
-                <Text style={styles.sectionTitle}>Vocabulary Examples</Text>
-                {subject.data.amalgamation_subject_ids &&
-                subject.data.amalgamation_subject_ids.length > 0 ? (
-                  (() => {
-                    const vocabularyIds = subject.data.amalgamation_subject_ids
-                      .filter(
-                        (id: number) =>
-                          relatedSubjects[id]?.object === "vocabulary" &&
-                          (relatedSubjects[id]?.data?.characters?.length ?? 0) <=
-                            3
-                      )
-                      .slice(0, 6);
-                    if (vocabularyIds.length === 0) {
-                      return (
-                        <Text style={styles.noteText}>
-                          No short vocabulary examples available for this kanji
-                          yet.
-                        </Text>
-                      );
-                    }
-                    return (
-                      <View style={styles.relatedItemsGrid}>
-                        {vocabularyIds.map((id: number) => (
-                          <TouchableOpacity
-                            key={id}
-                            style={[
-                              styles.relatedItem,
-                              { backgroundColor: subjectColors.vocabulary },
-                            ]}
-                            onPress={() => onSubjectPress?.(id)}
-                          >
-                            <RelatedSubjectCharacter
-                              subj={relatedSubjects[id]}
-                            />
-                            <Text style={styles.relatedItemMeaning}>
-                              {relatedSubjects[id]?.data.meanings.find(
-                                (m: any) => m.primary
-                              )?.meaning ||
-                                relatedSubjects[id]?.data.meanings[0]
-                                  ?.meaning ||
-                                "Loading..."}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })()
-                ) : (
-                  <Text style={styles.noteText}>
-                    No vocabulary examples available for this kanji yet.
-                  </Text>
-                )}
+                <Text style={styles.sectionTitle}>
+                  {groupKanjiVocabularyExamplesByReading
+                    ? "Examples by Reading"
+                    : "Vocabulary Examples"}
+                </Text>
+                <KanjiReadingExamples
+                  key={`${subject.id}-${groupKanjiVocabularyExamplesByReading}`}
+                  groupByReading={groupKanjiVocabularyExamplesByReading}
+                  kanjiCharacters={subject.data.characters ?? ""}
+                  kanjiReadings={subject.data.readings ?? []}
+                  vocabulary={kanjiVocabularyExamples}
+                  onSubjectPress={onSubjectPress}
+                />
               </View>
 
             </View>
@@ -3212,6 +3262,11 @@ const SubjectContent = ({
                     )}
                   </View>
 
+                  <KanjiLessonEtymologySection
+                    subject={subject}
+                    visible={showKanjiEtymology}
+                  />
+
                   {renderMeaningHintSection()}
 
                   {renderNoteCard("meaning")}
@@ -3259,30 +3314,15 @@ const SubjectContent = ({
                             <View style={styles.readingBadges}>
                               {subject.data.readings
                                 .filter((r: any) => r.type === "onyomi")
-                                .map((r: any, index: number) => (
-                                  <View
-                                    key={`on-${index}`}
-                                    style={[
-                                      styles.readingBadge,
-                                      r.primary && {
-                                        backgroundColor: subjectTypeColor,
-                                      },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.readingBadgeText,
-                                        r.primary &&
-                                          styles.primaryReadingBadgeText,
-                                        fontStyles.japaneseText,
-                                      ]}
-                                    >
-                                      {showOnyomiInKatakana
-                                        ? hiraganaToKata(r.reading)
-                                        : r.reading}
-                                    </Text>
-                                  </View>
-                                ))}
+                                .map((r: any, index: number) =>
+                                  renderKanjiReadingBadge(
+                                    r,
+                                    `on-${index}`,
+                                    showOnyomiInKatakana
+                                      ? hiraganaToKata(r.reading)
+                                      : r.reading
+                                  )
+                                )}
                             </View>
                           </View>
                         )}
@@ -3297,28 +3337,27 @@ const SubjectContent = ({
                             <View style={styles.readingBadges}>
                               {subject.data.readings
                                 .filter((r: any) => r.type === "kunyomi")
-                                .map((r: any, index: number) => (
-                                  <View
-                                    key={`kun-${index}`}
-                                    style={[
-                                      styles.readingBadge,
-                                      r.primary && {
-                                        backgroundColor: subjectTypeColor,
-                                      },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.readingBadgeText,
-                                        r.primary &&
-                                          styles.primaryReadingBadgeText,
-                                        fontStyles.japaneseText,
-                                      ]}
-                                    >
-                                      {r.reading}
-                                    </Text>
-                                  </View>
-                                ))}
+                                .map((r: any, index: number) =>
+                                  renderKanjiReadingBadge(r, `kun-${index}`)
+                                )}
+                            </View>
+                          </View>
+                        )}
+
+                        {subject.data.readings.filter(
+                          (r: any) => r.type === "nanori"
+                        ).length > 0 && (
+                          <View style={styles.readingsContainer}>
+                            <Text style={styles.readingTypeLabel}>Nanori:</Text>
+                            <View style={styles.readingBadges}>
+                              {subject.data.readings
+                                .filter((r: any) => r.type === "nanori")
+                                .map((r: any, index: number) =>
+                                  renderKanjiReadingBadge(
+                                    r,
+                                    `nanori-${index}`
+                                  )
+                                )}
                             </View>
                           </View>
                         )}
@@ -3351,60 +3390,19 @@ const SubjectContent = ({
                 // Examples tab
                 <View>
                   <View style={styles.infoSection}>
-                    <Text style={styles.sectionTitle}>Vocabulary Examples</Text>
-
-                    {subject.data.amalgamation_subject_ids &&
-                    subject.data.amalgamation_subject_ids.length > 0 ? (
-                      (() => {
-                        const vocabularyIds =
-                          subject.data.amalgamation_subject_ids
-                            .filter(
-                              (id: number) =>
-                                relatedSubjects[id]?.object === "vocabulary" &&
-                                (relatedSubjects[id]?.data?.characters
-                                  ?.length ?? 0) <= 3
-                            )
-                            .slice(0, 6);
-                        if (vocabularyIds.length === 0) {
-                          return (
-                            <Text style={styles.noteText}>
-                              No short vocabulary examples available for this
-                              kanji yet.
-                            </Text>
-                          );
-                        }
-                        return (
-                          <View style={styles.relatedItemsGrid}>
-                            {vocabularyIds.map((id: number) => (
-                              <TouchableOpacity
-                                key={id}
-                                style={[
-                                  styles.relatedItem,
-                                  { backgroundColor: subjectColors.vocabulary },
-                                ]}
-                                onPress={() => onSubjectPress?.(id)}
-                              >
-                                <RelatedSubjectCharacter
-                                  subj={relatedSubjects[id]}
-                                />
-                                <Text style={styles.relatedItemMeaning}>
-                                  {relatedSubjects[id]?.data.meanings.find(
-                                    (m: any) => m.primary
-                                  )?.meaning ||
-                                    relatedSubjects[id]?.data.meanings[0]
-                                      ?.meaning ||
-                                    "Loading..."}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        );
-                      })()
-                    ) : (
-                      <Text style={styles.noteText}>
-                        No vocabulary examples available for this kanji yet.
-                      </Text>
-                    )}
+                    <Text style={styles.sectionTitle}>
+                      {groupKanjiVocabularyExamplesByReading
+                        ? "Examples by Reading"
+                        : "Vocabulary Examples"}
+                    </Text>
+                    <KanjiReadingExamples
+                      key={`${subject.id}-${groupKanjiVocabularyExamplesByReading}`}
+                      groupByReading={groupKanjiVocabularyExamplesByReading}
+                      kanjiCharacters={subject.data.characters ?? ""}
+                      kanjiReadings={subject.data.readings ?? []}
+                      vocabulary={kanjiVocabularyExamples}
+                      onSubjectPress={onSubjectPress}
+                    />
                   </View>
 
                 </View>
@@ -5180,6 +5178,10 @@ export default function LessonDetailScreen({
                       "No meaning available"}
                   </Text>
                 </View>
+                {(pageSubject.object === "vocabulary" ||
+                  pageSubject.object === "kana_vocabulary") && (
+                  <VocabularyFrequencyBadge subject={pageSubject} />
+                )}
                 {/* Show reading in header for vocabulary/kanji in single page view */}
                 {singlePageLessonView &&
                   (pageSubject.object === "vocabulary" ||
@@ -5929,6 +5931,13 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       paddingHorizontal: 12,
       paddingVertical: 6,
       margin: 4,
+    },
+    readingBadgeContent: {
+      alignItems: "center",
+      flexDirection: "row",
+    },
+    readingBadgeAudioIcon: {
+      marginLeft: 6,
     },
     readingBadgeText: {
       color: theme.textSecondary,

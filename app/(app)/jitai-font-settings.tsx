@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { File } from "expo-file-system";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,8 +18,10 @@ import {
   formatJitaiFontSize,
   getDefaultJitaiSelectedFontIds,
   getInstalledJitaiFonts,
+  importCustomJitaiFont,
   JITAI_DOWNLOADABLE_FONTS,
   loadDownloadedJitaiFonts,
+  MAX_CUSTOM_JITAI_FONT_SIZE_BYTES,
   removeDownloadedJitaiFont,
   sanitizeJitaiSelectedFontIds,
   type DownloadedJitaiFont,
@@ -27,6 +30,12 @@ import { useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
 const FONT_PREVIEW_TEXT = "日本語の読み練習 こんにちは 漢字 カタカナ";
+const CUSTOM_FONT_IMPORT_ACTION_ID = "custom-font-import";
+
+function isFilePickerCancellation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /cancel|canceled|cancelled|abort/i.test(message);
+}
 
 export default function JitaiFontSettingsScreen() {
   const { theme } = useTheme();
@@ -141,12 +150,56 @@ export default function JitaiFontSettingsScreen() {
     }
   };
 
-  const handleRemoveDownloadedJitaiFont = (
+  const handleImportCustomJitaiFont = async () => {
+    try {
+      setJitaiFontActionId(CUSTOM_FONT_IMPORT_ACTION_ID);
+      const result = await File.pickFileAsync();
+      const pickedFile = Array.isArray(result) ? result[0] : result;
+      if (!pickedFile) {
+        return;
+      }
+
+      const customFont = await importCustomJitaiFont({
+        uri: pickedFile.uri,
+        name: pickedFile.name,
+        size: pickedFile.size,
+      });
+
+      setDownloadedJitaiFonts((previous) => [...previous, customFont]);
+
+      const currentSelection = useSettingsStore.getState().jitaiSelectedFontIds;
+      if (!currentSelection.includes(customFont.id)) {
+        setJitaiSelectedFontIds([...currentSelection, customFont.id]);
+      }
+
+      Alert.alert(
+        "Font added",
+        `${customFont.displayName} is now included in Jitai randomization.`,
+      );
+    } catch (error) {
+      if (isFilePickerCancellation(error)) {
+        return;
+      }
+
+      console.error("Failed to import custom Jitai font:", error);
+      Alert.alert(
+        "Could not add font",
+        error instanceof Error
+          ? error.message
+          : "The selected font could not be imported.",
+      );
+    } finally {
+      setJitaiFontActionId(null);
+    }
+  };
+
+  const handleRemoveStoredJitaiFont = (
     fontId: string,
     displayName: string,
+    isCustom: boolean,
   ) => {
     Alert.alert(
-      "Remove downloaded font",
+      isCustom ? "Remove custom font" : "Remove downloaded font",
       `Remove ${displayName} from local storage?`,
       [
         { text: "Cancel", style: "cancel" },
@@ -210,7 +263,11 @@ export default function JitaiFontSettingsScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <View
           style={[
             styles.section,
@@ -269,16 +326,22 @@ export default function JitaiFontSettingsScreen() {
                           <Text style={[styles.fontMeta, { color: theme.textSecondary }]}>
                             {font.source === "bundled"
                               ? "Included with app"
-                              : "Downloaded"}
+                              : font.source === "custom"
+                                ? "Custom font"
+                                : "Downloaded"}
                           </Text>
                         </View>
                       </TouchableOpacity>
 
-                      {font.source === "downloaded" && (
+                      {font.source !== "bundled" && (
                         <TouchableOpacity
                           style={styles.actionIconButton}
                           onPress={() =>
-                            handleRemoveDownloadedJitaiFont(font.id, font.displayName)
+                            handleRemoveStoredJitaiFont(
+                              font.id,
+                              font.displayName,
+                              font.source === "custom",
+                            )
                           }
                           disabled={Boolean(jitaiFontActionId)}
                           activeOpacity={0.7}
@@ -309,6 +372,57 @@ export default function JitaiFontSettingsScreen() {
               })}
             </View>
           )}
+        </View>
+
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Add Your Own Font
+          </Text>
+          <Text style={[styles.sectionSubtext, { color: theme.textSecondary }]}>
+            Import a TTF or OTF file from your device. Choose a font with
+            Japanese glyphs, then confirm it using the preview above.
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.customFontButton,
+              {
+                borderColor: theme.primary,
+                opacity: jitaiFontActionId ? 0.7 : 1,
+              },
+            ]}
+            onPress={handleImportCustomJitaiFont}
+            disabled={Boolean(jitaiFontActionId)}
+            activeOpacity={0.75}
+          >
+            {jitaiFontActionId === CUSTOM_FONT_IMPORT_ACTION_ID ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <Ionicons
+                name="document-attach-outline"
+                size={20}
+                color={theme.primary}
+              />
+            )}
+            <Text
+              style={[styles.customFontButtonText, { color: theme.primary }]}
+            >
+              Choose Font File
+            </Text>
+          </TouchableOpacity>
+          <Text style={[styles.importNote, { color: theme.textSecondary }]}>
+            {`Maximum ${formatJitaiFontSize(
+              MAX_CUSTOM_JITAI_FONT_SIZE_BYTES,
+            )}. Only import fonts you have permission to use.`}
+          </Text>
         </View>
 
         <View
@@ -352,7 +466,11 @@ export default function JitaiFontSettingsScreen() {
                         {font.displayName}
                       </Text>
                       <Text style={[styles.fontMeta, { color: theme.textSecondary }]}>
-                        {`${formatJitaiFontSize(font.sizeBytes)} download`}
+                        {font.styleLabel
+                          ? `${font.styleLabel} · ${formatJitaiFontSize(
+                              font.sizeBytes,
+                            )} download`
+                          : `${formatJitaiFontSize(font.sizeBytes)} download`}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -484,6 +602,25 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginTop: 8,
     lineHeight: 34,
+  },
+  customFontButton: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  customFontButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  importNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
   },
   downloadRow: {
     borderWidth: 1,

@@ -55,6 +55,7 @@ import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
+import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 
 // Enable Reanimated layout animations (Fabric / new‑arch friendly)
 enableLayoutAnimations(true);
@@ -2119,7 +2120,7 @@ export default function VocabularyDetails({
 
                 {vocabulary.partsOfSpeech &&
                   vocabulary.partsOfSpeech.length > 0 && (
-                    <View style={styles.row}>
+                    <View style={[styles.row, { marginBottom: 8 }]}>
                       <Text
                         style={[styles.label, { color: theme.textSecondary }]}
                       >
@@ -2130,6 +2131,18 @@ export default function VocabularyDetails({
                       </Text>
                     </View>
                   )}
+
+                <VocabularyFrequencyBadge
+                  variant="details"
+                  subject={{
+                    id: vocabulary.id,
+                    object: vocabulary.object,
+                    data: {
+                      characters: vocabulary.characters,
+                      readings: vocabulary.readings,
+                    },
+                  }}
+                />
               </View>
             </View>
 

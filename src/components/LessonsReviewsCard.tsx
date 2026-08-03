@@ -18,6 +18,7 @@ import {
   normalizeWidgetCardColor,
 } from "../utils/widgetCardStyles";
 import { isAssignmentInReviewQueueState } from "../utils/api";
+import { type LessonSrsThresholdStatus } from "../utils/lessonSrsThreshold";
 
 const { width: screenWidth } = Dimensions.get("window");
 const isTablet = screenWidth > 768;
@@ -32,6 +33,7 @@ type LessonsReviewsCardProps = {
   hasResumableLessonSession?: boolean;
   isDone?: boolean;
   isDailyLimitReached?: boolean; // Optional flag to indicate lessons are blocked by daily cap
+  lessonSrsThresholdStatus?: LessonSrsThresholdStatus;
   nextLessonTime?: string; // Optional timestamp for next available lesson
   nextReviewTime?: string; // Optional timestamp for next available review
   currentLevel?: number;
@@ -49,6 +51,7 @@ export default function LessonsReviewsCard({
   hasResumableLessonSession = false,
   isDone,
   isDailyLimitReached,
+  lessonSrsThresholdStatus,
   nextLessonTime,
   nextReviewTime,
   currentLevel,
@@ -75,7 +78,10 @@ export default function LessonsReviewsCard({
     (state) => state.widgetReviewCardGradientEnd
   );
   const isLessons = type === "lessons";
-  const canResumeLessonSession = isLessons && hasResumableLessonSession;
+  const lessonsBlockedBySrsThreshold =
+    isLessons && Boolean(lessonSrsThresholdStatus?.isBlocked);
+  const canResumeLessonSession =
+    isLessons && hasResumableLessonSession && !lessonsBlockedBySrsThreshold;
   const pendingSyncCount = Math.max(0, pendingSyncCountProp);
   // Dashboard counts already exclude pending offline progress IDs.
   const displayCount = Math.max(0, count);
@@ -93,11 +99,51 @@ export default function LessonsReviewsCard({
   const canStartSession =
     displayCount > 0 || canResumeLessonSession;
   const canShowLessonPicker =
-    isLessons && Boolean(onLessonPicker) && totalAvailableLessons > 0;
+    isLessons &&
+    Boolean(onLessonPicker) &&
+    totalAvailableLessons > 0 &&
+    !lessonsBlockedBySrsThreshold;
   const isGrayedOut =
     !canResumeLessonSession &&
-    ((isLessons && (Boolean(isDone) || Boolean(isDailyLimitReached))) ||
+    ((isLessons &&
+      (Boolean(isDone) ||
+        Boolean(isDailyLimitReached) ||
+        lessonsBlockedBySrsThreshold)) ||
       displayCount === 0);
+  const srsThresholdSubtitle = React.useMemo(() => {
+    if (!lessonsBlockedBySrsThreshold || !lessonSrsThresholdStatus) {
+      return null;
+    }
+
+    const exceededGroups: {
+      label: string;
+      count: number;
+      threshold: number;
+    }[] = [];
+    if (lessonSrsThresholdStatus.apprenticeExceeded) {
+      exceededGroups.push({
+        label: "Apprentice",
+        count: lessonSrsThresholdStatus.apprenticeCount,
+        threshold: lessonSrsThresholdStatus.apprenticeThreshold,
+      });
+    }
+    if (lessonSrsThresholdStatus.guruExceeded) {
+      exceededGroups.push({
+        label: "Guru",
+        count: lessonSrsThresholdStatus.guruCount,
+        threshold: lessonSrsThresholdStatus.guruThreshold,
+      });
+    }
+
+    if (exceededGroups.length === 1) {
+      const [group] = exceededGroups;
+      return `${group.label} items are over your lesson limit (${group.count}/${group.threshold}).`;
+    }
+
+    return `${exceededGroups
+      .map((group) => `${group.label} (${group.count}/${group.threshold})`)
+      .join(" and ")} items are over your lesson limits.`;
+  }, [lessonSrsThresholdStatus, lessonsBlockedBySrsThreshold]);
   const pendingSyncLabel = pendingSyncCount
     ? `${pendingSyncCount} ${isLessons ? "lesson" : "review"}${
         pendingSyncCount === 1 ? "" : "s"
@@ -257,7 +303,11 @@ export default function LessonsReviewsCard({
         { shadowColor: theme.isDark ? "#000000" : "#000000" },
       ]}
       onPress={onPress}
-      disabled={!canStartSession || lessonsBlockedByDailyLimit}
+      disabled={
+        !canStartSession ||
+        lessonsBlockedByDailyLimit ||
+        lessonsBlockedBySrsThreshold
+      }
       activeOpacity={0.9}
     >
       <LinearGradient
@@ -338,7 +388,9 @@ export default function LessonsReviewsCard({
           >
             {isGrayedOut
               ? isLessons
-                ? lessonsBlockedByDailyLimit
+                ? lessonsBlockedBySrsThreshold
+                  ? srsThresholdSubtitle
+                  : lessonsBlockedByDailyLimit
                   ? "You've reached your daily lesson limit for today."
                   : "You've done all your available lessons!"
                 : "There are no more reviews to do right now."
@@ -357,7 +409,11 @@ export default function LessonsReviewsCard({
           ) : null}
 
           <View style={styles.bottomRow}>
-            {lessonsBlockedByDailyLimit ? (
+            {lessonsBlockedBySrsThreshold ? (
+              <Text style={styles.nextTimeText}>
+                Complete reviews to unlock lessons.
+              </Text>
+            ) : lessonsBlockedByDailyLimit ? (
               <View style={styles.blockedLessonsContainer}>
                 <Text style={styles.nextTimeText}>More lessons unlock tomorrow.</Text>
                 {renderLessonPickerButton()}
@@ -424,6 +480,7 @@ export function LessonsReviewsCardPair({
   hasResumableLessonSession,
   isDoneLessons,
   isLessonDailyLimitReached,
+  lessonSrsThresholdStatus,
   nextLessonTime,
   nextReviewTime,
   isIPadLandscape,
@@ -442,6 +499,7 @@ export function LessonsReviewsCardPair({
   hasResumableLessonSession?: boolean;
   isDoneLessons?: boolean;
   isLessonDailyLimitReached?: boolean;
+  lessonSrsThresholdStatus?: LessonSrsThresholdStatus;
   nextLessonTime?: string;
   nextReviewTime?: string;
   isIPadLandscape?: boolean;
@@ -466,6 +524,7 @@ export function LessonsReviewsCardPair({
         hasResumableLessonSession={hasResumableLessonSession}
         isDone={isDoneLessons}
         isDailyLimitReached={isLessonDailyLimitReached}
+        lessonSrsThresholdStatus={lessonSrsThresholdStatus}
         nextLessonTime={nextLessonTime}
       />
       <LessonsReviewsCard

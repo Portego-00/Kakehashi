@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Slider from "@react-native-community/slider";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -120,6 +120,9 @@ const sanitizeConfig = (
 export default function WritingPracticeConfigScreen() {
   const { theme } = useTheme();
   const { userData } = useAuthStore();
+  const params = useLocalSearchParams<{
+    selectedListIds?: string | string[];
+  }>();
   const userLevel = userData?.level ?? 60;
   const isIOS = Platform.OS === "ios";
 
@@ -128,6 +131,9 @@ export default function WritingPracticeConfigScreen() {
   );
   const [isConfigHydrated, setIsConfigHydrated] = useState(false);
   const initialUserLevelRef = useRef(userLevel);
+  const initialSelectedListIdsRef = useRef(
+    parseSelectedListIds(params.selectedListIds),
+  );
   const hasCheckedForResumableSessionRef = useRef(false);
 
   const updateConfig = (key: keyof WritingPracticeConfig, value: any) => {
@@ -193,9 +199,16 @@ export default function WritingPracticeConfigScreen() {
         return;
       }
 
-      if (stored) {
-        setConfig(sanitizeConfig(stored, initialUserLevelRef.current));
-      }
+      const loadedConfig = stored
+        ? sanitizeConfig(stored, initialUserLevelRef.current)
+        : createDefaultConfig(initialUserLevelRef.current);
+      setConfig({
+        ...loadedConfig,
+        selectedListIds:
+          initialSelectedListIdsRef.current.length > 0
+            ? initialSelectedListIdsRef.current
+            : loadedConfig.selectedListIds,
+      });
 
       setIsConfigHydrated(true);
     };

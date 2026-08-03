@@ -39,6 +39,7 @@ import { getNiaiSimilarKanji } from "../../src/utils/niaiSimilarKanji";
 import {
   SimilarKanjiRound,
   SimilarKanjiSource,
+  buildKanjiMeaningMatchRounds,
   buildSimilarKanjiRounds,
   getPrimaryKanjiMeaning,
 } from "../../src/utils/similarKanjiQuiz";
@@ -55,12 +56,14 @@ interface SrsGroupsConfig {
 }
 
 interface SimilarKanjiConfig {
+  matchMode: "similar" | "custom";
   numberOfQuestions: number;
   srsGroups: SrsGroupsConfig;
   useCustomLevelRange: boolean;
   minLevel: number;
   maxLevel: number;
   selectedListIds: string[];
+  selectedSubjectIds: number[];
   onlyLearnedSimilarKanji: boolean;
   kanjiPerQuestion: number;
   similarKanjiSource: SimilarKanjiSource;
@@ -134,6 +137,8 @@ const EMPTY_PROGRESS_STATE: SimilarKanjiProgressState = {
 
 const SIMILAR_KANJI_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.SIMILAR_KANJI;
+const CUSTOM_KANJI_MATCH_SESSION_KEY =
+  EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_KANJI_MATCH;
 const MATCH_ITEM_HEIGHT = 72;
 const MATCH_ITEM_GAP = 10;
 const KANJI_COLUMN_WIDTH = 88;
@@ -171,6 +176,7 @@ function normalizeConfig(rawConfig: Partial<SimilarKanjiConfig>): SimilarKanjiCo
       : "niai";
 
   return {
+    matchMode: rawConfig.matchMode === "custom" ? "custom" : "similar",
     numberOfQuestions:
       typeof rawConfig.numberOfQuestions === "number"
         ? rawConfig.numberOfQuestions
@@ -186,6 +192,18 @@ function normalizeConfig(rawConfig: Partial<SimilarKanjiConfig>): SimilarKanjiCo
         ? rawConfig.maxLevel
         : useAuthStore.getState().userData?.level ?? 60,
     selectedListIds: parseSelectedListIds(rawConfig.selectedListIds),
+    selectedSubjectIds: Array.isArray(rawConfig.selectedSubjectIds)
+      ? Array.from(
+          new Set(
+            rawConfig.selectedSubjectIds.filter(
+              (subjectId) =>
+                typeof subjectId === "number" &&
+                Number.isFinite(subjectId) &&
+                subjectId > 0,
+            ),
+          ),
+        )
+      : [],
     onlyLearnedSimilarKanji: rawConfig.onlyLearnedSimilarKanji !== false,
     kanjiPerQuestion:
       typeof rawConfig.kanjiPerQuestion === "number"
@@ -253,7 +271,6 @@ function countRoundItems(rounds: SimilarKanjiRound<ApiSubject>[]): number {
 }
 
 export default function SimilarKanjiSessionScreen() {
-  useActivityTracking("similar_kanji");
   const { theme } = useTheme();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
@@ -273,16 +290,23 @@ export default function SimilarKanjiSessionScreen() {
   );
   const [hasSubmittedCurrentRound, setHasSubmittedCurrentRound] =
     useState(false);
+  const isCustomMatch =
+    config?.matchMode === "custom" || params.matchMode === "custom";
+  const sessionStorageKey = isCustomMatch
+    ? CUSTOM_KANJI_MATCH_SESSION_KEY
+    : SIMILAR_KANJI_SESSION_KEY;
+
+  useActivityTracking(isCustomMatch ? "custom_review" : "similar_kanji");
 
   const clearSavedSimilarKanjiSession = useCallback(async () => {
-    await clearExtraStudySessionState(SIMILAR_KANJI_SESSION_KEY);
-  }, []);
+    await clearExtraStudySessionState(sessionStorageKey);
+  }, [sessionStorageKey]);
 
   const restoreSavedSimilarKanjiSession =
     useCallback(async (): Promise<boolean> => {
       const savedSession =
         await loadExtraStudySessionState<SimilarKanjiSavedSession>(
-          SIMILAR_KANJI_SESSION_KEY,
+          sessionStorageKey,
         );
       if (!savedSession) {
         return false;
@@ -304,7 +328,7 @@ export default function SimilarKanjiSessionScreen() {
         Math.min(savedSession.currentIndex || 0, savedSession.rounds.length - 1),
       );
 
-      setConfig(savedSession.config);
+      setConfig(normalizeConfig(savedSession.config));
       setRounds(savedSession.rounds);
       setCurrentIndex(safeIndex);
       setReviewItems(savedSession.reviewItems);
@@ -321,7 +345,7 @@ export default function SimilarKanjiSessionScreen() {
       setHasRestoredSession(true);
       setIsLoading(false);
       return true;
-    }, [clearSavedSimilarKanjiSession]);
+    }, [clearSavedSimilarKanjiSession, sessionStorageKey]);
 
   const saveSimilarKanjiSessionForLater =
     useCallback(async (): Promise<boolean> => {
@@ -347,7 +371,7 @@ export default function SimilarKanjiSessionScreen() {
         hasSubmittedCurrentRound,
       };
 
-      return saveExtraStudySessionState(SIMILAR_KANJI_SESSION_KEY, payload);
+      return saveExtraStudySessionState(sessionStorageKey, payload);
     }, [
       config,
       connections,
@@ -357,6 +381,7 @@ export default function SimilarKanjiSessionScreen() {
       progress,
       reviewItems,
       rounds,
+      sessionStorageKey,
       selectedKanjiItemId,
     ]);
 
@@ -371,11 +396,18 @@ export default function SimilarKanjiSessionScreen() {
         if (!params.sessionId) {
           Alert.alert(
             "Session Not Available",
-            "Couldn't restore that similar kanji session.",
+            isCustomMatch
+              ? "Couldn't restore that kanji match session."
+              : "Couldn't restore that similar kanji session.",
             [
               {
                 text: "OK",
-                onPress: () => router.replace("/similar-kanji-config" as any),
+                onPress: () =>
+                  router.replace(
+                    isCustomMatch
+                      ? "/custom-review-selection"
+                      : ("/similar-kanji-config" as any),
+                  ),
               },
             ],
           );
@@ -400,6 +432,7 @@ export default function SimilarKanjiSessionScreen() {
 
       setConfig(
         normalizeConfig({
+          matchMode: params.matchMode === "custom" ? "custom" : "similar",
           numberOfQuestions: params.numberOfQuestions
             ? Number.parseInt(params.numberOfQuestions as string, 10)
             : 20,
@@ -421,6 +454,12 @@ export default function SimilarKanjiSessionScreen() {
             typeof params.selectedListIds === "string"
               ? (params.selectedListIds as string).split(",")
               : [],
+          selectedSubjectIds:
+            typeof params.subjectIds === "string"
+              ? (params.subjectIds as string)
+                  .split(",")
+                  .map((subjectId) => Number.parseInt(subjectId, 10))
+              : [],
           onlyLearnedSimilarKanji: params.onlyLearnedSimilarKanji !== "false",
           kanjiPerQuestion: params.kanjiPerQuestion
             ? Number.parseInt(params.kanjiPerQuestion as string, 10)
@@ -439,7 +478,9 @@ export default function SimilarKanjiSessionScreen() {
       ]);
     }
   }, [
+    isCustomMatch,
     params.kanjiPerQuestion,
+    params.matchMode,
     params.maxLevel,
     params.minLevel,
     params.numberOfQuestions,
@@ -453,6 +494,7 @@ export default function SimilarKanjiSessionScreen() {
     params.srsEnlightened,
     params.srsGuru,
     params.srsMaster,
+    params.subjectIds,
     params.useCustomLevelRange,
     restoreSavedSimilarKanjiSession,
   ]);
@@ -479,12 +521,27 @@ export default function SimilarKanjiSessionScreen() {
       setIsLoading(true);
       await clearSavedSimilarKanjiSession();
 
-      const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
-        srs_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-        subject_types: ["kanji"],
-      });
+      let assignments: Assignment[] = [];
+      try {
+        const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
+          srs_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+          subject_types: ["kanji"],
+        });
+        assignments = assignmentsResponse.data;
+      } catch (error) {
+        if (config.matchMode === "similar") {
+          throw error;
+        }
+        console.warn(
+          "Failed to load SRS stages for custom kanji match:",
+          error,
+        );
+      }
 
-      if (assignmentsResponse.data.length === 0) {
+      if (
+        config.matchMode === "similar" &&
+        assignments.length === 0
+      ) {
         Alert.alert(
           "No Learned Kanji",
           "You haven't learned any kanji yet. Complete some kanji lessons first!",
@@ -498,7 +555,7 @@ export default function SimilarKanjiSessionScreen() {
       allSubjectsRaw.forEach((subject) => allSubjectsById.set(subject.id, subject));
 
       const learnedKanjiSubjects: ApiSubject[] = [];
-      for (const assignment of assignmentsResponse.data) {
+      for (const assignment of assignments) {
         const subjectId = assignment.data.subject_id;
         const subject =
           allSubjectsById.get(subjectId) ?? (await getSubjectById(subjectId));
@@ -513,51 +570,69 @@ export default function SimilarKanjiSessionScreen() {
 
       const subjectIdToStage = new Map<number, number>();
       const learnedKanjiSubjectIds = new Set<number>();
-      assignmentsResponse.data.forEach((assignment: Assignment) => {
+      assignments.forEach((assignment) => {
         subjectIdToStage.set(assignment.data.subject_id, assignment.data.srs_stage);
         learnedKanjiSubjectIds.add(assignment.data.subject_id);
       });
 
-      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
-        config.selectedListIds,
-      );
-
-      const targetSubjects = learnedKanjiSubjects.filter((subject) => {
-        const stage = subjectIdToStage.get(subject.id) ?? 0;
-        if (!isSrsStageAllowed(stage, config.srsGroups)) {
-          return false;
+      let generatedRounds: SimilarKanjiRound<ApiSubject>[];
+      if (config.matchMode === "custom") {
+        const selectedKanjiSubjects: ApiSubject[] = [];
+        for (const subjectId of config.selectedSubjectIds) {
+          const subject =
+            allSubjectsById.get(subjectId) ?? (await getSubjectById(subjectId));
+          if (isKanjiSubject(subject)) {
+            selectedKanjiSubjects.push(subject);
+          }
         }
 
-        const level = subject.data?.level ?? 0;
-        const inLevelRange =
-          !config.useCustomLevelRange ||
-          (level >= config.minLevel && level <= config.maxLevel);
-
-        return (
-          inLevelRange &&
-          subjectMatchesSelectedLists(
-            subject.id,
-            config.selectedListIds,
-            selectedListSubjectIds,
-          )
+        generatedRounds = buildKanjiMeaningMatchRounds({
+          subjects: selectedKanjiSubjects,
+          maxKanjiPerRound: config.kanjiPerQuestion,
+        });
+      } else {
+        const selectedListSubjectIds = await getSelectedListSubjectIdSet(
+          config.selectedListIds,
         );
-      });
+        const targetSubjects = learnedKanjiSubjects.filter((subject) => {
+          const stage = subjectIdToStage.get(subject.id) ?? 0;
+          if (!isSrsStageAllowed(stage, config.srsGroups)) {
+            return false;
+          }
 
-      const generatedRounds = buildSimilarKanjiRounds({
-        targetSubjects,
-        allKanjiSubjects: candidateSubjects,
-        learnedKanjiSubjectIds,
-        includeUnlearnedSimilarKanji: !config.onlyLearnedSimilarKanji,
-        numberOfRounds: config.numberOfQuestions,
-        maxKanjiPerRound: config.kanjiPerQuestion,
-        source: config.similarKanjiSource,
-        getNiaiSimilarKanji,
-      });
+          const level = subject.data?.level ?? 0;
+          const inLevelRange =
+            !config.useCustomLevelRange ||
+            (level >= config.minLevel && level <= config.maxLevel);
+
+          return (
+            inLevelRange &&
+            subjectMatchesSelectedLists(
+              subject.id,
+              config.selectedListIds,
+              selectedListSubjectIds,
+            )
+          );
+        });
+
+        generatedRounds = buildSimilarKanjiRounds({
+          targetSubjects,
+          allKanjiSubjects: candidateSubjects,
+          learnedKanjiSubjectIds,
+          includeUnlearnedSimilarKanji: !config.onlyLearnedSimilarKanji,
+          numberOfRounds: config.numberOfQuestions,
+          maxKanjiPerRound: config.kanjiPerQuestion,
+          source: config.similarKanjiSource,
+          getNiaiSimilarKanji,
+        });
+      }
 
       if (generatedRounds.length === 0) {
         Alert.alert(
           "No Matching Rounds",
-          "No visually similar kanji groups match your selected criteria.",
+          config.matchMode === "custom"
+            ? "Select at least two kanji with distinct meanings."
+            : "No visually similar kanji groups match your selected criteria.",
           [{ text: "OK", onPress: () => router.back() }],
         );
         return;
@@ -580,7 +655,9 @@ export default function SimilarKanjiSessionScreen() {
       console.error("Failed to load similar kanji rounds:", error);
       Alert.alert(
         "Error",
-        "Failed to load your learned kanji. Please refresh your data and try again.",
+        config.matchMode === "custom"
+          ? "Failed to load the selected kanji. Please refresh your data and try again."
+          : "Failed to load your learned kanji. Please refresh your data and try again.",
         [{ text: "OK", onPress: () => router.back() }],
       );
     } finally {
@@ -798,7 +875,9 @@ export default function SimilarKanjiSessionScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.secondary} />
           <Text style={[styles.loadingText, { color: theme.textColor }]}>
-            Preparing similar kanji boards...
+            {isCustomMatch
+              ? "Preparing kanji match..."
+              : "Preparing similar kanji boards..."}
           </Text>
         </View>
       </SafeAreaView>
@@ -812,8 +891,16 @@ export default function SimilarKanjiSessionScreen() {
         progress={progress}
         submittingResults={false}
         onBackToDashboard={handleBackToDashboard}
-        secondaryActionLabel="Try Another Match"
-        onSecondaryAction={() => router.replace("/similar-kanji-config" as any)}
+        secondaryActionLabel={
+          isCustomMatch ? "Choose More Subjects" : "Try Another Match"
+        }
+        onSecondaryAction={() =>
+          router.replace(
+            isCustomMatch
+              ? "/custom-review-selection"
+              : ("/similar-kanji-config" as any),
+          )
+        }
       />
     );
   }
@@ -825,7 +912,9 @@ export default function SimilarKanjiSessionScreen() {
       >
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.error }]}>
-            No similar kanji boards available
+            {isCustomMatch
+              ? "No kanji match boards available"
+              : "No similar kanji boards available"}
           </Text>
           <TouchableOpacity
             style={[styles.errorButton, { backgroundColor: theme.secondary }]}
@@ -890,7 +979,7 @@ export default function SimilarKanjiSessionScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: theme.textColor }]}>
-            Similar Kanji
+            {isCustomMatch ? "Kanji Match" : "Similar Kanji"}
           </Text>
           <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
             {currentIndex + 1}/{rounds.length} · Score {scoreSummary}

@@ -28,6 +28,15 @@ export type PronunciationAudioVoicePreference =
   | "random"
   | "both";
 
+export function hasPronunciationAudio(
+  pronunciationAudios:
+    | readonly PronunciationAudio[]
+    | null
+    | undefined
+): boolean {
+  return Array.isArray(pronunciationAudios) && pronunciationAudios.length > 0;
+}
+
 const KATAKANA_START = 0x30a1;
 const KATAKANA_END = 0x30f6;
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;

@@ -248,6 +248,13 @@ export default function LessonsScreen() {
 
   // Study materials for user synonyms
   const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, { meaning_synonyms?: string[] }>>(new Map());
+  const [loadedStudyMaterialsRequestKey, setLoadedStudyMaterialsRequestKey] =
+    useState<string | null>(null);
+  const [studyMaterialsLoadError, setStudyMaterialsLoadError] = useState(false);
+  const [studyMaterialsRetryNonce, setStudyMaterialsRetryNonce] = useState(0);
+  const studyMaterialsRequestKey = Array.from(
+    new Set(reviewItems.map((item) => item.subjectId))
+  ).join(",");
   const currentLessonSubjectIds = useMemo(() => {
     const uniqueIds = new Set<number>();
     allLessons.forEach((lesson) => {
@@ -421,14 +428,36 @@ export default function LessonsScreen() {
 
   // Fetch study materials when entering review mode
   useEffect(() => {
-    if (mode !== LessonsMode.REVIEW || !acceptUserSynonymsAsAnswers || !apiToken || reviewItems.length === 0) {
+    let cancelled = false;
+
+    if (
+      mode !== LessonsMode.REVIEW ||
+      !acceptUserSynonymsAsAnswers ||
+      !apiToken ||
+      !studyMaterialsRequestKey
+    ) {
+      setStudyMaterialsMap(new Map());
+      setLoadedStudyMaterialsRequestKey(null);
+      setStudyMaterialsLoadError(false);
       return;
     }
 
-    const subjectIds = reviewItems.map(item => item.subjectId);
+    setStudyMaterialsMap(new Map());
+    setLoadedStudyMaterialsRequestKey(null);
+    setStudyMaterialsLoadError(false);
 
-    getStudyMaterials(apiToken, { subject_ids: subjectIds }, { skipCache: true })
-      .then((response) => {
+    const loadStudyMaterials = async () => {
+      try {
+        const response = await getStudyMaterials(
+          apiToken,
+          {},
+          { skipCache: true }
+        );
+
+        if (cancelled) {
+          return;
+        }
+
         const materialsMap = new Map<number, { meaning_synonyms?: string[] }>();
         if (response?.data) {
           response.data.forEach((material: any) => {
@@ -440,12 +469,31 @@ export default function LessonsScreen() {
           });
         }
         setStudyMaterialsMap(materialsMap);
+        setLoadedStudyMaterialsRequestKey(studyMaterialsRequestKey);
+        setStudyMaterialsLoadError(false);
         console.log(`[Lessons] Loaded study materials for ${materialsMap.size} subjects`);
-      })
-      .catch((error) => {
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
         console.warn("[Lessons] Failed to load study materials:", error);
-      });
-  }, [mode, acceptUserSynonymsAsAnswers, apiToken, reviewItems]);
+        setStudyMaterialsLoadError(true);
+      }
+    };
+
+    void loadStudyMaterials();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    mode,
+    acceptUserSynonymsAsAnswers,
+    apiToken,
+    studyMaterialsRequestKey,
+    studyMaterialsRetryNonce,
+  ]);
 
   const loadLessons = async () => {
     if (isAuthLoading) {
@@ -1401,6 +1449,94 @@ export default function LessonsScreen() {
     );
   }
 
+  if (
+    mode === LessonsMode.REVIEW &&
+    acceptUserSynonymsAsAnswers &&
+    studyMaterialsLoadError
+  ) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
+        <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
+        <View style={styles.loadingContainer}>
+          <Ionicons
+            name="cloud-offline-outline"
+            size={48}
+            color={theme.textSecondary}
+          />
+          <Text
+            style={[
+              styles.errorText,
+              styles.acceptedAnswersErrorTitle,
+              { color: theme.textColor },
+            ]}
+          >
+            User synonyms unavailable
+          </Text>
+          <Text
+            style={[
+              styles.loadingText,
+              styles.acceptedAnswersErrorMessage,
+              { color: theme.textSecondary },
+            ]}
+          >
+            Retry loading your user synonyms, or continue this lesson review
+            without accepting them.
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.buttonContainer,
+              { backgroundColor: subjectColors.kanji },
+            ]}
+            onPress={() => setStudyMaterialsRetryNonce((value) => value + 1)}
+          >
+            <Text style={styles.buttonText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.buttonContainer,
+              styles.acceptedAnswersSecondaryButton,
+              { borderColor: theme.border },
+            ]}
+            onPress={() => {
+              setStudyMaterialsMap(new Map());
+              setLoadedStudyMaterialsRequestKey(studyMaterialsRequestKey);
+              setStudyMaterialsLoadError(false);
+            }}
+          >
+            <Text style={[styles.buttonText, { color: theme.textColor }]}>
+              Continue without synonyms
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {renderPendingLessonSyncBadge()}
+      </View>
+    );
+  }
+
+  if (
+    mode === LessonsMode.REVIEW &&
+    acceptUserSynonymsAsAnswers &&
+    studyMaterialsRequestKey.length > 0 &&
+    loadedStudyMaterialsRequestKey !== studyMaterialsRequestKey
+  ) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
+        <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textColor }]}>
+            Loading accepted answers...
+          </Text>
+        </View>
+        {renderPendingLessonSyncBadge()}
+      </View>
+    );
+  }
+
   // If we're in lesson mode, show the lesson detail screen
   if (mode === LessonsMode.LESSON && lessonBatches.length > 0) {
     const currentBatch = lessonBatches[currentBatchIndex];
@@ -1844,6 +1980,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#e53935",
     marginBottom: 20,
+  },
+  acceptedAnswersErrorTitle: {
+    marginTop: 16,
+    marginBottom: 0,
+    textAlign: "center",
+  },
+  acceptedAnswersErrorMessage: {
+    marginBottom: 20,
+    marginHorizontal: 28,
+    maxWidth: 420,
+    textAlign: "center",
+  },
+  acceptedAnswersSecondaryButton: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
   },
   buttonContainer: {
     backgroundColor: "transparent",

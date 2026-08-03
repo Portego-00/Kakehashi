@@ -24,6 +24,12 @@ import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
 import { SRS_COLORS } from "../constants/srsColors";
 import { hiraganaToKata } from "../utils/katakanaMadness";
+import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
+import {
+  getMnemonicImageAsset,
+  getMnemonicImageUrlFromDocument,
+  inlineSvgClassStyles,
+} from "../utils/mnemonicImage";
 import { getWaniKaniPitchAccents } from "../utils/pitchAccent";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import {
@@ -34,7 +40,9 @@ import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import KanjiEtymologySection from "./KanjiEtymologySection";
 import KanjiPracticeModal from "./KanjiPracticeModal";
+import KanjiReadingExamples from "./KanjiReadingExamples";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import SrsLevelIcon from "./SrsLevelIcon";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
@@ -42,6 +50,26 @@ import { SynonymsModal } from "./SynonymsModal";
 
 // Turn on Reanimated's global layout animations (required on Fabric / new‑arch)
 enableLayoutAnimations(true);
+
+interface KanjiRadicalComponentSubject {
+  id: number;
+  characters: string | null;
+  meanings: string[];
+  characterImages?: {
+    url: string;
+    content_type: string;
+    metadata: {
+      inline_styles?: boolean;
+      color?: string;
+      dimensions?: string;
+      style_name?: string;
+    };
+  }[];
+  imageUrl?: string | null;
+  level: number;
+  mnemonic?: string;
+  documentUrl?: string | null;
+}
 
 interface KanjiDetailsProps {
   kanji: {
@@ -59,27 +87,15 @@ interface KanjiDetailsProps {
     readingMnemonic: string;
     meaningHint?: string | null;
     readingHint?: string | null;
-    componentSubjects?: {
-      id: number;
-      characters: string | null;
-      meanings: string[];
-      characterImages?: {
-        url: string;
-        content_type: string;
-        metadata: {
-          inline_styles?: boolean;
-          color?: string;
-          dimensions?: string;
-          style_name?: string;
-        };
-      }[];
-      imageUrl?: string | null;
-      level: number;
-    }[];
+    componentSubjects?: KanjiRadicalComponentSubject[];
     amalgamationSubjects?: {
       id: number;
       characters: string;
       meanings: string[];
+      readings: {
+        reading: string;
+        primary?: boolean;
+      }[];
       level: number;
     }[];
     visuallySimilarSubjects?: {
@@ -123,32 +139,16 @@ const BACK_BUTTON_HIT_SLOP = { top: 10, right: 10, bottom: 10, left: 10 };
 const HEADER_TOP_OFFSET = 64;
 const BACK_BUTTON_SIZE = 40;
 
-// Create a memoized image cache to avoid re-renders
-const imageCache: Record<string, string> = {};
-
 // Helper component to render a single radical with SVG/image fallback
 interface RadicalComponentProps {
-  component: {
-    id: number;
-    characters: string | null;
-    meanings: string[];
-    characterImages?: {
-      url: string;
-      content_type: string;
-      metadata: {
-        inline_styles?: boolean;
-        color?: string;
-        dimensions?: string;
-        style_name?: string;
-      };
-    }[];
-    imageUrl?: string | null;
-    level: number;
-  };
+  component: KanjiRadicalComponentSubject;
   width: number;
   height: number;
   gridSpacing: number;
   onPress: () => void;
+  reminderEnabled: boolean;
+  disabled?: boolean;
+  isExpanded?: boolean;
   isAboveUserLevel?: boolean;
   styles: ReturnType<typeof createStyles>;
   radicalContentColor?: string;
@@ -162,6 +162,9 @@ const RadicalComponent = React.memo(
     height,
     gridSpacing,
     onPress,
+    reminderEnabled,
+    disabled = false,
+    isExpanded = false,
     isAboveUserLevel = false,
     styles,
     radicalContentColor = "#ffffff",
@@ -191,6 +194,7 @@ const RadicalComponent = React.memo(
       <TouchableOpacity
         style={[
           styles.componentItem,
+          isExpanded && styles.componentItemExpanded,
           {
             width: width,
             height: height,
@@ -199,6 +203,22 @@ const RadicalComponent = React.memo(
           },
         ]}
         onPress={onPress}
+        disabled={disabled}
+        accessibilityRole={disabled ? undefined : "button"}
+        accessibilityLabel={
+          disabled
+            ? undefined
+            : reminderEnabled
+              ? `${isExpanded ? "Hide" : "Show"} ${
+                  component.meanings[0] || "radical"
+                } radical reminder`
+              : `Open full details for ${
+                  component.meanings[0] || "radical"
+                } radical`
+        }
+        accessibilityState={
+          reminderEnabled ? { expanded: isExpanded } : undefined
+        }
       >
         {component.characters ? (
           <Text
@@ -246,6 +266,131 @@ const RadicalComponent = React.memo(
 
 RadicalComponent.displayName = "RadicalComponent";
 
+interface RadicalMnemonicIllustrationProps {
+  documentUrl?: string | null;
+  radicalId: number;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function RadicalMnemonicIllustration({
+  documentUrl,
+  radicalId,
+  styles,
+}: RadicalMnemonicIllustrationProps) {
+  const { showMnemonicIllustrations } = useSettingsStore();
+  const { theme } = useTheme();
+  const subjectColors = useSubjectColors();
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageKind, setImageKind] = useState<"unknown" | "svg" | "raster">(
+    "unknown"
+  );
+  const [svgXml, setSvgXml] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const trimmedDocumentUrl = documentUrl?.trim();
+
+    setImageUrl(null);
+    setSvgXml(null);
+    setImageKind("unknown");
+
+    if (!showMnemonicIllustrations || !trimmedDocumentUrl) {
+      setIsResolving(false);
+      return;
+    }
+
+    setIsResolving(true);
+    getMnemonicImageUrlFromDocument(trimmedDocumentUrl)
+      .then((nextImageUrl) => {
+        if (cancelled) return;
+        setImageUrl(nextImageUrl);
+        if (!nextImageUrl) setIsResolving(false);
+      })
+      .catch(() => {
+        if (!cancelled) setIsResolving(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentUrl, radicalId, showMnemonicIllustrations]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showMnemonicIllustrations || !imageUrl) return;
+
+    getMnemonicImageAsset(imageUrl)
+      .then((asset) => {
+        if (cancelled) return;
+        if (asset.kind === "svg") {
+          setSvgXml(asset.svgXml);
+          setImageKind("svg");
+        } else {
+          setSvgXml(null);
+          setImageKind("raster");
+        }
+        setIsResolving(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSvgXml(null);
+        setImageKind("raster");
+        setIsResolving(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl, radicalId, showMnemonicIllustrations]);
+
+  const themedSvgXml = useMemo(
+    () =>
+      svgXml
+        ? inlineSvgClassStyles(
+            svgXml,
+            theme.textColor,
+            theme.isDark,
+            theme.textColor
+          )
+        : null,
+    [svgXml, theme.isDark, theme.textColor]
+  );
+
+  if (!showMnemonicIllustrations || !documentUrl?.trim()) return null;
+
+  if (isResolving) {
+    return (
+      <View style={styles.radicalReminderImageLoading}>
+        <ActivityIndicator size="small" color={subjectColors.radical} />
+      </View>
+    );
+  }
+
+  if (!imageUrl) return null;
+
+  if (imageKind === "svg" && themedSvgXml) {
+    return (
+      <View style={styles.radicalReminderSvgContainer}>
+        <SvgXml xml={themedSvgXml} width="100%" height="100%" />
+      </View>
+    );
+  }
+
+  if (imageKind === "raster") {
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        style={styles.radicalReminderImage}
+        resizeMode="contain"
+      />
+    );
+  }
+
+  return null;
+}
+
 export default function KanjiDetails({
   kanji,
   progressionStatus,
@@ -257,19 +402,36 @@ export default function KanjiDetails({
   onSynonymsChange,
   embedded = false,
 }: KanjiDetailsProps) {
-  const { showStrokeOrder, showOnyomiInKatakana, showPitchAccent } =
-    useSettingsStore();
+  const {
+    groupKanjiVocabularyExamplesByReading,
+    showInlineRadicalReminders,
+    showOnyomiInKatakana,
+    showPitchAccent,
+    showStrokeOrder,
+    showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
+  } = useSettingsStore();
   const subjectColors = useSubjectColors();
+  const radicalColor = subjectColors.radical;
+  const kanjiColor = subjectColors.kanji;
+  const vocabularyColor = subjectColors.vocabulary;
   const styles = useMemo(
-    () => createStyles(subjectColors),
-    [subjectColors.kanji, subjectColors.radical, subjectColors.vocabulary]
+    () =>
+      createStyles({
+        radical: radicalColor,
+        kanji: kanjiColor,
+        vocabulary: vocabularyColor,
+      }),
+    [kanjiColor, radicalColor, vocabularyColor]
   );
   const [activeTab, setActiveTab] = useState<"meaning" | "reading" | "stroke">(
     showStrokeOrder || initialTab !== "stroke" ? initialTab : "meaning"
   );
   const navigation = useNavigation();
   const [showAllSimilar, setShowAllSimilar] = useState(false);
-  const [showAllVocab, setShowAllVocab] = useState(false);
+  const [expandedComponentId, setExpandedComponentId] = useState<number | null>(
+    null
+  );
   const [synonymsModalVisible, setSynonymsModalVisible] = useState(false);
   const [practiceModalVisible, setPracticeModalVisible] = useState(false);
   const [onyomiPitchPage, setOnyomiPitchPage] = useState(0);
@@ -291,31 +453,20 @@ export default function KanjiDetails({
   const readingScrollRef = useAnimatedRef<Animated.ScrollView>();
   const strokeScrollRef = useAnimatedRef<Animated.ScrollView>();
 
+  useEffect(() => {
+    setExpandedComponentId(null);
+  }, [kanji.id, showInlineRadicalReminders]);
+
   // Compute responsive metrics per render
   const isTablet = screenWidth > 768;
   const horizontalPadding = 32;
   const gridSpacing = isTablet ? 12 : 8;
-  // Vocab grid columns
-  const vocabCols = isTablet ? 4 : screenWidth > 400 ? 3 : 2;
   const smallItemCols = isTablet ? 5 : screenWidth > 400 ? 4 : 3;
   const availableWidth = screenWidth - horizontalPadding;
-  const baseVocabItemWidth = Math.floor(
-    (availableWidth - gridSpacing * (vocabCols + 1)) / vocabCols
-  );
   const baseSmallItemWidth = Math.floor(
     (availableWidth - gridSpacing * (smallItemCols + 1)) / smallItemCols
   );
   const smallCardHeight = isTablet ? 70 : 64; // smaller fixed small card height
-  const vocabCardHeight = isTablet ? 84 : 78; // smaller fixed vocab card height
-  const smallItemMaxWidth = Math.min(
-    Math.floor(availableWidth - gridSpacing * 2),
-    Math.floor(baseSmallItemWidth * 1.5)
-  );
-  const vocabItemMaxWidth = Math.min(
-    Math.floor(availableWidth - gridSpacing * 2),
-    Math.floor(baseVocabItemWidth * 1.8)
-  );
-  const minVocabCardWidth = Platform.OS === "android" ? 80 : baseVocabItemWidth;
   const readingPitchCardGap = 12;
   const readingPitchCardWidth = Math.max(220, screenWidth - 64 - readingPitchCardGap);
   const readingPitchSnapInterval = readingPitchCardWidth + readingPitchCardGap;
@@ -360,6 +511,64 @@ export default function KanjiDetails({
       ),
     [kanji.id, nanoriReadings]
   );
+
+  const renderReadingBadge = (
+    reading: { reading: string; primary?: boolean },
+    key: string,
+    displayReading: string = reading.reading
+  ) => {
+    const badgeStyle = [
+      styles.readingBadge,
+      {
+        backgroundColor: theme.isDark ? "#333" : "#f5f5f5",
+      },
+      reading.primary && styles.primaryReadingBadge,
+    ];
+    const readingText = (
+      <Text
+        selectable
+        style={[
+          styles.readingBadgeText,
+          { color: theme.textSecondary },
+          reading.primary && styles.primaryReadingBadgeText,
+        ]}
+      >
+        {displayReading}
+      </Text>
+    );
+
+    if (!kanjiReadingTextToSpeechEnabled) {
+      return (
+        <View key={key} style={badgeStyle}>
+          {readingText}
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={key}
+        accessibilityRole="button"
+        accessibilityLabel={`Speak Japanese pronunciation ${displayReading}`}
+        accessibilityHint="Plays this kanji reading using your device voice"
+        activeOpacity={0.7}
+        onPress={() => {
+          void speakKanjiReading(reading.reading);
+        }}
+        style={badgeStyle}
+      >
+        <View style={styles.readingBadgeContent}>
+          {readingText}
+          <Ionicons
+            name="volume-high-outline"
+            size={14}
+            color={reading.primary ? "#fff" : theme.textSecondary}
+            style={styles.readingBadgeAudioIcon}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   // SRS stage name lookup (if available)
   const srsName = (() => {
@@ -445,6 +654,11 @@ export default function KanjiDetails({
   const sortedComponentSubjects = kanji.componentSubjects
     ? [...kanji.componentSubjects].sort((a, b) => a.level - b.level)
     : [];
+  const expandedComponent = showInlineRadicalReminders
+    ? sortedComponentSubjects.find(
+        (component) => component.id === expandedComponentId
+      ) || null
+    : null;
 
   // Visually Similar Kanji - sort by level and limit to first 8 initially
   const maxInitialSimilarItems = 8;
@@ -455,16 +669,6 @@ export default function KanjiDetails({
   const displaySimilarItems = showAllSimilar
     ? sortedSimilarSubjects
     : sortedSimilarSubjects.slice(0, maxInitialSimilarItems);
-
-  // Found In Vocabulary - sort by level and limit to first 6 initially
-  const maxInitialVocabItems = 6;
-  const sortedVocabSubjects = kanji.amalgamationSubjects
-    ? [...kanji.amalgamationSubjects].sort((a, b) => a.level - b.level)
-    : [];
-  const hasMoreVocabItems = sortedVocabSubjects.length > maxInitialVocabItems;
-  const displayVocabItems = showAllVocab
-    ? sortedVocabSubjects
-    : sortedVocabSubjects.slice(0, maxInitialVocabItems);
 
   // Helper function to format mnemonic text with special tags
   const formatMnemonic = (mnemonic: string) => {
@@ -535,16 +739,9 @@ export default function KanjiDetails({
     setShowAllSimilar((prev) => !prev);
   };
 
-  // Toggle show all vocabulary
-  const toggleShowAllVocab = () => {
-    setShowAllVocab((prev) => !prev);
-  };
-
   // Skip heavy per‑item stagger if list is large
   const shouldStaggerSimilar =
     displaySimilarItems && displaySimilarItems.length <= 30;
-  const shouldStaggerVocab =
-    displayVocabItems && displayVocabItems.length <= 30;
 
   useEffect(() => {
     if (!showStrokeOrder && activeTab === "stroke") {
@@ -849,6 +1046,12 @@ export default function KanjiDetails({
               </View>
             </View>
 
+            <KanjiEtymologySection
+              characters={kanji.characters}
+              presentation="details"
+              visible={showKanjiEtymology}
+            />
+
             {/* Meaning Hint Section */}
             {kanji.meaningHint && (
               <View style={styles.section}>
@@ -903,32 +1106,15 @@ export default function KanjiDetails({
                       On&apos;yomi
                     </Text>
                     <View style={styles.readingValues}>
-                      {onyomiReadings.map((reading, index) => (
-                        <View
-                          key={`on-${index}`}
-                          style={[
-                            styles.readingBadge,
-                            {
-                              backgroundColor: theme.isDark
-                                ? "#333"
-                                : "#f5f5f5",
-                            },
-                            reading.primary && styles.primaryReadingBadge,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.readingBadgeText,
-                              { color: theme.textSecondary },
-                              reading.primary && styles.primaryReadingBadgeText,
-                            ]}
-                          >
-                            {showOnyomiInKatakana
-                              ? hiraganaToKata(reading.reading)
-                              : reading.reading}
-                          </Text>
-                        </View>
-                      ))}
+                      {onyomiReadings.map((reading, index) =>
+                        renderReadingBadge(
+                          reading,
+                          `on-${index}`,
+                          showOnyomiInKatakana
+                            ? hiraganaToKata(reading.reading)
+                            : reading.reading
+                        )
+                      )}
                     </View>
                     {renderReadingPitchAccentSwiper(
                       onyomiPitchAccentEntries,
@@ -953,30 +1139,9 @@ export default function KanjiDetails({
                       Kun&apos;yomi
                     </Text>
                     <View style={styles.readingValues}>
-                      {kunyomiReadings.map((reading, index) => (
-                        <View
-                          key={`kun-${index}`}
-                          style={[
-                            styles.readingBadge,
-                            {
-                              backgroundColor: theme.isDark
-                                ? "#333"
-                                : "#f5f5f5",
-                            },
-                            reading.primary && styles.primaryReadingBadge,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.readingBadgeText,
-                              { color: theme.textSecondary },
-                              reading.primary && styles.primaryReadingBadgeText,
-                            ]}
-                          >
-                            {reading.reading}
-                          </Text>
-                        </View>
-                      ))}
+                      {kunyomiReadings.map((reading, index) =>
+                        renderReadingBadge(reading, `kun-${index}`)
+                      )}
                     </View>
                     {renderReadingPitchAccentSwiper(
                       kunyomiPitchAccentEntries,
@@ -994,28 +1159,9 @@ export default function KanjiDetails({
                       Nanori
                     </Text>
                     <View style={styles.readingValues}>
-                      {nanoriReadings.map((reading, index) => (
-                        <View
-                          key={`nanori-${index}`}
-                          style={[
-                            styles.readingBadge,
-                            {
-                              backgroundColor: theme.isDark
-                                ? "#333"
-                                : "#f5f5f5",
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.readingBadgeText,
-                              { color: theme.textSecondary },
-                            ]}
-                          >
-                            {reading.reading}
-                          </Text>
-                        </View>
-                      ))}
+                      {nanoriReadings.map((reading, index) =>
+                        renderReadingBadge(reading, `nanori-${index}`)
+                      )}
                     </View>
                     {renderReadingPitchAccentSwiper(
                       nanoriPitchAccentEntries,
@@ -1176,11 +1322,139 @@ export default function KanjiDetails({
                     height={smallCardHeight}
                     gridSpacing={gridSpacing}
                     styles={styles}
-                    onPress={() => onSubjectPress?.(component.id)}
+                    onPress={() => {
+                      if (showInlineRadicalReminders) {
+                        setExpandedComponentId((currentId) =>
+                          currentId === component.id ? null : component.id
+                        );
+                        return;
+                      }
+                      onSubjectPress?.(component.id);
+                    }}
+                    reminderEnabled={showInlineRadicalReminders}
+                    disabled={!showInlineRadicalReminders && !onSubjectPress}
+                    isExpanded={
+                      showInlineRadicalReminders &&
+                      expandedComponentId === component.id
+                    }
                     isAboveUserLevel={component.level > userLevel}
                   />
                 ))}
               </Animated.View>
+              {showInlineRadicalReminders && (
+                <Text
+                  style={[
+                    styles.radicalReminderHint,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Tap a radical to see its reminder here.
+                </Text>
+              )}
+              {showInlineRadicalReminders && expandedComponent && (
+                <Animated.View
+                  entering={FadeInDown.duration(160)}
+                  exiting={FadeOutUp.duration(120)}
+                  layout={LinearTransition.duration(180)}
+                  style={[
+                    styles.radicalReminder,
+                    {
+                      backgroundColor: theme.backgroundColor,
+                      borderColor: subjectColors.radical,
+                    },
+                  ]}
+                >
+                  <View style={styles.radicalReminderHeader}>
+                    <View style={styles.radicalReminderHeading}>
+                      <Text
+                        style={[
+                          styles.radicalReminderTitle,
+                          { color: theme.textColor },
+                        ]}
+                      >
+                        {expandedComponent.meanings[0] || "Radical"}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.radicalReminderMeta,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Radical · Level {expandedComponent.level}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setExpandedComponentId(null)}
+                      style={styles.radicalReminderClose}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close radical reminder"
+                    >
+                      <Ionicons
+                        name="close"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.radicalReminderLabel,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Mnemonic
+                  </Text>
+                  {expandedComponent.mnemonic ? (
+                    <View style={styles.mnemonicContainer}>
+                      {formatMnemonic(expandedComponent.mnemonic)}
+                    </View>
+                  ) : (
+                    <Text
+                      style={[
+                        styles.radicalReminderUnavailable,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      No mnemonic is available for this radical.
+                    </Text>
+                  )}
+
+                  <RadicalMnemonicIllustration
+                    documentUrl={expandedComponent.documentUrl}
+                    radicalId={expandedComponent.id}
+                    styles={styles}
+                  />
+
+                  {onSubjectPress && (
+                    <TouchableOpacity
+                      style={[
+                        styles.radicalReminderOpenButton,
+                        { borderColor: theme.border },
+                      ]}
+                      onPress={() => onSubjectPress(expandedComponent.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open full details for ${
+                        expandedComponent.meanings[0] || "radical"
+                      }`}
+                    >
+                      <Text
+                        style={[
+                          styles.radicalReminderOpenText,
+                          { color: subjectColors.radical },
+                        ]}
+                      >
+                        Open full radical page
+                      </Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={16}
+                        color={subjectColors.radical}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </Animated.View>
+              )}
             </View>
           </View>
         )}
@@ -1293,11 +1567,13 @@ export default function KanjiDetails({
           </View>
         )}
 
-        {/* Found In Vocabulary Section */}
-        {sortedVocabSubjects.length > 0 && (
+        {/* Vocabulary examples grouped by the reading used for this kanji. */}
+        {(kanji.amalgamationSubjects?.length ?? 0) > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-              Found In Vocabulary
+              {groupKanjiVocabularyExamplesByReading
+                ? "Examples by Reading"
+                : "Vocabulary Examples"}
             </Text>
             <View
               style={[
@@ -1305,113 +1581,14 @@ export default function KanjiDetails({
                 { backgroundColor: theme.cardBackground },
               ]}
             >
-              <Animated.View
-                style={styles.vocabGrid}
-                entering={FadeIn.duration(150)}
-                exiting={FadeOutUp.duration(120)}
-                layout={LinearTransition.duration(180)}
-              >
-                {displayVocabItems?.map((vocab, idx) => {
-                  const isAboveUserLevel = vocab.level > userLevel;
-                  return (
-                    <Animated.View
-                      key={vocab.id}
-                      entering={
-                        shouldStaggerVocab
-                          ? FadeInDown.duration(140).delay(idx * 10)
-                          : FadeInDown.duration(140)
-                      }
-                      exiting={FadeOutUp.duration(120)}
-                      layout={LinearTransition.duration(180)}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.vocabItem,
-                          {
-                            width: Math.min(
-                              Math.max(
-                                minVocabCardWidth,
-                                80 + (vocab.characters?.length || 0) * 18
-                              ),
-                              vocabItemMaxWidth
-                            ),
-                            height: vocabCardHeight,
-                            margin: gridSpacing / 2,
-                            opacity: isAboveUserLevel ? 0.8 : 1,
-                          },
-                        ]}
-                        onPress={() => onSubjectPress?.(vocab.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.vocabCharacter,
-                            // Adjust font size for longer vocabulary words
-                            vocab.characters && vocab.characters.length > 3
-                              ? {
-                                  fontSize: Math.max(
-                                    14,
-                                    22 - (vocab.characters.length - 3) * 2
-                                  ),
-                                }
-                              : null,
-                          ]}
-                          adjustsFontSizeToFit={true}
-                          numberOfLines={1}
-                        >
-                          {vocab.characters}
-                        </Text>
-                        <Text
-                          style={styles.vocabMeaning}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >
-                          {vocab.meanings[0]}
-                        </Text>
-                        {isAboveUserLevel && (
-                          <View style={styles.itemLevelBadgeVocab}>
-                            <Text style={styles.itemLevelBadgeText}>
-                              {vocab.level}
-                            </Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    </Animated.View>
-                  );
-                })}
-              </Animated.View>
-              {hasMoreVocabItems && (
-                <Animated.View
-                  entering={FadeInDown.duration(200)}
-                  exiting={FadeOutUp.duration(200)}
-                  layout={LinearTransition.duration(180)}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.showMoreButton,
-                      { borderTopColor: theme.border },
-                    ]}
-                    onPress={toggleShowAllVocab}
-                  >
-                    <Text
-                      style={[
-                        styles.showMoreText,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      {showAllVocab
-                        ? "Show Less"
-                        : `Show ${
-                            sortedVocabSubjects.length - maxInitialVocabItems
-                          } More`}
-                    </Text>
-                    <Ionicons
-                      name={showAllVocab ? "chevron-up" : "chevron-down"}
-                      size={16}
-                      color={subjectColors.vocabulary}
-                    />
-                  </TouchableOpacity>
-                </Animated.View>
-              )}
+              <KanjiReadingExamples
+                key={`${kanji.id}-${groupKanjiVocabularyExamplesByReading}`}
+                groupByReading={groupKanjiVocabularyExamplesByReading}
+                kanjiCharacters={kanji.characters}
+                kanjiReadings={kanji.readings}
+                vocabulary={kanji.amalgamationSubjects ?? []}
+                onSubjectPress={onSubjectPress}
+              />
             </View>
           </View>
         )}
@@ -2286,6 +2463,13 @@ const createStyles = (subjectColors: SubjectColors) =>
     paddingVertical: 6,
     margin: 4,
   },
+  readingBadgeContent: {
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  readingBadgeAudioIcon: {
+    marginLeft: 6,
+  },
   primaryReadingBadge: {
     backgroundColor: subjectColors.kanji,
   },
@@ -2321,6 +2505,10 @@ const createStyles = (subjectColors: SubjectColors) =>
     flexShrink: 0,
     position: "relative",
   },
+  componentItemExpanded: {
+    borderWidth: 3,
+    borderColor: "white",
+  },
   componentCharacter: {
     fontSize: 22,
     color: "white",
@@ -2346,6 +2534,91 @@ const createStyles = (subjectColors: SubjectColors) =>
     marginTop: 4,
     paddingHorizontal: 4,
   },
+  radicalReminderHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+    marginHorizontal: 4,
+  },
+  radicalReminder: {
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    marginTop: 12,
+    padding: 14,
+  },
+  radicalReminderHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  radicalReminderHeading: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  radicalReminderTitle: {
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "700",
+  },
+  radicalReminderMeta: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  radicalReminderClose: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -6,
+    marginRight: -6,
+  },
+  radicalReminderLabel: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 6,
+  },
+  radicalReminderUnavailable: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: "italic",
+  },
+  radicalReminderImage: {
+    width: "100%",
+    height: 140,
+    marginTop: 14,
+  },
+  radicalReminderSvgContainer: {
+    width: "100%",
+    height: 210,
+    marginTop: 14,
+  },
+  radicalReminderImageLoading: {
+    width: "100%",
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+  },
+  radicalReminderOpenButton: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderRadius: 9,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  radicalReminderOpenText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
   similarKanjiItem: {
     backgroundColor: subjectColors.kanji,
     borderRadius: 8,
@@ -2370,38 +2643,6 @@ const createStyles = (subjectColors: SubjectColors) =>
     fontWeight: "500",
     marginTop: 4,
     paddingHorizontal: 4,
-  },
-  vocabGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
-    alignItems: "flex-start",
-  },
-  vocabItem: {
-    backgroundColor: subjectColors.vocabulary,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    minWidth: 80,
-    flexShrink: 0,
-    position: "relative",
-  },
-  vocabCharacter: {
-    fontSize: 20,
-    color: "white",
-    fontWeight: "bold",
-    fontFamily: "SourceHanSansJP-Bold",
-  },
-  vocabMeaning: {
-    fontSize: 12,
-    color: "white",
-    textAlign: "center",
-    lineHeight: 14,
-    fontWeight: "500",
-    marginTop: 4,
-    paddingHorizontal: 6,
   },
   constellationButton: {
     position: "absolute",
@@ -2643,24 +2884,6 @@ const createStyles = (subjectColors: SubjectColors) =>
     height: 26,
     borderRadius: 13,
     backgroundColor: subjectColors.radical,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "white",
-    shadowColor: "rgba(0,0,0,0.5)",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.8,
-    shadowRadius: 2,
-    elevation: 5,
-  },
-  itemLevelBadgeVocab: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: subjectColors.vocabulary,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,

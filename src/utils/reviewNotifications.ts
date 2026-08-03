@@ -30,6 +30,7 @@ type DailyReviewReminderConfig = {
 };
 type DailyLessonReminderConfig = DailyReviewReminderConfig & {
   minimumLessons: number;
+  includeWeekends: boolean;
 };
 type SyncDailyReviewReminderOptions = {
   reviewCount?: number;
@@ -83,6 +84,26 @@ type ScheduledNotificationRequest = Awaited<
   ReturnType<typeof Notifications.getAllScheduledNotificationsAsync>
 >[number];
 
+function getStoredNotificationIds(storedValue: string | null): string[] {
+  if (!storedValue) {
+    return [];
+  }
+
+  try {
+    const parsedValue: unknown = JSON.parse(storedValue);
+    if (Array.isArray(parsedValue)) {
+      return parsedValue.filter(
+        (notificationId): notificationId is string =>
+          typeof notificationId === 'string' && notificationId.length > 0
+      );
+    }
+  } catch {
+    // Older versions stored a single unencoded identifier.
+  }
+
+  return [storedValue];
+}
+
 function getScheduledNotificationData(
   request: ScheduledNotificationRequest
 ): Record<string, unknown> | null {
@@ -107,10 +128,12 @@ async function cancelDailyReminderNotification({
 
   try {
     const notificationIdsToCancel = new Set<string>();
-    const scheduledNotificationId = await AsyncStorage.getItem(storageKey);
-    if (scheduledNotificationId) {
-      notificationIdsToCancel.add(scheduledNotificationId);
-    }
+    const storedNotificationIds = getStoredNotificationIds(
+      await AsyncStorage.getItem(storageKey)
+    );
+    storedNotificationIds.forEach((notificationId) => {
+      notificationIdsToCancel.add(notificationId);
+    });
 
     try {
       const scheduledNotifications =
@@ -222,6 +245,8 @@ async function getDailyLessonReminderConfig(): Promise<DailyLessonReminderConfig
         minimumLessons: clampDailyLessonReminderMinimum(
           parsedSettings.state?.dailyLessonReminderMinimum
         ),
+        includeWeekends:
+          parsedSettings.state?.dailyLessonReminderIncludeWeekends ?? true,
         hour,
         minute,
       };
@@ -233,6 +258,7 @@ async function getDailyLessonReminderConfig(): Promise<DailyLessonReminderConfig
   return {
     enabled: false,
     minimumLessons: 5,
+    includeWeekends: true,
     hour: 20,
     minute: 0,
   };
@@ -487,25 +513,40 @@ export async function syncDailyLessonReminderNotification(
 
     const minimumLessonsLabel =
       reminderConfig.minimumLessons === 1 ? 'lesson' : 'lessons';
-    const scheduledNotificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Lesson reminder',
-        body: `You are below your daily goal of ${reminderConfig.minimumLessons} ${minimumLessonsLabel}. Keep your lesson streak moving.`,
-        data: {
-          dailyLessonReminder: true,
-          minimumDailyLessons: reminderConfig.minimumLessons,
-        },
+    const reminderContent = {
+      title: 'Lesson reminder',
+      body: `You are below your daily goal of ${reminderConfig.minimumLessons} ${minimumLessonsLabel}. Keep your lesson streak moving.`,
+      data: {
+        dailyLessonReminder: true,
+        minimumDailyLessons: reminderConfig.minimumLessons,
       },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: reminderConfig.hour,
-        minute: reminderConfig.minute,
-      },
-    });
+    };
+    const reminderTriggers = reminderConfig.includeWeekends
+      ? [
+          {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY as const,
+            hour: reminderConfig.hour,
+            minute: reminderConfig.minute,
+          },
+        ]
+      : [2, 3, 4, 5, 6].map((weekday) => ({
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY as const,
+          weekday,
+          hour: reminderConfig.hour,
+          minute: reminderConfig.minute,
+        }));
+    const scheduledNotificationIds = await Promise.all(
+      reminderTriggers.map((trigger) =>
+        Notifications.scheduleNotificationAsync({
+          content: reminderContent,
+          trigger,
+        })
+      )
+    );
 
     await AsyncStorage.setItem(
       DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY,
-      scheduledNotificationId
+      JSON.stringify(scheduledNotificationIds)
     );
   } catch {
     // Silent failure

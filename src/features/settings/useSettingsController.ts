@@ -106,6 +106,7 @@ import {
   REVIEW_CHARACTER_FONT_SCALE_MAX,
   REVIEW_CHARACTER_FONT_SCALE_MIN,
   REVIEW_CHARACTER_FONT_SCALE_STEP,
+  type SongLyricsStudyModePreference,
   type SrsProgressionCardDisplayMode,
   type StudyModePreference,
   type VocabularyAudioVoicePreference,
@@ -157,6 +158,16 @@ const STUDY_MODE_DEFAULT_OPTIONS: {
 }[] = [
   { value: "none", label: "Normal" },
   { value: "wk", label: "Vocab" },
+  { value: "full", label: "Full" },
+];
+
+const SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS: {
+  value: SongLyricsStudyModePreference;
+  label: string;
+}[] = [
+  { value: "none", label: "Normal" },
+  { value: "wk", label: "Vocab" },
+  { value: "quiz", label: "Quiz" },
   { value: "full", label: "Full" },
 ];
 
@@ -404,6 +415,8 @@ export function useSettingsController() {
     setDailyLessonReminderEnabled,
     dailyLessonReminderMinimum,
     setDailyLessonReminderMinimum,
+    dailyLessonReminderIncludeWeekends,
+    setDailyLessonReminderIncludeWeekends,
     ankiCardMode,
     setAnkiCardMode,
     ankiGroupQuestions,
@@ -431,6 +444,8 @@ export function useSettingsController() {
     setOfflineVocabularyAudioEnabled,
     showPitchAccent,
     setShowPitchAccent,
+    showVocabularyFrequency,
+    setShowVocabularyFrequency,
     showPatternsOfUse,
     setShowPatternsOfUse,
     showSimilarVocabulary,
@@ -445,6 +460,12 @@ export function useSettingsController() {
     setShowContextSentenceSpeedControl,
     showMnemonicIllustrations,
     setShowMnemonicIllustrations,
+    showInlineRadicalReminders,
+    setShowInlineRadicalReminders,
+    showKanjiEtymology,
+    setShowKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
+    setKanjiReadingTextToSpeechEnabled,
     myAnimeListUsername,
     setMyAnimeListUsername,
     gravatarEmail,
@@ -468,6 +489,8 @@ export function useSettingsController() {
     setAcceptAnyKanjiOnyomiReading,
     showOnyomiInKatakana,
     setShowOnyomiInKatakana,
+    groupKanjiVocabularyExamplesByReading,
+    setGroupKanjiVocabularyExamplesByReading,
     backToBackQuestions,
     setBackToBackQuestions,
     backToBackImmediateRetryIncorrect,
@@ -1778,12 +1801,14 @@ export function useSettingsController() {
     reviewEnabled = dailyReviewReminderEnabled,
     lessonEnabled = dailyLessonReminderEnabled,
     lessonMinimum = dailyLessonReminderMinimum,
+    lessonIncludeWeekends = dailyLessonReminderIncludeWeekends,
     hour = dailyReviewReminderHour,
     minute = dailyReviewReminderMinute,
   }: {
     reviewEnabled?: boolean;
     lessonEnabled?: boolean;
     lessonMinimum?: number;
+    lessonIncludeWeekends?: boolean;
     hour?: number;
     minute?: number;
   } = {}) => ({
@@ -1797,6 +1822,7 @@ export function useSettingsController() {
       hour,
       minute,
       minimumLessons: lessonMinimum,
+      includeWeekends: lessonIncludeWeekends,
     },
   });
 
@@ -2037,6 +2063,15 @@ export function useSettingsController() {
     setDailyLessonReminderMinimum(normalizedMinimum);
     await syncDailyReminderNotifications(
       getDailyReminderSyncOptions({ lessonMinimum: normalizedMinimum })
+    );
+  };
+
+  const handleDailyLessonReminderIncludeWeekendsChange = async (
+    includeWeekends: boolean,
+  ) => {
+    setDailyLessonReminderIncludeWeekends(includeWeekends);
+    await syncDailyReminderNotifications(
+      getDailyReminderSyncOptions({ lessonIncludeWeekends: includeWeekends }),
     );
   };
 
@@ -2838,6 +2873,7 @@ export function useSettingsController() {
     dailyLessonLimitMin,
     dailyLessonLimitStep,
     dailyLessonReminderEnabled,
+    dailyLessonReminderIncludeWeekends,
     dailyLessonReminderMinimum,
     dailyLessonReminderMinimumMax,
     dailyLessonReminderMinimumMin,
@@ -2896,6 +2932,7 @@ export function useSettingsController() {
     handleConfirmLevelAnalyticsExport,
     handleDailyLessonLimitToggle,
     handleDailyLessonReminderChange,
+    handleDailyLessonReminderIncludeWeekendsChange,
     handleDailyLessonReminderMinimumChange,
     handleDailyReviewReminderChange,
     handleDetailedSubjectsAnalysis,
@@ -3049,6 +3086,7 @@ export function useSettingsController() {
     setCapturingReviewShortcutKey,
     setDailyLessonLimit,
     setDailyLessonReminderEnabled,
+    setDailyLessonReminderIncludeWeekends,
     setDailyLessonReminderMinimum,
     setDailyReviewReminderEnabled,
     setDailyReviewReminderHour,
@@ -3117,12 +3155,17 @@ export function useSettingsController() {
     setShowLevelAnalyticsExportModal,
     setShowMediaContextSentences,
     setShowMnemonicIllustrations,
+    setShowInlineRadicalReminders,
+    setShowKanjiEtymology,
+    setKanjiReadingTextToSpeechEnabled,
     setShowNotificationsModal,
     setShowOnyomiInKatakana,
+    setGroupKanjiVocabularyExamplesByReading,
     setShowOpenSourceModal,
     setShowPatternsOfUse,
     setShowPerformanceDashboard,
     setShowPitchAccent,
+    setShowVocabularyFrequency,
     setShowReminderTimeModal,
     setShowReviewItemLevelAndSrsStage,
     setShowReviewShortcutModal,
@@ -3160,13 +3203,18 @@ export function useSettingsController() {
     showLevelRecapSection,
     showMediaContextSentences,
     showMnemonicIllustrations,
+    showInlineRadicalReminders,
+    showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
     showMusicPlaybackSection,
     showNotificationsModal,
     showOnyomiInKatakana,
+    groupKanjiVocabularyExamplesByReading,
     showOpenSourceModal,
     showPatternsOfUse,
     showPerformanceDashboard,
     showPitchAccent,
+    showVocabularyFrequency,
     showReminderTimeModal,
     showReviewItemLevelAndSrsStage,
     showReviewShortcutModal,
@@ -3183,6 +3231,7 @@ export function useSettingsController() {
     skipCustomLessonQuiz,
     songsLyricsDefaultStudyMode,
     songsPlaybackSource,
+    SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS,
     spotifyAuthError,
     spotifyAuthStatus,
     spotifyDisplayName,

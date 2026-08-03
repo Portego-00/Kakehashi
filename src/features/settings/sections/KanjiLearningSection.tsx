@@ -2,15 +2,27 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
 export function KanjiLearningSection() {
   const {
+    groupKanjiVocabularyExamplesByReading,
+    setGroupKanjiVocabularyExamplesByReading,
+    setShowInlineRadicalReminders,
+    setShowKanjiEtymology,
+    setKanjiReadingTextToSpeechEnabled,
     setShowOnyomiInKatakana,
     setShowStrokeOrder,
     setStrokeLeniency,
     setVisuallySimilarKanjiSource,
+    showInlineRadicalReminders,
+    showKanjiEtymology,
+    kanjiReadingTextToSpeechEnabled,
     showOnyomiInKatakana,
     showStrokeOrder,
     strokeLeniency,
@@ -43,6 +55,7 @@ export function KanjiLearningSection() {
           Kanji Learning
         </Text>
 
+        <AdvancedSettingsGroup>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="brush"
@@ -68,6 +81,86 @@ export function KanjiLearningSection() {
           />
         </View>
 
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="information-circle-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Inline Radical Reminders
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show radical mnemonics and illustrations inside kanji details
+            </Text>
+          </View>
+          <Switch
+            value={showInlineRadicalReminders}
+            onValueChange={setShowInlineRadicalReminders}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Show inline radical reminders"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="book-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Kanji Etymology
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show character origins and structure in details and lessons
+            </Text>
+          </View>
+          <Switch
+            value={showKanjiEtymology}
+            onValueChange={setShowKanjiEtymology}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Show kanji etymology"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="volume-high-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Kanji Reading Speech
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Tap a kanji reading to hear it with your device&apos;s Japanese
+              voice
+            </Text>
+          </View>
+          <Switch
+            value={kanjiReadingTextToSpeechEnabled}
+            onValueChange={setKanjiReadingTextToSpeechEnabled}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Enable kanji reading speech"
+          />
+        </View>
+
+        <AdvancedSetting>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="create-outline"
@@ -154,6 +247,33 @@ export function KanjiLearningSection() {
         </View>
 
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="list-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Group Vocabulary by Reading
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Organize kanji examples under On&apos;yomi, Kun&apos;yomi, and
+              Nanori readings
+            </Text>
+          </View>
+          <Switch
+            value={groupKanjiVocabularyExamplesByReading}
+            onValueChange={setGroupKanjiVocabularyExamplesByReading}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            accessibilityLabel="Group kanji vocabulary examples by reading"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Text
             style={[
               styles.settingIcon,
@@ -222,6 +342,8 @@ export function KanjiLearningSection() {
             </Text>
           </TouchableOpacity>
         </View>
+        </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </View>
     </>
   );

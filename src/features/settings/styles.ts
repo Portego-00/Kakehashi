@@ -109,6 +109,17 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
+  lessonThresholdInput: {
+    width: 72,
+    minHeight: 40,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 16,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
   bunproSurveyModalContent: {
     paddingBottom: 24,
   },

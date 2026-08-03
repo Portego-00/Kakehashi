@@ -15,7 +15,7 @@ interface PrivacyPolicyModalProps {
   onClose: () => void;
 }
 
-const LAST_UPDATED = 'January 16, 2025';
+const LAST_UPDATED = 'July 22, 2026';
 const APP_NAME = 'Kakehashi';
 const CONTACT_EMAIL = 'kakehashi.app@gmail.com';
 
@@ -70,6 +70,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
               'Assignment data and review schedules',
               'Study materials and user notes',
               'Review statistics and level progressions',
+              'Vocabulary frequency results and lookup timestamps',
               'App preferences and settings',
             ]} />
 
@@ -97,6 +98,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
               'Authenticate you with the WaniKani service',
               'Display your learning progress and statistics',
               'Provide offline access to your study materials',
+              'Look up and cache vocabulary frequency ranks',
               'Send you notifications about available reviews (if enabled)',
               'Process Japanese text through OCR when you use the camera feature',
             ]} />
@@ -115,6 +117,11 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
             <Text style={styles.subheading}>Google ML Kit</Text>
             <Text style={styles.paragraph}>
               We use Google ML Kit for on-device text recognition (OCR). Images you scan are processed locally on your device and are not sent to external servers.
+            </Text>
+
+            <Text style={styles.subheading}>Jiten</Text>
+            <Text style={styles.paragraph}>
+              When the optional Vocabulary Frequency setting is enabled and a vocabulary item is displayed, we may send only that Japanese word to the Jiten API to retrieve its frequency rank. We do not send your WaniKani API token, username, notes, or review answers to Jiten. Jiten receives ordinary network information such as your IP address and is governed by its own Privacy Policy and Terms of Service. Results are cached on your device to reduce repeated requests.
             </Text>
           </Section>
 
@@ -139,6 +146,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
             </Text>
             <BulletList items={[
               'Cached learning data is refreshed periodically and deleted upon logout',
+              'Vocabulary frequency results are refreshed periodically and remain on the device until the app data is cleared or the app is uninstalled',
               'Local preferences are cleared when you uninstall the app',
             ]} />
           </Section>

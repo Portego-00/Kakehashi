@@ -37,6 +37,26 @@ interface CacheEntry<T> {
   dataUpdatedAt: string;
 }
 
+interface CachedStudyMaterialRecord {
+  id?: number;
+  object?: string;
+  data_updated_at?: string;
+  data: {
+    subject_id: number;
+    meaning_synonyms?: string[];
+    meaning_note?: string;
+    reading_note?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface PersistedStudyMaterialsCache {
+  version: 1;
+  isCompleteCollection: boolean;
+  bySubjectId: Record<string, CachedStudyMaterialRecord | null>;
+}
+
 interface ETagsCache {
   [url: string]: string;
 }
@@ -163,6 +183,112 @@ export async function saveToCache<T>(key: string, data: T, dataUpdatedAt: string
   } catch (error: any) {
     timer.end({ cacheKey: key, error: error.message }, false);
   }
+}
+
+function normalizeStudyMaterialSubjectIds(subjectIds: number[]): number[] {
+  return Array.from(
+    new Set(
+      subjectIds.filter(
+        (subjectId) => Number.isInteger(subjectId) && subjectId > 0
+      )
+    )
+  );
+}
+
+async function getPersistedStudyMaterialsCache(): Promise<PersistedStudyMaterialsCache> {
+  const cached = await getFromPermanentStorage<PersistedStudyMaterialsCache>(
+    PERMANENT_KEYS.STUDY_MATERIALS,
+    { ignoreTTL: true }
+  );
+
+  if (
+    cached?.data?.version === 1 &&
+    cached.data.bySubjectId &&
+    typeof cached.data.bySubjectId === "object"
+  ) {
+    return cached.data;
+  }
+
+  return {
+    version: 1,
+    isCompleteCollection: false,
+    bySubjectId: {},
+  };
+}
+
+export async function saveStudyMaterialsToPermanentCache(
+  requestedSubjectIds: number[],
+  materials: CachedStudyMaterialRecord[],
+  options: { completeResponse: boolean; completeCollection?: boolean }
+): Promise<void> {
+  const requestedIds = normalizeStudyMaterialSubjectIds(requestedSubjectIds);
+  const current = await getPersistedStudyMaterialsCache();
+  const next: PersistedStudyMaterialsCache = options.completeCollection
+    ? {
+        version: 1,
+        isCompleteCollection: true,
+        bySubjectId: {},
+      }
+    : {
+        version: 1,
+        isCompleteCollection: current.isCompleteCollection,
+        bySubjectId: { ...current.bySubjectId },
+      };
+
+  if (options.completeResponse) {
+    requestedIds.forEach((subjectId) => {
+      next.bySubjectId[String(subjectId)] = null;
+    });
+  }
+
+  materials.forEach((material) => {
+    const subjectId = material?.data?.subject_id;
+    if (Number.isInteger(subjectId) && subjectId > 0) {
+      next.bySubjectId[String(subjectId)] = material;
+    }
+  });
+
+  await saveToPermanentStorage(
+    PERMANENT_KEYS.STUDY_MATERIALS,
+    next,
+    new Date().toISOString()
+  );
+}
+
+export async function getStudyMaterialsFromPermanentCache(
+  subjectIds: number[]
+): Promise<CachedStudyMaterialRecord[] | null> {
+  const requestedIds = normalizeStudyMaterialSubjectIds(subjectIds);
+  const cached = await getPersistedStudyMaterialsCache();
+
+  if (requestedIds.length === 0) {
+    if (!cached.isCompleteCollection) {
+      return null;
+    }
+
+    return Object.values(cached.bySubjectId).filter(
+      (material): material is CachedStudyMaterialRecord => material !== null
+    );
+  }
+
+  const materials: CachedStudyMaterialRecord[] = [];
+
+  for (const subjectId of requestedIds) {
+    const key = String(subjectId);
+    if (
+      !cached.isCompleteCollection &&
+      !Object.prototype.hasOwnProperty.call(cached.bySubjectId, key)
+    ) {
+      return null;
+    }
+
+    const material = cached.bySubjectId[key];
+    if (material) {
+      materials.push(material);
+    }
+  }
+
+  return materials;
 }
 
 // Get ETag for a URL
@@ -647,17 +773,13 @@ export async function getSubjectsByLevel(level: number): Promise<any[]> {
   }
 }
 
-// Clear study materials cache for a specific subject
-export async function clearStudyMaterialsCache(subjectId: number): Promise<void> {
+// Study-material request caches can contain many subject IDs in one sanitized
+// key, so clear them together after any mutation to avoid stale synonyms.
+export async function clearStudyMaterialsCache(_subjectId: number): Promise<void> {
   try {
     const keys = await AsyncStorage.getAllKeys();
-
-    // The cache key format is: study_materials_{URL with non-alphanumeric replaced with _}
-    // URL format: https://api.wanikani.com/v2/study_materials?subject_ids=123
-    // So we need to match keys that contain both 'study_materials_' and the subject ID
-    const studyMaterialsKeys = keys.filter(key =>
-      key.includes('study_materials_') &&
-      (key.includes(`subject_ids_${subjectId}`) || key.includes(`subject_ids=${subjectId}`))
+    const studyMaterialsKeys = keys.filter((key) =>
+      key.startsWith("study_materials_")
     );
 
     if (studyMaterialsKeys.length > 0) {

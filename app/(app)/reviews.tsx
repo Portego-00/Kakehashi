@@ -625,9 +625,11 @@ export default function ReviewScreen() {
       // Fetch study materials when answer checking or embedded pause details need them.
       if (acceptUserSynonymsAsAnswers || showAnswerStopSubjectDetails) {
         try {
-          const studyMaterialsResponse = await getStudyMaterials(apiToken, {
-            subject_ids: subjectIds,
-          });
+          const studyMaterialsResponse = await getStudyMaterials(
+            apiToken,
+            acceptUserSynonymsAsAnswers ? {} : { subject_ids: subjectIds },
+            acceptUserSynonymsAsAnswers ? { skipCache: true } : undefined
+          );
 
           // Create a map of subject ID to study material data
           const materialsMap = new Map<number, ReviewStudyMaterials>();
@@ -646,7 +648,25 @@ export default function ReviewScreen() {
           console.log(`[Study Materials] Loaded study materials for ${materialsMap.size} subjects`);
         } catch (error) {
           console.warn("[Study Materials] Failed to load study materials:", error);
-          // Continue without study materials - feature will gracefully degrade
+          setStudyMaterialsMap(new Map());
+          if (acceptUserSynonymsAsAnswers) {
+            const studyMaterialsError =
+              error instanceof Error ? error : new Error(String(error));
+            void errorService.logError(studyMaterialsError, {
+              extra: {
+                context: "reviews_load",
+                step: "load_study_materials",
+                subjectCount: subjectIds.length,
+                errorName: studyMaterialsError.name,
+                errorMessage: studyMaterialsError.message,
+              },
+            });
+            Alert.alert(
+              "User Synonyms Unavailable",
+              "Your reviews will continue, but user synonyms could not be loaded and will not be accepted in this session. Reopen reviews to try loading them again."
+            );
+          }
+          // Notes/details can gracefully degrade when they are the only consumer.
         }
       }
 
