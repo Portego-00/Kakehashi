@@ -476,6 +476,9 @@ export default function CrosswordSessionScreen() {
   const vocabularyAudioVoice = useSettingsStore(
     (state) => state.vocabularyAudioVoice
   );
+  const autoSwitchKeyboard = useSettingsStore(
+    (state) => state.autoSwitchKeyboard
+  );
   const userLevel = userData?.level ?? 60;
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
@@ -2108,6 +2111,7 @@ export default function CrosswordSessionScreen() {
             <KanaInput
               ref={inputRef}
               onKanaChange={(kana) => setInputValue(kana)}
+              useJapaneseKeyboard={autoSwitchKeyboard}
               preferUncontrolledAndroidInput
               placeholder={
                 expectedLength > 0

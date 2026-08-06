@@ -106,6 +106,9 @@ import {
   REVIEW_CHARACTER_FONT_SCALE_MAX,
   REVIEW_CHARACTER_FONT_SCALE_MIN,
   REVIEW_CHARACTER_FONT_SCALE_STEP,
+  REVIEW_INPUT_FONT_SCALE_MAX,
+  REVIEW_INPUT_FONT_SCALE_MIN,
+  REVIEW_INPUT_FONT_SCALE_STEP,
   type SongLyricsStudyModePreference,
   type SrsProgressionCardDisplayMode,
   type StudyModePreference,
@@ -216,7 +219,7 @@ function formatCount(value: number | null): string {
   return Math.floor(value).toLocaleString();
 }
 
-function formatReviewCharacterFontScale(scale: number): string {
+function formatReviewFontScale(scale: number): string {
   return `${Math.round(scale * 100)}%`;
 }
 
@@ -228,12 +231,12 @@ const REVIEW_INCORRECT_SHORTCUT_FIELDS: {
   {
     key: "markIncorrect",
     label: "Mark Incorrect",
-    hint: "Progress while keeping the answer incorrect.",
+    hint: "Grade a revealed Anki card or paused answer as incorrect.",
   },
   {
     key: "markCorrect",
     label: "Mark Correct",
-    hint: "Override wrong answer as correct.",
+    hint: "Grade a revealed Anki card or paused answer as correct.",
   },
   {
     key: "askAgain",
@@ -265,7 +268,7 @@ const REVIEW_CORRECT_SHORTCUT_FIELDS: {
   {
     key: "advanceOnCorrect",
     label: "Advance",
-    hint: "Continue after a correct answer pause.",
+    hint: "Reveal and advance Anki cards, or continue after a correct answer.",
   },
   {
     key: "replayAudio",
@@ -399,6 +402,8 @@ export function useSettingsController() {
     setReviewSearchButtonEnabled,
     reviewCharacterFontScale,
     setReviewCharacterFontScale,
+    reviewInputFontScale,
+    setReviewInputFontScale,
     allowSkippingReviews,
     setAllowSkippingReviews,
     showBadgeNotifications,
@@ -1351,6 +1356,10 @@ export function useSettingsController() {
     reviewCharacterFontScale > REVIEW_CHARACTER_FONT_SCALE_MIN;
   const canIncreaseReviewCharacterFontScale =
     reviewCharacterFontScale < REVIEW_CHARACTER_FONT_SCALE_MAX;
+  const canDecreaseReviewInputFontScale =
+    reviewInputFontScale > REVIEW_INPUT_FONT_SCALE_MIN;
+  const canIncreaseReviewInputFontScale =
+    reviewInputFontScale < REVIEW_INPUT_FONT_SCALE_MAX;
 
   const handleDailyLessonLimitToggle = (enabled: boolean) => {
     if (!enabled) {
@@ -2309,10 +2318,11 @@ export function useSettingsController() {
 
   const beginReviewShortcutCapture = (target: ReviewShortcutCaptureTarget) => {
     if (
-      (target.group === "incorrect" &&
+      !ankiCardMode &&
+      ((target.group === "incorrect" &&
         !disableAutoProgressOnWrong &&
         !disableAutoProgressOnCloseAnswer) ||
-      (target.group === "correct" && !disableAutoProgressOnCorrect)
+        (target.group === "correct" && !disableAutoProgressOnCorrect))
     ) {
       return;
     }
@@ -2862,6 +2872,8 @@ export function useSettingsController() {
     canAccessApiDebugTools,
     canDecreaseReviewCharacterFontScale,
     canIncreaseReviewCharacterFontScale,
+    canDecreaseReviewInputFontScale,
+    canIncreaseReviewInputFontScale,
     capturingReviewShortcutKey,
     checkAppleMusicSubscription,
     clearLevelAnalyticsLevels,
@@ -2897,7 +2909,7 @@ export function useSettingsController() {
     formatExpoTriggerLabel,
     formatNativeTriggerLabel,
     formatReminderTimeLabel,
-    formatReviewCharacterFontScale,
+    formatReviewFontScale,
     formatReviewShortcutLabel,
     getAppleMusicStatusLabel,
     getAppleMusicSubscriptionAlertMessage,
@@ -3029,12 +3041,14 @@ export function useSettingsController() {
     reminderMinuteDraft,
     requestAppleMusicAuthorization,
     REVIEW_CHARACTER_FONT_SCALE_STEP,
+    REVIEW_INPUT_FONT_SCALE_STEP,
     REVIEW_CORRECT_SHORTCUT_FIELDS,
     REVIEW_INCORRECT_SHORTCUT_FIELDS,
     reviewAnimatePreviousQuestion,
     reviewBatchSize,
     reviewBatchSizeEnabled,
     reviewCharacterFontScale,
+    reviewInputFontScale,
     reviewCorrectKeyboardShortcuts,
     reviewCorrectShortcutDraft,
     reviewIncorrectKeyboardShortcuts,
@@ -3133,6 +3147,7 @@ export function useSettingsController() {
     setReviewBatchSize,
     setReviewBatchSizeEnabled,
     setReviewCharacterFontScale,
+    setReviewInputFontScale,
     setReviewCorrectKeyboardShortcuts,
     setReviewCorrectShortcutDraft,
     setReviewIncorrectKeyboardShortcuts,

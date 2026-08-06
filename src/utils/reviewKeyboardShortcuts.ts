@@ -12,6 +12,14 @@ export interface ReviewCorrectKeyboardShortcutSettings {
   replayAudio: string;
 }
 
+export type AnkiReviewShortcutAction =
+  | "reveal"
+  | "markIncorrect"
+  | "markCorrect"
+  | "skip"
+  | "openDetails"
+  | "replayAudio";
+
 // Legacy combined shape kept for compatibility with older persisted settings.
 export interface ReviewKeyboardShortcutSettings
   extends ReviewIncorrectKeyboardShortcutSettings,
@@ -105,6 +113,72 @@ export const doesReviewShortcutMatchKey = (
   }
 
   return normalizedKey === normalizedShortcut;
+};
+
+export const resolveAnkiReviewShortcutAction = ({
+  key,
+  isAnswerRevealed,
+  canReplayAudio,
+  canSkip,
+  incorrectShortcuts,
+  correctShortcuts,
+}: {
+  key: string | null | undefined;
+  isAnswerRevealed: boolean;
+  canReplayAudio: boolean;
+  canSkip: boolean;
+  incorrectShortcuts: ReviewIncorrectKeyboardShortcutSettings;
+  correctShortcuts: ReviewCorrectKeyboardShortcutSettings;
+}): AnkiReviewShortcutAction | null => {
+  if (!isAnswerRevealed) {
+    if (
+      doesReviewShortcutMatchKey(key, correctShortcuts.advanceOnCorrect)
+    ) {
+      return "reveal";
+    }
+
+    if (
+      canSkip &&
+      doesReviewShortcutMatchKey(key, incorrectShortcuts.askAgain)
+    ) {
+      return "skip";
+    }
+
+    return null;
+  }
+
+  if (
+    canReplayAudio &&
+    (doesReviewShortcutMatchKey(key, incorrectShortcuts.replayAudio) ||
+      doesReviewShortcutMatchKey(key, correctShortcuts.replayAudio))
+  ) {
+    return "replayAudio";
+  }
+
+  if (doesReviewShortcutMatchKey(key, incorrectShortcuts.markIncorrect)) {
+    return "markIncorrect";
+  }
+
+  if (doesReviewShortcutMatchKey(key, incorrectShortcuts.markCorrect)) {
+    return "markCorrect";
+  }
+
+  if (
+    canSkip &&
+    doesReviewShortcutMatchKey(key, incorrectShortcuts.askAgain)
+  ) {
+    return "skip";
+  }
+
+  if (doesReviewShortcutMatchKey(key, incorrectShortcuts.openDetails)) {
+    return "openDetails";
+  }
+
+  if (doesReviewShortcutMatchKey(key, correctShortcuts.advanceOnCorrect)) {
+    return "markCorrect";
+  }
+
+  return null;
 };
 
 export const sanitizeReviewShortcutInput = (

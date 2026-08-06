@@ -74,7 +74,7 @@ describe("VocabularyFrequencyBadge", () => {
     expect(useVocabularyFrequency).toHaveBeenCalledWith(subject);
   });
 
-  it("renders nothing while the rank is unavailable", () => {
+  it("shows a placeholder while the rank is unavailable", () => {
     mockSetting(true);
     (useVocabularyFrequency as jest.Mock).mockReturnValue({
       result: null,
@@ -82,8 +82,11 @@ describe("VocabularyFrequencyBadge", () => {
       error: null,
     });
 
-    const { toJSON } = render(<VocabularyFrequencyBadge subject={subject} />);
+    const { getByLabelText, getByText } = render(
+      <VocabularyFrequencyBadge subject={subject} />,
+    );
 
-    expect(toJSON()).toBeNull();
+    expect(getByText("#---")).toBeTruthy();
+    expect(getByLabelText("Vocabulary frequency unavailable")).toBeTruthy();
   });
 });

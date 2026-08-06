@@ -56,6 +56,35 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.97",
+    date: "2026-08-06",
+    changes: [
+      {
+        type: "feature",
+        title: "Review Input Size",
+        description:
+          "Added an advanced review setting to adjust the answer input text size.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "reviews" },
+          label: "Open Review Settings",
+        },
+      },
+      {
+        type: "fix",
+        title: "Anki Keyboard Shortcuts",
+        description:
+          "Bluetooth keyboard shortcuts now work in Anki-style reviews.",
+      },
+      {
+        type: "improvement",
+        title: "Japanese Keyboard Switching",
+        description:
+          "Crossword, Wordle, and Bunpro answers now switch to a Japanese keyboard when enabled.",
+      },
+    ],
+  },
+  {
     version: "1.2.96",
     date: "2026-08-01",
     changes: [

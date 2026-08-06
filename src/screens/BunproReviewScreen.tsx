@@ -24,7 +24,7 @@ import type {
 import { BunproApiError, getBunproReviewQuizIndex, updateBunproReview } from "../utils/bunproApi";
 import { Audio, type AudioSound } from "../utils/expoAvCompat";
 import { isPortegoUsername } from "../utils/portegoAccess";
-import { useAuthStore } from "../utils/store";
+import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import * as wanakana from "wanakana";
 
@@ -1119,6 +1119,9 @@ export default function BunproReviewScreen({
 }: BunproReviewScreenProps = {}) {
   const { theme, isDark } = useTheme();
   const { userData } = useAuthStore();
+  const autoSwitchKeyboard = useSettingsStore(
+    (state) => state.autoSwitchKeyboard,
+  );
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string }>();
   const inputRef = useRef<KanaInputHandle>(null);
@@ -2129,7 +2132,7 @@ export default function BunproReviewScreen({
               }}
               initialValue=""
               enableKanaConversion
-              useJapaneseKeyboard={false}
+              useJapaneseKeyboard={autoSwitchKeyboard}
               resetSignal={inputResetSignal}
               autoCorrect={false}
               autoCapitalize="none"

@@ -82,6 +82,7 @@ import {
 import { getCachedOrDownloadVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
   doesReviewShortcutMatchKey,
+  resolveAnkiReviewShortcutAction,
   resolveReviewCorrectKeyboardShortcuts,
   resolveReviewIncorrectKeyboardShortcuts,
 } from "../utils/reviewKeyboardShortcuts";
@@ -97,7 +98,6 @@ import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
-const ANSWER_INPUT_FONT_SIZE = Math.min(width * 0.045, 18);
 const ANSWER_INPUT_HEIGHT = 52;
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
 const SKIP_CUE_VISIBLE_MS = 2000;
@@ -1115,6 +1115,7 @@ export default function ReviewQuestionScreen({
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
     reviewCharacterFontScale,
+    reviewInputFontScale,
     srsProgressionCardDisplayMode,
     visuallySimilarKanjiSource,
   } = useSettingsStore();
@@ -1122,6 +1123,10 @@ export default function ReviewQuestionScreen({
   const reviewPromptCharacterSize = useMemo(
     () => Math.min(windowWidth * 0.25, 120) * reviewCharacterFontScale,
     [reviewCharacterFontScale, windowWidth],
+  );
+  const reviewAnswerInputFontSize = useMemo(
+    () => Math.min(windowWidth * 0.045, 18) * reviewInputFontScale,
+    [reviewInputFontScale, windowWidth],
   );
   const effectiveShowAnswerStopSubjectDetails = showAnswerStopSubjectDetails;
   const isVoiceReviewEnabled = Platform.OS === "ios" && voiceReviewAnswersEnabled;
@@ -1156,6 +1161,7 @@ export default function ReviewQuestionScreen({
   const [navigatingToDetail, setNavigatingToDetail] = useState(false);
   const kanaInputRef = useRef<KanaInputHandle | null>(null);
   const pausedShortcutInputRef = useRef<TextInput | null>(null);
+  const ankiShortcutInputRef = useRef<TextInput | null>(null);
   const [showRetryFeedback, setShowRetryFeedback] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState<
     "correct" | "incorrect" | "close" | null
@@ -2259,6 +2265,33 @@ export default function ReviewQuestionScreen({
     isPausedOnWrong,
     isPausedOnCloseAnswer,
     isPausedOnCorrect,
+    navigatingToDetail,
+    studyMaterialNoteModalVisible,
+  ]);
+
+  useEffect(() => {
+    if (
+      !effectiveAnkiCardMode ||
+      navigatingToDetail ||
+      studyMaterialNoteModalVisible
+    ) {
+      ankiShortcutInputRef.current?.blur();
+      return;
+    }
+
+    // Anki mode has no visible answer field, so keep a hidden input focused to
+    // receive the same external-keyboard events used by regular reviews.
+    Keyboard.dismiss();
+    const focusTimer = setTimeout(() => {
+      if (mountedRef.current) {
+        ankiShortcutInputRef.current?.focus();
+      }
+    }, Platform.OS === "android" ? 140 : 90);
+
+    return () => clearTimeout(focusTimer);
+  }, [
+    currentQuestionKey,
+    effectiveAnkiCardMode,
     navigatingToDetail,
     studyMaterialNoteModalVisible,
   ]);
@@ -4252,6 +4285,70 @@ export default function ReviewQuestionScreen({
       showSkipCue();
       onSkip(item, questionType);
     });
+  };
+
+  const tryHandleAnkiShortcutKey = (pressedKey: string): boolean => {
+    if (
+      !effectiveAnkiCardMode ||
+      navigatingToDetail ||
+      studyMaterialNoteModalVisible ||
+      pendingAnkiSubmitCallbackRef.current
+    ) {
+      return false;
+    }
+
+    if (Date.now() < suppressSubmitUntilRef.current) {
+      return true;
+    }
+
+    const action = resolveAnkiReviewShortcutAction({
+      key: pressedKey,
+      isAnswerRevealed: isCurrentQuestionAnkiRevealed,
+      canReplayAudio: canReplayAnkiAudio,
+      canSkip: Boolean(allowSkippingReviews && onSkip),
+      incorrectShortcuts: resolvedReviewIncorrectKeyboardShortcuts,
+      correctShortcuts: resolvedReviewCorrectKeyboardShortcuts,
+    });
+
+    if (!action) {
+      return false;
+    }
+
+    suppressSubmitUntilRef.current = Date.now() + 220;
+
+    switch (action) {
+      case "reveal":
+        handleAnkiRevealAnswer();
+        break;
+      case "markIncorrect":
+        handleAnkiAnswerButton(false);
+        break;
+      case "markCorrect":
+        handleAnkiAnswerButton(true);
+        break;
+      case "skip":
+        handleAnkiSkipButton();
+        break;
+      case "openDetails":
+        handleAnkiDetailsButton();
+        break;
+      case "replayAudio":
+        void handleReplayAudio();
+        break;
+    }
+
+    return true;
+  };
+
+  const handleAnkiShortcutKeyPress = (event: TextInputKeyPressEvent) => {
+    const pressedKey = event.nativeEvent.key;
+    if (pressedKey) {
+      tryHandleAnkiShortcutKey(pressedKey);
+    }
+  };
+
+  const handleAnkiShortcutSubmitEditing = () => {
+    tryHandleAnkiShortcutKey("Enter");
   };
 
   const beginButtonlessAnkiGesture = (event: GestureResponderEvent) => {
@@ -6298,6 +6395,7 @@ export default function ReviewQuestionScreen({
                       {
                         backgroundColor: theme.isDark ? "#000000" : "white",
                         color: theme.isDark ? "#ffffff" : "#000000",
+                        fontSize: reviewAnswerInputFontSize,
                       },
                       isPausedOnAnswer ? styles.pausedInputTextHidden : null,
                     ]}
@@ -6341,6 +6439,7 @@ export default function ReviewQuestionScreen({
                               : styles.answerInputVoiceMode),
                           {
                             backgroundColor: theme.isDark ? "#000000" : "white",
+                            fontSize: reviewAnswerInputFontSize,
                           },
                           hasCorrectAccent
                             ? styles.correctPausedAnswerInput
@@ -6512,6 +6611,25 @@ export default function ReviewQuestionScreen({
               accessibilityHint="Tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
             />
           )}
+
+        {effectiveAnkiCardMode && (
+          <TextInput
+            ref={ankiShortcutInputRef}
+            value=""
+            onChangeText={() => {}}
+            onKeyPress={handleAnkiShortcutKeyPress}
+            onSubmitEditing={handleAnkiShortcutSubmitEditing}
+            style={styles.hiddenPausedShortcutInput}
+            autoCorrect={false}
+            autoCapitalize="none"
+            blurOnSubmit={false}
+            showSoftInputOnFocus={false}
+            caretHidden
+            accessible={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        )}
       </KeyboardAvoidingView>
       {renderStudyMaterialNoteModal()}
     </SafeAreaView>
@@ -7045,7 +7163,6 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     height: ANSWER_INPUT_HEIGHT,
     paddingHorizontal: 16,
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     borderBottomLeftRadius: 8,
@@ -7751,7 +7868,6 @@ const styles = StyleSheet.create({
     height: 1,
   },
   wrongAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     backgroundColor: "transparent",
     color: "#f44336",
     textAlign: "center",
@@ -7759,7 +7875,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
   },
   correctPausedAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     backgroundColor: "transparent",
     color: "#4caf50",
     textAlign: "center",
@@ -7767,7 +7882,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
   },
   closePausedAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     backgroundColor: "transparent",
     color: "#ff9800",
     textAlign: "center",

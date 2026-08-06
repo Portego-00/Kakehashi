@@ -15,6 +15,7 @@ import { styles } from "../styles";
 
 export function ReviewShortcutModal() {
   const {
+    ankiCardMode,
     beginReviewShortcutCapture,
     capturingReviewShortcutKey,
     closeReviewShortcutModal,
@@ -120,8 +121,8 @@ export function ReviewShortcutModal() {
                             { color: theme.textSecondary },
                           ]}
                         >
-                          Active when Pause on Wrong Answer or Pause on Close
-                          Answer is enabled.
+                          Active in Anki mode, or when Pause on Wrong Answer or
+                          Pause on Close Answer is enabled.
                         </Text>
                       </View>
                       <Switch
@@ -130,6 +131,7 @@ export function ReviewShortcutModal() {
                           setDisableAutoProgressOnWrong(enabled);
                           if (
                             !enabled &&
+                            !ankiCardMode &&
                             capturingReviewShortcutKey?.group === "incorrect"
                           ) {
                             setCapturingReviewShortcutKey(null);
@@ -143,7 +145,8 @@ export function ReviewShortcutModal() {
                     <View
                       style={[
                         styles.reviewShortcutList,
-                        !disableAutoProgressOnWrong &&
+                        !ankiCardMode &&
+                          !disableAutoProgressOnWrong &&
                           !disableAutoProgressOnCloseAnswer &&
                           styles.reviewShortcutListDisabled,
                       ]}
@@ -166,6 +169,7 @@ export function ReviewShortcutModal() {
                                 })
                               }
                               disabled={
+                                !ankiCardMode &&
                                 !disableAutoProgressOnWrong &&
                                 !disableAutoProgressOnCloseAnswer
                               }
@@ -261,7 +265,8 @@ export function ReviewShortcutModal() {
                             { color: theme.textSecondary },
                           ]}
                         >
-                          Active when Pause on Correct Answer is enabled.
+                          Active in Anki mode, or when Pause on Correct Answer is
+                          enabled.
                         </Text>
                       </View>
                       <Switch
@@ -270,6 +275,7 @@ export function ReviewShortcutModal() {
                           setDisableAutoProgressOnCorrect(enabled);
                           if (
                             !enabled &&
+                            !ankiCardMode &&
                             capturingReviewShortcutKey?.group === "correct"
                           ) {
                             setCapturingReviewShortcutKey(null);
@@ -283,7 +289,8 @@ export function ReviewShortcutModal() {
                     <View
                       style={[
                         styles.reviewShortcutList,
-                        !disableAutoProgressOnCorrect &&
+                        !ankiCardMode &&
+                          !disableAutoProgressOnCorrect &&
                           styles.reviewShortcutListDisabled,
                       ]}
                     >
@@ -304,7 +311,9 @@ export function ReviewShortcutModal() {
                                   key: shortcutField.key,
                                 })
                               }
-                              disabled={!disableAutoProgressOnCorrect}
+                              disabled={
+                                !ankiCardMode && !disableAutoProgressOnCorrect
+                              }
                               style={[
                                 styles.reviewShortcutRow,
                                 index > 0 && {

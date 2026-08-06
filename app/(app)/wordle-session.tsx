@@ -44,7 +44,7 @@ import { fontStyles } from "../../src/utils/fonts";
 import * as Haptics from "../../src/utils/haptics";
 import { isPortegoUsername } from "../../src/utils/portegoAccess";
 import { getAssignmentsFromPermanentStorage } from "../../src/utils/permanentStorage";
-import { useAuthStore } from "../../src/utils/store";
+import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
 const HIRAGANA_RANGE_REGEX = /^[぀-ゟー]+$/;
@@ -645,6 +645,9 @@ export default function WordleSessionScreen() {
   useActivityTracking("wordle");
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
+  const autoSwitchKeyboard = useSettingsStore(
+    (state) => state.autoSwitchKeyboard,
+  );
   const userLevel = userData?.level ?? 60;
   const isPortegoUser = isPortegoUsername(userData?.username);
   const { isLoading: isAuthLoading } = useSession();
@@ -1542,6 +1545,7 @@ export default function WordleSessionScreen() {
                     .join("");
                   setInputValue(clipped);
                 }}
+                useJapaneseKeyboard={autoSwitchKeyboard}
                 preferUncontrolledAndroidInput
                 placeholder={`${config.wordLength} kana`}
                 placeholderTextColor={theme.textSecondary}
