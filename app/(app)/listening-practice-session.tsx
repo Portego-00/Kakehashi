@@ -17,6 +17,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import AudioSessionManager from "../../src/modules/AudioSessionManager";
 import { useSession } from "../../src/contexts/AuthContext";
 import { fontStyles } from "../../src/utils/fonts";
@@ -40,7 +43,6 @@ import { useSubjectColors } from "../../src/utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
-const RESULTS_TRANSITION_DELAY_MS = 2000;
 const LISTENING_PRACTICE_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.LISTENING_PRACTICE;
 
@@ -82,6 +84,7 @@ export default function ListeningPracticeSession() {
     "kanji" | "meaning"
   >("kanji");
   const [isComplete, setIsComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isComplete);
   const [lastCompletedItem, setLastCompletedItem] = useState<{
     id: number;
     characters: string;
@@ -96,16 +99,6 @@ export default function ListeningPracticeSession() {
     Map<number, { meaning_synonyms?: string[] }>
   >(new Map());
   const generatorRef = useRef<AsyncGenerator<{ question: ListeningQuestion; progress: number; total: number }> | null>(null);
-  const completionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const clearCompletionTimeout = useCallback(() => {
-    if (completionTimeoutRef.current) {
-      clearTimeout(completionTimeoutRef.current);
-      completionTimeoutRef.current = null;
-    }
-  }, []);
 
   const clearSavedListeningPracticeSession = useCallback(async () => {
     await clearExtraStudySessionState(LISTENING_PRACTICE_SESSION_KEY);
@@ -139,7 +132,6 @@ export default function ListeningPracticeSession() {
         )
       : [];
 
-    clearCompletionTimeout();
     generatorRef.current = null;
     setQuestions(savedSession.questions);
     setCurrentIndex(safeIndex);
@@ -161,7 +153,7 @@ export default function ListeningPracticeSession() {
     setIsComplete(false);
     setIsLoading(false);
     return true;
-  }, [clearCompletionTimeout, clearSavedListeningPracticeSession]);
+  }, [clearSavedListeningPracticeSession]);
 
   const saveListeningPracticeSessionForLater = useCallback(async (): Promise<boolean> => {
     if (
@@ -280,7 +272,6 @@ export default function ListeningPracticeSession() {
         }
       }
 
-      clearCompletionTimeout();
       await clearSavedListeningPracticeSession();
       setIsLoading(true);
       setIsComplete(false);
@@ -418,13 +409,6 @@ export default function ListeningPracticeSession() {
       }
     }
   };
-
-  useEffect(
-    () => () => {
-      clearCompletionTimeout();
-    },
-    [clearCompletionTimeout],
-  );
 
   const loadRemainingQuestions = async (
     generator: AsyncGenerator<{ question: ListeningQuestion; progress: number; total: number }>,
@@ -570,11 +554,7 @@ export default function ListeningPracticeSession() {
       setCurrentIndex(currentIndex + 1);
       setCurrentQuestionPhase("kanji");
     } else {
-      clearCompletionTimeout();
-      completionTimeoutRef.current = setTimeout(() => {
-        setIsComplete(true);
-        completionTimeoutRef.current = null;
-      }, RESULTS_TRANSITION_DELAY_MS);
+      setIsComplete(true);
     }
   };
 
@@ -615,7 +595,6 @@ export default function ListeningPracticeSession() {
         {
           text: "Continue Later",
           onPress: async () => {
-            clearCompletionTimeout();
             const wasSaved = await saveListeningPracticeSessionForLater();
             if (!wasSaved) {
               Alert.alert("Couldn't Save Progress", "Please try again in a moment.");
@@ -659,6 +638,10 @@ export default function ListeningPracticeSession() {
     );
   }
 
+  if (isComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
+  }
+
   if (isComplete) {
     const kanjiAccuracy =
       answers.length > 0
@@ -687,7 +670,6 @@ export default function ListeningPracticeSession() {
             return;
           }
 
-          clearCompletionTimeout();
           void clearSavedListeningPracticeSession();
           setIsLoading(true);
           setQuestions([]);

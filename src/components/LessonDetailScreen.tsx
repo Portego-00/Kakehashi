@@ -78,7 +78,7 @@ import {
   sortPronunciationAudiosByReadingAndGender,
 } from "../utils/pronunciationAudio";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
-import { getCachedOrDownloadVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
   type SubjectColors,
   useSubjectColors,
@@ -124,6 +124,7 @@ interface LessonDetailScreenProps {
   onBatchItemPress?: (index: number) => void;
   onSubjectPress?: (subjectId: number) => void;
   onAddSubjectToList?: (subject: ApiSubject) => void;
+  bookmarkedSubjectIds?: ReadonlySet<number>;
 }
 
 const CONTEXT_AUDIO_SPEED_MIN = 0.5;
@@ -134,6 +135,7 @@ const MAX_INITIAL_SIMILAR_VOCAB_ITEMS = 12;
 const CLOSE_BUTTON_HIT_SLOP = { top: 10, right: 10, bottom: 10, left: 10 };
 const HEADER_TOP_OFFSET = 64;
 const CLOSE_BUTTON_SIZE = 40;
+const EMPTY_BOOKMARKED_SUBJECT_IDS: ReadonlySet<number> = new Set<number>();
 // iOS keyCode values use UIKeyboardHIDUsage; Android/Web use platform key codes.
 const IOS_LEFT_ARROW_KEY_CODE = 80;
 const IOS_RIGHT_ARROW_KEY_CODE = 79;
@@ -4468,6 +4470,7 @@ export default function LessonDetailScreen({
   onBatchItemPress,
   onSubjectPress,
   onAddSubjectToList,
+  bookmarkedSubjectIds = EMPTY_BOOKMARKED_SUBJECT_IDS,
 }: LessonDetailScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -4605,7 +4608,7 @@ export default function LessonDetailScreen({
 
       let playbackUri = audioUrl;
       if (typeof subjectId === "number" && Number.isFinite(subjectId)) {
-        const cachedAudioUri = await getCachedOrDownloadVocabularyAudioUri(
+        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
           subjectId,
           pronunciationAudio ?? { url: audioUrl }
         );
@@ -5095,6 +5098,7 @@ export default function LessonDetailScreen({
         {batchItems?.map((batchItem, pageIndex) => {
           const isCurrentPage = pageIndex === currentBatchIndex;
           const pageSubject = batchItem.subject;
+          const isBookmarked = bookmarkedSubjectIds.has(pageSubject.id);
           const pageRoutes = getTabRoutesForSubject(pageSubject);
           const pageBackgroundColor = getSubjectBackgroundColor(pageSubject);
 
@@ -5111,8 +5115,17 @@ export default function LessonDetailScreen({
                   <TouchableOpacity
                     style={styles.addToListButton}
                     onPress={() => onAddSubjectToList(pageSubject)}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isBookmarked ? "Edit saved lists" : "Add to saved lists"
+                    }
+                    accessibilityState={{ selected: isBookmarked }}
                   >
-                    <Ionicons name="bookmark-outline" size={20} color="#fff" />
+                    <Ionicons
+                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                      size={20}
+                      color="#fff"
+                    />
                   </TouchableOpacity>
                 )}
 

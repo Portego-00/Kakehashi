@@ -11,6 +11,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
@@ -128,6 +131,7 @@ export default function KanaKanjiSessionScreen() {
     ...EMPTY_PROGRESS_STATE,
   });
   const [isComplete, setIsComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isComplete);
   const [config, setConfig] = useState<KanaKanjiConfig | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
 
@@ -695,6 +699,10 @@ export default function KanaKanjiSessionScreen() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (isComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
   }
 
   if (isComplete) {

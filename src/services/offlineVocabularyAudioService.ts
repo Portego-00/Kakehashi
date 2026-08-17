@@ -10,7 +10,7 @@ import type {
 
 const DATABASE_NAME = "offline-vocabulary-audio.db";
 const INDEX_METADATA_KEY = "subjects_data_updated_at";
-const DEFAULT_MAX_CONCURRENT_DOWNLOADS = 6;
+const MAX_CONCURRENT_DOWNLOADS = Platform.OS === "android" ? 2 : 6;
 const CACHE_STATS_BATCH_SIZE = 40;
 const OFFLINE_DOWNLOAD_VOICE_SCOPE: PronunciationAudioVoicePreference = "both";
 const AUDIO_CACHE_DIRECTORY = FileSystem.documentDirectory
@@ -420,7 +420,6 @@ export async function queueOfflineVocabularyAudioDownloads(
   const queueKey = buildQueueKey(options);
   if (
     !options.forceReindex &&
-    progressState.inProgress &&
     activeQueuePromise &&
     activeQueueKey === queueKey
   ) {
@@ -470,7 +469,7 @@ export async function queueOfflineVocabularyAudioDownloads(
       let nextIndex = 0;
       const workerCount = Math.min(
         Math.max(1, pendingQueueCandidates.length),
-        DEFAULT_MAX_CONCURRENT_DOWNLOADS
+        MAX_CONCURRENT_DOWNLOADS
       );
 
       const processCandidate = async (candidate: QueueCandidate): Promise<void> => {

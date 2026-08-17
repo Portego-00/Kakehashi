@@ -3,7 +3,7 @@ import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ContextSentenceQuestionScreen from "../../src/components/ContextSentenceQuestionScreen";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import { useSession } from "../../src/contexts/AuthContext";
 import { generateContextSentenceQuestions } from "../../src/services/contextSentencePracticeService";
 import type {
@@ -42,7 +45,6 @@ const DEFAULT_SRS_GROUPS = {
   enlightened: true,
   burned: false,
 };
-const RESULTS_TRANSITION_DELAY_MS = 2000;
 const CONTEXT_SENTENCE_PRACTICE_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE;
 
@@ -121,6 +123,7 @@ export default function ContextSentencePracticeSession() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<ContextSentenceAnswer[]>([]);
   const [isComplete, setIsComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isComplete);
   const [solutionMode, setSolutionMode] =
     useState<ListeningSolutionMode>("multiple_choice");
   const [enableSentenceAudio, setEnableSentenceAudio] = useState(false);
@@ -129,16 +132,6 @@ export default function ContextSentencePracticeSession() {
   const [enableJpdbSentenceBreakdown, setEnableJpdbSentenceBreakdown] =
     useState(false);
   const [stopAfterAnswer, setStopAfterAnswer] = useState(true);
-  const completionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const clearCompletionTimeout = useCallback(() => {
-    if (completionTimeoutRef.current) {
-      clearTimeout(completionTimeoutRef.current);
-      completionTimeoutRef.current = null;
-    }
-  }, []);
 
   const clearSavedContextSentencePracticeSession = useCallback(async () => {
     await clearExtraStudySessionState(CONTEXT_SENTENCE_PRACTICE_SESSION_KEY);
@@ -164,7 +157,6 @@ export default function ContextSentencePracticeSession() {
         Math.min(savedSession.currentIndex || 0, savedSession.questions.length - 1),
       );
 
-      clearCompletionTimeout();
       setQuestions(savedSession.questions);
       setCurrentIndex(safeIndex);
       setAnswers(Array.isArray(savedSession.answers) ? savedSession.answers : []);
@@ -182,7 +174,7 @@ export default function ContextSentencePracticeSession() {
       setIsLoading(false);
       return true;
     },
-    [clearCompletionTimeout, clearSavedContextSentencePracticeSession],
+    [clearSavedContextSentencePracticeSession],
   );
 
   const saveContextSentencePracticeSessionForLater = useCallback(
@@ -344,7 +336,6 @@ export default function ContextSentencePracticeSession() {
           }
         }
 
-        clearCompletionTimeout();
         await clearSavedContextSentencePracticeSession();
         setIsLoading(true);
         setQuestions([]);
@@ -387,7 +378,6 @@ export default function ContextSentencePracticeSession() {
       }
     },
     [
-      clearCompletionTimeout,
       clearSavedContextSentencePracticeSession,
       loadConfig,
       params.resume,
@@ -408,13 +398,6 @@ export default function ContextSentencePracticeSession() {
 
     void loadQuestions(apiToken);
   }, [apiToken, isAuthLoading, loadQuestions]);
-
-  useEffect(
-    () => () => {
-      clearCompletionTimeout();
-    },
-    [clearCompletionTimeout],
-  );
 
   const handleAnswer = (isCorrect: boolean, answer: string) => {
     const currentQuestion = questions[currentIndex];
@@ -438,11 +421,7 @@ export default function ContextSentencePracticeSession() {
       return;
     }
 
-    clearCompletionTimeout();
-    completionTimeoutRef.current = setTimeout(() => {
-      setIsComplete(true);
-      completionTimeoutRef.current = null;
-    }, RESULTS_TRANSITION_DELAY_MS);
+    setIsComplete(true);
   };
 
   useEffect(() => {
@@ -460,7 +439,6 @@ export default function ContextSentencePracticeSession() {
         {
           text: "Continue Later",
           onPress: async () => {
-            clearCompletionTimeout();
             const wasSaved = await saveContextSentencePracticeSessionForLater();
             if (!wasSaved) {
               Alert.alert("Couldn't Save Progress", "Please try again in a moment.");
@@ -503,6 +481,10 @@ export default function ContextSentencePracticeSession() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (isComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
   }
 
   if (isComplete) {

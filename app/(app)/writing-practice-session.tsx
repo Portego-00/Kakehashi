@@ -13,6 +13,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import KanjiWriterQuiz from "../../src/components/KanjiWriterQuiz";
 import {
   Subject as ApiSubject,
@@ -93,6 +96,7 @@ export default function WritingPracticeSessionScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<QuestionResult[]>([]);
   const [isComplete, setIsComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isComplete);
   const [config, setConfig] = useState<WritingPracticeConfig | null>(null);
   // Pool of extra kanji candidates to use when stroke data is unavailable
   const [candidatePool, setCandidatePool] = useState<ApiSubject[]>([]);
@@ -531,6 +535,10 @@ export default function WritingPracticeSessionScreen() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (isComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
   }
 
   // Results screen

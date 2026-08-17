@@ -23,6 +23,7 @@ import AddToSubjectListsModal from "../../../src/components/AddToSubjectListsMod
 import KanjiDetails from "../../../src/components/KanjiDetails";
 import RadicalDetails from "../../../src/components/RadicalDetails";
 import VocabularyDetails from "../../../src/components/VocabularyDetails";
+import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
 import {
   createStudyMaterial,
   getAssignmentsForSubjectsCached,
@@ -150,8 +151,15 @@ export default function SubjectDetailsScreen() {
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [progressionStatus, setProgressionStatus] =
     useState<ProgressionStatus>("loading");
+  const {
+    lists: subjectLists,
+    reload: reloadSubjectLists,
+  } = useSubjectLists();
   const requestIdRef = useRef(0);
   const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
+  const isBookmarked = subjectData
+    ? subjectLists.some((list) => list.subjectIds.includes(subjectData.id))
+    : false;
 
   // Helper to load related subjects from consolidated cache first for instant UI
   const loadSubjectsFromCache = async (ids: number[]) => {
@@ -1172,6 +1180,7 @@ export default function SubjectDetailsScreen() {
             userLevel={userData?.level}
             onSynonymsChange={handleSynonymsChange}
             onAddToList={() => setShowAddToListModal(true)}
+            isBookmarked={isBookmarked}
             onOpenConstellation={() =>
               router.push({
                 pathname: "/constellation",
@@ -1192,6 +1201,7 @@ export default function SubjectDetailsScreen() {
             subjectType={subjectData.object}
             subjectLabel={subjectLabel}
             onClose={() => setShowAddToListModal(false)}
+            onSaved={reloadSubjectLists}
           />
         </>
       );
@@ -1206,6 +1216,7 @@ export default function SubjectDetailsScreen() {
             initialTab={initialTab as "meaning" | "reading" | undefined}
             onSynonymsChange={handleSynonymsChange}
             onAddToList={() => setShowAddToListModal(true)}
+            isBookmarked={isBookmarked}
             onOpenConstellation={() =>
               router.push({
                 pathname: "/constellation",
@@ -1226,6 +1237,7 @@ export default function SubjectDetailsScreen() {
             subjectType={subjectData.object}
             subjectLabel={subjectLabel}
             onClose={() => setShowAddToListModal(false)}
+            onSaved={reloadSubjectLists}
           />
         </>
       );
@@ -1241,6 +1253,7 @@ export default function SubjectDetailsScreen() {
             initialTab={initialTab as "meaning" | "reading" | "context" | undefined}
             onSynonymsChange={handleSynonymsChange}
             onAddToList={() => setShowAddToListModal(true)}
+            isBookmarked={isBookmarked}
             onOpenConstellation={() =>
               router.push({
                 pathname: "/constellation",
@@ -1261,6 +1274,7 @@ export default function SubjectDetailsScreen() {
             subjectType={subjectData.object}
             subjectLabel={subjectLabel}
             onClose={() => setShowAddToListModal(false)}
+            onSaved={reloadSubjectLists}
           />
         </>
       );

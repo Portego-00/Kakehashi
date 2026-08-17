@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -11,6 +11,9 @@ import {
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
@@ -118,7 +121,6 @@ const EMPTY_PROGRESS_STATE: MeaningReadingProgressState = {
 
 const KANJI_VOCAB_HINT_MAX = 5;
 const KANJI_VOCAB_HINT_CANDIDATE_LIMIT = KANJI_VOCAB_HINT_MAX * 4;
-const RESULTS_TRANSITION_DELAY_MS = 2000;
 const MEANING_READING_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.MEANING_READING;
 
@@ -229,21 +231,12 @@ export default function MeaningReadingSessionScreen() {
     EMPTY_PROGRESS_STATE,
   );
   const [isComplete, setIsComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isComplete);
   const [config, setConfig] = useState<MeaningReadingSessionConfig | null>(null);
   const [kanjiVocabularyHintMap, setKanjiVocabularyHintMap] = useState<
     Record<number, string[]>
   >({});
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
-  const completionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const clearCompletionTimeout = useCallback(() => {
-    if (completionTimeoutRef.current) {
-      clearTimeout(completionTimeoutRef.current);
-      completionTimeoutRef.current = null;
-    }
-  }, []);
 
   const clearSavedMeaningReadingSession = useCallback(async () => {
     await clearExtraStudySessionState(MEANING_READING_SESSION_KEY);
@@ -273,7 +266,6 @@ export default function MeaningReadingSessionScreen() {
       Math.min(savedSession.currentIndex || 0, savedSession.questions.length - 1),
     );
 
-    clearCompletionTimeout();
     setConfig(savedSession.config);
     setQuestions(savedSession.questions);
     setCurrentIndex(safeIndex);
@@ -287,7 +279,7 @@ export default function MeaningReadingSessionScreen() {
     setHasRestoredSession(true);
     setIsLoading(false);
     return true;
-  }, [clearCompletionTimeout, clearSavedMeaningReadingSession]);
+  }, [clearSavedMeaningReadingSession]);
 
   const saveMeaningReadingSessionForLater = useCallback(async (): Promise<boolean> => {
     if (!config || questions.length === 0 || isComplete) {
@@ -382,13 +374,6 @@ export default function MeaningReadingSessionScreen() {
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
-  useEffect(
-    () => () => {
-      clearCompletionTimeout();
-    },
-    [clearCompletionTimeout],
-  );
-
   const loadQuestions = useCallback(async () => {
     if (isAuthLoading) {
       return;
@@ -401,7 +386,6 @@ export default function MeaningReadingSessionScreen() {
     if (!config) return;
 
     try {
-      clearCompletionTimeout();
       await clearSavedMeaningReadingSession();
       setIsLoading(true);
       setIsComplete(false);
@@ -604,7 +588,7 @@ export default function MeaningReadingSessionScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiToken, clearCompletionTimeout, clearSavedMeaningReadingSession, config, isAuthLoading]);
+  }, [apiToken, clearSavedMeaningReadingSession, config, isAuthLoading]);
 
   useEffect(() => {
     if (config && !hasRestoredSession) {
@@ -650,17 +634,12 @@ export default function MeaningReadingSessionScreen() {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      clearCompletionTimeout();
-      completionTimeoutRef.current = setTimeout(() => {
-        setIsComplete(true);
-        completionTimeoutRef.current = null;
-      }, RESULTS_TRANSITION_DELAY_MS);
+      setIsComplete(true);
     }
   };
 
   const handleSkip = useCallback(
     (item: { id: number; subject: any }, _questionType: "meaning" | "reading") => {
-      clearCompletionTimeout();
       setReviewItems((prev) =>
         prev.map((reviewItem) =>
           reviewItem.id === item.id
@@ -696,7 +675,7 @@ export default function MeaningReadingSessionScreen() {
 
       setIsComplete(false);
     },
-    [clearCompletionTimeout, currentIndex]
+    [currentIndex]
   );
 
   useEffect(() => {
@@ -720,7 +699,6 @@ export default function MeaningReadingSessionScreen() {
         {
           text: "Continue Later",
           onPress: async () => {
-            clearCompletionTimeout();
             const wasSaved = await saveMeaningReadingSessionForLater();
             if (!wasSaved) {
               Alert.alert("Couldn't Save Progress", "Please try again in a moment.");
@@ -750,6 +728,10 @@ export default function MeaningReadingSessionScreen() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (isComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
   }
 
   if (isComplete) {
