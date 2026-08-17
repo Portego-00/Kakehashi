@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.98",
+    date: "2026-08-17",
+    changes: [
+      {
+        type: "improvement",
+        title: "Similar Kanji Readings",
+        description:
+          "Similar Kanji Match now shows each kanji’s reading after you submit a round.",
+      },
+    ],
+  },
+  {
     version: "1.2.97",
     date: "2026-08-10",
     changes: [

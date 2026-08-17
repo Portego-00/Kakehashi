@@ -31,6 +31,10 @@ export type SimilarKanjiQuizSubject = Pick<ApiSubject, "id" | "object"> & {
   >;
 };
 
+type SimilarKanjiReadingSubject = {
+  data: Pick<ApiSubject["data"], "readings">;
+};
+
 interface BuildSimilarKanjiRoundsOptions<
   TSubject extends SimilarKanjiQuizSubject,
 > {
@@ -82,6 +86,33 @@ export function getPrimaryKanjiMeaning(
 
   const meaning = primaryMeaning?.meaning?.trim();
   return meaning ? meaning : null;
+}
+
+export function getPrimaryKanjiReading(
+  subject: SimilarKanjiReadingSubject,
+): string | null {
+  const readings = subject.data.readings?.filter(
+    (reading) => reading.reading.trim().length > 0,
+  );
+  if (!readings || readings.length === 0) {
+    return null;
+  }
+
+  const primaryReadings = readings.filter((reading) => reading.primary);
+  const acceptedReadings = readings.filter(
+    (reading) => reading.accepted_answer,
+  );
+  const candidates =
+    primaryReadings.length > 0
+      ? primaryReadings
+      : acceptedReadings.length > 0
+        ? acceptedReadings
+        : readings;
+
+  return candidates
+    .slice(0, 2)
+    .map((reading) => reading.reading.trim())
+    .join(" ・ ");
 }
 
 function getKanjiCharacters(subject: SimilarKanjiQuizSubject): string | null {

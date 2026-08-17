@@ -2,6 +2,7 @@ import {
   buildKanjiMeaningMatchRounds,
   buildSimilarKanjiRounds,
   getPrimaryKanjiMeaning,
+  getPrimaryKanjiReading,
 } from "../similarKanjiQuiz";
 
 const makeKanjiSubject = (
@@ -35,6 +36,53 @@ describe("similarKanjiQuiz", () => {
         },
       }),
     ).toBe("Soil");
+  });
+
+  it("uses primary readings for the answered-state reveal", () => {
+    expect(
+      getPrimaryKanjiReading({
+        data: {
+          readings: [
+            {
+              reading: "えが",
+              primary: false,
+              accepted_answer: true,
+              type: "kunyomi",
+            },
+            {
+              reading: "が",
+              primary: true,
+              accepted_answer: true,
+              type: "onyomi",
+            },
+          ],
+        },
+      }),
+    ).toBe("が");
+  });
+
+  it("falls back to accepted readings and handles missing readings", () => {
+    expect(
+      getPrimaryKanjiReading({
+        data: {
+          readings: [
+            {
+              reading: "かく",
+              primary: false,
+              accepted_answer: true,
+              type: "onyomi",
+            },
+            {
+              reading: "えがく",
+              primary: false,
+              accepted_answer: true,
+              type: "kunyomi",
+            },
+          ],
+        },
+      }),
+    ).toBe("かく ・ えがく");
+    expect(getPrimaryKanjiReading({ data: { readings: null } })).toBeNull();
   });
 
   it("excludes unlearned similar kanji when requested", () => {

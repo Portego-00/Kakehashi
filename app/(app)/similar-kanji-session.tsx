@@ -45,6 +45,7 @@ import {
   buildKanjiMeaningMatchRounds,
   buildSimilarKanjiRounds,
   getPrimaryKanjiMeaning,
+  getPrimaryKanjiReading,
 } from "../../src/utils/similarKanjiQuiz";
 import { useAuthStore } from "../../src/utils/store";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
@@ -1249,6 +1250,7 @@ export default function SimilarKanjiSessionScreen() {
                 (choice) => choice.id === selectedChoiceId,
               );
               const isCorrect = selectedChoiceId === item.id;
+              const reading = getPrimaryKanjiReading(item.subject);
 
               return (
                 <View key={item.id} style={styles.answerRow}>
@@ -1280,6 +1282,18 @@ export default function SimilarKanjiSessionScreen() {
                       </Text>
                     ) : null}
                   </View>
+                  {reading ? (
+                    <Text
+                      style={[
+                        styles.answerReading,
+                        fontStyles.japaneseText,
+                        { color: theme.textSecondary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {reading}
+                    </Text>
+                  ) : null}
                   <Ionicons
                     name={isCorrect ? "checkmark-circle" : "close-circle"}
                     size={21}
@@ -1539,6 +1553,13 @@ const styles = StyleSheet.create({
   answerCorrection: {
     fontSize: 12,
     marginTop: 2,
+  },
+  answerReading: {
+    minWidth: 72,
+    maxWidth: "36%",
+    flexShrink: 1,
+    fontSize: 15,
+    textAlign: "right",
   },
   stickyFooter: {
     position: "absolute",
