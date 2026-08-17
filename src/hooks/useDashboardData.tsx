@@ -334,6 +334,26 @@ function getLessonAndReviewCountsFromAssignments(
   return { lessonCount, reviewCount, nextLessonDate, nextReviewDate };
 }
 
+function getLessonAndReviewCountsForUi(
+  assignmentsData: any[],
+  pendingProgressAssignmentIds: PendingProgressAssignmentIds,
+  authoritativeServerCounts: LessonAndReviewCounts
+): LessonAndReviewCounts {
+  const localCounts = getLessonAndReviewCountsFromAssignments(
+    assignmentsData,
+    pendingProgressAssignmentIds
+  );
+
+  if (pendingProgressAssignmentIds.review.size > 0) {
+    return localCounts;
+  }
+
+  return {
+    ...localCounts,
+    reviewCount: authoritativeServerCounts.reviewCount,
+  };
+}
+
 const DashboardContext = createContext<DashboardContextType>({
   dashboardData: initialDashboardData,
   isLoading: false,
@@ -366,6 +386,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const dashboardForegroundFetchInFlightRef = useRef(false);
   const dashboardBackgroundRefreshInFlightRef = useRef(false);
   const lessonsReviewsRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const pendingLessonsReviewsRefreshRef = useRef(false);
+  const refreshLessonsAndReviewsRunnerRef = useRef<() => Promise<void>>(
+    async () => {}
+  );
   const recentMistakesRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const pendingSyncCountsRefreshInFlightRef = useRef(false);
   const pendingSyncLastTotalRef = useRef(0);
@@ -507,13 +531,15 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     async (
       token: string,
       assignments: CollectionResponse<Assignment>,
-      counts: LessonAndReviewCounts
+      counts: LessonAndReviewCounts,
+      visibleReviewCountOverride: number | null = null
     ): Promise<{
       assignments: CollectionResponse<Assignment>;
       counts: LessonAndReviewCounts;
     }> => {
       try {
-        const visibleReviewCount = await getReviewCount(token);
+        const visibleReviewCount =
+          visibleReviewCountOverride ?? (await getReviewCount(token));
 
         if (visibleReviewCount === counts.reviewCount) {
           return { assignments, counts };
@@ -671,9 +697,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             assignments,
             serverCounts
           ));
-        const counts = getLessonAndReviewCountsFromAssignments(
+        const counts = getLessonAndReviewCountsForUi(
           assignments.data,
-          pendingProgressAssignmentIds
+          pendingProgressAssignmentIds,
+          serverCounts
         );
 
         // Save assignments to permanent storage (survives iOS cache clearing)
@@ -1777,6 +1804,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             // Use cached data immediately
             setDashboardData(normalizedCachedData);
             setIsFreshData(false);
+            const priorityVisibleReviewCountPromise = getReviewCount(apiToken);
 
             // Attempt to inflate cached dashboard with full subjects/assignments from permanent storage
             // This ensures offline components have data even when the cached dashboard was minified
@@ -1800,7 +1828,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                   lessonCount:
                     normalizedCounts?.lessonCount ?? reconstructed.lessonCount ?? 0,
                   reviewCount:
-                    normalizedCounts?.reviewCount ?? reconstructed.reviewCount ?? 0,
+                    typeof (cachedData as any).reviewCount === "number"
+                      ? Math.max(0, (cachedData as any).reviewCount)
+                      : normalizedCounts?.reviewCount ??
+                        reconstructed.reviewCount ??
+                        0,
                   nextLessonDate:
                     normalizedCounts?.nextLessonDate ??
                     reconstructed.nextLessonDate ??
@@ -1817,6 +1849,21 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               }
             } catch (inflateError) {
               console.warn("Offline reconstruction failed:", inflateError);
+            }
+
+            let priorityVisibleReviewCount: number | null = null;
+            try {
+              priorityVisibleReviewCount =
+                await priorityVisibleReviewCountPromise;
+              setDashboardData((prevData) => ({
+                ...prevData,
+                reviewCount: priorityVisibleReviewCount ?? prevData.reviewCount,
+              }));
+            } catch (visibleReviewCountError) {
+              console.warn(
+                "Failed to refresh the priority visible review count:",
+                visibleReviewCountError
+              );
             }
 
             let preloadedSummary: any | null = null;
@@ -1900,14 +1947,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               } = await reconcileReviewCountWithVisibleEndpoint(
                 apiToken,
                 latestAssignments,
-                serverCounts
+                serverCounts,
+                priorityVisibleReviewCount
               ));
               preloadedAssignments = latestAssignments;
 
               const { lessonCount, reviewCount, nextLessonDate, nextReviewDate } =
-                getLessonAndReviewCountsFromAssignments(
+                getLessonAndReviewCountsForUi(
                   latestAssignments.data,
-                  pendingProgressAssignmentIds
+                  pendingProgressAssignmentIds,
+                  serverCounts
                 );
 
               setDashboardData((prevData) => ({
@@ -2050,6 +2099,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               } finally {
                 setLoadingStage(LoadingStage.IDLE);
                 dashboardBackgroundRefreshInFlightRef.current = false;
+                if (pendingLessonsReviewsRefreshRef.current) {
+                  pendingLessonsReviewsRefreshRef.current = false;
+                  void refreshLessonsAndReviewsRunnerRef.current();
+                }
               }
             };
 
@@ -2201,6 +2254,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
         setLoadingStage(LoadingStage.IDLE);
 
+        if (pendingLessonsReviewsRefreshRef.current) {
+          pendingLessonsReviewsRefreshRef.current = false;
+          void refreshLessonsAndReviewsRunnerRef.current();
+        }
+
         if (shouldTrackStartupFetch) {
           startupDiagnostics.endOperation(startupFetchOperationId, {
             status: startupFetchError ? "error" : "ok",
@@ -2230,14 +2288,55 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     ]
   );
 
+  const refreshLessonReviewCountsFromLocalCache = useCallback(async () => {
+    try {
+      const [pendingProgressAssignmentIds, offlineData] = await Promise.all([
+        loadPendingProgressAssignmentIds(),
+        getFullDashboardDataFromPermanentStorage(),
+      ]);
+      if (!Array.isArray(offlineData?.assignments)) {
+        return;
+      }
+
+      const counts = getLessonAndReviewCountsFromAssignments(
+        offlineData.assignments,
+        pendingProgressAssignmentIds
+      );
+      setDashboardData((prevData) => {
+        const nextData = {
+          ...prevData,
+          lessonCount: counts.lessonCount,
+          reviewCount: counts.reviewCount,
+          nextLessonDate: counts.nextLessonDate,
+          nextReviewDate: counts.nextReviewDate,
+          pendingLessonSyncCount: pendingProgressAssignmentIds.lesson.size,
+          pendingReviewSyncCount: pendingProgressAssignmentIds.review.size,
+          assignments: offlineData.assignments,
+        };
+        dashboardDataRef.current = nextData;
+        return nextData;
+      });
+    } catch (error) {
+      console.warn(
+        "[Dashboard] Failed to refresh counts from the local assignment cache:",
+        error
+      );
+    }
+  }, [loadPendingProgressAssignmentIds]);
+
   // Add a function to refresh just the lessons and reviews counts
   const refreshLessonsAndReviews = useCallback(async () => {
     if (!apiToken) return;
+
+    // Review submissions update the consolidated assignment cache immediately.
+    // Apply that local state before waiting on a network or startup refresh.
+    await refreshLessonReviewCountsFromLocalCache();
 
     if (
       dashboardForegroundFetchInFlightRef.current ||
       dashboardBackgroundRefreshInFlightRef.current
     ) {
+      pendingLessonsReviewsRefreshRef.current = true;
       return;
     }
 
@@ -2298,9 +2397,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             serverCounts
           ));
         pendingProgressAssignmentIds = await loadPendingProgressAssignmentIds();
-        const counts = getLessonAndReviewCountsFromAssignments(
+        const counts = getLessonAndReviewCountsForUi(
           assignments.data,
-          pendingProgressAssignmentIds
+          pendingProgressAssignmentIds,
+          serverCounts
         );
 
         notificationReviewData = buildVisibleReviewDataFromAssignments(
@@ -2449,8 +2549,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     loadPendingProgressAssignmentIds,
     rebuildForecastFromAssignments,
     reconcileReviewCountWithVisibleEndpoint,
+    refreshLessonReviewCountsFromLocalCache,
     syncReviewNotificationState,
   ]);
+
+  refreshLessonsAndReviewsRunnerRef.current = refreshLessonsAndReviews;
 
   useEffect(() => {
     if (!apiToken) {
@@ -2620,6 +2723,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     startupDashboardFetchTrackedRef.current = false;
     dashboardForegroundFetchInFlightRef.current = false;
     dashboardBackgroundRefreshInFlightRef.current = false;
+    pendingLessonsReviewsRefreshRef.current = false;
     pendingSyncCountsRefreshInFlightRef.current = false;
     pendingSyncLastTotalRef.current = 0;
     pendingSyncTriggeredRefreshInFlightRef.current = false;

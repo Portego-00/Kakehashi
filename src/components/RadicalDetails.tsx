@@ -95,6 +95,7 @@ interface RadicalDetailsProps {
   onSubjectPress?: (subjectId: number) => void;
   onOpenConstellation?: () => void;
   onAddToList?: () => void;
+  isBookmarked?: boolean;
   userLevel?: number;
   onSynonymsChange?: (synonyms: string[]) => Promise<void>;
   embedded?: boolean;
@@ -118,6 +119,7 @@ export default function RadicalDetails({
   onSubjectPress,
   onOpenConstellation,
   onAddToList,
+  isBookmarked = false,
   userLevel = 60,
   onSynonymsChange,
   embedded = false,
@@ -502,9 +504,14 @@ export default function RadicalDetails({
             <TouchableOpacity
               onPress={onAddToList}
               style={styles.addToListButton}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isBookmarked ? "Edit saved lists" : "Add to saved lists"
+              }
+              accessibilityState={{ selected: isBookmarked }}
             >
               <Ionicons
-                name="bookmark-outline"
+                name={isBookmarked ? "bookmark" : "bookmark-outline"}
                 size={20}
                 color={radicalHeaderTextColor}
               />

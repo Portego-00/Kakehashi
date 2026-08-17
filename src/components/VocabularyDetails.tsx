@@ -143,6 +143,7 @@ interface VocabularyDetailsProps {
   initialTab?: "meaning" | "reading" | "context";
   onOpenConstellation?: () => void;
   onAddToList?: () => void;
+  isBookmarked?: boolean;
   userLevel?: number;
   onSynonymsChange?: (synonyms: string[]) => Promise<void>;
   embedded?: boolean;
@@ -263,6 +264,7 @@ export default function VocabularyDetails({
   initialTab = "meaning",
   onOpenConstellation,
   onAddToList,
+  isBookmarked = false,
   userLevel = 60,
   onSynonymsChange,
   embedded = false,
@@ -3165,8 +3167,17 @@ export default function VocabularyDetails({
             <TouchableOpacity
               onPress={onAddToList}
               style={styles.addToListButton}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isBookmarked ? "Edit saved lists" : "Add to saved lists"
+              }
+              accessibilityState={{ selected: isBookmarked }}
             >
-              <Ionicons name="bookmark-outline" size={20} color="#fff" />
+              <Ionicons
+                name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                size={20}
+                color="#fff"
+              />
             </TouchableOpacity>
           )}
 

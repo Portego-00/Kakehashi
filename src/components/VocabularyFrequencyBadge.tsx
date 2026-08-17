@@ -30,14 +30,16 @@ function EnabledVocabularyFrequencyBadge({
   variant = "review",
 }: VocabularyFrequencyBadgeProps) {
   const { theme } = useTheme();
-  const { result } = useVocabularyFrequency(subject);
+  const { result, isLoading } = useVocabularyFrequency(subject);
   const isDetails = variant === "details";
   const value = result
     ? `#${result.frequencyRank.toLocaleString()}`
     : "#---";
   const accessibilityLabel = result
     ? `Vocabulary frequency ${value}`
-    : "Vocabulary frequency unavailable";
+    : isLoading
+      ? "Vocabulary frequency loading"
+      : "Vocabulary frequency unavailable";
 
   return (
     <Text
@@ -56,6 +58,8 @@ function EnabledVocabularyFrequencyBadge({
 const styles = StyleSheet.create({
   reviewText: {
     marginTop: 8,
+    minWidth: 44,
+    textAlign: "center",
     color: "white",
     fontSize: 12,
     fontWeight: "700",

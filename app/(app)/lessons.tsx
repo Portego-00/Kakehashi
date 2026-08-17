@@ -17,6 +17,7 @@ import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import { useSession } from "../../src/contexts/AuthContext";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { useDashboardData } from "../../src/hooks/useDashboardData";
+import { useSubjectLists } from "../../src/hooks/useSubjectLists";
 import {
   getPendingProgressAssignmentIds,
   getPendingProgressCounts,
@@ -156,6 +157,10 @@ export default function LessonsScreen() {
   const { isLoading: isAuthLoading } = useSession();
   const { refreshLessonsAndReviews } = useDashboardData();
   const {
+    lists: subjectLists,
+    reload: reloadSubjectLists,
+  } = useSubjectLists();
+  const {
     ankiCardMode,
     ankiGroupQuestions,
     ankiCardModeScope,
@@ -264,6 +269,13 @@ export default function LessonsScreen() {
     });
     return Array.from(uniqueIds);
   }, [allLessons]);
+  const bookmarkedSubjectIds = useMemo(() => {
+    const subjectIds = new Set<number>();
+    subjectLists.forEach((list) => {
+      list.subjectIds.forEach((subjectId) => subjectIds.add(subjectId));
+    });
+    return subjectIds;
+  }, [subjectLists]);
 
   const restorePersistedLessonSession = useCallback(
     (state: PersistedLessonSessionState, createdAt: string) => {
@@ -1581,6 +1593,7 @@ export default function LessonsScreen() {
               // Navigate to subject detail page
               router.push(`/subject/${subjectId}`);
             }}
+            bookmarkedSubjectIds={bookmarkedSubjectIds}
             onAddSubjectToList={(subject) => {
               const label =
                 subject.data?.meanings?.find((meaning: any) => meaning.primary)
@@ -1604,6 +1617,7 @@ export default function LessonsScreen() {
           subjectType={listModalSubject?.type}
           subjectLabel={listModalSubject?.label}
           onClose={() => setListModalSubject(null)}
+          onSaved={reloadSubjectLists}
         />
       </>
     );
@@ -1911,6 +1925,7 @@ export default function LessonsScreen() {
           subjectIds={currentLessonSubjectIds}
           subjectLabel={`Current lessons (${currentLessonSubjectIds.length})`}
           onClose={() => setShowSaveCurrentLessonsModal(false)}
+          onSaved={reloadSubjectLists}
         />
         {renderPendingLessonSyncBadge()}
       </View>

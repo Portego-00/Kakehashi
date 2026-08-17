@@ -11,6 +11,9 @@ import {
     View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import {
@@ -125,6 +128,7 @@ export default function CustomReviewScreen() {
     EMPTY_PROGRESS_STATE,
   );
   const [isFinished, setIsFinished] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isFinished);
   const [hasError, setHasError] = useState(false);
   // Wrap up mode state
   const [isWrapUpMode, setIsWrapUpMode] = useState(false);
@@ -954,6 +958,8 @@ export default function CustomReviewScreen() {
       
       {!isFinished ? (
         <View style={styles.reviewContainer}>{renderCurrentQuestion()}</View>
+      ) : !shouldRevealResults ? (
+        <ExtraStudyCompletionTransition />
       ) : (
         <ReviewResultsScreen
           reviewItems={reviewItems}

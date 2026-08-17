@@ -16,8 +16,16 @@ import {
 } from "react-native";
 import { SvgXml } from "react-native-svg";
 import AddToSubjectListsModal from "./AddToSubjectListsModal";
+import { CommonFilterModal } from "./CommonFilterModal";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
+import { getVocabularyFrequency } from "../services/vocabularyFrequencyService";
 import { useSettingsStore } from "../utils/store";
+import {
+  filterLessonsByFrequency,
+  getLessonFrequencyFilterLabel,
+  LESSON_FREQUENCY_FILTER_OPTIONS,
+  type LessonFrequencyFilter,
+} from "../utils/lessonFrequencyFilter";
 import {
   getSubjectLists,
   SubjectList,
@@ -117,6 +125,8 @@ const LESSON_TYPE_ORDER: Record<
   vocabulary: 2,
   kana_vocabulary: 3,
 };
+
+const FREQUENCY_LOOKUP_CONCURRENCY = 4;
 
 function getResponsiveSubjectIconSizing(screenWidth: number): SubjectIconSizing {
   const minWidth = 390;
@@ -490,6 +500,9 @@ export default function LessonPicker({
   const lessonPickerViewMode = useSettingsStore(
     (state) => state.lessonPickerViewMode
   );
+  const showVocabularyFrequency = useSettingsStore(
+    (state) => state.showVocabularyFrequency
+  );
   const { width: screenWidth } = useWindowDimensions();
   const iconSizing = useMemo(
     () => getResponsiveSubjectIconSizing(screenWidth),
@@ -504,9 +517,22 @@ export default function LessonPicker({
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [isLoadingLists, setIsLoadingLists] = useState(false);
   const [listLoadError, setListLoadError] = useState<string | null>(null);
+  const [showFrequencyFilterModal, setShowFrequencyFilterModal] =
+    useState(false);
+  const [frequencyFilter, setFrequencyFilter] =
+    useState<LessonFrequencyFilter>("all");
+  const [frequencyRanks, setFrequencyRanks] = useState<
+    Map<number, number | null>
+  >(new Map());
+  const [isLoadingFrequencyRanks, setIsLoadingFrequencyRanks] =
+    useState(false);
+  const [frequencyLoadProgress, setFrequencyLoadProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
 
-  // Filter lessons based on search query
-  const filteredLessons = useMemo(() => {
+  // Filter lessons based on search query.
+  const searchedLessons = useMemo(() => {
     const query = searchQuery.trim();
     if (!query) {
       return lessons;
@@ -528,6 +554,141 @@ export default function LessonPicker({
       ({ subject }) => subject.lesson
     );
   }, [lessons, searchQuery]);
+
+  const vocabularyLessons = useMemo(
+    () =>
+      lessons.filter(
+        (lesson) =>
+          lesson.subject.object === "vocabulary" ||
+          lesson.subject.object === "kana_vocabulary"
+      ),
+    [lessons]
+  );
+
+  useEffect(() => {
+    if (showVocabularyFrequency) {
+      return;
+    }
+
+    setFrequencyFilter("all");
+    setShowFrequencyFilterModal(false);
+  }, [showVocabularyFrequency]);
+
+  useEffect(() => {
+    if (!showVocabularyFrequency || frequencyFilter === "all") {
+      setIsLoadingFrequencyRanks(false);
+      return;
+    }
+
+    const lessonsMissingRanks = vocabularyLessons.filter(
+      (lesson) => !frequencyRanks.has(lesson.subjectId)
+    );
+    if (lessonsMissingRanks.length === 0) {
+      setIsLoadingFrequencyRanks(false);
+      setFrequencyLoadProgress({
+        completed: vocabularyLessons.length,
+        total: vocabularyLessons.length,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadedRanks = new Map<number, number | null>();
+    let nextLessonIndex = 0;
+
+    setIsLoadingFrequencyRanks(true);
+    setFrequencyLoadProgress({
+      completed: vocabularyLessons.length - lessonsMissingRanks.length,
+      total: vocabularyLessons.length,
+    });
+
+    const loadNextRank = async () => {
+      while (!controller.signal.aborted) {
+        const lessonIndex = nextLessonIndex;
+        nextLessonIndex += 1;
+        if (lessonIndex >= lessonsMissingRanks.length) {
+          return;
+        }
+
+        const lesson = lessonsMissingRanks[lessonIndex];
+        let rank: number | null = null;
+
+        try {
+          const result = await getVocabularyFrequency(lesson.subject, {
+            signal: controller.signal,
+          });
+          rank = result?.frequencyRank ?? null;
+        } catch (error) {
+          if (controller.signal.aborted) {
+            return;
+          }
+          console.warn(
+            `[Lesson Picker] Failed to load frequency for subject ${lesson.subjectId}:`,
+            error
+          );
+        }
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        loadedRanks.set(lesson.subjectId, rank);
+        setFrequencyLoadProgress((previous) => ({
+          ...previous,
+          completed: Math.min(previous.total, previous.completed + 1),
+        }));
+      }
+    };
+
+    const workerCount = Math.min(
+      FREQUENCY_LOOKUP_CONCURRENCY,
+      lessonsMissingRanks.length
+    );
+    void Promise.all(
+      Array.from({ length: workerCount }, () => loadNextRank())
+    ).then(() => {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setFrequencyRanks((previous) => {
+        const next = new Map(previous);
+        loadedRanks.forEach((rank, subjectId) => next.set(subjectId, rank));
+        return next;
+      });
+      setIsLoadingFrequencyRanks(false);
+    });
+
+    return () => controller.abort();
+  }, [
+    frequencyFilter,
+    frequencyRanks,
+    showVocabularyFrequency,
+    vocabularyLessons,
+  ]);
+
+  const frequencyDataReady = vocabularyLessons.every((lesson) =>
+    frequencyRanks.has(lesson.subjectId)
+  );
+  const hasActiveFrequencyFilter =
+    showVocabularyFrequency && frequencyFilter !== "all";
+  const filteredLessons = useMemo(() => {
+    if (!hasActiveFrequencyFilter || !frequencyDataReady) {
+      return searchedLessons;
+    }
+
+    return filterLessonsByFrequency(
+      searchedLessons,
+      frequencyRanks,
+      frequencyFilter
+    );
+  }, [
+    frequencyDataReady,
+    frequencyFilter,
+    frequencyRanks,
+    hasActiveFrequencyFilter,
+    searchedLessons,
+  ]);
 
   // Organize lessons by level and type
   const levelSections = useMemo(() => {
@@ -1056,6 +1217,51 @@ export default function LessonPicker({
             </TouchableOpacity>
           )}
         </View>
+
+        {showVocabularyFrequency && (
+          <TouchableOpacity
+            style={[
+              styles.frequencyFilterButton,
+              {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                borderColor: "rgba(255, 255, 255, 0.2)",
+              },
+            ]}
+            onPress={() => setShowFrequencyFilterModal(true)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`Vocabulary frequency filter: ${getLessonFrequencyFilterLabel(
+              frequencyFilter
+            )}`}
+          >
+            <Ionicons
+              name={hasActiveFrequencyFilter ? "funnel" : "funnel-outline"}
+              size={16}
+              color={theme.headerText}
+            />
+            <Text
+              style={[styles.frequencyFilterText, { color: theme.headerText }]}
+            >
+              Frequency: {getLessonFrequencyFilterLabel(frequencyFilter)}
+            </Text>
+            {isLoadingFrequencyRanks && hasActiveFrequencyFilter ? (
+              <Text
+                style={[
+                  styles.frequencyFilterProgress,
+                  { color: theme.headerText },
+                ]}
+              >
+                {frequencyLoadProgress.completed}/{frequencyLoadProgress.total}
+              </Text>
+            ) : (
+              <Ionicons
+                name="chevron-down"
+                size={16}
+                color={theme.headerText}
+              />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.listContainer}>
@@ -1066,6 +1272,15 @@ export default function LessonPicker({
             extraData={selectedItems}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyLessonsContainer}>
+                <Text
+                  style={[styles.emptyLessonsText, { color: theme.textSecondary }]}
+                >
+                  No lessons match the current filters.
+                </Text>
+              </View>
+            }
           />
         ) : (
           <FlashList
@@ -1074,6 +1289,15 @@ export default function LessonPicker({
             extraData={selectedItems}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyLessonsContainer}>
+                <Text
+                  style={[styles.emptyLessonsText, { color: theme.textSecondary }]}
+                >
+                  No lessons match the current filters.
+                </Text>
+              </View>
+            }
           />
         )}
       </View>
@@ -1251,6 +1475,33 @@ export default function LessonPicker({
           </View>
         </View>
       </Modal>
+
+      <CommonFilterModal
+        visible={showFrequencyFilterModal}
+        onClose={() => setShowFrequencyFilterModal(false)}
+        title="Vocabulary Frequency"
+        applyButtonLabel="Apply"
+        currentValues={{ frequency: frequencyFilter }}
+        sections={[
+          {
+            id: "frequency",
+            title: "Frequency rank (lower is more common)",
+            options: LESSON_FREQUENCY_FILTER_OPTIONS.map((option) => ({
+              ...option,
+            })),
+          },
+        ]}
+        onApply={(values) => {
+          const nextFilter = values.frequency;
+          if (
+            LESSON_FREQUENCY_FILTER_OPTIONS.some(
+              (option) => option.id === nextFilter
+            )
+          ) {
+            setFrequencyFilter(nextFilter as LessonFrequencyFilter);
+          }
+        }}
+      />
 
       <AddToSubjectListsModal
         visible={isBookmarkModalVisible}
@@ -1475,6 +1726,37 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  frequencyFilterButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 10,
+    minHeight: 34,
+    paddingHorizontal: 10,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  frequencyFilterText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  frequencyFilterProgress: {
+    minWidth: 42,
+    fontSize: 11,
+    fontWeight: "600",
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  emptyLessonsContainer: {
+    paddingVertical: 48,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  emptyLessonsText: {
+    fontSize: 15,
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,

@@ -14,6 +14,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Line } from "react-native-svg";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
@@ -282,6 +285,7 @@ export default function SimilarKanjiSessionScreen() {
   const [reviewItems, setReviewItems] = useState<SimilarKanjiReviewItem[]>([]);
   const [progress, setProgress] = useState({ ...EMPTY_PROGRESS_STATE });
   const [isComplete, setIsComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isComplete);
   const [config, setConfig] = useState<SimilarKanjiConfig | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
   const [connections, setConnections] = useState<MatchConnections>({});
@@ -882,6 +886,10 @@ export default function SimilarKanjiSessionScreen() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (isComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
   }
 
   if (isComplete) {

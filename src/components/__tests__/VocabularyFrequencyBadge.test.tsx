@@ -74,11 +74,27 @@ describe("VocabularyFrequencyBadge", () => {
     expect(useVocabularyFrequency).toHaveBeenCalledWith(subject);
   });
 
-  it("shows a placeholder while the rank is unavailable", () => {
+  it("shows a stable placeholder while the rank is loading", () => {
     mockSetting(true);
     (useVocabularyFrequency as jest.Mock).mockReturnValue({
       result: null,
       isLoading: true,
+      error: null,
+    });
+
+    const { getByLabelText, getByText } = render(
+      <VocabularyFrequencyBadge subject={subject} />,
+    );
+
+    expect(getByText("#---")).toBeTruthy();
+    expect(getByLabelText("Vocabulary frequency loading")).toBeTruthy();
+  });
+
+  it("keeps the placeholder when no rank is available", () => {
+    mockSetting(true);
+    (useVocabularyFrequency as jest.Mock).mockReturnValue({
+      result: null,
+      isLoading: false,
       error: null,
     });
 

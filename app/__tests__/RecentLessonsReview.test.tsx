@@ -255,6 +255,48 @@ describe('RecentLessonsReview Screen', () => {
     expect(getByPlaceholderText('Enter meaning...')).toBeTruthy();
   });
 
+  it('should start once review source data is ready even if the dashboard is still loading', async () => {
+    (useDashboardData as jest.Mock).mockReturnValue({
+      isLoading: true,
+      dashboardData: {
+        assignments: [
+          {
+            id: 123,
+            data: {
+              subject_id: 1001,
+              subject_type: 'kanji',
+              srs_stage: 1,
+              started_at: new Date().toISOString(),
+              burned_at: null,
+              passed_at: null,
+            },
+          },
+        ],
+        subjects: [
+          {
+            id: 1001,
+            object: 'kanji',
+            data: {
+              characters: '漢',
+              level: 1,
+              meanings: [{ meaning: 'Chinese', primary: true }],
+              readings: [{ reading: 'かん', primary: true }],
+              character_images: [],
+              pronunciation_audios: [],
+            },
+          },
+        ],
+      },
+    });
+
+    const { getByText } = render(<RecentLessonsReview />);
+
+    await waitFor(() => {
+      expect(getByText('漢')).toBeTruthy();
+      expect(getByText('Meaning')).toBeTruthy();
+    });
+  });
+
   it('should handle correct answers properly', async () => {
     const { getByText, getByPlaceholderText } = render(<RecentLessonsReview />);
     
