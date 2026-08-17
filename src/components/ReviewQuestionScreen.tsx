@@ -82,6 +82,10 @@ import {
 import { shouldShowAnkiPitchAccent } from "../utils/ankiAnswerVisibility";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
+  type EnglishJapaneseAnswerOption,
+  matchesAcceptedJapaneseAnswer,
+} from "../utils/englishJapanesePractice";
+import {
   doesReviewShortcutMatchKey,
   resolveAnkiReviewShortcutAction,
   resolveReviewCorrectKeyboardShortcuts,
@@ -246,6 +250,13 @@ interface ReviewQuestionProps {
   // For custom modes (e.g., English -> Japanese), allow entering subject characters
   // on reading questions as a correct answer.
   acceptCharactersAsCorrectForReading?: boolean;
+  // Additional exact Japanese answers accepted by custom reading modes. This is
+  // used when one prompt can legitimately map to more than one subject.
+  customAcceptedReadingAnswers?: string[];
+  // Human-readable version of the custom accepted answers for reveal cards.
+  customAcceptedReadingAnswerDisplayText?: string;
+  // Per-translation audio metadata so a correct alternative plays its own audio.
+  customAcceptedReadingAnswerOptions?: EnglishJapaneseAnswerOption[];
   // For strict custom modes (e.g., Kana -> Kanji), require subject characters on reading questions.
   requireSubjectCharactersForReading?: boolean;
   // For custom reading modes (e.g., English -> Japanese), display both subject
@@ -1085,6 +1096,9 @@ export default function ReviewQuestionScreen({
   contextHintDisplayMode = "toggle",
   contextHintTranslationMode = "visible",
   acceptCharactersAsCorrectForReading = false,
+  customAcceptedReadingAnswers,
+  customAcceptedReadingAnswerDisplayText,
+  customAcceptedReadingAnswerOptions,
   requireSubjectCharactersForReading = false,
   showCharactersAndReadingForReadingQuestion = false,
   reviewPermissionWarning,
@@ -1719,6 +1733,7 @@ export default function ReviewQuestionScreen({
       acceptCharactersAsCorrectForReading,
       requireSubjectCharactersForReading,
       subjectCharacters: subject.data.characters,
+      acceptedReadingAnswers: customAcceptedReadingAnswers,
     });
 
     if (
@@ -2519,12 +2534,34 @@ export default function ReviewQuestionScreen({
   const playVocabularyAudio = async (options?: {
     force?: boolean;
     showReplayLoading?: boolean;
+    answer?: string;
   }) => {
     const shouldForcePlayback = options?.force ?? false;
     const showReplayLoading = options?.showReplayLoading ?? false;
+    const matchingCustomAnswerOptions = options?.answer
+      ? (customAcceptedReadingAnswerOptions ?? []).filter((answerOption) =>
+          matchesAcceptedJapaneseAnswer(options.answer ?? "", [
+            answerOption.characters,
+            ...answerOption.readings,
+          ]),
+        )
+      : [];
+    const customAudioSource =
+      matchingCustomAnswerOptions.find(
+        (answerOption) => answerOption.pronunciationAudios.length > 0,
+      ) ??
+      matchingCustomAnswerOptions[0] ??
+      (customAcceptedReadingAnswerOptions ?? []).find(
+        (answerOption) =>
+          answerOption.subjectId === item.subject.id &&
+          answerOption.pronunciationAudios.length > 0,
+      ) ??
+      (customAcceptedReadingAnswerOptions ?? []).find(
+        (answerOption) => answerOption.pronunciationAudios.length > 0,
+      );
+    const audioSubjectType = customAudioSource?.subjectType ?? item.subject.object;
     const isVocabularySubject =
-      item.subject.object === "vocabulary" ||
-      item.subject.object === "kana_vocabulary";
+      audioSubjectType === "vocabulary" || audioSubjectType === "kana_vocabulary";
 
     if (!isVocabularySubject) {
       return;
@@ -2534,15 +2571,22 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    const pronunciation_audios = (item.subject.data as any)
-      .pronunciation_audios;
+    const pronunciation_audios = customAudioSource
+      ? customAudioSource.pronunciationAudios
+      : (item.subject.data as any).pronunciation_audios;
     if (!pronunciation_audios || pronunciation_audios.length === 0) {
       return;
     }
 
     const audioFiles = pickPreferredPronunciationAudios(
       pronunciation_audios,
-      item.subject.data.readings ?? null,
+      customAudioSource
+        ? customAudioSource.readings.map((reading) => ({
+            reading,
+            primary: true,
+            accepted_answer: true,
+          }))
+        : item.subject.data.readings ?? null,
       vocabularyAudioVoice || "female",
       { preferredContentType: "audio/mpeg" },
     );
@@ -2571,7 +2615,7 @@ export default function ReviewQuestionScreen({
         }
 
         const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
-          item.subject.id,
+          customAudioSource?.subjectId ?? item.subject.id,
           audioFile
         );
 
@@ -2617,7 +2661,11 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    void playVocabularyAudio({ force: true, showReplayLoading: true });
+    void playVocabularyAudio({
+      force: true,
+      showReplayLoading: true,
+      answer: correctAnswerText ?? closeAnswerText ?? undefined,
+    });
   };
 
   const showSkipCue = useCallback(() => {
@@ -2725,6 +2773,7 @@ export default function ReviewQuestionScreen({
       acceptCharactersAsCorrectForReading,
       requireSubjectCharactersForReading,
       subjectCharacters: item.subject.data.characters,
+      acceptedReadingAnswers: customAcceptedReadingAnswers,
     });
 
     // Remove legacy override that was incorrectly marking vocabulary readings as correct for kanji
@@ -2764,7 +2813,7 @@ export default function ReviewQuestionScreen({
             kanaInputRef.current.clearInput();
           }
           if (questionType === "reading") {
-            playVocabularyAudio();
+            playVocabularyAudio({ answer });
           }
           break;
         }
@@ -2786,7 +2835,7 @@ export default function ReviewQuestionScreen({
             kanaInputRef.current.clearInput();
           }
           if (questionType === "reading") {
-            playVocabularyAudio();
+            playVocabularyAudio({ answer });
           }
           break;
         }
@@ -2821,7 +2870,7 @@ export default function ReviewQuestionScreen({
 
         // Play vocabulary audio if this is a reading question
         if (questionType === "reading") {
-          playVocabularyAudio();
+          playVocabularyAudio({ answer });
         }
 
         emitAnswer(questionType, true, retryCount > 0, false);
@@ -4009,11 +4058,20 @@ export default function ReviewQuestionScreen({
   };
 
   const pronunciationAudios = (item.subject.data as any)?.pronunciation_audios;
+  const hasCustomReplayableVocabularyAudio = (
+    customAcceptedReadingAnswerOptions ?? []
+  ).some(
+    (answerOption) =>
+      (answerOption.subjectType === "vocabulary" ||
+        answerOption.subjectType === "kana_vocabulary") &&
+      answerOption.pronunciationAudios.length > 0,
+  );
   const hasReplayableVocabularyAudio =
-    (item.subject.object === "vocabulary" ||
+    hasCustomReplayableVocabularyAudio ||
+    ((item.subject.object === "vocabulary" ||
       item.subject.object === "kana_vocabulary") &&
-    Array.isArray(pronunciationAudios) &&
-    pronunciationAudios.length > 0;
+      Array.isArray(pronunciationAudios) &&
+      pronunciationAudios.length > 0);
   const canReplayPausedAudio =
     questionType === "reading" && hasReplayableVocabularyAudio;
   const canReplayAnkiAudio =
@@ -4712,6 +4770,10 @@ export default function ReviewQuestionScreen({
       return primaryMeaningAnswer;
     }
 
+    if (customAcceptedReadingAnswerDisplayText) {
+      return customAcceptedReadingAnswerDisplayText;
+    }
+
     if (
       questionType === "reading" &&
       showCharactersAndReadingForReadingQuestion
@@ -4877,6 +4939,8 @@ export default function ReviewQuestionScreen({
     overridePausedCorrectAnswerText ??
     (questionType === "meaning"
       ? acceptedMeaningAnswers.join(", ")
+      : customAcceptedReadingAnswerDisplayText
+        ? customAcceptedReadingAnswerDisplayText
       : showCharactersAndReadingForReadingQuestion
         ? buildCharactersAndReadingAnswerText(
             acceptedReadingAnswerOptions.join(", "),

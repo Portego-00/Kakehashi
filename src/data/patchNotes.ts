@@ -61,6 +61,12 @@ export const PATCH_NOTES: PatchNote[] = [
     changes: [
       {
         type: "improvement",
+        title: "English to Japanese Synonyms",
+        description:
+          "English to Japanese quizzes now accept matching Japanese words that share the prompted meaning.",
+      },
+      {
+        type: "improvement",
         title: "Similar Kanji Readings",
         description:
           "Similar Kanji Match now shows each kanji’s reading after you submit a round.",

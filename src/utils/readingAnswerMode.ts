@@ -1,4 +1,5 @@
 import { AnswerCheckerResult } from "./answerChecker";
+import { matchesAcceptedJapaneseAnswer } from "./englishJapanesePractice";
 
 const JAPANESE_CHAR_REGEX = /[\u3040-\u309F\u30A0-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]/;
 const KANJI_CHAR_REGEX = /[\u3400-\u4DBF\u4E00-\u9FFF]/;
@@ -12,6 +13,7 @@ interface ResolveReadingModeResultArgs {
   acceptCharactersAsCorrectForReading: boolean;
   requireSubjectCharactersForReading?: boolean;
   subjectCharacters?: string | null;
+  acceptedReadingAnswers?: string[];
 }
 
 function compactJapaneseText(text: string | null | undefined): string {
@@ -35,9 +37,14 @@ export function resolveReadingModeResult({
   acceptCharactersAsCorrectForReading,
   requireSubjectCharactersForReading = false,
   subjectCharacters,
+  acceptedReadingAnswers,
 }: ResolveReadingModeResultArgs): AnswerCheckerResult {
   if (questionType !== "reading") {
     return result;
+  }
+
+  if (matchesAcceptedJapaneseAnswer(answer, acceptedReadingAnswers)) {
+    return AnswerCheckerResult.Precise;
   }
 
   let resolvedResult = result;
