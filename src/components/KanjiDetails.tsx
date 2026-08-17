@@ -130,6 +130,7 @@ interface KanjiDetailsProps {
   initialTab?: "meaning" | "reading" | "stroke";
   onOpenConstellation?: () => void;
   onAddToList?: () => void;
+  isBookmarked?: boolean;
   userLevel?: number;
   onSynonymsChange?: (synonyms: string[]) => Promise<void>;
   embedded?: boolean;
@@ -398,6 +399,7 @@ export default function KanjiDetails({
   initialTab = "meaning",
   onOpenConstellation,
   onAddToList,
+  isBookmarked = false,
   userLevel = 60,
   onSynonymsChange,
   embedded = false,
@@ -1927,8 +1929,17 @@ export default function KanjiDetails({
             <TouchableOpacity
               onPress={onAddToList}
               style={styles.addToListButton}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isBookmarked ? "Edit saved lists" : "Add to saved lists"
+              }
+              accessibilityState={{ selected: isBookmarked }}
             >
-              <Ionicons name="bookmark-outline" size={20} color="#fff" />
+              <Ionicons
+                name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                size={20}
+                color="#fff"
+              />
             </TouchableOpacity>
           )}
 

@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
+import { useSubjectLists } from "../../src/hooks/useSubjectLists";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -66,6 +67,10 @@ const isSubjectType = (subject: any, type: string): boolean => {
 export default function CustomLessonScreen() {
   useActivityTracking("custom_lesson");
   const { apiToken } = useAuthStore();
+  const {
+    lists: subjectLists,
+    reload: reloadSubjectLists,
+  } = useSubjectLists();
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const {
@@ -125,6 +130,13 @@ export default function CustomLessonScreen() {
     type: string;
     label?: string;
   } | null>(null);
+  const bookmarkedSubjectIds = React.useMemo(() => {
+    const subjectIds = new Set<number>();
+    subjectLists.forEach((list) => {
+      list.subjectIds.forEach((subjectId) => subjectIds.add(subjectId));
+    });
+    return subjectIds;
+  }, [subjectLists]);
 
   // Safe navigation back to dashboard - handles case where there's no stack to dismiss
   const navigateToDashboard = useCallback(() => {
@@ -676,6 +688,7 @@ export default function CustomLessonScreen() {
             // Navigate to subject detail page
             router.push(`/subject/${subjectId}`);
           }}
+          bookmarkedSubjectIds={bookmarkedSubjectIds}
           onAddSubjectToList={(subject) => {
             const label =
               subject.data?.meanings?.find((meaning: any) => meaning.primary)
@@ -697,6 +710,7 @@ export default function CustomLessonScreen() {
           subjectType={listModalSubject?.type}
           subjectLabel={listModalSubject?.label}
           onClose={() => setListModalSubject(null)}
+          onSaved={reloadSubjectLists}
         />
       </>
     );

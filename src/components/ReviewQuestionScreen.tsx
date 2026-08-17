@@ -79,7 +79,8 @@ import {
   getWaniKaniPitchAccent,
   type WaniKaniPitchAccentEntry,
 } from "../utils/pitchAccent";
-import { getCachedOrDownloadVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { shouldShowAnkiPitchAccent } from "../utils/ankiAnswerVisibility";
+import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
   doesReviewShortcutMatchKey,
   resolveReviewCorrectKeyboardShortcuts,
@@ -2502,7 +2503,7 @@ export default function ReviewQuestionScreen({
           }
         }
 
-        const cachedAudioUri = await getCachedOrDownloadVocabularyAudioUri(
+        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
           item.subject.id,
           audioFile
         );
@@ -4578,10 +4579,16 @@ export default function ReviewQuestionScreen({
         ankiShowOtherAcceptedAnswersAndUserSynonyms;
       const shouldShowPartOfSpeech =
         ankiShowWaniKaniGrammarTags && ankiPartOfSpeechValues.length > 0;
+      const shouldShowPitchAccentForQuestion =
+        shouldShowAnkiPitchAccent(questionType, effectiveAnkiGroupQuestions);
       const shouldShowPitchAccentText =
-        ankiShowPitchAccentNumbers && ankiPitchAccentDisplayValues.length > 0;
+        shouldShowPitchAccentForQuestion &&
+        ankiShowPitchAccentNumbers &&
+        ankiPitchAccentDisplayValues.length > 0;
       const shouldShowPitchAccentGraph =
-        ankiShowPitchAccentGraph && !!ankiPitchAccentEntry;
+        shouldShowPitchAccentForQuestion &&
+        ankiShowPitchAccentGraph &&
+        !!ankiPitchAccentEntry;
 
       const addPitchAccentRow = () => {
         if (!shouldShowPitchAccentText && !shouldShowPitchAccentGraph) {

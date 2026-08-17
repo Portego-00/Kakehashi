@@ -56,6 +56,42 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.2.97",
+    date: "2026-08-10",
+    changes: [
+      {
+        type: "fix",
+        title: "Anki Pitch Accent Placement",
+        description:
+          "Pitch accent now appears only on reading cards or combined cards, so meaning cards no longer reveal the reading.",
+      },
+      {
+        type: "fix",
+        title: "Android Review Counts",
+        description:
+          "Review counts now refresh more reliably when opening the app and returning from a review session.",
+      },
+      {
+        type: "fix",
+        title: "Android Offline Audio",
+        description:
+          "Vocabulary audio now starts more responsively while offline audio downloads continue in the background.",
+      },
+      {
+        type: "improvement",
+        title: "Filled Bookmark Indicators",
+        description:
+          "Bookmark icons now appear filled when a subject is already saved to one of your lists.",
+      },
+      {
+        type: "feature",
+        title: "Lesson Frequency Filters",
+        description:
+          "Filter available vocabulary lessons by common frequency-rank ranges.",
+      },
+    ],
+  },
+  {
     version: "1.2.96",
     date: "2026-08-01",
     changes: [

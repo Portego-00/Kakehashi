@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
@@ -114,7 +117,6 @@ const DEFAULT_SRS_GROUPS: SrsGroupsConfig = {
   burned: true,
 };
 const REVIEW_MAX_QUESTION_GAP = 10;
-const RESULTS_TRANSITION_DELAY_MS = 2000;
 const HIRAGANA_VOCAB_MEANING_MODE_PARAM = "hiragana-vocab-meaning";
 
 const createInitialProgressCounters = () => ({
@@ -468,18 +470,9 @@ export default function TestSessionScreen() {
     createInitialProgressCounters(),
   );
   const [isTestComplete, setIsTestComplete] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(isTestComplete);
   const [config, setConfig] = useState<TestSessionConfig | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
-  const completionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const clearCompletionTimeout = useCallback(() => {
-    if (completionTimeoutRef.current) {
-      clearTimeout(completionTimeoutRef.current);
-      completionTimeoutRef.current = null;
-    }
-  }, []);
 
   const clearSavedRandomTestSession = useCallback(async () => {
     await clearExtraStudySessionState(sessionStorageKey);
@@ -512,7 +505,6 @@ export default function TestSessionScreen() {
       ),
     );
 
-    clearCompletionTimeout();
     setConfig(savedSession.config);
     setTestQuestions(savedSession.testQuestions);
     setCurrentQuestionIndex(safeIndex);
@@ -525,7 +517,7 @@ export default function TestSessionScreen() {
     setHasRestoredSession(true);
     setIsLoading(false);
     return true;
-  }, [clearCompletionTimeout, clearSavedRandomTestSession, sessionStorageKey]);
+  }, [clearSavedRandomTestSession, sessionStorageKey]);
 
   const saveRandomTestSessionForLater = useCallback(async (): Promise<boolean> => {
     if (
@@ -701,23 +693,15 @@ export default function TestSessionScreen() {
     loadConfig();
   }, [loadConfig]);
 
-  useEffect(
-    () => () => {
-      clearCompletionTimeout();
-    },
-    [clearCompletionTimeout],
-  );
-
   const initializeSessionState = useCallback(
     (questions: TestQuestion[], items: RandomTestReviewItem[]) => {
-      clearCompletionTimeout();
       setTestQuestions(questions);
       setReviewItems(items);
       setCurrentQuestionIndex(0);
       setIsTestComplete(false);
       setProgressCounters(createInitialProgressCounters());
     },
-    [clearCompletionTimeout],
+    [],
   );
 
   const loadTestQuestions = useCallback(async () => {
@@ -1138,18 +1122,13 @@ export default function TestSessionScreen() {
       if (currentQuestionIndex < testQuestions.length - 1) {
         setCurrentQuestionIndex(currentQuestionIndex + 1);
       } else {
-        clearCompletionTimeout();
-        completionTimeoutRef.current = setTimeout(() => {
-          setIsTestComplete(true);
-          completionTimeoutRef.current = null;
-        }, RESULTS_TRANSITION_DELAY_MS);
+        setIsTestComplete(true);
       }
     }
   };
 
   const handleSkip = useCallback(
     (_item: { id: number; subject: any }, _questionType: QuestionType) => {
-      clearCompletionTimeout();
       setTestQuestions((prevQuestions) => {
         if (
           currentQuestionIndex < 0 ||
@@ -1167,7 +1146,7 @@ export default function TestSessionScreen() {
 
       setIsTestComplete(false);
     },
-    [clearCompletionTimeout, currentQuestionIndex],
+    [currentQuestionIndex],
   );
 
   useEffect(() => {
@@ -1191,7 +1170,6 @@ export default function TestSessionScreen() {
         {
           text: "Continue Later",
           onPress: async () => {
-            clearCompletionTimeout();
             const wasSaved = await saveRandomTestSessionForLater();
             if (!wasSaved) {
               Alert.alert("Couldn't Save Progress", "Please try again in a moment.");
@@ -1248,6 +1226,10 @@ export default function TestSessionScreen() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (isTestComplete && !shouldRevealResults) {
+    return <ExtraStudyCompletionTransition />;
   }
 
   if (isTestComplete) {

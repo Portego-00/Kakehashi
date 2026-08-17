@@ -2,6 +2,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
+import ExtraStudyCompletionTransition, {
+  useExtraStudyResultsReveal,
+} from "../../src/components/ExtraStudyCompletionTransition";
 import RecentLessonsResultsScreen from "../../src/components/RecentLessonsResultsScreen";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import { useSession } from "../../src/contexts/AuthContext";
@@ -80,6 +83,7 @@ export default function RecentLessonsReview() {
     readingCorrect: 0,
   });
   const [allCompleted, setAllCompleted] = useState(false);
+  const shouldRevealResults = useExtraStudyResultsReveal(allCompleted);
 
   // Wrap up mode state
   const [isWrapUpMode, setIsWrapUpMode] = useState(false);
@@ -275,8 +279,12 @@ export default function RecentLessonsReview() {
       return;
     }
 
-    // Wait until dashboard is totally done loading key components
-    if (dashboardLoading) {
+    // Assignments and subjects are populated before the rest of the dashboard.
+    // Start as soon as those two inputs are available instead of waiting for
+    // unrelated forecast, analytics, and widget requests to finish.
+    const hasReviewSourceData =
+      dashboardData.assignments.length > 0 && dashboardData.subjects.length > 0;
+    if (dashboardLoading && !hasReviewSourceData) {
       return;
     }
 
@@ -784,7 +792,9 @@ export default function RecentLessonsReview() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        {allCompleted ? (
+        {allCompleted && !shouldRevealResults ? (
+          <ExtraStudyCompletionTransition />
+        ) : allCompleted ? (
           <RecentLessonsResultsScreen
             reviewItems={reviewItems}
             answerStats={answerStats}
