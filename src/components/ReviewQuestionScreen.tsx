@@ -87,6 +87,12 @@ import {
   resolveReviewCorrectKeyboardShortcuts,
   resolveReviewIncorrectKeyboardShortcuts,
 } from "../utils/reviewKeyboardShortcuts";
+import {
+  createReviewSubmissionGuard,
+  releaseQuestionSubmissionForRetry,
+  tryRecordAnswerEmission,
+  tryStartQuestionSubmission,
+} from "../utils/reviewSubmissionGuard";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import KanjiDetails from "./KanjiDetails";
@@ -1241,6 +1247,7 @@ export default function ReviewQuestionScreen({
   const vocabularyAudioSoundRef = useRef<AudioSound | null>(null);
   const vocabularyAudioRequestIdRef = useRef(0);
   const vocabularyAudioFinalizeRef = useRef<(() => void) | null>(null);
+  const reviewSubmissionGuardRef = useRef(createReviewSubmissionGuard());
 
   useEffect(() => {
     setLocalStudyMaterials(studyMaterials);
@@ -1516,6 +1523,33 @@ export default function ReviewQuestionScreen({
   const currentQuestionKey = `${item.id}:${questionType}:${currentItem}`;
   const isCurrentQuestionAnkiRevealed =
     ankiAnswerRevealed && ankiRevealQuestionKey === currentQuestionKey;
+  const emitAnswer = useCallback(
+    (
+      answeredQuestionType: QuestionType,
+      isCorrect: boolean,
+      wasIncorrect: boolean,
+      isGroupedAnswer: boolean,
+    ) => {
+      if (
+        !tryRecordAnswerEmission(
+          reviewSubmissionGuardRef.current,
+          currentQuestionKey,
+          answeredQuestionType,
+        )
+      ) {
+        return;
+      }
+
+      onAnswer(
+        item,
+        answeredQuestionType,
+        isCorrect,
+        wasIncorrect,
+        isGroupedAnswer,
+      );
+    },
+    [currentQuestionKey, item, onAnswer],
+  );
   const reviewSubjectLevel =
     typeof subject.data.level === "number" ? subject.data.level : null;
   const reviewSrsStage =
@@ -2622,6 +2656,15 @@ export default function ReviewQuestionScreen({
 
   const handleSubmitAnswer = async (providedAnswer?: string) => {
     if (answered || !mountedRef.current) return;
+    if (
+      !tryStartQuestionSubmission(
+        reviewSubmissionGuardRef.current,
+        currentQuestionKey,
+      )
+    ) {
+      return;
+    }
+
     const isVoiceSubmission = typeof providedAnswer === "string";
     let shouldRefocusInput = !isVoiceSubmission;
 
@@ -2641,6 +2684,11 @@ export default function ReviewQuestionScreen({
       if (!isVoiceSubmission && allowSkippingReviews && onSkip) {
         showSkipCue();
         onSkip(item, questionType);
+      } else {
+        releaseQuestionSubmissionForRetry(
+          reviewSubmissionGuardRef.current,
+          currentQuestionKey,
+        );
       }
       return;
     }
@@ -2776,7 +2824,7 @@ export default function ReviewQuestionScreen({
           playVocabularyAudio();
         }
 
-        onAnswer(item, questionType, true, retryCount > 0, false);
+        emitAnswer(questionType, true, retryCount > 0, false);
         break;
       }
 
@@ -2799,6 +2847,10 @@ export default function ReviewQuestionScreen({
         if (kanaInputRef.current?.clearInput) {
           kanaInputRef.current.clearInput();
         }
+        releaseQuestionSubmissionForRetry(
+          reviewSubmissionGuardRef.current,
+          currentQuestionKey,
+        );
         break;
 
       case AnswerCheckerResult.Incorrect:
@@ -2855,7 +2907,7 @@ export default function ReviewQuestionScreen({
         }
         setInputResetNonce((nonce) => nonce + 1);
 
-        onAnswer(item, questionType, false, true, false);
+        emitAnswer(questionType, false, true, false);
         break;
     }
 
@@ -3023,7 +3075,7 @@ export default function ReviewQuestionScreen({
 
     if (retryCount > 0 && !answered) {
       // If they've been retrying but decide to move on, mark it as incorrect
-      onAnswer(item, questionType, false, true, false);
+      emitAnswer(questionType, false, true, false);
     }
 
     // Reset the state for the next question
@@ -3094,7 +3146,7 @@ export default function ReviewQuestionScreen({
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     // Mark as correct and progress
-    onAnswer(item, questionType, true, retryCount > 0, false);
+    emitAnswer(questionType, true, retryCount > 0, false);
 
     // Re-focus input for next question
     setTimeout(() => {
@@ -3144,7 +3196,7 @@ export default function ReviewQuestionScreen({
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     // Mark as correct (override the wrong answer)
-    onAnswer(item, questionType, true, false, false);
+    emitAnswer(questionType, true, false, false);
 
     // Re-focus input for next question
     setTimeout(() => {
@@ -3857,7 +3909,7 @@ export default function ReviewQuestionScreen({
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     // Mark as wrong and progress
-    onAnswer(item, questionType, false, true, false);
+    emitAnswer(questionType, false, true, false);
 
     // Re-focus input for next question
     setTimeout(() => {
@@ -4191,6 +4243,15 @@ export default function ReviewQuestionScreen({
   };
 
   const handleAnkiAnswerButton = (isCorrect: boolean) => {
+    if (
+      !tryStartQuestionSubmission(
+        reviewSubmissionGuardRef.current,
+        currentQuestionKey,
+      )
+    ) {
+      return;
+    }
+
     // Reset temporary default-font override once an answer is submitted.
     if (isUsingDefaultJitaiFont) {
       setIsUsingDefaultJitaiFont(false);
@@ -4221,10 +4282,10 @@ export default function ReviewQuestionScreen({
           effectiveAnkiGroupQuestions &&
           (item.subject.data.readings?.length ?? 0) > 0
         ) {
-          onAnswer(item, "meaning", true, false, true);
-          onAnswer(item, "reading", true, false, true);
+          emitAnswer("meaning", true, false, true);
+          emitAnswer("reading", true, false, true);
         } else {
-          onAnswer(item, questionType, true, false, false);
+          emitAnswer(questionType, true, false, false);
         }
       };
 
@@ -4251,11 +4312,11 @@ export default function ReviewQuestionScreen({
           (item.subject.data.readings?.length ?? 0) > 0
         ) {
           // Mark both meaning and reading as incorrect
-          onAnswer(item, "meaning", false, true, true);
-          onAnswer(item, "reading", false, true, true);
+          emitAnswer("meaning", false, true, true);
+          emitAnswer("reading", false, true, true);
         } else {
           // Single question type
-          onAnswer(item, questionType, false, false, false);
+          emitAnswer(questionType, false, false, false);
         }
       });
     }
