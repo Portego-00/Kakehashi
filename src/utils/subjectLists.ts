@@ -19,6 +19,22 @@ export interface SubjectList {
   sortOrder: number;
 }
 
+export type SubjectListTransferMode = "copy" | "move";
+
+export interface TransferSubjectsBetweenListsParams {
+  sourceListId: string;
+  destinationListId: string;
+  subjectIds: number[];
+  mode: SubjectListTransferMode;
+}
+
+export interface SubjectListTransferResult {
+  mode: SubjectListTransferMode;
+  sourceList: SubjectList;
+  destinationList: SubjectList;
+  transferredSubjectIds: number[];
+}
+
 interface SubjectListRecord extends SubjectList {
   ownerUserId: string | null;
   deletedAt: string | null;
@@ -938,6 +954,107 @@ export async function addSubjectsToLists(
   }
 
   return changed.map((record) => toPublicList(record));
+}
+
+export async function transferSubjectsBetweenLists({
+  sourceListId,
+  destinationListId,
+  subjectIds,
+  mode,
+}: TransferSubjectsBetweenListsParams): Promise<SubjectListTransferResult | null> {
+  if (
+    sourceListId === destinationListId ||
+    (mode !== "copy" && mode !== "move")
+  ) {
+    return null;
+  }
+
+  const payload = await readPayload();
+  const userId = getCurrentUserId();
+  const sourceIndex = findRecordIndexForMutation(
+    payload.lists,
+    sourceListId,
+    userId
+  );
+  const destinationIndex = findRecordIndexForMutation(
+    payload.lists,
+    destinationListId,
+    userId
+  );
+
+  if (sourceIndex === -1 || destinationIndex === -1) {
+    return null;
+  }
+
+  const sourceRecord = payload.lists[sourceIndex];
+  const destinationRecord = payload.lists[destinationIndex];
+  const sourceSubjectIdSet = new Set(sourceRecord.subjectIds);
+  const transferredSubjectIds = normalizeSubjectIds(subjectIds).filter((subjectId) =>
+    sourceSubjectIdSet.has(subjectId)
+  );
+
+  if (transferredSubjectIds.length === 0) {
+    return {
+      mode,
+      sourceList: toPublicList(sourceRecord),
+      destinationList: toPublicList(destinationRecord),
+      transferredSubjectIds: [],
+    };
+  }
+
+  const timestamp = nowIso();
+  const nextDestinationSubjectIds = normalizeSubjectIds([
+    ...destinationRecord.subjectIds,
+    ...transferredSubjectIds,
+  ]);
+  const destinationChanged = !areSubjectIdsEqual(
+    destinationRecord.subjectIds,
+    nextDestinationSubjectIds
+  );
+  const sourceChanged = mode === "move";
+
+  let updatedSource = sourceRecord;
+  let updatedDestination = destinationRecord;
+
+  if (sourceChanged) {
+    const transferredSubjectIdSet = new Set(transferredSubjectIds);
+    updatedSource = markPendingUpsert(
+      {
+        ...sourceRecord,
+        subjectIds: sourceRecord.subjectIds.filter(
+          (subjectId) => !transferredSubjectIdSet.has(subjectId)
+        ),
+      },
+      userId,
+      timestamp
+    );
+    payload.lists[sourceIndex] = updatedSource;
+  }
+
+  if (destinationChanged) {
+    updatedDestination = markPendingUpsert(
+      {
+        ...destinationRecord,
+        subjectIds: nextDestinationSubjectIds,
+      },
+      userId,
+      timestamp
+    );
+    payload.lists[destinationIndex] = updatedDestination;
+  }
+
+  if (sourceChanged || destinationChanged) {
+    payload.lists = sortRecords(payload.lists);
+    await writePayload(payload);
+    void queueSync({ force: true });
+  }
+
+  return {
+    mode,
+    sourceList: toPublicList(updatedSource),
+    destinationList: toPublicList(updatedDestination),
+    transferredSubjectIds,
+  };
 }
 
 export async function removeSubjectFromList(
