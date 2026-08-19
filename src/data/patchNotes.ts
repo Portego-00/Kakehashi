@@ -69,6 +69,16 @@ export const PATCH_NOTES: PatchNote[] = [
           label: "Open Subject Lists",
         },
       },
+      {
+        type: "feature",
+        title: "Custom Review Frequency Filters",
+        description:
+          "Combine any Custom Review SRS stages with a maximum word-frequency rank you choose.",
+        link: {
+          route: "/custom-review-selection",
+          label: "Open Custom Review",
+        },
+      },
     ],
   },
   {

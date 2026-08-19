@@ -121,7 +121,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
 
             <Text style={styles.subheading}>Jiten</Text>
             <Text style={styles.paragraph}>
-              When the optional Vocabulary Frequency setting is enabled and a vocabulary item is displayed, we may send only that Japanese word to the Jiten API to retrieve its frequency rank. We do not send your WaniKani API token, username, notes, or review answers to Jiten. Jiten receives ordinary network information such as your IP address and is governed by its own Privacy Policy and Terms of Service. Results are cached on your device to reduce repeated requests.
+              When the optional Vocabulary Frequency setting is enabled, we may send an individual Japanese vocabulary term to the Jiten API to retrieve its frequency rank. When you use a frequency filter, matching vocabulary terms may be sent individually to Jiten so the app can evaluate the filter. We do not send your WaniKani API token, username, notes, or review answers to Jiten. Jiten receives ordinary network information such as your IP address and is governed by its own Privacy Policy and Terms of Service. Results are cached locally on your device to reduce repeated requests.
             </Text>
           </Section>
 

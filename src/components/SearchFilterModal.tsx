@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
@@ -39,6 +40,7 @@ export interface SearchFilters {
   types: Set<WaniKaniItemType>;
   srsStages: Set<number>;
   jlptLevels: Set<JLPTLevel>;
+  maxFrequencyRank: number | null;
 }
 
 export const createDefaultSearchFilters = (): SearchFilters => ({
@@ -47,6 +49,7 @@ export const createDefaultSearchFilters = (): SearchFilters => ({
   types: new Set(DEFAULT_SEARCH_ITEM_TYPES),
   srsStages: new Set(ALL_SEARCH_SRS_STAGES),
   jlptLevels: new Set(),
+  maxFrequencyRank: null,
 });
 
 interface SearchFilterModalProps {
@@ -55,6 +58,9 @@ interface SearchFilterModalProps {
   onClose: () => void;
   onApply: (filters: SearchFilters) => void;
   showJlptFilters?: boolean;
+  showFrequencyFilters?: boolean;
+  frequencyFiltersEnabled?: boolean;
+  onEnableFrequencyFilters?: () => void;
 }
 
 export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
@@ -63,12 +69,19 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   onClose,
   onApply,
   showJlptFilters = false,
+  showFrequencyFilters = false,
+  frequencyFiltersEnabled = true,
+  onEnableFrequencyFilters,
 }) => {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const [pendingFilters, setPendingFilters] = useState<SearchFilters | null>(
     null
   );
+  const [frequencyRankInput, setFrequencyRankInput] = useState("");
+  const [frequencyRankInputError, setFrequencyRankInputError] = useState<
+    string | null
+  >(null);
 
   // Animation values
   const filterPanelAnimation = useRef(new Animated.Value(0)).current;
@@ -85,7 +98,12 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
         types: new Set(currentFilters.types),
         srsStages: new Set(currentFilters.srsStages ?? ALL_SEARCH_SRS_STAGES),
         jlptLevels: new Set(currentFilters.jlptLevels ?? []),
+        maxFrequencyRank: currentFilters.maxFrequencyRank ?? null,
       });
+      setFrequencyRankInput(
+        currentFilters.maxFrequencyRank?.toString() ?? "",
+      );
+      setFrequencyRankInputError(null);
       Animated.parallel([
         Animated.timing(filterPanelAnimation, {
           toValue: 1,
@@ -114,7 +132,12 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
         setPendingFilters(null);
       });
     }
-  }, [visible, currentFilters]);
+  }, [
+    backdropOpacity,
+    currentFilters,
+    filterPanelAnimation,
+    visible,
+  ]);
 
   // If panel is closing or not visible (and not animating out), we might want to return null,
   // but Modal handles visibility. However, we need 'visible' prop on Modal to be true until animation finishes?
@@ -152,14 +175,14 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
     ]).start(() => {
       onClose();
     });
-  }, [onClose]);
+  }, [backdropOpacity, filterPanelAnimation, onClose]);
 
   const handleApply = useCallback(() => {
-    if (pendingFilters) {
+    if (pendingFilters && !frequencyRankInputError) {
       onApply(pendingFilters);
+      animateClose();
     }
-    animateClose();
-  }, [pendingFilters, onApply, animateClose]);
+  }, [animateClose, frequencyRankInputError, onApply, pendingFilters]);
 
   const handleFilterPress = useCallback((types: WaniKaniItemType[]) => {
     setPendingFilters((prev) => {
@@ -211,6 +234,36 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
 
       return { ...prev, jlptLevels: nextLevels };
     });
+  }, []);
+
+  const handleMaximumFrequencyRankChange = useCallback((value: string) => {
+    setFrequencyRankInput(value);
+    const normalizedValue = value.trim();
+
+    if (!normalizedValue) {
+      setFrequencyRankInputError(null);
+      setPendingFilters((prev) =>
+        prev ? { ...prev, maxFrequencyRank: null } : null,
+      );
+      return;
+    }
+
+    if (!/^\d+$/.test(normalizedValue)) {
+      setFrequencyRankInputError("Enter a whole number greater than 0.");
+      return;
+    }
+
+    const maxFrequencyRank = Number(normalizedValue);
+    if (!Number.isSafeInteger(maxFrequencyRank) || maxFrequencyRank < 1) {
+      setFrequencyRankInputError("Enter a whole number greater than 0.");
+      return;
+    }
+
+    setFrequencyRankInputError(null);
+
+    setPendingFilters((prev) =>
+      prev ? { ...prev, maxFrequencyRank } : null,
+    );
   }, []);
 
   // We render the Modal always if visible is true, OR if we are animating out?
@@ -327,9 +380,13 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                   ] as WaniKaniItemType[],
                 },
               ].map((type) => {
-                const isSelected = type.mappedTypes.every((mappedType) =>
-                  filtersToDisplay.types.has(mappedType)
-                );
+                const isFrequencyRankActive =
+                  filtersToDisplay.maxFrequencyRank !== null;
+                const isSelected = isFrequencyRankActive
+                  ? type.id === "vocabulary"
+                  : type.mappedTypes.every((mappedType) =>
+                      filtersToDisplay.types.has(mappedType),
+                    );
                 return (
                   <TouchableOpacity
                     key={type.id}
@@ -340,10 +397,19 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                           ? type.color
                           : theme.cardBackground,
                         borderColor: isSelected ? type.color : theme.border,
+                        opacity:
+                          isFrequencyRankActive && !isSelected ? 0.45 : 1,
                       },
                     ]}
                     onPress={() => handleFilterPress(type.mappedTypes)}
+                    disabled={isFrequencyRankActive}
                     activeOpacity={0.7}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: isSelected,
+                      disabled: isFrequencyRankActive,
+                    }}
+                    accessibilityLabel={`${type.label} subject type filter`}
                   >
                     <Text
                       style={[
@@ -413,6 +479,125 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                   );
                 })}
               </View>
+            </View>
+          )}
+
+          {showFrequencyFilters && (
+            <View style={styles.filterSection}>
+              <Text
+                style={[
+                  styles.filterSectionTitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Word Frequency
+              </Text>
+              <Text
+                style={[
+                  styles.filterSectionDescription,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Include vocabulary ranked at or below the number you choose.
+                While active, only vocabulary is included; lower ranks are more
+                common.
+              </Text>
+              {frequencyFiltersEnabled ? (
+                <>
+                  <View style={styles.frequencyInputRow}>
+                    <View
+                      style={[
+                        styles.frequencyInputContainer,
+                        {
+                          backgroundColor: theme.cardBackground,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.frequencyInputLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Maximum rank
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.frequencyInput,
+                          { color: theme.textColor },
+                        ]}
+                        value={frequencyRankInput}
+                        onChangeText={handleMaximumFrequencyRankChange}
+                        keyboardType="number-pad"
+                        inputMode="numeric"
+                        placeholder="Any"
+                        placeholderTextColor={theme.textLight}
+                        selectTextOnFocus
+                        accessibilityLabel="Maximum word frequency rank"
+                        accessibilityHint="Leave blank to include vocabulary at any frequency rank"
+                      />
+                    </View>
+                    {frequencyRankInput.length > 0 ? (
+                      <TouchableOpacity
+                        style={styles.frequencyClearButton}
+                        onPress={() => handleMaximumFrequencyRankChange("")}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear maximum word frequency rank"
+                      >
+                        <Text style={{ color: theme.primary }}>Clear</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  {frequencyRankInputError ? (
+                    <Text
+                      style={[
+                        styles.frequencyInputError,
+                        { color: theme.error },
+                      ]}
+                      accessibilityLiveRegion="polite"
+                    >
+                      {frequencyRankInputError}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <View
+                  style={[
+                    styles.frequencyEnableContainer,
+                    {
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.frequencyEnableText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Frequency filtering checks matching Japanese words
+                    individually with Jiten and caches the results on this
+                    device.
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.frequencyEnableButton,
+                      { backgroundColor: theme.primary },
+                    ]}
+                    onPress={onEnableFrequencyFilters}
+                    disabled={!onEnableFrequencyFilters}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.frequencyEnableButtonText}>
+                      Enable Frequency Filtering
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 
@@ -596,6 +781,8 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                     ]}
                     onPress={() => handleSrsFilterPress(group.stages)}
                     activeOpacity={0.7}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
                     accessibilityLabel={`${group.label} SRS filter`}
                   >
                     {group.iconLevel ? (
@@ -639,6 +826,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
               ]}
               onPress={animateClose}
               activeOpacity={0.7}
+              accessibilityRole="button"
             >
               <Text
                 style={[styles.modalButtonText, { color: theme.textSecondary }]}
@@ -651,9 +839,15 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                 styles.modalButton,
                 styles.modalApplyButton,
                 { backgroundColor: theme.primary },
+                frequencyRankInputError && styles.modalButtonDisabled,
               ]}
               onPress={handleApply}
+              disabled={Boolean(frequencyRankInputError)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: Boolean(frequencyRankInputError),
+              }}
             >
               <Text style={[styles.modalButtonText, { color: "white" }]}>
                 Apply Filters
@@ -945,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   jlptChip: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: 10,
     alignItems: "center",
@@ -953,6 +1147,66 @@ const styles = StyleSheet.create({
   },
   jlptChipText: {
     fontSize: 13,
+    fontWeight: "700",
+  },
+  frequencyInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  frequencyInputContainer: {
+    flex: 1,
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  frequencyInputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  frequencyInput: {
+    flex: 1,
+    minHeight: 44,
+    marginLeft: 12,
+    paddingVertical: 0,
+    fontSize: 16,
+    fontVariant: ["tabular-nums"],
+    textAlign: "right",
+  },
+  frequencyClearButton: {
+    minWidth: 52,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  frequencyInputError: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  frequencyEnableContainer: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+  },
+  frequencyEnableText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  frequencyEnableButton: {
+    minHeight: 44,
+    marginTop: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  frequencyEnableButtonText: {
+    color: "white",
+    fontSize: 14,
     fontWeight: "700",
   },
   srsFiltersGrid: {
@@ -966,6 +1220,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
+    minHeight: 44,
     paddingVertical: 7,
     paddingHorizontal: 8,
     borderRadius: 14,
@@ -990,6 +1245,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   modalApplyButton: {},
+  modalButtonDisabled: {
+    opacity: 0.5,
+  },
   modalButtonText: {
     fontSize: 16,
     fontWeight: "700",

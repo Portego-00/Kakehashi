@@ -157,8 +157,9 @@ export function VocabularyContextSection() {
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
-              Show Jiten frequency ranks in lessons, reviews, and vocabulary
-              details
+              Show Jiten frequency ranks and enable lesson and Custom Review
+              filters. Matching vocabulary terms may be sent individually to
+              Jiten; frequency results are cached locally on this device.
             </Text>
           </View>
           <Switch

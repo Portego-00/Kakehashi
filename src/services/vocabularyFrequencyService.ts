@@ -39,6 +39,20 @@ export interface VocabularyFrequencyResult {
   isStale: boolean;
 }
 
+export type VocabularyFrequencyCacheLookup =
+  | {
+      status: "found";
+      result: VocabularyFrequencyResult;
+    }
+  | {
+      status: "not_found";
+      fetchedAt: number;
+      isStale: boolean;
+    }
+  | {
+      status: "missing";
+    };
+
 interface CachedFrequencyRow {
   cache_key: string;
   status: "found" | "not_found";
@@ -59,30 +73,40 @@ interface JitenSearchResponse {
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (!dbPromise) {
-    dbPromise = (async () => {
-      const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
-      await db.execAsync(`
-        PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS vocabulary_frequency_cache (
-          cache_key TEXT PRIMARY KEY NOT NULL,
-          status TEXT NOT NULL CHECK(status IN ('found', 'not_found')),
-          frequency_rank INTEGER,
-          word_id INTEGER,
-          reading_index INTEGER,
-          matched_text TEXT,
-          matched_reading TEXT,
-          source_url TEXT NOT NULL,
-          fetched_at INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_vocabulary_frequency_fetched_at
-          ON vocabulary_frequency_cache (fetched_at);
-      `);
-      return db;
-    })();
+  if (dbPromise) {
+    return dbPromise;
   }
 
-  return dbPromise;
+  const openingPromise = (async () => {
+    const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
+    await db.execAsync(`
+      PRAGMA journal_mode = WAL;
+      CREATE TABLE IF NOT EXISTS vocabulary_frequency_cache (
+        cache_key TEXT PRIMARY KEY NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('found', 'not_found')),
+        frequency_rank INTEGER,
+        word_id INTEGER,
+        reading_index INTEGER,
+        matched_text TEXT,
+        matched_reading TEXT,
+        source_url TEXT NOT NULL,
+        fetched_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_vocabulary_frequency_fetched_at
+        ON vocabulary_frequency_cache (fetched_at);
+    `);
+    return db;
+  })();
+  dbPromise = openingPromise;
+
+  try {
+    return await openingPromise;
+  } catch (error) {
+    if (dbPromise === openingPromise) {
+      dbPromise = null;
+    }
+    throw error;
+  }
 }
 
 function getSubjectReadings(subject: VocabularyFrequencySubject): string[] {
@@ -142,6 +166,40 @@ async function readCachedFrequency(cacheKey: string): Promise<CachedFrequencyRow
       LIMIT 1`,
     cacheKey,
   );
+}
+
+export async function getCachedVocabularyFrequency(
+  subject: VocabularyFrequencySubject,
+): Promise<VocabularyFrequencyCacheLookup> {
+  if (subject.object !== "vocabulary" && subject.object !== "kana_vocabulary") {
+    return { status: "missing" };
+  }
+
+  const expression = subject.data.characters?.trim();
+  const cacheKey = buildCacheKey(subject);
+  if (!expression || !cacheKey) {
+    return { status: "missing" };
+  }
+
+  const cachedRow = await readCachedFrequency(cacheKey);
+  if (!cachedRow) {
+    return { status: "missing" };
+  }
+
+  const cacheTtl =
+    cachedRow.status === "found" ? FOUND_CACHE_TTL_MS : NOT_FOUND_CACHE_TTL_MS;
+  const isStale = Date.now() - cachedRow.fetched_at > cacheTtl;
+
+  if (cachedRow.status === "not_found") {
+    return {
+      status: "not_found",
+      fetchedAt: cachedRow.fetched_at,
+      isStale,
+    };
+  }
+
+  const result = rowToResult(cachedRow, isStale);
+  return result ? { status: "found", result } : { status: "missing" };
 }
 
 async function writeCachedFrequency(
