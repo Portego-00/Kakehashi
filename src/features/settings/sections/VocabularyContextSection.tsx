@@ -159,7 +159,8 @@ export function VocabularyContextSection() {
             >
               Show Jiten frequency ranks and enable lesson and Custom Review
               filters. Matching vocabulary terms may be sent individually to
-              Jiten; frequency results are cached locally on this device.
+              Jiten during the initial lookup, then cached locally to reduce
+              future checks.
             </Text>
           </View>
           <Switch

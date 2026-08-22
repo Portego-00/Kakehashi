@@ -14,16 +14,45 @@ const JITEN_SEARCH_PAGE_URL = "https://jiten.moe/search";
 const FOUND_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const NOT_FOUND_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 8_000;
+const DEFAULT_RATE_LIMIT_RETRY_MS = 60_000;
+const JITEN_MAX_IN_FLIGHT_REQUESTS = 2;
+const JITEN_REQUEST_START_INTERVAL_MS = 250;
+
+export class VocabularyFrequencyRequestError extends Error {
+  readonly kind: "http" | "invalid_response" | "rate_limit" | "timeout";
+  readonly status: number | null;
+  readonly retryAfterMs: number | null;
+
+  constructor(
+    kind: "http" | "invalid_response" | "rate_limit" | "timeout",
+    status: number | null,
+    retryAfterMs: number | null,
+  ) {
+    super(
+      kind === "invalid_response"
+        ? "Jiten frequency request returned an unexpected response"
+        : status === null
+          ? "Jiten frequency request timed out"
+          : `Jiten frequency request failed with HTTP ${status}`,
+    );
+    this.name = "VocabularyFrequencyRequestError";
+    this.kind = kind;
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
 
 export interface VocabularyFrequencySubject {
   id: number;
   object: string;
   data: {
     characters?: string | null;
-    readings?: {
-      reading?: string | null;
-      accepted_answer?: boolean;
-    }[] | null;
+    readings?:
+      | {
+          reading?: string | null;
+          accepted_answer?: boolean;
+        }[]
+      | null;
   };
 }
 
@@ -71,6 +100,19 @@ interface JitenSearchResponse {
 }
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let jitenRequestsBlockedUntil = 0;
+let jitenRequestsInFlight = 0;
+let lastJitenRequestStartedAt = 0;
+let jitenQueueTimer: ReturnType<typeof setTimeout> | null = null;
+
+interface QueuedJitenRequest {
+  signal?: AbortSignal;
+  resolve: (release: () => void) => void;
+  reject: (error: Error) => void;
+  handleAbort: () => void;
+}
+
+const queuedJitenRequests: QueuedJitenRequest[] = [];
 
 async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbPromise) {
@@ -132,7 +174,10 @@ function buildCacheKey(subject: VocabularyFrequencySubject): string | null {
   ].join("|");
 }
 
-function rowToResult(row: CachedFrequencyRow, isStale: boolean): VocabularyFrequencyResult | null {
+function rowToResult(
+  row: CachedFrequencyRow,
+  isStale: boolean,
+): VocabularyFrequencyResult | null {
   if (
     row.status !== "found" ||
     !Number.isFinite(row.frequency_rank) ||
@@ -156,7 +201,9 @@ function rowToResult(row: CachedFrequencyRow, isStale: boolean): VocabularyFrequ
   };
 }
 
-async function readCachedFrequency(cacheKey: string): Promise<CachedFrequencyRow | null> {
+async function readCachedFrequency(
+  cacheKey: string,
+): Promise<CachedFrequencyRow | null> {
   const db = await getDatabase();
   return db.getFirstAsync<CachedFrequencyRow>(
     `SELECT cache_key, status, frequency_rank, word_id, reading_index,
@@ -242,17 +289,148 @@ function createAbortError(): Error {
   return error;
 }
 
+export function getJitenRequestBlockDeadline(): number {
+  return jitenRequestsBlockedUntil > Date.now()
+    ? jitenRequestsBlockedUntil
+    : 0;
+}
+
+function drainJitenRequestQueue(): void {
+  if (jitenQueueTimer !== null) {
+    clearTimeout(jitenQueueTimer);
+    jitenQueueTimer = null;
+  }
+
+  while (queuedJitenRequests[0]?.signal?.aborted) {
+    const abortedRequest = queuedJitenRequests.shift();
+    if (!abortedRequest) break;
+    abortedRequest.signal?.removeEventListener(
+      "abort",
+      abortedRequest.handleAbort,
+    );
+    abortedRequest.reject(createAbortError());
+  }
+
+  if (
+    queuedJitenRequests.length === 0 ||
+    jitenRequestsInFlight >= JITEN_MAX_IN_FLIGHT_REQUESTS
+  ) {
+    return;
+  }
+
+  const now = Date.now();
+  const nextRequestStartAt = Math.max(
+    jitenRequestsBlockedUntil,
+    lastJitenRequestStartedAt + JITEN_REQUEST_START_INTERVAL_MS,
+  );
+  const waitMs = nextRequestStartAt - now;
+  if (waitMs > 0) {
+    jitenQueueTimer = setTimeout(() => {
+      jitenQueueTimer = null;
+      drainJitenRequestQueue();
+    }, waitMs);
+    return;
+  }
+
+  const queuedRequest = queuedJitenRequests.shift();
+  if (!queuedRequest) return;
+
+  queuedRequest.signal?.removeEventListener(
+    "abort",
+    queuedRequest.handleAbort,
+  );
+  jitenRequestsInFlight += 1;
+  lastJitenRequestStartedAt = now;
+
+  let didRelease = false;
+  queuedRequest.resolve(() => {
+    if (didRelease) return;
+    didRelease = true;
+    jitenRequestsInFlight = Math.max(0, jitenRequestsInFlight - 1);
+    drainJitenRequestQueue();
+  });
+
+  drainJitenRequestQueue();
+}
+
+function acquireJitenRequestSlot(signal?: AbortSignal): Promise<() => void> {
+  if (signal?.aborted) {
+    return Promise.reject(createAbortError());
+  }
+
+  return new Promise((resolve, reject) => {
+    let queuedRequest: QueuedJitenRequest;
+    const handleAbort = () => {
+      const requestIndex = queuedJitenRequests.indexOf(queuedRequest);
+      if (requestIndex < 0) return;
+
+      queuedJitenRequests.splice(requestIndex, 1);
+      signal?.removeEventListener("abort", handleAbort);
+      reject(createAbortError());
+      drainJitenRequestQueue();
+    };
+    queuedRequest = {
+      signal,
+      resolve,
+      reject,
+      handleAbort,
+    };
+
+    queuedJitenRequests.push(queuedRequest);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    drainJitenRequestQueue();
+  });
+}
+
+function blockJitenRequestsFor(retryAfterMs: number): void {
+  jitenRequestsBlockedUntil = Math.max(
+    jitenRequestsBlockedUntil,
+    Date.now() + Math.max(0, retryAfterMs),
+  );
+  drainJitenRequestQueue();
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1_000);
+  }
+
+  const retryAt = Date.parse(value);
+  if (!Number.isFinite(retryAt)) return null;
+
+  return Math.max(0, retryAt - Date.now());
+}
+
 async function fetchJitenFrequency(
   expression: string,
   readings: readonly string[],
   externalSignal?: AbortSignal,
 ) {
   if (externalSignal?.aborted) throw createAbortError();
+  const releaseRequestSlot = await acquireJitenRequestSlot(externalSignal);
+  if (externalSignal?.aborted) {
+    releaseRequestSlot();
+    throw createAbortError();
+  }
 
   const controller = new AbortController();
+  let didTimeout = false;
   const abortFromExternalSignal = () => controller.abort();
-  externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true });
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  externalSignal?.addEventListener("abort", abortFromExternalSignal, {
+    once: true,
+  });
+  const timeoutId = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
 
   try {
     const query = new URLSearchParams({
@@ -260,28 +438,77 @@ async function fetchJitenFrequency(
       limit: "50",
       offset: "0",
     });
-    const response = await fetch(`${JITEN_SEARCH_ENDPOINT}?${query.toString()}`, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      `${JITEN_SEARCH_ENDPOINT}?${query.toString()}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`Jiten frequency request failed with HTTP ${response.status}`);
+      const parsedRetryAfter = parseRetryAfterMs(
+        response.headers.get("Retry-After"),
+      );
+      const retryAfterMs =
+        response.status === 429
+          ? (parsedRetryAfter ?? DEFAULT_RATE_LIMIT_RETRY_MS)
+          : parsedRetryAfter;
+      if (retryAfterMs !== null) {
+        blockJitenRequestsFor(retryAfterMs);
+      }
+      throw new VocabularyFrequencyRequestError(
+        response.status === 429 ? "rate_limit" : "http",
+        response.status,
+        retryAfterMs,
+      );
     }
 
-    const data = (await response.json()) as JitenSearchResponse;
+    const rawData = (await response.json()) as unknown;
+    const isResponseObject =
+      typeof rawData === "object" && rawData !== null;
+    const hasResults =
+      isResponseObject &&
+      Object.prototype.hasOwnProperty.call(rawData, "results");
+    const hasDictionaryResults =
+      isResponseObject &&
+      Object.prototype.hasOwnProperty.call(rawData, "dictionaryResults");
+    const data = rawData as JitenSearchResponse;
+    if (
+      (!hasResults && !hasDictionaryResults) ||
+      (hasResults && data.results !== null && !Array.isArray(data.results)) ||
+      (hasDictionaryResults &&
+        data.dictionaryResults !== null &&
+        !Array.isArray(data.dictionaryResults))
+    ) {
+      throw new VocabularyFrequencyRequestError(
+        "invalid_response",
+        response.status,
+        null,
+      );
+    }
     const entries = [
       ...(Array.isArray(data.results) ? data.results : []),
       ...(Array.isArray(data.dictionaryResults) ? data.dictionaryResults : []),
     ];
     return selectBestJitenFrequencyMatch(expression, readings, entries);
   } catch (error) {
+    if (externalSignal?.aborted) throw createAbortError();
+    if (didTimeout) {
+      blockJitenRequestsFor(DEFAULT_RATE_LIMIT_RETRY_MS);
+      throw new VocabularyFrequencyRequestError(
+        "timeout",
+        null,
+        DEFAULT_RATE_LIMIT_RETRY_MS,
+      );
+    }
     if (controller.signal.aborted) throw createAbortError();
     throw error;
   } finally {
     clearTimeout(timeoutId);
     externalSignal?.removeEventListener("abort", abortFromExternalSignal);
+    releaseRequestSlot();
   }
 }
 

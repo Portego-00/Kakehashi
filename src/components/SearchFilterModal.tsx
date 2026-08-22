@@ -578,9 +578,9 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                       { color: theme.textSecondary },
                     ]}
                   >
-                    Frequency filtering checks matching Japanese words
-                    individually with Jiten and caches the results on this
-                    device.
+                    The initial frequency check sends matching Japanese words
+                    individually to Jiten. Results are cached on this device, so
+                    the same words are normally ready next time.
                   </Text>
                   <TouchableOpacity
                     style={[

@@ -15,3 +15,23 @@ export function matchesMaximumFrequencyRank(
     frequencyRank <= maximumRank
   );
 }
+
+export function getReadySelectedSubjectIds(
+  selectedSubjectIds: Iterable<number>,
+  frequencyRanks: ReadonlyMap<number, number | null>,
+  maximumRank: number | null,
+): number[] {
+  const selectedIds = Array.from(selectedSubjectIds);
+  if (maximumRank === null) {
+    return selectedIds;
+  }
+
+  return selectedIds.filter(
+    (subjectId) =>
+      frequencyRanks.has(subjectId) &&
+      matchesMaximumFrequencyRank(
+        frequencyRanks.get(subjectId),
+        maximumRank,
+      ),
+  );
+}

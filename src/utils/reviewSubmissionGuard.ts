@@ -3,12 +3,14 @@ export interface ReviewSubmissionGuard {
   // mutate the queue after the UI has already advanced.
   startedQuestionKeys: Set<string>;
   emittedAnswerKeys: Set<string>;
+  advancedQuestionKeys: Set<string>;
 }
 
 export function createReviewSubmissionGuard(): ReviewSubmissionGuard {
   return {
     startedQuestionKeys: new Set<string>(),
     emittedAnswerKeys: new Set<string>(),
+    advancedQuestionKeys: new Set<string>(),
   };
 }
 
@@ -16,7 +18,10 @@ export function tryStartQuestionSubmission(
   guard: ReviewSubmissionGuard,
   questionKey: string,
 ): boolean {
-  if (guard.startedQuestionKeys.has(questionKey)) {
+  if (
+    guard.startedQuestionKeys.has(questionKey) ||
+    guard.advancedQuestionKeys.has(questionKey)
+  ) {
     return false;
   }
 
@@ -39,10 +44,25 @@ export function tryRecordAnswerEmission(
   answerPart: "meaning" | "reading",
 ): boolean {
   const answerKey = `${questionKey}:${answerPart}`;
-  if (guard.emittedAnswerKeys.has(answerKey)) {
+  if (
+    guard.advancedQuestionKeys.has(questionKey) ||
+    guard.emittedAnswerKeys.has(answerKey)
+  ) {
     return false;
   }
 
   guard.emittedAnswerKeys.add(answerKey);
+  return true;
+}
+
+export function tryAdvanceQuestionOccurrence(
+  guard: ReviewSubmissionGuard,
+  questionKey: string,
+): boolean {
+  if (guard.advancedQuestionKeys.has(questionKey)) {
+    return false;
+  }
+
+  guard.advancedQuestionKeys.add(questionKey);
   return true;
 }

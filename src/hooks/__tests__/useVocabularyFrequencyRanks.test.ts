@@ -2,18 +2,25 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import {
   getCachedVocabularyFrequency,
+  getJitenRequestBlockDeadline,
   getVocabularyFrequency,
+  VocabularyFrequencyRequestError,
   type VocabularyFrequencyResult,
   type VocabularyFrequencySubject,
 } from "../../services/vocabularyFrequencyService";
 import { useVocabularyFrequencyRanks } from "../useVocabularyFrequencyRanks";
 
 jest.mock("../../services/vocabularyFrequencyService", () => ({
+  ...jest.requireActual("../../services/vocabularyFrequencyService"),
   getCachedVocabularyFrequency: jest.fn(),
+  getJitenRequestBlockDeadline: jest.fn(),
   getVocabularyFrequency: jest.fn(),
 }));
 
 const getCachedFrequencyMock = jest.mocked(getCachedVocabularyFrequency);
+const getRequestBlockDeadlineMock = jest.mocked(
+  getJitenRequestBlockDeadline,
+);
 const getFrequencyMock = jest.mocked(getVocabularyFrequency);
 
 function createSubject(id: number): VocabularyFrequencySubject {
@@ -44,7 +51,13 @@ function createResult(rank: number): VocabularyFrequencyResult {
 describe("useVocabularyFrequencyRanks", () => {
   beforeEach(() => {
     getCachedFrequencyMock.mockReset();
+    getRequestBlockDeadlineMock.mockReset();
+    getRequestBlockDeadlineMock.mockReturnValue(0);
     getFrequencyMock.mockReset();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("uses cached ranks first and automatically checks a small missing set", async () => {
@@ -78,6 +91,40 @@ describe("useVocabularyFrequencyRanks", () => {
       subjects[2],
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("publishes confirmed ranks while a larger lookup continues", async () => {
+    const subjects = Array.from({ length: 30 }, (_, index) =>
+      createSubject(index + 1),
+    );
+    getCachedFrequencyMock.mockResolvedValue({ status: "missing" });
+    getFrequencyMock.mockImplementation((subject, options) => {
+      if (subject.id <= 25) {
+        return Promise.resolve(createResult(subject.id * 100));
+      }
+
+      return new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          "abort",
+          () =>
+            reject(
+              Object.assign(new Error("cancelled"), { name: "AbortError" }),
+            ),
+          { once: true },
+        );
+      });
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useVocabularyFrequencyRanks({ subjects, enabled: true }),
+    );
+
+    await waitFor(() => expect(result.current.resolvedCount).toBe(25));
+    expect(result.current.canUseResults).toBe(true);
+    expect(result.current.dataReady).toBe(false);
+    expect(result.current.ranks.get(25)).toBe(2_500);
+
+    unmount();
   });
 
   it("requires approval before checking a large uncached set", async () => {
@@ -153,7 +200,10 @@ describe("useVocabularyFrequencyRanks", () => {
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(result.current.lookupError).toEqual({ phase: "network" }),
+      expect(result.current.lookupError).toEqual({
+        phase: "network",
+        reason: "request",
+      }),
     );
     expect(result.current.ranks.get(1)).toBe(1_000);
     expect(result.current.ranks.has(2)).toBe(false);
@@ -226,7 +276,10 @@ describe("useVocabularyFrequencyRanks", () => {
     );
 
     await waitFor(() =>
-      expect(result.current.lookupError).toEqual({ phase: "network" }),
+      expect(result.current.lookupError).toEqual({
+        phase: "network",
+        reason: "request",
+      }),
     );
     expect(getFrequencyMock).toHaveBeenCalledTimes(1);
 
@@ -242,6 +295,246 @@ describe("useVocabularyFrequencyRanks", () => {
     expect(result.current.ranks.get(1)).toBe(500);
     expect(getFrequencyMock).toHaveBeenCalledTimes(1);
     warnSpy.mockRestore();
+  });
+
+  it("makes completed ranks usable and automatically retries only the remainder after a rate limit", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(1_000);
+    const subjects = [createSubject(1), createSubject(2)];
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    let shouldRateLimit = true;
+    let sharedBlockDeadline = 0;
+    getRequestBlockDeadlineMock.mockImplementation(
+      () => sharedBlockDeadline,
+    );
+
+    getCachedFrequencyMock.mockResolvedValue({ status: "missing" });
+    getFrequencyMock.mockImplementation(async (subject) => {
+      if (subject.id === 1) {
+        return createResult(900);
+      }
+      if (shouldRateLimit) {
+        shouldRateLimit = false;
+        throw new VocabularyFrequencyRequestError(
+          "rate_limit",
+          429,
+          2_000,
+        );
+      }
+      return createResult(1_200);
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useVocabularyFrequencyRanks({ subjects, enabled: true }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.lookupError).toMatchObject({
+        phase: "network",
+        reason: "automatic_retry",
+        cause: "rate_limit",
+      }),
+    );
+    expect(result.current.ranks.get(1)).toBe(900);
+    expect(result.current.ranks.has(2)).toBe(false);
+    expect(result.current.canUseResults).toBe(true);
+    expect(result.current.dataReady).toBe(false);
+    const retryAt =
+      result.current.lookupError?.phase === "network" &&
+      result.current.lookupError.reason === "automatic_retry"
+        ? result.current.lookupError.retryAt
+        : Date.now();
+    const remainingDelay = retryAt - Date.now();
+    expect(remainingDelay).toBeGreaterThan(0);
+    expect(remainingDelay).toBeLessThanOrEqual(2_000);
+
+    sharedBlockDeadline = Date.now() + remainingDelay + 1_000;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(remainingDelay);
+    });
+    expect(getFrequencyMock).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(result.current.lookupError).toMatchObject({
+        phase: "network",
+        reason: "automatic_retry",
+        retryAt: sharedBlockDeadline,
+      }),
+    );
+
+    sharedBlockDeadline = 0;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() => expect(result.current.dataReady).toBe(true));
+    expect(result.current.ranks.get(2)).toBe(1_200);
+    expect(getFrequencyMock).toHaveBeenCalledTimes(3);
+    expect(
+      getFrequencyMock.mock.calls.filter(([subject]) => subject.id === 1),
+    ).toHaveLength(1);
+
+    unmount();
+    warnSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it("keeps a success that finishes after a sibling request triggers the pause", async () => {
+    const subjects = [createSubject(1), createSubject(2)];
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    let firstSignal: AbortSignal | undefined;
+    let resolveFirst: ((result: VocabularyFrequencyResult) => void) | null =
+      null;
+
+    getCachedFrequencyMock.mockResolvedValue({ status: "missing" });
+    getFrequencyMock.mockImplementation((subject, options) => {
+      if (subject.id === 1) {
+        firstSignal = options?.signal;
+        return new Promise((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.reject(
+        new VocabularyFrequencyRequestError("rate_limit", 429, 2_000),
+      );
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useVocabularyFrequencyRanks({ subjects, enabled: true }),
+    );
+
+    await waitFor(() => expect(firstSignal?.aborted).toBe(true));
+    await act(async () => {
+      resolveFirst?.(createResult(700));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(result.current.lookupError).toMatchObject({
+        phase: "network",
+        reason: "automatic_retry",
+      }),
+    );
+
+    expect(result.current.ranks.get(1)).toBe(700);
+    expect(result.current.canUseResults).toBe(true);
+    unmount();
+    warnSpy.mockRestore();
+  });
+
+  it("stops automatic retries after repeated attempts make no progress", async () => {
+    jest.useFakeTimers();
+    const subjects = [createSubject(1)];
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    getCachedFrequencyMock.mockResolvedValue({ status: "missing" });
+    getFrequencyMock.mockRejectedValue(
+      new VocabularyFrequencyRequestError("rate_limit", 429, 1_000),
+    );
+
+    const { result, unmount } = renderHook(() =>
+      useVocabularyFrequencyRanks({ subjects, enabled: true }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.lookupError).toMatchObject({
+        phase: "network",
+        reason: "automatic_retry",
+      }),
+    );
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() => expect(getFrequencyMock).toHaveBeenCalledTimes(2));
+    expect(result.current.lookupError).toMatchObject({
+      phase: "network",
+      reason: "automatic_retry",
+    });
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() =>
+      expect(result.current.lookupError).toMatchObject({
+        phase: "network",
+        reason: "request",
+        cause: "rate_limit",
+      }),
+    );
+    expect(getFrequencyMock).toHaveBeenCalledTimes(3);
+
+    const exhaustedRetryAt =
+      result.current.lookupError?.phase === "network" &&
+      result.current.lookupError.reason === "request"
+        ? result.current.lookupError.retryAt
+        : undefined;
+    expect(exhaustedRetryAt).toEqual(expect.any(Number));
+
+    act(() => result.current.retryLookup());
+    expect(getFrequencyMock).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(
+        Math.max(0, (exhaustedRetryAt ?? Date.now()) - Date.now()),
+      );
+    });
+    await waitFor(() =>
+      expect(result.current.lookupError).toEqual({
+        phase: "network",
+        reason: "request",
+        cause: "rate_limit",
+      }),
+    );
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5_000);
+    });
+    expect(getFrequencyMock).toHaveBeenCalledTimes(3);
+
+    unmount();
+    warnSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it("cancels a scheduled retry when the candidate words change", async () => {
+    jest.useFakeTimers();
+    const firstSubjects = [createSubject(1)];
+    const secondSubjects = [createSubject(2)];
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    getCachedFrequencyMock.mockImplementation(async (subject) =>
+      subject.id === 2
+        ? { status: "found", result: createResult(600) }
+        : { status: "missing" },
+    );
+    getFrequencyMock.mockRejectedValue(
+      new VocabularyFrequencyRequestError("rate_limit", 429, 2_000),
+    );
+
+    const { result, rerender, unmount } = renderHook(
+      ({ subjects }: { subjects: VocabularyFrequencySubject[] }) =>
+        useVocabularyFrequencyRanks({ subjects, enabled: true }),
+      { initialProps: { subjects: firstSubjects } },
+    );
+
+    await waitFor(() =>
+      expect(result.current.lookupError).toMatchObject({
+        phase: "network",
+        reason: "automatic_retry",
+      }),
+    );
+    expect(getFrequencyMock).toHaveBeenCalledTimes(1);
+
+    rerender({ subjects: secondSubjects });
+    await waitFor(() => expect(result.current.dataReady).toBe(true));
+    expect(result.current.ranks.get(2)).toBe(600);
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5_000);
+    });
+    expect(getFrequencyMock).toHaveBeenCalledTimes(1);
+
+    unmount();
+    warnSpy.mockRestore();
+    jest.useRealTimers();
   });
 
   it("cancels an in-flight lookup when the candidate set changes", async () => {

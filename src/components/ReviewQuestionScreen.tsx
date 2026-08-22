@@ -94,6 +94,7 @@ import {
 import {
   createReviewSubmissionGuard,
   releaseQuestionSubmissionForRetry,
+  tryAdvanceQuestionOccurrence,
   tryRecordAnswerEmission,
   tryStartQuestionSubmission,
 } from "../utils/reviewSubmissionGuard";
@@ -1219,6 +1220,7 @@ export default function ReviewQuestionScreen({
   >(studyMaterials);
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const [inputResetNonce, setInputResetNonce] = useState(0);
+  const [questionOccurrenceId, setQuestionOccurrenceId] = useState(0);
   const [showContextHint, setShowContextHint] = useState(false);
   const [showContextHintTranslations, setShowContextHintTranslations] =
     useState(false);
@@ -1534,7 +1536,20 @@ export default function ReviewQuestionScreen({
     effectiveAnkiGroupQuestions && subject.object !== "radical"
       ? "Meaning & Reading"
       : questionTypeDisplayLabel;
-  const currentQuestionKey = `${item.id}:${questionType}:${currentItem}`;
+  const currentQuestionKey = `${item.id}:${questionType}:${currentItem}:${questionOccurrenceId}`;
+  const finishQuestionOccurrence = useCallback(() => {
+    if (
+      !tryAdvanceQuestionOccurrence(
+        reviewSubmissionGuardRef.current,
+        currentQuestionKey,
+      )
+    ) {
+      return false;
+    }
+
+    setQuestionOccurrenceId((occurrenceId) => occurrenceId + 1);
+    return true;
+  }, [currentQuestionKey]);
   const isCurrentQuestionAnkiRevealed =
     ankiAnswerRevealed && ankiRevealQuestionKey === currentQuestionKey;
   const emitAnswer = useCallback(
@@ -1554,6 +1569,17 @@ export default function ReviewQuestionScreen({
         return;
       }
 
+      // The same item/type can be re-presented without visible progress changing
+      // (for example, after getting the final lesson question wrong). Give that
+      // next presentation its own guard key while retaining the completed key so
+      // delayed callbacks from this occurrence remain blocked.
+      if (
+        (!isGroupedAnswer || answeredQuestionType === "reading") &&
+        !finishQuestionOccurrence()
+      ) {
+        return;
+      }
+
       onAnswer(
         item,
         answeredQuestionType,
@@ -1562,7 +1588,7 @@ export default function ReviewQuestionScreen({
         isGroupedAnswer,
       );
     },
-    [currentQuestionKey, item, onAnswer],
+    [currentQuestionKey, finishQuestionOccurrence, item, onAnswer],
   );
   const reviewSubjectLevel =
     typeof subject.data.level === "number" ? subject.data.level : null;
@@ -2120,7 +2146,7 @@ export default function ReviewQuestionScreen({
   }, []);
 
   useEffect(() => {
-    // Reset state when item or question type changes
+    // Reset state when the question presentation changes.
     if (!mountedRef.current) return;
     isVoiceSubmittingRef.current = false;
     isVoiceRetryPendingRef.current = false;
@@ -2201,9 +2227,7 @@ export default function ReviewQuestionScreen({
       }
     }, 0);
   }, [
-    item.id,
-    questionType,
-    currentItem,
+    currentQuestionKey,
     isVoiceReviewEnabled,
     effectiveAnkiCardMode,
     shakeAnimation,
@@ -2730,6 +2754,9 @@ export default function ReviewQuestionScreen({
       // When skipping is enabled, an empty submit asks this item again later
       // instead of validating an answer.
       if (!isVoiceSubmission && allowSkippingReviews && onSkip) {
+        if (!finishQuestionOccurrence()) {
+          return;
+        }
         showSkipCue();
         onSkip(item, questionType);
       } else {
@@ -3255,6 +3282,10 @@ export default function ReviewQuestionScreen({
 
   // Handler for skipping from paused-wrong state (re-queue when supported).
   const handlePausedSkip = () => {
+    if ((onSkip || onAskAgain) && !finishQuestionOccurrence()) {
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     releasePausedShortcutFocus();
 
@@ -4402,6 +4433,9 @@ export default function ReviewQuestionScreen({
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     submitAnkiAnswer(() => {
+      if (!finishQuestionOccurrence()) {
+        return;
+      }
       showSkipCue();
       onSkip(item, questionType);
     });
@@ -6544,9 +6578,7 @@ export default function ReviewQuestionScreen({
                     onSubmitEditing={handleInputSubmitEditing}
                     enableKanaConversion={questionType === "reading"}
                     useJapaneseKeyboard={autoSwitchKeyboard && questionType === "reading"}
-                    resetSignal={`${
-                      item.subject.id
-                    }-${questionType}-${retryCount}-${inputResetNonce}`}
+                    resetSignal={`${currentQuestionKey}-${retryCount}-${inputResetNonce}`}
                     submitBehavior="submit"
                   />
 

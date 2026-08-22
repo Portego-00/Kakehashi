@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useIsFocused } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   FlatList,
@@ -64,7 +66,10 @@ import {
   getJLPTLevelForSubject,
   subjectMatchesJLPTLevels,
 } from "../../src/utils/jlptClassification";
-import { matchesMaximumFrequencyRank } from "../../src/utils/customReviewFrequencyFilter";
+import {
+  getReadySelectedSubjectIds,
+  matchesMaximumFrequencyRank,
+} from "../../src/utils/customReviewFrequencyFilter";
 
 function setsAreEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>) {
   return (
@@ -93,6 +98,7 @@ export default function CustomReviewSelectionScreen() {
     (state) => state.setShowVocabularyFrequency,
   );
   const { theme } = useTheme();
+  const isScreenFocused = useIsFocused();
   const params = useLocalSearchParams<{ listId?: string | string[] }>();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<number>>(
@@ -127,6 +133,7 @@ export default function CustomReviewSelectionScreen() {
   const hasAppliedUserLevelDefaultRef = useRef(false);
   const hasAppliedInitialListRef = useRef(false);
   const hasCheckedForResumableSessionRef = useRef(false);
+  const frequencyAnnouncementKeyRef = useRef<string | null>(null);
   const initialListId = Array.isArray(params.listId)
     ? params.listId[0]
     : params.listId;
@@ -554,6 +561,8 @@ export default function CustomReviewSelectionScreen() {
     isLoading: isLoadingFrequencyRanks,
     progress: frequencyLoadProgress,
     dataReady: frequencyDataReady,
+    canUseResults: canUseFrequencyResults,
+    resolvedCount: resolvedFrequencyCount,
     needsApproval: needsFrequencyLookupApproval,
     unresolvedCount: unresolvedFrequencyCount,
     lookupError: frequencyLookupError,
@@ -568,7 +577,7 @@ export default function CustomReviewSelectionScreen() {
   // Apply the rank predicate synchronously so bulk actions can never see IDs
   // from a previously committed frequency threshold.
   const { filteredSubjects, matchingSubjectIds } = useMemo(() => {
-    if (!allSubjects || !frequencyDataReady) {
+    if (!allSubjects || !canUseFrequencyResults) {
       return { filteredSubjects: [], matchingSubjectIds: [] };
     }
 
@@ -581,9 +590,12 @@ export default function CustomReviewSelectionScreen() {
             return false;
           }
 
-          return matchesMaximumFrequencyRank(
-            frequencyRanks.get(subject.id),
-            filters.maxFrequencyRank,
+          return (
+            frequencyRanks.has(subject.id) &&
+            matchesMaximumFrequencyRank(
+              frequencyRanks.get(subject.id),
+              filters.maxFrequencyRank,
+            )
           );
         })
       : subjectsMatchingSearchAndNonFrequencyFacets;
@@ -596,10 +608,23 @@ export default function CustomReviewSelectionScreen() {
   }, [
     allSubjects,
     filters.maxFrequencyRank,
-    frequencyDataReady,
+    canUseFrequencyResults,
     frequencyRanks,
     hasActiveFrequencyFilter,
     subjectsMatchingSearchAndNonFrequencyFacets,
+  ]);
+
+  const readySelectedSubjectIds = useMemo(() => {
+    return getReadySelectedSubjectIds(
+      selectedSubjectIds.values(),
+      frequencyRanks,
+      hasActiveFrequencyFilter ? filters.maxFrequencyRank : null,
+    );
+  }, [
+    filters.maxFrequencyRank,
+    frequencyRanks,
+    hasActiveFrequencyFilter,
+    selectedSubjectIds,
   ]);
 
   const toggleSubjectSelection = (subject: Subject) => {
@@ -639,23 +664,21 @@ export default function CustomReviewSelectionScreen() {
   const startCustomReview = async () => {
     if (
       !canApplyCurrentSrsFilter ||
-      !frequencyDataReady ||
-      selectedSubjectIds.size === 0
+      readySelectedSubjectIds.length === 0
     ) {
       return;
     }
     await clearExtraStudySessionState(
       EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW,
     );
-    const ids = Array.from(selectedSubjectIds.values());
     router.push({
       pathname: "/custom-review",
-      params: { subjectIds: ids.join(",") },
+      params: { subjectIds: readySelectedSubjectIds.join(",") },
     });
   };
 
   const startKanjiMatch = async () => {
-    if (!canApplyCurrentSrsFilter || !frequencyDataReady) {
+    if (!canApplyCurrentSrsFilter) {
       return;
     }
 
@@ -717,8 +740,7 @@ export default function CustomReviewSelectionScreen() {
   const startCustomLessons = () => {
     if (
       !canApplyCurrentSrsFilter ||
-      !frequencyDataReady ||
-      selectedSubjectIds.size === 0
+      readySelectedSubjectIds.length === 0
     ) {
       return;
     }
@@ -726,7 +748,7 @@ export default function CustomReviewSelectionScreen() {
     router.push({
       pathname: "/custom-lesson",
       params: {
-        subjectIds: Array.from(selectedSubjectIds.values()).join(","),
+        subjectIds: readySelectedSubjectIds.join(","),
       },
     });
   };
@@ -795,13 +817,12 @@ export default function CustomReviewSelectionScreen() {
     matchingSubjectIds.every((id) => selectedSubjectIds.has(id));
   const canToggleMatchingSubjects =
     canApplyCurrentSrsFilter &&
-    frequencyDataReady &&
+    canUseFrequencyResults &&
     !isScanningFrequencyCache &&
-    !isLoadingFrequencyRanks &&
     matchingSubjectIds.length > 0;
 
   const toggleSelectAllMatching = () => {
-    if (!frequencyDataReady || matchingSubjectIds.length === 0) return;
+    if (!canUseFrequencyResults || matchingSubjectIds.length === 0) return;
 
     setSelectedSubjectIds((prev) => {
       const next = new Set(prev);
@@ -1112,6 +1133,92 @@ export default function CustomReviewSelectionScreen() {
     );
   };
 
+  const hasPartialFrequencyResults =
+    hasActiveFrequencyFilter &&
+    canUseFrequencyResults &&
+    !frequencyDataReady;
+  const hasScheduledFrequencyRetry =
+    frequencyLookupError?.phase === "network" &&
+    frequencyLookupError.reason === "automatic_retry";
+  const manualFrequencyRetryAt =
+    frequencyLookupError?.phase === "network" &&
+    frequencyLookupError.reason === "request"
+      ? (frequencyLookupError.retryAt ?? null)
+      : null;
+  const isManualFrequencyRetryCoolingDown =
+    manualFrequencyRetryAt !== null && Date.now() < manualFrequencyRetryAt;
+  const oneTimeFrequencyMessage =
+    "This is usually a one-time setup for these words. Results are cached on this device, so they are normally ready next time.";
+  const scheduledRetryReason =
+    frequencyLookupError?.phase === "network" &&
+    frequencyLookupError.reason === "automatic_retry" &&
+    frequencyLookupError.cause === "rate_limit"
+      ? "Jiten's request limit is resetting."
+      : "Jiten took too long to respond.";
+  const exhaustedFrequencyRetryMessage =
+    frequencyLookupError?.phase === "network" &&
+    frequencyLookupError.reason === "request" &&
+    frequencyLookupError.cause === "rate_limit"
+      ? isManualFrequencyRetryCoolingDown
+        ? "Jiten's request limit is still active. Retry becomes available when the pause ends."
+        : "Jiten paused the previous checks. Retry the remaining words."
+      : frequencyLookupError?.phase === "network" &&
+          frequencyLookupError.reason === "request" &&
+          frequencyLookupError.cause === "timeout"
+        ? isManualFrequencyRetryCoolingDown
+          ? "Jiten did not respond after several automatic attempts. Retry becomes available when the pause ends."
+          : "Automatic retries paused because Jiten did not respond. Retry the remaining words."
+        : null;
+  const readyFrequencyActionMessage =
+    matchingSubjectIds.length > 0
+      ? "You can study the ready words now."
+      : "No checked words match your filter yet.";
+  const partialFrequencyMessage = needsFrequencyLookupApproval
+    ? `${unresolvedFrequencyCount.toLocaleString()} words still need to be checked. ${oneTimeFrequencyMessage}`
+    : hasScheduledFrequencyRetry
+      ? `${scheduledRetryReason} We'll check the remaining ${unresolvedFrequencyCount.toLocaleString()} automatically when the pause ends. ${readyFrequencyActionMessage} ${oneTimeFrequencyMessage}`
+      : frequencyLookupError?.phase === "network"
+        ? `${unresolvedFrequencyCount.toLocaleString()} words remain unchecked. ${exhaustedFrequencyRetryMessage ?? "Check your connection, then retry the rest."} ${readyFrequencyActionMessage} ${oneTimeFrequencyMessage}`
+        : `Checking ${unresolvedFrequencyCount.toLocaleString()} remaining words. ${readyFrequencyActionMessage} ${oneTimeFrequencyMessage}`;
+
+  const frequencyAnnouncementKey =
+    !isScreenFocused || !shouldResolveFrequencyFilter
+      ? null
+      : frequencyLookupError?.phase === "cache"
+        ? "cache_error"
+        : hasScheduledFrequencyRetry
+          ? `automatic_retry_${frequencyLookupError.cause}`
+          : frequencyLookupError?.phase === "network"
+            ? `network_error_${frequencyLookupError.cause ?? "request"}_${isManualFrequencyRetryCoolingDown ? "cooldown" : "ready"}`
+            : needsFrequencyLookupApproval
+              ? "approval"
+              : frequencyDataReady
+                ? "complete"
+                : null;
+  const frequencyAnnouncementMessage =
+    frequencyLookupError?.phase === "cache"
+      ? "Saved frequency check interrupted. Retry the local cache check."
+      : hasScheduledFrequencyRetry
+        ? `Frequency check paused. ${matchingSubjectIds.length.toLocaleString()} matching words are ready. The remaining ${unresolvedFrequencyCount.toLocaleString()} words will resume automatically when the pause ends.`
+        : frequencyLookupError?.phase === "network"
+          ? `Frequency check interrupted. ${matchingSubjectIds.length.toLocaleString()} matching words are ready. ${isManualFrequencyRetryCoolingDown ? "Retry becomes available when the pause ends." : "Retry the remaining words when ready."}`
+          : needsFrequencyLookupApproval
+            ? `${matchingSubjectIds.length.toLocaleString()} matching words are ready. ${unresolvedFrequencyCount.toLocaleString()} remaining words need approval before they are checked with Jiten.`
+            : `Frequency check complete. ${matchingSubjectIds.length.toLocaleString()} matching words are ready.`;
+
+  useEffect(() => {
+    if (!frequencyAnnouncementKey) {
+      frequencyAnnouncementKeyRef.current = null;
+      return;
+    }
+    if (frequencyAnnouncementKeyRef.current === frequencyAnnouncementKey) {
+      return;
+    }
+
+    frequencyAnnouncementKeyRef.current = frequencyAnnouncementKey;
+    AccessibilityInfo.announceForAccessibility(frequencyAnnouncementMessage);
+  }, [frequencyAnnouncementKey, frequencyAnnouncementMessage]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {/* Header */}
@@ -1141,12 +1248,12 @@ export default function CustomReviewSelectionScreen() {
         </View>
         <SubjectListStudyMenu
           selectedItemCount={
-            canApplyCurrentSrsFilter && frequencyDataReady
-              ? selectedSubjectIds.size
+            canApplyCurrentSrsFilter
+              ? readySelectedSubjectIds.length
               : 0
           }
           selectedKanjiCount={
-            canApplyCurrentSrsFilter && frequencyDataReady
+            canApplyCurrentSrsFilter
               ? selectedKanjiIds.length
               : 0
           }
@@ -1261,6 +1368,13 @@ export default function CustomReviewSelectionScreen() {
           onPress={toggleSelectAllMatching}
           disabled={!canToggleMatchingSubjects}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canToggleMatchingSubjects }}
+          accessibilityLabel={
+            allMatchingSelected
+              ? `Deselect ${matchingSubjectIds.length} ready subjects`
+              : `Select ${matchingSubjectIds.length} ready subjects`
+          }
         >
           <Ionicons
             name={allMatchingSelected ? "remove-circle-outline" : "checkmark-done-outline"}
@@ -1269,12 +1383,16 @@ export default function CustomReviewSelectionScreen() {
           />
           <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
             {allMatchingSelected
-              ? hasActiveFilters
-                ? "Deselect Filtered"
-                : "Deselect All"
-              : hasActiveFilters
-                ? "Select Filtered"
-                : "Select All"}
+              ? hasActiveFrequencyFilter && !frequencyDataReady
+                ? "Deselect Ready"
+                : hasActiveFilters
+                  ? "Deselect Filtered"
+                  : "Deselect All"
+              : hasActiveFrequencyFilter && !frequencyDataReady
+                ? `Select ${matchingSubjectIds.length.toLocaleString()} Ready`
+                : hasActiveFilters
+                  ? "Select Filtered"
+                  : "Select All"}
           </Text>
         </TouchableOpacity>
 
@@ -1287,6 +1405,9 @@ export default function CustomReviewSelectionScreen() {
           onPress={clearSelection}
           disabled={selectedSubjectIds.size === 0}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: selectedSubjectIds.size === 0 }}
+          accessibilityLabel="Clear subject selection"
         >
           <Ionicons name="close-circle-outline" size={18} color={theme.textSecondary} />
           <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
@@ -1381,7 +1502,6 @@ export default function CustomReviewSelectionScreen() {
           />
           <Text
             style={[styles.frequencyLookupTitle, { color: theme.textColor }]}
-            accessibilityLiveRegion="polite"
           >
             Study progress unavailable
           </Text>
@@ -1431,7 +1551,6 @@ export default function CustomReviewSelectionScreen() {
             now: frequencyLoadProgress.completed,
             text: `${frequencyLoadProgress.completed} of ${frequencyLoadProgress.total}`,
           }}
-          accessibilityLiveRegion="polite"
         >
           <ActivityIndicator size="large" color={theme.primary} />
           <Text
@@ -1449,7 +1568,7 @@ export default function CustomReviewSelectionScreen() {
             {frequencyLoadProgress.total.toLocaleString()}
           </Text>
         </View>
-      ) : needsFrequencyLookupApproval ? (
+      ) : needsFrequencyLookupApproval && !canUseFrequencyResults ? (
         <View style={styles.frequencyLookupNotice}>
           <Ionicons
             name="cloud-outline"
@@ -1469,7 +1588,9 @@ export default function CustomReviewSelectionScreen() {
           >
             {unresolvedFrequencyCount.toLocaleString()} words are not saved on
             this device. Checking them sends each Japanese word to Jiten and may
-            take a while. Results are cached locally.
+            take a while. This is usually a one-time setup for these words.
+            Results are cached on this device, so they are normally ready next
+            time.
           </Text>
           <View style={styles.frequencyLookupActions}>
             <TouchableOpacity
@@ -1499,7 +1620,7 @@ export default function CustomReviewSelectionScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      ) : frequencyLookupError ? (
+      ) : frequencyLookupError && !canUseFrequencyResults ? (
         <View style={styles.frequencyLookupNotice}>
           <Ionicons
             name="warning-outline"
@@ -1512,7 +1633,9 @@ export default function CustomReviewSelectionScreen() {
           >
             {frequencyLookupError.phase === "cache"
               ? "Saved frequency check interrupted"
-              : "Frequency check interrupted"}
+              : hasScheduledFrequencyRetry
+                ? "Frequency check paused"
+                : "Frequency check interrupted"}
           </Text>
           <Text
             style={[
@@ -1522,20 +1645,34 @@ export default function CustomReviewSelectionScreen() {
           >
             {frequencyLookupError.phase === "cache"
               ? "The saved frequency cache could not be read. No new words were sent to Jiten. Retry the local check."
-              : "Some word frequencies could not be checked. Completed results were kept. Check your connection, then retry the remaining words."}
+              : hasScheduledFrequencyRetry
+                ? `${scheduledRetryReason} We'll retry the remaining ${unresolvedFrequencyCount.toLocaleString()} words automatically when the pause ends. Normally, completed results are cached and ready next time.`
+                : exhaustedFrequencyRetryMessage ??
+                  "The frequency check could not continue. Check your connection, then retry the remaining words."}
           </Text>
           <View style={styles.frequencyLookupActions}>
-            <TouchableOpacity
-              style={[
-                styles.frequencyLookupButton,
-                { backgroundColor: theme.primary },
-              ]}
-              onPress={retryFrequencyLookup}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
-              <Text style={styles.frequencyLookupPrimaryText}>Retry</Text>
-            </TouchableOpacity>
+            {!hasScheduledFrequencyRetry ? (
+              <TouchableOpacity
+                style={[
+                  styles.frequencyLookupButton,
+                  { backgroundColor: theme.primary },
+                  isManualFrequencyRetryCoolingDown && { opacity: 0.5 },
+                ]}
+                onPress={retryFrequencyLookup}
+                disabled={isManualFrequencyRetryCoolingDown}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: isManualFrequencyRetryCoolingDown,
+                }}
+              >
+                <Text style={styles.frequencyLookupPrimaryText}>
+                  {isManualFrequencyRetryCoolingDown
+                    ? "Retry after Pause"
+                    : "Retry"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               style={[
                 styles.frequencyLookupButton,
@@ -1550,8 +1687,7 @@ export default function CustomReviewSelectionScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      ) : hasActiveFrequencyFilter &&
-        (isLoadingFrequencyRanks || !frequencyDataReady) ? (
+      ) : hasActiveFrequencyFilter && !canUseFrequencyResults ? (
         <View
           style={styles.loadingContainer}
           accessible
@@ -1592,18 +1728,125 @@ export default function CustomReviewSelectionScreen() {
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListHeaderComponent={
+            hasPartialFrequencyResults ? (
+              <View
+                style={[
+                  styles.frequencyPartialCard,
+                  {
+                    backgroundColor: theme.cardBackground,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.frequencyPartialHeader}>
+                  {isLoadingFrequencyRanks ? (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  ) : (
+                    <Ionicons
+                      name={
+                        hasScheduledFrequencyRetry
+                          ? "time-outline"
+                          : frequencyLookupError
+                            ? "warning-outline"
+                            : "cloud-download-outline"
+                      }
+                      size={20}
+                      color={theme.primary}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.frequencyPartialTitle,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    {matchingSubjectIds.length.toLocaleString()} matching word
+                    {matchingSubjectIds.length === 1 ? "" : "s"} ready
+                  </Text>
+                </View>
+                <View
+                  accessible
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Word frequencies checked"
+                  accessibilityValue={{
+                    min: 0,
+                    max: Math.max(1, frequencyCandidates.length),
+                    now: resolvedFrequencyCount,
+                    text: `${resolvedFrequencyCount} of ${frequencyCandidates.length}`,
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.frequencyPartialProgress,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {resolvedFrequencyCount.toLocaleString()} of{" "}
+                    {frequencyCandidates.length.toLocaleString()} checked ·{" "}
+                    {unresolvedFrequencyCount.toLocaleString()} remaining
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.frequencyPartialMessage,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  {partialFrequencyMessage}
+                </Text>
+                {needsFrequencyLookupApproval ||
+                (frequencyLookupError?.phase === "network" &&
+                  frequencyLookupError.reason === "request") ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.frequencyPartialButton,
+                      { backgroundColor: theme.primary },
+                      isManualFrequencyRetryCoolingDown && { opacity: 0.5 },
+                    ]}
+                    onPress={
+                      needsFrequencyLookupApproval
+                        ? approveFrequencyLookup
+                        : retryFrequencyLookup
+                    }
+                    disabled={isManualFrequencyRetryCoolingDown}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: isManualFrequencyRetryCoolingDown,
+                    }}
+                    accessibilityLabel={
+                      needsFrequencyLookupApproval
+                        ? `Check ${unresolvedFrequencyCount} remaining word frequencies`
+                        : `Retry ${unresolvedFrequencyCount} remaining word frequencies`
+                    }
+                  >
+                    <Text style={styles.frequencyLookupPrimaryText}>
+                      {needsFrequencyLookupApproval
+                        ? `Check ${unresolvedFrequencyCount.toLocaleString()} Remaining`
+                        : isManualFrequencyRetryCoolingDown
+                          ? "Retry after Pause"
+                          : `Retry ${unresolvedFrequencyCount.toLocaleString()} Remaining`}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                {searchQuery ||
-                filters.minLevel > 1 ||
-                filters.maxLevel < 60 ||
-                filters.types.size < 4 ||
-                filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
-                filters.jlptLevels.size > 0 ||
-                filters.maxFrequencyRank !== null
-                  ? "No subjects found matching your search and filters"
-                  : "No subjects available"}
+                {hasPartialFrequencyResults
+                  ? `No checked words match yet; ${unresolvedFrequencyCount.toLocaleString()} remain unchecked.`
+                  : searchQuery ||
+                    filters.minLevel > 1 ||
+                    filters.maxLevel < 60 ||
+                    filters.types.size < 4 ||
+                    filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
+                    filters.jlptLevels.size > 0 ||
+                    filters.maxFrequencyRank !== null
+                    ? "No subjects found matching your search and filters"
+                    : "No subjects available"}
               </Text>
             </View>
           }
@@ -1923,6 +2166,40 @@ const styles = StyleSheet.create({
   frequencyLookupPrimaryText: {
     color: "white",
     fontWeight: "700",
+  },
+  frequencyPartialCard: {
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  frequencyPartialHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  frequencyPartialTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  frequencyPartialProgress: {
+    marginTop: 8,
+    fontSize: 12,
+    fontVariant: ["tabular-nums"],
+  },
+  frequencyPartialMessage: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  frequencyPartialButton: {
+    minHeight: 44,
+    marginTop: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
   list: {
     flex: 1,

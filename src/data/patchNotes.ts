@@ -57,7 +57,7 @@ export const getCurrentPatchNotesVersion = (): string => {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: "1.2.99",
-    date: "2026-08-18",
+    date: "2026-08-19",
     changes: [
       {
         type: "feature",
@@ -73,11 +73,17 @@ export const PATCH_NOTES: PatchNote[] = [
         type: "feature",
         title: "Custom Review Frequency Filters",
         description:
-          "Combine any Custom Review SRS stages with a maximum word-frequency rank you choose.",
+          "Combine any Custom Review SRS stages with a maximum word-frequency rank you choose. First-time checks are cached and resume automatically if Jiten asks the app to pause.",
         link: {
           route: "/custom-review-selection",
           label: "Open Custom Review",
         },
+      },
+      {
+        type: "fix",
+        title: "Lesson Answer Controls",
+        description:
+          "Fixed an issue where the answer button and Enter key could stop responding after an incorrect or skipped question, especially near the end of a lesson.",
       },
     ],
   },

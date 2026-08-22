@@ -2,17 +2,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getCachedVocabularyFrequency,
+  getJitenRequestBlockDeadline,
   getVocabularyFrequency,
+  VocabularyFrequencyRequestError,
   type VocabularyFrequencySubject,
 } from "../services/vocabularyFrequencyService";
 
 const CACHE_LOOKUP_CONCURRENCY = 12;
 const NETWORK_LOOKUP_CONCURRENCY = 2;
+const NETWORK_RESULT_FLUSH_SIZE = 25;
+const MAX_NO_PROGRESS_AUTOMATIC_RETRIES = 3;
 export const DEFAULT_AUTOMATIC_FREQUENCY_LOOKUP_LIMIT = 50;
 
-export interface VocabularyFrequencyLookupError {
-  phase: "cache" | "network";
-}
+export type VocabularyFrequencyLookupError =
+  | { phase: "cache" }
+  | {
+      phase: "network";
+      reason: "request";
+      cause?: "rate_limit" | "timeout";
+      retryAt?: number;
+    }
+  | {
+      phase: "network";
+      reason: "automatic_retry";
+      cause: "rate_limit" | "timeout";
+      retryAt: number;
+    };
 
 interface UseVocabularyFrequencyRanksOptions {
   subjects: readonly VocabularyFrequencySubject[];
@@ -44,6 +59,7 @@ export function useVocabularyFrequencyRanks({
     completed: 0,
     total: 0,
   });
+  const noProgressAutomaticRetryCountRef = useRef(0);
 
   const candidateKey = useMemo(
     () => subjects.map((subject) => subject.id).join(","),
@@ -57,6 +73,7 @@ export function useVocabularyFrequencyRanks({
 
   useEffect(() => {
     if (!enabled) {
+      noProgressAutomaticRetryCountRef.current = 0;
       setIsScanningCache(false);
       setCacheScanKey(null);
       setLookupError(null);
@@ -74,6 +91,7 @@ export function useVocabularyFrequencyRanks({
     );
     const cachedRanks = new Map<number, number | null>();
 
+    noProgressAutomaticRetryCountRef.current = 0;
     setIsScanningCache(true);
     setCacheScanKey(null);
     setLookupError(null);
@@ -168,6 +186,50 @@ export function useVocabularyFrequencyRanks({
     approvedLookupKey !== candidateKey;
 
   useEffect(() => {
+    if (lookupError?.phase !== "network") {
+      return;
+    }
+
+    const retryAt = lookupError.retryAt;
+    if (retryAt === undefined) {
+      return;
+    }
+
+    const timeoutId = setTimeout(
+      () => {
+        setLookupError((current) => {
+          if (
+            current?.phase !== "network" ||
+            current.retryAt !== retryAt
+          ) {
+            return current;
+          }
+
+          const sharedRetryAt = getJitenRequestBlockDeadline();
+          if (sharedRetryAt > Date.now()) {
+            return { ...current, retryAt: sharedRetryAt };
+          }
+
+          if (current.reason === "automatic_retry") {
+            return null;
+          }
+
+          return current.cause
+            ? {
+                phase: "network",
+                reason: "request",
+                cause: current.cause,
+              }
+            : { phase: "network", reason: "request" };
+        });
+      },
+      Math.max(0, retryAt - Date.now()),
+    );
+
+    return () => clearTimeout(timeoutId);
+  }, [lookupError]);
+
+  useEffect(() => {
     if (!enabled || !cacheReady || needsApproval || lookupError) {
       setIsLoading(false);
       return;
@@ -183,16 +245,20 @@ export function useVocabularyFrequencyRanks({
     }
 
     const controller = new AbortController();
+    const attemptSubjects = unresolvedSubjects.slice(
+      0,
+      NETWORK_RESULT_FLUSH_SIZE,
+    );
     const loadedRanks = new Map<number, number | null>();
     let isDisposed = false;
-    let didFail = false;
+    let failure: unknown = null;
     let nextSubjectIndex = 0;
     const initiallyResolvedCount =
       candidateSubjects.length - unresolvedSubjects.length;
     let completedLookups = initiallyResolvedCount;
     const progressUpdateInterval = Math.max(
       1,
-      Math.ceil(unresolvedSubjects.length / 20),
+      Math.ceil(attemptSubjects.length / 20),
     );
 
     setIsLoading(true);
@@ -205,16 +271,16 @@ export function useVocabularyFrequencyRanks({
       while (!controller.signal.aborted && !isDisposed) {
         const subjectIndex = nextSubjectIndex;
         nextSubjectIndex += 1;
-        if (subjectIndex >= unresolvedSubjects.length) {
+        if (subjectIndex >= attemptSubjects.length) {
           return;
         }
 
-        const subject = unresolvedSubjects[subjectIndex];
+        const subject = attemptSubjects[subjectIndex];
         try {
           const result = await getVocabularyFrequency(subject, {
             signal: controller.signal,
           });
-          if (controller.signal.aborted || isDisposed) {
+          if (isDisposed) {
             return;
           }
 
@@ -232,11 +298,11 @@ export function useVocabularyFrequencyRanks({
             });
           }
         } catch (error) {
-          if (isDisposed || (controller.signal.aborted && didFail)) {
+          if (isDisposed || (controller.signal.aborted && failure !== null)) {
             return;
           }
 
-          didFail = true;
+          failure = error;
           console.warn(
             `[Vocabulary Frequency] Failed to load a rank for subject ${subject.id}:`,
             error,
@@ -249,7 +315,7 @@ export function useVocabularyFrequencyRanks({
 
     const workerCount = Math.min(
       NETWORK_LOOKUP_CONCURRENCY,
-      unresolvedSubjects.length,
+      attemptSubjects.length,
     );
     void Promise.all(
       Array.from({ length: workerCount }, () => loadNext()),
@@ -264,8 +330,42 @@ export function useVocabularyFrequencyRanks({
         return next;
       });
       setIsLoading(false);
-      if (didFail) {
-        setLookupError({ phase: "network" });
+      if (failure instanceof VocabularyFrequencyRequestError) {
+        if (failure.kind === "rate_limit" || failure.kind === "timeout") {
+          noProgressAutomaticRetryCountRef.current =
+            loadedRanks.size > 0
+              ? 0
+              : noProgressAutomaticRetryCountRef.current + 1;
+          if (
+            noProgressAutomaticRetryCountRef.current >=
+            MAX_NO_PROGRESS_AUTOMATIC_RETRIES
+          ) {
+            const retryAt =
+              Date.now() +
+              Math.max(1_000, failure.retryAfterMs ?? 60_000);
+            setLookupError({
+              phase: "network",
+              reason: "request",
+              cause: failure.kind,
+              retryAt,
+            });
+            return;
+          }
+          setLookupError({
+            phase: "network",
+            reason: "automatic_retry",
+            cause: failure.kind,
+            retryAt:
+              Date.now() + Math.max(1_000, failure.retryAfterMs ?? 60_000),
+          });
+          return;
+        }
+      }
+      if (failure !== null) {
+        noProgressAutomaticRetryCountRef.current = 0;
+        setLookupError({ phase: "network", reason: "request" });
+      } else {
+        noProgressAutomaticRetryCountRef.current = 0;
       }
     });
 
@@ -293,15 +393,35 @@ export function useVocabularyFrequencyRanks({
       return;
     }
 
+    if (lookupError?.phase === "network") {
+      const retryAt = Math.max(
+        lookupError.retryAt ?? 0,
+        getJitenRequestBlockDeadline(),
+      );
+      if (Date.now() < retryAt) {
+        setLookupError({ ...lookupError, retryAt });
+        return;
+      }
+    }
+
+    noProgressAutomaticRetryCountRef.current = 0;
     setLookupError(null);
-  }, [lookupError?.phase]);
+  }, [lookupError]);
 
   const resetLookupState = useCallback(() => {
+    noProgressAutomaticRetryCountRef.current = 0;
     setApprovedLookupKey(null);
     setCacheScanKey(null);
     setLookupError(null);
     setCacheRetryToken((current) => current + 1);
   }, []);
+
+  const resolvedCount = cacheReady
+    ? candidateSubjects.length - unresolvedSubjects.length
+    : 0;
+  const canUseResults =
+    !enabled ||
+    (cacheReady && (resolvedCount > 0 || unresolvedSubjects.length === 0));
 
   return {
     ranks,
@@ -309,6 +429,8 @@ export function useVocabularyFrequencyRanks({
     isLoading,
     progress,
     dataReady: !enabled || (cacheReady && unresolvedSubjects.length === 0),
+    canUseResults,
+    resolvedCount,
     needsApproval,
     unresolvedCount: unresolvedSubjects.length,
     lookupError,
