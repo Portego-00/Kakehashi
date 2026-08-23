@@ -24,8 +24,11 @@ import {
 } from "../../src/utils/api";
 import { getAllSubjects, getSubjectById } from "../../src/utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import {
@@ -770,7 +773,15 @@ export default function TestSessionScreen() {
         console.warn("Assignments fetch failed; will attempt offline-only mode");
       }
 
-      if (assignmentsResponse && assignmentsResponse.data.length === 0) {
+      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
+        config.selectedListIds,
+      );
+
+      if (
+        assignmentsResponse &&
+        assignmentsResponse.data.length === 0 &&
+        config.selectedListIds.length === 0
+      ) {
         Alert.alert(
           "No Learned Items",
           "You haven't learned enough items yet to take a test. Complete some lessons first!",
@@ -783,8 +794,10 @@ export default function TestSessionScreen() {
         throw new Error("Assignments unavailable");
       }
 
-      const subjectIds = assignmentsResponse.data.map(
-        (assignment) => assignment.data.subject_id,
+      const subjectIds = getExtraStudyCandidateSubjectIds(
+        assignmentsResponse.data,
+        config.selectedListIds,
+        selectedListSubjectIds,
       );
 
       const allSubjects: ApiSubject[] = [];
@@ -800,20 +813,28 @@ export default function TestSessionScreen() {
         subjectIdToStage.set(assignment.data.subject_id, assignment.data.srs_stage);
       });
 
-      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
-        config.selectedListIds,
-      );
-
       const filteredSubjects = allSubjects.filter((subject) => {
-        const stage = subjectIdToStage.get(subject.id) ?? 0;
-        if (!isSrsStageAllowed(stage, config.srsGroups)) {
+        if (
+          !subjectMatchesExtraStudySrsStage(
+            subject.id,
+            subjectIdToStage,
+            config.selectedListIds,
+            selectedListSubjectIds,
+            (stage) => isSrsStageAllowed(stage, config.srsGroups),
+          )
+        ) {
           return false;
         }
 
-        const inLevelRange =
-          !config.useCustomLevelRange ||
-          ((subject as any).data?.level >= config.minLevel &&
-            (subject as any).data?.level <= config.maxLevel);
+        const inLevelRange = subjectMatchesExtraStudyLevel(
+          subject.data?.level,
+          {
+            useCustomLevelRange: config.useCustomLevelRange,
+            minLevel: config.minLevel,
+            maxLevel: config.maxLevel,
+            selectedListIds: config.selectedListIds,
+          },
+        );
 
         if (
           isHiraganaVocabMeaningMode &&
@@ -930,10 +951,15 @@ export default function TestSessionScreen() {
         }
 
         const filteredSubjects = (allSubjectsRaw as ApiSubject[]).filter((subject) => {
-          const inLevelRange =
-            !config.useCustomLevelRange ||
-            ((subject as any).data?.level >= config.minLevel &&
-              (subject as any).data?.level <= config.maxLevel);
+          const inLevelRange = subjectMatchesExtraStudyLevel(
+            subject.data?.level,
+            {
+              useCustomLevelRange: config.useCustomLevelRange,
+              minLevel: config.minLevel,
+              maxLevel: config.maxLevel,
+              selectedListIds: config.selectedListIds,
+            },
+          );
 
           if (
             isHiraganaVocabMeaningMode &&

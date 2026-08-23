@@ -1,17 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   FlatList,
   Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
@@ -20,36 +26,60 @@ import Carousel, {
   Pagination,
 } from "react-native-reanimated-carousel";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Directory, File, Paths } from "expo-file-system";
 import { GlassButton } from "../../../../src/components/GlassButton";
 import { NewsCard } from "../../../../src/components/news/NewsCard";
 import { useDashboardData } from "../../../../src/hooks/useDashboardData";
 import {
-  NhkEasyItem,
-  NhkEasyService,
-} from "../../../../src/services/NhkEasyService";
+  preserveCachedFullArticles,
+  readCachedNews,
+  saveNewsToCache,
+} from "../../../../src/services/NhkNewsCacheService";
+import {
+  type NewsItem,
+  NhkNewsService,
+} from "../../../../src/services/NhkNewsService";
 import { calculateKnownKanjiPercentage } from "../../../../src/utils/kanjiUtils";
+import {
+  type NewsSourcePreference,
+  useSettingsStore,
+} from "../../../../src/utils/store";
 import { useTheme } from "../../../../src/utils/theme";
 import { supportsNativeTabs } from "@/src/utils/nativeTabs";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
 
-const NEWS_CACHE_FILE = "news-cache.json";
-const MAX_CACHED_NEWS = 20;
 const CAROUSEL_TAP_COOLDOWN_MS = 120;
 type OtherNewsSortMode = "date" | "knownKanji";
 
+const SOURCE_OPTIONS: readonly {
+  label: string;
+  value: NewsSourcePreference;
+}[] = [
+  { label: "Easy", value: "easy" },
+  { label: "Standard", value: "regular" },
+  { label: "Both", value: "both" },
+];
+
 export default function NewsScreen() {
   useActivityTracking("news", { mode: "focus" });
-  const [news, setNews] = useState<NhkEasyItem[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isCarouselInteracting, setIsCarouselInteracting] = useState(false);
   const [otherNewsSortMode, setOtherNewsSortMode] =
     useState<OtherNewsSortMode>("date");
+  const newsSourcePreference = useSettingsStore(
+    (state) => state.newsSourcePreference,
+  );
+  const setNewsSourcePreference = useSettingsStore(
+    (state) => state.setNewsSourcePreference,
+  );
   const { theme } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const newsRequestIdRef = useRef(0);
   const carouselInteractionTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -88,10 +118,107 @@ export default function NewsScreen() {
     return passed;
   }, [dashboardData.assignments, dashboardData.subjects]);
 
+  const fetchFreshNews = useCallback(
+    async (requestId: number, fallbackItems: NewsItem[]) => {
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const items = await NhkNewsService.getNews(newsSourcePreference);
+        if (requestId !== newsRequestIdRef.current) return;
+
+        if (items.length === 0) {
+          NhkNewsService.setCachedItems(fallbackItems);
+          setLoadError(
+            fallbackItems.length > 0
+              ? "Couldn't refresh the news. Showing saved articles."
+              : "Couldn't load news right now. Check your connection and try again.",
+          );
+          return;
+        }
+
+        const refreshedItems = preserveCachedFullArticles(items, fallbackItems);
+        const refreshedSources = new Set(
+          refreshedItems.map((item) => item.source),
+        );
+        const retainedFallbackItems = fallbackItems.filter(
+          (item) => !refreshedSources.has(item.source),
+        );
+        const displayedItems = [
+          ...refreshedItems,
+          ...retainedFallbackItems,
+        ].sort(
+          (a, b) => (Date.parse(b.pubDate) || 0) - (Date.parse(a.pubDate) || 0),
+        );
+
+        NhkNewsService.setCachedItems(displayedItems);
+        setNews(displayedItems);
+        if (
+          newsSourcePreference === "both" &&
+          (["easy", "regular"] as const).some(
+            (source) => !refreshedSources.has(source),
+          )
+        ) {
+          setLoadError(
+            retainedFallbackItems.length > 0
+              ? "One source couldn't refresh. Showing its saved articles."
+              : "One news source is temporarily unavailable.",
+          );
+        }
+        try {
+          await saveNewsToCache(displayedItems);
+        } catch (error) {
+          console.warn("Error saving NHK news cache:", error);
+        }
+      } catch (error) {
+        if (requestId !== newsRequestIdRef.current) return;
+
+        console.error("Error fetching NHK news:", error);
+        NhkNewsService.setCachedItems(fallbackItems);
+        setLoadError(
+          fallbackItems.length > 0
+            ? "Couldn't refresh the news. Showing saved articles."
+            : "Couldn't load news right now. Check your connection and try again.",
+        );
+      } finally {
+        if (requestId === newsRequestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [newsSourcePreference],
+  );
+
   useEffect(() => {
-    loadCachedNews();
-    loadNews();
-  }, []);
+    const requestId = ++newsRequestIdRef.current;
+    setNews([]);
+    setLoadError(null);
+    setLoading(true);
+
+    void (async () => {
+      let cachedNews: NewsItem[] = [];
+
+      try {
+        cachedNews = await readCachedNews(newsSourcePreference);
+        if (requestId !== newsRequestIdRef.current) return;
+
+        if (cachedNews.length > 0) {
+          NhkNewsService.setCachedItems(cachedNews);
+          setNews(cachedNews);
+        }
+      } catch (error) {
+        console.error("Error loading cached news:", error);
+      }
+
+      await fetchFreshNews(requestId, cachedNews);
+    })();
+
+    return () => {
+      if (newsRequestIdRef.current === requestId) {
+        newsRequestIdRef.current += 1;
+      }
+    };
+  }, [fetchFreshNews, newsSourcePreference]);
 
   useEffect(() => {
     return () => {
@@ -101,73 +228,21 @@ export default function NewsScreen() {
     };
   }, []);
 
-  // Load cached news from file system
-  const loadCachedNews = async () => {
-    try {
-      const cacheDir = new Directory(Paths.cache, "news");
-      cacheDir.create({ idempotent: true });
+  const handleRefresh = useCallback(() => {
+    const requestId = ++newsRequestIdRef.current;
+    void fetchFreshNews(requestId, news);
+  }, [fetchFreshNews, news]);
 
-      const cacheFile = new File(cacheDir, NEWS_CACHE_FILE);
-
-      if (cacheFile.exists) {
-        const content = await cacheFile.text();
-        const cachedNews = JSON.parse(content) as NhkEasyItem[];
-        setNews(cachedNews);
-        console.log(`✅ Loaded ${cachedNews.length} news items from cache`);
-      }
-    } catch (error) {
-      console.error("Error loading cached news:", error);
-    }
-  };
-
-  // Save news to cache
-  const saveNewsToCache = async (items: NhkEasyItem[]) => {
-    try {
-      const cacheDir = new Directory(Paths.cache, "news");
-      cacheDir.create({ idempotent: true });
-
-      const cacheFile = new File(cacheDir, NEWS_CACHE_FILE);
-
-      // Keep only the most recent 20 items
-      const itemsToCache = items.slice(0, MAX_CACHED_NEWS);
-      cacheFile.write(JSON.stringify(itemsToCache, null, 2));
-
-      console.log(`✅ Saved ${itemsToCache.length} news items to cache`);
-    } catch (error) {
-      console.error("Error saving news to cache:", error);
-    }
-  };
-
-  const loadNews = async () => {
-    // Keep showing loading indicator only on initial load
-    if (news.length === 0) setLoading(true);
-    const items = await NhkEasyService.getNews();
-
-    if (items.length > 0) {
-      setNews(items);
-      // Save to cache for offline access
-      await saveNewsToCache(items);
-    }
-    // If fetch failed but we have cached news, keep showing cached news
-
-    setLoading(false);
-  };
-
-  const handlePress = (item: NhkEasyItem) => {
-    // Extract ID from guid or link
-    // guid: https://nhkeasier.com/story/9228/
-    const idMatch = item.guid.match(/story\/(\d+)\//);
-    const id = idMatch ? idMatch[1] : encodeURIComponent(item.guid);
-
+  const handlePress = (item: NewsItem) => {
     router.push({
       pathname: "/(app)/news/[id]",
-      params: { id },
+      params: { id: item.id, source: item.source },
     });
   };
 
   const ref = useRef<ICarouselInstance>(null);
   const breakingNews = news.slice(0, 5);
-  const knownKanjiPercentageByGuid = useMemo(() => {
+  const knownKanjiPercentageById = useMemo(() => {
     const percentageMap = new Map<string, number>();
 
     news.forEach((item) => {
@@ -175,24 +250,24 @@ export default function NewsScreen() {
       const text = item.title + cleanContent;
 
       percentageMap.set(
-        item.guid,
-        calculateKnownKanjiPercentage(text, passedKanjiSet)
+        item.id,
+        calculateKnownKanjiPercentage(text, passedKanjiSet),
       );
     });
 
     return percentageMap;
   }, [news, passedKanjiSet]);
 
-  const getPercentage = (item: NhkEasyItem) =>
-    knownKanjiPercentageByGuid.get(item.guid) ?? 0;
+  const getPercentage = (item: NewsItem) =>
+    knownKanjiPercentageById.get(item.id) ?? 0;
 
   const sortedRecommendationNews = useMemo(() => {
     const otherNews = news.slice(5);
 
     if (otherNewsSortMode === "knownKanji") {
       return otherNews.sort((a, b) => {
-        const bPercentage = knownKanjiPercentageByGuid.get(b.guid) ?? 0;
-        const aPercentage = knownKanjiPercentageByGuid.get(a.guid) ?? 0;
+        const bPercentage = knownKanjiPercentageById.get(b.id) ?? 0;
+        const aPercentage = knownKanjiPercentageById.get(a.id) ?? 0;
         const percentageDiff = bPercentage - aPercentage;
         if (percentageDiff !== 0) {
           return percentageDiff;
@@ -200,16 +275,20 @@ export default function NewsScreen() {
 
         const bDate = Date.parse(b.pubDate || "");
         const aDate = Date.parse(a.pubDate || "");
-        return (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate);
+        return (
+          (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate)
+        );
       });
     }
 
     return otherNews.sort((a, b) => {
       const bDate = Date.parse(b.pubDate || "");
       const aDate = Date.parse(a.pubDate || "");
-      return (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate);
+      return (
+        (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate)
+      );
     });
-  }, [news, otherNewsSortMode, knownKanjiPercentageByGuid]);
+  }, [news, otherNewsSortMode, knownKanjiPercentageById]);
 
   const sortButtonText =
     otherNewsSortMode === "date" ? "Date" : "Known Kanji %";
@@ -227,6 +306,19 @@ export default function NewsScreen() {
       {
         text: "Cancel",
         style: "cancel",
+      },
+    ]);
+  };
+
+  const openSourceFallbackMenu = () => {
+    Alert.alert("News Source", "Choose which news to show.", [
+      ...SOURCE_OPTIONS.map((option) => ({
+        text: `${newsSourcePreference === option.value ? "✓ " : ""}${option.label}`,
+        onPress: () => setNewsSourcePreference(option.value),
+      })),
+      {
+        text: "Cancel",
+        style: "cancel" as const,
       },
     ]);
   };
@@ -259,83 +351,19 @@ export default function NewsScreen() {
     }, CAROUSEL_TAP_COOLDOWN_MS);
   };
 
-  const { width } = Dimensions.get("window");
   const isTablet = width > 768;
   const carouselWidth = isTablet ? 500 : width;
 
   const renderHeader = () => (
     <View>
-      {/* Breaking News Section */}
-      <View style={[styles.sectionHeader]}>
+      <View style={styles.sectionHeader}>
         <Text
           style={[
             styles.sectionTitle,
-            { color: theme.textColor, fontSize: 30, marginBottom: 4 },
+            { color: theme.textColor, fontSize: 30 },
           ]}
         >
           Recent News
-        </Text>
-      </View>
-
-      <View style={{ alignItems: "center" }}>
-        <Carousel
-          ref={ref}
-          autoPlayInterval={4000}
-          loop
-          width={carouselWidth}
-          height={230}
-          autoPlay={true}
-          data={breakingNews}
-          scrollAnimationDuration={1000}
-          pagingEnabled={true}
-          onProgressChange={progress}
-          onScrollStart={handleCarouselScrollStart}
-          onScrollEnd={handleCarouselScrollEnd}
-          onConfigurePanGesture={(panGesture) => {
-            panGesture.activeOffsetX([-10, 10]);
-          }}
-          style={{
-            width: carouselWidth,
-            overflow: "visible",
-          }}
-          renderItem={({ item }: { item: NhkEasyItem }) => (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-                paddingHorizontal: 16,
-              }}
-            >
-              <NewsCard
-                item={item}
-                onPress={handlePress}
-                variant="breaking"
-                knownKanjiPercentage={getPercentage(item)}
-                disablePress={isCarouselInteracting}
-              />
-            </View>
-          )}
-          mode="parallax"
-          modeConfig={{
-            parallaxScrollingScale: 0.9,
-            //   parallaxScrollingOffset: 10,
-          }}
-        />
-      </View>
-      <Pagination.Basic
-        progress={progress}
-        data={breakingNews}
-        dotStyle={{ backgroundColor: theme.border, borderRadius: 50 }}
-        activeDotStyle={{ backgroundColor: theme.primary, borderRadius: 50 }}
-        containerStyle={{ gap: 5, marginTop: 10 }}
-        onPress={onPressPagination}
-      />
-
-      {/* Recommendation Section Header */}
-      <View style={[styles.sectionHeader, { marginTop: 24, marginBottom: 12 }]}>
-        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-          Other News
         </Text>
         {Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host matchContents style={styles.sortMenuHost}>
@@ -343,7 +371,7 @@ export default function NewsScreen() {
               label={
                 <SwiftUI.RNHostView matchContents>
                   <GlassButton
-                    iconName="swap-vertical"
+                    iconName="filter-outline"
                     iconSize={18}
                     iconColor={theme.textColor}
                     style={styles.sortMenuButton}
@@ -352,44 +380,211 @@ export default function NewsScreen() {
                 </SwiftUI.RNHostView>
               }
             >
-              <SwiftUI.Button
-                label="Date (Newest first)"
-                systemImage={
-                  otherNewsSortMode === "date"
-                    ? "checkmark.circle.fill"
-                    : "circle"
-                }
-                onPress={() => setOtherNewsSortMode("date")}
-              />
-              <SwiftUI.Button
-                label="Known Kanji % (Highest first)"
-                systemImage={
-                  otherNewsSortMode === "knownKanji"
-                    ? "checkmark.circle.fill"
-                    : "circle"
-                }
-                onPress={() => setOtherNewsSortMode("knownKanji")}
-              />
+              {SOURCE_OPTIONS.map((option) => (
+                <SwiftUI.Button
+                  key={option.value}
+                  label={option.label}
+                  systemImage={
+                    newsSourcePreference === option.value
+                      ? "checkmark.circle.fill"
+                      : "circle"
+                  }
+                  onPress={() => setNewsSourcePreference(option.value)}
+                />
+              ))}
             </SwiftUI.Menu>
           </SwiftUI.Host>
         ) : (
-          <Pressable
-            style={[
-              styles.sortControlButton,
-              {
-                backgroundColor: theme.cardBackground,
-                borderColor: theme.border,
-              },
-            ]}
-            onPress={openSortFallbackMenu}
-          >
-            <Ionicons name="swap-vertical" size={14} color={theme.textSecondary} />
-            <Text style={[styles.sortControlButtonText, { color: theme.textColor }]}>
-              {sortButtonText}
-            </Text>
-          </Pressable>
+          <GlassButton
+            iconName="filter-outline"
+            iconSize={18}
+            iconColor={theme.textColor}
+            onPress={openSourceFallbackMenu}
+            style={[styles.sortMenuButton, styles.sourceMenuFallbackButton]}
+            variant={theme.isDark ? "colored" : "light"}
+          />
         )}
       </View>
+
+      {loadError ? (
+        <View style={styles.loadErrorRow}>
+          <Ionicons
+            name="cloud-offline-outline"
+            size={18}
+            color={theme.textSecondary}
+          />
+          <Text
+            selectable
+            style={[styles.loadErrorText, { color: theme.textSecondary }]}
+          >
+            {loadError}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.retryButton,
+              { borderColor: theme.border, opacity: pressed ? 0.65 : 1 },
+            ]}
+            onPress={handleRefresh}
+          >
+            <Text style={[styles.retryButtonText, { color: theme.textColor }]}>
+              Retry
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {breakingNews.length > 0 ? (
+        <>
+          <View style={{ alignItems: "center" }}>
+            <Carousel
+              ref={ref}
+              autoPlayInterval={4000}
+              loop={breakingNews.length > 1}
+              width={carouselWidth}
+              height={230}
+              autoPlay={breakingNews.length > 1}
+              data={breakingNews}
+              scrollAnimationDuration={1000}
+              pagingEnabled
+              onProgressChange={progress}
+              onScrollStart={handleCarouselScrollStart}
+              onScrollEnd={handleCarouselScrollEnd}
+              onConfigurePanGesture={(panGesture) => {
+                panGesture.activeOffsetX([-10, 10]);
+              }}
+              style={{
+                width: carouselWidth,
+                overflow: "visible",
+              }}
+              renderItem={({ item }: { item: NewsItem }) => (
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                  }}
+                >
+                  <NewsCard
+                    item={item}
+                    onPress={handlePress}
+                    variant="breaking"
+                    knownKanjiPercentage={getPercentage(item)}
+                    disablePress={isCarouselInteracting}
+                    showSourceBadge={newsSourcePreference === "both"}
+                  />
+                </View>
+              )}
+              mode="parallax"
+              modeConfig={{ parallaxScrollingScale: 0.9 }}
+            />
+          </View>
+
+          {breakingNews.length > 1 ? (
+            <Pagination.Basic
+              progress={progress}
+              data={breakingNews}
+              dotStyle={{ backgroundColor: theme.border, borderRadius: 50 }}
+              activeDotStyle={{
+                backgroundColor: theme.primary,
+                borderRadius: 50,
+              }}
+              containerStyle={{ gap: 5, marginTop: 10 }}
+              onPress={onPressPagination}
+            />
+          ) : null}
+
+          {sortedRecommendationNews.length > 0 ? (
+            <View
+              style={[
+                styles.sectionHeader,
+                { marginTop: 24, marginBottom: 12 },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+                Other News
+              </Text>
+              {Platform.OS === "ios" && SwiftUI ? (
+                <SwiftUI.Host matchContents style={styles.sortMenuHost}>
+                  <SwiftUI.Menu
+                    label={
+                      <SwiftUI.RNHostView matchContents>
+                        <GlassButton
+                          iconName="swap-vertical"
+                          iconSize={18}
+                          iconColor={theme.textColor}
+                          style={styles.sortMenuButton}
+                          variant={theme.isDark ? "colored" : "light"}
+                        />
+                      </SwiftUI.RNHostView>
+                    }
+                  >
+                    <SwiftUI.Button
+                      label="Date (Newest first)"
+                      systemImage={
+                        otherNewsSortMode === "date"
+                          ? "checkmark.circle.fill"
+                          : "circle"
+                      }
+                      onPress={() => setOtherNewsSortMode("date")}
+                    />
+                    <SwiftUI.Button
+                      label="Known Kanji % (Highest first)"
+                      systemImage={
+                        otherNewsSortMode === "knownKanji"
+                          ? "checkmark.circle.fill"
+                          : "circle"
+                      }
+                      onPress={() => setOtherNewsSortMode("knownKanji")}
+                    />
+                  </SwiftUI.Menu>
+                </SwiftUI.Host>
+              ) : (
+                <Pressable
+                  style={[
+                    styles.sortControlButton,
+                    {
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  onPress={openSortFallbackMenu}
+                >
+                  <Ionicons
+                    name="swap-vertical"
+                    size={14}
+                    color={theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.sortControlButtonText,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    {sortButtonText}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          ) : null}
+        </>
+      ) : loading ? (
+        <View style={styles.headerLoadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="newspaper-outline"
+            size={42}
+            color={theme.textLight}
+          />
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            No articles are available for this source right now.
+          </Text>
+        </View>
+      )}
     </View>
   );
 
@@ -397,43 +592,38 @@ export default function NewsScreen() {
     <View
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
-      {loading && news.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={sortedRecommendationNews}
-          renderItem={({ item }) => (
-            <View style={{ paddingHorizontal: 16 }}>
-              <NewsCard
-                item={item}
-                onPress={handlePress}
-                variant="standard"
-                knownKanjiPercentage={getPercentage(item)}
-              />
-            </View>
-          )}
-          keyExtractor={(item) => item.guid}
-          ListHeaderComponent={renderHeader()}
-          contentContainerStyle={[
-            styles.listContent,
-            {
-              paddingBottom: 100,
-              paddingTop:
-                insets.top + (supportsNativeTabs() && isTablet ? 30 : 10),
-            },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={loading}
-              onRefresh={loadNews}
-              tintColor={theme.primary}
+      <FlatList
+        data={sortedRecommendationNews}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: 16 }}>
+            <NewsCard
+              item={item}
+              onPress={handlePress}
+              variant="standard"
+              knownKanjiPercentage={getPercentage(item)}
+              showSourceBadge={newsSourcePreference === "both"}
             />
-          }
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+          </View>
+        )}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader()}
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            paddingBottom: 100,
+            paddingTop:
+              insets.top + (supportsNativeTabs() && isTablet ? 30 : 10),
+          },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading && news.length > 0}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
@@ -442,13 +632,48 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   listContent: {
     paddingTop: 16,
+  },
+  loadErrorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 18,
+  },
+  loadErrorText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  retryButton: {
+    minHeight: 32,
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  headerLoadingContainer: {
+    minHeight: 280,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyContainer: {
+    minHeight: 280,
+    paddingHorizontal: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  emptyText: {
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 20,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -483,5 +708,8 @@ const styles = StyleSheet.create({
   sortMenuButton: {
     width: 36,
     height: 36,
+  },
+  sourceMenuFallbackButton: {
+    marginRight: 16,
   },
 });

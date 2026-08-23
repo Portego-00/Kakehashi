@@ -50,6 +50,7 @@ import { getAllSubjects } from "../utils/cache";
 import type { Subject } from "../utils/api";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import { FormattedNoteText } from "./formatted-note";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
@@ -2632,9 +2633,10 @@ export default function VocabularyDetails({
                       </View>
                     </View>
                     {vocabulary.meaningNote ? (
-                      <Text style={[styles.noteContent, { color: theme.textColor }]}>
-                        {vocabulary.meaningNote}
-                      </Text>
+                      <FormattedNoteText
+                        text={vocabulary.meaningNote}
+                        style={[styles.noteContent, { color: theme.textColor }]}
+                      />
                     ) : (
                       <Text style={[styles.noteText, { color: theme.textLight }]}>
                         Click to add meaning note
@@ -2660,9 +2662,10 @@ export default function VocabularyDetails({
                       </View>
                     </View>
                     {vocabulary.readingNote ? (
-                      <Text style={[styles.noteContent, { color: theme.textColor }]}>
-                        {vocabulary.readingNote}
-                      </Text>
+                      <FormattedNoteText
+                        text={vocabulary.readingNote}
+                        style={[styles.noteContent, { color: theme.textColor }]}
+                      />
                     ) : (
                       <Text style={[styles.noteText, { color: theme.textLight }]}>
                         Click to add reading note

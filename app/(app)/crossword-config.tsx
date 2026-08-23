@@ -589,8 +589,8 @@ export default function CrosswordConfigScreen() {
               { color: theme.textSecondary },
             ]}
           >
-            By default includes levels 1 to your level ({userLevel}). Enable a
-            custom range to restrict.
+            Without a subject list, includes levels 1 to your level ({userLevel}).
+            Selected lists can include any level. Enable a custom range to restrict.
           </Text>
           <View
             style={[
@@ -694,7 +694,9 @@ export default function CrosswordConfigScreen() {
                   { color: theme.textSecondary },
                 ]}
               >
-                Levels 1 - {userLevel}
+                {config.selectedListIds.length > 0
+                  ? "All levels in selected lists"
+                  : `Levels 1 - ${userLevel}`}
               </Text>
             </View>
           )}

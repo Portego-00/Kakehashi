@@ -107,6 +107,7 @@ import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import { FormattedNoteEditor } from "./formatted-note";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -3878,7 +3879,8 @@ export default function ReviewQuestionScreen({
             </TouchableOpacity>
           </View>
 
-          <TextInput
+          <FormattedNoteEditor
+            key={`${editingStudyMaterialNoteType}:${studyMaterialNoteModalVisible}`}
             style={[
               styles.studyMaterialNoteInput,
               {
@@ -3889,11 +3891,15 @@ export default function ReviewQuestionScreen({
                   : "#ffffff",
               },
             ]}
-            multiline
             autoFocus
             value={editingStudyMaterialNoteText}
             onChangeText={setEditingStudyMaterialNoteText}
             onFocus={syncAndroidKeyboardMetrics}
+            accessibilityLabel={`${
+              editingStudyMaterialNoteType === "meaning"
+                ? "Meaning"
+                : "Reading"
+            } note text`}
             placeholder={`Add your ${editingStudyMaterialNoteType} note here...`}
             placeholderTextColor={theme.textLight}
           />

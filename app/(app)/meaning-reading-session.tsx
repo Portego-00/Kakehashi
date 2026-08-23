@@ -17,11 +17,14 @@ import ExtraStudyCompletionTransition, {
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
-import { Subject as ApiSubject, Assignment, getAllAssignmentsCached } from "../../src/utils/api";
+import { Subject as ApiSubject, getAllAssignmentsCached } from "../../src/utils/api";
 import { getAllSubjects, getSubjectById } from "../../src/utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import {
@@ -402,7 +405,14 @@ export default function MeaningReadingSessionScreen() {
       const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
         srs_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
       });
-      if (assignmentsResponse.data.length === 0) {
+      const selectedListIds = config.selectedListIds || [];
+      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
+        selectedListIds,
+      );
+      if (
+        assignmentsResponse.data.length === 0 &&
+        selectedListIds.length === 0
+      ) {
         Alert.alert(
           "No Learned Items",
           "You haven't learned enough items yet to take a test.",
@@ -411,7 +421,11 @@ export default function MeaningReadingSessionScreen() {
         return;
       }
 
-      const subjectIds = assignmentsResponse.data.map((a: Assignment) => a.data.subject_id);
+      const subjectIds = getExtraStudyCandidateSubjectIds(
+        assignmentsResponse.data,
+        selectedListIds,
+        selectedListSubjectIds,
+      );
 
       const allSubjects: ApiSubject[] = [];
       for (const subjectId of subjectIds) {
@@ -422,10 +436,6 @@ export default function MeaningReadingSessionScreen() {
       // Build subject -> srs_stage map
       const subjectIdToStage = new Map<number, number>();
       (assignmentsResponse.data as any[]).forEach((a) => subjectIdToStage.set(a.data.subject_id, a.data.srs_stage));
-      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
-        config.selectedListIds || []
-      );
-
       const srsStageAllowed = (stage: number) => {
         if (stage >= 1 && stage <= 4) return config.srsGroups.apprentice;
         if (stage >= 5 && stage <= 6) return config.srsGroups.guru;
@@ -445,15 +455,27 @@ export default function MeaningReadingSessionScreen() {
         if (!config.includeVocabulary && s.object === 'vocabulary') return false;
         if (!config.includeKanaVocabulary && s.object === 'kana_vocabulary') return false;
 
-        const stage = subjectIdToStage.get(s.id) ?? 0;
-        if (!srsStageAllowed(stage)) return false;
+        if (
+          !subjectMatchesExtraStudySrsStage(
+            s.id,
+            subjectIdToStage,
+            selectedListIds,
+            selectedListSubjectIds,
+            srsStageAllowed,
+          )
+        ) return false;
 
-        const inLevelRange = !config.useCustomLevelRange || ((s as any).data?.level >= config.minLevel && (s as any).data?.level <= config.maxLevel);
+        const inLevelRange = subjectMatchesExtraStudyLevel(s.data?.level, {
+          useCustomLevelRange: config.useCustomLevelRange,
+          minLevel: config.minLevel,
+          maxLevel: config.maxLevel,
+          selectedListIds,
+        });
         return (
           inLevelRange &&
           subjectMatchesSelectedLists(
             s.id,
-            config.selectedListIds || [],
+            selectedListIds,
             selectedListSubjectIds
           )
         );
@@ -534,7 +556,12 @@ export default function MeaningReadingSessionScreen() {
           if (!config.includeKanji && s.object === "kanji") return false;
           if (!config.includeVocabulary && s.object === "vocabulary") return false;
           if (!config.includeKanaVocabulary && s.object === "kana_vocabulary") return false;
-          const inLevelRange = !config.useCustomLevelRange || ((s as any).data?.level >= config.minLevel && (s as any).data?.level <= config.maxLevel);
+          const inLevelRange = subjectMatchesExtraStudyLevel(s.data?.level, {
+            useCustomLevelRange: config.useCustomLevelRange,
+            minLevel: config.minLevel,
+            maxLevel: config.maxLevel,
+            selectedListIds: config.selectedListIds || [],
+          });
           return (
             inLevelRange &&
             subjectMatchesSelectedLists(

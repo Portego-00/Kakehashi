@@ -29,6 +29,8 @@ import { getAllSubjects, getSubjectById } from "../../src/utils/cache";
 import {
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import {
@@ -545,7 +547,8 @@ export default function SimilarKanjiSessionScreen() {
 
       if (
         config.matchMode === "similar" &&
-        assignments.length === 0
+        assignments.length === 0 &&
+        config.selectedListIds.length === 0
       ) {
         Alert.alert(
           "No Learned Kanji",
@@ -599,16 +602,31 @@ export default function SimilarKanjiSessionScreen() {
         const selectedListSubjectIds = await getSelectedListSubjectIdSet(
           config.selectedListIds,
         );
-        const targetSubjects = learnedKanjiSubjects.filter((subject) => {
-          const stage = subjectIdToStage.get(subject.id) ?? 0;
-          if (!isSrsStageAllowed(stage, config.srsGroups)) {
+        const targetPool = config.selectedListIds.length > 0
+          ? Array.from(selectedListSubjectIds)
+              .map((subjectId) => allSubjectsById.get(subjectId))
+              .filter(isKanjiSubject)
+          : learnedKanjiSubjects;
+        const targetSubjects = targetPool.filter((subject) => {
+          if (
+            !subjectMatchesExtraStudySrsStage(
+              subject.id,
+              subjectIdToStage,
+              config.selectedListIds,
+              selectedListSubjectIds,
+              (stage) => isSrsStageAllowed(stage, config.srsGroups),
+            )
+          ) {
             return false;
           }
 
           const level = subject.data?.level ?? 0;
-          const inLevelRange =
-            !config.useCustomLevelRange ||
-            (level >= config.minLevel && level <= config.maxLevel);
+          const inLevelRange = subjectMatchesExtraStudyLevel(level, {
+            useCustomLevelRange: config.useCustomLevelRange,
+            minLevel: config.minLevel,
+            maxLevel: config.maxLevel,
+            selectedListIds: config.selectedListIds,
+          });
 
           return (
             inLevelRange &&

@@ -1007,7 +1007,7 @@ export default function ContextSentencePracticeConfigScreen() {
 
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}> 
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Levels</Text>
-          <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>By default includes levels 1 to your level ({userLevel}). Enable a custom range to restrict.</Text>
+          <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>Without a subject list, includes levels 1 to your level ({userLevel}). Selected lists can include any level. Enable a custom range to restrict.</Text>
           <View
             style={[
               styles.toggleRow,
@@ -1089,7 +1089,9 @@ export default function ContextSentencePracticeConfigScreen() {
               <Text
                 style={[styles.levelSummaryText, { color: theme.textSecondary }]}
               >
-                Levels 1 - {userLevel}
+                {(config.selectedListIds || []).length > 0
+                  ? "All levels in selected lists"
+                  : `Levels 1 - ${userLevel}`}
               </Text>
             </View>
           )}

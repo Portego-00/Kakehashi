@@ -56,6 +56,36 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.3.1",
+    date: "2026-08-23",
+    changes: [
+      {
+        type: "feature",
+        title: "Full NHK News",
+        description:
+          "Read full Standard NHK News stories with images and study highlighting, using Easy, Standard, or Both sources.",
+      },
+    ],
+  },
+  {
+    version: "1.3.0",
+    date: "2026-08-22",
+    changes: [
+      {
+        type: "feature",
+        title: "Formatted Notes",
+        description:
+          "Select note text to make it bold, italic, or underlined across subject details, lessons, and reviews.",
+      },
+      {
+        type: "improvement",
+        title: "All-Level Subject List Practice",
+        description:
+          "Extra Study quizzes now include selected Subject List items above your current level unless you enable a custom level range.",
+      },
+    ],
+  },
+  {
     version: "1.2.99",
     date: "2026-08-19",
     changes: [

@@ -17,6 +17,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  Linking,
   type LayoutChangeEvent,
   Modal,
   Platform,
@@ -37,10 +38,12 @@ import {
 import { WebView } from "react-native-webview";
 import { GlassButton } from "../../../src/components/GlassButton";
 import { NewsAudioPlayer } from "../../../src/components/news/NewsAudioPlayer";
+import { readCachedNews } from "../../../src/services/NhkNewsCacheService";
 import {
-  NhkEasyItem,
-  NhkEasyService,
-} from "../../../src/services/NhkEasyService";
+  type NewsItem,
+  type NewsSource,
+  NhkNewsService,
+} from "../../../src/services/NhkNewsService";
 import { TranslationCacheService } from "../../../src/services/TranslationCacheService";
 import AudioSessionManager from "../../../src/modules/AudioSessionManager";
 import { azureTranslatorService } from "../../../src/utils/azureTranslator";
@@ -77,7 +80,9 @@ const GRAMMAR_TOOLTIP_ID_MIN = -9000000;
 const JPDB_FALLBACK_TOOLTIP_ID_MIN = -8000000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
 
-function buildGrammarTooltipItem(token: JpdbParsedTokenAnnotation): VocabularyMatch {
+function buildGrammarTooltipItem(
+  token: JpdbParsedTokenAnnotation,
+): VocabularyMatch {
   const meaningText = token.meaning?.trim() || "Grammar point";
   const partsOfSpeechSummary = token.partsOfSpeech.filter(Boolean).join(", ");
   const details = partsOfSpeechSummary
@@ -99,7 +104,7 @@ function buildGrammarTooltipItem(token: JpdbParsedTokenAnnotation): VocabularyMa
 }
 
 function inferFallbackVerbConjugationKind(
-  partsOfSpeech: string[]
+  partsOfSpeech: string[],
 ): VocabularyMatch["verbConjugationKind"] {
   if (partsOfSpeech.some((partOfSpeech) => partOfSpeech.startsWith("vs"))) {
     return "suru";
@@ -118,17 +123,18 @@ function inferFallbackVerbConjugationKind(
 
 function buildJpdbFallbackTooltipItem(
   token: JpdbParsedTokenAnnotation,
-  tokenType: "verb" | "vocabulary"
+  tokenType: "verb" | "vocabulary",
 ): VocabularyMatch {
   const meaningText = token.meaning?.trim() || "Detected by JPDB parser.";
   const partsOfSpeechSummary = token.partsOfSpeech.filter(Boolean).join(", ");
   const details = partsOfSpeechSummary
     ? `${meaningText}\nPart of Speech: ${partsOfSpeechSummary}`
     : meaningText;
-  const displayText = token.spelling || token.surface || token.reading || "Vocabulary";
+  const displayText =
+    token.spelling || token.surface || token.reading || "Vocabulary";
   const hasKanji = /[\u3400-\u9FFF々]/.test(displayText);
   const matchCandidates = Array.from(
-    new Set([token.surface, token.spelling, token.reading].filter(Boolean))
+    new Set([token.surface, token.spelling, token.reading].filter(Boolean)),
   ).sort((a, b) => b.length - a.length);
 
   return {
@@ -150,7 +156,6 @@ function buildJpdbFallbackTooltipItem(
   };
 }
 
-
 type ContentBlock = {
   type: "text" | "image";
   content: string;
@@ -158,10 +163,40 @@ type ContentBlock = {
   isTranslating?: boolean;
 };
 
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function NewsDetailScreen() {
   useActivityTracking("news", { mode: "focus" });
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const [item, setItem] = useState<NhkEasyItem | undefined>(undefined);
+  const { id, source } = useLocalSearchParams<{
+    id: string;
+    source?: NewsSource;
+  }>();
+  const [item, setItem] = useState<NewsItem | undefined>(undefined);
+  const [isResolvingItem, setIsResolvingItem] = useState(true);
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const { userData } = useAuthStore();
@@ -178,9 +213,8 @@ export default function NewsDetailScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [showFurigana, setShowFurigana] = useState(true);
-  const [studyMode, setStudyMode] = useState<StudyModePreference>(
-    newsDefaultStudyMode
-  );
+  const [studyMode, setStudyMode] =
+    useState<StudyModePreference>(newsDefaultStudyMode);
   const [hasStoredJpdbApiKey, setHasStoredJpdbApiKey] = useState(false);
   const [hasResolvedJpdbKeyState, setHasResolvedJpdbKeyState] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
@@ -199,12 +233,12 @@ export default function NewsDetailScreen() {
 
   // Highlight state
   const [vocabularyMatches, setVocabularyMatches] = useState<VocabularyMatch[]>(
-    []
+    [],
   );
   const [kanjiMatches, setKanjiMatches] = useState<KanjiMatch[]>([]);
-  const [jpdbParsedTokens, setJpdbParsedTokens] = useState<JpdbParsedTokenAnnotation[]>(
-    []
-  );
+  const [jpdbParsedTokens, setJpdbParsedTokens] = useState<
+    JpdbParsedTokenAnnotation[]
+  >([]);
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
   const [imageAspectRatios, setImageAspectRatios] = useState<
     Record<string, number>
@@ -215,7 +249,7 @@ export default function NewsDetailScreen() {
     (VocabularyMatch | KanjiMatch) | null
   >(null);
   const [selectedSurfaceText, setSelectedSurfaceText] = useState<string | null>(
-    null
+    null,
   );
   const [selectedTokenKey, setSelectedTokenKey] = useState<string | null>(null);
   const [isTooltipMeaningRevealed, setIsTooltipMeaningRevealed] =
@@ -239,7 +273,7 @@ export default function NewsDetailScreen() {
   const tooltipOpacity = useRef(new Animated.Value(0)).current;
   const vocabularyMatchesById = useMemo(
     () => new Map(vocabularyMatches.map((match) => [match.id, match])),
-    [vocabularyMatches]
+    [vocabularyMatches],
   );
   const textBlockOffsets = useMemo(() => {
     let cursor = 0;
@@ -259,6 +293,12 @@ export default function NewsDetailScreen() {
     Platform.OS === "ios" ||
     Platform.OS === "web" ||
     (Platform.OS as string) === "macos";
+  const isRegularItem = item?.source === "regular";
+  const isRegularSummary = isRegularItem && item?.isFullArticle === false;
+  const regularSummaryText = useMemo(
+    () => (isRegularSummary && item ? htmlToPlainText(item.contentHtml) : ""),
+    [isRegularSummary, item],
+  );
   const fullModeEnabled = studyMode === "full" && hasStoredJpdbApiKey;
   const wkModeEnabled = studyMode === "wk";
 
@@ -271,11 +311,51 @@ export default function NewsDetailScreen() {
   }, [selectedItem?.id, selectedItem?.characters, selectedSurfaceText]);
 
   useEffect(() => {
-    if (id) {
-      const found = NhkEasyService.getItemById(id);
-      setItem(found);
+    let isActive = true;
+
+    setItem(undefined);
+    setIsResolvingItem(true);
+    setContentBlocks([]);
+    setVocabularyMatches([]);
+    setKanjiMatches([]);
+    setJpdbParsedTokens([]);
+
+    if (!id) {
+      setIsResolvingItem(false);
+      return () => {
+        isActive = false;
+      };
     }
-  }, [id]);
+
+    const inMemoryItem = NhkNewsService.getItemById(id, source);
+    if (inMemoryItem) {
+      setItem(inMemoryItem);
+      setIsResolvingItem(false);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    void (async () => {
+      try {
+        const cachedItems = await readCachedNews(source ?? "both");
+        if (!isActive) return;
+
+        NhkNewsService.setCachedItems(cachedItems);
+        setItem(NhkNewsService.getItemById(id, source));
+      } catch (error) {
+        console.warn("Error restoring cached NHK article:", error);
+      } finally {
+        if (isActive) {
+          setIsResolvingItem(false);
+        }
+      }
+    })();
+
+    return () => {
+      isActive = false;
+    };
+  }, [id, source]);
 
   useEffect(() => {
     if (hasUserSelectedStudyModeRef.current) {
@@ -302,7 +382,7 @@ export default function NewsDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshJpdbKeyState();
-    }, [refreshJpdbKeyState])
+    }, [refreshJpdbKeyState]),
   );
 
   useEffect(() => {
@@ -358,7 +438,7 @@ export default function NewsDetailScreen() {
         setDurationMillis(0);
         void cleanupSound();
       };
-    }, [cleanupSound])
+    }, [cleanupSound]),
   );
 
   useEffect(() => {
@@ -385,25 +465,35 @@ export default function NewsDetailScreen() {
   useEffect(() => {
     if (
       item &&
+      !isRegularSummary &&
       (studyMode !== "none" || showTranslation) &&
       contentBlocks.length === 0
     ) {
       parseContent(item);
     }
-  }, [item, studyMode, showTranslation]);
+  }, [
+    contentBlocks.length,
+    isRegularSummary,
+    item,
+    showTranslation,
+    studyMode,
+  ]);
 
   // Trigger translation when enabled
   useEffect(() => {
-    if (showTranslation && contentBlocks.length > 0) {
+    if (!isRegularSummary && showTranslation && contentBlocks.length > 0) {
       translateContent();
     }
-  }, [showTranslation, contentBlocks.length]);
+  }, [contentBlocks.length, isRegularSummary, showTranslation]);
 
   // Resolve remote image dimensions so native mode matches WebView's
   // `max-width: 100%; height: auto;` behavior.
   useEffect(() => {
     const imageUrls = contentBlocks
-      .filter((block): block is ContentBlock & { type: "image" } => block.type === "image")
+      .filter(
+        (block): block is ContentBlock & { type: "image" } =>
+          block.type === "image",
+      )
       .map((block) => block.content)
       .filter(Boolean);
 
@@ -439,7 +529,7 @@ export default function NewsDetailScreen() {
         },
         () => {
           // Keep fallback height when image dimensions can't be resolved.
-        }
+        },
       );
     });
 
@@ -450,7 +540,25 @@ export default function NewsDetailScreen() {
 
   // Computed: Study modes render in native mode. No study mode keeps WebView.
   // Translation can work in both rendering paths.
-  const isNativeMode = studyMode !== "none";
+  const isNativeMode = !isRegularSummary && studyMode !== "none";
+
+  const openOriginalArticle = useCallback(async () => {
+    if (!item?.link) return;
+
+    try {
+      const canOpen = await Linking.canOpenURL(item.link);
+      if (!canOpen) {
+        throw new Error("Unsupported NHK article URL");
+      }
+      await Linking.openURL(item.link);
+    } catch (error) {
+      console.error("Failed to open NHK article:", error);
+      Alert.alert(
+        "Unable to Open Article",
+        "The full article could not be opened on NHK right now.",
+      );
+    }
+  }, [item?.link]);
 
   // Inject Translations into WebView
   useEffect(() => {
@@ -474,12 +582,10 @@ export default function NewsDetailScreen() {
       const script = `
             (function() {
                 const data = ${payload};
-                // Assumption: textBlocks[0] is Title (H1), textBlocks[1..N] are <P> tags
-                // This aligns with parseContent logic
-                
+                // textBlocks[0] is the title; the rest follow article source order.
                 const h1 = document.querySelector('h1');
-                const ps = document.querySelectorAll('p');
-                const targets = [h1, ...Array.from(ps)];
+                const articleTextBlocks = document.querySelectorAll('p, h2, h3');
+                const targets = [h1, ...Array.from(articleTextBlocks)];
                 
                 data.forEach((item, i) => {
                     const target = targets[i];
@@ -535,53 +641,35 @@ export default function NewsDetailScreen() {
     }
   }, [isPlayerVisible, isNativeMode, isWebViewLoaded]);
 
-  const parseContent = async (item: NhkEasyItem) => {
-    // 1. Parse Blocks for Rendering
-    // Simple regex parser to find <p>...</p> and <img src="..." />
-    // Since native regex parsing of HTML is fragile, we assume NHK format is consistent
-    // <p>Content</p> or <img src="..." />
-
+  const parseContent = async (item: NewsItem) => {
+    // Parse the small article HTML vocabulary into ordered native blocks.
     const blocks: ContentBlock[] = [];
 
     // Add Title as first block
     blocks.push({ type: "text", content: item.title });
 
-    // Split by paragraph or image tags
-    // This is a naive split, but NHK Easy usually wraps text in <p>
-    // We want to capture <p> content and <img src>
-
     const bodyHtml = item.contentHtml;
 
-    // Regex to match <p>(.*?)</p> OR <img[^>]+src="([^">]+)"[^>]*>
-    const regex = /<p[^>]*>(.*?)<\/p>|<img[^>]+src="([^">]+)"[^>]*>/g;
+    // Preserve source order across multiline paragraphs/headings and images.
+    // Images may use either quote style around src.
+    const regex =
+      /<(p|h[23])\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\3[^>]*>/gi;
 
     let match;
     while ((match = regex.exec(bodyHtml)) !== null) {
-      if (match[1]) {
-        // matched <p> content: match[1]
-        // Strip internal tags like <ruby>, <rt>, <a>, <span>
-        // Be careful with <rt>: we want to REMOVE highlighting logic needs plain kanji
-        // content: <ruby>Kanji<rt>reading</rt></ruby> -> Kanji
-
-        let textContent = match[1];
-        // Remove rt tags content first
-        textContent = textContent.replace(/<rt[^>]*>[\s\S]*?<\/rt>/g, "");
-        textContent = textContent.replace(/<rp[^>]*>[\s\S]*?<\/rp>/g, "");
-        // Remove remaining tags
-        textContent = textContent.replace(/<[^>]+>/g, "");
-        // Decode HTML entities if needed (simple check)
-        textContent = textContent
-          .replace(/&nbsp;/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">");
+      if (match[2]) {
+        // Ruby readings are presentation metadata; matching needs base text.
+        const textContent = htmlToPlainText(
+          match[2]
+            .replace(/<rt\b[^>]*>[\s\S]*?<\/rt\s*>/gi, "")
+            .replace(/<rp\b[^>]*>[\s\S]*?<\/rp\s*>/gi, ""),
+        );
 
         if (textContent.trim()) {
           blocks.push({ type: "text", content: textContent });
         }
-      } else if (match[2]) {
-        // matched img src: match[2]
-        blocks.push({ type: "image", content: match[2] });
+      } else if (match[4]) {
+        blocks.push({ type: "image", content: match[4].trim() });
       }
     }
 
@@ -590,7 +678,10 @@ export default function NewsDetailScreen() {
     // 2. Build matching text from rendered text blocks so JPDB offsets
     // align with what users see in native mode.
     const textForMatching = blocks
-      .filter((block): block is ContentBlock & { type: "text" } => block.type === "text")
+      .filter(
+        (block): block is ContentBlock & { type: "text" } =>
+          block.type === "text",
+      )
       .map((block) => block.content)
       .join("\n");
 
@@ -617,8 +708,8 @@ export default function NewsDetailScreen() {
     // Mark all as translating initially to show spinner/loading state immediately
     setContentBlocks((prev) =>
       prev.map((b) =>
-        b.type === "text" && !b.translation ? { ...b, isTranslating: true } : b
-      )
+        b.type === "text" && !b.translation ? { ...b, isTranslating: true } : b,
+      ),
     );
 
     try {
@@ -658,7 +749,7 @@ export default function NewsDetailScreen() {
 
     // Filter out blocks that are already translated or translating, or not text
     const candidates = blocksToTranslate.filter(
-      (b) => b.type === "text" && !b.translation
+      (b) => b.type === "text" && !b.translation,
       // Note: we already marked them as isTranslating above, so we might need to adjust logic
       // But actually, we want to re-select them for Azure processing
       // If we marked them as isTranslating, they are "in progress".
@@ -688,7 +779,7 @@ export default function NewsDetailScreen() {
           // Double check if we already marked it translating in state,
           // here we definitely want to call Azure.
           const translated = await azureTranslatorService.translate(
-            candidate.content
+            candidate.content,
           );
           newTranslationsMap.set(candidate.index, translated);
 
@@ -698,7 +789,7 @@ export default function NewsDetailScreen() {
                 return { ...b, translation: translated, isTranslating: false };
               }
               return b;
-            })
+            }),
           );
         } catch (error) {
           console.error(`Error translating block ${candidate.index}:`, error);
@@ -708,10 +799,10 @@ export default function NewsDetailScreen() {
                 return { ...b, isTranslating: false }; // Failed, stop spinner
               }
               return b;
-            })
+            }),
           );
         }
-      })
+      }),
     );
 
     // 3. Save to Cache
@@ -744,32 +835,29 @@ export default function NewsDetailScreen() {
       // Save to Supabase
       await TranslationCacheService.saveTranslation(
         item.guid,
-        finalTranslations
+        finalTranslations,
       );
     }
   };
 
-  const findVocabularyMatches = async (text: string) => {
+  const findVocabularyMatches = useCallback(async (text: string) => {
     try {
       const allSubjects = await getAllSubjects();
 
       const {
-        vocabularyMatches,
-        kanjiMatches,
+        vocabularyMatches: parsedVocabularyMatches,
+        kanjiMatches: parsedKanjiMatches,
         jpdbParsedTokens: parsedTokens,
-      } = await findMatches(
-        text,
-        allSubjects
-      );
+      } = await findMatches(text, allSubjects);
 
-      setVocabularyMatches(vocabularyMatches);
-      setKanjiMatches(kanjiMatches);
+      setVocabularyMatches(parsedVocabularyMatches);
+      setKanjiMatches(parsedKanjiMatches);
       setJpdbParsedTokens(Array.isArray(parsedTokens) ? parsedTokens : []);
     } catch (err) {
       console.error("Error finding vocabulary matches:", err);
       setJpdbParsedTokens([]);
     }
-  };
+  }, []);
 
   const toggleAudio = async () => {
     if (!item?.audioUrl) return;
@@ -799,7 +887,10 @@ export default function NewsDetailScreen() {
           try {
             await AudioSessionManager.overrideSpeaker();
           } catch (error) {
-            console.warn("[News] Failed to configure iOS audio session:", error);
+            console.warn(
+              "[News] Failed to configure iOS audio session:",
+              error,
+            );
           }
         }
 
@@ -825,7 +916,7 @@ export default function NewsDetailScreen() {
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: item.audioUrl },
           { shouldPlay: true, volume: 1.0 },
-          onPlaybackStatusUpdate
+          onPlaybackStatusUpdate,
         );
 
         if (
@@ -916,7 +1007,7 @@ export default function NewsDetailScreen() {
           text: "Open Settings",
           onPress: openJpdbApiKeySettings,
         },
-      ]
+      ],
     );
   }, [openJpdbApiKeySettings]);
 
@@ -929,7 +1020,7 @@ export default function NewsDetailScreen() {
       hasUserSelectedStudyModeRef.current = true;
       setStudyMode(mode);
     },
-    [handleBlockedFullModeSelection, hasStoredJpdbApiKey]
+    [handleBlockedFullModeSelection, hasStoredJpdbApiKey],
   );
 
   const toggleTranslation = () => {
@@ -958,7 +1049,10 @@ export default function NewsDetailScreen() {
     }
 
     const minTop = tooltipMargin;
-    const maxTop = Math.max(minTop, screenHeight - measuredHeight - tooltipMargin);
+    const maxTop = Math.max(
+      minTop,
+      screenHeight - measuredHeight - tooltipMargin,
+    );
     const clampedTop = Math.max(minTop, Math.min(top, maxTop));
 
     setTooltipPosition((previousPosition) => {
@@ -982,7 +1076,7 @@ export default function NewsDetailScreen() {
       event: any,
       itemOverride?: VocabularyMatch | KanjiMatch,
       tokenKey?: string,
-      interactionMode: "press" | "hover" = "press"
+      interactionMode: "press" | "hover" = "press",
     ) => {
       const item =
         itemOverride ??
@@ -996,11 +1090,11 @@ export default function NewsDetailScreen() {
         y: number,
         width: number,
         height: number,
-        source: "measure" | "page" = "measure"
+        source: "measure" | "page" = "measure",
       ) => {
         const statusBarOffset =
           source === "measure" && Platform.OS === "android"
-            ? (StatusBar.currentHeight || 0)
+            ? StatusBar.currentHeight || 0
             : 0;
         const adjustedY = y + statusBarOffset;
         const screenWidth = Dimensions.get("window").width;
@@ -1026,7 +1120,7 @@ export default function NewsDetailScreen() {
         const minTop = tooltipMargin;
         const maxTop = Math.max(
           minTop,
-          screenHeight - tooltipEstimatedHeight - tooltipMargin
+          screenHeight - tooltipEstimatedHeight - tooltipMargin,
         );
         top = Math.max(minTop, Math.min(top, maxTop));
 
@@ -1044,7 +1138,12 @@ export default function NewsDetailScreen() {
         }).start();
       };
 
-      const measureFromTarget = (x: number, y: number, width: number, height: number) => {
+      const measureFromTarget = (
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+      ) => {
         if (
           Number.isFinite(x) &&
           Number.isFinite(y) &&
@@ -1086,13 +1185,17 @@ export default function NewsDetailScreen() {
             ) {
               openTooltipAtAnchor(pageX - 12, pageY - 12, 24, 24, "page");
             }
-          }
+          },
         );
         return;
       }
 
       const measurementTarget = event?.target as
-        | { measureInWindow?: (callback: (x: number, y: number, w: number, h: number) => void) => void }
+        | {
+            measureInWindow?: (
+              callback: (x: number, y: number, w: number, h: number) => void,
+            ) => void;
+          }
         | undefined;
       if (
         measurementTarget &&
@@ -1128,7 +1231,7 @@ export default function NewsDetailScreen() {
         openTooltipAtAnchor(pageX - 12, pageY - 12, 24, 24, "page");
       }
     },
-    [vocabularyMatches, kanjiMatches, tooltipOpacity]
+    [vocabularyMatches, kanjiMatches, tooltipOpacity],
   );
 
   const handleCloseTooltip = useCallback(() => {
@@ -1151,7 +1254,7 @@ export default function NewsDetailScreen() {
       }
       handleCloseTooltip();
     },
-    [tooltipInteractionMode, selectedTokenKey, handleCloseTooltip]
+    [tooltipInteractionMode, selectedTokenKey, handleCloseTooltip],
   );
 
   const handleViewDetails = useCallback(() => {
@@ -1166,12 +1269,12 @@ export default function NewsDetailScreen() {
       handleCloseTooltip();
       router.push(`/subject/${subjectId}`);
     },
-    [handleCloseTooltip, router]
+    [handleCloseTooltip, router],
   );
 
   const renderHighlightedText = (
     text: string,
-    isTitle: boolean = false
+    isTitle: boolean = false,
   ): ReactElement => {
     if (!text)
       return (
@@ -1189,11 +1292,10 @@ export default function NewsDetailScreen() {
     const segments = getHighlightSegments(text, allMatches);
 
     return (
-      <Text
+      <View
         style={[
-          isTitle ? styles.nativeTitle : styles.nativeText,
-          { color: theme.textColor },
-          !isTitle && fontStyles.japaneseText, // Add font style only if not title (title already has specific style or font)
+          styles.highlightedInlineContainer,
+          isTitle && styles.highlightedInlineTitleContainer,
         ]}
       >
         {segments.map((segment, index) => {
@@ -1201,7 +1303,12 @@ export default function NewsDetailScreen() {
             return (
               <Text
                 key={`text-${index}`}
-                style={!isTitle ? styles.nativeTextSegment : undefined}
+                style={[
+                  isTitle ? styles.nativeTitle : styles.nativeText,
+                  { color: theme.textColor },
+                  !isTitle && fontStyles.japaneseText,
+                  styles.highlightedPlainText,
+                ]}
               >
                 {segment.text}
               </Text>
@@ -1211,18 +1318,23 @@ export default function NewsDetailScreen() {
           const highlight = segment.match;
           const color = getItemColor(highlight.type);
           const isWaniKaniBacked = isWaniKaniBackedMatch(highlight);
-          const shouldKnow = isWaniKaniBacked ? highlight.level <= userLevel : true;
+          const shouldKnow = isWaniKaniBacked
+            ? highlight.level <= userLevel
+            : true;
           const showLevelBadge = !shouldKnow && isWaniKaniBacked;
           const showJpdbBadge = !isWaniKaniBacked;
 
           return (
             <TouchableOpacity
               key={`chip-${index}-${highlight.id}`}
-              onPress={(e) => handleVocabularyPress(highlight.id, segment.text, e)}
+              onPress={(e) =>
+                handleVocabularyPress(highlight.id, segment.text, e)
+              }
               activeOpacity={0.7}
               style={[
                 styles.inlineChipWrapper,
-                (showLevelBadge || showJpdbBadge) && styles.inlineChipWrapperWithBadge,
+                (showLevelBadge || showJpdbBadge) &&
+                  styles.inlineChipWrapperWithBadge,
               ]}
             >
               <View
@@ -1238,6 +1350,8 @@ export default function NewsDetailScreen() {
                 <Text
                   style={[
                     styles.inlineChipText,
+                    fontStyles.japaneseBold,
+                    styles.inlineChipJapaneseText,
                     isTitle && styles.inlineChipTextTitle,
                   ]}
                 >
@@ -1259,14 +1373,14 @@ export default function NewsDetailScreen() {
             </TouchableOpacity>
           );
         })}
-      </Text>
+      </View>
     );
   };
 
   const renderUnderlinedAnalyzedText = (
     text: string,
     blockStart: number,
-    isTitle: boolean = false
+    isTitle: boolean = false,
   ): ReactElement => {
     if (!text) {
       return (
@@ -1301,7 +1415,7 @@ export default function NewsDetailScreen() {
           (token) =>
             token.start >= blockStart &&
             token.end <= blockEnd &&
-            token.end > token.start
+            token.end > token.start,
         )
         .sort((a, b) => {
           if (a.start !== b.start) {
@@ -1360,7 +1474,7 @@ export default function NewsDetailScreen() {
             renderedNodes.push(
               <Text key={`plain-${blockStart}-${index}`} style={baseTextStyle}>
                 {segment.text}
-              </Text>
+              </Text>,
             );
             return renderedNodes;
           }
@@ -1377,11 +1491,14 @@ export default function NewsDetailScreen() {
             !grammarTooltipItem && !mappedMatch
               ? buildJpdbFallbackTooltipItem(
                   segment.token,
-                  segment.tokenType === "verb" ? "verb" : "vocabulary"
+                  segment.tokenType === "verb" ? "verb" : "vocabulary",
                 )
               : null;
           const tooltipItem =
-            grammarTooltipItem ?? mappedMatch ?? jpdbFallbackTooltipItem ?? null;
+            grammarTooltipItem ??
+            mappedMatch ??
+            jpdbFallbackTooltipItem ??
+            null;
           const tokenKey = `${segment.token.start}-${segment.token.end}-${segment.text}`;
           const isSelectedToken =
             Boolean(selectedItem) && selectedTokenKey === tokenKey;
@@ -1393,15 +1510,15 @@ export default function NewsDetailScreen() {
                 : vocabUnderlineColor;
           const tokenUnderlineColor = withAlpha(
             underlineColor,
-            theme.isDark ? 0.95 : 0.75
+            theme.isDark ? 0.95 : 0.75,
           );
           const selectedTokenBorderColor = withAlpha(
             theme.textColor,
-            theme.isDark ? 0.58 : 0.34
+            theme.isDark ? 0.58 : 0.34,
           );
           const selectedTokenBackground = withAlpha(
             underlineColor,
-            theme.isDark ? 0.24 : 0.18
+            theme.isDark ? 0.24 : 0.18,
           );
 
           const tokenText = (
@@ -1431,7 +1548,7 @@ export default function NewsDetailScreen() {
             renderedNodes.push(
               <View key={tokenNodeKey} style={styles.underlinedTokenPressable}>
                 {tokenText}
-              </View>
+              </View>,
             );
           } else {
             renderedNodes.push(
@@ -1445,7 +1562,7 @@ export default function NewsDetailScreen() {
                     event,
                     tooltipItem,
                     tokenKey,
-                    "press"
+                    "press",
                   )
                 }
                 onHoverIn={
@@ -1457,7 +1574,7 @@ export default function NewsDetailScreen() {
                           event,
                           tooltipItem,
                           tokenKey,
-                          "hover"
+                          "hover",
                         )
                     : undefined
                 }
@@ -1468,7 +1585,7 @@ export default function NewsDetailScreen() {
                 }
               >
                 {tokenText}
-              </Pressable>
+              </Pressable>,
             );
           }
 
@@ -1484,7 +1601,7 @@ export default function NewsDetailScreen() {
                 style={[baseTextStyle, styles.nativeUnderlineSeparator]}
               >
                 {TOKEN_UNDERLINE_SEPARATOR}
-              </Text>
+              </Text>,
             );
           }
 
@@ -1503,15 +1620,14 @@ export default function NewsDetailScreen() {
         ? grammarUnderlineColor
         : getItemColor(selectedItem.type);
     const isWaniKaniBacked = isWaniKaniBackedMatch(selectedItem);
-    const inflectionLabels =
-      selectedSurfaceText
-        ? getVerbInflectionLabelsForMatch(selectedItem, selectedSurfaceText)
-        : [];
+    const inflectionLabels = selectedSurfaceText
+      ? getVerbInflectionLabelsForMatch(selectedItem, selectedSurfaceText)
+      : [];
     const jpdbKanjiComposition =
       !isWaniKaniBacked &&
       (selectedItem.type === "vocabulary" ||
         selectedItem.type === "kana_vocabulary")
-        ? (selectedItem as VocabularyMatch).jpdbKanjiComposition ?? []
+        ? ((selectedItem as VocabularyMatch).jpdbKanjiComposition ?? [])
         : [];
     const primaryReading =
       selectedItem.readings?.find((r) => r.primary)?.reading ||
@@ -1539,10 +1655,7 @@ export default function NewsDetailScreen() {
       const rowContent = (
         <>
           <Text
-            style={[
-              styles.tooltipPopupLabel,
-              { color: theme.textSecondary },
-            ]}
+            style={[styles.tooltipPopupLabel, { color: theme.textSecondary }]}
           >
             {label}
           </Text>
@@ -1605,16 +1718,10 @@ export default function NewsDetailScreen() {
             ]}
           >
             <View
-              style={[
-                styles.tooltipPopupHeader,
-                { backgroundColor: color },
-              ]}
+              style={[styles.tooltipPopupHeader, { backgroundColor: color }]}
             >
               <Text
-                style={[
-                  styles.tooltipPopupCharacters,
-                  fontStyles.japaneseText,
-                ]}
+                style={[styles.tooltipPopupCharacters, fontStyles.japaneseText]}
               >
                 {selectedItem.characters}
               </Text>
@@ -1626,7 +1733,7 @@ export default function NewsDetailScreen() {
             </View>
 
             <View style={styles.tooltipPopupContent}>
-              {primaryReading && (
+              {primaryReading &&
                 renderTooltipValueRow({
                   label: "Reading:",
                   value: primaryReading,
@@ -1634,8 +1741,7 @@ export default function NewsDetailScreen() {
                   revealLabel: "Tap to reveal",
                   onReveal: () => setIsTooltipReadingRevealed(true),
                   valueStyle: fontStyles.japaneseText,
-                })
-              )}
+                })}
 
               {renderTooltipValueRow({
                 label: "Meaning:",
@@ -1723,6 +1829,19 @@ export default function NewsDetailScreen() {
     );
   };
 
+  if (isResolvingItem) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.offlineContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      </View>
+    );
+  }
+
   if (!item) {
     return (
       <View
@@ -1748,7 +1867,11 @@ export default function NewsDetailScreen() {
           />
         </View>
         <View style={styles.offlineContainer}>
-          <Ionicons name="cloud-offline-outline" size={64} color={theme.textLight} />
+          <Ionicons
+            name="cloud-offline-outline"
+            size={64}
+            color={theme.textLight}
+          />
           <Text style={[styles.offlineTitle, { color: theme.textColor }]}>
             Article Not Available
           </Text>
@@ -1765,7 +1888,7 @@ export default function NewsDetailScreen() {
 
   const css = `
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: ${Math.round(18 * accessibleFontScale)}px;
       line-height: 1.8;
       color: ${theme.textColor}; 
@@ -1813,13 +1936,13 @@ export default function NewsDetailScreen() {
 
   const html = `
     <!DOCTYPE html>
-    <html>
+    <html lang="ja">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>${css}</style>
       </head>
       <body>
-        <h1>${item.title}</h1>
+        <h1>${escapeHtml(item.title)}</h1>
         ${htmlContent}
       </body>
     </html>
@@ -1853,7 +1976,16 @@ export default function NewsDetailScreen() {
 
         <View style={{ flex: 1 }} />
 
-        {Platform.OS === "ios" && SwiftUI ? (
+        {isRegularItem ? (
+          <GlassButton
+            iconName="open-outline"
+            onPress={openOriginalArticle}
+            iconColor={headerIconColor}
+            style={[styles.headerButtonBase, styles.actionButton]}
+          />
+        ) : null}
+
+        {!isRegularSummary && Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host
             matchContents
             style={[styles.headerButtonBase, styles.actionButton]}
@@ -1877,7 +2009,9 @@ export default function NewsDetailScreen() {
                 />
               )}
               <SwiftUI.Button
-                label={showTranslation ? "Hide Translation" : "Show Translation"}
+                label={
+                  showTranslation ? "Hide Translation" : "Show Translation"
+                }
                 systemImage="globe"
                 onPress={toggleTranslation}
               />
@@ -1910,14 +2044,14 @@ export default function NewsDetailScreen() {
               </SwiftUI.Menu>
             </SwiftUI.Menu>
           </SwiftUI.Host>
-        ) : (
+        ) : !isRegularSummary ? (
           <GlassButton
             iconName="settings-outline"
             onPress={() => setShowSettingsMenu(true)}
             iconColor={headerIconColor}
             style={[styles.headerButtonBase, styles.actionButton]}
           />
-        )}
+        ) : null}
 
         {item.audioUrl && (
           <GlassButton
@@ -1941,7 +2075,62 @@ export default function NewsDetailScreen() {
         )}
       </View>
 
-      {isNativeMode ? (
+      {isRegularSummary ? (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.regularSummaryContent}
+        >
+          {item.imageUrl ? (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={styles.regularSummaryImage}
+              resizeMode="cover"
+              accessibilityLabel="NHK article image"
+            />
+          ) : null}
+          <Text
+            selectable
+            style={[
+              styles.regularSummarySource,
+              { color: theme.textSecondary },
+            ]}
+          >
+            NHK ONE News summary
+          </Text>
+          <Text
+            selectable
+            style={[styles.regularSummaryTitle, { color: theme.textColor }]}
+          >
+            {item.title}
+          </Text>
+          <Text
+            selectable
+            style={[
+              styles.regularSummaryBody,
+              fontStyles.japaneseText,
+              { color: theme.textColor },
+            ]}
+          >
+            {regularSummaryText ||
+              "NHK did not include a summary for this article."}
+          </Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Open full article on NHK"
+            style={({ pressed }) => [
+              styles.regularSummaryButton,
+              {
+                backgroundColor: theme.primary,
+                opacity: pressed ? 0.72 : 1,
+              },
+            ]}
+            onPress={() => void openOriginalArticle()}
+          >
+            <Text style={styles.regularSummaryButtonText}>Open on NHK</Text>
+            <Ionicons name="open-outline" size={18} color="#fff" />
+          </Pressable>
+        </ScrollView>
+      ) : isNativeMode ? (
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
@@ -1961,7 +2150,7 @@ export default function NewsDetailScreen() {
                     ? renderUnderlinedAnalyzedText(
                         block.content,
                         textBlockOffsets[index] ?? 0,
-                        isTitle
+                        isTitle,
                       )
                     : renderHighlightedText(block.content, isTitle)}
 
@@ -2011,9 +2200,7 @@ export default function NewsDetailScreen() {
                   source={{ uri: block.content }}
                   style={[
                     styles.nativeImage,
-                    aspectRatio
-                      ? { aspectRatio }
-                      : styles.nativeImageFallback,
+                    aspectRatio ? { aspectRatio } : styles.nativeImageFallback,
                   ]}
                   resizeMode="contain"
                 />
@@ -2033,7 +2220,7 @@ export default function NewsDetailScreen() {
 
       {renderTooltip()}
 
-      {!(Platform.OS === "ios" && SwiftUI) && (
+      {!isRegularSummary && !(Platform.OS === "ios" && SwiftUI) && (
         <Modal
           visible={showSettingsMenu}
           transparent
@@ -2050,7 +2237,10 @@ export default function NewsDetailScreen() {
                   ]}
                 >
                   <Text
-                    style={[styles.settingsModalTitle, { color: theme.textColor }]}
+                    style={[
+                      styles.settingsModalTitle,
+                      { color: theme.textColor },
+                    ]}
                   >
                     Reading Options
                   </Text>
@@ -2234,7 +2424,10 @@ export default function NewsDetailScreen() {
                   </View>
 
                   <TouchableOpacity
-                    style={[styles.settingsModalOption, styles.settingsModalCancel]}
+                    style={[
+                      styles.settingsModalOption,
+                      styles.settingsModalCancel,
+                    ]}
                     onPress={() => setShowSettingsMenu(false)}
                   >
                     <Text
@@ -2315,6 +2508,45 @@ const styles = StyleSheet.create({
     paddingTop: HEADER_HEIGHT + 16,
     paddingBottom: 40,
   },
+  regularSummaryContent: {
+    paddingHorizontal: 16,
+    paddingTop: HEADER_HEIGHT + 16,
+    paddingBottom: 48,
+    gap: 16,
+  },
+  regularSummaryImage: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    borderRadius: 8,
+    backgroundColor: "#333",
+  },
+  regularSummarySource: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  regularSummaryTitle: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: "800",
+  },
+  regularSummaryBody: {
+    fontSize: 18,
+    lineHeight: 32,
+  },
+  regularSummaryButton: {
+    minHeight: 48,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  regularSummaryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   nativeBlock: {
     marginBottom: 24,
   },
@@ -2327,8 +2559,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 40,
   },
-  nativeTextSegment: {
-    lineHeight: 40,
+  highlightedInlineContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+  },
+  highlightedInlineTitleContainer: {
+    marginBottom: 16,
+  },
+  highlightedPlainText: {
+    flexShrink: 1,
+    marginBottom: 0,
   },
   nativeImage: {
     width: "100%",
@@ -2392,6 +2633,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     includeFontPadding: false,
     textAlignVertical: "center",
+  },
+  inlineChipJapaneseText: {
+    fontWeight: "normal",
   },
   inlineChipTextTitle: {
     fontSize: 28,

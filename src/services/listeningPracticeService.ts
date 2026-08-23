@@ -6,7 +6,9 @@ import {
 import { getAllAssignmentsCached } from "../utils/api";
 import { getSubjectById } from "../utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../utils/extraStudySubjectLists";
 import {
@@ -211,6 +213,13 @@ async function loadAndFilterVocabs(
   const selectedListSubjectIds = await getSelectedListSubjectIdSet(
     selectedListIds
   );
+  const subjectIdToStage = new Map<number, number>();
+  assignments.forEach((assignment) => {
+    subjectIdToStage.set(
+      assignment.data.subject_id,
+      assignment.data.srs_stage,
+    );
+  });
 
   // SRS stage mapping
   const srsStageMap = {
@@ -231,14 +240,27 @@ async function loadAndFilterVocabs(
     }
   }
 
-  for (const assignment of assignments) {
-    // Filter by SRS stage
-    if (!selectedStages.includes(assignment.data.srs_stage)) {
+  const candidateSubjectIds = getExtraStudyCandidateSubjectIds(
+    assignments,
+    selectedListIds,
+    selectedListSubjectIds,
+  );
+
+  for (const subjectId of candidateSubjectIds) {
+    if (
+      !subjectMatchesExtraStudySrsStage(
+        subjectId,
+        subjectIdToStage,
+        selectedListIds,
+        selectedListSubjectIds,
+        (stage) => selectedStages.includes(stage),
+      )
+    ) {
       continue;
     }
 
     // Load subject
-    const subject = await getSubjectById(assignment.data.subject_id);
+    const subject = await getSubjectById(subjectId);
     if (!subject) continue;
 
     // Filter by subject type (include if either type matches)

@@ -76,6 +76,7 @@ export type VocabularyAudioVoicePreference =
   | "random"
   | "both";
 export type StudyModePreference = "none" | "wk" | "full";
+export type NewsSourcePreference = "easy" | "regular" | "both";
 export type SongLyricsStudyModePreference = StudyModePreference | "quiz";
 export type SongsPlaybackSource = "youtube" | "appleMusic" | "spotify";
 export type SpotifyAuthStatus =
@@ -151,7 +152,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 16;
+const SETTINGS_STORE_SCHEMA_VERSION = 17;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -234,6 +235,12 @@ function migratePersistedObject<TState extends object>(
 
   // Fall back to defaults from the store initializer when persisted payload is invalid.
   return {} as TState;
+}
+
+function normalizeNewsSourcePreference(
+  value: unknown
+): NewsSourcePreference {
+  return value === "regular" || value === "both" ? value : "easy";
 }
 
 function normalizeReviewWrapUpTargetSubjects(value: number): number {
@@ -604,10 +611,13 @@ type SettingsState = {
   // Listening practice settings
   listeningAutoPlayAudio: boolean; // Auto-play audio when moving between questions
 
-  // Songs settings
+  // Reading settings
+  newsSourcePreference: NewsSourcePreference;
   newsDefaultStudyMode: StudyModePreference;
   hideVocabularyTooltipMeanings: boolean;
   hideVocabularyTooltipReadings: boolean;
+
+  // Songs settings
   songsMusicSource: "spotify" | "apple";
   songsPlaybackSource: SongsPlaybackSource;
   songsLyricsDefaultStudyMode: SongLyricsStudyModePreference;
@@ -778,6 +788,7 @@ type SettingsState = {
   setStrokeLeniency: (leniency: number) => void;
   setVisuallySimilarKanjiSource: (source: "wanikani" | "niai") => void;
   setListeningAutoPlayAudio: (autoplay: boolean) => void;
+  setNewsSourcePreference: (source: NewsSourcePreference) => void;
   setNewsDefaultStudyMode: (mode: StudyModePreference) => void;
   setHideVocabularyTooltipMeanings: (hide: boolean) => void;
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
@@ -944,7 +955,8 @@ export const useSettingsStore = create<SettingsState>()(
       visuallySimilarKanjiSource: "wanikani", // Default to WaniKani's built-in similar kanji
 
       listeningAutoPlayAudio: true, // Default to true - auto-play audio when moving between questions
-      newsDefaultStudyMode: "none", // Default to regular NHK article view
+      newsSourcePreference: "easy", // Keep the existing beginner-friendly feed until users opt in
+      newsDefaultStudyMode: "none", // Default to the rendered article view
       hideVocabularyTooltipMeanings: false, // Default to showing tooltip meanings immediately
       hideVocabularyTooltipReadings: false, // Default to showing tooltip readings immediately
       songsMusicSource: "spotify", // Default to Spotify for backwards compatibility
@@ -1214,6 +1226,8 @@ export const useSettingsStore = create<SettingsState>()(
       setStrokeLeniency: (leniency) => set({ strokeLeniency: leniency }),
       setVisuallySimilarKanjiSource: (source) => set({ visuallySimilarKanjiSource: source }),
       setListeningAutoPlayAudio: (autoplay) => set({ listeningAutoPlayAudio: autoplay }),
+      setNewsSourcePreference: (source) =>
+        set({ newsSourcePreference: normalizeNewsSourcePreference(source) }),
       setNewsDefaultStudyMode: (mode) => set({ newsDefaultStudyMode: mode }),
       setHideVocabularyTooltipMeanings: (hide) =>
         set({ hideVocabularyTooltipMeanings: hide }),
@@ -1366,6 +1380,7 @@ export const useSettingsStore = create<SettingsState>()(
           spotifyAuthStatus?: unknown;
           spotifyDisplayName?: unknown;
           kanjiReadingTextToSpeechEnabled?: unknown;
+          newsSourcePreference?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1504,6 +1519,9 @@ export const useSettingsStore = create<SettingsState>()(
         ) {
           migratedRecord.kanjiReadingTextToSpeechEnabled = false;
         }
+        migratedRecord.newsSourcePreference = normalizeNewsSourcePreference(
+          migratedRecord.newsSourcePreference
+        );
 
         return migrated;
       },

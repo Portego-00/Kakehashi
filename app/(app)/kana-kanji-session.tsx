@@ -18,14 +18,16 @@ import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
 import {
-  Assignment,
   Subject as ApiSubject,
   getAllAssignmentsCached,
 } from "../../src/utils/api";
 import { getAllSubjects, getSubjectById } from "../../src/utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import {
@@ -321,8 +323,15 @@ export default function KanaKanjiSessionScreen() {
       const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
         srs_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
       });
+      const selectedListIds = config.selectedListIds || [];
+      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
+        selectedListIds,
+      );
 
-      if (assignmentsResponse.data.length === 0) {
+      if (
+        assignmentsResponse.data.length === 0 &&
+        selectedListIds.length === 0
+      ) {
         Alert.alert(
           "No Learned Items",
           "You haven't learned enough items yet to take a test.",
@@ -331,8 +340,10 @@ export default function KanaKanjiSessionScreen() {
         return;
       }
 
-      const subjectIds = assignmentsResponse.data.map(
-        (assignment: Assignment) => assignment.data.subject_id,
+      const subjectIds = getExtraStudyCandidateSubjectIds(
+        assignmentsResponse.data,
+        selectedListIds,
+        selectedListSubjectIds,
       );
 
       const allSubjects: ApiSubject[] = [];
@@ -347,10 +358,6 @@ export default function KanaKanjiSessionScreen() {
       assignmentsResponse.data.forEach((assignment: any) => {
         subjectIdToStage.set(assignment.data.subject_id, assignment.data.srs_stage);
       });
-      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
-        config.selectedListIds || []
-      );
-
       const srsStageAllowed = (stage: number) => {
         if (stage >= 1 && stage <= 4) return config.srsGroups.apprentice;
         if (stage >= 5 && stage <= 6) return config.srsGroups.guru;
@@ -370,19 +377,29 @@ export default function KanaKanjiSessionScreen() {
           return false;
         }
 
-        const stage = subjectIdToStage.get(subject.id) ?? 0;
-        if (!srsStageAllowed(stage)) return false;
+        if (
+          !subjectMatchesExtraStudySrsStage(
+            subject.id,
+            subjectIdToStage,
+            selectedListIds,
+            selectedListSubjectIds,
+            srsStageAllowed,
+          )
+        ) return false;
 
         const level = (subject as any).data?.level;
-        const inLevelRange =
-          !config.useCustomLevelRange ||
-          (level >= config.minLevel && level <= config.maxLevel);
+        const inLevelRange = subjectMatchesExtraStudyLevel(level, {
+          useCustomLevelRange: config.useCustomLevelRange,
+          minLevel: config.minLevel,
+          maxLevel: config.maxLevel,
+          selectedListIds,
+        });
 
         return (
           inLevelRange &&
           subjectMatchesSelectedLists(
             subject.id,
-            config.selectedListIds || [],
+            selectedListIds,
             selectedListSubjectIds
           )
         );
@@ -478,9 +495,12 @@ export default function KanaKanjiSessionScreen() {
           }
 
           const level = (subject as any).data?.level;
-          const inLevelRange =
-            !config.useCustomLevelRange ||
-            (level >= config.minLevel && level <= config.maxLevel);
+          const inLevelRange = subjectMatchesExtraStudyLevel(level, {
+            useCustomLevelRange: config.useCustomLevelRange,
+            minLevel: config.minLevel,
+            maxLevel: config.maxLevel,
+            selectedListIds: config.selectedListIds || [],
+          });
           return (
             inLevelRange &&
             subjectMatchesSelectedLists(

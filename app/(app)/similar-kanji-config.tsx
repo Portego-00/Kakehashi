@@ -545,7 +545,8 @@ export default function SimilarKanjiConfigScreen() {
           <Text
             style={[styles.sectionDescription, { color: theme.textSecondary }]}
           >
-            By default includes levels 1 to your level ({userLevel}).
+            Without a subject list, includes levels 1 to your level ({userLevel}).
+            Selected lists can include any level.
           </Text>
           <View
             style={[
@@ -647,7 +648,9 @@ export default function SimilarKanjiConfigScreen() {
                   { color: theme.textSecondary },
                 ]}
               >
-                Levels 1 - {userLevel}
+                {config.selectedListIds.length > 0
+                  ? "All levels in selected lists"
+                  : `Levels 1 - ${userLevel}`}
               </Text>
             </View>
           )}

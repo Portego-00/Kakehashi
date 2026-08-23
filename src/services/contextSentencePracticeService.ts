@@ -7,7 +7,9 @@ import type {
 import { getAllAssignmentsCached } from "../utils/api";
 import { getSubjectById } from "../utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../utils/extraStudySubjectLists";
 
@@ -401,12 +403,38 @@ async function loadEligibleVocabulary(
 
   const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
     subject_types: ["vocabulary", "kana_vocabulary"],
-    srs_stages: selectedStages,
+    srs_stages:
+      selectedListIds.length > 0
+        ? [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : selectedStages,
   });
+  const subjectIdToStage = new Map<number, number>();
+  assignmentsResponse.data.forEach((assignment) => {
+    subjectIdToStage.set(
+      assignment.data.subject_id,
+      assignment.data.srs_stage,
+    );
+  });
+  const candidateSubjectIds = getExtraStudyCandidateSubjectIds(
+    assignmentsResponse.data,
+    selectedListIds,
+    selectedListSubjectIds,
+  );
 
   const subjects: Subject[] = [];
-  for (const assignment of assignmentsResponse.data) {
-    const subject = (await getSubjectById(assignment.data.subject_id)) as Subject | null;
+  for (const subjectId of candidateSubjectIds) {
+    if (
+      !subjectMatchesExtraStudySrsStage(
+        subjectId,
+        subjectIdToStage,
+        selectedListIds,
+        selectedListSubjectIds,
+        (stage) => selectedStages.includes(stage),
+      )
+    ) {
+      continue;
+    }
+    const subject = (await getSubjectById(subjectId)) as Subject | null;
     if (!subject) continue;
     if (!subject.data?.characters) continue;
     if (!passesTypeFilter(subject, config)) continue;
