@@ -69,7 +69,8 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "com.ichi2.anki.permission.READ_WRITE_DATABASE"
       ],
       "blockedPermissions": [
         "android.permission.ACTIVITY_RECOGNITION",

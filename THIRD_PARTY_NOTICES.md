@@ -1,8 +1,19 @@
-# Third-party notices for bundled kanji formation data
+# Third-party notices
 
-These notices apply to `src/data/kanjiEtymology.generated.ts`, its build-time
-inputs, and the kanji catalog snapshot used to validate its coverage. They do
-not change the MIT license of the rest of the Kakehashi application.
+These notices cover third-party components and data distributed with
+Kakehashi. They do not change the MIT license of the rest of the application.
+
+## AnkiDroid API
+
+The Android context-sentence export integration uses the AnkiDroid API:
+
+- Project: https://github.com/ankidroid/Anki-Android
+- API version: `api-v1.1.0`
+- License: GNU Lesser General Public License, version 3 or later
+- License copy: `licenses/MAKE_ME_A_HANZI_LGPL.txt`
+
+The API is linked as a replaceable Gradle library and communicates with the
+separately installed AnkiDroid application through its public content provider.
 
 ## Make Me a Hanzi
 
@@ -84,4 +95,3 @@ Coverage is based on the public kanji level pages:
 The snapshot contains only the kanji character and level needed to prove
 coverage. It contains no WaniKani mnemonics, readings, meanings, or vocabulary.
 Kakehashi is not affiliated with WaniKani or Tofugu LLC.
-

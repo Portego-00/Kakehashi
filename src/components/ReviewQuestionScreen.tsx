@@ -108,6 +108,7 @@ import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
 import { FormattedNoteEditor } from "./formatted-note";
+import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -5739,6 +5740,16 @@ export default function ReviewQuestionScreen({
                             • {sentence.en}
                           </Text>
                         )}
+                        {shouldShowContextHintTranslations &&
+                          !!sentence.ja &&
+                          !!sentence.en && (
+                            <AnkiDroidExportButton
+                              japanese={sentence.ja}
+                              english={sentence.en}
+                              compact
+                              style={styles.contextHintAnkiButton}
+                            />
+                          )}
                       </View>
                     ))}
                   </View>
@@ -8111,6 +8122,10 @@ const styles = StyleSheet.create({
   contextHintSentenceJapanese: {
     fontStyle: "normal",
     color: "rgba(255, 255, 255, 0.95)",
+  },
+  contextHintAnkiButton: {
+    alignSelf: "flex-end",
+    marginTop: 6,
   },
   contextHintSentenceHighlight: {
     color: "#FFD166",

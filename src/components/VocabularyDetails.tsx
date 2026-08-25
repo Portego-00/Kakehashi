@@ -57,6 +57,7 @@ import { SynonymsModal } from "./SynonymsModal";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 // Enable Reanimated layout animations (Fabric / new‑arch friendly)
 enableLayoutAnimations(true);
@@ -1628,6 +1629,11 @@ export default function VocabularyDetails({
                           }
                         />
                       </TouchableOpacity>
+                      <AnkiDroidExportButton
+                        japanese={example.ja}
+                        english={example.en}
+                        style={styles.ankiExportAction}
+                      />
                     </View>
                     {renderTranslation(
                       example.en,
@@ -1711,6 +1717,11 @@ export default function VocabularyDetails({
                             }
                           />
                         </TouchableOpacity>
+                        <AnkiDroidExportButton
+                          japanese={sentence.ja}
+                          english={sentence.en}
+                          style={styles.ankiExportAction}
+                        />
                       </View>
                       {renderTranslation(
                         sentence.en,
@@ -2484,6 +2495,11 @@ export default function VocabularyDetails({
                                   />
                                 )}
                               </TouchableOpacity>
+                              <AnkiDroidExportButton
+                                japanese={sentence.sentence}
+                                english={sentence.translation}
+                                style={styles.ankiExportAction}
+                              />
                             </View>
 
                             {/* Horizontal layout: Image on left, text on right */}
@@ -4060,6 +4076,9 @@ const createStyles = (subjectColors: SubjectColors) =>
   sentencePlayButtonActive: {
     backgroundColor: subjectColors.vocabulary,
     borderRadius: 16,
+  },
+  ankiExportAction: {
+    marginLeft: 8,
   },
   sentenceSpeedControl: {
     marginTop: 8,

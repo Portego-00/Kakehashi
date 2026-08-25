@@ -92,7 +92,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 19
-        versionName "1.4.6"
+        versionName "1.4.7"
     }
     signingConfigs {
         debug {
@@ -127,6 +127,12 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+    lint {
+        // The AnkiDroid API AAR bundles lint rules intended for AnkiDroid's own
+        // Collection-backed code. Kakehashi has no Collection time source, so
+        // these rules must not be applied to its notification scheduler.
+        disable 'DirectCalendarInstanceUsage', 'DirectSystemCurrentTimeMillisUsage'
+    }
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
@@ -151,6 +157,7 @@ android {
 
 dependencies {
     implementation "io.github.hyochan.openiap:openiap-google:1.3.14"
+    implementation "com.github.ankidroid:Anki-Android:api-v1.1.0"
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 

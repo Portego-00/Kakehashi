@@ -24,6 +24,7 @@ class MainApplication : Application(), ReactApplication {
       add(WaniKaniWebClientPackage())
       add(ReviewNotificationManagerPackage())
       add(KeyboardManagerPackage())
+      add(AnkiDroidPackage())
     }
   }
 

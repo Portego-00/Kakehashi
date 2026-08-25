@@ -344,7 +344,7 @@ export function ReviewSettingsSection() {
           />
         </View>
 
-        {ankiCardMode && (
+        {(ankiCardMode || Platform.OS === "android") && (
           <TouchableOpacity
             style={[
               styles.settingItemColumn,
@@ -362,7 +362,9 @@ export function ReviewSettingsSection() {
               />
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: theme.textColor }]}>
-                  Anki Advanced Settings
+                  {Platform.OS === "android"
+                    ? "Anki Settings & Export"
+                    : "Anki Advanced Settings"}
                 </Text>
                 <Text
                   style={[
@@ -370,7 +372,9 @@ export function ReviewSettingsSection() {
                     { color: theme.textSecondary },
                   ]}
                 >
-                  {`Applies to ${ankiCardModeScope}. ${ankiGroupQuestions ? "Grouped cards enabled." : "Grouped cards disabled."}`}
+                  {ankiCardMode
+                    ? `Applies to ${ankiCardModeScope}. ${ankiGroupQuestions ? "Grouped cards enabled." : "Grouped cards disabled."}`
+                    : "Configure AnkiDroid context sentence export."}
                 </Text>
               </View>
               <Ionicons
