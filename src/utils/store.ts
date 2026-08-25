@@ -76,6 +76,7 @@ export type VocabularyAudioVoicePreference =
   | "random"
   | "both";
 export type StudyModePreference = "none" | "wk" | "full";
+export type NewsSourcePreference = "easy" | "regular" | "both";
 export type SongLyricsStudyModePreference = StudyModePreference | "quiz";
 export type SongsPlaybackSource = "youtube" | "appleMusic" | "spotify";
 export type SpotifyAuthStatus =
@@ -146,8 +147,12 @@ export const DEFAULT_REVIEW_CHARACTER_FONT_SCALE = 1;
 export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
+export const DEFAULT_REVIEW_INPUT_FONT_SCALE = 1;
+export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
+export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
+export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 15;
+const SETTINGS_STORE_SCHEMA_VERSION = 17;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -232,6 +237,12 @@ function migratePersistedObject<TState extends object>(
   return {} as TState;
 }
 
+function normalizeNewsSourcePreference(
+  value: unknown
+): NewsSourcePreference {
+  return value === "regular" || value === "both" ? value : "easy";
+}
+
 function normalizeReviewWrapUpTargetSubjects(value: number): number {
   const finiteValue = Number.isFinite(value)
     ? value
@@ -259,6 +270,23 @@ function normalizeReviewCharacterFontScale(value: unknown): number {
     Math.min(
       REVIEW_CHARACTER_FONT_SCALE_MAX,
       Math.max(REVIEW_CHARACTER_FONT_SCALE_MIN, normalizedToStep)
+    ).toFixed(2)
+  );
+}
+
+function normalizeReviewInputFontScale(value: unknown): number {
+  const numericValue =
+    typeof value === "number" && Number.isFinite(value)
+      ? value
+      : DEFAULT_REVIEW_INPUT_FONT_SCALE;
+  const normalizedToStep =
+    Math.round(numericValue / REVIEW_INPUT_FONT_SCALE_STEP) *
+    REVIEW_INPUT_FONT_SCALE_STEP;
+
+  return Number(
+    Math.min(
+      REVIEW_INPUT_FONT_SCALE_MAX,
+      Math.max(REVIEW_INPUT_FONT_SCALE_MIN, normalizedToStep)
     ).toFixed(2)
   );
 }
@@ -486,6 +514,7 @@ type SettingsState = {
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
   reviewCharacterFontScale: number; // Scale for the large Japanese prompt during reviews
+  reviewInputFontScale: number; // Scale for answer text entered during reviews
   backToBackImmediateRetryIncorrect: boolean; // In back-to-back mode, immediately re-ask incorrect questions (legacy behavior)
   allowSkippingReviews: boolean; // Allow skipping a review item by submitting an empty answer
   meaningFirst: boolean;
@@ -516,7 +545,7 @@ type SettingsState = {
   autoplayLessonReadingAudio: boolean; // Auto-play vocabulary audio when opening the Reading tab in lessons
   vocabularyAudioVoice: VocabularyAudioVoicePreference;
   offlineVocabularyAudioEnabled: boolean; // Pre-download vocabulary pronunciation audio for offline playback
-  autoSwitchKeyboard: boolean; // Auto-switch to Japanese keyboard for reading questions
+  autoSwitchKeyboard: boolean; // Auto-switch to Japanese keyboard for Japanese answer entry
   voiceReviewAnswersEnabled: boolean; // Enable speech recognition for review answers
   reviewIncorrectKeyboardShortcuts: ReviewIncorrectKeyboardShortcutSettings; // Shortcuts used while paused on incorrect answers
   reviewCorrectKeyboardShortcuts: ReviewCorrectKeyboardShortcutSettings; // Shortcuts used while paused on correct answers
@@ -582,10 +611,13 @@ type SettingsState = {
   // Listening practice settings
   listeningAutoPlayAudio: boolean; // Auto-play audio when moving between questions
 
-  // Songs settings
+  // Reading settings
+  newsSourcePreference: NewsSourcePreference;
   newsDefaultStudyMode: StudyModePreference;
   hideVocabularyTooltipMeanings: boolean;
   hideVocabularyTooltipReadings: boolean;
+
+  // Songs settings
   songsMusicSource: "spotify" | "apple";
   songsPlaybackSource: SongsPlaybackSource;
   songsLyricsDefaultStudyMode: SongLyricsStudyModePreference;
@@ -664,6 +696,7 @@ type SettingsState = {
   setReviewWrapUpTargetSubjects: (target: number) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
   setReviewCharacterFontScale: (scale: number) => void;
+  setReviewInputFontScale: (scale: number) => void;
   setBackToBackImmediateRetryIncorrect: (enabled: boolean) => void;
   setAllowSkippingReviews: (enabled: boolean) => void;
   setMeaningFirst: (meaningFirst: boolean) => void;
@@ -755,6 +788,7 @@ type SettingsState = {
   setStrokeLeniency: (leniency: number) => void;
   setVisuallySimilarKanjiSource: (source: "wanikani" | "niai") => void;
   setListeningAutoPlayAudio: (autoplay: boolean) => void;
+  setNewsSourcePreference: (source: NewsSourcePreference) => void;
   setNewsDefaultStudyMode: (mode: StudyModePreference) => void;
   setHideVocabularyTooltipMeanings: (hide: boolean) => void;
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
@@ -824,6 +858,7 @@ export const useSettingsStore = create<SettingsState>()(
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
       reviewCharacterFontScale: DEFAULT_REVIEW_CHARACTER_FONT_SCALE, // Default to the current prompt size
+      reviewInputFontScale: DEFAULT_REVIEW_INPUT_FONT_SCALE, // Default to the current answer input size
       backToBackImmediateRetryIncorrect: false, // Default to disabled - keep delayed boundary-safe requeue
       allowSkippingReviews: false, // Default to disabled to match standard WaniKani review flow
       meaningFirst: true,
@@ -920,7 +955,8 @@ export const useSettingsStore = create<SettingsState>()(
       visuallySimilarKanjiSource: "wanikani", // Default to WaniKani's built-in similar kanji
 
       listeningAutoPlayAudio: true, // Default to true - auto-play audio when moving between questions
-      newsDefaultStudyMode: "none", // Default to regular NHK article view
+      newsSourcePreference: "easy", // Keep the existing beginner-friendly feed until users opt in
+      newsDefaultStudyMode: "none", // Default to the rendered article view
       hideVocabularyTooltipMeanings: false, // Default to showing tooltip meanings immediately
       hideVocabularyTooltipReadings: false, // Default to showing tooltip readings immediately
       songsMusicSource: "spotify", // Default to Spotify for backwards compatibility
@@ -1027,6 +1063,10 @@ export const useSettingsStore = create<SettingsState>()(
       setReviewCharacterFontScale: (scale) =>
         set({
           reviewCharacterFontScale: normalizeReviewCharacterFontScale(scale),
+        }),
+      setReviewInputFontScale: (scale) =>
+        set({
+          reviewInputFontScale: normalizeReviewInputFontScale(scale),
         }),
       setBackToBackImmediateRetryIncorrect: (enabled) =>
         set({ backToBackImmediateRetryIncorrect: enabled }),
@@ -1186,6 +1226,8 @@ export const useSettingsStore = create<SettingsState>()(
       setStrokeLeniency: (leniency) => set({ strokeLeniency: leniency }),
       setVisuallySimilarKanjiSource: (source) => set({ visuallySimilarKanjiSource: source }),
       setListeningAutoPlayAudio: (autoplay) => set({ listeningAutoPlayAudio: autoplay }),
+      setNewsSourcePreference: (source) =>
+        set({ newsSourcePreference: normalizeNewsSourcePreference(source) }),
       setNewsDefaultStudyMode: (mode) => set({ newsDefaultStudyMode: mode }),
       setHideVocabularyTooltipMeanings: (hide) =>
         set({ hideVocabularyTooltipMeanings: hide }),
@@ -1330,6 +1372,7 @@ export const useSettingsStore = create<SettingsState>()(
           customTabOrder?: unknown;
           lessonPickerViewMode?: unknown;
           reviewCharacterFontScale?: unknown;
+          reviewInputFontScale?: unknown;
           appTextSizeScale?: unknown;
           hideVocabularyTooltipMeanings?: unknown;
           hideVocabularyTooltipReadings?: unknown;
@@ -1337,6 +1380,7 @@ export const useSettingsStore = create<SettingsState>()(
           spotifyAuthStatus?: unknown;
           spotifyDisplayName?: unknown;
           kanjiReadingTextToSpeechEnabled?: unknown;
+          newsSourcePreference?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1434,6 +1478,9 @@ export const useSettingsStore = create<SettingsState>()(
           normalizeReviewCharacterFontScale(
             migratedRecord.reviewCharacterFontScale
           );
+        migratedRecord.reviewInputFontScale = normalizeReviewInputFontScale(
+          migratedRecord.reviewInputFontScale
+        );
         migratedRecord.appTextSizeScale = normalizeAppTextSizeScale(
           migratedRecord.appTextSizeScale
         );
@@ -1472,6 +1519,9 @@ export const useSettingsStore = create<SettingsState>()(
         ) {
           migratedRecord.kanjiReadingTextToSpeechEnabled = false;
         }
+        migratedRecord.newsSourcePreference = normalizeNewsSourcePreference(
+          migratedRecord.newsSourcePreference
+        );
 
         return migrated;
       },

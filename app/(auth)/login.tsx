@@ -408,8 +408,11 @@ export default function Login() {
                       onFocus={syncAndroidKeyboardMetrics}
                       placeholder="Paste your API token here"
                       placeholderTextColor="#999"
+                      secureTextEntry
                       autoCapitalize="none"
                       autoCorrect={false}
+                      autoComplete="password"
+                      textContentType="password"
                     />
                   </>
                 )}

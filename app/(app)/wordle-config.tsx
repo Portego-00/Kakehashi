@@ -510,7 +510,9 @@ export default function WordleConfigScreen() {
           <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}> 
             {config.useCustomLevelRange
               ? `Using levels ${config.minLevel} to ${config.maxLevel}`
-              : "Using all unlocked levels"}
+              : config.selectedListIds.length > 0
+                ? "Using all levels in selected lists"
+                : `Using levels 1 to your level (${userLevel})`}
           </Text>
 
           <Animated.View

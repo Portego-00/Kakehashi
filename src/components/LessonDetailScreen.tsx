@@ -30,7 +30,6 @@ import {
   StyleSheet,
   Text,
   TextStyle,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -62,6 +61,10 @@ import { getAllSubjects } from "../utils/cache";
 import { azureSpeechService } from "../utils/azureSpeech";
 import { SynonymsModal } from "./SynonymsModal";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import {
+  FormattedNoteEditor,
+  FormattedNoteText,
+} from "./formatted-note";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
@@ -2091,11 +2094,13 @@ const SubjectContent = ({
           <Text style={styles.noteCardTitle}>{noteLabel}</Text>
           <Ionicons name="pencil" size={16} color={theme.textSecondary} />
         </View>
-        <Text
-          style={[styles.noteCardBody, !noteValue && styles.noteCardBodyEmpty]}
-        >
-          {noteValue || `Tap to add ${type} note`}
-        </Text>
+        {noteValue ? (
+          <FormattedNoteText text={noteValue} style={styles.noteCardBody} />
+        ) : (
+          <Text style={[styles.noteCardBody, styles.noteCardBodyEmpty]}>
+            {`Tap to add ${type} note`}
+          </Text>
+        )}
       </TouchableOpacity>
     );
   };
@@ -4403,12 +4408,15 @@ const SubjectContent = ({
             <Text style={styles.noteModalTitle}>
               {editingNoteType === "meaning" ? "Meaning Note" : "Reading Note"}
             </Text>
-            <TextInput
+            <FormattedNoteEditor
+              key={`${editingNoteType}:${noteModalVisible}`}
               style={styles.noteInput}
-              multiline
               value={editingNoteText}
               onChangeText={setEditingNoteText}
               onFocus={syncAndroidKeyboardMetrics}
+              accessibilityLabel={`${
+                editingNoteType === "meaning" ? "Meaning" : "Reading"
+              } note text`}
               placeholder={`Add your ${editingNoteType} note here...`}
               placeholderTextColor={theme.textLight}
             />

@@ -40,6 +40,7 @@ import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import { FormattedNoteText } from "./formatted-note";
 import KanjiEtymologySection from "./KanjiEtymologySection";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import KanjiReadingExamples from "./KanjiReadingExamples";
@@ -1257,9 +1258,10 @@ export default function KanjiDetails({
                       </View>
                     </View>
                     {kanji.meaningNote ? (
-                      <Text style={[styles.noteContent, { color: theme.textColor }]}>
-                        {kanji.meaningNote}
-                      </Text>
+                      <FormattedNoteText
+                        text={kanji.meaningNote}
+                        style={[styles.noteContent, { color: theme.textColor }]}
+                      />
                     ) : (
                       <Text style={[styles.noteText, { color: theme.textLight }]}>
                         Click to add meaning note
@@ -1285,9 +1287,10 @@ export default function KanjiDetails({
                       </View>
                     </View>
                     {kanji.readingNote ? (
-                      <Text style={[styles.noteContent, { color: theme.textColor }]}>
-                        {kanji.readingNote}
-                      </Text>
+                      <FormattedNoteText
+                        text={kanji.readingNote}
+                        style={[styles.noteContent, { color: theme.textColor }]}
+                      />
                     ) : (
                       <Text style={[styles.noteText, { color: theme.textLight }]}>
                         Click to add reading note

@@ -56,6 +56,86 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.3.1",
+    date: "2026-08-23",
+    changes: [
+      {
+        type: "feature",
+        title: "Full NHK News",
+        description:
+          "Read full Standard NHK News stories with images and study highlighting, using Easy, Standard, or Both sources.",
+      },
+    ],
+  },
+  {
+    version: "1.3.0",
+    date: "2026-08-22",
+    changes: [
+      {
+        type: "feature",
+        title: "Formatted Notes",
+        description:
+          "Select note text to make it bold, italic, or underlined across subject details, lessons, and reviews.",
+      },
+      {
+        type: "improvement",
+        title: "All-Level Subject List Practice",
+        description:
+          "Extra Study quizzes now include selected Subject List items above your current level unless you enable a custom level range.",
+      },
+    ],
+  },
+  {
+    version: "1.2.99",
+    date: "2026-08-19",
+    changes: [
+      {
+        type: "feature",
+        title: "Subject List Transfers",
+        description:
+          "Copy or move every subject from one Subject List to another using the new Transfer List action under Browse.",
+        link: {
+          route: "/subject-lists",
+          label: "Open Subject Lists",
+        },
+      },
+      {
+        type: "feature",
+        title: "Custom Review Frequency Filters",
+        description:
+          "Combine any Custom Review SRS stages with a maximum word-frequency rank you choose. First-time checks are cached and resume automatically if Jiten asks the app to pause.",
+        link: {
+          route: "/custom-review-selection",
+          label: "Open Custom Review",
+        },
+      },
+      {
+        type: "fix",
+        title: "Lesson Answer Controls",
+        description:
+          "Fixed an issue where the answer button and Enter key could stop responding after an incorrect or skipped question, especially near the end of a lesson.",
+      },
+    ],
+  },
+  {
+    version: "1.2.98",
+    date: "2026-08-17",
+    changes: [
+      {
+        type: "improvement",
+        title: "English to Japanese Synonyms",
+        description:
+          "English to Japanese quizzes now accept matching Japanese words that share the prompted meaning.",
+      },
+      {
+        type: "improvement",
+        title: "Similar Kanji Readings",
+        description:
+          "Similar Kanji Match now shows each kanji’s reading after you submit a round.",
+      },
+    ],
+  },
+  {
     version: "1.2.97",
     date: "2026-08-10",
     changes: [
@@ -88,6 +168,29 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Lesson Frequency Filters",
         description:
           "Filter available vocabulary lessons by common frequency-rank ranges.",
+      },
+      {
+        type: "feature",
+        title: "Review Input Size",
+        description:
+          "Added an advanced review setting to adjust the answer input text size.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "reviews" },
+          label: "Open Review Settings",
+        },
+      },
+      {
+        type: "fix",
+        title: "Anki Keyboard Shortcuts",
+        description:
+          "Bluetooth keyboard shortcuts now work in Anki-style reviews.",
+      },
+      {
+        type: "improvement",
+        title: "Japanese Keyboard Switching",
+        description:
+          "Crossword, Wordle, and Bunpro answers now switch to a Japanese keyboard when enabled.",
       },
     ],
   },

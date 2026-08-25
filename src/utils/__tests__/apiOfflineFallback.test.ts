@@ -89,10 +89,19 @@ describe("api offline assignment fallbacks", () => {
 
   const loadApi = ({
     permanentAssignments = [],
+    cachedAssignments = null,
   }: {
     permanentAssignments?: any[];
+    cachedAssignments?: ReturnType<typeof makeAssignmentsCollection> | null;
   } = {}) => {
-    const getFromCacheMock = jest.fn(async () => null);
+    const getFromCacheMock = jest.fn(async (key: string) =>
+      cachedAssignments && key.startsWith("assignments_full_")
+        ? {
+            data: cachedAssignments,
+            dataUpdatedAt: cachedAssignments.data_updated_at,
+          }
+        : null,
+    );
     const getStudyMaterialsFromPermanentCacheMock = jest.fn<
       Promise<any[] | null>,
       [number[]]
@@ -163,6 +172,41 @@ describe("api offline assignment fallbacks", () => {
       saveAssignmentsToPermanentStorageMock,
     };
   };
+
+  it("can force-refresh all assignments while retaining cached fallback support", async () => {
+    const cachedAssignment = makeAssignment(1, { srs_stage: 8 });
+    const currentAssignment = makeAssignment(1, { srs_stage: 9 });
+    const cachedAssignments = makeAssignmentsCollection([cachedAssignment]);
+    const currentAssignments = makeAssignmentsCollection([currentAssignment]);
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      mockResponse(currentAssignments),
+    );
+
+    const { api } = loadApi({ cachedAssignments });
+    const result = await api.getAllAssignmentsCached(
+      "test-token",
+      {},
+      { forceRefresh: true },
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(result.data[0].data.srs_stage).toBe(9);
+  });
+
+  it("falls back to cached assignments when a forced refresh is offline", async () => {
+    const cachedAssignment = makeAssignment(1, { srs_stage: 9 });
+    const cachedAssignments = makeAssignmentsCollection([cachedAssignment]);
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("offline"));
+
+    const { api } = loadApi({ cachedAssignments });
+    const result = await api.getAllAssignmentsCached(
+      "test-token",
+      {},
+      { forceRefresh: true },
+    );
+
+    expect(result.data[0].data.srs_stage).toBe(9);
+  });
 
   it("uses permanent assignments for available lessons when offline cache is missing", async () => {
     const availableLesson = makeAssignment(1);

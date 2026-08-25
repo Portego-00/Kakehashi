@@ -4,15 +4,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { GestureResponderEvent } from "react-native";
-import { NhkEasyItem } from "../../services/NhkEasyService";
+import type { NewsItem } from "../../services/NhkNewsService";
 import { useTheme } from "../../utils/theme";
 
 interface NewsCardProps {
-  item: NhkEasyItem;
-  onPress: (item: NhkEasyItem) => void;
+  item: NewsItem;
+  onPress: (item: NewsItem) => void;
   variant?: "breaking" | "standard";
   knownKanjiPercentage?: number;
   disablePress?: boolean;
+  showSourceBadge?: boolean;
 }
 
 const BREAKING_HEIGHT = 230;
@@ -24,13 +25,16 @@ export const NewsCard: React.FC<NewsCardProps> = ({
   variant = "standard",
   knownKanjiPercentage,
   disablePress = false,
+  showSourceBadge = false,
 }) => {
   const { theme } = useTheme();
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
   const movedBeyondTapThresholdRef = useRef(false);
-  const formattedDate = item.pubDate
-    ? format(new Date(item.pubDate), "MMM d, yyyy")
-    : "";
+  const parsedDate = item.pubDate ? new Date(item.pubDate) : null;
+  const formattedDate =
+    parsedDate && !Number.isNaN(parsedDate.getTime())
+      ? format(parsedDate, "MMM d, yyyy")
+      : "";
 
   const handlePressIn = (event: GestureResponderEvent) => {
     movedBeyondTapThresholdRef.current = false;
@@ -67,7 +71,8 @@ export const NewsCard: React.FC<NewsCardProps> = ({
 
     // Choose color based on percentage
     let badgeColor = theme.primary;
-    if (knownKanjiPercentage >= 90) badgeColor = "#88cc00"; // High match
+    if (knownKanjiPercentage >= 90)
+      badgeColor = "#88cc00"; // High match
     else if (knownKanjiPercentage >= 70)
       badgeColor = "#d48806"; // Medium (Darker for readability)
     else badgeColor = "#ff4444"; // Low
@@ -75,6 +80,33 @@ export const NewsCard: React.FC<NewsCardProps> = ({
     return (
       <View style={[styles.badge, { backgroundColor: badgeColor }]}>
         <Text style={styles.badgeText}>{knownKanjiPercentage}% Known</Text>
+      </View>
+    );
+  };
+
+  const renderSourceBadge = (onImage = false) => {
+    if (!showSourceBadge) return null;
+
+    return (
+      <View
+        style={[
+          styles.sourceBadge,
+          {
+            backgroundColor: onImage
+              ? "rgba(0, 0, 0, 0.58)"
+              : theme.backgroundColor,
+            borderColor: onImage ? "rgba(255, 255, 255, 0.4)" : theme.border,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.sourceBadgeText,
+            { color: onImage ? "#fff" : theme.textSecondary },
+          ]}
+        >
+          {item.source === "regular" ? "Standard" : "Easy"}
+        </Text>
       </View>
     );
   };
@@ -116,6 +148,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
         <View style={styles.breakingContent}>
           {/* Optional Tag or Badge (e.g., "NHK News") if available */}
           <View style={styles.breakingMetaRowTop}>
+            {renderSourceBadge(true)}
             {renderPercentageBadge()}
           </View>
 
@@ -164,7 +197,10 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           </Text>
           {/* Tag + Date Row */}
           <View style={styles.metaRow}>
-            {renderPercentageBadge()}
+            <View style={styles.metaBadges}>
+              {renderSourceBadge()}
+              {renderPercentageBadge()}
+            </View>
             <Text style={[styles.date, { color: theme.textSecondary }]}>
               {formattedDate}
             </Text>
@@ -196,6 +232,8 @@ const styles = StyleSheet.create({
   },
   breakingMetaRowTop: {
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: 6,
   },
   breakingTitle: {
     fontSize: 20,
@@ -220,7 +258,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flexDirection: "row",
-    height: 100, // Fixed height for consistency
+    height: 116,
   },
   standardImage: {
     width: 100,
@@ -241,10 +279,16 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   metaRow: {
+    alignItems: "flex-start",
+    gap: 4,
+    marginTop: 4,
+  },
+  metaBadges: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
+    flexWrap: "wrap",
+    flexShrink: 1,
+    gap: 6,
   },
   badge: {
     paddingHorizontal: 10,
@@ -255,6 +299,17 @@ const styles = StyleSheet.create({
   badgeText: {
     color: "#fff",
     fontSize: 12,
+    fontWeight: "700",
+  },
+  sourceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignSelf: "flex-start",
+  },
+  sourceBadgeText: {
+    fontSize: 11,
     fontWeight: "700",
   },
 });

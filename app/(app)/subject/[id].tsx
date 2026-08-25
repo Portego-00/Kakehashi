@@ -15,7 +15,6 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -23,6 +22,7 @@ import AddToSubjectListsModal from "../../../src/components/AddToSubjectListsMod
 import KanjiDetails from "../../../src/components/KanjiDetails";
 import RadicalDetails from "../../../src/components/RadicalDetails";
 import VocabularyDetails from "../../../src/components/VocabularyDetails";
+import { FormattedNoteEditor } from "../../../src/components/formatted-note";
 import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
 import {
   createStudyMaterial,
@@ -1117,7 +1117,9 @@ export default function SubjectDetailsScreen() {
             </TouchableOpacity>
           </View>
 
-          <TextInput
+          <FormattedNoteEditor
+            key={`${noteType}:${showNoteModal}`}
+            containerStyle={styles.noteEditor}
             style={[
               styles.noteInput,
               {
@@ -1128,9 +1130,11 @@ export default function SubjectDetailsScreen() {
                   : "white",
               },
             ]}
-            multiline
             value={noteText}
             onChangeText={setNoteText}
+            accessibilityLabel={`${
+              noteType === "meaning" ? "Meaning" : "Reading"
+            } note text`}
             placeholder={`Add your ${noteType} note here...`}
             placeholderTextColor={theme.textLight}
           />
@@ -1376,6 +1380,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 120,
     textAlignVertical: "top",
+  },
+  noteEditor: {
     marginBottom: 16,
   },
   modalButtons: {

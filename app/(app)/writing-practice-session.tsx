@@ -24,8 +24,11 @@ import {
 } from "../../src/utils/api";
 import { getSubjectById } from "../../src/utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import {
@@ -242,13 +245,21 @@ export default function WritingPracticeSessionScreen() {
       let assignmentsResponse: { data: Assignment[] } | null = null;
       try {
         assignmentsResponse = await getAllAssignmentsCached(apiToken, {
-          srs_stages: srsStages,
+          srs_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
         });
       } catch (e) {
         console.warn("Failed to fetch assignments:", e);
       }
 
-      if (!assignmentsResponse || assignmentsResponse.data.length === 0) {
+      const selectedListIds = config.selectedListIds || [];
+      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
+        selectedListIds,
+      );
+
+      if (
+        (!assignmentsResponse || assignmentsResponse.data.length === 0) &&
+        selectedListIds.length === 0
+      ) {
         Alert.alert(
           "No Kanji Available",
           "No kanji found matching your SRS stage filters. Try including more stages or complete some lessons first!",
@@ -257,12 +268,21 @@ export default function WritingPracticeSessionScreen() {
         return;
       }
 
-      // Filter to kanji only
-      const kanjiAssignments = assignmentsResponse.data.filter(
-        (a) => a.data.subject_type === "kanji"
+      const assignments = assignmentsResponse?.data ?? [];
+      const subjectIdToStage = new Map<number, number>();
+      assignments.forEach((assignment) => {
+        subjectIdToStage.set(
+          assignment.data.subject_id,
+          assignment.data.srs_stage,
+        );
+      });
+      const candidateSubjectIds = getExtraStudyCandidateSubjectIds(
+        assignments,
+        selectedListIds,
+        selectedListSubjectIds,
       );
 
-      if (kanjiAssignments.length === 0) {
+      if (candidateSubjectIds.length === 0) {
         Alert.alert(
           "No Kanji Available",
           "You haven't learned any kanji yet. Complete some kanji lessons first!",
@@ -274,23 +294,33 @@ export default function WritingPracticeSessionScreen() {
       setLoadingMessage("Loading kanji details...");
 
       // Get subject details
-      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
-        config.selectedListIds || []
-      );
       const kanjiSubjects: ApiSubject[] = [];
-      for (const assignment of kanjiAssignments) {
-        const subject = await getSubjectById(assignment.data.subject_id);
+      for (const subjectId of candidateSubjectIds) {
+        if (
+          !subjectMatchesExtraStudySrsStage(
+            subjectId,
+            subjectIdToStage,
+            selectedListIds,
+            selectedListSubjectIds,
+            (stage) => srsStages.includes(stage),
+          )
+        ) {
+          continue;
+        }
+        const subject = await getSubjectById(subjectId);
         if (subject && subject.object === "kanji") {
-          // Filter by level range
           const level = subject.data?.level || 0;
-          const inRange = config.useCustomLevelRange
-            ? level >= config.minLevel && level <= config.maxLevel
-            : true;
+          const inRange = subjectMatchesExtraStudyLevel(level, {
+            useCustomLevelRange: config.useCustomLevelRange,
+            minLevel: config.minLevel,
+            maxLevel: config.maxLevel,
+            selectedListIds,
+          });
           if (
             inRange &&
             subjectMatchesSelectedLists(
               subject.id,
-              config.selectedListIds || [],
+              selectedListIds,
               selectedListSubjectIds
             )
           ) {

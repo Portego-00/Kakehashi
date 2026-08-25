@@ -44,6 +44,7 @@ import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import { FormattedNoteText } from "./formatted-note";
 import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
 
@@ -678,9 +679,10 @@ export default function RadicalDetails({
                     />
                   </View>
                 </View>
-                <Text style={[styles.noteContent, { color: theme.textColor }]}>
-                  {radical.meaningNote}
-                </Text>
+                <FormattedNoteText
+                  text={radical.meaningNote}
+                  style={[styles.noteContent, { color: theme.textColor }]}
+                />
               </View>
             </TouchableOpacity>
           ) : (

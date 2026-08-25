@@ -466,8 +466,8 @@ export default function WritingPracticeConfigScreen() {
             Levels
           </Text>
           <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>
-            By default includes levels 1 to your level ({userLevel}). Enable a
-            custom range to restrict.
+            Without a subject list, includes levels 1 to your level ({userLevel}).
+            Selected lists can include any level. Enable a custom range to restrict.
           </Text>
           <View
             style={[

@@ -17,11 +17,14 @@ import ExtraStudyCompletionTransition, {
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
-import { Subject as ApiSubject, Assignment, getAllAssignmentsCached } from "../../src/utils/api";
+import { Subject as ApiSubject, getAllAssignmentsCached } from "../../src/utils/api";
 import { getAllSubjects, getSubjectById } from "../../src/utils/cache";
 import {
+  getExtraStudyCandidateSubjectIds,
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import {
@@ -30,6 +33,10 @@ import {
   loadExtraStudySessionState,
   saveExtraStudySessionState,
 } from "../../src/utils/extraStudySessionPersistence";
+import {
+  type EnglishJapaneseAnswerOption,
+  selectEnglishJapaneseQuestions,
+} from "../../src/utils/englishJapanesePractice";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
@@ -37,6 +44,10 @@ interface MRQuestion {
   id: number;
   subject: ApiSubject;
   questionType: "reading";
+  promptMeaning?: string;
+  acceptedAnswers?: string[];
+  acceptedAnswerDisplayText?: string;
+  acceptedAnswerOptions?: EnglishJapaneseAnswerOption[];
 }
 
 interface MRReviewItem {
@@ -394,7 +405,14 @@ export default function MeaningReadingSessionScreen() {
       const assignmentsResponse = await getAllAssignmentsCached(apiToken, {
         srs_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
       });
-      if (assignmentsResponse.data.length === 0) {
+      const selectedListIds = config.selectedListIds || [];
+      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
+        selectedListIds,
+      );
+      if (
+        assignmentsResponse.data.length === 0 &&
+        selectedListIds.length === 0
+      ) {
         Alert.alert(
           "No Learned Items",
           "You haven't learned enough items yet to take a test.",
@@ -403,7 +421,11 @@ export default function MeaningReadingSessionScreen() {
         return;
       }
 
-      const subjectIds = assignmentsResponse.data.map((a: Assignment) => a.data.subject_id);
+      const subjectIds = getExtraStudyCandidateSubjectIds(
+        assignmentsResponse.data,
+        selectedListIds,
+        selectedListSubjectIds,
+      );
 
       const allSubjects: ApiSubject[] = [];
       for (const subjectId of subjectIds) {
@@ -414,10 +436,6 @@ export default function MeaningReadingSessionScreen() {
       // Build subject -> srs_stage map
       const subjectIdToStage = new Map<number, number>();
       (assignmentsResponse.data as any[]).forEach((a) => subjectIdToStage.set(a.data.subject_id, a.data.srs_stage));
-      const selectedListSubjectIds = await getSelectedListSubjectIdSet(
-        config.selectedListIds || []
-      );
-
       const srsStageAllowed = (stage: number) => {
         if (stage >= 1 && stage <= 4) return config.srsGroups.apprentice;
         if (stage >= 5 && stage <= 6) return config.srsGroups.guru;
@@ -437,15 +455,27 @@ export default function MeaningReadingSessionScreen() {
         if (!config.includeVocabulary && s.object === 'vocabulary') return false;
         if (!config.includeKanaVocabulary && s.object === 'kana_vocabulary') return false;
 
-        const stage = subjectIdToStage.get(s.id) ?? 0;
-        if (!srsStageAllowed(stage)) return false;
+        if (
+          !subjectMatchesExtraStudySrsStage(
+            s.id,
+            subjectIdToStage,
+            selectedListIds,
+            selectedListSubjectIds,
+            srsStageAllowed,
+          )
+        ) return false;
 
-        const inLevelRange = !config.useCustomLevelRange || ((s as any).data?.level >= config.minLevel && (s as any).data?.level <= config.maxLevel);
+        const inLevelRange = subjectMatchesExtraStudyLevel(s.data?.level, {
+          useCustomLevelRange: config.useCustomLevelRange,
+          minLevel: config.minLevel,
+          maxLevel: config.maxLevel,
+          selectedListIds,
+        });
         return (
           inLevelRange &&
           subjectMatchesSelectedLists(
             s.id,
-            config.selectedListIds || [],
+            selectedListIds,
             selectedListSubjectIds
           )
         );
@@ -460,28 +490,28 @@ export default function MeaningReadingSessionScreen() {
         return;
       }
 
-      const selected: MRQuestion[] = [];
-      const used = new Set<number>();
-      const maxAttempts = config.numberOfQuestions * 10;
-      let attempts = 0;
-      while (selected.length < config.numberOfQuestions && attempts < maxAttempts) {
-        attempts++;
-        const s = filtered[Math.floor(Math.random() * filtered.length)];
-        if (used.has(s.id)) continue;
-        used.add(s.id);
-        selected.push({ id: selected.length, subject: s, questionType: "reading" });
-      }
+      const selected: MRQuestion[] = selectEnglishJapaneseQuestions(
+        filtered,
+        config.numberOfQuestions,
+      ).map((question, index) => ({
+        id: index,
+        subject: question.subject,
+        questionType: "reading",
+        promptMeaning: question.promptMeaning,
+        acceptedAnswers: question.acceptedAnswers,
+        acceptedAnswerDisplayText: question.acceptedAnswerDisplayText,
+        acceptedAnswerOptions: question.answerOptions,
+      }));
 
-      const shuffled = selected.sort(() => Math.random() - 0.5);
-      if (shuffled.length === 0) {
+      if (selected.length === 0) {
         Alert.alert("No Questions Generated", "Could not generate questions.", [{ text: "OK", onPress: () => router.back() }]);
         return;
       }
-      const hintsByKanjiId = await buildKanjiVocabularyHintMap(shuffled);
-      setQuestions(shuffled);
+      const hintsByKanjiId = await buildKanjiVocabularyHintMap(selected);
+      setQuestions(selected);
       setKanjiVocabularyHintMap(hintsByKanjiId);
       setReviewItems(
-        shuffled.map((question, index) => ({
+        selected.map((question, index) => ({
           id: question.id,
           assignmentId: -(index + 1),
           subjectId: question.subject.id,
@@ -501,8 +531,8 @@ export default function MeaningReadingSessionScreen() {
       );
       setProgress({
         ...EMPTY_PROGRESS_STATE,
-        total: shuffled.length,
-        totalItems: shuffled.length,
+        total: selected.length,
+        totalItems: selected.length,
       });
     } catch (error) {
       console.warn("Falling back to offline subjects-only mode due to error:", error);
@@ -526,7 +556,12 @@ export default function MeaningReadingSessionScreen() {
           if (!config.includeKanji && s.object === "kanji") return false;
           if (!config.includeVocabulary && s.object === "vocabulary") return false;
           if (!config.includeKanaVocabulary && s.object === "kana_vocabulary") return false;
-          const inLevelRange = !config.useCustomLevelRange || ((s as any).data?.level >= config.minLevel && (s as any).data?.level <= config.maxLevel);
+          const inLevelRange = subjectMatchesExtraStudyLevel(s.data?.level, {
+            useCustomLevelRange: config.useCustomLevelRange,
+            minLevel: config.minLevel,
+            maxLevel: config.maxLevel,
+            selectedListIds: config.selectedListIds || [],
+          });
           return (
             inLevelRange &&
             subjectMatchesSelectedLists(
@@ -542,15 +577,18 @@ export default function MeaningReadingSessionScreen() {
           return;
         }
 
-        const max = Math.min(config.numberOfQuestions, filtered.length);
-        const pool = [...filtered];
-        // unbiased partial Fisher–Yates: fill first `max` positions, then slice head
-        for (let i = 0; i < max; i++) {
-          const j = i + Math.floor(Math.random() * (pool.length - i));
-          [pool[i], pool[j]] = [pool[j], pool[i]];
-        }
-        const chosen = pool.slice(0, max);
-        const selected = chosen.map((s, idx) => ({ id: idx, subject: s, questionType: 'reading' as const }));
+        const selected: MRQuestion[] = selectEnglishJapaneseQuestions(
+          filtered,
+          config.numberOfQuestions,
+        ).map((question, index) => ({
+          id: index,
+          subject: question.subject,
+          questionType: "reading",
+          promptMeaning: question.promptMeaning,
+          acceptedAnswers: question.acceptedAnswers,
+          acceptedAnswerDisplayText: question.acceptedAnswerDisplayText,
+          acceptedAnswerOptions: question.answerOptions,
+        }));
         if (selected.length === 0) {
           Alert.alert("No Questions Generated", "Could not generate questions offline.", [{ text: "OK", onPress: () => router.back() }]);
           return;
@@ -771,11 +809,11 @@ export default function MeaningReadingSessionScreen() {
     correctAnswersCount: progress.correctAnswersCount,
   };
 
-  const primaryMeaning = current.subject.data.meanings?.find((m: any) => m.primary)?.meaning || current.subject.data.meanings?.[0]?.meaning || "";
-  const alternativeMeanings = current.subject.data.meanings
+  const primaryMeaning = current.promptMeaning || current.subject.data.meanings?.find((m: any) => m.primary)?.meaning || current.subject.data.meanings?.[0]?.meaning || "";
+  const alternativeMeanings = !current.promptMeaning ? current.subject.data.meanings
     ?.filter((m: any) => !m.primary)
     ?.map((m: any) => m.meaning)
-    ?.join(", ") || "";
+    ?.join(", ") || "" : "";
   const vocabularyMeaningHintsForKanji = current.subject.object === "kanji"
     ? (kanjiVocabularyHintMap[current.subject.id] || [])
     : [];
@@ -835,6 +873,11 @@ export default function MeaningReadingSessionScreen() {
       contextHintMaxItems={contextHintMaxItems}
       // In this specific mode, allow either reading kana or vocab characters (kanji) as correct.
       acceptCharactersAsCorrectForReading={true}
+      customAcceptedReadingAnswers={current.acceptedAnswers}
+      customAcceptedReadingAnswerDisplayText={
+        current.acceptedAnswerDisplayText
+      }
+      customAcceptedReadingAnswerOptions={current.acceptedAnswerOptions}
       // In this mode, reveal both subject characters and reading in Anki/paused answer cards.
       showCharactersAndReadingForReadingQuestion={true}
     />

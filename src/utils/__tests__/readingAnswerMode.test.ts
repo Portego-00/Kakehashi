@@ -95,4 +95,17 @@ describe("resolveReadingModeResult", () => {
 
     expect(result).toBe(AnswerCheckerResult.Precise);
   });
+
+  it("accepts a Japanese translation belonging to another subject with the prompt meaning", () => {
+    const result = resolveReadingModeResult({
+      result: AnswerCheckerResult.Incorrect,
+      answer: "減法",
+      questionType: "reading",
+      acceptCharactersAsCorrectForReading: true,
+      subjectCharacters: "引き算",
+      acceptedReadingAnswers: ["引き算", "ひきざん", "減法", "げんぽう"],
+    });
+
+    expect(result).toBe(AnswerCheckerResult.Precise);
+  });
 });

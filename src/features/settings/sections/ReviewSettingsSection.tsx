@@ -24,12 +24,14 @@ export function ReviewSettingsSection() {
     backToBackQuestions,
     canDecreaseReviewCharacterFontScale,
     canIncreaseReviewCharacterFontScale,
+    canDecreaseReviewInputFontScale,
+    canIncreaseReviewInputFontScale,
     customReviewOrder,
     disableAutoProgressOnCloseAnswer,
     disableAutoProgressOnCorrect,
     disableAutoProgressOnWrong,
     effectiveReviewWrapUpQuestionGap,
-    formatReviewCharacterFontScale,
+    formatReviewFontScale,
     getReviewOrderLabel,
     getSrsProgressionCardModeLabel,
     JAPANESE_KEYBOARD_SETUP_INSTRUCTIONS,
@@ -41,10 +43,12 @@ export function ReviewSettingsSection() {
     Platform,
     prioritizeCriticalItems,
     REVIEW_CHARACTER_FONT_SCALE_STEP,
+    REVIEW_INPUT_FONT_SCALE_STEP,
     reviewAnimatePreviousQuestion,
     reviewBatchSize,
     reviewBatchSizeEnabled,
     reviewCharacterFontScale,
+    reviewInputFontScale,
     reviewOrder,
     reviewSearchButtonEnabled,
     reviewTypeOrderEnabled,
@@ -69,6 +73,7 @@ export function ReviewSettingsSection() {
     setReviewBatchSize,
     setReviewBatchSizeEnabled,
     setReviewCharacterFontScale,
+    setReviewInputFontScale,
     setReviewSearchButtonEnabled,
     setReviewWrapUpTargetSubjects,
     setShowAddSynonymButton,
@@ -164,7 +169,7 @@ export function ReviewSettingsSection() {
                 { color: theme.textColor },
               ]}
             >
-              {formatReviewCharacterFontScale(reviewCharacterFontScale)}
+              {formatReviewFontScale(reviewCharacterFontScale)}
             </Text>
             <TouchableOpacity
               style={[
@@ -378,6 +383,90 @@ export function ReviewSettingsSection() {
         )}
 
         <AdvancedSetting>
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="text-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Review Input Size
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Scale the answer text size in reviews
+            </Text>
+          </View>
+          <View style={styles.batchSizeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.batchSizeButton,
+                { backgroundColor: theme.border },
+                !canDecreaseReviewInputFontScale &&
+                  styles.batchSizeButtonDisabled,
+              ]}
+              onPress={() =>
+                canDecreaseReviewInputFontScale &&
+                setReviewInputFontScale(
+                  reviewInputFontScale - REVIEW_INPUT_FONT_SCALE_STEP,
+                )
+              }
+              disabled={!canDecreaseReviewInputFontScale}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease review input size"
+            >
+              <Ionicons
+                name="remove"
+                size={18}
+                color={
+                  canDecreaseReviewInputFontScale
+                    ? theme.textColor
+                    : theme.textSecondary
+                }
+              />
+            </TouchableOpacity>
+            <Text
+              style={[
+                styles.batchSizeValue,
+                styles.reviewCharacterSizeValue,
+                { color: theme.textColor },
+              ]}
+            >
+              {formatReviewFontScale(reviewInputFontScale)}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.batchSizeButton,
+                { backgroundColor: theme.border },
+                !canIncreaseReviewInputFontScale &&
+                  styles.batchSizeButtonDisabled,
+              ]}
+              onPress={() =>
+                canIncreaseReviewInputFontScale &&
+                setReviewInputFontScale(
+                  reviewInputFontScale + REVIEW_INPUT_FONT_SCALE_STEP,
+                )
+              }
+              disabled={!canIncreaseReviewInputFontScale}
+              accessibilityRole="button"
+              accessibilityLabel="Increase review input size"
+            >
+              <Ionicons
+                name="add"
+                size={18}
+                color={
+                  canIncreaseReviewInputFontScale
+                    ? theme.textColor
+                    : theme.textSecondary
+                }
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
             name="trending-up"
@@ -800,7 +889,7 @@ export function ReviewSettingsSection() {
               />
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: theme.textColor }]}>
-                  Switch to Japanese Keyboard
+                  Japanese Input Keyboard
                 </Text>
                 <Text
                   style={[
@@ -808,8 +897,8 @@ export function ReviewSettingsSection() {
                     { color: theme.textSecondary },
                   ]}
                 >
-                  Automatically switch to a Japanese keyboard for reading
-                  answers
+                  Automatically switch to a Japanese keyboard for Japanese
+                  answer entry throughout the app
                 </Text>
               </View>
               <Switch

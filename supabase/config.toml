@@ -1,0 +1,2 @@
+[functions.sync-nhk-regular-news]
+verify_jwt = false

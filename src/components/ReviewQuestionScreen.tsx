@@ -82,10 +82,22 @@ import {
 import { shouldShowAnkiPitchAccent } from "../utils/ankiAnswerVisibility";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
 import {
+  type EnglishJapaneseAnswerOption,
+  matchesAcceptedJapaneseAnswer,
+} from "../utils/englishJapanesePractice";
+import {
   doesReviewShortcutMatchKey,
+  resolveAnkiReviewShortcutAction,
   resolveReviewCorrectKeyboardShortcuts,
   resolveReviewIncorrectKeyboardShortcuts,
 } from "../utils/reviewKeyboardShortcuts";
+import {
+  createReviewSubmissionGuard,
+  releaseQuestionSubmissionForRetry,
+  tryAdvanceQuestionOccurrence,
+  tryRecordAnswerEmission,
+  tryStartQuestionSubmission,
+} from "../utils/reviewSubmissionGuard";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import KanjiDetails from "./KanjiDetails";
@@ -95,10 +107,10 @@ import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import { FormattedNoteEditor } from "./formatted-note";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
-const ANSWER_INPUT_FONT_SIZE = Math.min(width * 0.045, 18);
 const ANSWER_INPUT_HEIGHT = 52;
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
 const SKIP_CUE_VISIBLE_MS = 2000;
@@ -240,6 +252,13 @@ interface ReviewQuestionProps {
   // For custom modes (e.g., English -> Japanese), allow entering subject characters
   // on reading questions as a correct answer.
   acceptCharactersAsCorrectForReading?: boolean;
+  // Additional exact Japanese answers accepted by custom reading modes. This is
+  // used when one prompt can legitimately map to more than one subject.
+  customAcceptedReadingAnswers?: string[];
+  // Human-readable version of the custom accepted answers for reveal cards.
+  customAcceptedReadingAnswerDisplayText?: string;
+  // Per-translation audio metadata so a correct alternative plays its own audio.
+  customAcceptedReadingAnswerOptions?: EnglishJapaneseAnswerOption[];
   // For strict custom modes (e.g., Kana -> Kanji), require subject characters on reading questions.
   requireSubjectCharactersForReading?: boolean;
   // For custom reading modes (e.g., English -> Japanese), display both subject
@@ -1079,6 +1098,9 @@ export default function ReviewQuestionScreen({
   contextHintDisplayMode = "toggle",
   contextHintTranslationMode = "visible",
   acceptCharactersAsCorrectForReading = false,
+  customAcceptedReadingAnswers,
+  customAcceptedReadingAnswerDisplayText,
+  customAcceptedReadingAnswerOptions,
   requireSubjectCharactersForReading = false,
   showCharactersAndReadingForReadingQuestion = false,
   reviewPermissionWarning,
@@ -1116,6 +1138,7 @@ export default function ReviewQuestionScreen({
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
     reviewCharacterFontScale,
+    reviewInputFontScale,
     srsProgressionCardDisplayMode,
     visuallySimilarKanjiSource,
   } = useSettingsStore();
@@ -1123,6 +1146,10 @@ export default function ReviewQuestionScreen({
   const reviewPromptCharacterSize = useMemo(
     () => Math.min(windowWidth * 0.25, 120) * reviewCharacterFontScale,
     [reviewCharacterFontScale, windowWidth],
+  );
+  const reviewAnswerInputFontSize = useMemo(
+    () => Math.min(windowWidth * 0.045, 18) * reviewInputFontScale,
+    [reviewInputFontScale, windowWidth],
   );
   const effectiveShowAnswerStopSubjectDetails = showAnswerStopSubjectDetails;
   const isVoiceReviewEnabled = Platform.OS === "ios" && voiceReviewAnswersEnabled;
@@ -1157,6 +1184,7 @@ export default function ReviewQuestionScreen({
   const [navigatingToDetail, setNavigatingToDetail] = useState(false);
   const kanaInputRef = useRef<KanaInputHandle | null>(null);
   const pausedShortcutInputRef = useRef<TextInput | null>(null);
+  const ankiShortcutInputRef = useRef<TextInput | null>(null);
   const [showRetryFeedback, setShowRetryFeedback] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState<
     "correct" | "incorrect" | "close" | null
@@ -1193,6 +1221,7 @@ export default function ReviewQuestionScreen({
   >(studyMaterials);
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const [inputResetNonce, setInputResetNonce] = useState(0);
+  const [questionOccurrenceId, setQuestionOccurrenceId] = useState(0);
   const [showContextHint, setShowContextHint] = useState(false);
   const [showContextHintTranslations, setShowContextHintTranslations] =
     useState(false);
@@ -1235,6 +1264,7 @@ export default function ReviewQuestionScreen({
   const vocabularyAudioSoundRef = useRef<AudioSound | null>(null);
   const vocabularyAudioRequestIdRef = useRef(0);
   const vocabularyAudioFinalizeRef = useRef<(() => void) | null>(null);
+  const reviewSubmissionGuardRef = useRef(createReviewSubmissionGuard());
 
   useEffect(() => {
     setLocalStudyMaterials(studyMaterials);
@@ -1507,9 +1537,60 @@ export default function ReviewQuestionScreen({
     effectiveAnkiGroupQuestions && subject.object !== "radical"
       ? "Meaning & Reading"
       : questionTypeDisplayLabel;
-  const currentQuestionKey = `${item.id}:${questionType}:${currentItem}`;
+  const currentQuestionKey = `${item.id}:${questionType}:${currentItem}:${questionOccurrenceId}`;
+  const finishQuestionOccurrence = useCallback(() => {
+    if (
+      !tryAdvanceQuestionOccurrence(
+        reviewSubmissionGuardRef.current,
+        currentQuestionKey,
+      )
+    ) {
+      return false;
+    }
+
+    setQuestionOccurrenceId((occurrenceId) => occurrenceId + 1);
+    return true;
+  }, [currentQuestionKey]);
   const isCurrentQuestionAnkiRevealed =
     ankiAnswerRevealed && ankiRevealQuestionKey === currentQuestionKey;
+  const emitAnswer = useCallback(
+    (
+      answeredQuestionType: QuestionType,
+      isCorrect: boolean,
+      wasIncorrect: boolean,
+      isGroupedAnswer: boolean,
+    ) => {
+      if (
+        !tryRecordAnswerEmission(
+          reviewSubmissionGuardRef.current,
+          currentQuestionKey,
+          answeredQuestionType,
+        )
+      ) {
+        return;
+      }
+
+      // The same item/type can be re-presented without visible progress changing
+      // (for example, after getting the final lesson question wrong). Give that
+      // next presentation its own guard key while retaining the completed key so
+      // delayed callbacks from this occurrence remain blocked.
+      if (
+        (!isGroupedAnswer || answeredQuestionType === "reading") &&
+        !finishQuestionOccurrence()
+      ) {
+        return;
+      }
+
+      onAnswer(
+        item,
+        answeredQuestionType,
+        isCorrect,
+        wasIncorrect,
+        isGroupedAnswer,
+      );
+    },
+    [currentQuestionKey, finishQuestionOccurrence, item, onAnswer],
+  );
   const reviewSubjectLevel =
     typeof subject.data.level === "number" ? subject.data.level : null;
   const reviewSrsStage =
@@ -1679,6 +1760,7 @@ export default function ReviewQuestionScreen({
       acceptCharactersAsCorrectForReading,
       requireSubjectCharactersForReading,
       subjectCharacters: subject.data.characters,
+      acceptedReadingAnswers: customAcceptedReadingAnswers,
     });
 
     if (
@@ -2065,7 +2147,7 @@ export default function ReviewQuestionScreen({
   }, []);
 
   useEffect(() => {
-    // Reset state when item or question type changes
+    // Reset state when the question presentation changes.
     if (!mountedRef.current) return;
     isVoiceSubmittingRef.current = false;
     isVoiceRetryPendingRef.current = false;
@@ -2146,9 +2228,7 @@ export default function ReviewQuestionScreen({
       }
     }, 0);
   }, [
-    item.id,
-    questionType,
-    currentItem,
+    currentQuestionKey,
     isVoiceReviewEnabled,
     effectiveAnkiCardMode,
     shakeAnimation,
@@ -2260,6 +2340,33 @@ export default function ReviewQuestionScreen({
     isPausedOnWrong,
     isPausedOnCloseAnswer,
     isPausedOnCorrect,
+    navigatingToDetail,
+    studyMaterialNoteModalVisible,
+  ]);
+
+  useEffect(() => {
+    if (
+      !effectiveAnkiCardMode ||
+      navigatingToDetail ||
+      studyMaterialNoteModalVisible
+    ) {
+      ankiShortcutInputRef.current?.blur();
+      return;
+    }
+
+    // Anki mode has no visible answer field, so keep a hidden input focused to
+    // receive the same external-keyboard events used by regular reviews.
+    Keyboard.dismiss();
+    const focusTimer = setTimeout(() => {
+      if (mountedRef.current) {
+        ankiShortcutInputRef.current?.focus();
+      }
+    }, Platform.OS === "android" ? 140 : 90);
+
+    return () => clearTimeout(focusTimer);
+  }, [
+    currentQuestionKey,
+    effectiveAnkiCardMode,
     navigatingToDetail,
     studyMaterialNoteModalVisible,
   ]);
@@ -2452,12 +2559,34 @@ export default function ReviewQuestionScreen({
   const playVocabularyAudio = async (options?: {
     force?: boolean;
     showReplayLoading?: boolean;
+    answer?: string;
   }) => {
     const shouldForcePlayback = options?.force ?? false;
     const showReplayLoading = options?.showReplayLoading ?? false;
+    const matchingCustomAnswerOptions = options?.answer
+      ? (customAcceptedReadingAnswerOptions ?? []).filter((answerOption) =>
+          matchesAcceptedJapaneseAnswer(options.answer ?? "", [
+            answerOption.characters,
+            ...answerOption.readings,
+          ]),
+        )
+      : [];
+    const customAudioSource =
+      matchingCustomAnswerOptions.find(
+        (answerOption) => answerOption.pronunciationAudios.length > 0,
+      ) ??
+      matchingCustomAnswerOptions[0] ??
+      (customAcceptedReadingAnswerOptions ?? []).find(
+        (answerOption) =>
+          answerOption.subjectId === item.subject.id &&
+          answerOption.pronunciationAudios.length > 0,
+      ) ??
+      (customAcceptedReadingAnswerOptions ?? []).find(
+        (answerOption) => answerOption.pronunciationAudios.length > 0,
+      );
+    const audioSubjectType = customAudioSource?.subjectType ?? item.subject.object;
     const isVocabularySubject =
-      item.subject.object === "vocabulary" ||
-      item.subject.object === "kana_vocabulary";
+      audioSubjectType === "vocabulary" || audioSubjectType === "kana_vocabulary";
 
     if (!isVocabularySubject) {
       return;
@@ -2467,15 +2596,22 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    const pronunciation_audios = (item.subject.data as any)
-      .pronunciation_audios;
+    const pronunciation_audios = customAudioSource
+      ? customAudioSource.pronunciationAudios
+      : (item.subject.data as any).pronunciation_audios;
     if (!pronunciation_audios || pronunciation_audios.length === 0) {
       return;
     }
 
     const audioFiles = pickPreferredPronunciationAudios(
       pronunciation_audios,
-      item.subject.data.readings ?? null,
+      customAudioSource
+        ? customAudioSource.readings.map((reading) => ({
+            reading,
+            primary: true,
+            accepted_answer: true,
+          }))
+        : item.subject.data.readings ?? null,
       vocabularyAudioVoice || "female",
       { preferredContentType: "audio/mpeg" },
     );
@@ -2504,7 +2640,7 @@ export default function ReviewQuestionScreen({
         }
 
         const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
-          item.subject.id,
+          customAudioSource?.subjectId ?? item.subject.id,
           audioFile
         );
 
@@ -2550,7 +2686,11 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    void playVocabularyAudio({ force: true, showReplayLoading: true });
+    void playVocabularyAudio({
+      force: true,
+      showReplayLoading: true,
+      answer: correctAnswerText ?? closeAnswerText ?? undefined,
+    });
   };
 
   const showSkipCue = useCallback(() => {
@@ -2589,6 +2729,15 @@ export default function ReviewQuestionScreen({
 
   const handleSubmitAnswer = async (providedAnswer?: string) => {
     if (answered || !mountedRef.current) return;
+    if (
+      !tryStartQuestionSubmission(
+        reviewSubmissionGuardRef.current,
+        currentQuestionKey,
+      )
+    ) {
+      return;
+    }
+
     const isVoiceSubmission = typeof providedAnswer === "string";
     let shouldRefocusInput = !isVoiceSubmission;
 
@@ -2606,8 +2755,16 @@ export default function ReviewQuestionScreen({
       // When skipping is enabled, an empty submit asks this item again later
       // instead of validating an answer.
       if (!isVoiceSubmission && allowSkippingReviews && onSkip) {
+        if (!finishQuestionOccurrence()) {
+          return;
+        }
         showSkipCue();
         onSkip(item, questionType);
+      } else {
+        releaseQuestionSubmissionForRetry(
+          reviewSubmissionGuardRef.current,
+          currentQuestionKey,
+        );
       }
       return;
     }
@@ -2644,6 +2801,7 @@ export default function ReviewQuestionScreen({
       acceptCharactersAsCorrectForReading,
       requireSubjectCharactersForReading,
       subjectCharacters: item.subject.data.characters,
+      acceptedReadingAnswers: customAcceptedReadingAnswers,
     });
 
     // Remove legacy override that was incorrectly marking vocabulary readings as correct for kanji
@@ -2683,7 +2841,7 @@ export default function ReviewQuestionScreen({
             kanaInputRef.current.clearInput();
           }
           if (questionType === "reading") {
-            playVocabularyAudio();
+            playVocabularyAudio({ answer });
           }
           break;
         }
@@ -2705,7 +2863,7 @@ export default function ReviewQuestionScreen({
             kanaInputRef.current.clearInput();
           }
           if (questionType === "reading") {
-            playVocabularyAudio();
+            playVocabularyAudio({ answer });
           }
           break;
         }
@@ -2740,10 +2898,10 @@ export default function ReviewQuestionScreen({
 
         // Play vocabulary audio if this is a reading question
         if (questionType === "reading") {
-          playVocabularyAudio();
+          playVocabularyAudio({ answer });
         }
 
-        onAnswer(item, questionType, true, retryCount > 0, false);
+        emitAnswer(questionType, true, retryCount > 0, false);
         break;
       }
 
@@ -2766,6 +2924,10 @@ export default function ReviewQuestionScreen({
         if (kanaInputRef.current?.clearInput) {
           kanaInputRef.current.clearInput();
         }
+        releaseQuestionSubmissionForRetry(
+          reviewSubmissionGuardRef.current,
+          currentQuestionKey,
+        );
         break;
 
       case AnswerCheckerResult.Incorrect:
@@ -2822,7 +2984,7 @@ export default function ReviewQuestionScreen({
         }
         setInputResetNonce((nonce) => nonce + 1);
 
-        onAnswer(item, questionType, false, true, false);
+        emitAnswer(questionType, false, true, false);
         break;
     }
 
@@ -2990,7 +3152,7 @@ export default function ReviewQuestionScreen({
 
     if (retryCount > 0 && !answered) {
       // If they've been retrying but decide to move on, mark it as incorrect
-      onAnswer(item, questionType, false, true, false);
+      emitAnswer(questionType, false, true, false);
     }
 
     // Reset the state for the next question
@@ -3061,7 +3223,7 @@ export default function ReviewQuestionScreen({
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     // Mark as correct and progress
-    onAnswer(item, questionType, true, retryCount > 0, false);
+    emitAnswer(questionType, true, retryCount > 0, false);
 
     // Re-focus input for next question
     setTimeout(() => {
@@ -3111,7 +3273,7 @@ export default function ReviewQuestionScreen({
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     // Mark as correct (override the wrong answer)
-    onAnswer(item, questionType, true, false, false);
+    emitAnswer(questionType, true, false, false);
 
     // Re-focus input for next question
     setTimeout(() => {
@@ -3121,6 +3283,10 @@ export default function ReviewQuestionScreen({
 
   // Handler for skipping from paused-wrong state (re-queue when supported).
   const handlePausedSkip = () => {
+    if ((onSkip || onAskAgain) && !finishQuestionOccurrence()) {
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     releasePausedShortcutFocus();
 
@@ -3713,7 +3879,8 @@ export default function ReviewQuestionScreen({
             </TouchableOpacity>
           </View>
 
-          <TextInput
+          <FormattedNoteEditor
+            key={`${editingStudyMaterialNoteType}:${studyMaterialNoteModalVisible}`}
             style={[
               styles.studyMaterialNoteInput,
               {
@@ -3724,11 +3891,15 @@ export default function ReviewQuestionScreen({
                   : "#ffffff",
               },
             ]}
-            multiline
             autoFocus
             value={editingStudyMaterialNoteText}
             onChangeText={setEditingStudyMaterialNoteText}
             onFocus={syncAndroidKeyboardMetrics}
+            accessibilityLabel={`${
+              editingStudyMaterialNoteType === "meaning"
+                ? "Meaning"
+                : "Reading"
+            } note text`}
             placeholder={`Add your ${editingStudyMaterialNoteType} note here...`}
             placeholderTextColor={theme.textLight}
           />
@@ -3824,7 +3995,7 @@ export default function ReviewQuestionScreen({
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     // Mark as wrong and progress
-    onAnswer(item, questionType, false, true, false);
+    emitAnswer(questionType, false, true, false);
 
     // Re-focus input for next question
     setTimeout(() => {
@@ -3924,11 +4095,20 @@ export default function ReviewQuestionScreen({
   };
 
   const pronunciationAudios = (item.subject.data as any)?.pronunciation_audios;
+  const hasCustomReplayableVocabularyAudio = (
+    customAcceptedReadingAnswerOptions ?? []
+  ).some(
+    (answerOption) =>
+      (answerOption.subjectType === "vocabulary" ||
+        answerOption.subjectType === "kana_vocabulary") &&
+      answerOption.pronunciationAudios.length > 0,
+  );
   const hasReplayableVocabularyAudio =
-    (item.subject.object === "vocabulary" ||
+    hasCustomReplayableVocabularyAudio ||
+    ((item.subject.object === "vocabulary" ||
       item.subject.object === "kana_vocabulary") &&
-    Array.isArray(pronunciationAudios) &&
-    pronunciationAudios.length > 0;
+      Array.isArray(pronunciationAudios) &&
+      pronunciationAudios.length > 0);
   const canReplayPausedAudio =
     questionType === "reading" && hasReplayableVocabularyAudio;
   const canReplayAnkiAudio =
@@ -4158,6 +4338,15 @@ export default function ReviewQuestionScreen({
   };
 
   const handleAnkiAnswerButton = (isCorrect: boolean) => {
+    if (
+      !tryStartQuestionSubmission(
+        reviewSubmissionGuardRef.current,
+        currentQuestionKey,
+      )
+    ) {
+      return;
+    }
+
     // Reset temporary default-font override once an answer is submitted.
     if (isUsingDefaultJitaiFont) {
       setIsUsingDefaultJitaiFont(false);
@@ -4188,10 +4377,10 @@ export default function ReviewQuestionScreen({
           effectiveAnkiGroupQuestions &&
           (item.subject.data.readings?.length ?? 0) > 0
         ) {
-          onAnswer(item, "meaning", true, false, true);
-          onAnswer(item, "reading", true, false, true);
+          emitAnswer("meaning", true, false, true);
+          emitAnswer("reading", true, false, true);
         } else {
-          onAnswer(item, questionType, true, false, false);
+          emitAnswer(questionType, true, false, false);
         }
       };
 
@@ -4218,11 +4407,11 @@ export default function ReviewQuestionScreen({
           (item.subject.data.readings?.length ?? 0) > 0
         ) {
           // Mark both meaning and reading as incorrect
-          onAnswer(item, "meaning", false, true, true);
-          onAnswer(item, "reading", false, true, true);
+          emitAnswer("meaning", false, true, true);
+          emitAnswer("reading", false, true, true);
         } else {
           // Single question type
-          onAnswer(item, questionType, false, false, false);
+          emitAnswer(questionType, false, false, false);
         }
       });
     }
@@ -4250,9 +4439,76 @@ export default function ReviewQuestionScreen({
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     submitAnkiAnswer(() => {
+      if (!finishQuestionOccurrence()) {
+        return;
+      }
       showSkipCue();
       onSkip(item, questionType);
     });
+  };
+
+  const tryHandleAnkiShortcutKey = (pressedKey: string): boolean => {
+    if (
+      !effectiveAnkiCardMode ||
+      navigatingToDetail ||
+      studyMaterialNoteModalVisible ||
+      pendingAnkiSubmitCallbackRef.current
+    ) {
+      return false;
+    }
+
+    if (Date.now() < suppressSubmitUntilRef.current) {
+      return true;
+    }
+
+    const action = resolveAnkiReviewShortcutAction({
+      key: pressedKey,
+      isAnswerRevealed: isCurrentQuestionAnkiRevealed,
+      canReplayAudio: canReplayAnkiAudio,
+      canSkip: Boolean(allowSkippingReviews && onSkip),
+      incorrectShortcuts: resolvedReviewIncorrectKeyboardShortcuts,
+      correctShortcuts: resolvedReviewCorrectKeyboardShortcuts,
+    });
+
+    if (!action) {
+      return false;
+    }
+
+    suppressSubmitUntilRef.current = Date.now() + 220;
+
+    switch (action) {
+      case "reveal":
+        handleAnkiRevealAnswer();
+        break;
+      case "markIncorrect":
+        handleAnkiAnswerButton(false);
+        break;
+      case "markCorrect":
+        handleAnkiAnswerButton(true);
+        break;
+      case "skip":
+        handleAnkiSkipButton();
+        break;
+      case "openDetails":
+        handleAnkiDetailsButton();
+        break;
+      case "replayAudio":
+        void handleReplayAudio();
+        break;
+    }
+
+    return true;
+  };
+
+  const handleAnkiShortcutKeyPress = (event: TextInputKeyPressEvent) => {
+    const pressedKey = event.nativeEvent.key;
+    if (pressedKey) {
+      tryHandleAnkiShortcutKey(pressedKey);
+    }
+  };
+
+  const handleAnkiShortcutSubmitEditing = () => {
+    tryHandleAnkiShortcutKey("Enter");
   };
 
   const beginButtonlessAnkiGesture = (event: GestureResponderEvent) => {
@@ -4554,6 +4810,10 @@ export default function ReviewQuestionScreen({
       return primaryMeaningAnswer;
     }
 
+    if (customAcceptedReadingAnswerDisplayText) {
+      return customAcceptedReadingAnswerDisplayText;
+    }
+
     if (
       questionType === "reading" &&
       showCharactersAndReadingForReadingQuestion
@@ -4719,6 +4979,8 @@ export default function ReviewQuestionScreen({
     overridePausedCorrectAnswerText ??
     (questionType === "meaning"
       ? acceptedMeaningAnswers.join(", ")
+      : customAcceptedReadingAnswerDisplayText
+        ? customAcceptedReadingAnswerDisplayText
       : showCharactersAndReadingForReadingQuestion
         ? buildCharactersAndReadingAnswerText(
             acceptedReadingAnswerOptions.join(", "),
@@ -6305,6 +6567,7 @@ export default function ReviewQuestionScreen({
                       {
                         backgroundColor: theme.isDark ? "#000000" : "white",
                         color: theme.isDark ? "#ffffff" : "#000000",
+                        fontSize: reviewAnswerInputFontSize,
                       },
                       isPausedOnAnswer ? styles.pausedInputTextHidden : null,
                     ]}
@@ -6321,9 +6584,7 @@ export default function ReviewQuestionScreen({
                     onSubmitEditing={handleInputSubmitEditing}
                     enableKanaConversion={questionType === "reading"}
                     useJapaneseKeyboard={autoSwitchKeyboard && questionType === "reading"}
-                    resetSignal={`${
-                      item.subject.id
-                    }-${questionType}-${retryCount}-${inputResetNonce}`}
+                    resetSignal={`${currentQuestionKey}-${retryCount}-${inputResetNonce}`}
                     submitBehavior="submit"
                   />
 
@@ -6348,6 +6609,7 @@ export default function ReviewQuestionScreen({
                               : styles.answerInputVoiceMode),
                           {
                             backgroundColor: theme.isDark ? "#000000" : "white",
+                            fontSize: reviewAnswerInputFontSize,
                           },
                           hasCorrectAccent
                             ? styles.correctPausedAnswerInput
@@ -6519,6 +6781,25 @@ export default function ReviewQuestionScreen({
               accessibilityHint="Tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
             />
           )}
+
+        {effectiveAnkiCardMode && (
+          <TextInput
+            ref={ankiShortcutInputRef}
+            value=""
+            onChangeText={() => {}}
+            onKeyPress={handleAnkiShortcutKeyPress}
+            onSubmitEditing={handleAnkiShortcutSubmitEditing}
+            style={styles.hiddenPausedShortcutInput}
+            autoCorrect={false}
+            autoCapitalize="none"
+            blurOnSubmit={false}
+            showSoftInputOnFocus={false}
+            caretHidden
+            accessible={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        )}
       </KeyboardAvoidingView>
       {renderStudyMaterialNoteModal()}
     </SafeAreaView>
@@ -7052,7 +7333,6 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     height: ANSWER_INPUT_HEIGHT,
     paddingHorizontal: 16,
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     borderBottomLeftRadius: 8,
@@ -7758,7 +8038,6 @@ const styles = StyleSheet.create({
     height: 1,
   },
   wrongAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     backgroundColor: "transparent",
     color: "#f44336",
     textAlign: "center",
@@ -7766,7 +8045,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
   },
   correctPausedAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     backgroundColor: "transparent",
     color: "#4caf50",
     textAlign: "center",
@@ -7774,7 +8052,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
   },
   closePausedAnswerInput: {
-    fontSize: ANSWER_INPUT_FONT_SIZE,
     backgroundColor: "transparent",
     color: "#ff9800",
     textAlign: "center",

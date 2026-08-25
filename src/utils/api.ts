@@ -1451,6 +1451,7 @@ export async function getAssignmentsOptimized(
 /**
  * Fetches ALL assignments for the given query (handles pagination) with SWR caching.
  * Falls back to cached data when offline or API fails, enabling offline sessions.
+ * `forceRefresh` bypasses the cache fast path but keeps that offline fallback.
  */
 export async function getAllAssignmentsCached(
   apiToken: string,
@@ -1470,7 +1471,8 @@ export async function getAllAssignmentsCached(
     subject_types?: ("radical" | "kanji" | "vocabulary" | "kana_vocabulary")[];
     unlocked?: boolean;
     updated_after?: string;
-  } = {}
+  } = {},
+  options: { forceRefresh?: boolean } = {},
 ): Promise<CollectionResponse<Assignment>> {
   const timer = startPerformanceTimer('getAllAssignmentsCached', 'api.ts');
   try {
@@ -1496,7 +1498,7 @@ export async function getAllAssignmentsCached(
     const hasCached = Boolean(cachedEntry && cachedEntry.data);
 
     // Fast path: if we already have cached data, return it immediately for offline/instant UX
-    if (hasCached) {
+    if (hasCached && !options.forceRefresh) {
       timer.end({ source: 'cache_fast', count: cachedEntry!.data.data?.length });
       // Optionally refresh in background without blocking (best-effort)
       (async () => {

@@ -528,7 +528,7 @@ export default function TestConfigScreen() {
         {/* Levels */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}> 
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Levels</Text>
-          <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>By default includes levels 1 to your level ({userLevel}). Enable a custom range to restrict.</Text>
+          <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>Without a subject list, includes levels 1 to your level ({userLevel}). Selected lists can include any level. Enable a custom range to restrict.</Text>
           <View style={[styles.levelToggleRow, { borderColor: config.useCustomLevelRange ? theme.secondary : theme.border, backgroundColor: config.useCustomLevelRange ? `${theme.secondary}15` : 'transparent' }]}>
             <Text style={[styles.levelToggleText, { color: theme.textColor }]}>Use custom level range</Text>
             <View style={{ flex: 1 }} />

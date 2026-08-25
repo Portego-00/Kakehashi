@@ -62,6 +62,8 @@ import {
 import {
   getSelectedListSubjectIdSet,
   parseSelectedListIds,
+  subjectMatchesExtraStudyLevel,
+  subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../../src/utils/extraStudySubjectLists";
 import { fontStyles } from "../../src/utils/fonts";
@@ -476,6 +478,9 @@ export default function CrosswordSessionScreen() {
   const vocabularyAudioVoice = useSettingsStore(
     (state) => state.vocabularyAudioVoice
   );
+  const autoSwitchKeyboard = useSettingsStore(
+    (state) => state.autoSwitchKeyboard
+  );
   const userLevel = userData?.level ?? 60;
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
@@ -733,6 +738,14 @@ export default function CrosswordSessionScreen() {
 
       const cachedAssignments =
         (await getAssignmentsFromPermanentStorage({ ignoreTTL: true })) ?? [];
+      const subjectIdToStage = new Map<number, number>();
+      cachedAssignments.forEach((assignment) => {
+        const subjectId = assignment?.data?.subject_id;
+        const srsStage = assignment?.data?.srs_stage;
+        if (typeof subjectId === "number" && typeof srsStage === "number") {
+          subjectIdToStage.set(subjectId, srsStage);
+        }
+      });
       if (cachedAssignments.length > 0) {
         const subjectIdsFromAssignments = new Set<number>();
         cachedAssignments.forEach((assignment) => {
@@ -812,19 +825,31 @@ export default function CrosswordSessionScreen() {
       const selectedListSubjectIds = await getSelectedListSubjectIdSet(
         config.selectedListIds || []
       );
-      const effectiveMinLevel = config.useCustomLevelRange ? config.minLevel : 1;
-      const requestedMaxLevel = config.useCustomLevelRange
-        ? config.maxLevel
-        : userLevel;
-      const effectiveMaxLevel = Math.min(requestedMaxLevel, userLevel);
+      if ((config.selectedListIds || []).length > 0) {
+        candidates = Array.from(selectedListSubjectIds)
+          .map((subjectId) => subjectById.get(subjectId))
+          .filter((subject): subject is ApiSubject => Boolean(subject))
+          .filter((subject) =>
+            subjectMatchesExtraStudySrsStage(
+              subject.id,
+              subjectIdToStage,
+              config.selectedListIds || [],
+              selectedListSubjectIds,
+              (stage) => allowedStages.has(stage),
+            ),
+          );
+      }
       const selectedJlptLevels = new Set(config.jlptLevels);
 
       const filtered = candidates.filter((subject) => {
         const level = subject.data?.level;
-        const inLevelRange =
-          typeof level === "number" &&
-          level >= effectiveMinLevel &&
-          level <= effectiveMaxLevel;
+        const inLevelRange = subjectMatchesExtraStudyLevel(level, {
+          useCustomLevelRange: config.useCustomLevelRange,
+          minLevel: config.minLevel,
+          maxLevel: config.maxLevel,
+          selectedListIds: config.selectedListIds || [],
+          defaultMaxLevel: userLevel,
+        });
         if (!inLevelRange) return false;
         if (!subjectMatchesJLPTLevels(subject, selectedJlptLevels)) return false;
         return subjectMatchesSelectedLists(
@@ -2108,6 +2133,7 @@ export default function CrosswordSessionScreen() {
             <KanaInput
               ref={inputRef}
               onKanaChange={(kana) => setInputValue(kana)}
+              useJapaneseKeyboard={autoSwitchKeyboard}
               preferUncontrolledAndroidInput
               placeholder={
                 expectedLength > 0

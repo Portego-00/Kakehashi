@@ -1,6 +1,7 @@
 import { generateContextSentenceQuestions } from "../contextSentencePracticeService";
 import { getAllAssignmentsCached } from "../../utils/api";
 import { getSubjectById } from "../../utils/cache";
+import { getSelectedListSubjectIdSet } from "../../utils/extraStudySubjectLists";
 
 jest.mock("../../utils/api", () => ({
   getAllAssignmentsCached: jest.fn(),
@@ -12,7 +13,24 @@ jest.mock("../../utils/cache", () => ({
 
 jest.mock("../../utils/extraStudySubjectLists", () => ({
   getSelectedListSubjectIdSet: jest.fn(async () => new Set()),
-  subjectMatchesSelectedLists: jest.fn(() => true),
+  getExtraStudyCandidateSubjectIds: jest.fn(
+    (assignments, selectedListIds, selectedListSubjectIds) =>
+      selectedListIds.length > 0
+        ? Array.from(selectedListSubjectIds)
+        : assignments.map((assignment: any) => assignment.data.subject_id),
+  ),
+  subjectMatchesExtraStudySrsStage: jest.fn(
+    (subjectId, subjectIdToStage, listIds, listSubjectIds, isStageAllowed) => {
+      const stage = subjectIdToStage.get(subjectId);
+      return stage === undefined || stage <= 0
+        ? listIds.length > 0 && listSubjectIds.has(subjectId)
+        : isStageAllowed(stage);
+    },
+  ),
+  subjectMatchesSelectedLists: jest.fn(
+    (subjectId, selectedListIds, selectedListSubjectIds) =>
+      selectedListIds.length === 0 || selectedListSubjectIds.has(subjectId),
+  ),
 }));
 
 const makeSubject = ({
@@ -208,5 +226,33 @@ describe("generateContextSentenceQuestions", () => {
     expect(wrongChoiceIds).toHaveLength(3);
     expect(wrongChoiceIds).toEqual(expect.arrayContaining([2, 3, 4]));
     expect(wrongChoiceIds).not.toEqual(expect.arrayContaining([5, 6]));
+  });
+
+  it("loads an above-level subject directly from a selected list", async () => {
+    const selectedSubject = makeSubject({
+      id: 60,
+      characters: "文法",
+      reading: "ぶんぽう",
+      partsOfSpeech: ["noun"],
+      level: 50,
+    });
+    (getSelectedListSubjectIdSet as jest.Mock).mockResolvedValueOnce(
+      new Set([selectedSubject.id]),
+    );
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [] });
+    (getSubjectById as jest.Mock).mockResolvedValue(selectedSubject);
+
+    const questions = await generateContextSentenceQuestions(
+      {
+        ...makeConfig(),
+        maxLevel: 4,
+        selectedListIds: ["grammar"],
+        devSelectedSubjectIds: [selectedSubject.id],
+      },
+      "token",
+    );
+
+    expect(questions).toHaveLength(1);
+    expect(questions[0].vocab.id).toBe(selectedSubject.id);
   });
 });

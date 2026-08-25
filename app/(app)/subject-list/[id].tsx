@@ -27,6 +27,7 @@ import {
 } from "../../../src/components/SearchFilterModal";
 import { CommonFilterModal } from "../../../src/components/CommonFilterModal";
 import { GlassButton } from "../../../src/components/GlassButton";
+import TransferSubjectListsModal from "../../../src/components/TransferSubjectListsModal";
 import { WaniKaniItemType } from "../../../src/types/wanikani";
 import SubjectListStudyMenu from "../../../src/components/SubjectListStudyMenu";
 import {
@@ -50,6 +51,7 @@ import {
   renameSubjectList,
   replaceSubjectIdsInList,
   SubjectList,
+  type SubjectListTransferResult,
 } from "../../../src/utils/subjectLists";
 import { useAuthStore } from "../../../src/utils/store";
 import {
@@ -128,6 +130,7 @@ export default function SubjectListEditorScreen() {
     return defaults;
   });
   const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
+  const [isTransferModalVisible, setIsTransferModalVisible] = useState(false);
   const [pendingListName, setPendingListName] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
 
@@ -548,21 +551,32 @@ export default function SubjectListEditorScreen() {
     try {
       const trimmedName = listName.trim();
       const targetName = trimmedName.length > 0 ? trimmedName : "Untitled List";
-      await Promise.all([
-        renameSubjectList(list.id, targetName),
-        replaceSubjectIdsInList(list.id, Array.from(selectedSubjectIds.values())),
-      ]);
-      setInitialName(targetName);
-      setInitialSubjectIds(new Set(selectedSubjectIds));
-      setList((prev) =>
-        prev
-          ? {
-              ...prev,
-              name: targetName,
-              subjectIds: Array.from(selectedSubjectIds.values()),
-            }
-          : prev
-      );
+      const targetSubjectIds = Array.from(selectedSubjectIds.values());
+      let savedList = list;
+
+      // These operations both persist the full local payload, so keep them
+      // ordered when a user changes the name and membership together.
+      if (targetName !== initialName) {
+        const renamed = await renameSubjectList(list.id, targetName);
+        if (!renamed) {
+          throw new Error("Subject list is no longer available.");
+        }
+        savedList = renamed;
+      }
+
+      if (!setsEqual(selectedSubjectIds, initialSubjectIds)) {
+        const updated = await replaceSubjectIdsInList(list.id, targetSubjectIds);
+        if (!updated) {
+          throw new Error("Subject list is no longer available.");
+        }
+        savedList = updated;
+      }
+
+      setInitialName(savedList.name);
+      setInitialSubjectIds(new Set(savedList.subjectIds));
+      setList(savedList);
+      setListName(savedList.name);
+      setSelectedSubjectIds(new Set(savedList.subjectIds));
       return true;
     } catch (error) {
       console.error("Failed to save list:", error);
@@ -578,6 +592,51 @@ export default function SubjectListEditorScreen() {
       return true;
     }
     return handleSave();
+  };
+
+  const handleOpenTransfer = async () => {
+    if (!list || selectedSubjectIds.size === 0) {
+      return;
+    }
+
+    if (!(await prepareListForStudy())) {
+      return;
+    }
+
+    setIsTransferModalVisible(true);
+  };
+
+  const handleTransferred = (result: SubjectListTransferResult) => {
+    const nextSource = result.sourceList;
+    const transferredCount = result.transferredSubjectIds.length;
+
+    setList(nextSource);
+    setListName(nextSource.name);
+    setInitialName(nextSource.name);
+    setSelectedSubjectIds(new Set(nextSource.subjectIds));
+    setInitialSubjectIds(new Set(nextSource.subjectIds));
+
+    if (transferredCount === 0) {
+      Alert.alert(
+        "Nothing Transferred",
+        "Those subjects are no longer available in the source list."
+      );
+      return;
+    }
+
+    const subjectLabel = transferredCount === 1 ? "subject" : "subjects";
+    if (result.mode === "move") {
+      Alert.alert(
+        "Subjects Moved",
+        `${transferredCount} ${subjectLabel} moved to "${result.destinationList.name}".`
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Subjects Copied",
+      `${transferredCount} ${subjectLabel} are now in "${result.destinationList.name}".`
+    );
   };
 
   const startStandardReview = async () => {
@@ -1154,6 +1213,31 @@ export default function SubjectListEditorScreen() {
               </Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              accessibilityLabel={`Transfer all ${selectedSubjectIds.size} subjects in this list`}
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: selectedSubjectIds.size === 0 || isSaving,
+              }}
+              style={[
+                styles.bulkActionButton,
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                (selectedSubjectIds.size === 0 || isSaving) &&
+                  styles.bulkActionButtonDisabled,
+              ]}
+              disabled={selectedSubjectIds.size === 0 || isSaving}
+              onPress={() => void handleOpenTransfer()}
+            >
+              <Ionicons
+                name="swap-horizontal-outline"
+                size={18}
+                color={theme.textSecondary}
+              />
+              <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
+                Transfer List
+              </Text>
+            </TouchableOpacity>
+
           </View>
         ) : null}
 
@@ -1252,6 +1336,15 @@ export default function SubjectListEditorScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        <TransferSubjectListsModal
+          visible={isTransferModalVisible}
+          sourceListId={list.id}
+          sourceListName={listName}
+          subjectIds={Array.from(selectedSubjectIds.values())}
+          onClose={() => setIsTransferModalVisible(false)}
+          onTransferred={handleTransferred}
+        />
 
         <Modal
           visible={isRenameModalVisible}
