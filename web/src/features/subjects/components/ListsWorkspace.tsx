@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { ArrowDown, ArrowUp, BookOpenCheck, ListPlus, Pencil, Play, Search, Trash2, Undo2, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -9,9 +9,8 @@ import { EmptyState, Skeleton } from "@/components/ui/States";
 import { useSession } from "@/lib/session";
 import type { Subject } from "@/types/wanikani";
 import { useSubjectCatalog } from "../data";
-import { createListRepository, type ListStorage, type SubjectList } from "../lists";
+import { createListRepository, subscribeSubjectLists, type ListStorage, type SubjectList } from "../lists";
 import { DEFAULT_SEARCH_FILTERS, searchSubjects } from "../search";
-import { bridgeListsToStudy } from "../study-list-bridge";
 import { useFirstSubjectReveal } from "../useFirstSubjectReveal";
 import styles from "../subjects.module.css";
 
@@ -25,11 +24,16 @@ export function ListsWorkspace() {
   const { user } = useSession();
   const { subjects, assignments, isLoading } = useSubjectCatalog();
   const username = user?.data.username ?? "anonymous";
-  const studyScope = user?.id;
   const repository = useMemo(() => createListRepository(browserStorage, username), [username]);
+  const subscribe = useCallback((onChange: () => void) => subscribeSubjectLists(username, onChange), [username]);
+  const getSnapshot = useCallback(() => repository.snapshot(), [repository]);
+  const rawLists = useSyncExternalStore(subscribe, getSnapshot, () => "");
+  const lists = useMemo(() => {
+    void rawLists;
+    return repository.load();
+  }, [rawLists, repository]);
   const savedListsReveal = useFirstSubjectReveal();
   const listSubjectsReveal = useFirstSubjectReveal();
-  const [lists, setLists] = useState<SubjectList[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -39,23 +43,12 @@ export function ListsWorkspace() {
   const [sort, setSort] = useState<SortMode>("manual");
   const [deleted, setDeleted] = useState<{ list: SubjectList; index: number } | null>(null);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const loaded = repository.load();
-      setLists(loaded);
-      bridgeListsToStudy(studyScope, loaded);
-      setActiveId((current) => current && loaded.some((list) => list.id === current) ? current : loaded[0]?.id ?? null);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [repository, studyScope]);
-
+  const resolvedActiveId = activeId && lists.some((list) => list.id === activeId) ? activeId : lists[0]?.id ?? null;
   const refresh = (preferred?: string | null) => {
     const next = repository.load();
-    setLists(next);
-    bridgeListsToStudy(studyScope, next);
     setActiveId(preferred && next.some((list) => list.id === preferred) ? preferred : (activeId && next.some((list) => list.id === activeId) ? activeId : next[0]?.id ?? null));
   };
-  const active = lists.find((list) => list.id === activeId);
+  const active = lists.find((list) => list.id === resolvedActiveId);
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const visibleSubjects = useMemo(() => {
     if (!active) return [];
@@ -77,7 +70,7 @@ export function ListsWorkspace() {
   const remove = (list: SubjectList, index: number) => {
     repository.remove(list.id);
     setDeleted({ list, index });
-    refresh(list.id === activeId ? null : activeId);
+    refresh(list.id === resolvedActiveId ? null : resolvedActiveId);
   };
   const undo = () => {
     if (!deleted) return;
@@ -92,7 +85,7 @@ export function ListsWorkspace() {
     <div className={styles.listsLayout}>
       <aside className={styles.listSidebar}>
         <form className={styles.newListForm} onSubmit={(event) => { event.preventDefault(); create(); }}><label><span>New list</span><span className={styles.newListInput}><input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="e.g. Leech rescue" /><Button type="submit" size="small" tone="primary" disabled={!newName.trim()}><ListPlus size={16} /> Create</Button></span></label></form>
-        <nav aria-label="Your subject lists" className={styles.savedLists} {...savedListsReveal}>{lists.map((list, index) => <div key={list.id} data-active={list.id === activeId}>
+        <nav aria-label="Your subject lists" className={styles.savedLists} {...savedListsReveal}>{lists.map((list, index) => <div key={list.id} data-active={list.id === resolvedActiveId}>
           {renameId === list.id ? <form onSubmit={(event) => { event.preventDefault(); repository.rename(list.id, renameValue); setRenameId(null); refresh(list.id); }} className={styles.renameForm}><input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} aria-label={`Rename ${list.name}`} /><Button size="small" type="submit">Save</Button></form> : <button type="button" className={styles.listSelect} onClick={() => setActiveId(list.id)}><span><strong>{list.name}</strong><small>{list.subjectIds.length} {list.subjectIds.length === 1 ? "subject" : "subjects"}</small></span></button>}
           <div className={styles.listActions}><button type="button" aria-label={`Move ${list.name} up`} disabled={index === 0} onClick={() => { repository.reorder(list.id, index - 1); refresh(list.id); }}><ArrowUp size={15} /></button><button type="button" aria-label={`Move ${list.name} down`} disabled={index === lists.length - 1} onClick={() => { repository.reorder(list.id, index + 1); refresh(list.id); }}><ArrowDown size={15} /></button><button type="button" aria-label={`Rename ${list.name}`} onClick={() => { setRenameId(list.id); setRenameValue(list.name); }}><Pencil size={15} /></button><button type="button" aria-label={`Delete ${list.name}`} onClick={() => remove(list, index)}><Trash2 size={15} /></button></div>
         </div>)}</nav>

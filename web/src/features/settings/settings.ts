@@ -1,4 +1,6 @@
+import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 import type { ListStorage } from "@/features/subjects/lists";
+import { normalizeGravatarEmail } from "@/lib/gravatar";
 
 export type TextScale = 0.9 | 1 | 1.1 | 1.2;
 export type QuestionOrder = "meaning-first" | "reading-first" | "mixed";
@@ -35,24 +37,96 @@ export interface WebStudyPreferences {
 }
 export interface WebSettings {
   textScale: TextScale;
+  profile: { gravatarEmail: string };
   colors: { radical: string; kanji: string; vocabulary: string };
-  integrations: { jpdbApiKey: string };
+  subjectDetails: {
+    showContextSentences: boolean;
+    showImmersionExamples: boolean;
+    showPitchAccent: boolean;
+    showKanjiReadingExamples: boolean;
+    showStrokeOrder: boolean;
+    showPatternsOfUse: boolean;
+  };
+  integrations: { jpdbApiKey: string; myAnimeListUsername: string; aniListUsername: string };
   study: WebStudyPreferences;
   workspace: {
     visibleNav: string[];
     dashboardOrder: string[];
     hiddenDashboard: string[];
+    dashboardWidths: Record<DashboardSectionId, DashboardSectionWidth>;
+    dashboardRowStarts: DashboardSectionId[];
   };
 }
 
 export const OPTIONAL_NAV_ITEMS = ["analytics", "items", "search", "lists", "news", "reader", "epubs", "music", "video", "manga", "translator", "community"] as const;
-export const DASHBOARD_SECTIONS = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "keep-moving"] as const;
+export const DASHBOARD_SECTIONS = [
+  "daily-study",
+  "srs",
+  "level",
+  "extra-study",
+  "forecast",
+  "study-pulse",
+  "recent-mistakes",
+  "study-streak",
+  "subject-lists",
+  "incomplete-levels",
+  "recent-unlocks",
+  "critical-items",
+  "burned-items",
+  "review-heatmap",
+  "level-timing",
+  "today-study",
+  "study-time",
+] as const;
+export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number];
+export const DASHBOARD_SECTION_WIDTHS = [4, 6, 8, 12] as const;
+export type DashboardSectionWidth = (typeof DASHBOARD_SECTION_WIDTHS)[number];
+export type DashboardSectionDefinition = {
+  id: DashboardSectionId;
+  label: string;
+  description: string;
+  source: "Home" | "Level" | "Items" | "Analytics";
+  defaultWidth: DashboardSectionWidth;
+  allowedWidths: readonly DashboardSectionWidth[];
+};
+export const DASHBOARD_SECTION_DEFINITIONS: DashboardSectionDefinition[] = [
+  { id: "daily-study", label: "Lessons & Reviews", description: "Your live study queues and vacation status.", source: "Home", defaultWidth: 12, allowedWidths: [8, 12] },
+  { id: "srs", label: "Active Item Spread", description: "Stacked subject distribution across all nine SRS stages.", source: "Analytics", defaultWidth: 8, allowedWidths: [6, 8, 12] },
+  { id: "level", label: "Level Progress", description: "Current-level Guru target, timing, radicals, and kanji.", source: "Level", defaultWidth: 8, allowedWidths: [6, 8, 12] },
+  { id: "extra-study", label: "Extra Study", description: "Practice modes that do not affect SRS.", source: "Home", defaultWidth: 12, allowedWidths: [8, 12] },
+  { id: "forecast", label: "Review Forecast", description: "Upcoming review load by hour.", source: "Home", defaultWidth: 8, allowedWidths: [6, 8, 12] },
+  { id: "study-pulse", label: "Review Stats", description: "Accuracy and reviewed-subject totals.", source: "Analytics", defaultWidth: 4, allowedWidths: [4, 6] },
+  { id: "recent-mistakes", label: "Recent Mistakes", description: "Recently updated subjects with broken answer streaks.", source: "Home", defaultWidth: 6, allowedWidths: [6, 8, 12] },
+  { id: "study-streak", label: "App Streak", description: "Current streak, recent rhythm, and best run in 14 weeks.", source: "Home", defaultWidth: 4, allowedWidths: [4, 6] },
+  { id: "subject-lists", label: "Subject Lists", description: "Saved collections and their subject counts.", source: "Home", defaultWidth: 4, allowedWidths: [4, 6] },
+  { id: "incomplete-levels", label: "Incomplete Levels", description: "Previous levels that still have items below Guru.", source: "Level", defaultWidth: 6, allowedWidths: [4, 6, 8] },
+  { id: "recent-unlocks", label: "Recent Unlocks", description: "The latest subjects added to your study path.", source: "Items", defaultWidth: 6, allowedWidths: [6, 8, 12] },
+  { id: "critical-items", label: "Critical Items", description: "Subjects with the lowest answer accuracy.", source: "Items", defaultWidth: 6, allowedWidths: [6, 8, 12] },
+  { id: "burned-items", label: "Burned Items", description: "Subjects burned during the last 30 days.", source: "Items", defaultWidth: 6, allowedWidths: [6, 8, 12] },
+  { id: "review-heatmap", label: "Review Heatmap", description: "Recent assignment activity by day.", source: "Analytics", defaultWidth: 12, allowedWidths: [8, 12] },
+  { id: "level-timing", label: "Level Timing", description: "Completion time across recent levels.", source: "Analytics", defaultWidth: 8, allowedWidths: [8, 12] },
+  { id: "today-study", label: "Today’s Study", description: "Lessons and reviewed subjects recorded today.", source: "Analytics", defaultWidth: 4, allowedWidths: [4, 6] },
+  { id: "study-time", label: "Study Time", description: "Foreground study time tracked in this browser.", source: "Analytics", defaultWidth: 4, allowedWidths: [4, 6] },
+];
+export const DASHBOARD_SECTION_DEFINITION_BY_ID = Object.fromEntries(DASHBOARD_SECTION_DEFINITIONS.map((definition) => [definition.id, definition])) as Record<DashboardSectionId, DashboardSectionDefinition>;
+export const DEFAULT_DASHBOARD_SECTION_WIDTHS = Object.fromEntries(DASHBOARD_SECTION_DEFINITIONS.map((definition) => [definition.id, definition.defaultWidth])) as Record<DashboardSectionId, DashboardSectionWidth>;
+export const DEFAULT_VISIBLE_DASHBOARD_SECTIONS: DashboardSectionId[] = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse"];
+export const DEFAULT_HIDDEN_DASHBOARD_SECTIONS: DashboardSectionId[] = DASHBOARD_SECTIONS.filter((id) => !DEFAULT_VISIBLE_DASHBOARD_SECTIONS.includes(id));
 export const WEB_SETTINGS_EVENT = "kakehashi-web-settings-change";
 
 export const DEFAULT_WEB_SETTINGS: WebSettings = {
   textScale: 1,
+  profile: { gravatarEmail: "" },
   colors: { radical: "#3c9bff", kanji: "#fa1f62", vocabulary: "#9c38d9" },
-  integrations: { jpdbApiKey: "" },
+  subjectDetails: {
+    showContextSentences: true,
+    showImmersionExamples: true,
+    showPitchAccent: false,
+    showKanjiReadingExamples: true,
+    showStrokeOrder: true,
+    showPatternsOfUse: false,
+  },
+  integrations: { jpdbApiKey: "", myAnimeListUsername: "", aniListUsername: "" },
   study: {
     autoplayAudio: true,
     showSrsIndicator: true,
@@ -74,10 +148,10 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     jitaiEnabled: false,
     jitaiSelectedFontIds: ["gothic", "mincho", "rounded"],
     jitaiCustomFonts: [],
-    immersionKitAnimeSources: [],
+    immersionKitAnimeSources: [ALL_ANIME_SOURCE],
     epubDailyGoalMinutes: 5,
   },
-  workspace: { visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DASHBOARD_SECTIONS], hiddenDashboard: [] },
+  workspace: { visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DASHBOARD_SECTIONS], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [] },
 };
 
 export const SUBJECT_COLOR_PRESETS = {
@@ -104,6 +178,15 @@ function validApiKey(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 512) : "";
 }
 
+function validAnimeUsername(value: unknown) {
+  return typeof value === "string" && /^[\p{L}\p{N}_.-]{1,64}$/u.test(value.trim()) ? value.trim() : "";
+}
+
+export function dashboardSectionWidth(id: DashboardSectionId, value: unknown): DashboardSectionWidth {
+  const definition = DASHBOARD_SECTION_DEFINITION_BY_ID[id];
+  return definition.allowedWidths.includes(value as DashboardSectionWidth) ? value as DashboardSectionWidth : definition.defaultWidth;
+}
+
 function validCustomFonts(value: unknown): WebJitaiFont[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -123,14 +206,44 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
     const parsed = JSON.parse(raw) as Partial<WebSettings>;
     const scale = [0.9, 1, 1.1, 1.2].includes(parsed.textScale ?? 0) ? parsed.textScale as TextScale : DEFAULT_WEB_SETTINGS.textScale;
     const legacyQuestionOrder = ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder as QuestionOrder : DEFAULT_WEB_SETTINGS.study.answerOrder;
+    const persistedDashboardOrder = Array.isArray(parsed.workspace?.dashboardOrder)
+      ? parsed.workspace.dashboardOrder.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId))
+      : [];
+    const uniqueDashboardOrder = [...new Set(persistedDashboardOrder)];
+    const newlyAvailableSections = DASHBOARD_SECTIONS.filter((item) => !uniqueDashboardOrder.includes(item));
+    const persistedHiddenDashboard = Array.isArray(parsed.workspace?.hiddenDashboard)
+      ? parsed.workspace.hiddenDashboard.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId))
+      : [];
+    const hiddenDashboard = [...new Set([
+      ...persistedHiddenDashboard,
+      ...newlyAvailableSections.filter((item) => DEFAULT_HIDDEN_DASHBOARD_SECTIONS.includes(item)),
+    ])];
+    const dashboardRowStarts = Array.isArray(parsed.workspace?.dashboardRowStarts)
+      ? [...new Set(parsed.workspace.dashboardRowStarts.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId) && !hiddenDashboard.includes(item as DashboardSectionId)))]
+      : [];
     return {
       textScale: scale,
+      profile: {
+        gravatarEmail: normalizeGravatarEmail(parsed.profile?.gravatarEmail),
+      },
       colors: {
         radical: validColor(parsed.colors?.radical, DEFAULT_WEB_SETTINGS.colors.radical),
         kanji: validColor(parsed.colors?.kanji, DEFAULT_WEB_SETTINGS.colors.kanji),
         vocabulary: validColor(parsed.colors?.vocabulary, DEFAULT_WEB_SETTINGS.colors.vocabulary),
       },
-      integrations: { jpdbApiKey: validApiKey(parsed.integrations?.jpdbApiKey) },
+      subjectDetails: {
+        showContextSentences: typeof parsed.subjectDetails?.showContextSentences === "boolean" ? parsed.subjectDetails.showContextSentences : DEFAULT_WEB_SETTINGS.subjectDetails.showContextSentences,
+        showImmersionExamples: typeof parsed.subjectDetails?.showImmersionExamples === "boolean" ? parsed.subjectDetails.showImmersionExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showImmersionExamples,
+        showPitchAccent: typeof parsed.subjectDetails?.showPitchAccent === "boolean" ? parsed.subjectDetails.showPitchAccent : DEFAULT_WEB_SETTINGS.subjectDetails.showPitchAccent,
+        showKanjiReadingExamples: typeof parsed.subjectDetails?.showKanjiReadingExamples === "boolean" ? parsed.subjectDetails.showKanjiReadingExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showKanjiReadingExamples,
+        showStrokeOrder: typeof parsed.subjectDetails?.showStrokeOrder === "boolean" ? parsed.subjectDetails.showStrokeOrder : DEFAULT_WEB_SETTINGS.subjectDetails.showStrokeOrder,
+        showPatternsOfUse: typeof parsed.subjectDetails?.showPatternsOfUse === "boolean" ? parsed.subjectDetails.showPatternsOfUse : DEFAULT_WEB_SETTINGS.subjectDetails.showPatternsOfUse,
+      },
+      integrations: {
+        jpdbApiKey: validApiKey(parsed.integrations?.jpdbApiKey),
+        myAnimeListUsername: validAnimeUsername(parsed.integrations?.myAnimeListUsername),
+        aniListUsername: validAnimeUsername(parsed.integrations?.aniListUsername),
+      },
       study: {
         autoplayAudio: typeof parsed.study?.autoplayAudio === "boolean" ? parsed.study.autoplayAudio : DEFAULT_WEB_SETTINGS.study.autoplayAudio,
         showSrsIndicator: typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showSrsIndicator,
@@ -152,18 +265,31 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         jitaiEnabled: typeof parsed.study?.jitaiEnabled === "boolean" ? parsed.study.jitaiEnabled : DEFAULT_WEB_SETTINGS.study.jitaiEnabled,
         jitaiSelectedFontIds: validStringArray(parsed.study?.jitaiSelectedFontIds, 16).length ? validStringArray(parsed.study?.jitaiSelectedFontIds, 16) : [...DEFAULT_WEB_SETTINGS.study.jitaiSelectedFontIds],
         jitaiCustomFonts: validCustomFonts(parsed.study?.jitaiCustomFonts),
-        immersionKitAnimeSources: validStringArray(parsed.study?.immersionKitAnimeSources, 20),
+        immersionKitAnimeSources: validStringArray(parsed.study?.immersionKitAnimeSources, 100).length ? validStringArray(parsed.study?.immersionKitAnimeSources, 100) : [ALL_ANIME_SOURCE],
         epubDailyGoalMinutes: [5, 10, 15, 20, 30, 45, 60].includes(parsed.study?.epubDailyGoalMinutes ?? 0) ? parsed.study!.epubDailyGoalMinutes : DEFAULT_WEB_SETTINGS.study.epubDailyGoalMinutes,
       },
       workspace: {
         visibleNav: Array.isArray(parsed.workspace?.visibleNav) ? OPTIONAL_NAV_ITEMS.filter((item) => parsed.workspace!.visibleNav.includes(item)) : [...DEFAULT_WEB_SETTINGS.workspace.visibleNav],
-        dashboardOrder: Array.isArray(parsed.workspace?.dashboardOrder) ? [...parsed.workspace!.dashboardOrder.filter((item) => DASHBOARD_SECTIONS.includes(item as typeof DASHBOARD_SECTIONS[number])), ...DASHBOARD_SECTIONS.filter((item) => !parsed.workspace!.dashboardOrder.includes(item))] : [...DEFAULT_WEB_SETTINGS.workspace.dashboardOrder],
-        hiddenDashboard: Array.isArray(parsed.workspace?.hiddenDashboard) ? parsed.workspace!.hiddenDashboard.filter((item) => DASHBOARD_SECTIONS.includes(item as typeof DASHBOARD_SECTIONS[number])) : [],
+        dashboardOrder: uniqueDashboardOrder.length ? [...uniqueDashboardOrder, ...newlyAvailableSections] : [...DEFAULT_WEB_SETTINGS.workspace.dashboardOrder],
+        hiddenDashboard: uniqueDashboardOrder.length ? hiddenDashboard : [...DEFAULT_WEB_SETTINGS.workspace.hiddenDashboard],
+        dashboardWidths: Object.fromEntries(DASHBOARD_SECTIONS.map((id) => [id, dashboardSectionWidth(id, parsed.workspace?.dashboardWidths?.[id])])) as Record<DashboardSectionId, DashboardSectionWidth>,
+        dashboardRowStarts,
       },
     };
   } catch {
     return DEFAULT_WEB_SETTINGS;
   }
+}
+
+export function reorderDashboardSections(order: string[], source: string, target: string) {
+  if (source === target) return order;
+  const sourceIndex = order.indexOf(source);
+  if (sourceIndex < 0 || !order.includes(target)) return order;
+  const next = [...order];
+  const [moved] = next.splice(sourceIndex, 1);
+  const targetIndex = next.indexOf(target);
+  next.splice(targetIndex, 0, moved);
+  return next;
 }
 
 export function saveWebSettings(storage: Pick<ListStorage, "setItem">, username: string, settings: WebSettings) {

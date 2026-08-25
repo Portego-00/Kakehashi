@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createListRepository, listStorageKey, type ListStorage } from "./lists";
+import { createListRepository, listStorageKey, subscribeSubjectLists, type ListStorage } from "./lists";
 
 class MemoryStorage implements ListStorage {
   values = new Map<string, string>();
@@ -43,5 +43,18 @@ describe("subject list persistence", () => {
     const storage = new MemoryStorage();
     storage.setItem(listStorageKey("alice"), "not json");
     expect(createListRepository(storage, "alice").load()).toEqual([]);
+  });
+
+  it("notifies mounted dashboard and study consumers when a list changes", () => {
+    const storage = new MemoryStorage();
+    const repository = createListRepository(storage, "alice", undefined, () => "one");
+    let changes = 0;
+    const unsubscribe = subscribeSubjectLists("alice", () => { changes += 1; });
+
+    repository.create("Study");
+    repository.addSubject("one", 10);
+    unsubscribe();
+
+    expect(changes).toBe(2);
   });
 });

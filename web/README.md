@@ -16,6 +16,8 @@ Open `http://localhost:3000`, enter the token on the sign-in screen, and Kakehas
 
 Set `SESSION_SECRET` in `.env.local` to at least 32 random characters. `WANIKANI_API_TOKEN` is optional and is only for local server-side smoke testing.
 
+MyAnimeList sync reuses `EXPO_PUBLIC_MAL_CLIENT_ID` from the Expo app. Keep that accepted-client value in the EAS environment and start the web app with `npm run dev:expo-env` to inject the production EAS environment without copying it into `web/.env.local`. A non-EAS deployment must expose the same variable to its Next.js server process.
+
 For Songs, add server-only `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `YOUTUBE_API_KEY` values. Spotify supplies catalog results and track metadata, YouTube supplies embeddable playback, and LRCLIB supplies exact or best-matched synced lyrics. None of these credentials are sent to the browser.
 
 ## Included

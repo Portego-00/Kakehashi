@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-08-25",
+    "phase": "responsive-dashboard-data-parity",
+    "scope": "dashboard widget motion, app streak, subject lists, review statistics, and responsive dashboard rows",
+    "macrostructure": "Workbench / Responsive Widget Mosaic",
+    "theme": "studied-DNA (source: installed Kakehashi mobile and macOS app plus supplied references)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "interpolated concentric level rings with reduced-motion fallback; paginated mobile-parity app-session history plus public and local fallbacks; canonical live subject-list repository; compact review-stat comparison; dashboard-density level timing; narrow-card Today’s Study reflow; persisted inline row starts; no horizontal overflow at 1280; semantic tokens; visible focus; 102 test files with 367 passing and 1 skipped test; lint pass"
+  },
+  {
     "date": "2026-08-24",
     "phase": "native-login-branding",
     "scope": "web login, startup, app chrome, and browser icons",

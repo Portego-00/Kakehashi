@@ -39,9 +39,17 @@ describe("progress calculations", () => {
     expect(forecast.map((day) => day.count)).toEqual([1, 0]);
   });
 
-  it("uses statistic update dates as a transparent activity approximation", () => {
-    const stats = [resource(1, "review_statistic", { hidden: false }, "2026-08-06T12:00:00Z")] as ReviewStatistic[];
-    expect(calculateApproximateActivity(stats, new Date("2026-08-06T18:00:00"), 2).map((day) => day.count)).toEqual([0, 1]);
+  it("uses assignment updates and milestones for the activity approximation", () => {
+    const assignments = [resource(1, "assignment", { hidden: false, started_at: "2026-08-05T12:00:00Z", passed_at: null, burned_at: null }, "2026-08-06T12:00:00Z")] as Assignment[];
+    expect(calculateApproximateActivity(assignments, new Date("2026-08-06T18:00:00"), 2).map((day) => day.count)).toEqual([1, 1]);
+  });
+
+  it("starts all-time heatmap history at the first activity year's January", () => {
+    const assignments = [resource(1, "assignment", { hidden: false, started_at: "2024-06-10T12:00:00Z", passed_at: null, burned_at: null }, "2026-08-06T12:00:00Z")] as Assignment[];
+    const activity = calculateApproximateActivity(assignments, new Date("2026-08-06T18:00:00"), "all");
+
+    expect(activity[0].key).toBe("2024-01-01");
+    expect(activity.at(-1)?.key).toBe("2026-08-06");
   });
 
   it("calculates level pass duration and ignores abandoned attempts", () => {

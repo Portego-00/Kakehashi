@@ -16,10 +16,17 @@ describe("NHK news image URLs", () => {
     expect(proxyNewsImageUrl(proxied)).toBe(proxied);
   });
 
+  it("accepts the constrained Standard NHK image hosts", () => {
+    expect(normalizeNewsImageUrl("https://img.web.nhk/news/a.jpg")).toBe("https://img.web.nhk/news/a.jpg");
+    expect(normalizeNewsImageUrl("https://imgu.web.nhk/news/a.jpg")).toBe("https://imgu.web.nhk/news/a.jpg");
+    expect(normalizeNewsImageUrl("https://img.embed.nhk/news/a.jpg")).toBe("https://img.embed.nhk/news/a.jpg");
+  });
+
   it("rejects insecure, credentialed, and untrusted image origins", () => {
     expect(normalizeNewsImageUrl("http://nhkeasier.com/media/a.jpg")).toBeUndefined();
     expect(normalizeNewsImageUrl("https://user:pass@nhkeasier.com/media/a.jpg")).toBeUndefined();
     expect(normalizeNewsImageUrl("https://example.com/a.jpg")).toBeUndefined();
+    expect(normalizeNewsImageUrl("https://imgu.web.nhk.attacker.example/a.jpg")).toBeUndefined();
     expect(normalizeNewsImageUrl("data:image/png;base64,abc")).toBeUndefined();
   });
 });

@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Flame, LockKeyhole, Search } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { EmptyState, Skeleton } from "@/components/ui/States";
+import { EmptyState } from "@/components/ui/States";
+import { ProgressTabs } from "@/features/progress/components/ProgressTabs";
 import type { Subject, SubjectType } from "@/types/wanikani";
 import { useSubjectCatalog } from "../data";
 import { useFirstSubjectReveal } from "../useFirstSubjectReveal";
-import { SubjectTile } from "./SubjectTile";
+import { SubjectTile, SubjectTileSkeleton } from "./SubjectTile";
 import styles from "../subjects.module.css";
 
 export type ItemView = "unlocks" | "critical" | "burned";
@@ -41,8 +42,8 @@ export function ItemsExplorer({ initialView = "unlocks" }: { initialView?: ItemV
     return selected.filter(({ subject }) => (type === "all" || subject.object === type) && (!normalized || subject.data.characters?.includes(normalized) || subject.data.meanings.some((meaning) => meaning.meaning.toLocaleLowerCase().includes(normalized)) || subject.data.readings?.some((reading) => reading.reading.includes(normalized)))).sort((a, b) => a.sort - b.sort).map((entry) => entry.subject);
   }, [assignments, days, now, query, statistics, subjectById, type, view]);
 
-  return <main className={`page ${styles.page}`}>
-    <header className="page-header"><div><h1>Items</h1><p>Inspect recent unlocks, troublesome subjects, and burned milestones from one place.</p></div>{!isLoading ? <Badge>{rows.length.toLocaleString()} {rows.length === 1 ? "item" : "items"}</Badge> : null}</header>
+  return <main className={`page ${styles.page}`} data-compact-workspace>
+    <ProgressTabs active="items" action={!isLoading ? <Badge>{rows.length.toLocaleString()} {rows.length === 1 ? "item" : "items"}</Badge> : null} />
 
     <nav className={styles.tabs} aria-label="Item views">{VIEWS.map((item) => <button type="button" key={item.id} aria-current={view === item.id ? "page" : undefined} onClick={() => setView(item.id)}><item.icon size={17} />{item.label}</button>)}</nav>
     <section className={styles.itemToolbar} aria-label="Item filters">
@@ -52,6 +53,6 @@ export function ItemsExplorer({ initialView = "unlocks" }: { initialView?: ItemV
     </section>
 
     {view === "critical" ? <p className={styles.viewExplanation}>Critical items have aggregate review accuracy below 75%. Lowest accuracy appears first.</p> : null}
-    {isLoading ? <div className={styles.subjectList} aria-busy="true">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} height="6rem" />)}</div> : isError ? <EmptyState title="Items are unavailable" description="Refresh to request your assignments and review statistics again." /> : rows.length === 0 ? <EmptyState title={`No ${view} match`} description={view === "critical" ? "Try another subject type or search term." : "Try another time range, subject type, or search term."} /> : <section className={styles.subjectList} aria-label={`${view} items`} {...firstResultsReveal}>{rows.map((subject) => <SubjectTile key={subject.id} subject={subject} assignment={assignmentBySubject.get(subject.id)} statistic={statisticBySubject.get(subject.id)} />)}</section>}
+    {isLoading ? <div className={styles.subjectList} aria-busy="true">{Array.from({ length: 8 }, (_, index) => <SubjectTileSkeleton key={index} />)}</div> : isError ? <EmptyState title="Items are unavailable" description="Refresh to request your assignments and review statistics again." /> : rows.length === 0 ? <EmptyState title={`No ${view} match`} description={view === "critical" ? "Try another subject type or search term." : "Try another time range, subject type, or search term."} /> : <section className={styles.subjectList} aria-label={`${view} items`} {...firstResultsReveal}>{rows.map((subject) => <SubjectTile key={subject.id} subject={subject} assignment={assignmentBySubject.get(subject.id)} statistic={statisticBySubject.get(subject.id)} />)}</section>}
   </main>;
 }

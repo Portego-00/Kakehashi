@@ -53,6 +53,7 @@ export const ANIME_ID_MAPPINGS: Record<string, AnimeIdMapping> = {
   "koe_no_katachi": { malId: 28851, aniListId: 20954 },
   "weathering_with_you": { malId: 38826, aniListId: 106286 },
   "tenki_no_ko": { malId: 38826, aniListId: 106286 },
+  "the_tunnel_to_summer__the_exit_of_goodbyes": { malId: 50593, aniListId: 142769 },
   "k_on": { malId: 5680, aniListId: 5680 },
   "k_on_": { malId: 5680, aniListId: 5680 },
   "nichijou": { malId: 10165, aniListId: 10165 },

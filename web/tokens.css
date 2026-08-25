@@ -43,6 +43,7 @@
   --color-success-soft: oklch(94% 0.035 150);
   --color-warning: oklch(65% 0.16 73);
   --color-warning-soft: oklch(94% 0.04 73);
+  --color-streak: oklch(50% 0.19 49);
   --color-radical: oklch(64% 0.18 242);
   --color-radical-ink: oklch(41% 0.13 242);
   --color-kanji: oklch(59% 0.23 359);
@@ -51,6 +52,7 @@
   --color-vocabulary-ink: oklch(40% 0.14 307);
   --color-subject-text: oklch(99% 0.004 265);
   --color-subject-scrim: oklch(12% 0.008 265 / 18%);
+  --color-media-backdrop: oklch(12% 0.008 265);
   --color-subject-rule: color-mix(in oklch, var(--color-subject-text) 30%, transparent);
   --color-subject-progress: color-mix(in oklch, var(--color-subject-text) 86%, transparent);
   --color-prompt-meaning: oklch(82% 0.008 265);
@@ -61,6 +63,25 @@
   --color-prompt-other-ink: oklch(98% 0.004 265);
   --color-lesson: var(--color-kanji);
   --color-review: var(--color-radical);
+  --color-extra-study-primary: #3a86ff;
+  --color-extra-study-secondary: #fa1f62;
+  --color-extra-study-accent: #ff9e00;
+  --color-extra-study-error: #e53935;
+  --color-study-card-copy: oklch(99% 0.004 265);
+  --color-study-card-disabled-copy: oklch(30% 0.01 265);
+  --color-study-reviews: oklch(71% 0.17 239);
+  --color-study-lessons: oklch(66% 0.28 344);
+  --color-study-extra: oklch(57% 0.28 300);
+  --color-study-news: oklch(70% 0.19 39);
+  --color-study-songs: oklch(67% 0.18 145);
+  --color-study-reading: oklch(80% 0.17 77);
+  --color-study-video: oklch(60% 0.2 28);
+  --color-study-card-disabled-start: oklch(80.7796% 0 0);
+  --color-study-card-disabled-end: oklch(70.5757% 0 0);
+  --color-lesson-card-start: oklch(71.198% 0.21614 349.484);
+  --color-lesson-card-end: oklch(63.6526% 0.24235 12.288);
+  --color-review-card-start: oklch(70.5691% 0.11696 233.025);
+  --color-review-card-end: oklch(63.5328% 0.15052 241.911);
 
   --space-3xs: 0.125rem;
   --space-2xs: 0.25rem;
@@ -72,6 +93,7 @@
   --space-2xl: 4rem;
   --space-3xl: 6rem;
 
+  --text-2xs: 0.625rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -134,6 +156,15 @@
   --color-danger-soft: oklch(27% 0.06 27);
   --color-success-soft: oklch(27% 0.05 150);
   --color-warning-soft: oklch(28% 0.05 73);
+  --color-streak: oklch(72% 0.18 49);
+  --color-extra-study-error: #e57373;
+  --color-study-card-disabled-copy: var(--color-ink-2);
+  --color-study-card-disabled-start: oklch(43.1281% 0 0);
+  --color-study-card-disabled-end: oklch(37.1495% 0 0);
+  --color-lesson-card-start: oklch(44.8305% 0.14505 355.542);
+  --color-lesson-card-end: oklch(37.3887% 0.12574 353.351);
+  --color-review-card-start: oklch(51.7592% 0.09365 238.913);
+  --color-review-card-end: oklch(42.9214% 0.07723 238.47);
 }
 
 [data-theme="midnight"] {
@@ -151,11 +182,20 @@
   --color-focus: oklch(82% 0.14 249);
   --color-brand: oklch(70% 0.2 2);
   --color-brand-soft: oklch(24% 0.05 2);
+  --color-streak: oklch(74% 0.17 49);
   --color-vacation: oklch(78% 0.14 74);
   --color-vacation-soft: oklch(25% 0.045 74);
   --color-radical-ink: oklch(80% 0.12 242);
   --color-kanji-ink: oklch(80% 0.15 359);
   --color-vocabulary-ink: oklch(80% 0.12 307);
+  --color-extra-study-error: #f28b82;
+  --color-study-card-disabled-copy: var(--color-ink-2);
+  --color-study-card-disabled-start: oklch(43.1281% 0 0);
+  --color-study-card-disabled-end: oklch(37.1495% 0 0);
+  --color-lesson-card-start: oklch(33.5531% 0.11293 352.742);
+  --color-lesson-card-end: oklch(27.4397% 0.08693 351.829);
+  --color-review-card-start: oklch(36.3303% 0.06963 240.995);
+  --color-review-card-end: oklch(30.4549% 0.05702 241.785);
 }
 
 [data-theme="sepia"] {
@@ -175,4 +215,15 @@
   --color-brand-soft: oklch(88% 0.045 2);
   --color-vacation: oklch(62% 0.14 74);
   --color-vacation-soft: oklch(88% 0.05 74);
+  --color-extra-study-primary: #8b5e3c;
+  --color-extra-study-secondary: #c26a3d;
+  --color-extra-study-accent: #b08968;
+  --color-extra-study-error: #c94f3d;
+  --color-study-card-disabled-copy: var(--color-ink);
+  --color-study-card-disabled-start: oklch(80.7796% 0 0);
+  --color-study-card-disabled-end: oklch(70.5757% 0 0);
+  --color-lesson-card-start: color-mix(in oklch, var(--color-brand) 88%, var(--color-surface));
+  --color-lesson-card-end: var(--color-brand);
+  --color-review-card-start: color-mix(in oklch, var(--color-accent) 86%, var(--color-surface));
+  --color-review-card-end: var(--color-accent);
 }

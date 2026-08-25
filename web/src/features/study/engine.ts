@@ -1,4 +1,5 @@
 import { toHiragana } from "wanakana";
+import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 import niaiData from "./data/niai-similar-kanji.json";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import type {
@@ -29,7 +30,7 @@ export const DEFAULT_STUDY_FILTERS: StudyFilters = {
   recentWindow: "apprentice",
   answerMode: "multiple-choice",
   listeningSource: "anime",
-  animeSources: [],
+  animeSources: [ALL_ANIME_SOURCE],
   listeningAutoPlayAudio: true,
   writingMode: "guided",
   wordLength: 5,
@@ -296,13 +297,19 @@ export function generateQuestions(mode: QuizModeId, dataset: StudyDataset, filte
   const questions: StudyQuestion[] = [];
   const subjects = subjectsForMode(mode, dataset, filters, random, now);
   const questionLimit = mode === "listening" ? filters.count * 2 : filters.count;
+  const countsStudyItems = mode === "random-test" || mode === "custom-review";
+  const studyItemLimit = mode === "custom-review" ? Number.POSITIVE_INFINITY : filters.count;
+  let generatedStudyItems = 0;
   for (const subject of subjects) {
+    const questionCountBeforeSubject = questions.length;
     const kinds = mode === "listening" ? kindsForMode(mode, subject, filters) : shuffle(kindsForMode(mode, subject, filters), random);
     for (const kind of kinds) {
       const question = toQuestion(subject, kind, dataset.subjects, filters, random);
       if (question) questions.push(question);
-      if (mode !== "recent-lessons" && questions.length >= questionLimit) return questions;
+      if (!countsStudyItems && mode !== "recent-lessons" && questions.length >= questionLimit) return questions;
     }
+    if (questions.length > questionCountBeforeSubject) generatedStudyItems += 1;
+    if (countsStudyItems && generatedStudyItems >= studyItemLimit) return questions;
   }
   return questions;
 }
@@ -310,6 +317,12 @@ export function generateQuestions(mode: QuizModeId, dataset: StudyDataset, filte
 export function createStudySession(mode: QuizModeId, questions: StudyQuestion[], now = new Date()): StudySession {
   const timestamp = now.toISOString();
   return { version: 1, id: `${mode}:${now.getTime()}`, mode, createdAt: timestamp, updatedAt: timestamp, currentIndex: 0, questions, answers: [], complete: questions.length === 0 };
+}
+
+export function getStudyItemProgress(questions: StudyQuestion[], currentIndex: number) {
+  const total = new Set(questions.map((question) => question.subjectId)).size;
+  const current = new Set(questions.slice(0, Math.max(0, currentIndex + 1)).map((question) => question.subjectId)).size;
+  return { current, total };
 }
 
 export function answerStudyQuestion(session: StudySession, value: string, now = new Date()): StudySession {
@@ -356,6 +369,7 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
   const validJlptLevels = new Set(["N5", "N4", "N3", "N2", "N1"] as const);
   const min = Number.isFinite(source.minLevel) ? Math.min(maxLevel, Math.max(1, Math.round(source.minLevel!))) : 1;
   const max = Number.isFinite(source.maxLevel) ? Math.min(maxLevel, Math.max(min, Math.round(source.maxLevel!))) : maxLevel;
+  const animeSources = Array.isArray(source.animeSources) ? source.animeSources.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 100) : [];
   return {
     count: Number.isFinite(source.count) ? Math.min(100, Math.max(5, Math.round(source.count! / 5) * 5)) : 20,
     useCustomLevelRange: source.useCustomLevelRange === true,
@@ -370,7 +384,7 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
     recentWindow: source.recentWindow === "apprentice" || source.recentWindow === "24h" || source.recentWindow === "30d" ? source.recentWindow : "7d",
     answerMode: source.answerMode === "typed" ? "typed" : "multiple-choice",
     listeningSource: source.listeningSource === "anime" ? "anime" : "wanikani",
-    animeSources: Array.isArray(source.animeSources) ? source.animeSources.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 20) : [],
+    animeSources: animeSources.length ? animeSources : [ALL_ANIME_SOURCE],
     listeningAutoPlayAudio: source.listeningAutoPlayAudio !== false,
     writingMode: source.writingMode === "freehand" ? "freehand" : "guided",
     wordLength: Number.isFinite(source.wordLength) ? Math.min(7, Math.max(3, Math.round(source.wordLength!))) : 5,

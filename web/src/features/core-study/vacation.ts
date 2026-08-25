@@ -2,6 +2,8 @@ import type { WKUser } from "@/types/wanikani";
 
 export type StudyMode = "lessons" | "reviews";
 
+export const WANIKANI_VACATION_SETTINGS_URL = "https://www.wanikani.com/settings/account";
+
 export function vacationStartedAt(user: WKUser | null | undefined) {
   const startedAt = user?.data.current_vacation_started_at;
   return typeof startedAt === "string" && startedAt.trim() ? startedAt : null;

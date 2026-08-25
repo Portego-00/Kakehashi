@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { wkCollection, wkRequest } from "./client";
-import type { Assignment, ReviewStatistic, Subject, WKSummary, WKUser } from "@/types/wanikani";
+import type { Assignment, LevelProgression, ReviewStatistic, Subject, WKSummary, WKUser } from "@/types/wanikani";
 
 export const wkKeys = {
   root: ["wanikani"] as const,
@@ -9,6 +9,7 @@ export const wkKeys = {
   assignments: (filters = "all") => [...wkKeys.root, "assignments", filters] as const,
   subjects: (filters = "all") => [...wkKeys.root, "subjects", filters] as const,
   statistics: () => [...wkKeys.root, "review-statistics"] as const,
+  levelProgressions: () => [...wkKeys.root, "level-progressions"] as const,
 };
 
 export const userQuery = () => queryOptions({
@@ -23,3 +24,4 @@ export const summaryQuery = () => queryOptions({ queryKey: wkKeys.summary(), que
 export const assignmentsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.assignments(filters), queryFn: () => wkCollection<Assignment>(`assignments${filters ? `?${filters}` : ""}`), staleTime: 5 * 60_000 });
 export const subjectsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.subjects(filters), queryFn: () => wkCollection<Subject>(`subjects${filters ? `?${filters}` : ""}`), staleTime: 24 * 60 * 60_000 });
 export const reviewStatisticsQuery = () => queryOptions({ queryKey: wkKeys.statistics(), queryFn: () => wkCollection<ReviewStatistic>("review_statistics"), staleTime: 15 * 60_000 });
+export const levelProgressionsQuery = () => queryOptions({ queryKey: wkKeys.levelProgressions(), queryFn: () => wkCollection<LevelProgression>("level_progressions"), staleTime: 60 * 60_000 });

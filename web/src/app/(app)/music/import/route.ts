@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { findLrclibLyrics, findYouTubeVideos, MusicProviderError } from "@/features/content/music-server";
+import { findLrclibLyricsCandidates, findYouTubeVideos, findYouTubeVideosByQuery } from "@/features/content/music-server";
 import { readBoundedRequestJson } from "@/features/content/server-security";
 import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
 import { clientAddress, isTrustedMutationOrigin } from "@/lib/server/request-security";
@@ -18,15 +18,13 @@ const trackSchema = z.object({
   albumName: z.string().trim().max(240).default(""),
   releaseDate: z.string().trim().max(40).default(""),
 });
-const importSchema = z.object({ track: trackSchema });
-
-function providerFailure(error: unknown) {
-  const failure = error instanceof MusicProviderError ? error : new MusicProviderError("This song could not be imported.", 502);
-  return NextResponse.json({ error: failure.message }, {
-    status: failure.status,
-    headers: { "Cache-Control": "private, no-store", ...(failure.retryAfter ? { "Retry-After": failure.retryAfter } : {}) },
-  });
-}
+const importSchema = z.object({
+  track: trackSchema,
+  source: z.enum(["all", "lyrics", "video"]).default("all"),
+  lyricsTrack: z.string().trim().max(200).optional(),
+  lyricsArtist: z.string().trim().max(200).optional(),
+  videoQuery: z.string().trim().max(300).optional(),
+});
 
 export async function POST(request: NextRequest) {
   if (!isTrustedMutationOrigin(request)) return NextResponse.json({ error: "This import did not originate from Kakehashi." }, { status: 403 });
@@ -37,16 +35,38 @@ export async function POST(request: NextRequest) {
   catch { return NextResponse.json({ error: "The song import request is invalid." }, { status: 400 }); }
   const parsed = importSchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Choose a valid song to import." }, { status: 422 });
-  const track = parsed.data.track;
+  const { track, source } = parsed.data;
   const targetDuration = track.durationMs / 1_000;
+  const shouldMatchLyrics = source !== "video";
+  const shouldMatchVideo = source !== "lyrics";
+  const lyricsTrack = parsed.data.lyricsTrack ?? track.title;
+  const lyricsArtist = parsed.data.lyricsArtist ?? track.artist;
+  const videoQuery = parsed.data.videoQuery || `${track.title} ${track.artist}`.trim();
   const [lyricsResult, videosResult] = await Promise.allSettled([
-    findLrclibLyrics(track.title, track.artist, track.albumName, targetDuration),
-    findYouTubeVideos(track.title, track.artist, targetDuration),
+    shouldMatchLyrics
+      ? findLrclibLyricsCandidates(lyricsTrack, lyricsArtist, track.albumName, targetDuration)
+      : Promise.resolve([]),
+    shouldMatchVideo
+      ? parsed.data.videoQuery === undefined
+        ? findYouTubeVideos(track.title, track.artist, targetDuration)
+        : findYouTubeVideosByQuery(videoQuery, targetDuration)
+      : Promise.resolve([]),
   ]);
-  if (lyricsResult.status === "rejected") return providerFailure(lyricsResult.reason);
+  const lyricsResults = lyricsResult.status === "fulfilled" ? lyricsResult.value : [];
+  const lyricsWarning = !shouldMatchLyrics ? null : lyricsResult.status === "rejected"
+    ? lyricsResult.reason instanceof Error ? lyricsResult.reason.message : "Lyrics matching is unavailable."
+    : lyricsResults.length ? null : "No usable lyrics were found.";
   const videos = videosResult.status === "fulfilled" ? videosResult.value : [];
-  const videoWarning = videosResult.status === "rejected"
+  const videoWarning = !shouldMatchVideo ? null : videosResult.status === "rejected"
     ? videosResult.reason instanceof Error ? videosResult.reason.message : "YouTube matching is unavailable."
     : videos.length ? null : "No embeddable YouTube match was found.";
-  return NextResponse.json({ track, lyrics: lyricsResult.value, video: videos[0] ?? null, videos, videoWarning }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({
+    track,
+    lyrics: lyricsResults[0] ?? null,
+    lyricsResults,
+    lyricsWarning,
+    video: videos[0] ?? null,
+    videos,
+    videoWarning,
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

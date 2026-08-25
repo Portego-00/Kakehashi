@@ -4,10 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, Heart, MessageSquare, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Heart, MessageSquare, Monitor, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { useSession } from "@/lib/session";
 import { communityAccountScope, useDraftNavigationGuard, usePersistentCommunityDraft } from "@/features/community/drafts";
 import { CommunityMarkdown, safeCommunityMediaUrl } from "@/features/community/CommunityMarkdown";
+import { hasWebIssueOrigin } from "@/features/community/issue-origin";
 import { EmptyState } from "./ui";
 import styles from "./community.module.css";
 
@@ -90,6 +92,11 @@ function UserMark({ name, level }: { name: string | null; level?: number | null 
   return <span className={styles.avatar} aria-hidden="true"><span>{(name || "L").slice(0, 1).toUpperCase()}</span>{level ? <small>{level}</small> : null}</span>;
 }
 
+function IssueOriginBadge({ labels }: { labels?: string[] | null }) {
+  if (!hasWebIssueOrigin(labels)) return null;
+  return <Badge className={styles.webBadge} aria-label="Created on Kakehashi Web" title="Created on Kakehashi Web"><Monitor size={13} aria-hidden="true" />Web</Badge>;
+}
+
 export function CommunityWorkspace() {
   const [issues, setIssues] = useState<SharedIssue[]>([]);
   const [counts, setCounts] = useState<CommunityCounts>({ open: 0, closed: 0 });
@@ -164,8 +171,7 @@ export function CommunityWorkspace() {
       <div className={styles.actions}><Link className={styles.secondary} href="/supporters"><Users size={17} aria-hidden="true" />Supporters</Link>{writable ? <Link className={styles.primary} href="/community/new"><Plus size={17} aria-hidden="true" />New issue</Link> : null}</div>
     </header>
 
-    <nav className={styles.subnav} aria-label="Community tools"><Link href="/community" aria-current="page">Issues</Link><Link href="/feedback">Feedback</Link><Link href="/feature-request">Feature request</Link></nav>
-    {!configured ? <div className={styles.notice}><strong>Shared board unavailable</strong><span>This deployment has not configured its server-side community connection. Feedback forms remain available.</span></div> : null}
+    {!configured ? <div className={styles.notice}><strong>Shared board unavailable</strong><span>Connect the shared community service to load issues.</span></div> : null}
     {configured && !writable ? <div className={styles.notice}><strong>Community is read-only</strong><span>Browsing is available, but posting requires the deployment&apos;s server-side Supabase secret key.</span></div> : null}
 
     <section className={styles.board} aria-label="Issue board">
@@ -182,7 +188,7 @@ export function CommunityWorkspace() {
         <div className={styles.issueList}>{issues.map((issue) => <article className={styles.issue} key={issue.id}>
           <UserMark name={issue.user_username} level={issue.user_level} />
           <Link href={`/community/${issue.id}`} className={styles.issueMain}>
-            <div className={styles.issueTitle}><h2>{issue.title}</h2><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div>
+            <div className={styles.issueTitle}><h2>{issue.title}</h2><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div></div>
             <p>{issue.content}</p>
             <span className={styles.meta}>{issue.user_username} · {relativeTime(issue.created_at)}</span>
           </Link>
@@ -192,7 +198,7 @@ export function CommunityWorkspace() {
           </div>
         </article>)}</div>
         <nav className={styles.pagination} aria-label="Issue pages"><button type="button" disabled={page === 0 || loading} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</button><span aria-live="polite">Page {page + 1}</span><button type="button" disabled={!hasMore || loading} onClick={() => setPage((value) => value + 1)}>Next</button></nav>
-      </> : <EmptyState title={configured ? "No issues found" : "The board needs configuration"}>{configured ? (query ? "Try a different search." : `There are no ${status} issues.`) : "You can still send feedback or a feature request."}</EmptyState>}
+      </> : <EmptyState title={configured ? "No issues found" : "The board needs configuration"}>{configured ? (query ? "Try a different search." : `There are no ${status} issues.`) : "Connect the shared community service to load the issue board."}</EmptyState>}
     </section>
   </main>;
 }
@@ -316,7 +322,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   return <main className={styles.page}>
     <Link className={styles.back} href="/community"><ArrowLeft size={17} aria-hidden="true" />Back to community</Link>
     <article className={styles.thread}>
-      <header><UserMark name={issue.user_username} level={issue.user_level} /><div className={styles.threadTitle}><div><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span><h1>{issue.title}</h1><p className={styles.meta}>{issue.user_username} · {relativeTime(issue.created_at)}</p></div><div className={styles.actions}>{writable ? <button className={styles.secondary} type="button" disabled={pendingLikes.has(`issue:${issue.id}`)} aria-pressed={Boolean(issue.is_liked)} aria-label={`${issue.is_liked ? "Unlike" : "Like"} issue, ${issue.likes_count || 0} likes`} onClick={() => void toggleLike("issue", issue.id)}><Heart size={17} fill={issue.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(issue.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={17} aria-hidden="true" />{countLabel(issue.likes_count)}</span>}{canManage ? <><button className={styles.secondary} type="button" disabled={busy} onClick={() => void updateStatus()}><CheckCircle2 size={17} aria-hidden="true" />{issue.status === "open" ? "Close" : "Reopen"}</button><button className={styles.dangerButton} type="button" disabled={busy} onClick={() => void deleteIssue()}><Trash2 size={17} aria-hidden="true" />Delete</button></> : null}</div></div></header>
+      <header><UserMark name={issue.user_username} level={issue.user_level} /><div className={styles.threadTitle}><div><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div><h1>{issue.title}</h1><p className={styles.meta}>{issue.user_username} · {relativeTime(issue.created_at)}</p></div><div className={styles.actions}>{writable ? <button className={styles.secondary} type="button" disabled={pendingLikes.has(`issue:${issue.id}`)} aria-pressed={Boolean(issue.is_liked)} aria-label={`${issue.is_liked ? "Unlike" : "Like"} issue, ${issue.likes_count || 0} likes`} onClick={() => void toggleLike("issue", issue.id)}><Heart size={17} fill={issue.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(issue.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={17} aria-hidden="true" />{countLabel(issue.likes_count)}</span>}{canManage ? <><button className={styles.secondary} type="button" disabled={busy} onClick={() => void updateStatus()}><CheckCircle2 size={17} aria-hidden="true" />{issue.status === "open" ? "Close" : "Reopen"}</button><button className={styles.dangerButton} type="button" disabled={busy} onClick={() => void deleteIssue()}><Trash2 size={17} aria-hidden="true" />Delete</button></> : null}</div></div></header>
       <CommunityMarkdown>{issue.content}</CommunityMarkdown>
     </article>
     {error ? <p className={styles.error} role="alert">{error}</p> : null}

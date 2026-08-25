@@ -1,20 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check, Flame, Grid3X3, LockKeyhole, Play } from "lucide-react";
+import { ArrowRight, Clock3, Flame, Grid3X3, LockKeyhole, Play } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Progress } from "@/components/ui/Progress";
 import { Skeleton } from "@/components/ui/States";
 import { useSession } from "@/lib/session";
-import { calculateLevelProgress, calculateLevelTimings } from "../calculations";
+import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
+import { calculateLevelProgress, calculateLevelTimings, srsBucketForStage } from "../calculations";
 import { useProgressData } from "../data";
 import { useFirstProgressReveal } from "../useFirstProgressReveal";
+import { ProgressTabs } from "./ProgressTabs";
 import styles from "../progress.module.css";
-
-const TYPE_LABELS = { radical: "Radicals", kanji: "Kanji", vocabulary: "Vocabulary", kana_vocabulary: "Kana vocabulary" } as const;
 
 export function LevelProgress() {
   const { user } = useSession();
@@ -27,29 +24,41 @@ export function LevelProgress() {
   const timings = calculateLevelTimings(progressions);
   const currentTiming = timings.find((timing) => timing.level === currentLevel);
 
-  if (isLoading) return <main className={`page ${styles.page}`} aria-busy="true"><Skeleton height="30rem" /></main>;
+  if (isLoading) return <LevelProgressSkeleton />;
   if (isError) return <main className={`page ${styles.page}`}><div className={styles.errorState}><h1>Progress is unavailable</h1><p>WaniKani did not return your levels. Try the request again here.</p><Button state={isRetrying ? "loading" : "idle"} onClick={async () => { setIsRetrying(true); try { await retry(); } finally { setIsRetrying(false); } }}>Try again</Button></div></main>;
 
   const currentKanji = current.find((progress) => progress.type === "kanji");
   const passTarget = currentKanji ? Math.ceil(currentKanji.total * 0.9) : 0;
   const remaining = Math.max(0, passTarget - (currentKanji?.passed ?? 0));
+  const passedSubjects = current.reduce((sum, row) => sum + row.passed, 0);
+  const totalSubjects = current.reduce((sum, row) => sum + row.total, 0);
+  const currentSubjects = subjects.filter((subject) => subject.data.level === currentLevel && !subject.data.hidden_at);
+  const radicals = currentSubjects.filter((subject) => subject.object === "radical");
+  const kanji = currentSubjects.filter((subject) => subject.object === "kanji");
+  const assignmentBySubject = new Map(assignments.map((assignment) => [assignment.data.subject_id, assignment]));
+  const previousLevels = Array.from({ length: Math.max(0, currentLevel - 1) }, (_, index) => currentLevel - index - 1).map((level) => ({ level, rows: calculateLevelProgress(subjects, assignments, level) }));
 
   return (
-    <main className={`page ${styles.page}`} {...firstReveal}>
-      <header className="page-header"><div><h1>Level progress</h1><p>See what is unlocked, in flight, passed, and burned across your current work.</p></div><Link href="/progress/kanji" className={styles.textLink}><Grid3X3 size={16} /> Kanji grid</Link></header>
+    <main className={`page ${styles.page}`} data-compact-workspace {...firstReveal}>
+      <ProgressTabs active="level" action={<Link href="/progress/kanji" className={styles.textLink}><Grid3X3 size={15} /> Kanji grid</Link>} />
 
-      <section className={styles.levelLead} aria-labelledby="current-level-title">
-        <div className={styles.levelNumber}><span>Level</span><strong>{currentLevel}</strong></div>
-        <div className={styles.levelStatus}>
-          <h2 id="current-level-title">{remaining === 0 ? "Level threshold reached" : `${remaining} kanji to the pass line`}</h2>
-          <p>{currentTiming ? `${currentTiming.activeDays} days active on this level.` : "Timing begins once the level is unlocked."} WaniKani advances a level when 90% of its kanji reach the passing stage.</p>
-          {currentKanji ? <Progress value={currentKanji.passed} max={passTarget || 1} label={`${currentKanji.passed} of ${passTarget} passing kanji`} /> : null}
+      <section className={styles.levelOverview} aria-labelledby="current-level-title">
+        <div className={styles.levelOverviewHead}><div><h2 id="current-level-title">Level {currentLevel} progress</h2><p>{passedSubjects} of {totalSubjects} subjects have reached their passing stage.</p></div></div>
+
+        <div className={styles.guruProgress}>
+          <p><strong>Guru</strong> {remaining === 0 ? "Level threshold reached" : <>{remaining} more kanji to level up.</>}</p>
+          <div className={styles.guruSegments} role="progressbar" aria-label={`${currentKanji?.passed ?? 0} of ${passTarget} kanji at the passing stage`} aria-valuenow={currentKanji?.passed ?? 0} aria-valuemin={0} aria-valuemax={passTarget || 1}>{Array.from({ length: passTarget }, (_, index) => <span key={index} data-state={index < (currentKanji?.passed ?? 0) ? "passed" : "idle"} />)}</div>
         </div>
+
+        <div className={styles.levelTiming}><Clock3 size={19} aria-hidden /><span><small>Active on level</small><strong>{currentTiming ? formatDays(currentTiming.activeDays) : "Not started"}</strong></span></div>
+
+        <LevelSubjectGrid title="Radicals" subjects={radicals} assignments={assignmentBySubject} />
+        <LevelSubjectGrid title="Kanji" subjects={kanji} assignments={assignmentBySubject} />
       </section>
 
-      <LevelTable title={`Level ${currentLevel}`} rows={current} />
+      <section className={styles.levelSummarySection}><h2>Current level</h2><LevelSummaryRow level={currentLevel} rows={current} current /></section>
 
-      {previous.length > 0 ? <section className={styles.previousLevel}><div className={styles.previousHead}><div className={styles.sectionTitleRow}><Check size={19} /><h2>Previous level</h2></div><Link href={`/progress/wrapped/${currentLevel - 1}`} className={styles.textLink}>Open level recap <ArrowRight size={16} /></Link></div><LevelTable title={`Level ${currentLevel - 1}`} rows={previous} compact /></section> : null}
+      {previous.length > 0 ? <section className={styles.levelHistory}><h2>Previous levels</h2><div>{previousLevels.map((entry) => <LevelSummaryRow key={entry.level} level={entry.level} rows={entry.rows} />)}</div></section> : null}
 
       <nav className={styles.progressLinks} aria-label="Progress shortcuts">
         <Link href="/items?view=unlocks"><LockKeyhole aria-hidden /><span><strong>Recent unlocks</strong><small>Newly available subjects</small></span><ArrowRight aria-hidden /></Link>
@@ -60,6 +69,32 @@ export function LevelProgress() {
   );
 }
 
-function LevelTable({ title, rows, compact = false }: { title: string; rows: ReturnType<typeof calculateLevelProgress>; compact?: boolean }) {
-  return <Card padding="none" className={styles.levelTable}><div className={styles.levelTableHead}><h2>{title}</h2>{compact ? <Badge tone="success">Complete history</Badge> : <Badge>Current</Badge>}</div><div className={styles.levelRows}>{rows.map((row) => <div className={styles.levelRow} key={row.type}><div className={styles.typeName}><Badge tone={row.type === "kana_vocabulary" ? "vocabulary" : row.type}>{TYPE_LABELS[row.type]}</Badge><strong>{row.passed} / {row.total} passed</strong></div><Progress value={row.passed} max={row.total || 1} ariaLabel={`${TYPE_LABELS[row.type]}: ${row.passed} of ${row.total} passed`} /><dl><div><dt>Unlocked</dt><dd>{row.unlocked}</dd></div><div><dt>Started</dt><dd>{row.started}</dd></div><div><dt>Burned</dt><dd>{row.burned}</dd></div></dl></div>)}</div></Card>;
+function formatDays(value: number) {
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${value === 1 ? "day" : "days"}`;
+}
+
+function LevelSubjectGrid({ title, subjects, assignments }: { title: string; subjects: Subject[]; assignments: Map<number, Assignment> }) {
+  if (!subjects.length) return null;
+  const ordered = [...subjects].sort((left, right) => (assignments.get(right.id)?.data.srs_stage ?? 0) - (assignments.get(left.id)?.data.srs_stage ?? 0) || left.id - right.id);
+  return <section className={styles.levelSubjectSection}><h3>{title}</h3><div className={styles.levelSubjectGrid}>{ordered.map((subject) => { const assignment = assignments.get(subject.id); const stage = assignment?.data.srs_stage ?? 0; const status = stage >= 5 ? "passed" : stage > 0 ? "started" : assignment?.data.unlocked_at ? "unlocked" : "locked"; const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug; return <Link href={`/subjects/${subject.id}`} key={subject.id} data-type={subject.object} data-status={status} title={`${subject.data.characters ?? meaning} · ${meaning} · ${assignment ? srsBucketForStage(stage) : "Locked"}`}><span lang={subject.data.characters ? "ja" : undefined}>{subject.data.characters ?? meaning.slice(0, 2)}</span><SubjectStageProgress meaning={meaning} stage={stage} /></Link>; })}</div></section>;
+}
+
+function SubjectStageProgress({ meaning, stage }: { meaning: string; stage: number }) {
+  const guruStage = Math.max(0, Math.min(5, stage));
+  if (guruStage >= 5) return <i className={styles.subjectStageProgress} role="progressbar" aria-label={`${meaning}: Guru reached`} aria-valuemin={0} aria-valuemax={5} aria-valuenow={5}><b role="presentation" data-complete="true" /></i>;
+  return <i className={styles.subjectStageProgress} role="progressbar" aria-label={`${meaning}: ${guruStage} of 5 stages to Guru`} aria-valuemin={0} aria-valuemax={5} aria-valuenow={guruStage}>{[1, 2, 3, 4, 5].map((step) => <b role="presentation" key={step} data-filled={step <= guruStage ? "true" : undefined} />)}</i>;
+}
+
+function typeSummary(rows: ReturnType<typeof calculateLevelProgress>, type: Exclude<SubjectType, "kana_vocabulary">) {
+  const matching = rows.filter((row) => row.type === type || (type === "vocabulary" && row.type === "kana_vocabulary"));
+  return matching.reduce((summary, row) => ({ total: summary.total + row.total, passed: summary.passed + row.passed }), { total: 0, passed: 0 });
+}
+
+function LevelSummaryRow({ level, rows, current = false }: { level: number; rows: ReturnType<typeof calculateLevelProgress>; current?: boolean }) {
+  const content = <><strong className={styles.levelSummaryNumber}>{level}</strong>{(["radical", "kanji", "vocabulary"] as const).map((type) => { const summary = typeSummary(rows, type); return <span className={styles.levelTypeProgress} data-type={type} key={type}><small>{type === "radical" ? "Radicals" : type === "kanji" ? "Kanji" : "Vocabulary"}</small><strong>{summary.passed}/{summary.total}</strong><i aria-hidden><b style={{ "--level-progress": summary.total ? summary.passed / summary.total : 0 } as React.CSSProperties} /></i></span>; })}<ArrowRight size={19} aria-hidden /></>;
+  return <Link href={`/progress/wrapped/${level}`} className={styles.levelSummaryRow} data-current={current ? "true" : undefined} aria-label={`Open level ${level} recap`}>{content}</Link>;
+}
+
+function LevelProgressSkeleton() {
+  return <main className={`page ${styles.page}`} data-compact-workspace aria-busy="true"><ProgressTabs active="level" /><div className={styles.levelOverviewSkeleton}><Skeleton height="1.5rem" width="14rem" /><Skeleton height="0.5rem" /><div>{Array.from({ length: 18 }, (_, index) => <Skeleton key={index} height="3.25rem" />)}</div></div><Skeleton height="5rem" /><Skeleton height="12rem" /></main>;
 }

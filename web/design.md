@@ -12,7 +12,7 @@ intentionally; do not introduce page-local visual themes.
 
 ## Macrostructure family
 
-- App pages · Workbench. A full-width app bar, centered segmented primary navigation, compact page title, then task surfaces.
+- App pages · Workbench. A floating three-part app bar with centered primary navigation, compact page title, then task surfaces. The app bar condenses after a deliberate scroll threshold without changing the document’s header height.
 - Authentication · Native Welcome. The login route uses the installed app’s purple-to-pink field, crab-throne illustration, full Kakehashi lockup, and a single raised light form surface. This is the only app route allowed to use that gradient and branded hero artwork.
 - Study sessions · Focused Prompt. A full-width subject-colour prompt stage, a narrow prompt-type strip, then one aligned answer or lesson-detail region. Answers and hints stay hidden until the learner submits.
 - Content pages · Long Document or dense media index. Reading measure is narrow; news and library indexes use image-led rows or carousels.
@@ -26,11 +26,11 @@ repeat literal theme values.
 
 ## Structure
 
-- Desktop uses the installed app’s three-part app bar: learner identity left, text-led primary destinations in the centre, and monochrome utility icons right.
+- Desktop uses the installed app’s three-part app bar inside one hovering chip: learner identity with level and Guru+ kanji count left, text-led primary destinations in the centre, and monochrome utility icons right. Detail routes add a contextual back control before the identity; it enters from the left while the identity makes room, and uses browser history with a logical parent fallback. At the top the username sits above both learner stats; after 80 px of scroll the username recedes while level and kanji remain visible as the chip visually narrows with transform-only motion. Subject detail routes reveal a compact subject-colour identity bar from behind the app bar only after the full subject stage has cleared it; the character, meaning, reading, and level remain available and return the learner to the stage when pressed.
 - Authentication, startup, and app chrome use the crab-on-bridge Kakehashi mark. Do not substitute a Japanese text glyph for the project logo.
 - Mobile uses an edge-to-edge bottom dock and a compact top bar. Secondary destinations live in one accessible More sheet.
 - App pages begin with compact, left-aligned headers; no dashboard heroes or breadcrumb strip.
-- Dashboard order follows the app: vacation or queue status, activity/study status, Extra Study carousel, forecast, then supporting analytics. Sections are full-width bands or grouped rows; unrelated metric cards are not paired merely because space is available.
+- Dashboard order follows the app: vacation or queue status, SRS and level progress, Extra Study carousel, forecast, then supporting analytics. Queue and Extra Study use native-style cards; analytical sections use a varied card grid with truthful pie and bar charts. Unrelated metrics are not paired merely because space is available.
 - Lists, separators, background changes, and subject-colour stages carry hierarchy. Use at most one containment boundary per section and never nest bordered panels.
 - Carousels bleed to the page edges, preserve a partial next item, and provide visible manual controls. Their cards use equal content geometry.
 - Charts have a defined plotting area, visible baseline, tabular values, and a truthful scale. Zero values sit on the baseline; non-zero values visibly rise.
@@ -47,7 +47,7 @@ repeat literal theme values.
 
 ## Motion stance
 
-- Silent and state-led: 100 ms press, 180–220 ms menu/content crossfade, progress change, async loading.
+- Silent and state-led: 100 ms press, 180–220 ms menu/content crossfade, progress change, async loading. Persistent chrome motion is reserved for the app-bar scroll morph and the subject identity bar that continues the same header transition.
 - No card lift, universal reveal, bounce, gradient motion, or decorative looping.
 - Focus rings appear instantly. Reduced-motion fallback removes spatial motion and keeps functional transitions at or below 150 ms.
 

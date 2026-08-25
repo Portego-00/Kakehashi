@@ -87,4 +87,74 @@ describe("JapaneseReader inspector", () => {
     expect(within(inspector).getByText("ネコ")).toBeInTheDocument();
     expect(within(inspector).queryByText(/Level 3/)).not.toBeInTheDocument();
   });
+
+  it("keeps mapped terms in the tooltip instead of navigating away", async () => {
+    render(<JapaneseReader text="学校と猫" interaction="tooltip" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped against your WaniKani library"), { timeout: 5_000 });
+
+    expect(screen.queryByRole("link", { name: /学校, Guru II WaniKani item/ })).not.toBeInTheDocument();
+    const mapped = screen.getByRole("button", { name: /学校, Guru II WaniKani item/ });
+    fireEvent.click(mapped);
+    expect(within(screen.getByRole("complementary")).getByText("JPDB analysis · Guru II")).toBeInTheDocument();
+  });
+
+  it("reuses one transcript-level JPDB parse while the displayed subtitle changes", async () => {
+    let finishRequest: (() => void) | undefined;
+    const requestGate = new Promise<void>((resolve) => { finishRequest = resolve; });
+    const fetchMock = vi.fn(async () => {
+      await requestGate;
+      return {
+        ok: true,
+        json: async () => ({
+          tokens: [
+            { start: 0, end: 2, surface: "学校", spelling: "学校", reading: "がっこう", meaning: "school", meanings: ["school"], alternativeSpellings: [], partsOfSpeech: ["n"], tokenType: "vocabulary" },
+            { start: 3, end: 4, surface: "猫", spelling: "猫", reading: "ねこ", meaning: "cat", meanings: ["cat"], alternativeSpellings: [], partsOfSpeech: ["n"], tokenType: "vocabulary" },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const analysisContext = { text: "学校と猫", start: 0 };
+    const { rerender } = render(<JapaneseReader text="学校" analysisContext={analysisContext} interaction="tooltip" />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ text: "学校と猫", apiKey: "configured-test-key" });
+
+    rerender(<JapaneseReader text="猫" analysisContext={{ text: "学校と猫", start: 3 }} interaction="tooltip" />);
+    expect((fetchMock.mock.calls[0]?.[1]?.signal as AbortSignal).aborted).toBe(false);
+    finishRequest?.();
+
+    expect(await screen.findByRole("button", { name: /猫, JPDB term, not matched in WaniKani/ })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps article images between their text blocks while analyzing the document once", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tokens: [
+          { start: 0, end: 2, surface: "学校", spelling: "学校", reading: "がっこう", meaning: "school", meanings: ["school"], alternativeSpellings: [], partsOfSpeech: ["n"], tokenType: "vocabulary" },
+          { start: 4, end: 5, surface: "猫", spelling: "猫", reading: "ねこ", meaning: "cat", meanings: ["cat"], alternativeSpellings: [], partsOfSpeech: ["n"], tokenType: "vocabulary" },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(
+      <JapaneseReader
+        text={"学校\n\n猫"}
+        blocks={[
+          { type: "text", text: "学校" },
+          { type: "image", url: "https://img.web.nhk/news/example.jpg", alt: "現場" },
+          { type: "text", text: "猫" },
+        ]}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped against your WaniKani library"), { timeout: 5_000 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ text: "学校\n\n猫", apiKey: "configured-test-key" });
+    expect([...container.querySelectorAll("[data-reader-block]")].map((node) => node.getAttribute("data-reader-block"))).toEqual(["text", "image", "text"]);
+    expect(screen.getByRole("img", { name: "現場" })).toBeInTheDocument();
+  });
 });

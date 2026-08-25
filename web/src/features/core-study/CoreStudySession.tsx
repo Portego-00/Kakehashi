@@ -20,7 +20,7 @@ import { deliverReview, enqueueReview, loadReviewOutbox, noteReviewFailure, remo
 import { coreSessionKey, lessonsStartedToday, recordLessonStarted, selectCoreAssignments } from "./session-planning";
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
 import { canonicalAnswer, questionOrderForMode, shouldPauseAfterAnswer, usesSelfAssessment } from "./study-preferences";
-import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "./vacation";
+import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationStudyMessage, WANIKANI_VACATION_SETTINGS_URL } from "./vacation";
 import styles from "./core-study.module.css";
 
 type Mode = "lessons" | "reviews";
@@ -230,6 +230,9 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const baseProgress = createQuestionQueue(selectedAssignments, selectedSubjects, { shuffleSubjects: false, answerOrder: questionOrder }).length;
   const progress = totalQuestions || baseProgress;
   const answered = Math.max(0, progress - questions.length);
+  const sessionItemIds = new Set([...questions.map((question) => question.assignment.id), ...submittedIds]);
+  const totalItems = sessionItemIds.size || selectedAssignments.length;
+  const completedItems = submittedIds.filter((id) => sessionItemIds.has(id)).length;
 
   const reviewMutation = useMutation({
     mutationFn: async (payload: { assignmentId: number; counts: { meaning: number; reading: number } }) => {
@@ -417,7 +420,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setPhase(mode === "lessons" && selectedSubjects.length ? "teaching" : queue.length ? "quiz" : "results");
   }
 
-  if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href="https://www.wanikani.com/settings/app" target="_blank" rel="noreferrer">Open WaniKani settings</a></div></section></div>;
+  if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
   if (currentUserQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Study availability could not be checked</h1><p className={styles.error} role="alert">Kakehashi could not confirm whether Vacation Mode is active. No lesson or review session has been started.</p><div className="cluster"><Button onClick={() => void currentUserQuery.refetch()}>Try Again</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></div></div>;
   if (currentUserQuery.isLoading) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><LoadingState compact label="Checking Vacation Mode" detail="No study session starts until your current account state is confirmed." /></div></div>;
   if (assignmentQuery.error || subjectsQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>{mode === "lessons" ? "Lessons" : "Reviews"} could not load</h1><p className={styles.error} role="alert">{formatFailure(assignmentQuery.error || subjectsQuery.error, "Refresh when the connection is available.")}</p><Button onClick={() => void assignmentQuery.refetch()}>Try Again</Button></div></div>;
@@ -425,7 +428,8 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
 
   if (phase === "resume" && resumeSnapshot) {
     const age = resumeSnapshot.savedAt ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-Math.max(1, Math.round((displayNow - new Date(resumeSnapshot.savedAt).getTime()) / 60_000)), "minute") : "earlier";
-    return <div className={styles.stage}><section className={styles.resume}><RotateCcw size={36} aria-hidden /><div><h1>Resume {mode}?</h1><p>Your saved session has {questions.length} questions remaining and was updated {age}.</p></div><div className="cluster"><Button tone="primary" onClick={continueSavedSession}>Continue Session</Button><Button tone="ghost" onClick={restartSession}>Start Fresh</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></section></div>;
+    const remainingItems = new Set(questions.map((question) => question.assignment.id)).size;
+    return <div className={styles.stage}><section className={styles.resume}><RotateCcw size={36} aria-hidden /><div><h1>Resume {mode}?</h1><p>Your saved session has {remainingItems} {remainingItems === 1 ? "item" : "items"} remaining and was updated {age}.</p></div><div className="cluster"><Button tone="primary" onClick={continueSavedSession}>Continue Session</Button><Button tone="ghost" onClick={restartSession}>Start Fresh</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></section></div>;
   }
 
   if (phase === "teaching") {
@@ -503,7 +507,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status);
   const jitaiFamily = resolveJitaiFontFamily(preferences, current.id);
   const subjectType = current.subject.object.replace("_", " ");
-  const questionProgress = progress ? Math.min(1, answered / progress) : 0;
+  const itemProgress = totalItems ? Math.min(1, completedItems / totalItems) : 0;
 
   const renderDetails = (idPrefix: string) => <>
     <dl className={styles.detailFacts}>
@@ -526,10 +530,10 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     <section className={styles.question} aria-labelledby="study-prompt-title">
       <header className={styles.promptBand} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
         <div className={styles.bandHeader}>
-          <div className={styles.sessionProgress}><span>{mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{answered + 1} / {progress}</strong></div>
+          <div className={styles.sessionProgress}><span>{mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(totalItems, completedItems + 1)} / {totalItems}</strong></div>
           <div className={styles.bandActions}>{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}<ButtonLink className={styles.bandAction} href="/dashboard" tone="ghost" size="small">Pause</ButtonLink></div>
         </div>
-        <div className={styles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={progress} aria-valuenow={answered}><span style={{ "--study-progress": questionProgress } as React.CSSProperties} /></div>
+        <div className={styles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={totalItems} aria-valuenow={completedItems}><span style={{ "--study-progress": itemProgress } as React.CSSProperties} /></div>
         {outboxMessage ? <p className={styles.syncNotice} role="status" aria-live="polite">{outboxMessage}</p> : null}
         <div className={styles.subjectGlyph}>{current.subject.data.characters ? <span className={styles.characters}>{current.subject.data.characters}</span> : <span className={styles.subjectText}>{current.subject.data.slug}</span>}</div>
       </header>

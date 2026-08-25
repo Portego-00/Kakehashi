@@ -1,5 +1,5 @@
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
-import { advanceStudySession, answerStudyQuestion, checkAnswer, createStudySession, DEFAULT_STUDY_FILTERS, filterStudySubjects, generateQuestions, getSessionSummary, normalizeMeaning, normalizeReading, recentLessonSubjectIds, unlockedLessonSubjects } from "./engine";
+import { advanceStudySession, answerStudyQuestion, checkAnswer, createStudySession, DEFAULT_STUDY_FILTERS, filterStudySubjects, generateQuestions, getSessionSummary, getStudyItemProgress, normalizeMeaning, normalizeReading, recentLessonSubjectIds, unlockedLessonSubjects } from "./engine";
 import type { StudyFilters, StudyQuestion } from "./types";
 
 function subject(id: number, object: SubjectType, characters: string, meaning: string, reading = ""): Subject {
@@ -51,6 +51,39 @@ describe("study question engine", () => {
       expect.objectContaining({ subjectId: 40, kind: "meaning" }),
       expect.objectContaining({ subjectId: 40, kind: "reading" }),
     ]);
+  });
+
+  it("counts paired meaning and reading prompts as one custom-review item", () => {
+    const reviewSubjects = Array.from({ length: 5 }, (_, index) => subject(40 + index, "vocabulary", `語${index}`, `Word ${index}`, `ご${index}`));
+    const questions = generateQuestions(
+      "custom-review",
+      { subjects: reviewSubjects, assignments: [] },
+      { ...filters, selectedSubjectIds: reviewSubjects.map((item) => item.id), count: 5 },
+      () => 0.5,
+    );
+
+    expect(new Set(questions.map((question) => question.subjectId))).toHaveLength(5);
+    expect(questions).toHaveLength(10);
+    expect(getStudyItemProgress(questions, 0)).toEqual({ current: 1, total: 5 });
+    expect(getStudyItemProgress(questions, 1)).toEqual({ current: 1, total: 5 });
+    expect(getStudyItemProgress(questions, 2)).toEqual({ current: 2, total: 5 });
+    for (const reviewSubject of reviewSubjects) {
+      expect(questions.filter((question) => question.subjectId === reviewSubject.id).map((question) => question.kind).toSorted()).toEqual(["meaning", "reading"]);
+    }
+  });
+
+  it("counts paired meaning and reading prompts as one random-test item", () => {
+    const reviewSubjects = Array.from({ length: 6 }, (_, index) => subject(50 + index, "vocabulary", `単語${index}`, `Term ${index}`, `たんご${index}`));
+    const reviewAssignments = reviewSubjects.map((item) => ({ ...assignment(item.id), data: { ...assignment(item.id).data, subject_type: item.object } }));
+    const questions = generateQuestions(
+      "random-test",
+      { subjects: reviewSubjects, assignments: reviewAssignments },
+      { ...filters, count: 5, subjectTypes: ["vocabulary"] },
+      () => 0.5,
+    );
+
+    expect(new Set(questions.map((question) => question.subjectId))).toHaveLength(5);
+    expect(questions).toHaveLength(10);
   });
 
   it("generates specialized reading, similar-kanji, listening, and context questions", () => {

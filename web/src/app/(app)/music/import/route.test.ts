@@ -63,6 +63,25 @@ describe("music import route", () => {
           syncedLyrics: "[00:01.00]沈むように",
         });
       }
+      if (url.includes("lrclib.net/api/search?")) {
+        return json([{
+          id: 44,
+          trackName: "夜に駆ける",
+          artistName: "YOASOBI",
+          albumName: "THE BOOK",
+          duration: 261,
+          plainLyrics: "沈むように",
+          syncedLyrics: "[00:01.00]沈むように",
+        }, {
+          id: 45,
+          trackName: "夜に駆ける",
+          artistName: "YOASOBI",
+          albumName: "THE BOOK",
+          duration: 260,
+          plainLyrics: "沈むように溶けてゆくように",
+          syncedLyrics: null,
+        }]);
+      }
       if (url.includes("youtube/v3/search?")) {
         return json({ items: [{ id: { videoId: "official-video" } }] });
       }
@@ -87,10 +106,104 @@ describe("music import route", () => {
     await expect(response.json()).resolves.toEqual(expect.objectContaining({
       track,
       lyrics: expect.objectContaining({ id: 44, syncedLyrics: "[00:01.00]沈むように" }),
+      lyricsResults: [
+        expect.objectContaining({ id: 44, syncedLyrics: "[00:01.00]沈むように" }),
+        expect.objectContaining({ id: 45, syncedLyrics: null }),
+      ],
+      lyricsWarning: null,
       video: expect.objectContaining({ videoId: "official-video", duration: 261 }),
       videoWarning: null,
     }));
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns a usable song payload when neither lyrics nor a video can be matched", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.includes("lrclib.net/api/get?")) return json({ error: "not found" }, 404);
+      if (url.includes("lrclib.net/api/search?")) return json([]);
+      if (url.includes("youtube/v3/search?")) return json({ items: [] });
+      throw new Error(`Unexpected provider URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(request({ track }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      track,
+      lyrics: null,
+      lyricsResults: [],
+      lyricsWarning: "No usable lyrics were found.",
+      video: null,
+      videos: [],
+      videoWarning: "No embeddable YouTube match was found.",
+    });
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("searches only LRCLIB with user-edited song and artist fields", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.includes("lrclib.net/api/get?")) return json({ error: "not found" }, 404);
+      if (url.includes("lrclib.net/api/search?")) return json([{
+        id: 72,
+        trackName: "群青 - Live",
+        artistName: "YOASOBI",
+        albumName: "Live Session",
+        duration: 265,
+        plainLyrics: "嗚呼いつもの様に\n過ぎる日々にあくびが出る",
+        syncedLyrics: "[00:01.00]嗚呼いつもの様に\n[00:04.00]過ぎる日々にあくびが出る",
+      }]);
+      throw new Error(`Unexpected provider URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(request({
+      track,
+      source: "lyrics",
+      lyricsTrack: "群青 - Live",
+      lyricsArtist: "YOASOBI",
+    }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      lyricsResults: [expect.objectContaining({ id: 72 })],
+      videos: [],
+      videoWarning: null,
+    }));
+    const searchUrl = new URL(fetchMock.mock.calls.map(([input]) => String(input)).find((url) => url.includes("/search?"))!);
+    expect(searchUrl.searchParams.get("track_name")).toBe("群青 - Live");
+    expect(searchUrl.searchParams.get("artist_name")).toBe("YOASOBI");
+    expect(fetchMock.mock.calls.every(([input]) => !String(input).includes("youtube"))).toBe(true);
+  });
+
+  it("searches only YouTube with a user-edited video query", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.includes("youtube/v3/search?")) return json({ items: [{ id: { videoId: "live-video" } }] });
+      if (url.includes("youtube/v3/videos?")) return json({ items: [{
+        id: "live-video",
+        snippet: {
+          title: "YOASOBI 群青 Live",
+          channelTitle: "YOASOBI",
+          thumbnails: { high: { url: "https://i.ytimg.com/vi/live-video/hqdefault.jpg" } },
+        },
+        contentDetails: { duration: "PT4M25S" },
+        status: { embeddable: true, privacyStatus: "public" },
+      }] });
+      throw new Error(`Unexpected provider URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(request({ track, source: "video", videoQuery: "YOASOBI 群青 live" }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      lyricsResults: [],
+      lyricsWarning: null,
+      videos: [expect.objectContaining({ videoId: "live-video" })],
+    }));
+    const searchUrl = new URL(fetchMock.mock.calls.map(([input]) => String(input)).find((url) => url.includes("youtube/v3/search?"))!);
+    expect(searchUrl.searchParams.get("q")).toBe("YOASOBI 群青 live");
+    expect(fetchMock.mock.calls.every(([input]) => !String(input).includes("lrclib"))).toBe(true);
   });
 
   it("rejects cross-origin imports before contacting providers", async () => {

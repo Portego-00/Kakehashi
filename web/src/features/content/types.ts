@@ -30,11 +30,18 @@ export interface TimedLyricLine {
   text: string;
 }
 
+export type NewsSource = "easy" | "regular";
+export type NewsSourcePreference = NewsSource | "both";
+
 export interface NewsArticle {
+  /** Source-qualified and stable across refreshes, for example `easy:9876`. */
   id: string;
+  source: NewsSource;
   title: string;
   publishedAt: string;
   url: string;
+  /** False when Standard NHK is available only through its RSS summary. */
+  isFullArticle: boolean;
   imageUrl?: string;
   summary?: string;
   body?: string;

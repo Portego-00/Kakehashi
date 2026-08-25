@@ -116,6 +116,7 @@ describe("core study prompt layout", () => {
 
     expect(await screen.findByRole("heading", { name: "meaning" })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Study progress" })).toBeInTheDocument();
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
     expect(screen.getByText("vocabulary")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
     expect(screen.queryByText("River")).not.toBeInTheDocument();
@@ -151,6 +152,7 @@ describe("core study prompt layout", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Start Quiz" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument());
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
     expect(screen.queryByText("River")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
   });

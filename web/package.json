@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sync:anime-catalog": "node scripts/sync-anime-catalog.mjs",
     "sync:srs-icons": "node scripts/sync-srs-icons.mjs",
     "dev": "next dev",
+    "dev:expo-env": "cd .. && eas env:exec production \"npm --prefix web run dev\"",
     "build": "next build",
+    "build:expo-env": "cd .. && eas env:exec production \"npm --prefix web run build\"",
     "start": "next start",
+    "start:expo-env": "cd .. && eas env:exec production \"npm --prefix web run start\"",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -16,6 +20,8 @@
     "test:all": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e"
   },
   "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
     "@tanstack/react-query": "^5.101.4",
     "lucide-react": "^1.29.0",
     "next": "^16.3.0",

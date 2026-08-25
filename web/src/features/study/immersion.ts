@@ -1,6 +1,6 @@
 import type { StudyFilters, StudyQuestion } from "./types";
 
-interface ImmersionExample {
+export interface ImmersionExample {
   sentence: string;
   translation: string;
   title: string;
@@ -8,22 +8,28 @@ interface ImmersionExample {
   imageUrl?: string;
 }
 
-async function fetchExample(characters: string, sources: string[]): Promise<ImmersionExample | null> {
+export async function fetchImmersionExamples(characters: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample[]> {
   const response = await fetch("/api/study/immersion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query: characters, sources }),
+    signal,
   });
-  if (!response.ok) return null;
-  const payload = await response.json() as { example?: ImmersionExample | null };
-  return payload.example ?? null;
+  if (!response.ok) throw new Error(`Immersion lookup failed with ${response.status}.`);
+  const payload = await response.json() as { examples?: ImmersionExample[]; example?: ImmersionExample | null };
+  if (Array.isArray(payload.examples)) return payload.examples;
+  return payload.example ? [payload.example] : [];
+}
+
+export async function fetchImmersionExample(characters: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample | null> {
+  return (await fetchImmersionExamples(characters, sources, signal))[0] ?? null;
 }
 
 export async function addAnimeContext(questions: StudyQuestion[], filters: StudyFilters): Promise<StudyQuestion[]> {
   const characterPool = [...new Set(questions.map((question) => question.characters).filter((value): value is string => Boolean(value)))];
   const examples = new Map<string, Promise<ImmersionExample | null>>();
   for (const characters of characterPool) {
-    examples.set(characters, fetchExample(characters, filters.animeSources).catch(() => null));
+    examples.set(characters, fetchImmersionExample(characters, filters.animeSources).catch(() => null));
   }
   const enriched = await Promise.all(questions.map(async (question) => {
     if (!question.characters) return null;

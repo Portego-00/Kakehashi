@@ -18,6 +18,26 @@ describe("subtitle and content parsers", () => {
     expect(parseSrt("1\n00:00:03,000 --> 00:00:02,000\nbroken")).toEqual([]);
   });
 
+  it("removes subtitle navigation and music symbols before analysis", () => {
+    const cues = parseSrt("1\n00:00:01,000 --> 00:00:03,000\n♪ → 今日は晴れです。 ↵ ♫");
+    expect(cues[0]?.text).toBe("今日は晴れです。");
+  });
+
+  it("removes wave-dash music markers and drops marker-only cues", () => {
+    const cues = parseSrt(`1
+00:00:01,000 --> 00:00:02,000
+〜
+
+2
+00:00:03,000 --> 00:00:04,000
+～ （馬車の音）
+
+3
+00:00:05,000 --> 00:00:06,000
+〰 それじゃ行こうか。`);
+    expect(cues.map((cue) => cue.text)).toEqual(["（馬車の音）", "それじゃ行こうか。"]);
+  });
+
   it("parses LRC with duplicate timestamps and stable end times", () => {
     const lines = parseLrc("[00:01.20][00:03.450]同じ歌詞\n[01:05]最後の行");
     expect(lines.map((line) => line.startMs)).toEqual([1200, 3450, 65000]);

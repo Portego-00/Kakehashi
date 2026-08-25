@@ -69,7 +69,7 @@ export default function PrivacyPolicy() {
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
-                  <span><strong className="text-white">App Session Records:</strong> We may log basic app session information, such as user ID, username, level, app version, platform, and session time, to power usage streaks and understand app usage.</span>
+                  <span><strong className="text-white">App Usage and Study-Time Records:</strong> We may log basic session information and daily foreground-time totals, such as user ID, username, level, app version, platform, session time, and time grouped by study activity, to power usage streaks and understand app usage.</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>

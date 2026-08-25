@@ -1,0 +1,10 @@
+{
+  "scanned_at": "2026-08-25",
+  "design_system": "design.md",
+  "font_stack": "Geist + Geist Mono via next/font",
+  "palette": "semantic OKLCH custom properties in tokens.css",
+  "motion": "CSS transitions only; no animation library",
+  "spacing": "named four-point scale in tokens.css",
+  "framework": "Next.js 16 app router + React 19 + CSS Modules",
+  "preserve": ["font stack", "semantic palette", "spacing scale", "Workbench app structure"]
+}

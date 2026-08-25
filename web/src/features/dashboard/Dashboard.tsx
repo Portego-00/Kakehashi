@@ -1,38 +1,31 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, BookOpen, Brain, Library, Newspaper, Search, Umbrella } from "lucide-react";
+import { ArrowRight, Umbrella } from "lucide-react";
 import Link from "next/link";
-import { SrsStageIcon } from "@/components/SrsStageIcon";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { ReviewActivityHeatmap } from "@/components/ReviewActivityHeatmap";
 import { ButtonLink } from "@/components/ui/Button";
-import { Progress } from "@/components/ui/Progress";
 import { Skeleton } from "@/components/ui/States";
+import { VacationModeControls } from "@/features/core-study/VacationModeControls";
 import { vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "@/features/core-study/vacation";
+import { dashboardSectionWidth, type DashboardSectionId } from "@/features/settings/settings";
+import { createListRepository, subscribeSubjectLists } from "@/features/subjects/lists";
 import { useWorkspacePreferences } from "@/features/settings/use-workspace-preferences";
-import { STUDY_MODES, type StudyModeDefinition } from "@/features/study/catalog";
+import { STUDY_MODES } from "@/features/study/catalog";
+import { calculateLevelTimings } from "@/features/progress/calculations";
+import { LevelTimingChart } from "@/features/progress/components/AnalyticsOverview";
 import { useSession } from "@/lib/session";
-import { assignmentsQuery, reviewStatisticsQuery, subjectsQuery, summaryQuery, userQuery } from "@/lib/wanikani/queries";
-import { accuracy, forecastRows, isLessonAvailable, isReviewAvailable, levelProgress, scheduleSummary, srsBuckets } from "./dashboard-data";
+import { assignmentsQuery, levelProgressionsQuery, reviewStatisticsQuery, subjectsQuery, summaryQuery, userQuery } from "@/lib/wanikani/queries";
+import { assignmentActivityDays, burnedSubjectRows, criticalSubjectRows, forecastRows, incompleteLevelRows, isLessonAvailable, isReviewAvailable, levelProgress, levelWidgetSubjects, recentMistakeRows, recentUnlockRows, srsStageSpread, todayStudyActivity, type DashboardSubjectRow } from "./dashboard-data";
+import { IncompleteLevelsWidget, ReviewStatsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
+import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, TodayStudyWidget } from "./DashboardNativeWidgets";
+import { fetchUsageStreak } from "./usage-streak";
 import { useFirstDashboardReveal } from "./useFirstDashboardReveal";
+import { StudyQueueCard } from "./StudyQueueCard";
 import styles from "./dashboard.module.css";
 
-function StudyQueueRow({ type, count, loading }: { type: "lesson" | "review"; count: number; loading: boolean }) {
-  const lessons = type === "lesson";
-  const Icon = lessons ? BookOpen : Brain;
-  return (
-    <div className={styles.queueRow} data-kind={type}>
-      <div className={styles.queueIdentity}>
-        <span className={styles.queueMarker} aria-hidden />
-        <Icon size={19} aria-hidden />
-        <div><h3>{lessons ? "Lessons" : "Reviews"}</h3><p>{count ? "Ready now" : "Queue clear"}</p></div>
-      </div>
-      {loading ? <Skeleton height="2.5rem" /> : <strong className={styles.studyCount} data-first-reveal="">{count}</strong>}
-      <ButtonLink href={lessons ? "/lessons" : "/reviews"} tone="primary" size="small" disabled={!loading && count === 0}>
-        {count ? `Start ${lessons ? "lessons" : "reviews"}` : "Nothing waiting"}<ArrowRight size={15} />
-      </ButtonLink>
-    </div>
-  );
-}
+const SUBJECT_CATALOG_SECTIONS = new Set(["recent-mistakes", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items"]);
 
 function SectionHeader({ title, detail, children }: { title: string; detail: string; children?: React.ReactNode }) {
   return <div className={styles.widgetHeader}><div><h2>{title}</h2><p>{detail}</p></div>{children}</div>;
@@ -43,64 +36,102 @@ export function chartBarHeight(value: number, maximum: number) {
   return `${Math.min(100, (value / maximum) * 100)}%`;
 }
 
-function QuickLink({ href, title, detail, icon: Icon }: { href: string; title: string; detail: string; icon: typeof Search }) {
-  return <Link href={href} className={styles.quickLink}><Icon size={17} aria-hidden /><span><strong>{title}</strong><small>{detail}</small></span><ArrowRight size={14} aria-hidden /></Link>;
+function VacationNotice({ startedAt, compact = false, refresh }: { startedAt: string; compact?: boolean; refresh?: () => Promise<unknown> }) {
+  return <div className={styles.vacationNotice} data-compact={compact || undefined} role="region" aria-label="Vacation Mode"><Umbrella className={styles.vacationIcon} size={22} aria-hidden /><div><h3>Vacation Mode</h3><p>{vacationStudyMessage()}</p><span>On vacation since {vacationDateLabel(startedAt)}</span>{refresh ? <VacationModeControls active refresh={refresh} className={styles.vacationActions} /> : null}</div></div>;
 }
 
-function StudyModeLink({ mode }: { mode: StudyModeDefinition }) {
-  const Icon = mode.icon;
-  return <Link href={`/study/${mode.id}`} className={styles.studyModeCard}><span className={styles.studyModeTop}><Icon size={21} aria-hidden /><ArrowRight size={15} aria-hidden /></span><span className={styles.studyModeCopy}><strong>{mode.title}</strong><small>{mode.description}</small></span></Link>;
+function SubjectRows({ items, empty, value, limit }: { items: DashboardSubjectRow[]; empty: string; value?: (item: DashboardSubjectRow) => string; limit?: number }) {
+  if (!items.length) return <p className={styles.emptyCopy}>{empty}</p>;
+  return <ul className={styles.subjectRows}>{items.slice(0, limit ?? items.length).map((item) => {
+    const glyphLength = [...item.characters].length;
+    return <li key={item.id}><Link href={`/subjects/${item.id}`}><span className={styles.subjectGlyph} data-subject-type={item.type} data-long={glyphLength > 2 || undefined} data-very-long={glyphLength > 4 || undefined} lang="ja" title={item.characters}>{item.characters}</span><span><strong>{item.meaning}</strong><small>{item.type} · Level {item.level}</small></span>{value ? <span className={styles.subjectValue}>{value(item)}</span> : null}<ArrowRight size={14} aria-hidden /></Link></li>;
+  })}</ul>;
 }
 
-function VacationNotice({ startedAt, compact = false }: { startedAt: string; compact?: boolean }) {
-  return <div className={styles.vacationNotice} data-compact={compact || undefined} role="status"><Umbrella className={styles.vacationIcon} size={22} aria-hidden /><div><h3>Vacation Mode</h3><p>{vacationStudyMessage()}</p><span>On vacation since {vacationDateLabel(startedAt)}</span></div></div>;
+function SubjectListsSection({ username }: { username: string }) {
+  const repository = useMemo(() => createListRepository({ getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key), setItem: (key, value) => { if (typeof window !== "undefined") window.localStorage.setItem(key, value); } }, username), [username]);
+  const subscribe = useCallback((onChange: () => void) => subscribeSubjectLists(username, onChange), [username]);
+  const getSnapshot = useCallback(() => repository.snapshot(), [repository]);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, () => "");
+  const lists = useMemo(() => {
+    void snapshot;
+    return repository.load();
+  }, [repository, snapshot]);
+  const subjects = lists.reduce((sum, list) => sum + list.subjectIds.length, 0);
+  return <section className={styles.section}><SectionHeader title="Subject lists" detail="Reusable collections saved in this browser"><ButtonLink href="/lists" tone="ghost" size="small">Manage lists <ArrowRight size={15} /></ButtonLink></SectionHeader><dl className={styles.summaryList}><div><dt>Lists</dt><dd>{lists.length}</dd></div><div><dt>Saved subjects</dt><dd>{subjects}</dd></div></dl></section>;
 }
 
 export function Dashboard() {
   const { user } = useSession();
-  const srsReveal = useFirstDashboardReveal();
-  const levelReveal = useFirstDashboardReveal();
   const forecastReveal = useFirstDashboardReveal();
-  const studyPulseReveal = useFirstDashboardReveal();
-  const workspace = useWorkspacePreferences(user?.data.username ?? "anonymous");
+  const username = user?.data.username ?? "anonymous";
+  const workspace = useWorkspacePreferences(username);
+  const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id));
+  const needsSubjectCatalog = visibleSections.some((id) => SUBJECT_CATALOG_SECTIONS.has(id));
+  const needsLevelTiming = visibleSections.includes("level-timing");
   const currentUser = useQuery(userQuery());
   const assignments = useQuery(assignmentsQuery());
   const summary = useQuery(summaryQuery());
   const statistics = useQuery(reviewStatisticsQuery());
   const liveUser = currentUser.data ?? user;
+  const userId = String(liveUser?.id ?? user?.id ?? "");
   const currentVacationStartedAt = vacationStartedAt(liveUser);
   const isOnVacation = Boolean(currentVacationStartedAt);
   const currentLevel = liveUser?.data.level || user?.data.level || 1;
   const currentSubjects = useQuery(subjectsQuery(`levels=${currentLevel}`));
+  const allSubjects = useQuery({ ...subjectsQuery(), enabled: needsSubjectCatalog });
+  const levelProgressions = useQuery({ ...levelProgressionsQuery(), enabled: needsLevelTiming });
+  const appStreak = useQuery({ queryKey: ["analytics", "app-streak", userId, username], queryFn: () => fetchUsageStreak({ userId, username }), staleTime: 5 * 60_000, enabled: visibleSections.includes("study-streak"), retry: 1 });
   const now = new Date();
   const assignmentRows = assignments.data || [];
+  const statisticRows = statistics.data || [];
+  const allSubjectRows = allSubjects.data || [];
   const availabilityLoading = assignments.isLoading || (currentUser.isLoading && !currentVacationStartedAt);
   const lessonCount = assignmentRows.filter((row) => isLessonAvailable(row, currentVacationStartedAt)).length;
   const reviewCount = assignmentRows.filter((row) => isReviewAvailable(row, now, currentVacationStartedAt)).length;
-  const buckets = srsBuckets(assignmentRows);
-  const srsEntries = Object.entries(buckets);
-  const srsMax = Math.max(1, ...srsEntries.map(([, value]) => value));
+  const srsSpread = srsStageSpread(assignmentRows);
   const forecast = forecastRows(summary.data, now);
   const forecastMax = Math.max(1, ...forecast.map((row) => row.count));
   const progress = levelProgress(currentSubjects.data || [], assignmentRows);
-  const learnedKanji = assignmentRows.filter((row) => row.data.subject_type === "kanji" && row.data.srs_stage > 0).length;
+  const levelSubjects = levelWidgetSubjects(currentSubjects.data || [], assignmentRows);
+  const reviewActivityDays = assignmentActivityDays(assignmentRows, "all", now);
+  const dailyActivity = todayStudyActivity(assignmentRows, statisticRows, now);
+  const mistakeRows = recentMistakeRows(statisticRows, allSubjectRows, now);
+  const unlockRows = recentUnlockRows(assignmentRows, allSubjectRows);
+  const criticalRows = criticalSubjectRows(statisticRows, allSubjectRows);
+  const burnedRows = burnedSubjectRows(assignmentRows, allSubjectRows, now);
+  const incompleteLevels = incompleteLevelRows(allSubjectRows, assignmentRows, currentLevel);
+  const timingRows = calculateLevelTimings(levelProgressions.data || [], now).slice(-12);
+  const formatShortDate = (value?: string) => value ? new Date(value).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
   const sections: Record<string, React.ReactNode> = {
-    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} /> : <><SectionHeader title="Today" detail="Your live WaniKani queues" /><div className={styles.queue}><StudyQueueRow type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueRow type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
-    srs: <section className={styles.section}><SectionHeader title="SRS breakdown" detail="Items you have started" />{assignments.isLoading ? <Skeleton height="11rem" /> : <div className={styles.srs} {...srsReveal}>{srsEntries.map(([label, value]) => <div className={styles.srsItem} key={label}><div className={styles.srsBarTrack} aria-hidden><div className={styles.srsBar} data-empty={value === 0 || undefined} style={{ "--bar-height": chartBarHeight(value, srsMax) } as React.CSSProperties} /></div><strong>{value}</strong><span className={styles.srsLabel}><SrsStageIcon level={label} size={24} /><span>{label}</span></span></div>)}</div>}</section>,
-    level: <section className={styles.section}><SectionHeader title={`Level ${currentLevel}`} detail="Guru progress by subject type" /><div className={styles.progressList} {...(currentSubjects.isLoading ? {} : levelReveal)}>{Object.entries(progress).map(([label, value]) => { const name = label === "vocabulary" ? "Vocabulary" : `${label[0].toUpperCase()}${label.slice(1)}s`; return <div className={styles.progressRow} key={label}><div className={styles.progressLabel}><span>{name}</span><span>{value.passed} / {value.total}</span></div><Progress value={value.passed} max={value.total || 1} ariaLabel={`${name}: ${value.passed} of ${value.total} passed`} /></div>; })}</div></section>,
+    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail="Your live WaniKani queues"><VacationModeControls active={false} refresh={currentUser.refetch} showRefresh={false} className={styles.vacationHeaderAction} /></SectionHeader><div className={styles.queue}><StudyQueueCard type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
+    srs: assignments.isLoading ? <section className={styles.section}><SectionHeader title="Active Item Spread" detail="Radicals, kanji, and vocabulary across SRS stages" /><Skeleton height="15rem" /></section> : <SrsSpreadWidget rows={srsSpread} />,
+    level: currentSubjects.isLoading ? <section className={styles.section}><SectionHeader title={`Level ${currentLevel} Progress`} detail="Your current level, from lesson to Guru" /><Skeleton height="18rem" /></section> : <DashboardLevelWidget currentLevel={currentLevel} progress={progress} subjects={levelSubjects} />,
     forecast: <section className={styles.section}><SectionHeader title="Next 12 hours" detail={isOnVacation ? "Review scheduling is paused" : "Reviews available at the top of each hour"}><ButtonLink href="/analytics" tone="ghost" size="small">Open forecast <ArrowRight size={15} /></ButtonLink></SectionHeader>{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} compact /> : summary.isLoading ? <Skeleton height="10rem" /> : <div className={styles.forecast} {...forecastReveal}>{forecast.map((row) => <div className={styles.forecastCol} key={row.start.toISOString()}><div className={styles.forecastBarTrack} aria-hidden><div className={styles.forecastBar} data-empty={row.count === 0 || undefined} title={`${row.count} reviews`} style={{ "--bar-height": chartBarHeight(row.count, forecastMax) } as React.CSSProperties} /></div><strong>{row.count || "·"}</strong><span>{row.start.toLocaleTimeString([], { hour: "numeric" })}</span></div>)}</div>}</section>,
-    "extra-study": <section className={`${styles.section} ${styles.sectionFlat}`}><SectionHeader title="Extra study" detail={`${STUDY_MODES.length} ways to practice without changing SRS progress`}><div className={styles.headerActions}><span className={styles.railCue} aria-hidden>Scroll <ArrowRight size={14} /></span><ButtonLink href="/study" tone="ghost" size="small">All modes <ArrowRight size={15} /></ButtonLink></div></SectionHeader><nav className={styles.studyModeRail} aria-label="Extra study modes" tabIndex={0}>{STUDY_MODES.map((mode) => <StudyModeLink mode={mode} key={mode.id} />)}</nav></section>,
-    "study-pulse": <section className={styles.section}><SectionHeader title="Study pulse" detail="Complete review history" />{statistics.isLoading ? <Skeleton height="5rem" /> : <dl className={styles.summaryList} {...studyPulseReveal}><div><dt>Answer accuracy</dt><dd>{accuracy(statistics.data || [])}%</dd></div><div><dt>Subjects reviewed</dt><dd>{statistics.data?.length.toLocaleString() || 0}</dd></div></dl>}</section>,
-    "keep-moving": <section className={styles.section}><SectionHeader title="Keep moving" detail="Reading and collection tools" /><div className={styles.quickGrid}><QuickLink href="/news" title="NHK Easy News" detail="Read with live subject lookup" icon={Newspaper} /><QuickLink href="/lists" title="Subject lists" detail="Build focused study collections" icon={Library} /></div></section>,
+    "extra-study": <section className={`${styles.section} ${styles.sectionFlat}`}><SectionHeader title="Extra study" detail={`${STUDY_MODES.length} ways to practice without changing SRS progress`}><div className={styles.headerActions}><span className={styles.railCue} aria-hidden>Scroll <ArrowRight size={14} /></span><ButtonLink href="/study" tone="ghost" size="small">All modes <ArrowRight size={15} /></ButtonLink></div></SectionHeader><nav className={styles.studyModeRail} aria-label="Extra study modes" tabIndex={0}>{STUDY_MODES.map((mode) => <StudyModeCard mode={mode} key={mode.id} />)}</nav></section>,
+    "study-pulse": statistics.isLoading ? <section className={styles.section}><SectionHeader title="Review stats" detail="Accuracy across your complete review history" /><Skeleton height="9rem" /></section> : <ReviewStatsWidget statistics={statisticRows} />,
+    "recent-mistakes": <section className={styles.section}><SectionHeader title="Recent mistakes" detail="Updated in the last seven days with a broken answer streak" />{statistics.isLoading || allSubjects.isLoading ? <Skeleton height="12rem" /> : <SubjectRows items={mistakeRows} empty="No recent broken answer streaks were found." value={(item) => `${item.value ?? 0}%`} />}</section>,
+    "study-streak": <AppStreakWidget current={appStreak.data?.current ?? null} longest={appStreak.data?.longest ?? null} days={appStreak.data?.days ?? []} freezeAvailable={appStreak.data?.freezeAvailable} freezeDaysUntilReload={appStreak.data?.freezeDaysUntilReload} loading={appStreak.isLoading} error={appStreak.isError} />,
+    "subject-lists": <SubjectListsSection username={username} />,
+    "incomplete-levels": allSubjects.isLoading ? <section className={styles.section}><SectionHeader title="Incomplete levels" detail="Passing-stage progress by subject type" /><Skeleton height="12rem" /></section> : <IncompleteLevelsWidget levels={incompleteLevels} />,
+    "recent-unlocks": <section className={`${styles.section} ${styles.compactSubjectWidget}`}><SectionHeader title="Recent unlocks" detail="The latest subjects added to your study path"><ButtonLink href="/items?view=unlocks" tone="ghost" size="small">Show more <ArrowRight size={15} /></ButtonLink></SectionHeader>{allSubjects.isLoading ? <Skeleton height="10rem" /> : <SubjectRows items={unlockRows} limit={4} empty="No unlocked subjects are available yet." value={(item) => formatShortDate(item.date)} />}</section>,
+    "critical-items": <section className={`${styles.section} ${styles.compactSubjectWidget}`}><SectionHeader title="Critical items" detail="Subjects with the lowest answer accuracy"><ButtonLink href="/items?view=critical" tone="ghost" size="small">Show more <ArrowRight size={15} /></ButtonLink></SectionHeader>{statistics.isLoading || allSubjects.isLoading ? <Skeleton height="10rem" /> : <SubjectRows items={criticalRows} limit={4} empty="No review statistics are available yet." value={(item) => `${item.value ?? 0}%`} />}</section>,
+    "burned-items": <section className={styles.section}><SectionHeader title="Burned items" detail="Burned during the last 30 days" />{allSubjects.isLoading ? <Skeleton height="12rem" /> : <SubjectRows items={burnedRows} empty="No subjects were burned in the last 30 days." value={(item) => formatShortDate(item.date)} />}</section>,
+    "review-heatmap": <section className={styles.section}><SectionHeader title="Review heatmap" detail="Assignment activity signals by day" />{assignments.isLoading ? <Skeleton height="10rem" /> : <ReviewActivityHeatmap days={reviewActivityDays} />}</section>,
+    "level-timing": <section className={`${styles.section} ${styles.dashboardTimingWidget}`}><SectionHeader title="Level timing" detail="Average, median, and elapsed days for recent levels" />{levelProgressions.isLoading ? <Skeleton height="12rem" /> : <LevelTimingChart timings={timingRows} resetCount={null} density="dashboard" />}</section>,
+    "today-study": assignments.isLoading || statistics.isLoading ? <section className={styles.section}><SectionHeader title="Today’s Study" detail={now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} /><Skeleton height="7rem" /></section> : <TodayStudyWidget date={now} lessons={dailyActivity.lessons} reviews={dailyActivity.reviews} />,
+    "study-time": <StudyTimeWidget username={username} />,
   };
-  const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id));
 
   return <main className="page">
-    <div className={`page-header ${styles.dashboardHeader}`}><div><h1>Good {now.getHours() < 12 ? "morning" : now.getHours() < 18 ? "afternoon" : "evening"}, {liveUser?.data.username || user?.data.username}.</h1><p>Level {currentLevel} · {learnedKanji.toLocaleString()} kanji started · {isOnVacation ? "Vacation Mode is active" : scheduleSummary(reviewCount, summary.data?.data.next_reviews_at, now)}</p></div><ButtonLink href="/search" tone="ghost" size="small"><Search size={16} />Find a subject</ButtonLink></div>
-    {(assignments.error || summary.error || currentUser.error) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
+    {(assignments.error || summary.error || currentUser.error || (needsSubjectCatalog && allSubjects.error) || (needsLevelTiming && levelProgressions.error)) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
     <div className={styles.grid}>
-      {visibleSections.map((id) => <div className={id === "daily-study" || id === "extra-study" || id === "forecast" ? styles.sectionWide : undefined} key={id}>{sections[id]}</div>)}
+      {visibleSections.map((id) => {
+        const sectionId = id as DashboardSectionId;
+        const width = dashboardSectionWidth(sectionId, workspace.dashboardWidths?.[sectionId]);
+        return <div data-section={sectionId} data-layout-width={width} data-layout-row-start={workspace.dashboardRowStarts?.includes(sectionId) || undefined} style={{ "--dashboard-section-span": width } as React.CSSProperties} key={sectionId}>{sections[sectionId]}</div>;
+      })}
       {!visibleSections.length ? <section className={`${styles.section} ${styles.sectionWide}`}><h2>Your dashboard is clear</h2><p className={styles.emptyCopy}>Turn sections back on in Settings whenever you need them.</p><ButtonLink href="/settings" tone="primary">Customize dashboard</ButtonLink></section> : null}
     </div>
   </main>;

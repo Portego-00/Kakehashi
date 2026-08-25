@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Volume2 } from "lucide-react";
@@ -7,7 +8,8 @@ import { SrsStageIcon } from "@/components/SrsStageIcon";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import type { JpdbTokenAnnotation } from "./jpdb";
-import { annotateJpdbTokens, annotateWithWaniKaniFallback, readerPieces, srsStageLabel, type ReaderAnnotation } from "./annotation";
+import { annotateJpdbTokens, annotateWithWaniKaniFallback, readerPieces, srsStageLabel, type ReaderAnnotation, type ReaderPiece } from "./annotation";
+import { proxyNewsImageUrl } from "./news-images";
 import styles from "./content.module.css";
 
 interface AnalysisState {
@@ -18,6 +20,47 @@ interface AnalysisState {
 }
 
 const EMPTY_ANALYSIS: AnalysisState = { status: "idle", sourceText: "", tokens: [], message: "" };
+
+export type JapaneseReaderBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; url: string; alt?: string };
+
+export interface JapaneseReaderAnalysisContext {
+  text: string;
+  start: number;
+}
+
+type PreparedReaderBlock =
+  | { type: "text"; id: string; text: string; start: number; end: number }
+  | { type: "image"; id: string; url: string; alt?: string };
+
+function prepareReaderDocument(text: string, blocks?: readonly JapaneseReaderBlock[]) {
+  const sourceBlocks = blocks?.length ? blocks : [{ type: "text" as const, text }];
+  const prepared: PreparedReaderBlock[] = [];
+  let cursor = 0;
+  let textBlockCount = 0;
+
+  sourceBlocks.forEach((block, index) => {
+    if (block.type === "image") {
+      prepared.push({ ...block, id: `image-${index}` });
+      return;
+    }
+    if (textBlockCount > 0) cursor += 2;
+    const start = cursor;
+    cursor += block.text.length;
+    prepared.push({ ...block, id: `text-${index}`, start, end: cursor });
+    textBlockCount += 1;
+  });
+
+  if (textBlockCount === 0 && text) {
+    prepared.push({ type: "text", id: "text-fallback", text, start: 0, end: text.length });
+  }
+
+  return {
+    blocks: prepared,
+    text: prepared.flatMap((block) => block.type === "text" ? [block.text] : []).join("\n\n") || text,
+  };
+}
 
 function subjectMeaning(annotation: ReaderAnnotation) {
   return annotation.subject?.data.meanings.find((meaning) => meaning.primary)?.meaning
@@ -65,46 +108,61 @@ function annotationLabel(annotation: ReaderAnnotation) {
   return `${annotation.text}, ${state}`;
 }
 
-export function JapaneseReader({ text, ariaLabel = "Japanese reading text", onProgress }: { text: string; ariaLabel?: string; onProgress?: (progress: number) => void }) {
+export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, interaction = "navigate" }: { text: string; blocks?: readonly JapaneseReaderBlock[]; analysisContext?: JapaneseReaderAnalysisContext; ariaLabel?: string; onProgress?: (progress: number) => void; interaction?: "navigate" | "tooltip" }) {
   const { user, dataset, loading } = useStudyDataset();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
   const jpdbApiKey = settings.integrations.jpdbApiKey;
   const [analysis, setAnalysis] = useState<AnalysisState>(EMPTY_ANALYSIS);
   const [selected, setSelected] = useState<ReaderAnnotation | null>(null);
+  const document = useMemo(() => prepareReaderDocument(text, blocks), [blocks, text]);
+  const sourceText = document.text;
+  const analysisSourceText = analysisContext?.text ?? sourceText;
+  const analysisStart = analysisContext?.start ?? 0;
 
   useEffect(() => {
-    if (!jpdbApiKey || !text.trim()) return;
+    if (!jpdbApiKey || !analysisSourceText.trim()) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setAnalysis({ status: "loading", sourceText: text, tokens: [], message: "Analyzing article vocabulary with JPDB…" });
+      setAnalysis({ status: "loading", sourceText: analysisSourceText, tokens: [], message: "Analyzing Japanese with JPDB…" });
       void fetch("/news/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, apiKey: jpdbApiKey }),
+        body: JSON.stringify({ text: analysisSourceText, apiKey: jpdbApiKey }),
         signal: controller.signal,
       }).then(async (response) => {
         const payload = await response.json() as { tokens?: JpdbTokenAnnotation[]; error?: string };
         if (!response.ok) throw new Error(payload.error || "JPDB analysis failed.");
-        setAnalysis({ status: "ready", sourceText: text, tokens: Array.isArray(payload.tokens) ? payload.tokens : [], message: "JPDB parsing mapped against your WaniKani library." });
+        setAnalysis({ status: "ready", sourceText: analysisSourceText, tokens: Array.isArray(payload.tokens) ? payload.tokens : [], message: "JPDB parsing mapped against your WaniKani library." });
       }).catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setAnalysis({ status: "error", sourceText: text, tokens: [], message: error instanceof Error ? error.message : "JPDB analysis failed." });
+        setAnalysis({ status: "error", sourceText: analysisSourceText, tokens: [], message: error instanceof Error ? error.message : "JPDB analysis failed." });
       });
     }, 0);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [jpdbApiKey, text]);
+  }, [analysisSourceText, jpdbApiKey]);
 
   const subjects = useMemo(() => dataset?.subjects ?? [], [dataset?.subjects]);
   const assignments = useMemo(() => dataset?.assignments ?? [], [dataset?.assignments]);
-  const jpdbReady = Boolean(jpdbApiKey && analysis.status === "ready" && analysis.sourceText === text && analysis.tokens.length);
-  const annotations = useMemo(() => jpdbReady
-    ? annotateJpdbTokens(analysis.tokens, subjects, assignments)
-    : annotateWithWaniKaniFallback(text, subjects, assignments), [analysis.tokens, assignments, jpdbReady, subjects, text]);
-  const pieces = useMemo(() => readerPieces(text, annotations), [annotations, text]);
+  const jpdbReady = Boolean(jpdbApiKey && analysis.status === "ready" && analysis.sourceText === analysisSourceText && analysis.tokens.length);
+  const annotations = useMemo(() => {
+    if (!jpdbReady) return annotateWithWaniKaniFallback(sourceText, subjects, assignments);
+    const analysisEnd = analysisStart + sourceText.length;
+    return annotateJpdbTokens(analysis.tokens, subjects, assignments)
+      .filter((annotation) => annotation.start >= analysisStart && annotation.end <= analysisEnd)
+      .map((annotation) => ({ ...annotation, start: annotation.start - analysisStart, end: annotation.end - analysisStart }));
+  }, [analysis.tokens, analysisStart, assignments, jpdbReady, sourceText, subjects]);
+  const renderedBlocks = useMemo(() => document.blocks.map((block) => {
+    if (block.type === "image") return block;
+    const localAnnotations = annotations
+      .filter((annotation) => annotation.start >= block.start && annotation.end <= block.end)
+      .map((annotation) => ({ ...annotation, start: annotation.start - block.start, end: annotation.end - block.start }));
+    return { ...block, pieces: readerPieces(block.text, localAnnotations) };
+  }), [annotations, document.blocks]);
+  const pieceCount = renderedBlocks.reduce((total, block) => total + (block.type === "text" ? block.pieces.length : 0), 0);
 
   function select(annotation: ReaderAnnotation, index: number) {
     setSelected(annotation);
-    onProgress?.(pieces.length ? Math.min(1, (index + 1) / pieces.length) : 0);
+    onProgress?.(pieceCount ? Math.min(1, (index + 1) / pieceCount) : 0);
   }
 
   function inspect(annotation: ReaderAnnotation) {
@@ -124,8 +182,21 @@ export function JapaneseReader({ text, ariaLabel = "Japanese reading text", onPr
     : analysis.status === "loading" || analysis.status === "error"
       ? analysis.message
       : jpdbApiKey
-        ? analysis.sourceText === text ? analysis.message || "Preparing JPDB analysis…" : "Preparing JPDB analysis…"
+        ? analysis.sourceText === analysisSourceText ? analysis.message || "Preparing JPDB analysis…" : "Preparing JPDB analysis…"
         : "WaniKani exact matching is active. Add a JPDB key in Settings for full parse-first annotation.";
+
+  function renderPiece(piece: ReaderPiece, index: number) {
+    if (piece.kind === "text") return <span key={piece.id}>{piece.text}</span>;
+    const annotation = piece.annotation;
+    if (!annotation.subject && annotation.source === "wanikani") return <span key={piece.id}>{annotation.text}</span>;
+    const tokenClass = annotation.subject ? (annotation.known ? styles.tokenKnown : styles.tokenLearning) : styles.tokenJpdb;
+    if (annotation.subject && interaction === "navigate") {
+      return <Link key={piece.id} href={`/subjects/${annotation.subject.id}`} className={`${styles.token} ${tokenClass} ${selected?.id === annotation.id ? styles.tokenSelected : ""}`} aria-label={`${annotationLabel(annotation)}. Open subject details.`} onFocus={() => inspect(annotation)} onMouseEnter={() => inspect(annotation)}>{annotation.text}</Link>;
+    }
+    return <button key={piece.id} type="button" className={`${styles.token} ${tokenClass} ${selected?.id === annotation.id ? styles.tokenSelected : ""}`} aria-label={`Inspect ${annotationLabel(annotation)}`} onClick={() => select(annotation, index)} onFocus={() => inspect(annotation)} onMouseEnter={() => inspect(annotation)}>{annotation.text}</button>;
+  }
+
+  let pieceCursor = 0;
 
   return (
     <div className={styles.readerGrid}>
@@ -136,14 +207,14 @@ export function JapaneseReader({ text, ariaLabel = "Japanese reading text", onPr
           <span data-state="jpdb"><i aria-hidden="true" />JPDB only</span>
           <small role="status" className={analysis.status === "error" ? styles.error : undefined}>{analysisMessage}</small>
         </div>
-        <article className={`${styles.panel} ${styles.readingSurface}`} aria-label={ariaLabel} lang="ja">
-          {pieces.map((piece, index) => {
-            if (piece.kind === "text") return <span key={piece.id}>{piece.text}</span>;
-            const annotation = piece.annotation;
-            if (!annotation.subject && annotation.source === "wanikani") return <span key={piece.id}>{annotation.text}</span>;
-            const tokenClass = annotation.subject ? (annotation.known ? styles.tokenKnown : styles.tokenLearning) : styles.tokenJpdb;
-            if (annotation.subject) return <Link key={piece.id} href={`/subjects/${annotation.subject.id}`} className={`${styles.token} ${tokenClass} ${selected?.id === annotation.id ? styles.tokenSelected : ""}`} aria-label={`${annotationLabel(annotation)}. Open subject details.`} onFocus={() => inspect(annotation)} onMouseEnter={() => inspect(annotation)}>{annotation.text}</Link>;
-            return <button key={piece.id} type="button" className={`${styles.token} ${tokenClass} ${selected?.id === annotation.id ? styles.tokenSelected : ""}`} aria-label={`Inspect ${annotationLabel(annotation)}`} onClick={() => select(annotation, index)} onFocus={() => inspect(annotation)} onMouseEnter={() => inspect(annotation)}>{annotation.text}</button>;
+        <article className={`${styles.panel} ${styles.readingSurface}`} aria-label={ariaLabel} lang="ja" data-document={blocks?.length ? "true" : "false"}>
+          {renderedBlocks.map((block) => {
+            if (block.type === "image") {
+              const imageUrl = proxyNewsImageUrl(block.url);
+              if (!imageUrl) return null;
+              return <figure className={styles.readerDocumentImage} data-reader-block="image" key={block.id}><Image src={imageUrl} alt={block.alt || "Story illustration"} width={1200} height={675} sizes="(max-width: 960px) 100vw, 760px" unoptimized /></figure>;
+            }
+            return <div className={styles.readerTextBlock} data-reader-block="text" key={block.id}>{block.pieces.map((piece) => renderPiece(piece, pieceCursor++))}</div>;
           })}
         </article>
       </div>

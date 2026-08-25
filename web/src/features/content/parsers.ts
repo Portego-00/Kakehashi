@@ -1,6 +1,7 @@
 import type { SubtitleCue, TimedLyricLine } from "./types";
 
 const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\u3005\u3006\u303bｦ-ﾟ]/;
+const SUBTITLE_DECORATION_RE = /[~\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2b00-\u2bff\u2669-\u266f\u301c\u3030\u303d\uff5e\u{1f3b5}\u{1f3b6}↵⏎]/gu;
 
 function decodeEntities(value: string) {
   if (typeof document === "undefined") {
@@ -33,7 +34,12 @@ export function parseSrt(input: string): SubtitleCue[] {
     const endValue = rawEnd?.trim().split(/\s+/)[0] ?? "";
     const startMs = parseTimestamp(startValue);
     const endMs = parseTimestamp(endValue);
-    const text = decodeEntities(lines.slice(timingIndex + 1).join("\n").replace(/<[^>]+>/g, "")).trim();
+    const text = decodeEntities(lines.slice(timingIndex + 1).join("\n").replace(/<[^>]+>/g, ""))
+      .split("\n")
+      .map((line) => line.replace(SUBTITLE_DECORATION_RE, " ").replace(/[ \t]{2,}/g, " ").trim())
+      .filter(Boolean)
+      .join("\n")
+      .trim();
     if (startMs === null || endMs === null || endMs <= startMs || !text) continue;
     cues.push({ id: `cue-${cues.length}-${startMs}`, startMs, endMs, text });
   }

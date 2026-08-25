@@ -1,0 +1,105 @@
+[
+  {
+    "date": "2026-08-25",
+    "scope": "extra-study-session-settings",
+    "macrostructure": "Focused Prompt / native grouped settings rows",
+    "theme": "studied-DNA (source: Kakehashi design.md)",
+    "enrichment": "none",
+    "brief": "Remove the fieldset-title line defect and make every Extra Study setup screen clearer and more visually considered",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "shared accessible setting groups; contextual labels; compact desktop label-and-control rows; single-column mobile collapse; light and dark theme visual checks; 320, 375, 414, and 768 pixel overflow checks; 44 pixel controls; 9 study test files and 41 tests; lint with no errors; typecheck isolated to pre-existing JapaneseReader and SubjectDetail failures"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "subject-details-notes",
+    "macrostructure": "Focused Subject / compact read-only study material",
+    "theme": "studied-DNA (source: Kakehashi design.md)",
+    "enrichment": "none",
+    "brief": "Compact the notes section, default to read-only content, and turn comma-separated synonyms into removable chips",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "sync helper removed; compact read-only default; explicit edit and cancel states; comma, Enter, paste, blur, Backspace, and remove-chip handling; duplicate normalization; 44-pixel remove targets; visible focus and error feedback; 320, 375, 414, and 768 pixel overflow checks; focused unit tests; 328 project tests; changed-file lint"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "dashboard-native-widget-parity",
+    "macrostructure": "Workbench / native analytic cards / horizontal practice rail",
+    "theme": "studied-DNA (source: Kakehashi design.md + supplied iOS and macOS widget references)",
+    "enrichment": "nine-stage stacked item chart, level subject rails, and seven-day flame rhythm",
+    "brief": "Bring the web dashboard widgets and their settings previews much closer to the mobile and macOS app",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "shared live and preview components; assignment-backed nine-stage radical, kanji, and vocabulary bars with five-group toggle; current-level Guru target, timing, and subject-stage tiles; truthful seven-day streak status; native-shaped Today’s Study and Extra Study cards; 320, 375, 414, and 768 pixel overflow and visual checks; 44 pixel chart control; 4 focused test files and 30 tests; lint; optimized webpack compilation before unrelated repository type failures"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "level-items-analytics",
+    "macrostructure": "Compact Workbench / ordered progress strip / interactive timing plot",
+    "theme": "studied-DNA (source: Kakehashi design.md + supplied timing-chart reference)",
+    "enrichment": "truthful year heatmap and recalculating level-timing chart",
+    "brief": "Compact the Level, Items, and Analytics views; match mobile review activity and five-stage progress; make level timing exclusions interactive",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "headers removed from all three workspaces; deterministic left-to-right level progress; five-stage item tracks with uninterrupted Guru state; assignment-backed 365-day heatmap; interactive exclusions recalculate average and median; 320, 375, 414, and 768 pixel overflow checks; desktop visual review; 86 test files and 307 tests; lint, typecheck, and production build"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "settings-dashboard",
+    "macrostructure": "Workbench / inline dashboard canvas",
+    "theme": "studied-DNA (source: Kakehashi design.md + supplied WaniKani layout reference)",
+    "enrichment": "truthful dashboard widget previews",
+    "brief": "Replace symbolic mini previews with real widget anatomy and support inline two- and three-up drag layouts",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "18 section-specific previews; persisted one-third, one-half, two-thirds, and full widths constrained per widget; direct inline reorder plus keyboard move controls; live dashboard width parity; 320, 375, 414, and 768 pixel overflow checks; focused Playwright drag regression; 297 unit tests; lint, typecheck, and production build"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "subject-details",
+    "macrostructure": "Full-bleed Focused Subject / bounded reading panels",
+    "theme": "studied-DNA (source: supplied Kakehashi macOS detail reference)",
+    "enrichment": "ImmersionKit scene imagery and audio when available",
+    "brief": "Repair long vocabulary geometry, semantic relation cards, optional official and anime context, and mobile-style sliding detail tabs",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "horizontal auto-width subject card; type labels and empty alternatives removed; edge-to-edge stage and tabs; radical, kanji, and vocabulary relation colors; settings-backed context sources; transform-only tab motion with reduced-motion fallback; 320, 375, 414, 768, and 2200 pixel geometry checks; semantic tokens; visible focus; lint, typecheck, 271 unit tests, focused Playwright regression, and production build"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "app",
+    "macrostructure": "Index-First / full-canvas configurator + Workbench parity cards",
+    "theme": "studied-DNA (source: Kakehashi design.md)",
+    "enrichment": "CSS mini previews",
+    "brief": "Drag-and-drop dashboard layout settings with keyboard controls, visual previews, and every mobile dashboard section available on web",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "18 dashboard sections; legacy-safe opt-in migration; drag, add, hide, and arrow-key-compatible ordering; honest API and browser-local activity sources; 320, 375, 414, and 768 pixel overflow checks; semantic tokens; visible focus; reduced motion"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "app",
+    "macrostructure": "Workbench / card analytics",
+    "theme": "studied-DNA",
+    "enrichment": "none",
+    "brief": "Card-oriented dashboard with truthful charts and N10 floating scroll-morph app bar"
+  },
+  {
+    "date": "2026-08-25",
+    "scope": "app",
+    "macrostructure": "Workbench / focused media",
+    "theme": "studied-DNA",
+    "enrichment": "none",
+    "brief": "Songs and lyrics search, synchronized playback, quiz, and source correction redesign"
+  },
+  {
+    "date": "2026-08-25",
+    "phase": "subjects-progress-analytics-redesign",
+    "scope": "app",
+    "macrostructure": "Index-First / Focused Subject / Native Progress / Custom Workbench",
+    "theme": "studied-DNA (source: supplied Kakehashi macOS references)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "adaptive subject glyphs through long vocabulary; URL-backed search return state; representative search and detail skeletons; subject-colour detail stage with accessible tabs; native level progress hierarchy; truthful analytics cards; persisted drag, reorder, compact, and full-width dashboard controls; semantic tokens; visible focus; reduced motion; 73 test files and 238 tests; lint, typecheck, and production build"
+  }
+]

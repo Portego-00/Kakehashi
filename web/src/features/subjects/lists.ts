@@ -8,6 +8,7 @@ export interface SubjectList {
 
 interface ListEnvelope { version: 1; lists: SubjectList[] }
 export interface ListStorage { getItem(key: string): string | null; setItem(key: string, value: string): void }
+export const SUBJECT_LISTS_EVENT = "kakehashi-subject-lists-change";
 
 function validList(value: unknown): value is SubjectList {
   if (!value || typeof value !== "object") return false;
@@ -17,6 +18,29 @@ function validList(value: unknown): value is SubjectList {
 
 export function listStorageKey(username: string) {
   return `kakehashi-web:subject-lists:${encodeURIComponent(username.trim().toLocaleLowerCase())}:v1`;
+}
+
+function notifySubjectLists(username: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(SUBJECT_LISTS_EVENT, { detail: { username } }));
+  }
+}
+
+export function subscribeSubjectLists(username: string, onChange: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  const key = listStorageKey(username);
+  const normalized = username.trim().toLocaleLowerCase();
+  const onStorage = (event: StorageEvent) => { if (event.key === key) onChange(); };
+  const onListsChange = (event: Event) => {
+    const changed = (event as CustomEvent<{ username?: string }>).detail?.username?.trim().toLocaleLowerCase();
+    if (changed === normalized) onChange();
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(SUBJECT_LISTS_EVENT, onListsChange);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(SUBJECT_LISTS_EVENT, onListsChange);
+  };
 }
 
 export function createListRepository(
@@ -38,13 +62,16 @@ export function createListRepository(
   };
   const save = (lists: SubjectList[]) => {
     storage.setItem(key, JSON.stringify({ version: 1, lists } satisfies ListEnvelope));
+    notifySubjectLists(username);
     return lists;
   };
   const update = (change: (lists: SubjectList[]) => SubjectList[]) => save(change(load()));
 
   return {
     key,
+    snapshot: () => storage.getItem(key) ?? "",
     load,
+    replace(lists: SubjectList[]) { return save(lists.filter(validList)); },
     create(name: string) {
       const timestamp = now().toISOString();
       const list = { id: idFactory(), name: name.trim() || "Untitled list", subjectIds: [], createdAt: timestamp, updatedAt: timestamp };

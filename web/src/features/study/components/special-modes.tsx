@@ -1,19 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toHiragana } from "wanakana";
 import { ArrowLeft, ArrowRight, Check, Eye, Keyboard, Library, Lightbulb, RotateCcw, Trash2, Undo2, X } from "lucide-react";
+import { createListRepository, subscribeSubjectLists, type ListStorage } from "@/features/subjects/lists";
 import type { Subject } from "@/types/wanikani";
 import { analyzeJapaneseText, chooseWordleCandidate, evaluateWordleGuess, generateCrossword, isValidWordleGuess, splitKana, wordleCandidates } from "../games";
 import { filterStudySubjects, shuffle } from "../engine";
 import { composeKanaInput } from "../kana-composition";
-import { clearModeState, loadModeState, loadSubjectLists, saveModeState, saveSubjectLists } from "../storage";
+import { clearModeState, loadModeState, loadSubjectLists, saveModeState } from "../storage";
 import type { CrosswordPuzzle, StudyDataset, StudyFilters, SubjectList } from "../types";
 import type { StudyStorageScope } from "../storage";
 import { buildSimilarKanjiBoards } from "../similar-kanji";
 import { CROSSWORD_SIZE_PRESETS } from "../mode-config";
 import { loadKanjiStrokeData, medianPoint, validateStroke, type KanjiStrokeData } from "../stroke-data";
 import styles from "../study.module.css";
+
+const subjectListStorage: ListStorage = {
+  getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key),
+  setItem: (key, value) => { if (typeof window !== "undefined") window.localStorage.setItem(key, value); },
+};
 
 function primaryMeaning(subject: Subject) {
   return subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? "Unknown";
@@ -291,16 +297,30 @@ export function CustomLessons({ dataset, filters, scope, onExit }: { dataset: St
   return <section className={styles.lessonShell}><div className={styles.quizTopbar}><span>{index + 1} / {subjects.length}</span><div className={styles.progressTrack}><span style={{ transform: `scaleX(${(index + 1) / subjects.length})` }} /></div><button className={styles.iconButton} onClick={onExit} aria-label="Pause lessons"><X size={19} /></button></div><article className={styles.lessonCard} data-type={subject.object}><p>{subject.object.replace("_", " ")} · Level {subject.data.level}</p><h2 lang="ja">{subject.data.characters ?? meaning}</h2><div className={styles.lessonFacts}><div><h3>Meaning</h3><strong>{meaning}</strong><p>{subject.data.meanings.map((item) => item.meaning).join(" · ")}</p></div>{reading ? <div><h3>Reading</h3><strong lang="ja">{reading}</strong><p lang="ja">{subject.data.readings?.map((item) => item.reading).join(" · ")}</p></div> : null}</div>{subject.data.meaning_mnemonic ? <div className={styles.lessonNote}><h3>Meaning mnemonic</h3><p>{plainMnemonic(subject.data.meaning_mnemonic)}</p></div> : null}{subject.data.reading_mnemonic ? <div className={styles.lessonNote}><h3>Reading mnemonic</h3><p>{plainMnemonic(subject.data.reading_mnemonic)}</p></div> : null}{subject.data.context_sentences?.[0] ? <div className={styles.contextExample}><p lang="ja">{subject.data.context_sentences[0].ja}</p><span>{subject.data.context_sentences[0].en}</span></div> : null}</article><div className={styles.lessonNav}><button className={styles.secondaryButton} disabled={index === 0} onClick={() => move(index - 1)}><ArrowLeft size={17} /> Previous</button>{index < subjects.length - 1 ? <button className={styles.primaryButton} onClick={() => move(index + 1)}>Next <ArrowRight size={17} /></button> : <button className={styles.primaryButton} onClick={() => { clearModeState(scope, "custom-lessons", "progress"); onExit(); }}><Check size={17} /> Finish</button>}</div></section>;
 }
 
-export function SubjectLists({ subjects, scope }: { subjects: Subject[]; scope: StudyStorageScope }) {
-  const [lists, setLists] = useState<SubjectList[]>(() => loadSubjectLists(scope));
+export function SubjectLists({ subjects, scope, username }: { subjects: Subject[]; scope: StudyStorageScope; username: string }) {
+  const repository = useMemo(() => createListRepository(subjectListStorage, username), [username]);
+  const subscribe = useCallback((onChange: () => void) => subscribeSubjectLists(username, onChange), [username]);
+  const getSnapshot = useCallback(() => repository.snapshot(), [repository]);
+  const rawLists = useSyncExternalStore(subscribe, getSnapshot, () => "");
+  const lists = useMemo(() => {
+    void rawLists;
+    return repository.load();
+  }, [rawLists, repository]);
   const [name, setName] = useState("");
   const [activeId, setActiveId] = useState<string | null>(() => lists[0]?.id ?? null);
   const [query, setQuery] = useState("");
   const [deletedList, setDeletedList] = useState<{ list: SubjectList; index: number } | null>(null);
-  const active = lists.find((list) => list.id === activeId);
+  const resolvedActiveId = activeId && lists.some((list) => list.id === activeId) ? activeId : lists[0]?.id ?? null;
+  const active = lists.find((list) => list.id === resolvedActiveId);
   const shown = useMemo(() => subjects.filter((subject) => !query.trim() || subject.data.characters?.includes(query) || subject.data.meanings.some((item) => item.meaning.toLocaleLowerCase().includes(query.toLocaleLowerCase()))).slice(0, 100), [query, subjects]);
-  const commit = (next: SubjectList[]) => { setLists(next); saveSubjectLists(scope, next); };
+  useEffect(() => {
+    const canonical = repository.load();
+    if (!canonical.length) {
+      loadSubjectLists(scope).forEach((list, index) => repository.restore(list, index));
+    }
+  }, [repository, scope]);
+  const commit = (next: SubjectList[]) => { repository.replace(next); };
   const create = () => { const trimmed = name.trim(); if (!trimmed) return; const now = new Date().toISOString(); const list = { id: `list-${Date.now()}`, name: trimmed, subjectIds: [], createdAt: now, updatedAt: now }; commit([...lists, list]); setActiveId(list.id); setName(""); };
   const toggle = (subjectId: number) => { if (!active) return; const ids = active.subjectIds.includes(subjectId) ? active.subjectIds.filter((id) => id !== subjectId) : [...active.subjectIds, subjectId]; commit(lists.map((list) => list.id === active.id ? { ...list, subjectIds: ids, updatedAt: new Date().toISOString() } : list)); };
-  return <div className={styles.listsLayout}><aside className={styles.listsSidebar}><form onSubmit={(event) => { event.preventDefault(); create(); }}><label htmlFor="new-list">New list</label><div><input id="new-list" value={name} onChange={(event) => setName(event.target.value)} placeholder="JLPT refresh" /><button className={styles.primaryButton} disabled={!name.trim()}>Create</button></div></form><nav aria-label="Saved subject lists">{lists.map((list) => <button key={list.id} data-active={list.id === activeId} onClick={() => setActiveId(list.id)}><span>{list.name}</span><small>{list.subjectIds.length}</small></button>)}</nav>{deletedList ? <div className={styles.undoNotice} role="status"><span>List deleted</span><button className={styles.textButton} onClick={() => { const next = [...lists]; next.splice(deletedList.index, 0, deletedList.list); commit(next); setActiveId(deletedList.list.id); setDeletedList(null); }}>Undo</button></div> : null}{active ? <button className={styles.dangerButton} onClick={() => { const index = lists.findIndex((list) => list.id === active.id); const next = lists.filter((list) => list.id !== active.id); setDeletedList({ list: active, index }); commit(next); setActiveId(next[0]?.id ?? null); }}><Trash2 size={16} /> Delete list</button> : null}</aside><section className={styles.listEditor}>{active ? <><div className={styles.configTitleRow}><div><h2>{active.name}</h2><p>{active.subjectIds.length} subjects. Lists are stored in this browser.</p></div></div><label className={styles.largeSearch}>Find subjects<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" /></label><div className={styles.subjectPickerGrid}>{shown.map((subject) => { const selected = active.subjectIds.includes(subject.id); return <button type="button" key={subject.id} className={styles.subjectPick} data-active={selected} data-type={subject.object} onClick={() => toggle(subject.id)} aria-pressed={selected}><strong lang="ja">{subject.data.characters ?? "◈"}</strong><span>{primaryMeaning(subject)}</span><small>{selected ? "Added" : `Level ${subject.data.level}`}</small></button>; })}</div></> : <div className={styles.emptyPanel}><Library size={24} aria-hidden="true" /><h2>Create your first list</h2><p>Lists can feed custom reviews, lessons, writing practice, and both games.</p></div>}</section></div>;
+  return <div className={styles.listsLayout}><aside className={styles.listsSidebar}><form onSubmit={(event) => { event.preventDefault(); create(); }}><label htmlFor="new-list">New list</label><div><input id="new-list" value={name} onChange={(event) => setName(event.target.value)} placeholder="JLPT refresh" /><button className={styles.primaryButton} disabled={!name.trim()}>Create</button></div></form><nav aria-label="Saved subject lists">{lists.map((list) => <button key={list.id} data-active={list.id === resolvedActiveId} onClick={() => setActiveId(list.id)}><span>{list.name}</span><small>{list.subjectIds.length}</small></button>)}</nav>{deletedList ? <div className={styles.undoNotice} role="status"><span>List deleted</span><button className={styles.textButton} onClick={() => { const next = [...lists]; next.splice(deletedList.index, 0, deletedList.list); commit(next); setActiveId(deletedList.list.id); setDeletedList(null); }}>Undo</button></div> : null}{active ? <button className={styles.dangerButton} onClick={() => { const index = lists.findIndex((list) => list.id === active.id); const next = lists.filter((list) => list.id !== active.id); setDeletedList({ list: active, index }); commit(next); setActiveId(next[0]?.id ?? null); }}><Trash2 size={16} /> Delete list</button> : null}</aside><section className={styles.listEditor}>{active ? <><div className={styles.configTitleRow}><div><h2>{active.name}</h2><p>{active.subjectIds.length} subjects. Lists are stored in this browser.</p></div></div><label className={styles.largeSearch}>Find subjects<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" /></label><div className={styles.subjectPickerGrid}>{shown.map((subject) => { const selected = active.subjectIds.includes(subject.id); return <button type="button" key={subject.id} className={styles.subjectPick} data-active={selected} data-type={subject.object} onClick={() => toggle(subject.id)} aria-pressed={selected}><strong lang="ja">{subject.data.characters ?? "◈"}</strong><span>{primaryMeaning(subject)}</span><small>{selected ? "Added" : `Level ${subject.data.level}`}</small></button>; })}</div></> : <div className={styles.emptyPanel}><Library size={24} aria-hidden="true" /><h2>Create your first list</h2><p>Lists can feed custom reviews, lessons, writing practice, and both games.</p></div>}</section></div>;
 }

@@ -17,6 +17,8 @@ import { readBoundedRequestJson } from "@/features/content/server-security";
 import { clientAddress, isTrustedMutationOrigin } from "@/lib/server/request-security";
 import { opaqueRateLimitKey, takeRateLimit, type RateLimitResult } from "@/lib/server/rate-limit";
 import { boundedIdChunks, boundedPage } from "@/features/community/pagination";
+import { webIssueOriginLabels } from "@/features/community/issue-origin";
+import { COMMUNITY_ISSUE_READ_SELECT, publicCommunityIssue } from "@/features/community/public-issue";
 
 const requestId = z.string().uuid();
 const actionSchema = z.discriminatedUnion("action", [
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest) {
       const sort = request.nextUrl.searchParams.get("sort") === "top" ? "likes_count.desc" : "created_at.desc";
       const query = (request.nextUrl.searchParams.get("query") || "").trim();
       const page = boundedPage(request.nextUrl.searchParams.get("page"));
-      const filters = ["select=*", "limit=21", `offset=${page * 20}`, `order=${sort}`];
+      const filters = [`select=${COMMUNITY_ISSUE_READ_SELECT}`, "limit=21", `offset=${page * 20}`, `order=${sort}`];
       if (status === "open" || status === "closed") filters.push(`status=eq.${status}`);
       if (query) { const value = encodeFilter(query); filters.push(`or=(title.ilike.*${value}*,content.ilike.*${value}*,user_username.ilike.*${value}*)`); }
       const [rows, counts, identity] = await Promise.all([
@@ -55,13 +57,13 @@ export async function GET(request: NextRequest) {
         communityIssueCounts(query),
         communityIdentityOrNull(),
       ]);
-      const items = Array.isArray(rows) ? rows.slice(0, 20) : [];
+      const items = Array.isArray(rows) ? rows.slice(0, 20).map(publicCommunityIssue).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
       const likedIssueIds = new Set<string>();
       if (identity && items.length > 0) {
         const likePages = await Promise.all(boundedIdChunks(items.map((item) => (item as Record<string, unknown>).id), 20, 20).map((ids) => supabaseRequest(`issue_likes?select=issue_id&issue_id=in.(${ids.join(",")})&user_id=eq.${encodeURIComponent(identity.id)}&limit=${ids.length}`)));
         likePages.forEach((likePage) => { if (Array.isArray(likePage)) likePage.forEach((like) => likedIssueIds.add(String((like as Record<string, unknown>).issue_id || ""))); });
       }
-      return NextResponse.json({ configured: true, writable: communityWritable(), items: items.map((item) => ({ ...(item as Record<string, unknown>), is_liked: likedIssueIds.has(String((item as Record<string, unknown>).id)) })), counts, page, hasMore: Array.isArray(rows) && rows.length > 20 });
+      return NextResponse.json({ configured: true, writable: communityWritable(), items: items.map((item) => ({ ...item, is_liked: likedIssueIds.has(String(item.id)) })), counts, page, hasMore: Array.isArray(rows) && rows.length > 20 });
     }
     if (action === "issue") {
       const id = request.nextUrl.searchParams.get("id") || "";
@@ -69,7 +71,7 @@ export async function GET(request: NextRequest) {
       const commentPage = boundedPage(request.nextUrl.searchParams.get("commentPage"));
       const identity = await communityIdentityOrNull();
       const [issueRows, commentRows] = await Promise.all([
-        supabaseRequest(`issues?select=*&id=eq.${encodeURIComponent(id)}&limit=1`),
+        supabaseRequest(`issues?select=${COMMUNITY_ISSUE_READ_SELECT}&id=eq.${encodeURIComponent(id)}&limit=1`),
         supabaseRequest(`issue_comments?select=*&issue_id=eq.${encodeURIComponent(id)}&order=created_at.asc&limit=51&offset=${commentPage * 50}`),
       ]);
       const issue = Array.isArray(issueRows) ? issueRows[0] as Record<string, unknown> : null;
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest) {
         issueLiked = Array.isArray(issueLikes) && issueLikes.length > 0;
         commentLikePages.forEach((page) => { if (Array.isArray(page)) page.forEach((like) => likedCommentIds.add(String((like as Record<string, unknown>).comment_id || ""))); });
       }
-      return NextResponse.json({ configured: true, writable: communityWritable(), issue: { ...issue, is_liked: issueLiked }, comments: comments.map((comment) => ({ ...comment, is_liked: likedCommentIds.has(String(comment.id)) })), commentPage, commentsHasMore: allCommentRows.length > 50, canManage: Boolean(communityWritable() && identity && canManageCommunityIssue(issue, identity)) });
+      return NextResponse.json({ configured: true, writable: communityWritable(), issue: { ...publicCommunityIssue(issue), is_liked: issueLiked }, comments: comments.map((comment) => ({ ...comment, is_liked: likedCommentIds.has(String(comment.id)) })), commentPage, commentsHasMore: allCommentRows.length > 50, canManage: Boolean(communityWritable() && identity && canManageCommunityIssue(issue, identity)) });
     }
     if (action === "supporters") {
       const page = boundedPage(request.nextUrl.searchParams.get("page"));
@@ -135,8 +137,8 @@ export async function POST(request: NextRequest) {
     if (!userLimit.allowed) return rateLimited(userLimit);
 
     if (parsed.data.action === "createIssue") {
-      const items = await supabaseRequest("issues?select=*", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: identity.id, user_email: identity.email, user_username: identity.username, user_level: identity.level, title: parsed.data.title, content: parsed.data.content, labels: [], status: "open" }) });
-      return NextResponse.json({ item: Array.isArray(items) ? items[0] : items }, { status: 201 });
+      const items = await supabaseRequest(`issues?select=${COMMUNITY_ISSUE_READ_SELECT}`, { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: identity.id, user_email: identity.email, user_username: identity.username, user_level: identity.level, title: parsed.data.title, content: parsed.data.content, labels: webIssueOriginLabels(), status: "open" }) });
+      return NextResponse.json({ item: publicCommunityIssue(Array.isArray(items) ? items[0] : items) }, { status: 201 });
     }
     if (parsed.data.action === "addComment") {
       const item = await addCommunityComment(parsed.data, identity);
@@ -149,8 +151,8 @@ export async function POST(request: NextRequest) {
         await deleteCommunityIssue(parsed.data.issueId);
         return NextResponse.json({ ok: true });
       }
-      const items = await supabaseRequest(`issues?id=eq.${parsed.data.issueId}&select=*`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ status: parsed.data.status }) });
-      return NextResponse.json({ item: Array.isArray(items) ? items[0] : items });
+      const items = await supabaseRequest(`issues?id=eq.${parsed.data.issueId}&select=${COMMUNITY_ISSUE_READ_SELECT}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ status: parsed.data.status }) });
+      return NextResponse.json({ item: publicCommunityIssue(Array.isArray(items) ? items[0] : items) });
     }
     const result = parsed.data.action === "toggleIssueLike"
       ? await toggleCommunityLike("issue", parsed.data.issueId, parsed.data.requestId, identity)

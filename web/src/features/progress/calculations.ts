@@ -134,14 +134,27 @@ export function calculateForecast(assignments: Assignment[], start = new Date(),
   return buckets;
 }
 
-export function calculateApproximateActivity(statistics: ReviewStatistic[], start = new Date(), days = 112): ActivityDay[] {
+export function calculateApproximateActivity(assignments: Assignment[], start = new Date(), days: number | "all" = 365): ActivityDay[] {
   const result: ActivityDay[] = [];
   const byKey = new Map<string, ActivityDay>();
   const first = new Date(start);
   first.setHours(0, 0, 0, 0);
-  first.setDate(first.getDate() - (days - 1));
+  if (days === "all") {
+    const activityDates = assignments.flatMap((assignment) => assignment.data.started_at && !assignment.data.hidden
+      ? [assignment.data_updated_at, assignment.data.started_at, assignment.data.passed_at, assignment.data.burned_at]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => new Date(value))
+        .filter((date) => !Number.isNaN(date.getTime()) && date <= start)
+      : []);
+    const earliest = activityDates.length ? new Date(Math.min(...activityDates.map((date) => date.getTime()))) : null;
+    if (earliest) first.setFullYear(earliest.getFullYear(), 0, 1);
+    else first.setDate(first.getDate() - 364);
+  } else {
+    first.setDate(first.getDate() - (days - 1));
+  }
+  const dayCount = Math.round((Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()) - Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) / 86_400_000) + 1;
 
-  for (let offset = 0; offset < days; offset += 1) {
+  for (let offset = 0; offset < dayCount; offset += 1) {
     const date = new Date(first);
     date.setDate(date.getDate() + offset);
     const day = { key: localDayKey(date), date, count: 0 };
@@ -149,12 +162,23 @@ export function calculateApproximateActivity(statistics: ReviewStatistic[], star
     byKey.set(day.key, day);
   }
 
-  // WaniKani no longer exposes review history. A statistic's update time is the
-  // best available signal for the most recent activity on that subject.
-  for (const statistic of statistics) {
-    if (statistic.data.hidden) continue;
-    const day = byKey.get(localDayKey(new Date(statistic.data_updated_at)));
-    if (day) day.count += 1;
+  // WaniKani no longer exposes review history. Keep this aligned with the
+  // mobile heatmap by combining assignment updates with learning milestones.
+  for (const assignment of assignments) {
+    if (assignment.data.hidden || !assignment.data.started_at) continue;
+    const activityDates = [
+      assignment.data_updated_at,
+      assignment.data.started_at,
+      assignment.data.passed_at,
+      assignment.data.burned_at,
+    ];
+    for (const value of activityDates) {
+      if (!value) continue;
+      const date = new Date(value);
+      if (date.getTime() > start.getTime()) continue;
+      const day = byKey.get(localDayKey(date));
+      if (day) day.count += 1;
+    }
   }
   return result;
 }
@@ -216,7 +240,31 @@ export function calculateLevelProgress(subjects: Subject[], assignments: Assignm
 }
 
 export function weightedAverageLevelDays(timings: LevelTiming[]): number | null {
-  const completed = timings.filter((timing) => timing.passedAt && timing.daysToPass !== null);
-  if (completed.length === 0) return null;
-  return Math.round((completed.reduce((sum, timing) => sum + (timing.daysToPass ?? 0), 0) / completed.length) * 10) / 10;
+  return summarizeLevelTimings(timings).average;
+}
+
+export interface LevelTimingSummary {
+  average: number | null;
+  median: number | null;
+  fastest: number | null;
+  slowest: number | null;
+  count: number;
+}
+
+export function summarizeLevelTimings(timings: LevelTiming[], excludedLevels: ReadonlySet<number> = new Set()): LevelTimingSummary {
+  const values = timings
+    .filter((timing) => timing.passedAt && timing.daysToPass !== null && !excludedLevels.has(timing.level))
+    .map((timing) => timing.daysToPass as number)
+    .sort((a, b) => a - b);
+  if (values.length === 0) return { average: null, median: null, fastest: null, slowest: null, count: 0 };
+  const middle = Math.floor(values.length / 2);
+  const median = values.length % 2 === 0 ? (values[middle - 1] + values[middle]) / 2 : values[middle];
+  const round = (value: number) => Math.round(value * 10) / 10;
+  return {
+    average: round(values.reduce((sum, value) => sum + value, 0) / values.length),
+    median: round(median),
+    fastest: values[0],
+    slowest: values.at(-1) ?? null,
+    count: values.length,
+  };
 }

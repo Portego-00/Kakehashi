@@ -90,6 +90,17 @@ export interface ReviewStatisticData {
 }
 export type ReviewStatistic = WKResource<ReviewStatisticData, "review_statistic">;
 
+export interface LevelProgressionData {
+  level: number;
+  abandoned_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  passed_at: string | null;
+  started_at: string | null;
+  unlocked_at: string | null;
+}
+export type LevelProgression = WKResource<LevelProgressionData, "level_progression">;
+
 export interface SummaryData {
   lessons: Array<{ available_at: string; subject_ids: number[] }>;
   reviews: Array<{ available_at: string; subject_ids: number[] }>;

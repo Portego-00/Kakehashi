@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { readBoundedJson } from "@/features/content/server-security";
 import { unsealToken } from "@/lib/server/session-crypto";
-import { canManageIssueAuthor, resolveCommunityMode } from "./security-model";
+import { canManageIssueAuthor, resolveCommunityModeFromEnvironment } from "./security-model";
 import { applyLocalLikeToggle, findMutationReceipt } from "./repository-model";
 import { identityFromUserPayload, type CommunityUserPayload } from "./identity-model";
 
@@ -27,11 +27,11 @@ const localEnv = developmentEnv();
 const supabaseUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || localEnv.SUPABASE_URL || localEnv.NEXT_PUBLIC_SUPABASE_URL || localEnv.EXPO_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || localEnv.SUPABASE_SERVICE_ROLE_KEY || localEnv.SUPABASE_SECRET_KEY || "";
 const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || localEnv.SUPABASE_ANON_KEY || localEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY || localEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
-const localAllowed = process.env.NODE_ENV !== "production";
+const localStore = process.env.COMMUNITY_LOCAL_STORE || localEnv.COMMUNITY_LOCAL_STORE || "";
 
 export type CommunityMode = "supabase" | "supabase-native-dev" | "supabase-readonly" | "local-server" | "unavailable";
 export function communityMode(): CommunityMode {
-  return resolveCommunityMode({ url: supabaseUrl, serviceRoleKey, anonKey, production: !localAllowed });
+  return resolveCommunityModeFromEnvironment({ url: supabaseUrl, serviceRoleKey, anonKey, nodeEnv: process.env.NODE_ENV, localStore });
 }
 export function communityConfigured() { return communityMode() !== "unavailable"; }
 export function communityWritable() { return communityMode() === "supabase" || communityMode() === "supabase-native-dev" || communityMode() === "local-server"; }

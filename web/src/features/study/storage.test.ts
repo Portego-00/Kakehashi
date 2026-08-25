@@ -1,4 +1,4 @@
-import { clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, saveSubjectLists } from "./storage";
+import { clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, saveSubjectLists, subscribeStudySubjectLists } from "./storage";
 import { createStudySession, DEFAULT_STUDY_FILTERS } from "./engine";
 
 describe("study persistence", () => {
@@ -31,5 +31,13 @@ describe("study persistence", () => {
     saveSubjectLists("alice", [{ id: "a", name: "Alice", subjectIds: [1], createdAt: "", updatedAt: "" }]);
     expect(loadStudyConfig("bob", "random-test")).toBeNull();
     expect(loadSubjectLists("bob")).toEqual([]);
+  });
+
+  it("notifies mounted study screens when lists change in the same tab", () => {
+    let changes = 0;
+    const unsubscribe = subscribeStudySubjectLists(scope, () => { changes += 1; });
+    saveSubjectLists(scope, [{ id: "live", name: "Live", subjectIds: [], createdAt: "", updatedAt: "" }]);
+    unsubscribe();
+    expect(changes).toBe(1);
   });
 });

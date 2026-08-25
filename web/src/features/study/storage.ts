@@ -1,6 +1,7 @@
 import type { StudyFilters, StudyModeId, StudySession, SubjectList } from "./types";
 
 const PREFIX = "kakehashi:study:v1";
+export const STUDY_SUBJECT_LISTS_EVENT = "kakehashi-study-subject-lists-change";
 export type StudyStorageScope = string | number;
 
 function accountPrefix(scope: StudyStorageScope) {
@@ -9,6 +10,27 @@ function accountPrefix(scope: StudyStorageScope) {
 
 export function subjectListsKey(scope: StudyStorageScope) {
   return `${accountPrefix(scope)}:subject-lists`;
+}
+
+export function subjectListsSnapshot(scope: StudyStorageScope) {
+  if (!hasStorage()) return "";
+  return window.localStorage.getItem(subjectListsKey(scope)) ?? "";
+}
+
+export function subscribeStudySubjectLists(scope: StudyStorageScope, onChange: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  const key = subjectListsKey(scope);
+  const normalizedScope = String(scope);
+  const onStorage = (event: StorageEvent) => { if (event.key === key) onChange(); };
+  const onListsChange = (event: Event) => {
+    if ((event as CustomEvent<{ scope?: string }>).detail?.scope === normalizedScope) onChange();
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(STUDY_SUBJECT_LISTS_EVENT, onListsChange);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(STUDY_SUBJECT_LISTS_EVENT, onListsChange);
+  };
 }
 
 function hasStorage(): boolean {
@@ -78,7 +100,11 @@ export function loadSubjectLists(scope: StudyStorageScope): SubjectList[] {
 }
 
 export function saveSubjectLists(scope: StudyStorageScope, lists: SubjectList[]) {
-  return writeJson(subjectListsKey(scope), lists);
+  const saved = writeJson(subjectListsKey(scope), lists);
+  if (saved && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(STUDY_SUBJECT_LISTS_EVENT, { detail: { scope: String(scope) } }));
+  }
+  return saved;
 }
 
 export function loadModeState<T>(scope: StudyStorageScope, mode: StudyModeId, name: string): T | null {
