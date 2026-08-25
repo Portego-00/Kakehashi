@@ -129,6 +129,7 @@ export default function NewsScreen() {
 
         if (items.length === 0) {
           NhkNewsService.setCachedItems(fallbackItems);
+          setNews(fallbackItems);
           setLoadError(
             fallbackItems.length > 0
               ? "Couldn't refresh the news. Showing saved articles."
@@ -175,6 +176,7 @@ export default function NewsScreen() {
 
         console.error("Error fetching NHK news:", error);
         NhkNewsService.setCachedItems(fallbackItems);
+        setNews(fallbackItems);
         setLoadError(
           fallbackItems.length > 0
             ? "Couldn't refresh the news. Showing saved articles."
@@ -191,7 +193,6 @@ export default function NewsScreen() {
 
   useEffect(() => {
     const requestId = ++newsRequestIdRef.current;
-    setNews([]);
     setLoadError(null);
     setLoading(true);
 
@@ -624,6 +625,27 @@ export default function NewsScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
+      {loading && news.length > 0 ? (
+        <View
+          pointerEvents="none"
+          style={[styles.loadingOverlay, { top: insets.top + 12 }]}
+        >
+          <View
+            style={[
+              styles.loadingPill,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <ActivityIndicator size="small" color={theme.primary} />
+            <Text style={[styles.loadingText, { color: theme.textColor }]}>
+              Loading news…
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -662,6 +684,31 @@ const styles = StyleSheet.create({
     minHeight: 280,
     alignItems: "center",
     justifyContent: "center",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    alignItems: "center",
+  },
+  loadingPill: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  loadingText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   emptyContainer: {
     minHeight: 280,
