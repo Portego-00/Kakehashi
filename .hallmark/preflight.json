@@ -1,0 +1,13 @@
+{
+  "date": "2026-08-17",
+  "framework": "Next.js 16 App Router",
+  "sourcePalette": "Installed Kakehashi macOS app and WaniKani subject colors",
+  "fontStack": "Geist + Geist Mono",
+  "genre": "modern-minimal",
+  "macrostructure": "Workbench / Focused Prompt / Long Document",
+  "motion": "state-led only, with reduced-motion fallbacks",
+  "spacing": "4pt semantic scale",
+  "target": "responsive web",
+  "theme": "studied-DNA (source: installed Kakehashi app)",
+  "navigation": "centered segmented app bar with mobile dock"
+}

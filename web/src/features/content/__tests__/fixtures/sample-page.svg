@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1200" viewBox="0 0 800 1200">
+  <rect width="800" height="1200" fill="#f5f1e8"/>
+  <text x="400" y="520" text-anchor="middle" font-size="72" font-family="sans-serif" fill="#202020">春の一日</text>
+  <text x="400" y="620" text-anchor="middle" font-size="38" font-family="sans-serif" fill="#505050">今日はいい天気です。</text>
+</svg>

@@ -1,0 +1,178 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: studied-DNA (installed Kakehashi app)
+ * enrichment: none · nav: centered segmented app bar · footer: product UI (omitted)
+ * vibe: "native study workspace, exact feedback" · axes: dark-first / compact / semantic
+ * pre-emit critique: P5 H5 E5 S5 R5 V5
+ * contrast: pass · slop: pass · honest-content: pass · mobile-320: pass
+ */
+:root {
+  --font-display: var(--font-geist), "Avenir Next", sans-serif;
+  --font-body: var(--font-geist), "Avenir Next", sans-serif;
+  --font-mono: var(--font-geist-mono), "SFMono-Regular", monospace;
+  --font-japanese: "Hiragino Sans", "Yu Gothic UI", var(--font-body);
+
+  --color-paper: oklch(98% 0.004 265);
+  --color-paper-2: oklch(95% 0.006 265);
+  --color-paper-3: oklch(91% 0.008 265);
+  --color-surface: oklch(99% 0.003 265);
+  --color-ink: oklch(20% 0.01 265);
+  --color-ink-2: oklch(36% 0.012 265);
+  --color-muted: oklch(39% 0.012 265);
+  --color-rule: oklch(78% 0.01 265);
+  --color-rule-2: oklch(87% 0.008 265);
+  --color-accent: oklch(46% 0.11 249);
+  --color-accent-ink: oklch(98% 0.004 265);
+  --color-focus: oklch(55% 0.16 249);
+  --color-brand: oklch(57% 0.23 2);
+  --color-brand-soft: oklch(94% 0.035 2);
+  --color-login-start: oklch(62.71% 0.1638 271.53);
+  --color-login-middle: oklch(50.12% 0.1384 304.73);
+  --color-login-end: oklch(79.46% 0.1717 323.15);
+  --color-login-action: oklch(52% 0.18 245.01);
+  --color-login-panel: oklch(100% 0 0);
+  --color-login-ink: oklch(32.11% 0 0);
+  --color-login-muted: oklch(51.03% 0 0);
+  --color-login-placeholder: oklch(68.3% 0 0);
+  --color-login-rule: oklch(89.75% 0 0);
+  --color-vacation: oklch(69% 0.16 74);
+  --color-vacation-soft: oklch(95% 0.035 74);
+  --color-danger: oklch(56% 0.21 27);
+  --color-danger-ink: oklch(99% 0.006 250);
+  --color-danger-soft: oklch(94% 0.035 27);
+  --color-success: oklch(51% 0.14 150);
+  --color-success-ink: oklch(99% 0.004 265);
+  --color-success-soft: oklch(94% 0.035 150);
+  --color-warning: oklch(65% 0.16 73);
+  --color-warning-soft: oklch(94% 0.04 73);
+  --color-radical: oklch(64% 0.18 242);
+  --color-radical-ink: oklch(41% 0.13 242);
+  --color-kanji: oklch(59% 0.23 359);
+  --color-kanji-ink: oklch(42% 0.17 359);
+  --color-vocabulary: oklch(55% 0.19 307);
+  --color-vocabulary-ink: oklch(40% 0.14 307);
+  --color-subject-text: oklch(99% 0.004 265);
+  --color-subject-scrim: oklch(12% 0.008 265 / 18%);
+  --color-subject-rule: color-mix(in oklch, var(--color-subject-text) 30%, transparent);
+  --color-subject-progress: color-mix(in oklch, var(--color-subject-text) 86%, transparent);
+  --color-prompt-meaning: oklch(82% 0.008 265);
+  --color-prompt-meaning-ink: oklch(22% 0.01 265);
+  --color-prompt-reading: oklch(25% 0.012 265);
+  --color-prompt-reading-ink: oklch(98% 0.004 265);
+  --color-prompt-other: oklch(36% 0.012 265);
+  --color-prompt-other-ink: oklch(98% 0.004 265);
+  --color-lesson: var(--color-kanji);
+  --color-review: var(--color-radical);
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+  --text-display: clamp(2rem, 2vw + 1rem, 3.25rem);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-card: 0.75rem;
+  --radius-input: 0.625rem;
+  --radius-pill: 999px;
+  --rule-thin: 1px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --banner-height: 5.25rem;
+  --control-height: 2.75rem;
+  --content-max: 90rem;
+  --study-max: 78rem;
+  --page-gutter: clamp(var(--space-md), 2.5vw, var(--space-xl));
+  --shadow-floating: 0 var(--space-3xs) var(--space-xs) color-mix(in oklch, var(--color-ink) 20%, transparent);
+  --shadow-login-panel: 0 1.25rem 3rem color-mix(in oklch, var(--color-login-ink) 24%, transparent);
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-sticky-nav: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}
+
+[data-theme="dark"] {
+  --color-paper: oklch(11.5% 0.008 265);
+  --color-paper-2: oklch(15.5% 0.009 265);
+  --color-paper-3: oklch(19.5% 0.01 265);
+  --color-surface: oklch(17.5% 0.009 265);
+  --color-ink: oklch(95% 0.006 265);
+  --color-ink-2: oklch(82% 0.008 265);
+  --color-muted: oklch(68% 0.009 265);
+  --color-rule: oklch(36% 0.01 265);
+  --color-rule-2: oklch(25.5% 0.01 265);
+  --color-accent: oklch(68% 0.18 255);
+  --color-accent-ink: oklch(12% 0.008 265);
+  --color-focus: oklch(78% 0.14 249);
+  --color-brand: oklch(68% 0.21 2);
+  --color-brand-soft: oklch(27% 0.055 2);
+  --color-vacation: oklch(77% 0.15 74);
+  --color-vacation-soft: oklch(29% 0.05 74);
+  --color-radical-ink: oklch(78% 0.13 242);
+  --color-kanji-ink: oklch(78% 0.16 359);
+  --color-vocabulary-ink: oklch(78% 0.13 307);
+  --color-danger-soft: oklch(27% 0.06 27);
+  --color-success-soft: oklch(27% 0.05 150);
+  --color-warning-soft: oklch(28% 0.05 73);
+}
+
+[data-theme="midnight"] {
+  --color-paper: oklch(10.5% 0.01 265);
+  --color-paper-2: oklch(14% 0.011 265);
+  --color-paper-3: oklch(18% 0.012 265);
+  --color-surface: oklch(12.5% 0.01 265);
+  --color-ink: oklch(95% 0.006 265);
+  --color-ink-2: oklch(80% 0.008 265);
+  --color-muted: oklch(68% 0.009 265);
+  --color-rule: oklch(31% 0.012 265);
+  --color-rule-2: oklch(23% 0.011 265);
+  --color-accent: oklch(75% 0.11 249);
+  --color-accent-ink: oklch(10.5% 0.01 265);
+  --color-focus: oklch(82% 0.14 249);
+  --color-brand: oklch(70% 0.2 2);
+  --color-brand-soft: oklch(24% 0.05 2);
+  --color-vacation: oklch(78% 0.14 74);
+  --color-vacation-soft: oklch(25% 0.045 74);
+  --color-radical-ink: oklch(80% 0.12 242);
+  --color-kanji-ink: oklch(80% 0.15 359);
+  --color-vocabulary-ink: oklch(80% 0.12 307);
+}
+
+[data-theme="sepia"] {
+  --color-paper: oklch(93% 0.028 76);
+  --color-paper-2: oklch(90% 0.032 76);
+  --color-paper-3: oklch(86% 0.035 76);
+  --color-surface: oklch(96% 0.022 76);
+  --color-ink: oklch(28% 0.035 65);
+  --color-ink-2: oklch(42% 0.034 65);
+  --color-muted: oklch(51% 0.03 65);
+  --color-rule: oklch(77% 0.034 76);
+  --color-rule-2: oklch(83% 0.03 76);
+  --color-accent: oklch(50% 0.11 55);
+  --color-accent-ink: oklch(96% 0.022 76);
+  --color-focus: oklch(45% 0.16 55);
+  --color-brand: oklch(54% 0.19 2);
+  --color-brand-soft: oklch(88% 0.045 2);
+  --color-vacation: oklch(62% 0.14 74);
+  --color-vacation-soft: oklch(88% 0.05 74);
+}

@@ -1,0 +1,405 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Native Welcome · design-system: design.md · designed-as-app
+ * enrichment: native Kakehashi artwork · tone: playful and focused · anchor hue: app-login violet
+ * pre-emit critique: P5 H5 E5 S5 R5 V5
+ */
+.page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(29rem, 0.62fr);
+  overflow-x: clip;
+  background: linear-gradient(
+    135deg,
+    var(--color-login-start) 0%,
+    var(--color-login-middle) 52%,
+    var(--color-login-end) 100%
+  );
+  color: var(--color-login-panel);
+}
+
+.brandStage {
+  min-width: 0;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space-xl);
+  padding: clamp(var(--space-lg), 3vw, var(--space-xl));
+}
+
+.brandHeading {
+  max-width: 38rem;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.brandHeading h1 {
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.heroBrand {
+  --kakehashi-mark-size: 3.75rem;
+  --kakehashi-name-size: clamp(2rem, 2.6vw, 3rem);
+  gap: var(--space-md);
+  color: var(--color-login-panel);
+  animation: brandEnter var(--dur-long) var(--ease-out) both;
+}
+
+.heroBrand img {
+  filter: drop-shadow(0 var(--space-3xs) var(--space-xs) color-mix(in oklch, var(--color-login-ink) 18%, transparent));
+}
+
+.brandHeading p {
+  max-width: 42ch;
+  color: color-mix(in oklch, var(--color-login-panel) 88%, transparent);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  animation: copyEnter var(--dur-long) var(--ease-out) var(--dur-micro) both;
+}
+
+.artwork {
+  width: min(100%, 53rem);
+  align-self: center;
+  justify-self: center;
+  animation: artworkEnter calc(var(--dur-long) * 1.25) var(--ease-out) var(--dur-micro) both;
+}
+
+.artworkImage {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.independent {
+  color: color-mix(in oklch, var(--color-login-panel) 86%, transparent);
+  font-size: var(--text-sm);
+  animation: copyEnter var(--dur-long) var(--ease-out) var(--dur-short) both;
+}
+
+.access {
+  min-width: 0;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: clamp(var(--space-lg), 3vw, var(--space-xl));
+  border-inline-start: var(--rule-thin) solid color-mix(in oklch, var(--color-login-panel) 18%, transparent);
+  background: color-mix(in oklch, var(--color-login-panel) 7%, transparent);
+}
+
+.form {
+  --color-paper: var(--color-login-panel);
+  --color-paper-2: color-mix(in oklch, var(--color-login-panel) 94%, var(--color-login-ink));
+  --color-paper-3: color-mix(in oklch, var(--color-login-panel) 88%, var(--color-login-ink));
+  --color-surface: var(--color-login-panel);
+  --color-ink: var(--color-login-ink);
+  --color-ink-2: var(--color-login-muted);
+  --color-muted: var(--color-login-muted);
+  --color-rule: var(--color-login-rule);
+  --color-rule-2: color-mix(in oklch, var(--color-login-rule) 72%, var(--color-login-panel));
+  --color-accent: var(--color-login-action);
+  --color-accent-ink: var(--color-login-panel);
+  --color-focus: var(--color-login-action);
+
+  width: min(100%, 28rem);
+  min-height: 26rem;
+  padding: clamp(var(--space-lg), 3vw, var(--space-xl));
+  border: var(--rule-thin) solid color-mix(in oklch, var(--color-login-panel) 76%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--color-login-panel) 96%, transparent);
+  color: var(--color-login-ink);
+  box-shadow: var(--shadow-login-panel);
+  animation: panelEnter calc(var(--dur-long) * 1.1) var(--ease-out) var(--dur-micro) both;
+  transition: border-color var(--dur-short) var(--ease-out), box-shadow var(--dur-short) var(--ease-out);
+}
+
+.form[data-phase="loading"] {
+  border-color: color-mix(in oklch, var(--color-login-action) 70%, var(--color-login-panel));
+}
+
+.form[data-phase="success"] {
+  border-color: var(--color-success);
+}
+
+.form[data-phase="error"] {
+  animation: formNudge var(--dur-long) var(--ease-in-out);
+}
+
+.formBody,
+.fallback {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.formHeading {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-xs);
+}
+
+.formMark {
+  --kakehashi-mark-size: 3.5rem;
+  margin-block-end: var(--space-xs);
+}
+
+.formHeading h2 {
+  min-width: 0;
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+.formLead {
+  max-width: 36ch;
+  color: var(--color-login-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.fallback {
+  min-height: 21rem;
+  align-content: center;
+}
+
+.privacy {
+  color: var(--color-login-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.privacy[href] {
+  width: max-content;
+  max-width: 100%;
+  color: var(--color-login-action);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.inlineIcon {
+  display: inline;
+  margin-inline-end: var(--space-2xs);
+  vertical-align: -0.18em;
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding-block: var(--space-sm);
+  border-block: var(--rule-thin) solid var(--color-danger);
+  color: var(--color-danger);
+  animation: errorEnter var(--dur-short) var(--ease-out) both;
+}
+
+.error svg {
+  flex: 0 0 auto;
+  margin-block-start: 0.12rem;
+}
+
+.submit {
+  min-height: 3.375rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-login-action);
+  border-color: var(--color-login-action);
+  color: var(--color-login-panel);
+  box-shadow: 0 var(--space-xs) var(--space-lg) color-mix(in oklch, var(--color-login-action) 26%, transparent);
+}
+
+.submit[data-state="success"],
+.submit[data-state="success"]:disabled {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-success-ink);
+  opacity: 1;
+}
+
+.submit[data-state="success"] svg {
+  animation: confirmEnter var(--dur-short) var(--ease-out) both;
+}
+
+.loadingTrack {
+  width: 100%;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-3);
+}
+
+.loadingTrack > span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  background: var(--color-login-action);
+  animation: loadingProgress calc(var(--dur-long) * 3) var(--ease-in-out) infinite;
+}
+
+@keyframes brandEnter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-sm) * -1));
+  }
+}
+
+@keyframes copyEnter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-xs));
+  }
+}
+
+@keyframes artworkEnter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-lg)) scale(0.985);
+  }
+}
+
+@keyframes panelEnter {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-md));
+  }
+}
+
+@keyframes errorEnter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-2xs) * -1));
+  }
+}
+
+@keyframes formNudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(calc(var(--space-2xs) * -1)); }
+  50% { transform: translateX(var(--space-3xs)); }
+  75% { transform: translateX(calc(var(--space-3xs) * -1)); }
+}
+
+@keyframes confirmEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+}
+
+@keyframes loadingProgress {
+  0% { transform: translateX(-105%); }
+  50% { transform: translateX(70%); }
+  100% { transform: translateX(240%); }
+}
+
+@media (max-width: 64rem) {
+  .page {
+    grid-template-columns: minmax(0, 1fr) minmax(25rem, 0.85fr);
+  }
+
+  .brandStage,
+  .access {
+    padding: var(--space-xl);
+  }
+}
+
+@media (max-width: 49.999rem) {
+  .page {
+    display: block;
+  }
+
+  .brandStage {
+    min-height: auto;
+    grid-template-rows: auto auto;
+    gap: var(--space-lg);
+    padding: var(--space-xl) var(--page-gutter) var(--space-sm);
+  }
+
+  .brandHeading {
+    justify-items: center;
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .heroBrand {
+    --kakehashi-mark-size: 3rem;
+    --kakehashi-name-size: var(--text-2xl);
+  }
+
+  .brandHeading p {
+    font-size: var(--text-base);
+  }
+
+  .artwork {
+    width: min(100%, 38rem);
+  }
+
+  .independent {
+    display: none;
+  }
+
+  .access {
+    min-height: auto;
+    padding: var(--space-md) var(--page-gutter) var(--space-2xl);
+    border-inline-start: 0;
+    background: transparent;
+  }
+
+  .form {
+    width: min(100%, 32rem);
+    min-height: 0;
+    animation-name: panelEnterMobile;
+  }
+
+  .formBody,
+  .fallback {
+    gap: var(--space-md);
+  }
+
+  .formMark {
+    display: none;
+  }
+
+  @keyframes panelEnterMobile {
+    from {
+      opacity: 0;
+      transform: translateY(var(--space-md));
+    }
+  }
+}
+
+@media (max-width: 23rem) {
+  .brandStage {
+    padding-block-start: var(--space-lg);
+  }
+
+  .heroBrand {
+    --kakehashi-mark-size: 2.5rem;
+    --kakehashi-name-size: var(--text-xl);
+  }
+
+  .form {
+    padding: var(--space-md);
+  }
+
+  .formMark {
+    --kakehashi-mark-size: 3rem;
+  }
+
+  .privacy[href] {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroBrand,
+  .brandHeading p,
+  .artwork,
+  .independent,
+  .form,
+  .form[data-phase="error"],
+  .error,
+  .submit[data-state="success"] svg,
+  .loadingTrack > span {
+    animation: none;
+  }
+
+  .loadingTrack > span {
+    transform: none;
+  }
+}
