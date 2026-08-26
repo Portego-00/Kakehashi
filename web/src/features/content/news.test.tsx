@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/image", () => ({
@@ -8,7 +8,7 @@ vi.mock("@/features/study/use-study-dataset", () => ({
   useStudyDataset: () => ({ dataset: null }),
 }));
 vi.mock("./JapaneseReader", () => ({
-  JapaneseReader: ({ text, blocks }: { text: string; blocks?: Array<{ type: string }> }) => <div data-testid="japanese-reader" data-block-order={blocks?.map((block) => block.type).join(",")}>{text}</div>,
+  JapaneseReader: ({ text, blocks, showFurigana, onShowFuriganaChange }: { text: string; blocks?: Array<{ type: string; furigana?: Array<{ start: number; end: number; reading: string }> }>; showFurigana?: boolean; onShowFuriganaChange?: (value: boolean) => void }) => <><div data-testid="japanese-reader" data-block-order={blocks?.map((block) => block.type).join(",")} data-show-furigana={String(showFurigana)} data-has-furigana={String(blocks?.some((block) => block.furigana?.length))}>{text}</div>{onShowFuriganaChange ? <button type="button" aria-pressed={showFurigana} aria-label="Furigana" onClick={() => onShowFuriganaChange(!showFurigana)}>Furigana</button> : null}</>,
 }));
 vi.mock("./useFirstContentReveal", () => ({
   useFirstContentReveal: () => ({ "data-first-reveal": "ready" }),
@@ -18,6 +18,8 @@ import { NewsArticleView, NewsIndex } from "./news";
 import { readLocal, writeLocal } from "./storage";
 import type { NewsArticle } from "./types";
 
+const EASY_AUDIO_URL = "https://nhkeasier.com/media/mp3/easy.mp3";
+
 const easyArticle: NewsArticle = {
   id: "easy:101",
   source: "easy",
@@ -26,8 +28,9 @@ const easyArticle: NewsArticle = {
   url: "https://nhkeasier.com/story/101/",
   isFullArticle: true,
   imageUrl: "https://nhkeasier.com/media/jpg/easy.jpg",
+  audioUrl: EASY_AUDIO_URL,
   body: "やさしい本文です。",
-  content: [{ type: "text", text: "やさしい本文です。" }],
+  content: [{ type: "text", text: "やさしい本文です。", furigana: [{ start: 4, end: 6, reading: "ほんぶん" }] }],
 };
 
 const standardArticle: NewsArticle = {
@@ -102,7 +105,7 @@ describe("NHK News web source parity", () => {
     expect(await screen.findByText(standardArticle.title)).toBeInTheDocument();
     expect(source).toHaveValue("regular");
     expect(readLocal("news-source-preference", "easy")).toBe("regular");
-    expect(readLocal<{ articles: NewsArticle[] } | null>("news-cache-easy", null)?.articles).toEqual([expect.objectContaining({ id: easyArticle.id })]);
+    expect(readLocal<{ articles: NewsArticle[] } | null>("news-cache-easy", null)?.articles).toEqual([expect.objectContaining({ id: easyArticle.id, audioUrl: EASY_AUDIO_URL, content: easyArticle.content })]);
     expect(readLocal<{ articles: NewsArticle[] } | null>("news-cache-regular", null)?.articles).toEqual([expect.objectContaining({ id: standardArticle.id })]);
     expect(fetchMock).toHaveBeenCalledWith("/news/feed?source=easy", { cache: "no-store" });
     expect(fetchMock).toHaveBeenCalledWith("/news/feed?source=regular", { cache: "no-store" });
@@ -132,7 +135,39 @@ describe("NHK News web source parity", () => {
     expect(within(document).getAllByTestId("japanese-reader")).toHaveLength(1);
     expect(within(document).getByTestId("japanese-reader")).toHaveAttribute("data-block-order", "image,text,image,text");
     expect(within(document).getByTestId("japanese-reader")).toHaveTextContent(standardArticle.body ?? "");
-    expect(fetchMock).toHaveBeenCalledWith("/news/feed?source=regular", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(within(document).getByRole("button", { name: "Furigana" })).toHaveAttribute("aria-pressed", "true");
+    expect(fetchMock).toHaveBeenCalledWith("/news/feed?source=regular", expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) }));
+  });
+
+  it("defaults furigana on and persists the reader toggle across article mounts", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+
+    const first = render(<NewsArticleView articleId={easyArticle.id} />);
+    const reader = await screen.findByTestId("japanese-reader");
+    expect(reader).toHaveAttribute("data-has-furigana", "true");
+    expect(reader).toHaveAttribute("data-show-furigana", "true");
+    const hide = screen.getByRole("button", { name: "Furigana" });
+    expect(hide).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(hide);
+    expect(reader).toHaveAttribute("data-show-furigana", "false");
+    expect(readLocal("news-show-furigana", true)).toBe(false);
+
+    first.unmount();
+    render(<NewsArticleView articleId={easyArticle.id} />);
+    const restored = await screen.findByTestId("japanese-reader");
+    await waitFor(() => expect(restored).toHaveAttribute("data-show-furigana", "false"));
+    expect(screen.getByRole("button", { name: "Furigana" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("renders the Easy article audio with native playback controls", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+
+    render(<NewsArticleView articleId={easyArticle.id} />);
+
+    const audio = await screen.findByLabelText(`Audio for ${easyArticle.title}`);
+    expect(audio).toHaveAttribute("src", EASY_AUDIO_URL);
+    expect(audio).toHaveAttribute("controls");
+    expect(audio).toHaveAttribute("preload", "none");
   });
 
   it("renders an explicit NHK summary fallback without starting article analysis", async () => {
@@ -150,6 +185,7 @@ describe("NHK News web source parity", () => {
     expect(await screen.findByText("NHK ONE News summary")).toBeInTheDocument();
     expect(screen.getByText(summaryArticle.summary ?? "")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Open on NHK/ })).not.toHaveLength(0);
+    expect(screen.queryByLabelText(/Audio for/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("japanese-reader")).not.toBeInTheDocument();
   });
 });

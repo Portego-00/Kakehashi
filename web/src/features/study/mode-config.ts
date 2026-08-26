@@ -8,6 +8,18 @@ export const CROSSWORD_SIZE_PRESETS = {
   large: { label: "Large", description: "More words, more crossings", gridSize: 17, defaultMaxWords: 16, minWords: 10, maxWords: 24 },
 } as const;
 
+export const STROKE_LENIENCY_PRESETS = [
+  { value: 0.8, label: "Very Strict" },
+  { value: 1.2, label: "Strict" },
+  { value: 1.8, label: "Lenient" },
+  { value: 2.5, label: "Very Lenient" },
+] as const;
+
+export function activeStrokeLeniencyPreset(value: number) {
+  return STROKE_LENIENCY_PRESETS.find((preset) => value <= preset.value)
+    ?? STROKE_LENIENCY_PRESETS.at(-1)!;
+}
+
 export const QUIZ_MODES = new Set<StudyModeId>([
   "recent-lessons", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "custom-review",
 ]);

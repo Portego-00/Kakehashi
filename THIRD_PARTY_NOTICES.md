@@ -1,8 +1,8 @@
-# Third-party notices for bundled kanji formation data
+# Third-party notices
 
-These notices apply to `src/data/kanjiEtymology.generated.ts`, its build-time
-inputs, and the kanji catalog snapshot used to validate its coverage. They do
-not change the MIT license of the rest of the Kakehashi application.
+These notices cover bundled data, build-time inputs, and runtime components
+identified below. They do not change the MIT license of the rest of the
+Kakehashi application.
 
 ## Make Me a Hanzi
 
@@ -85,3 +85,30 @@ The snapshot contains only the kanji character and level needed to prove
 coverage. It contains no WaniKani mnemonics, readings, meanings, or vocabulary.
 Kakehashi is not affiliated with WaniKani or Tofugu LLC.
 
+## Manga import and OCR runtime
+
+The web manga reader uses these permissively licensed runtime components:
+
+- fflate 0.8.3 for capped CBZ/ZIP extraction (MIT): https://github.com/101arrowz/fflate
+- PDF.js 4.10.38 for local PDF parsing and page rendering (Apache-2.0): https://github.com/mozilla/pdf.js
+- ONNX Runtime Web 1.29.0 for in-browser inference (MIT): https://github.com/microsoft/onnxruntime
+- Baberu OCR for manga speech-bubble recognition (Apache-2.0): https://huggingface.co/genshiai-daichi/baberu-ocr
+
+The Baberu ONNX model and vocabulary are fetched on first OCR use from pinned
+revision `d9cc13153e9a1cd8fdfa3b7b1cc329da2020aeae`. Manga page pixels stay in the
+browser and are not sent to the model host.
+
+## Local Japanese text-to-speech
+
+Normal vocabulary context sentences can use an optional, entirely local voice:
+
+- Piper Plus 0.6.0 browser runtime (MIT; `licenses/PIPER_PLUS_MIT.txt`): https://github.com/ayutaz/piper-plus
+- CSS10 Japanese six-language VITS model (CSS10 public domain): https://huggingface.co/ayousanz/piper-plus-css10-ja-6lang
+- ONNX Runtime Web 1.29.0 (MIT): https://github.com/microsoft/onnxruntime
+
+The model is fetched only after the user asks for it, from pinned revision
+`bf70fae2e21f9670456ebb40e8df131f146f1821`, and is stored in the browser's
+site data. Text and generated audio stay on the device. The Piper Plus WASM
+bundle incorporates Open JTalk, HTS Engine, MeCab, and Japanese dictionary
+data under BSD-3-Clause terms; their required notices and disclaimers are
+reproduced in `licenses/PIPER_PLUS_THIRD_PARTY_LICENSES.md`.

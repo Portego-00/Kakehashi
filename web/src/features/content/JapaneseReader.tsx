@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Volume2 } from "lucide-react";
-import { SrsStageIcon } from "@/components/SrsStageIcon";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowRight, ExternalLink, Languages, Volume2 } from "lucide-react";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import type { JpdbTokenAnnotation } from "./jpdb";
+import type { FuriganaRange } from "./types";
 import { annotateJpdbTokens, annotateWithWaniKaniFallback, readerPieces, srsStageLabel, type ReaderAnnotation, type ReaderPiece } from "./annotation";
 import { proxyNewsImageUrl } from "./news-images";
 import styles from "./content.module.css";
@@ -22,7 +22,7 @@ interface AnalysisState {
 const EMPTY_ANALYSIS: AnalysisState = { status: "idle", sourceText: "", tokens: [], message: "" };
 
 export type JapaneseReaderBlock =
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; furigana?: readonly FuriganaRange[] }
   | { type: "image"; url: string; alt?: string };
 
 export interface JapaneseReaderAnalysisContext {
@@ -30,8 +30,20 @@ export interface JapaneseReaderAnalysisContext {
   start: number;
 }
 
+export interface JapaneseReaderProps {
+  text: string;
+  blocks?: readonly JapaneseReaderBlock[];
+  analysisContext?: JapaneseReaderAnalysisContext;
+  ariaLabel?: string;
+  onProgress?: (progress: number) => void;
+  appearance?: "default" | "compact";
+  showFurigana?: boolean;
+  onShowFuriganaChange?: (value: boolean) => void;
+  supplement?: ReactNode;
+}
+
 type PreparedReaderBlock =
-  | { type: "text"; id: string; text: string; start: number; end: number }
+  | { type: "text"; id: string; text: string; start: number; end: number; furigana?: readonly FuriganaRange[] }
   | { type: "image"; id: string; url: string; alt?: string };
 
 function prepareReaderDocument(text: string, blocks?: readonly JapaneseReaderBlock[]) {
@@ -60,13 +72,6 @@ function prepareReaderDocument(text: string, blocks?: readonly JapaneseReaderBlo
     blocks: prepared,
     text: prepared.flatMap((block) => block.type === "text" ? [block.text] : []).join("\n\n") || text,
   };
-}
-
-function subjectMeaning(annotation: ReaderAnnotation) {
-  return annotation.subject?.data.meanings.find((meaning) => meaning.primary)?.meaning
-    ?? annotation.subject?.data.meanings[0]?.meaning
-    ?? annotation.meaning
-    ?? "No English gloss returned";
 }
 
 function subjectReading(annotation: ReaderAnnotation) {
@@ -108,10 +113,62 @@ function annotationLabel(annotation: ReaderAnnotation) {
   return `${annotation.text}, ${state}`;
 }
 
-export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, interaction = "navigate" }: { text: string; blocks?: readonly JapaneseReaderBlock[]; analysisContext?: JapaneseReaderAnalysisContext; ariaLabel?: string; onProgress?: (progress: number) => void; interaction?: "navigate" | "tooltip" }) {
+type ReaderTokenKind = "grammar" | "verb" | "vocabulary";
+type ReaderInspectorKind = ReaderTokenKind | "radical" | "kanji";
+
+function readerTokenKind(annotation: ReaderAnnotation): ReaderTokenKind {
+  if (annotation.tokenType === "grammar") return "grammar";
+  if (annotation.tokenType === "verb") return "verb";
+  return "vocabulary";
+}
+
+function readerInspectorKind(annotation: ReaderAnnotation): ReaderInspectorKind {
+  if (annotation.subject?.object === "radical") return "radical";
+  if (annotation.subject?.object === "kanji") return "kanji";
+  if (annotation.subject) return "vocabulary";
+  return readerTokenKind(annotation);
+}
+
+function readerSourceLabel(annotation: ReaderAnnotation) {
+  if (annotation.subject) {
+    return `${annotation.source === "jpdb" ? "JPDB + WaniKani" : "WaniKani"} · ${srsStageLabel(annotation.srsStage)}`;
+  }
+  return "JPDB · No WaniKani match";
+}
+
+function renderFurigana(text: string, start: number, end: number, ranges: readonly FuriganaRange[] | undefined, enabled: boolean): ReactNode {
+  if (!enabled || !ranges?.length || text.length !== end - start) return text;
+  const children: ReactNode[] = [];
+  let cursor = start;
+  for (const range of ranges) {
+    if (range.start < cursor || range.start < start || range.end > end || range.end <= range.start || !range.reading) continue;
+    if (range.start > cursor) children.push(text.slice(cursor - start, range.start - start));
+    children.push(<ruby key={`${range.start}-${range.end}-${range.reading}`}>{text.slice(range.start - start, range.end - start)}<rt>{range.reading}</rt></ruby>);
+    cursor = range.end;
+  }
+  if (!children.length) return text;
+  if (cursor < end) children.push(text.slice(cursor - start));
+  return children;
+}
+
+function renderAnnotationFurigana(annotation: ReaderAnnotation, enabled: boolean): ReactNode {
+  const reading = annotationReading(annotation)?.trim();
+  if (
+    !enabled ||
+    !reading ||
+    annotation.text.normalize("NFKC") === reading.normalize("NFKC") ||
+    !/[\u3400-\u9fff\uf900-\ufaff々〆ヵヶ]/u.test(annotation.text)
+  ) return annotation.text;
+  return <ruby>{annotation.text}<rt>{reading}</rt></ruby>;
+}
+
+export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, appearance = "default", showFurigana = false, onShowFuriganaChange, supplement }: JapaneseReaderProps) {
   const { user, dataset, loading } = useStudyDataset();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
   const jpdbApiKey = settings.integrations.jpdbApiKey;
+  const detailsInteraction = settings.reader.detailsInteraction;
+  const jpdbRecognitionEnabled = settings.reader.recognitionMode === "wk-jpdb";
+  const jpdbAnalysisEnabled = jpdbRecognitionEnabled && Boolean(jpdbApiKey);
   const [analysis, setAnalysis] = useState<AnalysisState>(EMPTY_ANALYSIS);
   const [selected, setSelected] = useState<ReaderAnnotation | null>(null);
   const document = useMemo(() => prepareReaderDocument(text, blocks), [blocks, text]);
@@ -120,7 +177,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   const analysisStart = analysisContext?.start ?? 0;
 
   useEffect(() => {
-    if (!jpdbApiKey || !analysisSourceText.trim()) return;
+    if (!jpdbAnalysisEnabled || !analysisSourceText.trim()) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setAnalysis({ status: "loading", sourceText: analysisSourceText, tokens: [], message: "Analyzing Japanese with JPDB…" });
@@ -139,11 +196,11 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
       });
     }, 0);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [analysisSourceText, jpdbApiKey]);
+  }, [analysisSourceText, jpdbAnalysisEnabled, jpdbApiKey]);
 
   const subjects = useMemo(() => dataset?.subjects ?? [], [dataset?.subjects]);
   const assignments = useMemo(() => dataset?.assignments ?? [], [dataset?.assignments]);
-  const jpdbReady = Boolean(jpdbApiKey && analysis.status === "ready" && analysis.sourceText === analysisSourceText && analysis.tokens.length);
+  const jpdbReady = Boolean(jpdbAnalysisEnabled && analysis.status === "ready" && analysis.sourceText === analysisSourceText && analysis.tokens.length);
   const annotations = useMemo(() => {
     if (!jpdbReady) return annotateWithWaniKaniFallback(sourceText, subjects, assignments);
     const analysisEnd = analysisStart + sourceText.length;
@@ -155,9 +212,13 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     if (block.type === "image") return block;
     const localAnnotations = annotations
       .filter((annotation) => annotation.start >= block.start && annotation.end <= block.end)
-      .map((annotation) => ({ ...annotation, start: annotation.start - block.start, end: annotation.end - block.start }));
+      .map((annotation) => ({ ...annotation, start: annotation.start - block.start, end: annotation.end - block.start }))
+      .filter((annotation) => !showFurigana || (block.furigana ?? []).every((range) => {
+        const overlaps = annotation.start < range.end && annotation.end > range.start;
+        return !overlaps || (annotation.start <= range.start && annotation.end >= range.end);
+      }));
     return { ...block, pieces: readerPieces(block.text, localAnnotations) };
-  }), [annotations, document.blocks]);
+  }), [annotations, document.blocks, showFurigana]);
   const pieceCount = renderedBlocks.reduce((total, block) => total + (block.type === "text" ? block.pieces.length : 0), 0);
 
   function select(annotation: ReaderAnnotation, index: number) {
@@ -179,34 +240,49 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
 
   const analysisMessage = loading
     ? "Loading your WaniKani study state…"
-    : analysis.status === "loading" || analysis.status === "error"
+    : jpdbAnalysisEnabled && (analysis.status === "loading" || analysis.status === "error")
       ? analysis.message
-      : jpdbApiKey
+      : !jpdbRecognitionEnabled
+        ? "WaniKani-only recognition is active."
+        : jpdbApiKey
         ? analysis.sourceText === analysisSourceText ? analysis.message || "Preparing JPDB analysis…" : "Preparing JPDB analysis…"
-        : "WaniKani exact matching is active. Add a JPDB key in Settings for full parse-first annotation.";
+        : "WaniKani matching is active. Add a JPDB key in Settings to enable grammar, verb, and vocabulary recognition.";
 
-  function renderPiece(piece: ReaderPiece, index: number) {
-    if (piece.kind === "text") return <span key={piece.id}>{piece.text}</span>;
+  function renderPiece(piece: ReaderPiece, index: number, furigana?: readonly FuriganaRange[]) {
+    const sourceContents = renderFurigana(piece.text, piece.start, piece.end, furigana, showFurigana);
+    const contents = piece.kind === "annotation" && sourceContents === piece.text
+      ? renderAnnotationFurigana(piece.annotation, showFurigana)
+      : sourceContents;
+    if (piece.kind === "text") return <span key={piece.id}>{contents}</span>;
     const annotation = piece.annotation;
-    if (!annotation.subject && annotation.source === "wanikani") return <span key={piece.id}>{annotation.text}</span>;
-    const tokenClass = annotation.subject ? (annotation.known ? styles.tokenKnown : styles.tokenLearning) : styles.tokenJpdb;
-    if (annotation.subject && interaction === "navigate") {
-      return <Link key={piece.id} href={`/subjects/${annotation.subject.id}`} className={`${styles.token} ${tokenClass} ${selected?.id === annotation.id ? styles.tokenSelected : ""}`} aria-label={`${annotationLabel(annotation)}. Open subject details.`} onFocus={() => inspect(annotation)} onMouseEnter={() => inspect(annotation)}>{annotation.text}</Link>;
-    }
-    return <button key={piece.id} type="button" className={`${styles.token} ${tokenClass} ${selected?.id === annotation.id ? styles.tokenSelected : ""}`} aria-label={`Inspect ${annotationLabel(annotation)}`} onClick={() => select(annotation, index)} onFocus={() => inspect(annotation)} onMouseEnter={() => inspect(annotation)}>{annotation.text}</button>;
+    if (!annotation.subject && annotation.source === "wanikani") return <span key={piece.id}>{contents}</span>;
+    const tokenKind = readerTokenKind(annotation);
+    const tokenClass = tokenKind === "grammar" ? styles.tokenGrammar : tokenKind === "verb" ? styles.tokenVerb : styles.tokenVocabulary;
+    const isSelected = selected?.id === annotation.id;
+    return <button
+      key={piece.id}
+      type="button"
+      className={`${styles.token} ${tokenClass} ${isSelected ? styles.tokenSelected : ""}`}
+      aria-label={`Inspect ${annotationLabel(annotation)}`}
+      data-token-kind={tokenKind}
+      data-selected={isSelected ? "true" : undefined}
+      onClick={() => select(annotation, index)}
+      onMouseEnter={detailsInteraction === "hover" ? () => inspect(annotation) : undefined}
+    >{contents}</button>;
   }
 
   let pieceCursor = 0;
 
   return (
-    <div className={styles.readerGrid}>
+    <div className={styles.readerGrid} data-appearance={appearance} data-details-interaction={detailsInteraction} data-has-selection={selected ? "true" : "false"}>
       <div className={styles.readerColumn}>
-        <div className={styles.readerAnnotationBar} aria-label="Annotation key">
-          <span data-state="known"><i aria-hidden="true" />Known</span>
-          <span data-state="learning"><i aria-hidden="true" />Not yet passed</span>
-          <span data-state="jpdb"><i aria-hidden="true" />JPDB only</span>
+        {appearance === "default" ? <div className={styles.readerAnnotationBar} aria-label="Annotation key">
+          <span data-token-kind="vocabulary"><i aria-hidden="true" />Vocabulary</span>
+          <span data-token-kind="verb"><i aria-hidden="true" />Verbs</span>
+          <span data-token-kind="grammar"><i aria-hidden="true" />Grammar</span>
+          {onShowFuriganaChange ? <button type="button" className={styles.furiganaToggle} aria-pressed={showFurigana} aria-label="Furigana" onClick={() => onShowFuriganaChange(!showFurigana)}><Languages size={15} aria-hidden="true" />Furigana {showFurigana ? "on" : "off"}</button> : null}
           <small role="status" className={analysis.status === "error" ? styles.error : undefined}>{analysisMessage}</small>
-        </div>
+        </div> : null}
         <article className={`${styles.panel} ${styles.readingSurface}`} aria-label={ariaLabel} lang="ja" data-document={blocks?.length ? "true" : "false"}>
           {renderedBlocks.map((block) => {
             if (block.type === "image") {
@@ -214,30 +290,36 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
               if (!imageUrl) return null;
               return <figure className={styles.readerDocumentImage} data-reader-block="image" key={block.id}><Image src={imageUrl} alt={block.alt || "Story illustration"} width={1200} height={675} sizes="(max-width: 960px) 100vw, 760px" unoptimized /></figure>;
             }
-            return <div className={styles.readerTextBlock} data-reader-block="text" key={block.id}>{block.pieces.map((piece) => renderPiece(piece, pieceCursor++))}</div>;
+            return <div className={styles.readerTextBlock} data-reader-block="text" key={block.id}>{block.pieces.map((piece) => renderPiece(piece, pieceCursor++, block.furigana))}</div>;
           })}
         </article>
+        {supplement}
       </div>
-      <aside className={`${styles.panel} ${styles.sticky} ${styles.inspector}`} aria-live="polite">
+      {selected || appearance === "default" ? <aside className={`${styles.panel} ${styles.sticky} ${styles.inspector}`} aria-live="polite" data-kind={selected ? readerInspectorKind(selected) : undefined}>
         {selected ? (
           <>
-            <div className={styles.inline}><strong className={styles.lookupTerm} lang="ja">{selected.text}</strong><button type="button" className={styles.iconButton} onClick={speak} aria-label={`Speak ${selected.text}`}><Volume2 size={18} aria-hidden="true" /></button></div>
-            <div className={styles.readerItemState} data-state={selected.subject ? (selected.known ? "known" : "learning") : "jpdb"}>{selected.subject && selected.srsStage ? <SrsStageIcon stage={selected.srsStage} size={18} /> : null}<span>{selected.source === "jpdb" ? "JPDB analysis" : "WaniKani exact match"}{selected.subject ? ` · ${srsStageLabel(selected.srsStage)}` : " · No WaniKani match"}</span></div>
-            <dl className={styles.readerFacts}>
-              <div><dt>Dictionary form</dt><dd lang="ja">{selected.spelling || selected.subject?.data.characters || selected.text}</dd></div>
+            <div className={styles.readerInspectorHeader}>
+              <strong className={styles.lookupTerm} lang="ja">{selected.text}</strong>
+              <span>{selected.subject ? `Lv ${selected.subject.data.level}` : "JPDB"}</span>
+              <button type="button" className={styles.readerInspectorSpeak} onClick={speak} aria-label={`Speak ${selected.text}`}><Volume2 size={18} aria-hidden="true" /></button>
+            </div>
+            <div className={styles.readerInspectorBody}>
+              <dl className={styles.readerFacts}>
               {annotationReading(selected) ? <div><dt>Reading</dt><dd lang="ja">{annotationReading(selected)}</dd></div> : null}
-              <div><dt>Part of speech</dt><dd>{selected.partsOfSpeech.length ? [...new Set(selected.partsOfSpeech.map(partOfSpeechLabel))].join(" · ") : selected.tokenType}</dd></div>
+              <div><dt>Meaning</dt><dd>{annotationMeanings(selected).slice(0, 4).join(" · ")}</dd></div>
+              {(selected.spelling || selected.subject?.data.characters) && (selected.spelling || selected.subject?.data.characters) !== selected.text ? <div><dt>Dictionary</dt><dd lang="ja">{selected.spelling || selected.subject?.data.characters}</dd></div> : null}
+              <div><dt>Type</dt><dd>{selected.partsOfSpeech.length ? [...new Set(selected.partsOfSpeech.map(partOfSpeechLabel))].join(" · ") : partOfSpeechLabel(selected.tokenType)}</dd></div>
               {selected.alternativeSpellings.length ? <div><dt>Alternative forms</dt><dd lang="ja">{selected.alternativeSpellings.slice(0, 5).join(" · ")}</dd></div> : null}
-              {selected.subject ? <div><dt>WaniKani match</dt><dd>{selected.subject.object.replace("_", " ")} · Level {selected.subject.data.level} · {subjectMeaning(selected)}</dd></div> : null}
-            </dl>
-            <div className={styles.readerMeanings}><strong>Meanings</strong><ol>{annotationMeanings(selected).map((meaning, index) => <li key={`${meaning}-${index}`}>{meaning}</li>)}</ol></div>
-            <div className={styles.inline}>
-              {selected.subject ? <Link className={styles.secondaryButton} href={`/subjects/${selected.subject.id}`}>Open subject details</Link> : null}
-              <a className={styles.secondaryButton} href={`https://jisho.org/search/${encodeURIComponent(selected.spelling || selected.text)}`} target="_blank" rel="noreferrer">Jisho <ExternalLink size={15} aria-hidden="true" /></a>
+              <div><dt>Status</dt><dd>{readerSourceLabel(selected)}</dd></div>
+              </dl>
+              <div className={styles.readerInspectorActions}>
+                {selected.subject ? <Link className={styles.readerDetailsButton} href={`/subjects/${selected.subject.id}`}>View details <ArrowRight size={16} aria-hidden="true" /></Link> : null}
+                <a className={styles.secondaryButton} href={`https://jisho.org/search/${encodeURIComponent(selected.spelling || selected.text)}`} target="_blank" rel="noreferrer">Jisho <ExternalLink size={15} aria-hidden="true" /></a>
+              </div>
             </div>
           </>
-        ) : <><strong>Article annotations</strong><p className={styles.hint}>Green terms are passed in WaniKani. Red terms are WaniKani subjects you have not passed yet. Dotted terms come from JPDB. WaniKani terms open their full subject page.</p>{!jpdbApiKey ? <Link className={styles.secondaryButton} href="/settings">Add JPDB key</Link> : null}</>}
-      </aside>
+        ) : <div className={styles.readerInspectorEmpty}><strong>Word details</strong><p className={styles.hint}>{detailsInteraction === "hover" ? "Hover over or click an underlined word to see its reading and meaning." : "Click an underlined word to see its reading and meaning. Hover only highlights it."}</p>{jpdbRecognitionEnabled && !jpdbApiKey ? <Link className={styles.secondaryButton} href="/settings#jpdb-api-key">Add JPDB key</Link> : null}</div>}
+      </aside> : null}
     </div>
   );
 }

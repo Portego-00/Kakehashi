@@ -97,9 +97,9 @@ export function IncompleteLevelsWidget({ levels, preview = false }: { levels: In
       </div>
       <div className={styles.incompleteCopy}>
         <div className={styles.incompleteSwitcher}>
-          <button type="button" onClick={() => move(-1)} disabled={preview || selectedIndex === 0} aria-label="Show newer incomplete level"><ChevronLeft size={18} aria-hidden /></button>
+          <button type="button" onClick={() => move(1)} disabled={preview || selectedIndex === rows.length - 1} aria-label="Show lower incomplete level"><ChevronLeft size={18} aria-hidden /></button>
           <span><small>Level</small><strong>{preview ? "—" : selected.level}</strong></span>
-          <button type="button" onClick={() => move(1)} disabled={preview || selectedIndex === rows.length - 1} aria-label="Show older incomplete level"><ChevronRight size={18} aria-hidden /></button>
+          <button type="button" onClick={() => move(-1)} disabled={preview || selectedIndex === 0} aria-label="Show higher incomplete level"><ChevronRight size={18} aria-hidden /></button>
         </div>
         <dl className={styles.incompleteLegend}>{LEVEL_TYPES.map((type) => <div key={type.id} data-type={type.id}><dt>{type.label}</dt><dd>{preview ? "—" : `${selected[type.id].passed} / ${selected[type.id].total}`}<span>{preview ? "" : `${completion(selected[type.id])}%`}</span></dd></div>)}</dl>
         {!preview && rows.length > 1 ? <p>{selectedIndex + 1} of {rows.length} incomplete levels</p> : null}
@@ -129,9 +129,9 @@ function previewStudyRange(): StudyTimeRange {
   };
 }
 
-export function StudyTimeWidget({ username, preview = false }: { username: string; preview?: boolean }) {
+export function StudyTimeWidget({ userId, preview = false }: { userId: string; preview?: boolean }) {
   const [range, setRange] = useState<StudyTimeRangeId>("week");
-  const live = useStudyTimeRange(username, range);
+  const live = useStudyTimeRange(userId, range);
   const data = preview ? previewStudyRange() : live;
   const maximum = Math.max(1, ...data.series.map((bucket) => bucket.totalSeconds));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -140,8 +140,8 @@ export function StudyTimeWidget({ username, preview = false }: { username: strin
   return <section className={`${styles.section} ${styles.studyTimeWidget}`}>
     <div className={styles.studyTimeHead}><span><Clock3 size={20} aria-hidden /></span><h2>Study time</h2><strong>{preview ? "—" : formatStudyTime(data.summary.totalSeconds)}</strong></div>
     <div className={styles.studyTimeTabs} role="tablist" aria-label="Study time range">{STUDY_TIME_RANGES.map((item) => <button type="button" role="tab" aria-selected={range === item.id} key={item.id} disabled={preview} onClick={() => { setRange(item.id); setSelectedId(null); }}>{item.label}</button>)}</div>
-    <div className={styles.studyChartHead}><span>{data.chartTitle}</span><strong>{selected && !preview ? `${selected.accessibilityLabel} · ${formatStudyTime(selected.totalSeconds)}` : "Hover a bar for details"}</strong></div>
+    <div className={styles.studyChartHead}><span>{data.chartTitle}{preview ? "" : " · All devices"}</span><strong>{selected && !preview ? `${selected.accessibilityLabel} · ${formatStudyTime(selected.totalSeconds)}` : "Hover a bar for details"}</strong></div>
     <div className={styles.studyChart}>{data.series.map((bucket) => <button type="button" key={bucket.id} className={styles.studyChartColumn} data-current={bucket.isCurrent || undefined} aria-label={`${bucket.accessibilityLabel}: ${formatStudyTime(bucket.totalSeconds)}`} disabled={preview} onPointerEnter={() => setSelectedId(bucket.id)} onPointerLeave={() => setSelectedId(null)} onFocus={() => setSelectedId(bucket.id)} onBlur={() => setSelectedId(null)}><span className={styles.studyChartSlot}><i data-empty={bucket.totalSeconds === 0 || undefined} style={{ "--study-scale": bucket.totalSeconds / maximum } as CSSProperties} /></span><small>{bucket.label}</small></button>)}</div>
-    {activeCategories.length ? <><div className={styles.studyCategoryBar} aria-label="Study time by category">{activeCategories.map(({ id }) => <span key={id} data-category={id} style={{ flexGrow: data.summary.byCategory[id] }} title={`${STUDY_TIME_CATEGORIES.find((item) => item.id === id)?.label}: ${formatStudyTime(data.summary.byCategory[id])}`} />)}</div><dl className={styles.studyCategoryLegend}>{activeCategories.map(({ id, label }) => <div key={id} data-category={id}><dt>{label}</dt><dd>{preview ? "—" : formatStudyTime(data.summary.byCategory[id])}</dd></div>)}</dl></> : <p className={styles.emptyCopy}>Study activity will appear here as you use reviews, lessons, extra study, news, songs, reading, and video.</p>}
+    {activeCategories.length ? <><div className={styles.studyCategoryBar} aria-label="Study time by category">{activeCategories.map(({ id }) => <span key={id} data-category={id} style={{ flexGrow: data.summary.byCategory[id] }} title={`${STUDY_TIME_CATEGORIES.find((item) => item.id === id)?.label}: ${formatStudyTime(data.summary.byCategory[id])}`} />)}</div><dl className={styles.studyCategoryLegend}>{activeCategories.map(({ id, label }) => <div key={id} data-category={id}><dt>{label}</dt><dd>{preview ? "—" : formatStudyTime(data.summary.byCategory[id])}</dd></div>)}</dl></> : <p className={styles.emptyCopy}>Combined study activity from your synced devices will appear here as you use reviews, lessons, extra study, news, songs, reading, and video.</p>}
   </section>;
 }

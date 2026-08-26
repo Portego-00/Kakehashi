@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ExternalLink, RefreshCw, Search } from "lucide-react";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import { JapaneseReader } from "./JapaneseReader";
@@ -11,9 +11,12 @@ import {
   passedKanjiCharacters,
 } from "./annotation";
 import { ContentHeader, ContentPage, EmptyState, Panel } from "./ui";
+import { normalizeNewsAudioUrl } from "./news-audio";
 import { proxyNewsImageUrl } from "./news-images";
+import { NewsAudioPlayer } from "./NewsAudioPlayer";
 import { readLocal, writeLocal } from "./storage";
 import type {
+  FuriganaRange,
   NewsArticle,
   NewsSource,
   NewsSourcePreference,
@@ -33,6 +36,8 @@ type NewsSort = "date" | "known";
 type NewsContentBlock = NonNullable<NewsArticle["content"]>[number];
 
 const NEWS_SOURCE_PREFERENCE_KEY = "news-source-preference";
+const NEWS_FURIGANA_PREFERENCE_KEY = "news-show-furigana";
+const NEWS_FURIGANA_EVENT = "kakehashi-news-furigana-change";
 const LEGACY_NEWS_CACHE_KEY = "news-cache";
 const NEWS_SOURCES = ["easy", "regular"] as const;
 
@@ -48,6 +53,22 @@ function isNewsSource(value: unknown): value is NewsSource {
 
 function normalizeSourcePreference(value: unknown): NewsSourcePreference {
   return value === "regular" || value === "both" ? value : "easy";
+}
+
+function subscribeToFuriganaPreference(onChange: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (!event.key || event.key.endsWith(`:${NEWS_FURIGANA_PREFERENCE_KEY}`)) onChange();
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(NEWS_FURIGANA_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(NEWS_FURIGANA_EVENT, onChange);
+  };
+}
+
+function readFuriganaPreference() {
+  return readLocal<unknown>(NEWS_FURIGANA_PREFERENCE_KEY, true) !== false;
 }
 
 function requestedSources(preference: NewsSourcePreference): NewsSource[] {
@@ -74,6 +95,37 @@ function normalizedArticleId(id: string, source: NewsSource) {
   return decoded.startsWith(`${source}:`) ? decoded : `${source}:${decoded}`;
 }
 
+function normalizeFurigana(value: unknown, text: string): FuriganaRange[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const ranges = value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const candidate = item as Partial<FuriganaRange>;
+    const start = candidate.start;
+    const end = candidate.end;
+    const reading = typeof candidate.reading === "string" ? candidate.reading.trim() : "";
+    if (
+      typeof start !== "number" ||
+      typeof end !== "number" ||
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 0 ||
+      end <= start ||
+      end > text.length ||
+      !reading ||
+      reading.length > 128 ||
+      /[\u0000-\u001f\u007f]/u.test(reading)
+    ) return [];
+    return [{ start, end, reading }];
+  }).sort((left, right) => left.start - right.start || left.end - right.end);
+  const nonOverlapping: FuriganaRange[] = [];
+  for (const range of ranges) {
+    if (range.start < (nonOverlapping.at(-1)?.end ?? 0)) continue;
+    if (text.slice(range.start, range.end) === range.reading) continue;
+    nonOverlapping.push(range);
+  }
+  return nonOverlapping.length ? nonOverlapping : undefined;
+}
+
 function normalizeCachedArticle(
   value: unknown,
   fallbackSource: NewsSource,
@@ -94,13 +146,17 @@ function normalizeCachedArticle(
     : sourceFromArticleId(candidate.id) === "regular"
       ? "regular"
       : fallbackSource;
+  const audioUrl = source === "easy"
+    ? normalizeNewsAudioUrl(candidate.audioUrl, candidate.url)
+    : undefined;
   let content: NewsContentBlock[] | undefined;
   if (Array.isArray(candidate.content)) {
     content = [];
     for (const block of candidate.content) {
       if (!block || typeof block !== "object") continue;
       if (block.type === "text" && typeof block.text === "string") {
-        content.push({ type: "text", text: block.text });
+        const furigana = normalizeFurigana(block.furigana, block.text);
+        content.push({ type: "text", text: block.text, ...(furigana ? { furigana } : {}) });
       } else if (block.type === "image" && typeof block.url === "string") {
         content.push({
           type: "image",
@@ -124,6 +180,7 @@ function normalizeCachedArticle(
     ...(typeof candidate.imageUrl === "string"
       ? { imageUrl: candidate.imageUrl }
       : {}),
+    ...(audioUrl ? { audioUrl } : {}),
     ...(typeof candidate.summary === "string"
       ? { summary: candidate.summary }
       : {}),
@@ -728,7 +785,7 @@ function articleContent(article: NewsArticle): NewsContentBlock[] {
   return blocks;
 }
 
-function NewsArticleDocument({ article }: { article: NewsArticle }) {
+function NewsArticleDocument({ article, showFurigana, onShowFuriganaChange }: { article: NewsArticle; showFurigana: boolean; onShowFuriganaChange: (value: boolean) => void }) {
   const seenImages = new Set<string>();
   const blocks = articleContent(article).flatMap<NewsContentBlock>((block): NewsContentBlock[] => {
     if (block.type === "text") return block.text ? [block] : [];
@@ -750,7 +807,7 @@ function NewsArticleDocument({ article }: { article: NewsArticle }) {
       className={styles.newsArticleDocument}
       aria-label="Article document"
     >
-      <JapaneseReader text={readerText} blocks={blocks} ariaLabel={article.title} />
+      <JapaneseReader text={readerText} blocks={blocks} ariaLabel={article.title} showFurigana={showFurigana} onShowFuriganaChange={onShowFuriganaChange} />
     </section>
   );
 }
@@ -810,6 +867,11 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
     readSourceCache(articleSource),
   );
   const [loading, setLoading] = useState(true);
+  const showFurigana = useSyncExternalStore(subscribeToFuriganaPreference, readFuriganaPreference, () => true);
+
+  const changeFurigana = (value: boolean) => {
+    if (writeLocal(NEWS_FURIGANA_PREFERENCE_KEY, value)) window.dispatchEvent(new Event(NEWS_FURIGANA_EVENT));
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -817,6 +879,7 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
       (article) => article.id === normalizedId,
     );
     void fetch(`/news/feed?source=${articleSource}`, {
+      cache: "no-store",
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -869,7 +932,10 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
   const isStandardSummary =
     article.source === "regular" && !article.isFullArticle;
   return (
-    <ContentPage variant="reader" className={styles.newsArticleReveal}>
+    <ContentPage
+      variant="reader"
+      className={`${styles.newsArticleReveal} ${article.audioUrl ? styles.newsArticleWithAudio : ""}`}
+    >
       <ContentHeader
         title={article.title}
         description={`${SOURCE_LABELS[article.source]} · ${new Date(article.publishedAt).toLocaleString()}`}
@@ -890,10 +956,13 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
           </>
         }
       />
+      {article.audioUrl ? (
+        <NewsAudioPlayer key={article.id} src={article.audioUrl} title={article.title} />
+      ) : null}
       {isStandardSummary ? (
         <StandardNewsSummary article={article} />
       ) : (
-        <NewsArticleDocument article={article} />
+        <NewsArticleDocument article={article} showFurigana={showFurigana} onShowFuriganaChange={changeFurigana} />
       )}
     </ContentPage>
   );

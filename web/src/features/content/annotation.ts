@@ -29,8 +29,8 @@ export interface ReaderAnnotation {
 }
 
 export type ReaderPiece =
-  | { id: string; kind: "text"; text: string }
-  | { id: string; kind: "annotation"; annotation: ReaderAnnotation };
+  | { id: string; kind: "text"; text: string; start: number; end: number }
+  | { id: string; kind: "annotation"; text: string; annotation: ReaderAnnotation; start: number; end: number };
 
 const JAPANESE_CHARACTER = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\u3005\u3006\u303bｦ-ﾟ]/;
 
@@ -222,10 +222,10 @@ export function readerPieces(value: string, annotations: ReaderAnnotation[]): Re
   let cursor = 0;
   for (const annotation of [...annotations].sort((left, right) => left.start - right.start || right.end - left.end)) {
     if (annotation.start < cursor || annotation.end > value.length) continue;
-    if (annotation.start > cursor) pieces.push({ id: `text-${cursor}`, kind: "text", text: value.slice(cursor, annotation.start) });
-    pieces.push({ id: annotation.id, kind: "annotation", annotation });
+    if (annotation.start > cursor) pieces.push({ id: `text-${cursor}`, kind: "text", text: value.slice(cursor, annotation.start), start: cursor, end: annotation.start });
+    pieces.push({ id: annotation.id, kind: "annotation", text: value.slice(annotation.start, annotation.end), annotation, start: annotation.start, end: annotation.end });
     cursor = annotation.end;
   }
-  if (cursor < value.length) pieces.push({ id: `text-${cursor}`, kind: "text", text: value.slice(cursor) });
+  if (cursor < value.length) pieces.push({ id: `text-${cursor}`, kind: "text", text: value.slice(cursor), start: cursor, end: value.length });
   return pieces;
 }

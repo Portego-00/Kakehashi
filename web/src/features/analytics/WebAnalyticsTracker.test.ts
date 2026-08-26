@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { maybeRecordWebSession, shouldRecordWebSession } from "./WebAnalyticsTracker";
+import { readCombinedStudyTimeRange } from "@/features/dashboard/study-time";
+import { maybeRecordWebSession, refreshRemoteStudyTime, shouldRecordWebSession } from "./WebAnalyticsTracker";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -54,5 +55,49 @@ describe("web app sessions", () => {
     await maybeRecordWebSession(storage, "Tester", startedAt);
     expect(shouldRecordWebSession(storage, "Tester", startedAt + 4 * 60_000)).toBe(false);
     expect(shouldRecordWebSession(storage, "Tester", startedAt + 6 * 60_000)).toBe(true);
+  });
+});
+
+describe("combined study-time refresh", () => {
+  const userId = "wk-user-123";
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("caches normalized other-device days for offline combined totals", async () => {
+    const storage = memoryStorage();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      available: true,
+      days: [{ day: "2026-08-25", appTotalSeconds: 180, byCategory: { reviews: 120, lessons: 60 } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await expect(refreshRemoteStudyTime(storage, userId, "browser-device-123", controller.signal)).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/analytics/study-time?deviceId=browser-device-123", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    expect(readCombinedStudyTimeRange(storage, userId, "browser-device-123", "today", new Date("2026-08-25T12:00:00")).summary).toMatchObject({
+      totalSeconds: 180,
+      appTotalSeconds: 180,
+      byCategory: { reviews: 120, lessons: 60 },
+    });
+  });
+
+  it("keeps the cached remote days when refresh is offline or unavailable", async () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      available: true,
+      days: [{ day: "2026-08-25", appTotalSeconds: 60, byCategory: { news: 60 } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    await refreshRemoteStudyTime(storage, userId, "browser-device-123");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+
+    await expect(refreshRemoteStudyTime(storage, userId, "browser-device-123")).resolves.toBe(false);
+
+    expect(readCombinedStudyTimeRange(storage, userId, "browser-device-123", "today", new Date("2026-08-25T12:00:00")).summary.totalSeconds).toBe(60);
   });
 });

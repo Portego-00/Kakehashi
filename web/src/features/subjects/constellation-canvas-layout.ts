@@ -12,6 +12,13 @@ export type ConstellationLayout = { nodes: ConstellationNodePosition[]; anchors:
 export const CONSTELLATION_NODE_GAP = 24;
 export const constellationNodeRadius = (kind: ConstellationNodeKind) => kind === "center" ? 58 : 44;
 
+export function constellationNodeFontSize(value: string, options: { center?: boolean; reading?: boolean } = {}) {
+  const units = Array.from(value).reduce((width, character) => width + (/^[\x20-\x7E]$/.test(character) ? 0.58 : 1), 0);
+  const availableWidth = options.center ? 96 : 68;
+  const maximumSize = options.reading ? 14 : options.center ? 32 : 24;
+  return Math.round(Math.min(maximumSize, availableWidth / Math.max(units, 1)) * 100) / 100;
+}
+
 const CENTER = { x: 0, y: 0 };
 const ANCHOR_RADIUS = 48;
 const WORLD_PADDING = 132;

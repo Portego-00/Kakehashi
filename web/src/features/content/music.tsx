@@ -664,15 +664,17 @@ function TrackShelf({ section, onSelect }: { section: DiscoverySection; onSelect
 
 function SavedSongsShelf({ songs, onSelect, onRemove }: { songs: ContentRecord[]; onSelect: (song: ContentRecord) => void; onRemove: (song: ContentRecord) => void }) {
   return (
-    <section className={`${styles.discoverySection} ${styles.savedSongsSection}`} aria-labelledby="saved-songs-title">
+    <section className={styles.discoverySection} aria-labelledby="saved-songs-title">
       <div className={styles.musicSectionHead}><h2 id="saved-songs-title">Jump back in</h2><span>{songs.length} saved locally</span></div>
-      <div className={styles.savedSongsShelf}>
+      <div className={styles.musicShelf}>
         {songs.map((song) => {
           const albumArt = safeAlbumArt(song.metadata?.albumArt);
+          const artist = String(song.metadata?.artist || "Unknown artist");
           return <article className={styles.savedSong} key={song.id}>
-            <button className={styles.savedSongMain} type="button" onClick={() => onSelect(song)} aria-label={`Open ${song.title}`}>
-              <span className={styles.savedSongArt}>{albumArt ? <Image src={albumArt} alt="" width={64} height={64} sizes="64px" unoptimized /> : <ListMusic size={21} aria-hidden="true" />}</span>
-              <span><strong>{song.title}</strong><small>{String(song.metadata?.artist || "Unknown artist")}</small></span>
+            <button className={styles.shelfTrack} type="button" onClick={() => onSelect(song)} aria-label={`Open ${song.title} by ${artist}`}>
+              <span className={styles.shelfArt}>{albumArt ? <Image src={albumArt} alt="" width={180} height={180} sizes="(max-width: 40rem) 152px, 180px" unoptimized /> : <ListMusic size={28} aria-hidden="true" />}</span>
+              <strong>{song.title}</strong>
+              <span>{artist}</span>
             </button>
             <button className={styles.savedSongRemove} type="button" onClick={() => onRemove(song)} aria-label={`Remove ${song.title}`}><Trash2 size={16} aria-hidden="true" /></button>
           </article>;

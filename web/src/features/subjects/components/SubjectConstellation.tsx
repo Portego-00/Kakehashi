@@ -6,7 +6,7 @@ import { ArrowLeft, LocateFixed, Minus, Move, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmptyState, Skeleton } from "@/components/ui/States";
-import { buildConstellationLayout, type ConstellationBounds, type ConstellationNodePosition } from "@/features/subjects/constellation-canvas-layout";
+import { buildConstellationLayout, constellationNodeFontSize, type ConstellationBounds, type ConstellationNodePosition } from "@/features/subjects/constellation-canvas-layout";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import type { Subject } from "@/types/wanikani";
 import styles from "../subjects.module.css";
@@ -147,7 +147,7 @@ function ConstellationScene({ subject, relations }: { subject: Subject; relation
   }, []);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-    if ((event.pointerType === "mouse" && event.button !== 0) || (event.target as Element).closest("[data-canvas-control]")) return;
+    if ((event.pointerType === "mouse" && event.button !== 0) || (event.target as Element).closest("[data-canvas-control], a[data-constellation-node]")) return;
     if (clearDragTimerRef.current !== null) window.clearTimeout(clearDragTimerRef.current);
     draggedRef.current = false;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -284,9 +284,14 @@ function ConstellationNode({ node, centerId }: { node: ConstellationNodePosition
   const tone = subject.object === "kana_vocabulary" ? "vocabulary" : subject.object;
   const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug;
   const reading = subject.data.readings?.find((item) => item.primary)?.reading;
-  const content = <><strong lang={subject.data.characters ? "ja" : undefined}>{subject.data.characters ?? meaning}</strong>{(node.kind === "center" || tone === "vocabulary") && reading ? <small lang="ja">{reading}</small> : null}</>;
+  const label = subject.data.characters ?? meaning;
+  const isCenter = node.kind === "center";
+  const content = <>
+    <strong data-node-label lang={subject.data.characters ? "ja" : undefined} style={{ fontSize: `${constellationNodeFontSize(label, { center: isCenter })}px` }}>{label}</strong>
+    {(isCenter || tone === "vocabulary") && reading ? <small data-node-reading lang="ja" style={{ fontSize: `${constellationNodeFontSize(reading, { center: isCenter, reading: true })}px` }}>{reading}</small> : null}
+  </>;
   const style = { left: `${node.x}px`, top: `${node.y}px` } as CSSProperties;
 
   if (node.subject.id === centerId) return <div className={styles.constellationNode} data-kind="center" data-type={tone} style={style} title={`${meaning}, current subject`}>{content}</div>;
-  return <Link draggable={false} className={styles.constellationNode} data-kind={node.kind} data-type={tone} style={style} href={`/subjects/${subject.id}/constellation`} title={`${subject.data.characters ?? meaning}: ${meaning}`} onDragStart={(event) => event.preventDefault()}>{content}</Link>;
+  return <Link draggable={false} className={styles.constellationNode} data-constellation-node data-kind={node.kind} data-type={tone} style={style} href={`/subjects/${subject.id}/constellation`} title={`${subject.data.characters ?? meaning}: ${meaning}`} onDragStart={(event) => event.preventDefault()}>{content}</Link>;
 }

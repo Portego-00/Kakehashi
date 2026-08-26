@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Assignment } from "@/types/wanikani";
-import { AnalyticsOverview } from "../components/AnalyticsOverview";
+import { AnalyticsOverview, LevelTimingChart } from "../components/AnalyticsOverview";
+import type { LevelTiming } from "../calculations";
 
 const { progressData } = vi.hoisted(() => ({
   progressData: {
@@ -78,5 +79,66 @@ describe("analytics dashboard", () => {
     expect(screen.getByTestId("timing-average")).toHaveTextContent("15 days");
     expect(screen.getByTestId("timing-median")).toHaveTextContent("15 days");
     expect(screen.getByRole("button", { name: "Include level 3, 30 days" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("uses compact labels for the median and clipped level timing bars", () => {
+    const timings: LevelTiming[] = [17.8, 8, 7.9, 7.4, 78.4, 49.6].map((days, index) => ({
+      level: index + 10,
+      startedAt: "2026-01-01",
+      passedAt: "2026-01-02",
+      completedAt: null,
+      daysToPass: days,
+      daysToComplete: null,
+      activeDays: days,
+    }));
+
+    render(<LevelTimingChart timings={timings} resetCount={null} />);
+
+    expect(screen.getByText("median 12.9d")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exclude level 14, 78.4 days" })).toHaveTextContent("78.4d");
+    expect(screen.getByRole("button", { name: "Exclude level 15, 49.6 days" })).toHaveTextContent("49.6d");
+  });
+
+  it("uses denser spacing for high-level charts without omitting bars", () => {
+    const timings: LevelTiming[] = Array.from({ length: 35 }, (_, index) => ({
+      level: index + 1,
+      startedAt: "2026-01-01",
+      passedAt: "2026-01-02",
+      completedAt: null,
+      daysToPass: 7,
+      daysToComplete: null,
+      activeDays: 7,
+    }));
+
+    const { container } = render(<LevelTimingChart timings={timings} resetCount={null} />);
+
+    expect(container.querySelector('[data-level-density="dense"]')).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: /level \d+/i })).toHaveLength(35);
+  });
+
+  it("opens on the latest levels and keeps the median outside the scrolling plot", () => {
+    const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1200);
+    const scrollLeft = vi.spyOn(HTMLElement.prototype, "scrollLeft", "set");
+    const timings: LevelTiming[] = Array.from({ length: 15 }, (_, index) => ({
+      level: index + 1,
+      startedAt: "2026-01-01",
+      passedAt: "2026-01-02",
+      completedAt: null,
+      daysToPass: index + 4,
+      daysToComplete: null,
+      activeDays: index + 4,
+    }));
+
+    try {
+      render(<LevelTimingChart timings={timings} resetCount={null} />);
+
+      const scrollingPlot = screen.getByTestId("timing-chart-scroll");
+      const stickyMedian = screen.getByTestId("timing-median-sticky");
+      expect(scrollLeft).toHaveBeenCalledWith(1200);
+      expect(scrollingPlot).not.toContainElement(stickyMedian);
+    } finally {
+      scrollWidth.mockRestore();
+      scrollLeft.mockRestore();
+    }
   });
 });

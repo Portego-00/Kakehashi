@@ -3,29 +3,31 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Umbrella } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { ReviewActivityHeatmap } from "@/components/ReviewActivityHeatmap";
 import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
 import { VacationModeControls } from "@/features/core-study/VacationModeControls";
 import { vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "@/features/core-study/vacation";
 import { dashboardSectionWidth, type DashboardSectionId } from "@/features/settings/settings";
-import { createListRepository, subscribeSubjectLists } from "@/features/subjects/lists";
+import { useSubjectLists } from "@/features/subjects/use-subject-lists";
 import { useWorkspacePreferences } from "@/features/settings/use-workspace-preferences";
 import { STUDY_MODES } from "@/features/study/catalog";
 import { calculateLevelTimings } from "@/features/progress/calculations";
 import { LevelTimingChart } from "@/features/progress/components/AnalyticsOverview";
 import { useSession } from "@/lib/session";
 import { assignmentsQuery, levelProgressionsQuery, reviewStatisticsQuery, subjectsQuery, summaryQuery, userQuery } from "@/lib/wanikani/queries";
+import { waniKaniUserId } from "@/lib/wanikani/user-identity";
+import type { Subject } from "@/types/wanikani";
 import { assignmentActivityDays, burnedSubjectRows, criticalSubjectRows, forecastRows, incompleteLevelRows, isLessonAvailable, isReviewAvailable, levelProgress, levelWidgetSubjects, recentMistakeRows, recentUnlockRows, srsStageSpread, todayStudyActivity, type DashboardSubjectRow } from "./dashboard-data";
 import { IncompleteLevelsWidget, ReviewStatsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
 import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, TodayStudyWidget } from "./DashboardNativeWidgets";
+import { SubjectListsWidget } from "./SubjectListsWidget";
 import { fetchUsageStreak } from "./usage-streak";
 import { useFirstDashboardReveal } from "./useFirstDashboardReveal";
 import { StudyQueueCard } from "./StudyQueueCard";
 import styles from "./dashboard.module.css";
 
-const SUBJECT_CATALOG_SECTIONS = new Set(["recent-mistakes", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items"]);
+const SUBJECT_CATALOG_SECTIONS = new Set(["recent-mistakes", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items"]);
 
 function SectionHeader({ title, detail, children }: { title: string; detail: string; children?: React.ReactNode }) {
   return <div className={styles.widgetHeader}><div><h2>{title}</h2><p>{detail}</p></div>{children}</div>;
@@ -48,17 +50,9 @@ function SubjectRows({ items, empty, value, limit }: { items: DashboardSubjectRo
   })}</ul>;
 }
 
-function SubjectListsSection({ username }: { username: string }) {
-  const repository = useMemo(() => createListRepository({ getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key), setItem: (key, value) => { if (typeof window !== "undefined") window.localStorage.setItem(key, value); } }, username), [username]);
-  const subscribe = useCallback((onChange: () => void) => subscribeSubjectLists(username, onChange), [username]);
-  const getSnapshot = useCallback(() => repository.snapshot(), [repository]);
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, () => "");
-  const lists = useMemo(() => {
-    void snapshot;
-    return repository.load();
-  }, [repository, snapshot]);
-  const subjects = lists.reduce((sum, list) => sum + list.subjectIds.length, 0);
-  return <section className={styles.section}><SectionHeader title="Subject lists" detail="Reusable collections saved in this browser"><ButtonLink href="/lists" tone="ghost" size="small">Manage lists <ArrowRight size={15} /></ButtonLink></SectionHeader><dl className={styles.summaryList}><div><dt>Lists</dt><dd>{lists.length}</dd></div><div><dt>Saved subjects</dt><dd>{subjects}</dd></div></dl></section>;
+function SubjectListsSection({ username, subjects }: { username: string; subjects: Subject[] }) {
+  const { lists, syncing, syncError } = useSubjectLists(username);
+  return <SubjectListsWidget lists={lists} subjects={subjects} syncing={syncing} syncError={syncError} />;
 }
 
 export function Dashboard() {
@@ -74,7 +68,7 @@ export function Dashboard() {
   const summary = useQuery(summaryQuery());
   const statistics = useQuery(reviewStatisticsQuery());
   const liveUser = currentUser.data ?? user;
-  const userId = String(liveUser?.id ?? user?.id ?? "");
+  const userId = waniKaniUserId(liveUser ?? user);
   const currentVacationStartedAt = vacationStartedAt(liveUser);
   const isOnVacation = Boolean(currentVacationStartedAt);
   const currentLevel = liveUser?.data.level || user?.data.level || 1;
@@ -101,7 +95,7 @@ export function Dashboard() {
   const criticalRows = criticalSubjectRows(statisticRows, allSubjectRows);
   const burnedRows = burnedSubjectRows(assignmentRows, allSubjectRows, now);
   const incompleteLevels = incompleteLevelRows(allSubjectRows, assignmentRows, currentLevel);
-  const timingRows = calculateLevelTimings(levelProgressions.data || [], now).slice(-12);
+  const timingRows = calculateLevelTimings(levelProgressions.data || [], now);
   const formatShortDate = (value?: string) => value ? new Date(value).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
   const sections: Record<string, React.ReactNode> = {
@@ -113,15 +107,15 @@ export function Dashboard() {
     "study-pulse": statistics.isLoading ? <section className={styles.section}><SectionHeader title="Review stats" detail="Accuracy across your complete review history" /><Skeleton height="9rem" /></section> : <ReviewStatsWidget statistics={statisticRows} />,
     "recent-mistakes": <section className={styles.section}><SectionHeader title="Recent mistakes" detail="Updated in the last seven days with a broken answer streak" />{statistics.isLoading || allSubjects.isLoading ? <Skeleton height="12rem" /> : <SubjectRows items={mistakeRows} empty="No recent broken answer streaks were found." value={(item) => `${item.value ?? 0}%`} />}</section>,
     "study-streak": <AppStreakWidget current={appStreak.data?.current ?? null} longest={appStreak.data?.longest ?? null} days={appStreak.data?.days ?? []} freezeAvailable={appStreak.data?.freezeAvailable} freezeDaysUntilReload={appStreak.data?.freezeDaysUntilReload} loading={appStreak.isLoading} error={appStreak.isError} />,
-    "subject-lists": <SubjectListsSection username={username} />,
+    "subject-lists": <SubjectListsSection username={username} subjects={allSubjectRows} />,
     "incomplete-levels": allSubjects.isLoading ? <section className={styles.section}><SectionHeader title="Incomplete levels" detail="Passing-stage progress by subject type" /><Skeleton height="12rem" /></section> : <IncompleteLevelsWidget levels={incompleteLevels} />,
     "recent-unlocks": <section className={`${styles.section} ${styles.compactSubjectWidget}`}><SectionHeader title="Recent unlocks" detail="The latest subjects added to your study path"><ButtonLink href="/items?view=unlocks" tone="ghost" size="small">Show more <ArrowRight size={15} /></ButtonLink></SectionHeader>{allSubjects.isLoading ? <Skeleton height="10rem" /> : <SubjectRows items={unlockRows} limit={4} empty="No unlocked subjects are available yet." value={(item) => formatShortDate(item.date)} />}</section>,
     "critical-items": <section className={`${styles.section} ${styles.compactSubjectWidget}`}><SectionHeader title="Critical items" detail="Subjects with the lowest answer accuracy"><ButtonLink href="/items?view=critical" tone="ghost" size="small">Show more <ArrowRight size={15} /></ButtonLink></SectionHeader>{statistics.isLoading || allSubjects.isLoading ? <Skeleton height="10rem" /> : <SubjectRows items={criticalRows} limit={4} empty="No review statistics are available yet." value={(item) => `${item.value ?? 0}%`} />}</section>,
     "burned-items": <section className={styles.section}><SectionHeader title="Burned items" detail="Burned during the last 30 days" />{allSubjects.isLoading ? <Skeleton height="12rem" /> : <SubjectRows items={burnedRows} empty="No subjects were burned in the last 30 days." value={(item) => formatShortDate(item.date)} />}</section>,
     "review-heatmap": <section className={styles.section}><SectionHeader title="Review heatmap" detail="Assignment activity signals by day" />{assignments.isLoading ? <Skeleton height="10rem" /> : <ReviewActivityHeatmap days={reviewActivityDays} />}</section>,
-    "level-timing": <section className={`${styles.section} ${styles.dashboardTimingWidget}`}><SectionHeader title="Level timing" detail="Average, median, and elapsed days for recent levels" />{levelProgressions.isLoading ? <Skeleton height="12rem" /> : <LevelTimingChart timings={timingRows} resetCount={null} density="dashboard" />}</section>,
+    "level-timing": <section className={`${styles.section} ${styles.dashboardTimingWidget}`}><SectionHeader title="Level timing" detail="Average, median, and elapsed days across all levels" />{levelProgressions.isLoading ? <Skeleton height="12rem" /> : <LevelTimingChart timings={timingRows} resetCount={null} density="dashboard" />}</section>,
     "today-study": assignments.isLoading || statistics.isLoading ? <section className={styles.section}><SectionHeader title="Today’s Study" detail={now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} /><Skeleton height="7rem" /></section> : <TodayStudyWidget date={now} lessons={dailyActivity.lessons} reviews={dailyActivity.reviews} />,
-    "study-time": <StudyTimeWidget username={username} />,
+    "study-time": <StudyTimeWidget userId={userId} />,
   };
 
   return <main className="page">

@@ -1,12 +1,16 @@
-import pitchDataset from "../../../../assets/pitch/wanikani_pitch_accents.json";
-import patternDataset from "../../../../assets/patterns/wanikani_vocabulary_patterns.json";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { PitchAccentEntry, SubjectEnrichments, UsagePattern } from "./enrichments";
 
 type RawPitchEntry = { r?: unknown; p?: unknown; rs?: unknown };
 type PatternEntry = { level: number; characters: string; patterns: UsagePattern[] };
 
-const pitchById = pitchDataset as Record<string, RawPitchEntry>;
-const patternEntries = ((patternDataset as { entries?: Record<string, PatternEntry> }).entries ?? {});
+function sharedDataset<T>(path: string) {
+  return JSON.parse(readFileSync(resolve(process.cwd(), "..", "assets", path), "utf8")) as T;
+}
+
+const pitchById = sharedDataset<Record<string, RawPitchEntry>>("pitch/wanikani_pitch_accents.json");
+const patternEntries = sharedDataset<{ entries?: Record<string, PatternEntry> }>("patterns/wanikani_vocabulary_patterns.json").entries ?? {};
 const patternsByCharacters = new Map<string, UsagePattern[]>();
 
 for (const entry of Object.values(patternEntries)) {

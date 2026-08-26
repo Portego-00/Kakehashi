@@ -43,6 +43,9 @@
   --color-success-soft: oklch(94% 0.035 150);
   --color-warning: oklch(65% 0.16 73);
   --color-warning-soft: oklch(94% 0.04 73);
+  --color-reader-grammar: #b45309;
+  --color-reader-verb: #0f766e;
+  --color-reader-vocabulary: #1d4ed8;
   --color-streak: oklch(50% 0.19 49);
   --color-radical: oklch(64% 0.18 242);
   --color-radical-ink: oklch(41% 0.13 242);
@@ -156,6 +159,9 @@
   --color-danger-soft: oklch(27% 0.06 27);
   --color-success-soft: oklch(27% 0.05 150);
   --color-warning-soft: oklch(28% 0.05 73);
+  --color-reader-grammar: #fbbf24;
+  --color-reader-verb: #34d399;
+  --color-reader-vocabulary: #60a5fa;
   --color-streak: oklch(72% 0.18 49);
   --color-extra-study-error: #e57373;
   --color-study-card-disabled-copy: var(--color-ink-2);
@@ -185,6 +191,9 @@
   --color-streak: oklch(74% 0.17 49);
   --color-vacation: oklch(78% 0.14 74);
   --color-vacation-soft: oklch(25% 0.045 74);
+  --color-reader-grammar: #fbbf24;
+  --color-reader-verb: #34d399;
+  --color-reader-vocabulary: #60a5fa;
   --color-radical-ink: oklch(80% 0.12 242);
   --color-kanji-ink: oklch(80% 0.15 359);
   --color-vocabulary-ink: oklch(80% 0.12 307);

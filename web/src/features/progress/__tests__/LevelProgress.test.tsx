@@ -19,14 +19,14 @@ const { progressData } = vi.hoisted(() => ({
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { data: { level: 2 } } }) }));
 vi.mock("../data", () => ({ useProgressData: () => progressData }));
 
-function subject(id: number, character: string): Subject {
+function subject(id: number, character: string, level = 2): Subject {
   return {
     id,
     object: "kanji",
     url: "",
     data_updated_at: "2026-08-25T00:00:00Z",
     data: {
-      level: 2,
+      level,
       created_at: "2026-08-01T00:00:00Z",
       slug: character,
       document_url: "",
@@ -64,8 +64,8 @@ function assignment(id: number, stage: number): Assignment {
 
 describe("level progress", () => {
   beforeEach(() => {
-    progressData.subjects = [subject(1, "一"), subject(2, "二"), subject(3, "三")];
-    progressData.assignments = [assignment(1, 0), assignment(2, 5), assignment(3, 2)];
+    progressData.subjects = [subject(1, "一"), subject(2, "二"), subject(3, "三"), subject(4, "四", 1)];
+    progressData.assignments = [assignment(1, 0), assignment(2, 5), assignment(3, 2), assignment(4, 5)];
   });
 
   it("orders the level-up strip from completed to unstarted", () => {
@@ -90,5 +90,19 @@ describe("level progress", () => {
     expect(within(active).getAllByRole("presentation").filter((segment) => segment.hasAttribute("data-filled"))).toHaveLength(2);
     expect(within(guru).getAllByRole("presentation")).toHaveLength(1);
     expect(within(guru).getByRole("presentation")).toHaveAttribute("data-complete", "true");
+  });
+
+  it("summarizes previous levels with concentric progress rings", () => {
+    render(<LevelProgress />);
+
+    const rings = screen.getByRole("img", { name: "Level 1 progress by subject type" });
+    expect(rings.querySelectorAll("circle")).toHaveLength(6);
+    expect(rings.querySelectorAll("circle[data-type]")).toHaveLength(3);
+    expect(rings.querySelector('circle[data-type="kanji"]')).toHaveStyle("--ring-progress: 100");
+    expect(rings.parentElement?.querySelector("span")).toBeNull();
+    expect(screen.getByText("Level 1")).toBeInTheDocument();
+    const recap = screen.getByRole("link", { name: "Open level 1 recap" });
+    expect(recap).toHaveTextContent("Kanji1/1");
+    expect(within(recap).getByText("100%")).toBeInTheDocument();
   });
 });

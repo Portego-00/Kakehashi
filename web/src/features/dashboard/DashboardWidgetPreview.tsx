@@ -75,11 +75,11 @@ function DashboardWidgetPreviewComponent({ id, density = "canvas" }: { id: Dashb
   } else if (id === "review-heatmap") {
     preview = <section className={styles.section}><PreviewHeader title="Review heatmap" detail="Assignment activity signals over the last 14 weeks" /><div className={styles.heatmap}>{HEATMAP_LEVELS.map((level, index) => <span key={index} data-level={level} />)}</div></section>;
   } else if (id === "level-timing") {
-    preview = <section className={`${styles.section} ${styles.dashboardTimingWidget}`}><PreviewHeader title="Level timing" detail="Average, median, and elapsed days for recent levels" /><LevelTimingChart timings={TIMING_PREVIEW_ROWS} resetCount={null} density="dashboard" /></section>;
+    preview = <section className={`${styles.section} ${styles.dashboardTimingWidget}`}><PreviewHeader title="Level timing" detail="Average, median, and elapsed days across all levels" /><LevelTimingChart timings={TIMING_PREVIEW_ROWS} resetCount={null} density="dashboard" /></section>;
   } else if (id === "today-study") {
     preview = <TodayStudyWidget date={new Date(2026, 7, 25)} lessons={null} reviews={null} preview />;
   } else {
-    preview = <StudyTimeWidget username="preview" preview />;
+    preview = <StudyTimeWidget userId="preview" preview />;
   }
 
   return <div className={styles.widgetPreview} data-widget-preview={id} data-preview-density={density} aria-hidden="true" inert>{preview}</div>;

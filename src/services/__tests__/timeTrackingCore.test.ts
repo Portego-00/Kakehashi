@@ -196,6 +196,25 @@ describe('TimeTrackingCore', () => {
     expect(store.getDay('2026-06-09')!.songs).toBe(12_000);
   });
 
+  it('cuts off old activity registrations when account ownership changes', () => {
+    const { core, store, advance } = makeCore(at(2026, 6, 9, 10, 0));
+    core.setForeground(true);
+
+    const oldAccountToken = core.begin('reviews');
+    advance(5_000);
+    core.clearActivityRegistrations();
+
+    const newAccountToken = core.begin('lessons');
+    // A late cleanup from the previous screen must not end the new token.
+    core.end(oldAccountToken);
+    advance(4_000);
+    core.end(newAccountToken);
+
+    const day = store.getDay('2026-06-09')!;
+    expect(day.reviews).toBe(5_000);
+    expect(day.lessons).toBe(4_000);
+  });
+
   it('exposes live totals without persisting them', () => {
     const { core, store, advance } = makeCore(at(2026, 6, 9, 10, 0));
     core.setForeground(true);

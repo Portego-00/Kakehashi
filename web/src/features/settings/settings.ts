@@ -6,6 +6,8 @@ export type TextScale = 0.9 | 1 | 1.1 | 1.2;
 export type QuestionOrder = "meaning-first" | "reading-first" | "mixed";
 export type AnkiMode = "off" | "both" | "meaning" | "reading";
 export type AnswerStopBehavior = "always" | "incorrect" | "never";
+export type ReaderDetailsInteraction = "click" | "hover";
+export type ReaderRecognitionMode = "wk" | "wk-jpdb";
 export interface WebJitaiFont {
   id: string;
   name: string;
@@ -27,6 +29,7 @@ export interface WebStudyPreferences {
   reviewQuestionOrder: QuestionOrder;
   answerStopBehavior: AnswerStopBehavior;
   showAnswerStopSubjectDetails: boolean;
+  showListeningTranslation: boolean;
   ankiMode: AnkiMode;
   voiceAnswers: boolean;
   jitaiEnabled: boolean;
@@ -39,6 +42,10 @@ export interface WebSettings {
   textScale: TextScale;
   profile: { gravatarEmail: string };
   colors: { radical: string; kanji: string; vocabulary: string };
+  reader: {
+    detailsInteraction: ReaderDetailsInteraction;
+    recognitionMode: ReaderRecognitionMode;
+  };
   subjectDetails: {
     showContextSentences: boolean;
     showImmersionExamples: boolean;
@@ -104,9 +111,9 @@ export const DASHBOARD_SECTION_DEFINITIONS: DashboardSectionDefinition[] = [
   { id: "critical-items", label: "Critical Items", description: "Subjects with the lowest answer accuracy.", source: "Items", defaultWidth: 6, allowedWidths: [6, 8, 12] },
   { id: "burned-items", label: "Burned Items", description: "Subjects burned during the last 30 days.", source: "Items", defaultWidth: 6, allowedWidths: [6, 8, 12] },
   { id: "review-heatmap", label: "Review Heatmap", description: "Recent assignment activity by day.", source: "Analytics", defaultWidth: 12, allowedWidths: [8, 12] },
-  { id: "level-timing", label: "Level Timing", description: "Completion time across recent levels.", source: "Analytics", defaultWidth: 8, allowedWidths: [8, 12] },
+  { id: "level-timing", label: "Level Timing", description: "Completion time across all levels.", source: "Analytics", defaultWidth: 8, allowedWidths: [8, 12] },
   { id: "today-study", label: "Today’s Study", description: "Lessons and reviewed subjects recorded today.", source: "Analytics", defaultWidth: 4, allowedWidths: [4, 6] },
-  { id: "study-time", label: "Study Time", description: "Foreground study time tracked in this browser.", source: "Analytics", defaultWidth: 4, allowedWidths: [4, 6] },
+  { id: "study-time", label: "Study Time", description: "Foreground study time combined across your synced devices.", source: "Analytics", defaultWidth: 4, allowedWidths: [4, 6] },
 ];
 export const DASHBOARD_SECTION_DEFINITION_BY_ID = Object.fromEntries(DASHBOARD_SECTION_DEFINITIONS.map((definition) => [definition.id, definition])) as Record<DashboardSectionId, DashboardSectionDefinition>;
 export const DEFAULT_DASHBOARD_SECTION_WIDTHS = Object.fromEntries(DASHBOARD_SECTION_DEFINITIONS.map((definition) => [definition.id, definition.defaultWidth])) as Record<DashboardSectionId, DashboardSectionWidth>;
@@ -118,6 +125,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   textScale: 1,
   profile: { gravatarEmail: "" },
   colors: { radical: "#3c9bff", kanji: "#fa1f62", vocabulary: "#9c38d9" },
+  reader: { detailsInteraction: "click", recognitionMode: "wk-jpdb" },
   subjectDetails: {
     showContextSentences: true,
     showImmersionExamples: true,
@@ -143,6 +151,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     reviewQuestionOrder: "mixed",
     answerStopBehavior: "always",
     showAnswerStopSubjectDetails: false,
+    showListeningTranslation: true,
     ankiMode: "off",
     voiceAnswers: false,
     jitaiEnabled: false,
@@ -231,6 +240,10 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         kanji: validColor(parsed.colors?.kanji, DEFAULT_WEB_SETTINGS.colors.kanji),
         vocabulary: validColor(parsed.colors?.vocabulary, DEFAULT_WEB_SETTINGS.colors.vocabulary),
       },
+      reader: {
+        detailsInteraction: ["click", "hover"].includes(parsed.reader?.detailsInteraction ?? "") ? parsed.reader!.detailsInteraction : DEFAULT_WEB_SETTINGS.reader.detailsInteraction,
+        recognitionMode: ["wk", "wk-jpdb"].includes(parsed.reader?.recognitionMode ?? "") ? parsed.reader!.recognitionMode : DEFAULT_WEB_SETTINGS.reader.recognitionMode,
+      },
       subjectDetails: {
         showContextSentences: typeof parsed.subjectDetails?.showContextSentences === "boolean" ? parsed.subjectDetails.showContextSentences : DEFAULT_WEB_SETTINGS.subjectDetails.showContextSentences,
         showImmersionExamples: typeof parsed.subjectDetails?.showImmersionExamples === "boolean" ? parsed.subjectDetails.showImmersionExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showImmersionExamples,
@@ -260,6 +273,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         reviewQuestionOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.reviewQuestionOrder ?? "") ? parsed.study!.reviewQuestionOrder : legacyQuestionOrder,
         answerStopBehavior: ["always", "incorrect", "never"].includes(parsed.study?.answerStopBehavior ?? "") ? parsed.study!.answerStopBehavior : DEFAULT_WEB_SETTINGS.study.answerStopBehavior,
         showAnswerStopSubjectDetails: typeof parsed.study?.showAnswerStopSubjectDetails === "boolean" ? parsed.study.showAnswerStopSubjectDetails : DEFAULT_WEB_SETTINGS.study.showAnswerStopSubjectDetails,
+        showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
         voiceAnswers: typeof parsed.study?.voiceAnswers === "boolean" ? parsed.study.voiceAnswers : DEFAULT_WEB_SETTINGS.study.voiceAnswers,
         jitaiEnabled: typeof parsed.study?.jitaiEnabled === "boolean" ? parsed.study.jitaiEnabled : DEFAULT_WEB_SETTINGS.study.jitaiEnabled,

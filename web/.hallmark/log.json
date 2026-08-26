@@ -1,5 +1,16 @@
 [
   {
+    "date": "2026-08-26",
+    "scope": "hiragana-crossword-workbench",
+    "macrostructure": "Fitted Crossword Workbench / desktop clue rail / mobile clue ribbon / compact action dock",
+    "theme": "studied-DNA (source: Kakehashi design.md + supplied crossword reference + native crossword session)",
+    "enrichment": "none",
+    "brief": "Redesign and correct the web hiragana crossword with valid construction, direction-aware input, selected-clue hints, selected-word reveal, fresh post-completion sessions, and a fitted results view",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "same-direction entries cannot overlap; occupied cells cannot touch a word before its start or after its end; ambiguous n remains editable until na commits; completed kana advances along the selected clue; selected clue, grid highlight, hint, audio, and selected-word reveal stay synchronized; completed games are cleared immediately and legacy completed saves are rejected on restore; results keep summary and actions visible while long answer lists scroll; no horizontal overflow or wrapped actions at 320, 375, 414, 768, and 1440; 120 passing test files with 502 passing and 1 skipped test; changed-file lint and typecheck pass; repository lint remains blocked by an unrelated news preference effect diagnostic"
+  },
+  {
     "date": "2026-08-25",
     "scope": "extra-study-session-settings",
     "macrostructure": "Focused Prompt / native grouped settings rows",
@@ -101,5 +112,15 @@
     "score": "P5 H5 E5 S5 R5 V5",
     "result": "pass",
     "checks": "adaptive subject glyphs through long vocabulary; URL-backed search return state; representative search and detail skeletons; subject-colour detail stage with accessible tabs; native level progress hierarchy; truthful analytics cards; persisted drag, reorder, compact, and full-width dashboard controls; semantic tokens; visible focus; reduced motion; 73 test files and 238 tests; lint, typecheck, and production build"
+  },
+  {
+    "date": "2026-08-25",
+    "phase": "native-subject-enrichment-and-constellation",
+    "scope": "vocabulary audio, anime context, reading aids, optional subject sections, settings, and subject constellation",
+    "macrostructure": "Focused Subject / orbit constellation canvas",
+    "theme": "studied-DNA (source: supplied Kakehashi mobile references and native detail implementations)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "responsive native audio cards; 4:3 buffered anime scenes with exact vocabulary highlighting and progressive reveal; subject-colour primary reading chips; shared pitch and usage-pattern datasets; reading-group examples; animated stroke tab; settings-backed optional visibility; collision-free pan, pinch, wheel, keyboard, and fit constellation; no horizontal overflow or audio overflow at 320, 375, 414, and 768 pixels; semantic subject tokens; visible focus; reduced motion; 106 test files with 381 passing and 1 skipped test; lint pass; optimized production compilation before unrelated JapaneseReader test typing failures"
   }
 ]

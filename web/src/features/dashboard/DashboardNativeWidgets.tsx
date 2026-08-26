@@ -160,8 +160,7 @@ export function AppStreakWidget({ current, longest, days, freezeAvailable = fals
   const status = loading ? "Loading app-session history" : error ? "App-session history is unavailable" : freezeAvailable ? "Freeze ready" : todayActive ? `Active today · freeze in ${freezeDaysUntilReload} active ${freezeDaysUntilReload === 1 ? "day" : "days"}` : (current ?? 0) > 0 ? "Study today to keep it going" : "Start a new streak today";
   return <section className={`${styles.section} ${styles.streakWidget}`}>
     <div className={styles.streakHead}><h2><Flame size={22} aria-hidden />App Streak</h2><span title="Best recorded app streak">Best {longest === null ? "—" : longest.toLocaleString()}</span></div>
-    <div className={styles.streakValue}><strong>{current === null ? "—" : current.toLocaleString()}</strong><span>日</span></div>
-    <p className={styles.streakStatus}><StatusIcon size={17} aria-hidden />{preview ? "Your latest app rhythm" : status}</p>
+    <div className={styles.streakSummary}><div className={styles.streakValue}><strong>{current === null ? "—" : current.toLocaleString()}</strong><span>日</span></div><p className={styles.streakStatus}><StatusIcon size={17} aria-hidden />{preview ? "Your latest app rhythm" : status}</p></div>
     <div className={styles.streakWeek} aria-label={preview ? "Preview of the seven-day activity row" : "App activity over the last seven days"}>{displayDays.map((day, index) => <span className={styles.streakDay} data-active={day.active || undefined} data-today={day.isToday || undefined} key={`${day.dayKey}-${index}`} title={preview ? undefined : `${day.date.toLocaleDateString()}: ${day.active ? "app opened" : "no app session"}`}><i>{day.active ? <Flame size={16} aria-hidden /> : null}</i><small>{day.label}</small></span>)}</div>
   </section>;
 }

@@ -1,2 +1,8 @@
 [functions.sync-nhk-regular-news]
 verify_jwt = false
+
+[functions.study-time-history]
+verify_jwt = false
+
+[functions.study-time-sync]
+verify_jwt = false

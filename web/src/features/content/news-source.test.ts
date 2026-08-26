@@ -20,6 +20,7 @@ const easyXml = `<?xml version="1.0"?><rss><channel><item>
   <description><![CDATA[
     <img src="/media/jpg/story.jpg" alt="ニュースの写真">
     <p><ruby>日本<rt>にほん</rt></ruby>のニュースです。</p>
+    <audio src='/media/mp3/story.mp3' controls></audio>
     <img src="media/jpg/detail.jpg">
   ]]></description>
 </item></channel></rss>`;
@@ -56,10 +57,11 @@ describe("NHK Easy RSS parsing", () => {
       source: "easy",
       isFullArticle: true,
       imageUrl: "https://nhkeasier.com/media/jpg/story.jpg",
+      audioUrl: "https://nhkeasier.com/media/mp3/story.mp3",
       body: "日本のニュースです。",
       content: [
         { type: "image", url: "https://nhkeasier.com/media/jpg/story.jpg", alt: "ニュースの写真" },
-        { type: "text", text: "日本のニュースです。" },
+        { type: "text", text: "日本のニュースです。", furigana: [{ start: 0, end: 2, reading: "にほん" }] },
         { type: "image", url: "https://nhkeasier.com/story/9876/media/jpg/detail.jpg", alt: "Story illustration" },
       ],
     })]);
@@ -69,6 +71,43 @@ describe("NHK Easy RSS parsing", () => {
     expect(parseNewsContent('<img src="https://example.com/tracker.png"><p>安全な本文です。</p>', "https://nhkeasier.com/story/1/")).toEqual([
       { type: "text", text: "安全な本文です。" },
     ]);
+  });
+
+  it("falls back to a safe enclosure URL and rejects unsupported audio origins", () => {
+    const withEnclosure = easyXml
+      .replace("<audio src='/media/mp3/story.mp3' controls></audio>", "")
+      .replace("</item>", '<enclosure url="/media/mp3/enclosed.mp3" type="audio/mpeg" /></item>');
+    expect(parseNewsRss(withEnclosure)[0].audioUrl).toBe(
+      "https://nhkeasier.com/media/mp3/enclosed.mp3",
+    );
+
+    const unsafe = easyXml.replace(
+      "/media/mp3/story.mp3",
+      "https://example.com/tracker.mp3",
+    );
+    expect(parseNewsRss(unsafe)[0].audioUrl).toBeUndefined();
+
+    const unsafeWithEnclosure = unsafe.replace(
+      "</item>",
+      '<enclosure url="/media/mp3/safe-fallback.mp3" type="audio/mpeg" /></item>',
+    );
+    expect(parseNewsRss(unsafeWithEnclosure)[0].audioUrl).toBe(
+      "https://nhkeasier.com/media/mp3/safe-fallback.mp3",
+    );
+  });
+
+  it("preserves multiple semantic ruby readings without changing the analysis text", () => {
+    expect(parseNewsContent(
+      "<p><ruby><rb>学校</rb><rp>（</rp><rt>がっこう</rt><rp>）</rp></ruby>で<ruby>日本語<rt>にほんご</rt></ruby>を学ぶ。</p>",
+      "https://nhkeasier.com/story/1/",
+    )).toEqual([{
+      type: "text",
+      text: "学校で日本語を学ぶ。",
+      furigana: [
+        { start: 0, end: 2, reading: "がっこう" },
+        { start: 3, end: 6, reading: "にほんご" },
+      ],
+    }]);
   });
 });
 
@@ -95,6 +134,16 @@ describe("Standard NHK normalization", () => {
         { type: "text", text: "詳しいニュース" },
         { type: "text", text: "安全な本文です。" },
       ],
+    })]);
+  });
+
+  it("retains safe ruby from a full Standard article cache row", () => {
+    expect(normalizeStoredRegularArticles([{
+      ...storedRow,
+      content_html: "<p><ruby>安全<rt>あんぜん</rt></ruby>な本文です。</p>",
+    }])).toEqual([expect.objectContaining({
+      body: "安全な本文です。",
+      content: [{ type: "text", text: "安全な本文です。", furigana: [{ start: 0, end: 2, reading: "あんぜん" }] }],
     })]);
   });
 

@@ -1,16 +1,20 @@
 "use client";
 
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowUp, BookOpenText, Check, EyeOff, FileUp, GripVertical, KeyRound, Keyboard, LayoutDashboard, Moon, Palette, Plus, RotateCcw, SlidersHorizontal, Trash2, Type, UserRound } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpenText, Check, Download, ExternalLink, EyeOff, FileUp, GripVertical, HeartHandshake, KeyRound, Keyboard, LayoutDashboard, Moon, Palette, Plus, RotateCcw, SlidersHorizontal, Trash2, Type, UserRound } from "lucide-react";
+import { GitHubMark, PatreonIcon } from "@/components/icons/BrandIcons";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import type { AnimeListProvider } from "@/features/anime/types";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
+import { JAPANESE_VOICE_DOWNLOAD_LABEL } from "@/features/speech/japanese-voice-assets";
+import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import { useSession } from "@/lib/session";
 import { useTheme, type ThemeMode } from "@/lib/theme";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
+import { GITHUB_REPOSITORY_URL, PATREON_URL } from "@/lib/project-links";
 import { BUILT_IN_JITAI_FONTS, deleteCustomJitaiFont, installCustomJitaiFonts, readFontFile, saveCustomJitaiFont } from "../jitai";
 import { applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DASHBOARD_SECTIONS, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, OPTIONAL_NAV_ITEMS, saveWebSettings, SUBJECT_COLOR_PRESETS, type AnswerStopBehavior, type AnkiMode, type DashboardSectionId, type DashboardSectionWidth, type QuestionOrder, type TextScale, type WebSettings } from "../settings";
 import styles from "../settings.module.css";
@@ -141,6 +145,7 @@ export function SettingsWorkspace() {
     window.setTimeout(() => setSaved(false), 1200);
   };
   const updateStudy = <Key extends keyof WebSettings["study"],>(key: Key, value: WebSettings["study"][Key]) => update({ ...settings, study: { ...settings.study, [key]: value } });
+  const updateReader = <Key extends keyof WebSettings["reader"],>(key: Key, value: WebSettings["reader"][Key]) => update({ ...settings, reader: { ...settings.reader, [key]: value } });
   const updateAnimeUsername = (provider: AnimeListProvider, value: string) => update({ ...settings, integrations: { ...settings.integrations, [provider === "myanimelist" ? "myAnimeListUsername" : "aniListUsername"]: value } });
   const updateSubjectDetails = <Key extends keyof WebSettings["subjectDetails"],>(key: Key, value: WebSettings["subjectDetails"][Key]) => update({ ...settings, subjectDetails: { ...settings.subjectDetails, [key]: value } });
   const saveGravatarEmail = () => {
@@ -201,6 +206,24 @@ export function SettingsWorkspace() {
       </Card>
     </section>
 
+    <section className={styles.settingsSection} aria-labelledby="support-heading">
+      <div className={styles.sectionIntro}><HeartHandshake size={19} aria-hidden /><div><h2 id="support-heading">Support Kakehashi</h2><p>Star the project for free, or fund ongoing development with a paid Patreon membership.</p></div></div>
+      <Card padding="none" className={styles.preferenceCard}>
+        <nav className={styles.supportLinks} aria-label="Support Kakehashi">
+          <a className={styles.supportLink} href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">
+            <GitHubMark className={styles.supportBrandIcon} />
+            <span className={styles.supportLinkCopy}><strong>Star Kakehashi on GitHub</strong><small>Follow development and help other learners find the project.</small></span>
+            <span className={styles.supportLinkMeta}><span className={styles.supportCost} data-cost="free">Free</span><ExternalLink className={styles.supportExternalIcon} size={16} aria-hidden /></span>
+          </a>
+          <a className={styles.supportLink} href={PATREON_URL} target="_blank" rel="noopener noreferrer">
+            <PatreonIcon className={styles.supportBrandIcon} />
+            <span className={styles.supportLinkCopy}><strong>Support Kakehashi on Patreon</strong><small>Choose a paid membership to fund development and join the supporter community.</small></span>
+            <span className={styles.supportLinkMeta}><span className={styles.supportCost}>Paid</span><ExternalLink className={styles.supportExternalIcon} size={16} aria-hidden /></span>
+          </a>
+        </nav>
+      </Card>
+    </section>
+
     <section className={styles.settingsSection} aria-labelledby="appearance-heading">
       <div className={styles.sectionIntro}><Moon size={19} /><div><h2 id="appearance-heading">Appearance</h2><p>Choose a base theme. System mode tracks the browser setting.</p></div></div>
       <Card padding="none" className={styles.optionCard}><div className={styles.themeOptions} role="radiogroup" aria-label="Theme">{THEMES.map((option, index) => <button type="button" role="radio" aria-checked={theme === option.id} tabIndex={theme === option.id ? 0 : -1} key={option.id} onClick={() => setTheme(option.id)} onKeyDown={(event) => moveRadio(event, index, THEMES.length, (next) => setTheme(THEMES[next].id))}><span className={styles.themeSwatch} data-theme-swatch={option.id === "system" ? resolvedTheme : option.id} /><span><strong>{option.label}</strong><small>{option.description}</small></span>{theme === option.id ? <Check size={17} aria-hidden /> : null}</button>)}</div></Card>
@@ -231,6 +254,7 @@ export function SettingsWorkspace() {
         <label className={styles.selectRow}><span><strong>Review question order</strong><small>Order meaning and reading prompts in reviews.</small></span><select value={settings.study.reviewQuestionOrder} onChange={(event) => updateStudy("reviewQuestionOrder", event.target.value as QuestionOrder)}><option value="mixed">Per subject</option><option value="meaning-first">All meanings first</option><option value="reading-first">All readings first</option></select></label>
         <label className={styles.selectRow}><span><strong>Pause after answers</strong><small>Choose when answer feedback waits for you before continuing.</small></span><select value={settings.study.answerStopBehavior} onChange={(event) => updateStudy("answerStopBehavior", event.target.value as AnswerStopBehavior)}><option value="always">Every answer</option><option value="incorrect">Incorrect answers only</option><option value="never">Never (brief feedback)</option></select></label>
         <ToggleRow label="Show details at answer stops" description="Expand meaning, reading, and context while feedback is paused." checked={settings.study.showAnswerStopSubjectDetails} onChange={(value) => updateStudy("showAnswerStopSubjectDetails", value)} />
+        <ToggleRow label="Show listening translation control" description="Add a reveal button to anime listening prompts. Translations stay hidden until you choose to show them." checked={settings.study.showListeningTranslation} onChange={(value) => updateStudy("showListeningTranslation", value)} />
         <label className={styles.selectRow}><span><strong>Self-assessment cards</strong><small>Reveal the answer and grade yourself instead of typing.</small></span><select value={settings.study.ankiMode} onChange={(event) => updateStudy("ankiMode", event.target.value as AnkiMode)}><option value="off">Off</option><option value="both">Meanings and readings</option><option value="meaning">Meanings only</option><option value="reading">Readings only</option></select></label>
         <ToggleRow label="Voice answers" description={voiceSupported ? "Dictate into the focused answer field using browser speech recognition." : "Unavailable in this browser; typed answers remain available."} checked={voiceSupported && settings.study.voiceAnswers} disabled={!voiceSupported} onChange={(value) => updateStudy("voiceAnswers", value)} />
         <label className={styles.selectRow}><span><strong>Daily lesson limit</strong><small>Cap lessons started in this browser each day.</small></span><select value={settings.study.dailyLessonLimit} onChange={(event) => updateStudy("dailyLessonLimit", Number(event.target.value))}><option value={0}>No limit</option>{[5, 10, 15, 20, 30].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
@@ -252,14 +276,17 @@ export function SettingsWorkspace() {
         <ToggleRow label="Show kanji stroke order" description="Add an animated Stroke tab to kanji details." checked={settings.subjectDetails.showStrokeOrder} onChange={(value) => updateSubjectDetails("showStrokeOrder", value)} />
         <ToggleRow label="Show vocabulary patterns of use" description="Add selectable collocation patterns and examples to vocabulary context." checked={settings.subjectDetails.showPatternsOfUse} onChange={(value) => updateSubjectDetails("showPatternsOfUse", value)} />
         <ToggleRow label="Show WaniKani context sentences" description="Include the official example sentences supplied with vocabulary subjects." checked={settings.subjectDetails.showContextSentences} onChange={(value) => updateSubjectDetails("showContextSentences", value)} />
+        <JapaneseVoiceDownloadSetting />
         <ToggleRow label="Show anime context examples" description="Look up an ImmersionKit scene using your saved anime source preferences." checked={settings.subjectDetails.showImmersionExamples} onChange={(value) => updateSubjectDetails("showImmersionExamples", value)} />
       </Card>
     </section>
 
     <section className={styles.settingsSection} aria-labelledby="reader-integrations-heading">
-      <div className={styles.sectionIntro}><KeyRound size={19} /><div><h2 id="reader-integrations-heading">Reader integrations</h2><p>Use the same parse-first vocabulary detection as the native news and text readers.</p></div></div>
+      <div className={styles.sectionIntro}><KeyRound size={19} /><div><h2 id="reader-integrations-heading">Reader interactions</h2><p>Use the same word selection and recognition behavior across manga, news, lyrics, video, and books.</p></div></div>
       <Card padding="none" className={styles.preferenceCard}>
-        <label className={styles.selectRow}><span><strong>JPDB API key</strong><small>Saved only in this browser and sent through Kakehashi when you open an article. Copy your free key from JPDB account settings.</small></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>
+        <label className={styles.selectRow}><span><strong>Word details</strong><small>Click keeps hover as a visual highlight only. Hover opens details as soon as the pointer enters a word.</small></span><select value={settings.reader.detailsInteraction} onChange={(event) => updateReader("detailsInteraction", event.target.value as WebSettings["reader"]["detailsInteraction"])}><option value="click">Click</option><option value="hover">Hover</option></select></label>
+        <label className={styles.selectRow}><span><strong>Text recognition</strong><small>Choose exact WaniKani matching or add JPDB parsing for grammar, verbs, and vocabulary.</small></span><select value={settings.reader.recognitionMode} onChange={(event) => updateReader("recognitionMode", event.target.value as WebSettings["reader"]["recognitionMode"])}><option value="wk">WaniKani only</option><option value="wk-jpdb">WaniKani + JPDB</option></select></label>
+        <label id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB API key</strong><small>Saved only in this browser and sent through Kakehashi when you analyze Japanese or translate a manga selection. Copy your free key from JPDB account settings.</small></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>
       </Card>
     </section>
 
@@ -422,6 +449,25 @@ function DashboardLayoutEditor({ settings, onChange }: { settings: WebSettings; 
     </div>
     <span className="sr-only" role="status" aria-live="polite">{announcement}</span>
   </Card>;
+}
+
+export function JapaneseVoiceDownloadSetting() {
+  const voice = useJapaneseVoice();
+  if (!voice.checked || !voice.supported || voice.downloaded) return null;
+
+  const downloading = voice.activity === "downloading";
+  return <div className={styles.downloadRow}>
+    <span>
+      <strong>Japanese context voice</strong>
+      {voice.error
+        ? <small className={styles.inlineError} role="alert">{voice.error}</small>
+        : <small>{downloading && voice.message ? voice.message : `Download once to play normal vocabulary context sentences locally (${JAPANESE_VOICE_DOWNLOAD_LABEL}).`}</small>}
+    </span>
+    <Button type="button" size="small" state={downloading ? "loading" : voice.error ? "error" : "idle"} onClick={() => void voice.download()}>
+      {!downloading && !voice.error ? <Download size={15} aria-hidden /> : null}
+      {downloading ? `Downloading${voice.progress ? ` ${voice.progress}%` : "…"}` : voice.error ? "Retry download" : `Download voice · ${JAPANESE_VOICE_DOWNLOAD_LABEL}`}
+    </Button>
+  </div>;
 }
 
 function ToggleRow({ label, description, checked, onChange, icon, disabled = false }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; icon?: React.ReactNode; disabled?: boolean }) {

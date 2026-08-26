@@ -36,6 +36,30 @@ describe("study games", () => {
     expect(new Set(puzzle!.entries.map((entry) => entry.number)).size).toBeGreaterThan(0);
   });
 
+  it("keeps same-direction words on distinct runs", () => {
+    const puzzle = generateCrossword(subjects, 11, 6, () => 0.99);
+    expect(puzzle).not.toBeNull();
+
+    const occupiedRuns = new Set<string>();
+    for (const entry of puzzle!.entries) {
+      const characters = splitKana(entry.answer);
+      characters.forEach((_, index) => {
+        const row = entry.row + (entry.direction === "down" ? index : 0);
+        const col = entry.col + (entry.direction === "across" ? index : 0);
+        const key = `${entry.direction}:${row}:${col}`;
+        if (occupiedRuns.has(key)) throw new Error(`${entry.number} ${entry.direction} overlaps another word at ${row}:${col}`);
+        occupiedRuns.add(key);
+      });
+
+      const beforeRow = entry.row - (entry.direction === "down" ? 1 : 0);
+      const beforeCol = entry.col - (entry.direction === "across" ? 1 : 0);
+      const afterRow = entry.row + (entry.direction === "down" ? characters.length : 0);
+      const afterCol = entry.col + (entry.direction === "across" ? characters.length : 0);
+      if (puzzle!.cells[beforeRow]?.[beforeCol]) throw new Error(`${entry.number} ${entry.direction} touches a letter before its start`);
+      if (puzzle!.cells[afterRow]?.[afterCol]) throw new Error(`${entry.number} ${entry.direction} touches a letter after its end`);
+    }
+  });
+
   it("applies native crossword vocabulary and clue options", () => {
     const pool = [...subjects, vocabulary(20, "ねこ", "ねこ", "Cat kana", "kana_vocabulary"), vocabulary(21, "こえ", "こえ", "Voice kana", "kana_vocabulary")];
     const kanaOnly = generateCrossword(pool, 13, 10, () => 0.99, { hiraganaOnly: true, clueMode: "english" });

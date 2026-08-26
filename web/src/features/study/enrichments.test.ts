@@ -26,6 +26,18 @@ describe("study enrichment invariants", () => {
     expect(new Set(rounds[0].items.map((item) => item.meaning)).size).toBe(rounds[0].items.length);
   });
 
+  it("keeps matching rounds inside an explicitly selected subject list", () => {
+    const subjects = [kanji(1, "未", "Not yet", [2]), kanji(2, "末", "End", [1]), kanji(3, "犬", "Dog")];
+    const rounds = buildSimilarKanjiBoards(
+      { subjects, assignments: subjects.map((item) => assignment(item.id)) },
+      { ...DEFAULT_STUDY_FILTERS, subjectTypes: ["kanji"], selectedSubjectIds: [1, 3], similarKanjiSource: "wanikani", similarKanjiGroupSize: 4 },
+      () => 0.5,
+    );
+
+    expect(rounds[0].items.map((item) => item.subjectId)).toEqual(expect.arrayContaining([1, 3]));
+    expect(rounds[0].items.map((item) => item.subjectId)).not.toContain(2);
+  });
+
   it("ships the in-web Niai dataset", () => {
     expect(niaiCharacters("未").length).toBeGreaterThan(0);
   });

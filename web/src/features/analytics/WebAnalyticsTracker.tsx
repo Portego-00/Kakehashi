@@ -4,22 +4,26 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   buildStudyTimeUpload,
+  cacheRemoteStudyTimeDays,
   getStudyTimeDeviceId,
   markStudyTimeUploaded,
   recordForegroundTime,
   studyTimeCategoryForPathname,
+  type RemoteStudyTimeDay,
 } from "@/features/dashboard/study-time";
 import { browserTimezone, recordLocalUsageDay } from "@/features/dashboard/usage-streak";
 import { useSession } from "@/lib/session";
+import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 
 const SESSION_COOLDOWN_MS = 30 * 60_000;
 const SESSION_RETRY_COOLDOWN_MS = 5 * 60_000;
 const STUDY_TIME_HEARTBEAT_MS = 5_000;
 const STUDY_TIME_SYNC_INTERVAL_MS = 5 * 60_000;
 const STUDY_TIME_INITIAL_SYNC_DELAY_MS = 10_000;
+const STUDY_TIME_REMOTE_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 let sessionRequest: Promise<void> | null = null;
-let studyTimeRequest: Promise<void> | null = null;
+const studyTimeRequests = new Map<string, Promise<void>>();
 
 function normalizedUsername(username: string) {
   return encodeURIComponent(username.trim().toLocaleLowerCase());
@@ -71,12 +75,19 @@ export async function maybeRecordWebSession(storage: Pick<Storage, "getItem" | "
   await sessionRequest;
 }
 
-async function maybeSyncStudyTime(storage: Storage, username: string, keepalive = false) {
-  if (studyTimeRequest) return studyTimeRequest;
-  const upload = buildStudyTimeUpload(storage, username);
+async function maybeSyncStudyTime(
+  storage: Storage,
+  userId: string,
+  deviceId: string,
+  keepalive = false,
+) {
+  const scopeKey = `${userId}:${deviceId}`;
+  const activeRequest = studyTimeRequests.get(scopeKey);
+  if (activeRequest) return activeRequest;
+  const upload = buildStudyTimeUpload(storage, userId, deviceId);
   if (!upload.days.length) return;
-  const body = JSON.stringify({ deviceId: getStudyTimeDeviceId(storage), days: upload.days });
-  studyTimeRequest = fetch("/api/analytics/study-time", {
+  const body = JSON.stringify({ deviceId, days: upload.days });
+  const request = fetch("/api/analytics/study-time", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
@@ -84,17 +95,41 @@ async function maybeSyncStudyTime(storage: Storage, username: string, keepalive 
     keepalive,
   }).then(async (response) => {
     const payload = await response.json().catch(() => null) as { synced?: boolean } | null;
-    if (response.ok && payload?.synced) markStudyTimeUploaded(storage, username, upload.versions);
+    if (response.ok && payload?.synced) markStudyTimeUploaded(storage, userId, deviceId, upload.versions);
   }).catch(() => undefined).finally(() => {
-    studyTimeRequest = null;
+    studyTimeRequests.delete(scopeKey);
   });
-  return studyTimeRequest;
+  studyTimeRequests.set(scopeKey, request);
+  return request;
+}
+
+export async function refreshRemoteStudyTime(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  userId: string,
+  deviceId: string,
+  signal?: AbortSignal,
+) {
+  try {
+    const response = await fetch(`/api/analytics/study-time?deviceId=${encodeURIComponent(deviceId)}`, {
+      cache: "no-store",
+      signal,
+    });
+    const payload = await response.json().catch(() => null) as {
+      available?: boolean;
+      days?: RemoteStudyTimeDay[];
+    } | null;
+    if (!response.ok || payload?.available !== true || !Array.isArray(payload.days)) return false;
+    return cacheRemoteStudyTimeDays(storage, userId, deviceId, payload.days);
+  } catch {
+    return false;
+  }
 }
 
 export function WebAnalyticsTracker() {
   const pathname = usePathname();
   const { user } = useSession();
   const username = user?.data.username;
+  const userId = waniKaniUserId(user);
 
   useEffect(() => {
     if (!username) return;
@@ -113,23 +148,51 @@ export function WebAnalyticsTracker() {
   }, [username]);
 
   useEffect(() => {
-    if (!username) return;
+    if (!userId) return;
+    const deviceId = getStudyTimeDeviceId(window.localStorage);
+    let controller: AbortController | null = null;
+    const refresh = () => {
+      controller?.abort();
+      const nextController = new AbortController();
+      controller = nextController;
+      void refreshRemoteStudyTime(window.localStorage, userId, deviceId, nextController.signal).finally(() => {
+        if (controller === nextController) controller = null;
+      });
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    const interval = window.setInterval(refreshWhenVisible, STUDY_TIME_REMOTE_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("online", refreshWhenVisible);
+    return () => {
+      controller?.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("online", refreshWhenVisible);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const deviceId = getStudyTimeDeviceId(window.localStorage);
     const category = studyTimeCategoryForPathname(pathname);
     let active = document.visibilityState === "visible";
     let lastTick = Date.now();
     const flush = () => {
       const now = Date.now();
-      if (active) recordForegroundTime(window.localStorage, username, category, Math.floor((now - lastTick) / 1_000));
+      if (active) recordForegroundTime(window.localStorage, userId, deviceId, category, Math.floor((now - lastTick) / 1_000));
       lastTick = now;
     };
     const sync = (keepalive = false) => {
       flush();
-      void maybeSyncStudyTime(window.localStorage, username, keepalive);
+      void maybeSyncStudyTime(window.localStorage, userId, deviceId, keepalive);
     };
     const onVisibilityChange = () => {
       flush();
       active = document.visibilityState === "visible";
-      if (!active) void maybeSyncStudyTime(window.localStorage, username, true);
+      if (!active) void maybeSyncStudyTime(window.localStorage, userId, deviceId, true);
     };
     const onPageHide = () => sync(true);
     const onOnline = () => sync();
@@ -148,7 +211,7 @@ export function WebAnalyticsTracker() {
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("online", onOnline);
     };
-  }, [pathname, username]);
+  }, [pathname, userId]);
 
   return null;
 }

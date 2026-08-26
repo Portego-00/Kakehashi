@@ -28,8 +28,13 @@ import { analyticsService } from "../src/services/analyticsService";
 import { featureFlagsService } from "../src/services/featureFlagsService";
 import { syncPendingProgress } from "../src/services/offlineStudyProgressService";
 import { queueOfflineVocabularyAudioDownloads } from "../src/services/offlineVocabularyAudioService";
+import { maybeRefreshStudyTimeHistory } from "../src/services/studyTimeHistoryService";
+import { normalizeStudyTimeUserId } from "../src/services/studyTimeStorageScope";
 import { timeTrackingService } from "../src/services/timeTrackingService";
-import { initializeTimeTrackingSync } from "../src/services/timeTrackingSyncService";
+import {
+  getDeviceId,
+  initializeTimeTrackingSync,
+} from "../src/services/timeTrackingSyncService";
 import {
   applyAppTextSizeScale,
   installAppTextSizePreprocessors,
@@ -305,11 +310,31 @@ function RootLayoutContentInner() {
     errorService.initializeGlobalHandlers();
   }, []);
 
+  // Keep the local ledger bound to the verified WaniKani account and exact
+  // device identity. This effect is declared before initialization so the
+  // first foreground span never touches another account or device ledger.
+  useEffect(() => {
+    const userId = normalizeStudyTimeUserId(userData?.id);
+    timeTrackingService.setUserDeviceScope(
+      userId,
+      userId ? getDeviceId() : null,
+    );
+  }, [userData?.id]);
+
   // Start the app/study time tracker (MMKV ledger + AppState heartbeat)
   useEffect(() => {
     timeTrackingService.initialize();
     initializeTimeTrackingSync();
   }, []);
+
+  // Warm the per-user, per-device other-device cache off the startup path.
+  // Focused Study Time views also refresh it on a five-minute cadence.
+  useEffect(() => {
+    if (!apiToken || !normalizeStudyTimeUserId(userData?.id)) {
+      return;
+    }
+    void maybeRefreshStudyTimeHistory();
+  }, [apiToken, userData?.id]);
 
   // Set user info for error attribution
   useEffect(() => {

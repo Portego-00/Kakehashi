@@ -37,6 +37,16 @@ describe("extra-study catalog", () => {
     expect(getModeDefaultFilters("context-sentences", 42)).toMatchObject({ count: 15, subjectTypes: ["vocabulary"] });
   });
 
+  it("uses the mobile writing-correction leniency by default", () => {
+    expect(getModeDefaultFilters("kanji-writing", 42).strokeLeniency).toBe(1.5);
+  });
+
+  it("preserves legacy writing leniency and clamps values to the mobile range", () => {
+    expect(hydrateModeFilters("kanji-writing", { strokeLeniency: 1.5 }, 60).strokeLeniency).toBe(1.5);
+    expect(hydrateModeFilters("kanji-writing", { strokeLeniency: 0.2 }, 60).strokeLeniency).toBe(0.8);
+    expect(hydrateModeFilters("kanji-writing", { strokeLeniency: 9 }, 60).strokeLeniency).toBe(2.5);
+  });
+
   it("resets disabled custom ranges to the current user level", () => {
     expect(hydrateModeFilters("random-test", { useCustomLevelRange: false, minLevel: 12, maxLevel: 20 }, 47)).toMatchObject({ minLevel: 1, maxLevel: 47 });
     expect(hydrateModeFilters("random-test", { useCustomLevelRange: true, minLevel: 12, maxLevel: 20 }, 47)).toMatchObject({ minLevel: 12, maxLevel: 20 });

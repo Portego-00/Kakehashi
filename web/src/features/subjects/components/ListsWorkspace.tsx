@@ -1,37 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowUp, BookOpenCheck, ListPlus, Pencil, Play, Search, Trash2, Undo2, X } from "lucide-react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
+import { ArrowDown, ArrowUp, BookOpenCheck, GripVertical, ListPlus, Pencil, Play, Search, Trash2, Undo2, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, Skeleton } from "@/components/ui/States";
 import { useSession } from "@/lib/session";
 import type { Subject } from "@/types/wanikani";
 import { useSubjectCatalog } from "../data";
-import { createListRepository, subscribeSubjectLists, type ListStorage, type SubjectList } from "../lists";
-import { DEFAULT_SEARCH_FILTERS, searchSubjects } from "../search";
+import type { SubjectList } from "../lists";
+import { useSubjectLists } from "../use-subject-lists";
 import { useFirstSubjectReveal } from "../useFirstSubjectReveal";
+import { AddSubjectsDialog } from "./AddSubjectsDialog";
+import { ListStudyDialog } from "./ListStudyDialog";
 import styles from "../subjects.module.css";
 
-const browserStorage: ListStorage = {
-  getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key),
-  setItem: (key, value) => { if (typeof window !== "undefined") window.localStorage.setItem(key, value); },
-};
 type SortMode = "manual" | "level" | "type" | "meaning";
+type SubjectDropTarget = { subjectId: number; edge: "before" | "after" };
+
+const SUBJECT_DRAG_TYPE = "application/x-kakehashi-subject-id";
+
+function subjectDropEdge(element: HTMLElement, clientY: number): SubjectDropTarget["edge"] {
+  const bounds = element.getBoundingClientRect();
+  return clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+}
 
 export function ListsWorkspace() {
   const { user } = useSession();
-  const { subjects, assignments, isLoading } = useSubjectCatalog();
+  const { subjects, assignments, statistics, isLoading } = useSubjectCatalog();
   const username = user?.data.username ?? "anonymous";
-  const repository = useMemo(() => createListRepository(browserStorage, username), [username]);
-  const subscribe = useCallback((onChange: () => void) => subscribeSubjectLists(username, onChange), [username]);
-  const getSnapshot = useCallback(() => repository.snapshot(), [repository]);
-  const rawLists = useSyncExternalStore(subscribe, getSnapshot, () => "");
-  const lists = useMemo(() => {
-    void rawLists;
-    return repository.load();
-  }, [rawLists, repository]);
+  const { repository, lists, syncing, syncError } = useSubjectLists(username);
   const savedListsReveal = useFirstSubjectReveal();
   const listSubjectsReveal = useFirstSubjectReveal();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -39,9 +38,14 @@ export function ListsWorkspace() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [filter, setFilter] = useState("");
-  const [addQuery, setAddQuery] = useState("");
+  const [addSubjectsOpen, setAddSubjectsOpen] = useState(false);
+  const [studyDialogOpen, setStudyDialogOpen] = useState(false);
   const [sort, setSort] = useState<SortMode>("manual");
   const [deleted, setDeleted] = useState<{ list: SubjectList; index: number } | null>(null);
+  const [draggedSubjectId, setDraggedSubjectId] = useState<number | null>(null);
+  const [subjectDropTarget, setSubjectDropTarget] = useState<SubjectDropTarget | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+  const draggedSubjectIdRef = useRef<number | null>(null);
 
   const resolvedActiveId = activeId && lists.some((list) => list.id === activeId) ? activeId : lists[0]?.id ?? null;
   const refresh = (preferred?: string | null) => {
@@ -59,8 +63,6 @@ export function ListsWorkspace() {
     if (sort === "meaning") return [...items].sort((a, b) => (a.data.meanings[0]?.meaning ?? "").localeCompare(b.data.meanings[0]?.meaning ?? ""));
     return items;
   }, [active, filter, sort, subjectById]);
-  const addResults = useMemo(() => addQuery.trim() ? searchSubjects(subjects, assignments, { ...DEFAULT_SEARCH_FILTERS, query: addQuery }).filter((result) => !active?.subjectIds.includes(result.subject.id)).slice(0, 8) : [], [active?.subjectIds, addQuery, assignments, subjects]);
-
   const create = () => {
     if (!newName.trim()) return;
     const created = repository.create(newName);
@@ -78,9 +80,52 @@ export function ListsWorkspace() {
     refresh(deleted.list.id);
     setDeleted(null);
   };
+  const finishSubjectDrag = () => {
+    draggedSubjectIdRef.current = null;
+    setDraggedSubjectId(null);
+    setSubjectDropTarget(null);
+  };
+  const startSubjectDrag = (event: DragEvent<HTMLSpanElement>, subjectId: number) => {
+    draggedSubjectIdRef.current = subjectId;
+    setDraggedSubjectId(subjectId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(SUBJECT_DRAG_TYPE, String(subjectId));
+    event.dataTransfer.setData("text/plain", String(subjectId));
+    const row = event.currentTarget.closest("li");
+    if (row) event.dataTransfer.setDragImage?.(row, 24, row.getBoundingClientRect().height / 2);
+  };
+  const dragOverSubject = (event: DragEvent<HTMLLIElement>, subjectId: number) => {
+    if (sort !== "manual" || draggedSubjectIdRef.current === null) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setSubjectDropTarget({ subjectId, edge: subjectDropEdge(event.currentTarget, event.clientY) });
+  };
+  const dropSubject = (event: DragEvent<HTMLLIElement>, targetSubjectId: number) => {
+    event.preventDefault();
+    if (!active || sort !== "manual") return finishSubjectDrag();
+    const transferredValue = event.dataTransfer.getData(SUBJECT_DRAG_TYPE) || event.dataTransfer.getData("text/plain");
+    const transferredId = Number(transferredValue);
+    const subjectId = transferredValue && Number.isInteger(transferredId) ? transferredId : draggedSubjectIdRef.current;
+    const fromIndex = subjectId === null ? -1 : active.subjectIds.indexOf(subjectId);
+    const targetIndex = active.subjectIds.indexOf(targetSubjectId);
+    if (subjectId === null || fromIndex < 0 || targetIndex < 0) return finishSubjectDrag();
+
+    const edge = subjectDropEdge(event.currentTarget, event.clientY);
+    let toIndex = targetIndex + (edge === "after" ? 1 : 0);
+    if (fromIndex < toIndex) toIndex -= 1;
+    if (toIndex !== fromIndex) {
+      repository.reorderSubject(active.id, subjectId, toIndex);
+      refresh(active.id);
+      const moved = subjectById.get(subjectId);
+      const meaning = moved?.data.meanings.find((item) => item.primary)?.meaning ?? moved?.data.slug ?? "Subject";
+      setReorderAnnouncement(`${meaning} moved to position ${toIndex + 1}.`);
+    }
+    finishSubjectDrag();
+  };
 
   return <main className={`page ${styles.page}`}>
-    <header className="page-header"><div><h1>Subject lists</h1><p>Build reusable, account-specific collections and launch them directly into a focused study session.</p></div>{lists.length ? <Badge>{lists.length} {lists.length === 1 ? "list" : "lists"}</Badge> : null}</header>
+    <header className="page-header"><div><h1>Subject lists</h1><p>Build reusable, account-specific collections that stay in sync with the mobile app.</p></div>{lists.length ? <Badge>{lists.length} {lists.length === 1 ? "list" : "lists"}</Badge> : null}</header>
+    {syncError ? <p className={styles.listSyncNotice} role="alert">{syncError} Your browser copy is still available.</p> : null}
 
     <div className={styles.listsLayout}>
       <aside className={styles.listSidebar}>
@@ -93,14 +138,16 @@ export function ListsWorkspace() {
       </aside>
 
       <section className={styles.listDetail}>
-        {!active ? <EmptyState icon={<BookOpenCheck />} title="Create your first list" description="Lists stay in this browser and are namespaced to your WaniKani username." /> : <>
-          <div className={styles.listDetailHead}><div><h2>{active.name}</h2><p>{active.subjectIds.length} saved {active.subjectIds.length === 1 ? "subject" : "subjects"}</p></div><Link className={styles.studyLink} aria-disabled={active.subjectIds.length === 0} href={active.subjectIds.length ? `/study/custom-review?subjectIds=${active.subjectIds.join(",")}` : "#"}><Play size={16} /> Study this list</Link></div>
+        {!active ? syncing ? <Skeleton height="12rem" /> : <EmptyState icon={<BookOpenCheck />} title="Create your first list" description="Lists sync to your Kakehashi account and remain available in this browser." /> : <>
+          <div className={styles.listDetailHead}><div><h2>{active.name}</h2><p>{active.subjectIds.length} saved {active.subjectIds.length === 1 ? "subject" : "subjects"}</p></div><div className={styles.listDetailActions}><Button type="button" tone="primary" onClick={() => setAddSubjectsOpen(true)}><ListPlus size={16} /> Add subjects</Button><button className={styles.studyLink} type="button" disabled={active.subjectIds.length === 0} onClick={() => setStudyDialogOpen(true)}><Play size={16} /> Study this list</button></div></div>
           <div className={styles.listTools}>
             <label className={styles.compactSearch}><Search size={17} /><span className="sr-only">Filter list</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter this list" /></label>
             <label><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="manual">Manual order</option><option value="level">Level</option><option value="type">Subject type</option><option value="meaning">Meaning</option></select></label>
           </div>
-          {isLoading ? <Skeleton height="16rem" /> : visibleSubjects.length ? <ol className={styles.listSubjects} {...listSubjectsReveal}>{visibleSubjects.map((subject) => { const manualIndex = active.subjectIds.indexOf(subject.id); const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug; return <li key={subject.id}><Link href={`/subjects/${subject.id}`}><span lang="ja" data-type={subject.object === "kana_vocabulary" ? "vocabulary" : subject.object}>{subject.data.characters ?? meaning}</span><span><strong>{meaning}</strong><small>{subject.object.replace("_", " ")} · Level {subject.data.level}</small></span></Link><div>{sort === "manual" ? <><button type="button" disabled={manualIndex === 0} aria-label={`Move ${meaning} up`} onClick={() => { repository.reorderSubject(active.id, subject.id, manualIndex - 1); refresh(active.id); }}><ArrowUp size={15} /></button><button type="button" disabled={manualIndex === active.subjectIds.length - 1} aria-label={`Move ${meaning} down`} onClick={() => { repository.reorderSubject(active.id, subject.id, manualIndex + 1); refresh(active.id); }}><ArrowDown size={15} /></button></> : null}<button type="button" aria-label={`Remove ${meaning}`} onClick={() => { repository.removeSubject(active.id, subject.id); refresh(active.id); }}><X size={15} /></button></div></li>; })}</ol> : <EmptyState title={filter ? "No subjects match" : "This list is empty"} description={filter ? "Clear the filter to see the whole list." : "Use the search below to add subjects."} />}
-          <div className={styles.addSubjects}><h3>Add subjects</h3><label className={styles.compactSearch}><Search size={17} /><span className="sr-only">Find subjects to add</span><input value={addQuery} onChange={(event) => setAddQuery(event.target.value)} placeholder="Search characters, meanings, or readings" /></label>{addResults.length ? <ul>{addResults.map((result) => { const meaning = result.subject.data.meanings.find((item) => item.primary)?.meaning ?? result.subject.data.slug; return <li key={result.subject.id}><span lang="ja">{result.subject.data.characters ?? meaning}</span><span><strong>{meaning}</strong><small>Level {result.subject.data.level}</small></span><Button size="small" onClick={() => { repository.addSubject(active.id, result.subject.id); refresh(active.id); }}>Add</Button></li>; })}</ul> : addQuery.trim() ? <p>No additional subjects match.</p> : null}</div>
+          {isLoading ? <Skeleton height="16rem" /> : visibleSubjects.length ? <ol className={styles.listSubjects} {...listSubjectsReveal}>{visibleSubjects.map((subject) => { const manualIndex = active.subjectIds.indexOf(subject.id); const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug; const characters = subject.data.characters ?? meaning; const dropEdge = subjectDropTarget?.subjectId === subject.id ? subjectDropTarget.edge : undefined; return <li key={subject.id} data-subject-id={subject.id} data-dragging={draggedSubjectId === subject.id || undefined} data-drop-edge={dropEdge} onDragOver={(event) => dragOverSubject(event, subject.id)} onDrop={(event) => dropSubject(event, subject.id)}><Link href={`/subjects/${subject.id}`}><span lang="ja" data-type={subject.object === "kana_vocabulary" ? "vocabulary" : subject.object} data-character-count={Math.min(12, Array.from(characters).length)}>{characters}</span><span><strong>{meaning}</strong><small>{subject.object.replace("_", " ")} · Level {subject.data.level}</small></span></Link><div>{sort === "manual" ? <><span className={styles.subjectDragHandle} draggable aria-hidden title={`Drag ${meaning} to reorder`} onDragStart={(event) => startSubjectDrag(event, subject.id)} onDragEnd={finishSubjectDrag}><GripVertical size={17} aria-hidden /></span><button type="button" disabled={manualIndex === 0} aria-label={`Move ${meaning} up`} onClick={() => { repository.reorderSubject(active.id, subject.id, manualIndex - 1); refresh(active.id); }}><ArrowUp size={15} /></button><button type="button" disabled={manualIndex === active.subjectIds.length - 1} aria-label={`Move ${meaning} down`} onClick={() => { repository.reorderSubject(active.id, subject.id, manualIndex + 1); refresh(active.id); }}><ArrowDown size={15} /></button></> : null}<button type="button" aria-label={`Remove ${meaning}`} onClick={() => { repository.removeSubject(active.id, subject.id); refresh(active.id); }}><X size={15} /></button></div></li>; })}</ol> : <EmptyState title={filter ? "No subjects match" : "This list is empty"} description={filter ? "Clear the filter to see the whole list." : "Choose Add subjects to search the catalog."} />}
+          <p className="sr-only" aria-live="polite">{reorderAnnouncement}</p>
+          <AddSubjectsDialog open={addSubjectsOpen} listName={active.name} subjectIds={active.subjectIds} subjects={subjects} assignments={assignments} statistics={statistics} onClose={() => setAddSubjectsOpen(false)} onAdd={(subjectId) => { repository.addSubject(active.id, subjectId); refresh(active.id); }} />
+          <ListStudyDialog open={studyDialogOpen} listName={active.name} subjectIds={active.subjectIds} subjects={subjects} onClose={() => setStudyDialogOpen(false)} />
         </>}
       </section>
     </div>

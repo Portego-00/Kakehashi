@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Subject } from "@/types/wanikani";
-import { buildConstellationLayout, CONSTELLATION_NODE_GAP, constellationNodeRadius } from "./constellation-canvas-layout";
+import { buildConstellationLayout, CONSTELLATION_NODE_GAP, constellationNodeFontSize, constellationNodeRadius } from "./constellation-canvas-layout";
 
 function subject(id: number, object: Subject["object"], characters: string, reading = ""): Subject {
   return { id, object, url: "", data_updated_at: "", data: { level: 1, created_at: "", slug: characters, document_url: "", hidden_at: null, characters, meanings: [{ meaning: characters, primary: true, accepted_answer: true }], auxiliary_meanings: [], readings: reading ? [{ reading, primary: true, accepted_answer: true }] : [] } };
 }
 
 describe("subject constellation layout", () => {
+  it("scales longer labels down to fit instead of truncating them", () => {
+    expect(constellationNodeFontSize("売り上げる")).toBeLessThan(constellationNodeFontSize("上げる"));
+    expect(constellationNodeFontSize("めしあがる", { reading: true })).toBeLessThanOrEqual(14);
+    expect(constellationNodeFontSize("出来上がる") * 5).toBeLessThanOrEqual(68);
+  });
+
   it("clusters kanji vocabulary around the matching reading anchors", () => {
     const center = subject(440, "kanji", "一");
     center.data.readings = [

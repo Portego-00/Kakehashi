@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getModeDefaultFilters } from "../mode-config";
 import { StudyConfig } from "./study-config";
 
@@ -10,7 +10,29 @@ function renderConfig(component: React.ReactNode) {
   return render(<QueryClientProvider client={client}>{component}</QueryClientProvider>);
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("native-parity study configuration", () => {
+  it("shows all mobile stroke-strictness levels and maps the legacy default to Lenient", () => {
+    renderConfig(<StudyConfig mode="kanji-writing" filters={{ ...getModeDefaultFilters("kanji-writing", 60), strokeLeniency: 1.5 }} subjects={[]} lists={[]} onChange={vi.fn()} onStart={vi.fn()} />);
+
+    const strictness = screen.getByRole("group", { name: "Stroke strictness" });
+    expect(within(strictness).getByRole("button", { name: "Very Strict" })).toBeInTheDocument();
+    expect(within(strictness).getByRole("button", { name: "Strict" })).toBeInTheDocument();
+    expect(within(strictness).getByRole("button", { name: "Lenient" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(strictness).getByRole("button", { name: "Very Lenient" })).toBeInTheDocument();
+  });
+
+  it("updates writing correction to the selected mobile strictness", () => {
+    const filters = { ...getModeDefaultFilters("kanji-writing", 60), strokeLeniency: 1.5 };
+    const onChange = vi.fn();
+    renderConfig(<StudyConfig mode="kanji-writing" filters={filters} subjects={[]} lists={[]} onChange={onChange} onStart={vi.fn()} />);
+
+    fireEvent.click(within(screen.getByRole("group", { name: "Stroke strictness" })).getByRole("button", { name: "Strict" }));
+
+    expect(onChange).toHaveBeenCalledWith({ ...filters, strokeLeniency: 1.2 });
+  });
+
   it("shows crossword presets and never exposes the generic 100-item slider", () => {
     const onChange = vi.fn();
     renderConfig(<StudyConfig mode="crossword" filters={getModeDefaultFilters("crossword", 60)} subjects={[]} lists={[]} onChange={onChange} onStart={vi.fn()} />);
@@ -40,5 +62,18 @@ describe("native-parity study configuration", () => {
     expect(screen.getByText("Hide translation until tap")).toBeInTheDocument();
     expect(screen.getByText("JPDB-style sentence breakdown")).toBeInTheDocument();
     expect(screen.getByText("Stop after answer")).toBeInTheDocument();
+  });
+
+  it("does not nest forms when the anime picker is open", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ anime: [] }), { status: 200 }));
+    const onStart = vi.fn();
+    renderConfig(<StudyConfig mode="listening" filters={getModeDefaultFilters("listening", 60)} subjects={[]} lists={[]} onChange={vi.fn()} onStart={onStart} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Anime sources:/i }));
+    const dialog = await screen.findByRole("dialog", { name: "Choose anime" });
+    expect(document.querySelector("form form")).not.toBeInTheDocument();
+
+    fireEvent.submit(dialog.querySelector('form[data-provider="myanimelist"]')!);
+    expect(onStart).not.toHaveBeenCalled();
   });
 });

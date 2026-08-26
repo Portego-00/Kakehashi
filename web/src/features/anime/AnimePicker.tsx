@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronRight, Film, ListChecks, LoaderCircle, Search, Star, X } from "lucide-react";
 import { fetchAnimeCatalog, syncAnimeList } from "./client";
 import { ALL_ANIME_SOURCE, NO_ANIME_SOURCE, formatAnimeMediaType, isAllAnimeSelected, normalizeAnimeSelection, selectedAnimeIds, toggleAnimeSelection, type AnimeListProvider } from "./types";
@@ -155,7 +156,7 @@ export function AnimePicker({
         <ChevronRight size={18} aria-hidden />
       </button>
 
-      {open ? (
+      {open ? createPortal(
         <div className={styles.backdrop} onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
           <section ref={modalRef} className={styles.modal} role="dialog" aria-modal="true" aria-labelledby={titleId}>
             <header className={styles.modalHeader}>
@@ -175,7 +176,7 @@ export function AnimePicker({
               {(["myanimelist", "anilist"] as const).map((provider) => {
                 const name = provider === "myanimelist" ? "MyAnimeList" : "AniList";
                 const active = syncMutation.isPending && syncMutation.variables?.provider === provider;
-                return <form key={provider} data-provider={provider} onSubmit={(event) => { event.preventDefault(); submitSync(provider); }}>
+                return <form key={provider} data-provider={provider} onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); submitSync(provider); }}>
                   <label htmlFor={`${titleId}-${provider}`}><AnimeListProviderIcon provider={provider} /><span>{name}</span></label>
                   <input id={`${titleId}-${provider}`} value={usernames[provider]} onChange={(event) => setUsernames((current) => ({ ...current, [provider]: event.target.value }))} autoComplete="username" spellCheck={false} placeholder={`${name} username`} />
                   <button type="submit" disabled={!usernames[provider].trim() || syncMutation.isPending}>{active ? <LoaderCircle className={styles.spinner} size={16} aria-label={`Syncing ${name}`} /> : "Sync watched"}</button>
@@ -215,7 +216,8 @@ export function AnimePicker({
               <button type="button" data-primary onClick={apply}>Apply selection</button>
             </footer>
           </section>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </>
   );

@@ -15,7 +15,12 @@ import { STUDY_TIME_CATEGORY_META } from "../constants/studyTimeCategories";
 import {
   ACTIVITY_CATEGORIES,
 } from "../services/timeTrackingCore";
+import {
+  maybeRefreshStudyTimeHistory,
+} from "../services/studyTimeHistoryService";
+import { normalizeStudyTimeUserId } from "../services/studyTimeStorageScope";
 import { formatDurationMs } from "../utils/durationFormat";
+import { useAuthStore } from "../utils/store";
 import { withAlpha } from "../utils/subjectColors";
 import {
   readStudyTimeRangeData,
@@ -37,6 +42,10 @@ export default function StudyTimeCard({
   style,
 }: StudyTimeCardProps) {
   const { theme } = useTheme();
+  const userId = normalizeStudyTimeUserId(
+    useAuthStore((state) => state.userData?.id ?? null),
+  );
+  const apiToken = useAuthStore((state) => state.apiToken);
   const [rangeIndex, setRangeIndex] = useState(0);
   const range = STUDY_TIME_RANGE_IDS[rangeIndex];
   const [data, setData] = useState<StudyTimeRangeData>(() =>
@@ -47,12 +56,25 @@ export default function StudyTimeCard({
   // in-memory (MMKV cache) and the tracker never writes on reads.
   useFocusEffect(
     useCallback(() => {
+      let isFocused = true;
       setData(readStudyTimeRangeData(range));
+      if (apiToken && userId) {
+        void maybeRefreshStudyTimeHistory().then(() => {
+          if (isFocused) {
+            // Show a successful cloud refresh immediately; the timer below is
+            // retained for the live local clock.
+            setData(readStudyTimeRangeData(range));
+          }
+        });
+      }
       const timer = setInterval(() => {
         setData(readStudyTimeRangeData(range));
       }, 1000);
-      return () => clearInterval(timer);
-    }, [range])
+      return () => {
+        isFocused = false;
+        clearInterval(timer);
+      };
+    }, [apiToken, range, userId])
   );
 
   const { summary, series, chartTitle } = data;
@@ -203,8 +225,8 @@ export default function StudyTimeCard({
         </>
       ) : (
         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-          No study time in this range yet. Time spent on reviews, lessons, extra study,
-          news, songs, reading, and videos shows up here.
+          No study time in this range yet. Reviews, lessons, extra study, news,
+          songs, reading, and videos across your devices show up here.
         </Text>
       )}
     </View>

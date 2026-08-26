@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -13,7 +13,12 @@ const nextConfig: NextConfig = {
       "./node_modules/@ffmpeg/core/dist/esm/*",
       "./node_modules/@ffmpeg/ffmpeg/dist/esm/*.js",
     ],
+    "/api/subjects/enrichments": [
+      "../assets/pitch/wanikani_pitch_accents.json",
+      "../assets/patterns/wanikani_vocabulary_patterns.json",
+    ],
   },
+  outputFileTracingRoot: join(projectRoot, ".."),
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "cdn.myanimelist.net", pathname: "/images/anime/**" },
@@ -23,7 +28,7 @@ const nextConfig: NextConfig = {
     ],
   },
   turbopack: {
-    root: projectRoot,
+    root: join(projectRoot, ".."),
   },
   experimental: {
     optimizePackageImports: ["lucide-react"],

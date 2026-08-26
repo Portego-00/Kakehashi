@@ -90,9 +90,33 @@ function typeSummary(rows: ReturnType<typeof calculateLevelProgress>, type: Excl
   return matching.reduce((summary, row) => ({ total: summary.total + row.total, passed: summary.passed + row.passed }), { total: 0, passed: 0 });
 }
 
+const LEVEL_SUMMARY_TYPES = [
+  { id: "radical", label: "Radicals", radius: 21 },
+  { id: "kanji", label: "Kanji", radius: 33 },
+  { id: "vocabulary", label: "Vocabulary", radius: 45 },
+] as const;
+
 function LevelSummaryRow({ level, rows, current = false }: { level: number; rows: ReturnType<typeof calculateLevelProgress>; current?: boolean }) {
-  const content = <><strong className={styles.levelSummaryNumber}>{level}</strong>{(["radical", "kanji", "vocabulary"] as const).map((type) => { const summary = typeSummary(rows, type); return <span className={styles.levelTypeProgress} data-type={type} key={type}><small>{type === "radical" ? "Radicals" : type === "kanji" ? "Kanji" : "Vocabulary"}</small><strong>{summary.passed}/{summary.total}</strong><i aria-hidden><b style={{ "--level-progress": summary.total ? summary.passed / summary.total : 0 } as React.CSSProperties} /></i></span>; })}<ArrowRight size={19} aria-hidden /></>;
-  return <Link href={`/progress/wrapped/${level}`} className={styles.levelSummaryRow} data-current={current ? "true" : undefined} aria-label={`Open level ${level} recap`}>{content}</Link>;
+  const summaries = LEVEL_SUMMARY_TYPES.map((type) => ({ ...type, ...typeSummary(rows, type.id) }));
+  const passed = summaries.reduce((sum, summary) => sum + summary.passed, 0);
+  const total = summaries.reduce((sum, summary) => sum + summary.total, 0);
+  const completion = total ? Math.round((passed / total) * 100) : 0;
+  const ringLabel = summaries.map((summary) => `${summary.label} ${summary.passed} of ${summary.total}`).join(", ");
+
+  return <Link href={`/progress/wrapped/${level}`} className={styles.levelSummaryRow} data-current={current ? "true" : undefined} aria-label={`Open level ${level} recap`}>
+    <span className={styles.levelSummaryLabel}><span>Level {level}</span><strong>{completion}%</strong></span>
+    <span className={styles.levelSummaryRingWrap}>
+      <svg className={styles.levelSummaryRings} viewBox="0 0 112 112" role="img" aria-label={`Level ${level} progress by subject type`}>
+        <title>{`Level ${level}: ${ringLabel} at Guru or above`}</title>
+        {summaries.map((summary) => <circle key={`track-${summary.id}`} className={styles.levelSummaryRingTrack} cx="56" cy="56" r={summary.radius} />)}
+        {summaries.map((summary, index) => <circle key={summary.id} className={styles.levelSummaryRingProgress} data-type={summary.id} cx="56" cy="56" r={summary.radius} pathLength="100" style={{ "--ring-progress": summary.total ? (summary.passed / summary.total) * 100 : 0, "--ring-delay": `${index * 45}ms` } as React.CSSProperties} />)}
+      </svg>
+    </span>
+    <dl className={styles.levelSummaryLegend}>
+      {summaries.map((summary) => <div data-type={summary.id} key={summary.id}><dt>{summary.label}</dt><dd>{summary.passed}/{summary.total}</dd></div>)}
+    </dl>
+    <ArrowRight size={19} aria-hidden />
+  </Link>;
 }
 
 function LevelProgressSkeleton() {

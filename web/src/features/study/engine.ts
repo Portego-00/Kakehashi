@@ -33,6 +33,7 @@ export const DEFAULT_STUDY_FILTERS: StudyFilters = {
   animeSources: [ALL_ANIME_SOURCE],
   listeningAutoPlayAudio: true,
   writingMode: "guided",
+  strokeLeniency: 1.5,
   wordLength: 5,
   wordleMaxAttempts: 6,
   similarKanjiSource: "niai",
@@ -387,6 +388,9 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
     animeSources: animeSources.length ? animeSources : [ALL_ANIME_SOURCE],
     listeningAutoPlayAudio: source.listeningAutoPlayAudio !== false,
     writingMode: source.writingMode === "freehand" ? "freehand" : "guided",
+    strokeLeniency: Number.isFinite(source.strokeLeniency)
+      ? Math.min(2.5, Math.max(0.8, source.strokeLeniency!))
+      : DEFAULT_STUDY_FILTERS.strokeLeniency,
     wordLength: Number.isFinite(source.wordLength) ? Math.min(7, Math.max(3, Math.round(source.wordLength!))) : 5,
     wordleMaxAttempts: Number.isFinite(source.wordleMaxAttempts) ? Math.min(8, Math.max(4, Math.round(source.wordleMaxAttempts!))) : 6,
     similarKanjiSource: source.similarKanjiSource === "wanikani" ? "wanikani" : "niai",

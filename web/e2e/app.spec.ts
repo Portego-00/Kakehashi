@@ -68,8 +68,8 @@ async function mockApp(page: Page, initiallyAuthenticated = true, mockedUser: Mo
   await page.route("**/api/anime/sync", (route) => fulfillJson(route, { provider: "myanimelist", username: "webtester", watched: 23, matchedSources: ["death_note"] }));
   await page.route(/\/news\/feed(?:\?.*)?$/, (route) => {
     const preference = new URL(route.request().url()).searchParams.get("source") || "easy";
-    const easyArticle = { id: "easy:sample", source: "easy", isFullArticle: true, title: "やさしいニュース", summary: "日本語のニュースです。", body: "日本語を勉強します。", publishedAt: now, url: "https://www3.nhk.or.jp/news/easy/sample/", imageUrl: "https://nhkeasier.com/media/sample.png", content: [{ type: "image", url: "/media/sample.png", alt: "News illustration" }, { type: "text", text: "日本語を勉強します。" }] };
-    const standardArticle = { id: "regular:20260825_standard", source: "regular", isFullArticle: true, title: "通常のNHKニュース", summary: "標準ニュースです。", body: "最初の段落です。\n\n次の段落です。", publishedAt: "2026-08-25T12:00:00.000Z", url: "https://news.web.nhk/newsweb/na/20260825_standard", imageUrl: "https://imgu.web.nhk/news/example/lead.jpg", content: [{ type: "text", text: "最初の段落です。" }, { type: "image", url: "https://img.web.nhk/news/example/body.jpg", alt: "NHK report" }, { type: "text", text: "次の段落です。" }] };
+    const easyArticle = { id: "easy:sample", source: "easy", isFullArticle: true, title: "やさしいニュース", summary: "日本語のニュースです。", body: "日本語を勉強します。", publishedAt: now, url: "https://www3.nhk.or.jp/news/easy/sample/", imageUrl: "https://nhkeasier.com/media/sample.png", content: [{ type: "image", url: "/media/sample.png", alt: "News illustration" }, { type: "text", text: "日本語を勉強します。", furigana: [{ start: 0, end: 3, reading: "にほんご" }] }] };
+    const standardArticle = { id: "regular:20260825_standard", source: "regular", isFullArticle: true, title: "通常のNHKニュース", summary: "標準ニュースです。", body: "一つ目の最初の段落です。\n\n次の段落です。", publishedAt: "2026-08-25T12:00:00.000Z", url: "https://news.web.nhk/newsweb/na/20260825_standard", imageUrl: "https://imgu.web.nhk/news/example/lead.jpg", content: [{ type: "text", text: "一つ目の最初の段落です。" }, { type: "image", url: "https://img.web.nhk/news/example/body.jpg", alt: "NHK report" }, { type: "text", text: "次の段落です。" }] };
     const articles = preference === "both" ? [standardArticle, easyArticle] : preference === "regular" ? [standardArticle] : [easyArticle];
     return fulfillJson(route, { articles, updatedAt: now, source: "live" });
   });
@@ -331,6 +331,10 @@ test("opens the constellation as a collision-free pan and zoom canvas", async ({
   await expect(nodes).toHaveCount(4);
   await expect(canvas.locator('[data-kind="similar"]')).toHaveCount(0);
   await expect(canvas.locator("[data-connection-layer] line")).toHaveCount(4);
+  expect(await canvas.locator("[data-node-label], [data-node-reading]").evaluateAll((labels) => labels.every((label) => {
+    const style = getComputedStyle(label);
+    return style.textOverflow !== "ellipsis" && label.scrollWidth <= label.clientWidth + 1;
+  }))).toBe(true);
   const circles = await nodes.evaluateAll((elements) => elements.map((element) => {
     const rect = element.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, radius: rect.width / 2 };
@@ -638,6 +642,22 @@ test("renders NHK thumbnails and in-article images", async ({ page }) => {
   await expect.poll(() => articleImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 });
 
+test("shows NHK furigana by default and remembers when it is disabled", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/news");
+  await page.getByRole("link", { name: /やさしいニュース/ }).click();
+
+  await expect(page.locator("main ruby rt")).toHaveText("にほんご");
+  const hideFurigana = page.getByRole("button", { name: "Furigana" });
+  await expect(hideFurigana).toHaveAttribute("aria-pressed", "true");
+  await hideFurigana.click();
+  await expect(page.locator("main ruby")).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Furigana" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("main ruby")).toHaveCount(0);
+});
+
 test("shows the mnemonic illustration on radical details", async ({ page }) => {
   await mockApp(page);
   await page.goto("/subjects/1");
@@ -659,6 +679,11 @@ test("switches between Easy and Standard NHK and opens a full Standard article",
   await page.getByRole("link", { name: /通常のNHKニュース/ }).click();
   await expect(page.getByText(/Standard ·/)).toBeVisible();
   await expect(page.getByText("最初の段落です。", { exact: false })).toBeVisible();
+  const standardFurigana = page.getByRole("button", { name: "Furigana" });
+  await expect(standardFurigana).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("main ruby rt").first()).toHaveText("ひとつ");
+  await standardFurigana.click();
+  await expect(page.locator("main ruby")).toHaveCount(0);
   const articleImages = page.locator('main [data-reader-block="image"] img');
   await expect(articleImages).toHaveCount(2);
   await expect(articleImages.first()).toBeVisible();

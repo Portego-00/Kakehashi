@@ -6,9 +6,9 @@ describe("study persistence", () => {
   beforeEach(() => window.localStorage.clear());
 
   it("round-trips configuration and resumable sessions", () => {
-    const filters = { ...DEFAULT_STUDY_FILTERS, count: 35, selectedSubjectIds: [7, 9] };
-    expect(saveStudyConfig(scope, "random-test", filters)).toBe(true);
-    expect(loadStudyConfig(scope, "random-test")).toMatchObject({ count: 35, selectedSubjectIds: [7, 9] });
+    const filters = { ...DEFAULT_STUDY_FILTERS, count: 35, selectedSubjectIds: [7, 9], strokeLeniency: 2.5 };
+    expect(saveStudyConfig(scope, "kanji-writing", filters)).toBe(true);
+    expect(loadStudyConfig(scope, "kanji-writing")).toMatchObject({ count: 35, selectedSubjectIds: [7, 9], strokeLeniency: 2.5 });
 
     const session = createStudySession("random-test", [{ id: "q", subjectId: 7, subjectType: "kanji", kind: "meaning", prompt: "七", promptLabel: "Meaning", acceptedAnswers: ["Seven"], displayAnswer: "Seven" }], new Date("2026-08-06T10:00:00Z"));
     expect(saveStudySession(scope, session)).toBe(true);

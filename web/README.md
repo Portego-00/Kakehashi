@@ -25,10 +25,10 @@ For Songs, add server-only `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `YO
 - Dashboard, lessons, reviews, assignments, forecasts, and formal WaniKani review submission
 - Progress analytics, kanji grids, level wrap-ups, item search, subject details, constellations, lists, and customization
 - Fifteen extra study modes: recent lessons, random test, vocabulary reading, hiragana-to-meaning, similar kanji, kana-to-kanji, listening, context cloze, Japanese analysis, kanji writing, crossword, Kana Wordle, custom review, custom lessons, and subject lists
-- NHK Easier news with article imagery, text/URL reader, local EPUB/TXT/HTML library, local manga/PDF/image viewer, local video with SRT subtitles, Spotify song discovery with embedded YouTube and LRCLIB lyrics, translation, and the shared native/web Kakehashi issue community
+- NHK Easier news with article imagery, text/URL reader, local EPUB/TXT/HTML library, local single-image-page EPUB/CBZ/ZIP/PDF/image manga reader with on-device bubble OCR and JPDB/WaniKani vocabulary analysis, local video with SRT subtitles, Spotify song discovery with embedded YouTube and LRCLIB lyrics, translation, and the shared native/web Kakehashi issue community
 - Light, dark, sepia, and midnight themes; configurable subject colors, density, navigation, dashboard cards, and accessibility-conscious motion
 
-Camera/OCR, Bunpro, and direct Spotify/Apple Music account playback are intentionally excluded from the web app. Translation can use a configured LibreTranslate-compatible endpoint or the disclosed MyMemory server fallback.
+Camera capture, Bunpro, and direct Spotify/Apple Music account playback are intentionally excluded from the web app. Manga OCR runs locally in a browser worker; the pinned Baberu model is about 121 MB and is downloaded on first use. Translation can use a configured LibreTranslate-compatible endpoint or the disclosed MyMemory server fallback.
 
 ## Quality checks
 

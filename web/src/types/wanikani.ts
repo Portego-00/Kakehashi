@@ -18,6 +18,7 @@ export interface WKCollection<T> {
 }
 
 export interface WKUserData {
+  id?: string;
   username: string;
   level: number;
   profile_url: string;

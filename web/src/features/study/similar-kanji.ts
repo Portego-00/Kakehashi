@@ -26,7 +26,11 @@ export function niaiCharacters(character: string): string[] {
 
 export function buildSimilarKanjiBoards(dataset: StudyDataset, filters: StudyFilters, random: () => number = Math.random): SimilarKanjiBoardRound[] {
   const learnedIds = new Set(dataset.assignments.filter((assignment) => assignment.data.srs_stage > 0 && !assignment.data.hidden).map((assignment) => assignment.data.subject_id));
-  const allKanji = dataset.subjects.filter((subject) => subject.object === "kanji" && subject.data.characters && (!filters.similarKanjiOnlyLearned || learnedIds.has(subject.id)));
+  const selectedIds = new Set(filters.selectedSubjectIds);
+  const allKanji = dataset.subjects.filter((subject) => subject.object === "kanji"
+    && subject.data.characters
+    && (!selectedIds.size || selectedIds.has(subject.id))
+    && (!filters.similarKanjiOnlyLearned || learnedIds.has(subject.id)));
   const byId = new Map(allKanji.map((subject) => [subject.id, subject]));
   const byCharacter = new Map(allKanji.map((subject) => [subject.data.characters!, subject]));
   const targets = shuffle(filterStudySubjects(dataset, { ...filters, subjectTypes: ["kanji"] }), random);

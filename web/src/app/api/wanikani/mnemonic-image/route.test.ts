@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { extractMnemonicImageUrl, GET } from "./route";
+import { extractMnemonicImageUrl } from "./mnemonic-image-parser";
+import { GET } from "./route";
 
 describe("WaniKani mnemonic image proxy", () => {
   afterEach(() => vi.unstubAllGlobals());

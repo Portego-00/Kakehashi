@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react";
 import { STUDY_MODES, type StudyModeGroup } from "../catalog";
 import { sessionKey } from "../storage";
 import { useSession } from "@/lib/session";
+import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import styles from "../study.module.css";
 
 const GROUPS: StudyModeGroup[] = ["Quick practice", "Language skills", "Games & tools", "Your library"];
@@ -24,7 +25,7 @@ function ResumeFlag({ mode, scope }: { mode: (typeof STUDY_MODES)[number]; scope
 
 export function StudyHub() {
   const { user } = useSession();
-  const scope = user?.id ?? "anonymous";
+  const scope = waniKaniUserId(user) || "anonymous";
   return (
     <main className={`page ${styles.studyPage}`}>
       <header className={`page-header ${styles.hubHeader}`}>

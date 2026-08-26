@@ -6,7 +6,7 @@ import { SrsStageIcon } from "@/components/SrsStageIcon";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import { hasSelectedAnime } from "@/features/anime/types";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
-import { CROSSWORD_SIZE_PRESETS, fixedSubjectTypes } from "../mode-config";
+import { activeStrokeLeniencyPreset, CROSSWORD_SIZE_PRESETS, fixedSubjectTypes, STROKE_LENIENCY_PRESETS } from "../mode-config";
 import type { SrsGroup, StudyFilters, StudyModeId, SubjectList } from "../types";
 import styles from "../study.module.css";
 
@@ -259,16 +259,37 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
         ) : null}
 
         {mode === "kanji-writing" ? (
-          <SettingGroup title="Practice mode" detail="Choose guided strokes or free recall.">
-            <div className={styles.optionRow}>
-              <button type="button" className={styles.optionButton} data-active={filters.writingMode === "guided"} onClick={() => set("writingMode", "guided")}>
-                Guided stroke order
-              </button>
-              <button type="button" className={styles.optionButton} data-active={filters.writingMode === "freehand"} onClick={() => set("writingMode", "freehand")}>
-                Freehand recall
-              </button>
-            </div>
-          </SettingGroup>
+          <>
+            <SettingGroup title="Practice mode" detail="Choose guided strokes or free recall.">
+              <div className={styles.optionRow}>
+                <button type="button" className={styles.optionButton} data-active={filters.writingMode === "guided"} onClick={() => set("writingMode", "guided")}>
+                  Guided stroke order
+                </button>
+                <button type="button" className={styles.optionButton} data-active={filters.writingMode === "freehand"} onClick={() => set("writingMode", "freehand")}>
+                  Freehand recall
+                </button>
+              </div>
+            </SettingGroup>
+            <SettingGroup title="Stroke strictness" detail="Tolerance for stroke accuracy.">
+              <div className={styles.optionRow}>
+                {STROKE_LENIENCY_PRESETS.map((preset) => {
+                  const active = activeStrokeLeniencyPreset(filters.strokeLeniency).value === preset.value;
+                  return (
+                    <button
+                      type="button"
+                      className={styles.optionButton}
+                      data-active={active}
+                      aria-pressed={active}
+                      key={preset.value}
+                      onClick={() => set("strokeLeniency", preset.value)}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </SettingGroup>
+          </>
         ) : null}
 
         {mode === "kana-wordle" ? (

@@ -2,8 +2,8 @@
  * pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · footer: none · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · icons: pass (30) · mobile: pass (34, 49–57)
  */
 .shell { min-height: 100dvh; background: var(--color-paper); }
-:global(html:has([data-constellation="active"])),
-:global(body:has([data-constellation="active"])) { overflow: hidden; }
+:global(html):has(.shell [data-constellation="active"]),
+:global(body):has(.shell [data-constellation="active"]) { overflow: hidden; }
 .shell:has([data-constellation="active"]) { height: 100dvh; overflow: hidden; background: var(--color-media-backdrop); }
 .shell:has([data-constellation="active"]) .topbar,
 .shell:has([data-constellation="active"]) .mobileNav { display: none; }
@@ -15,7 +15,7 @@
 .skipLink { position: fixed; inset-block-start: var(--space-sm); inset-inline-start: var(--space-sm); z-index: calc(var(--z-sticky-nav) + 3); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); background: var(--color-ink); color: var(--color-paper); transform: translateY(-200%); transition: transform var(--dur-micro) var(--ease-out); }
 .skipLink:focus-visible { transform: translateY(0); }
 .topbar { position: sticky; inset-block-start: 0; z-index: var(--z-sticky-nav); height: calc(var(--banner-height) + var(--space-md)); min-height: calc(var(--banner-height) + var(--space-md)); display: flex; align-items: flex-start; padding-block-start: var(--space-sm); background: transparent; pointer-events: none; }
-:global(html:has([data-study-session="active"])) { --banner-height: 0rem; }
+:global(html):has(.shell [data-study-session="active"]) { --banner-height: 0rem; }
 .shell:has([data-study-session="active"]) .topbar { display: none; }
 .appbar { --appbar-scale-x: 1; width: min(calc(100% - 2rem), 96rem); min-height: var(--banner-height); margin-inline: auto; display: grid; grid-template-columns: minmax(11rem, 1fr) auto minmax(11rem, 1fr); align-items: center; gap: var(--space-lg); padding-inline: clamp(var(--space-md), 2.5vw, var(--space-xl)); border: var(--rule-thin) solid transparent; border-radius: var(--radius-pill); background: color-mix(in oklch, var(--color-surface) 74%, transparent); box-shadow: none; backdrop-filter: saturate(1.1) blur(1rem); pointer-events: auto; transform: translateY(0) scaleX(var(--appbar-scale-x)); transform-origin: center top; transition: border-color var(--dur-long) var(--ease-out), background-color var(--dur-long) var(--ease-out), box-shadow var(--dur-long) var(--ease-out), backdrop-filter var(--dur-long) var(--ease-out), transform var(--dur-long) var(--ease-out); }
 .topbar[data-floating="true"] .appbar { --appbar-scale-x: .84; border-color: var(--color-rule-2); background: color-mix(in oklch, var(--color-surface) 90%, transparent); box-shadow: var(--shadow-floating); backdrop-filter: saturate(1.15) blur(1.25rem); transform: translateY(var(--space-2xs)) scaleX(var(--appbar-scale-x)); }
@@ -65,7 +65,7 @@
 @keyframes bootstrapLogoIn { from { opacity: 0; transform: translateX(calc(var(--space-xs) * -1)); } }
 @keyframes backButtonIn { from { opacity: 0; transform: translateX(calc(var(--space-xs) * -1)); } }
 .mobileNav { display: none; }
-:global(html:has([data-study-session="active"])) .mobileNav { display: none; }
+:global(html):has(.shell [data-study-session="active"]) .mobileNav { display: none; }
 .moreLayer { position: fixed; inset: 0; z-index: calc(var(--z-sticky-nav) + 2); }
 .moreBackdrop { position: absolute; inset: 0; width: 100%; border: 0; background: color-mix(in oklch, var(--color-paper) 28%, color-mix(in oklch, var(--color-ink) 60%, transparent)); animation: backdropIn var(--dur-short) var(--ease-out); }
 .moreSheet { position: absolute; inset-block-start: calc(var(--banner-height) + var(--space-lg)); inset-inline-start: 50%; width: min(calc(100% - 2rem), 72rem); max-height: calc(100dvh - var(--banner-height) - var(--space-2xl)); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-lg); background: var(--color-paper); transform: translateX(-50%); animation: menuIn var(--dur-short) var(--ease-out); }

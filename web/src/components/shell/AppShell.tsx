@@ -34,6 +34,8 @@ import { LoadingState } from "@/components/ui/States";
 import { WebAnalyticsTracker } from "@/features/analytics/WebAnalyticsTracker";
 import { SettingsApplicator } from "@/features/settings/components/SettingsApplicator";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
+import { PatreonIcon } from "@/components/icons/BrandIcons";
+import { PATREON_URL } from "@/lib/project-links";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -95,16 +97,6 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
   },
 ];
 const mobileNavigation = [home, level, news, { href: "/study", label: "Study", icon: Sparkles } satisfies Destination];
-const PATREON_URL = "https://www.patreon.com/15731284/join";
-
-function PatreonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="-2 -2.5 24 24" aria-hidden="true" focusable="false">
-      <path d="M12.808.01c-3.95 0-7.164 3.196-7.164 7.125 0 3.916 3.214 7.103 7.164 7.103 3.938 0 7.142-3.187 7.142-7.103 0-3.93-3.204-7.125-7.142-7.125M.05 18.99V.01h3.502v18.98z" fill="#FF424D" />
-    </svg>
-  );
-}
-
 function isActive(pathname: string, href: string) {
   return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
 }

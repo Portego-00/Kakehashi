@@ -28,6 +28,11 @@ export function writeLocal(key: string, value: unknown) {
   }
 }
 
+function removeLocal(key: string) {
+  if (!canUseStorage()) return;
+  window.localStorage.removeItem(`${PREFIX}:${key}`);
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
@@ -101,6 +106,32 @@ export async function deleteRecord(record: ContentRecord) {
   const next = loadLibrary(record.kind).filter((item) => item.id !== record.id);
   if (!saveLibrary(record.kind, next)) throw new Error("Browser storage did not accept the library update.");
   await Promise.all(record.assetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)));
+  if (record.kind === "manga") removeLocal(`manga-ocr:${record.id}`);
+}
+
+export interface MangaOcrPageCache {
+  text: string;
+  updatedAt: string;
+}
+
+type MangaOcrCache = Record<string, MangaOcrPageCache>;
+
+export function loadMangaOcrPage(mangaId: string, pageNumber: number): MangaOcrPageCache | null {
+  const cache = readLocal<MangaOcrCache>(`manga-ocr:${mangaId}`, {});
+  const value = cache[String(Math.max(1, Math.floor(pageNumber || 1)))];
+  return value && typeof value.text === "string" ? value : null;
+}
+
+export function saveMangaOcrPage(mangaId: string, pageNumber: number, text: string) {
+  const key = `manga-ocr:${mangaId}`;
+  const cache = readLocal<MangaOcrCache>(key, {});
+  const pageKey = String(Math.max(1, Math.floor(pageNumber || 1)));
+  const normalizedText = text.trim();
+  const next = { ...cache };
+  if (normalizedText) next[pageKey] = { text: normalizedText, updatedAt: new Date().toISOString() };
+  else delete next[pageKey];
+  if (!writeLocal(key, next)) throw new Error("The OCR text could not be saved in browser storage.");
+  return next[pageKey] ?? null;
 }
 
 export const communityStorage = {

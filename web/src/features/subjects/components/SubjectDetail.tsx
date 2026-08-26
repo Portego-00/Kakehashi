@@ -4,19 +4,21 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, ExternalLink, Headphones, Layers3, Pencil, Save, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, Download, ExternalLink, Headphones, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { Button, type ButtonState } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TextAreaField } from "@/components/ui/Field";
 import { EmptyState, Skeleton } from "@/components/ui/States";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
+import { JAPANESE_VOICE_DOWNLOAD_LABEL } from "@/features/speech/japanese-voice-assets";
+import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import { fetchImmersionExamples, type ImmersionExample } from "@/features/study/immersion";
 import { fetchSubjectEnrichments, pitchAccentLabel, splitReadingIntoMoras, type PitchAccentEntry, type UsagePattern } from "@/features/subjects/enrichments";
 import { groupVocabularyByKanjiReading, normalizeKanjiReading } from "@/features/subjects/reading-examples";
 import { useSession } from "@/lib/session";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
-import type { Assignment, PronunciationAudio, ReviewStatistic, StudyMaterial, Subject, SubjectReading } from "@/types/wanikani";
+import type { Assignment, ContextSentence, PronunciationAudio, ReviewStatistic, StudyMaterial, Subject, SubjectReading } from "@/types/wanikani";
 import { StrokeOrder } from "./StrokeOrder";
 import styles from "../subjects.module.css";
 
@@ -159,7 +161,7 @@ export function SubjectDetail({ id, returnTo = "/search" }: { id: number; return
 
       {hasContextContent ? <section id="subject-panel-context" role="tabpanel" aria-labelledby="subject-tab-context" aria-hidden={resolvedActiveTab !== "context"} inert={resolvedActiveTab !== "context" ? true : undefined} data-tab-position={tabPosition("context")} className={styles.detailPanelStack} style={tabPagerStyle("context")}>
         {detailSettings.showPatternsOfUse && enrichments.data?.patterns.length ? <UsagePatterns patterns={enrichments.data.patterns} /> : null}
-        {detailSettings.showContextSentences && record.data.context_sentences?.length ? <DetailSection title="Context sentences"><div className={styles.contextList}>{record.data.context_sentences.map((sentence) => <blockquote key={`${sentence.ja}-${sentence.en}`}><p lang="ja">{sentence.ja}</p><footer>{sentence.en}</footer></blockquote>)}</div></DetailSection> : null}
+        {detailSettings.showContextSentences && record.data.context_sentences?.length ? <ContextSentences sentences={record.data.context_sentences} /> : null}
         {detailSettings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersion.data ?? []} query={characters} loading={immersion.isLoading} failed={immersion.isError} /> : null}
       </section> : null}
       </DetailPager>
@@ -366,6 +368,49 @@ function UsagePatterns({ patterns }: { patterns: UsagePattern[] }) {
   </div></DetailSection>;
 }
 
+export function ContextSentences({ sentences }: { sentences: ContextSentence[] }) {
+  const voice = useJapaneseVoice();
+  const downloading = voice.activity === "downloading";
+  const downloadState: ButtonState = downloading ? "loading" : voice.error && !voice.downloaded ? "error" : "idle";
+  const action = voice.checked && voice.downloaded
+    ? <span className={styles.voiceSaved} title="The model is stored in this browser's site data."><Check size={15} aria-hidden />Saved in this browser</span>
+    : <Button className={styles.voiceDownload} type="button" size="small" state={downloadState} disabled={!voice.checked || !voice.supported} onClick={() => void voice.download()}>
+      {downloadState === "idle" ? <Download size={15} aria-hidden /> : null}
+      {!voice.checked ? "Checking voice…" : !voice.supported ? "Voice unavailable" : downloading ? `Downloading${voice.progress ? ` ${voice.progress}%` : "…"}` : voice.error ? "Retry voice download" : `Download voice · ${JAPANESE_VOICE_DOWNLOAD_LABEL}`}
+    </Button>;
+
+  return <DetailSection title="Context sentences" action={action}>
+    {!voice.supported && voice.checked ? <p className={styles.voiceError} role="alert">This browser cannot run the local Japanese voice.</p> : null}
+    {voice.error ? <p className={styles.voiceError} role="alert">{voice.error}</p> : null}
+    <div className={styles.contextList}>{sentences.map((sentence, index) => {
+      const active = voice.activeSentence === sentence.ja;
+      const busy = voice.activity !== "idle";
+      const canStop = active && (voice.activity === "synthesizing" || voice.activity === "playing");
+      const label = canStop
+        ? `${voice.activity === "playing" ? "Stop" : "Cancel"} Japanese context sentence ${index + 1}`
+        : `Play Japanese context sentence ${index + 1}: ${sentence.ja}`;
+      return <blockquote key={`${sentence.ja}-${sentence.en}`}>
+        <div className={styles.contextSentenceMain}>
+          <p lang="ja">{sentence.ja}</p>
+          <button
+            className={styles.contextPlayButton}
+            type="button"
+            aria-label={label}
+            aria-busy={active && voice.activity === "synthesizing"}
+            data-state={active ? voice.activity : "idle"}
+            disabled={!voice.downloaded || (busy && !active)}
+            title={voice.downloaded ? label : "Download the Japanese voice first"}
+            onClick={() => canStop ? voice.stop() : void voice.play(sentence.ja)}
+          >
+            {active && voice.activity === "synthesizing" ? <LoaderCircle className={styles.voiceSpinner} size={18} aria-hidden /> : active && voice.activity === "playing" ? <Square size={16} aria-hidden /> : <Volume2 size={19} aria-hidden />}
+          </button>
+        </div>
+        <footer>{sentence.en}</footer>
+      </blockquote>;
+    })}</div>
+  </DetailSection>;
+}
+
 function DetailSection({ title, icon, action, children }: { title: string; icon?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return <section className={styles.detailSection}><div className={styles.detailTitle}><span className={styles.detailTitleLabel}>{icon}<h2>{title}</h2></span>{action}</div><Card className={styles.detailPanel}>{children}</Card></section>;
 }
@@ -396,9 +441,11 @@ function HighlightedJapanese({ value, query }: { value: string; query: string })
 }
 
 function AnimeContext({ examples, query, loading, failed }: { examples: ImmersionExample[]; query: string; loading: boolean; failed: boolean }) {
+  const [visibleCount, setVisibleCount] = useState(10);
   if (loading) return <DetailSection title="Anime context"><Skeleton height="10rem" /></DetailSection>;
   if (failed || !examples.length) return <DetailSection title="Anime context"><p className={styles.contextUnavailable}>No matching ImmersionKit scene was found for this subject and source selection.</p></DetailSection>;
-  return <DetailSection title="Anime context"><div className={styles.immersionList}>{examples.map((example, index) => <figure className={styles.immersionExample} key={`${example.title}-${example.sentence}-${index}`}>{example.imageUrl ? <Image src={example.imageUrl} alt={`Scene from ${example.title}`} width={480} height={360} sizes="(max-width: 42rem) 7rem, 7.5rem" loader={passthroughImageLoader} unoptimized /> : null}<figcaption><strong>{example.title}</strong><p lang="ja"><HighlightedJapanese value={example.sentence} query={query} /></p><span>{example.translation}</span>{example.audio ? <audio controls preload="none" src={example.audio}>Audio playback is not supported by this browser.</audio> : null}</figcaption></figure>)}</div></DetailSection>;
+  const visibleExamples = examples.slice(0, visibleCount);
+  return <DetailSection title="Anime context"><div className={styles.immersionList}>{visibleExamples.map((example, index) => <figure className={styles.immersionExample} key={`${example.title}-${example.sentence}-${index}`}>{example.imageUrl ? <Image src={example.imageUrl} alt={`Scene from ${example.title}`} width={480} height={360} sizes="(max-width: 42rem) 7rem, 7.5rem" loader={passthroughImageLoader} unoptimized /> : null}<figcaption><strong>{example.title}</strong><p lang="ja"><HighlightedJapanese value={example.sentence} query={query} /></p><span>{example.translation}</span>{example.audio ? <audio controls preload="none" src={example.audio}>Audio playback is not supported by this browser.</audio> : null}</figcaption></figure>)}</div>{visibleCount < examples.length ? <Button className={styles.immersionMore} type="button" tone="ghost" onClick={() => setVisibleCount((count) => Math.min(count + 10, examples.length))}>Show more scenes</Button> : null}</DetailSection>;
 }
 
 function RelationSection({ title, ids, subjects, returnTo }: { title: string; ids?: number[]; subjects: Map<number, Subject>; returnTo: string }) {

@@ -7,7 +7,7 @@ vi.mock("./YouTubePlayer", () => ({
   YouTubePlayer: forwardRef<HTMLDivElement, { videoId: string }>(function Player({ videoId }, ref) { return <div ref={ref} data-testid="youtube-player">{videoId}</div>; }),
 }));
 
-import { loadLibrary } from "./storage";
+import { loadLibrary, saveLibrary } from "./storage";
 import { MusicWorkspace } from "./music";
 
 const track = {
@@ -48,6 +48,38 @@ function response(body: unknown, status = 200) {
 describe("music workspace provider flow", () => {
   beforeEach(() => window.localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
+
+  it("uses the standard song card for history while keeping remove and undo actions", async () => {
+    saveLibrary("song", [{
+      id: "saved-song",
+      kind: "song",
+      title: track.title,
+      text: lyrics.syncedLyrics,
+      assetIds: [],
+      createdAt: "2026-08-25T19:00:00.000Z",
+      updatedAt: "2026-08-25T19:00:00.000Z",
+      progress: 0,
+      metadata: { artist: track.artist, albumArt: track.albumArt, spotifyId: track.id },
+    }]);
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input) => String(input) === "/music/discover"
+      ? response({ sections: [{ id: "popular", title: "Popular J-pop", tracks: [track] }] })
+      : (() => { throw new Error(`Unexpected request: ${String(input)}`); })()));
+
+    render(<MusicWorkspace />);
+
+    const historyCard = screen.getByRole("button", { name: "Open アイドル by YOASOBI" });
+    const recommendationCard = await screen.findByRole("button", { name: "アイドル by YOASOBI" });
+    expect(historyCard.className).toBe(recommendationCard.className);
+    expect(historyCard.firstElementChild?.className).toBe(recommendationCard.firstElementChild?.className);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove アイドル" }));
+    expect(screen.queryByRole("button", { name: "Open アイドル by YOASOBI" })).not.toBeInTheDocument();
+    expect(loadLibrary("song")).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByRole("button", { name: "Open アイドル by YOASOBI" })).toBeInTheDocument();
+    expect(loadLibrary("song")).toHaveLength(1);
+  });
 
   it("searches progressively, opens the song screen, and saves matched sources", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {

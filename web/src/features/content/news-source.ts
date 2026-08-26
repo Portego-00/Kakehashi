@@ -3,9 +3,10 @@ import "server-only";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { extractReadableTextFromHtml } from "./parsers";
+import { normalizeNewsAudioUrl } from "./news-audio";
 import { normalizeNewsImageUrl } from "./news-images";
 import { readBoundedJson, readBoundedText } from "./server-security";
-import type { NewsArticle, NewsSource, NewsSourcePreference } from "./types";
+import type { FuriganaRange, NewsArticle, NewsSource, NewsSourcePreference } from "./types";
 
 const EASY_FEED_URL = "https://nhkeasier.com/feed/";
 const REGULAR_FEED_URL = "https://news.web.nhk/n-data/conf/na/rss/cat0.xml";
@@ -18,7 +19,7 @@ const OEMBED_CONCURRENCY = 4;
 const MAX_REGULAR_CONTENT_HTML_LENGTH = 500_000;
 
 const SAFE_REGULAR_CONTENT_TAGS = new Set([
-  "p", "br", "h1", "h2", "h3", "h4", "strong", "em", "b", "i", "ruby", "rt", "rp", "span",
+  "p", "br", "h1", "h2", "h3", "h4", "strong", "em", "b", "i", "ruby", "rb", "rt", "rp", "span",
   "img", "figure", "figcaption", "ul", "ol", "li", "blockquote",
 ]);
 
@@ -84,13 +85,48 @@ function htmlAttribute(tagMarkup: string, name: string) {
   return decodeXml(tagMarkup.match(new RegExp(`\\b${name}\\s*=\\s*(?:["']([^"']*)["']|([^\\s>]+))`, "i"))?.slice(1).find(Boolean) ?? "");
 }
 
-function readableParagraph(markup: string) {
+function inlineText(markup: string) {
   return extractReadableTextFromHtml(
-    markup
+    markup.replace(/<\/?(?:ruby|rb|rt|rp|span|a|strong|em|b|i)\b[^>]*>/gi, ""),
+  );
+}
+
+function readableParagraph(markup: string): { text: string; furigana: FuriganaRange[] } {
+  const readings: string[] = [];
+  const markedUp = markup.replace(/<ruby\b[^>]*>([\s\S]*?)<\/ruby>/gi, (_ruby, contents: string) => {
+    const reading = [...contents.matchAll(/<rt\b[^>]*>([\s\S]*?)<\/rt>/gi)]
+      .map((match) => inlineText(match[1]))
+      .join("");
+    const base = inlineText(
+      contents
+        .replace(/<rt\b[^>]*>[\s\S]*?<\/rt>/gi, "")
+        .replace(/<rp\b[^>]*>[\s\S]*?<\/rp>/gi, ""),
+    );
+    if (!base || !reading) return base;
+    const index = readings.push(reading) - 1;
+    return `\uE000${index.toString(36)}\uE001${base}\uE002`;
+  });
+  const markedText = extractReadableTextFromHtml(
+    markedUp
       .replace(/<rt\b[^>]*>[\s\S]*?<\/rt>/gi, "")
       .replace(/<rp\b[^>]*>[\s\S]*?<\/rp>/gi, "")
-      .replace(/<\/?(?:ruby|span|a|strong|em|b|i)\b[^>]*>/gi, ""),
+      .replace(/<\/?(?:ruby|rb|span|a|strong|em|b|i)\b[^>]*>/gi, ""),
   );
+  const furigana: FuriganaRange[] = [];
+  let text = "";
+  let cursor = 0;
+  for (const match of markedText.matchAll(/\uE000([0-9a-z]+)\uE001([\s\S]*?)\uE002/g)) {
+    const markerStart = match.index ?? 0;
+    text += markedText.slice(cursor, markerStart);
+    const base = match[2];
+    const start = text.length;
+    text += base;
+    const reading = readings[Number.parseInt(match[1], 36)];
+    if (base && reading) furigana.push({ start, end: start + base.length, reading });
+    cursor = markerStart + match[0].length;
+  }
+  text += markedText.slice(cursor);
+  return { text, furigana };
 }
 
 export function parseNewsContent(description: string, articleUrl: string): NonNullable<NewsArticle["content"]> {
@@ -103,8 +139,8 @@ export function parseNewsContent(description: string, articleUrl: string): NonNu
       if (url) blocks.push({ type: "image", url, alt: htmlAttribute(markup, "alt") || "Story illustration" });
       continue;
     }
-    const text = readableParagraph(markup);
-    if (text) blocks.push({ type: "text", text });
+    const { text, furigana } = readableParagraph(markup);
+    if (text) blocks.push({ type: "text", text, ...(furigana.length ? { furigana } : {}) });
   }
   return blocks;
 }
@@ -137,6 +173,9 @@ export function parseNewsRss(xml: string): NewsArticle[] {
     const body = articleBody(content);
     const firstImage = content.find((block) => block.type === "image");
     const imageUrl = firstImage?.type === "image" ? firstImage.url : normalizeNewsImageUrl(attribute(item, "itunes:image", "href"), url);
+    const audioMarkup = description.match(/<audio\b[^>]*>/i)?.[0] ?? "";
+    const audioUrl = normalizeNewsAudioUrl(htmlAttribute(audioMarkup, "src"), url)
+      ?? normalizeNewsAudioUrl(attribute(item, "enclosure", "url"), url);
     return [{
       id: easyStableId(guid, url, `${title}|${tag(item, "pubDate")}|${index}`),
       source: "easy",
@@ -145,6 +184,7 @@ export function parseNewsRss(xml: string): NewsArticle[] {
       url,
       isFullArticle: true,
       imageUrl,
+      ...(audioUrl ? { audioUrl } : {}),
       summary: body.slice(0, 150),
       body,
       content,

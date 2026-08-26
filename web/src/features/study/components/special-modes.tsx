@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toHiragana } from "wanakana";
-import { ArrowLeft, ArrowRight, Check, Eye, Keyboard, Library, Lightbulb, RotateCcw, Trash2, Undo2, X } from "lucide-react";
-import { createListRepository, subscribeSubjectLists, type ListStorage } from "@/features/subjects/lists";
+import { ArrowLeft, ArrowRight, Check, Eye, Grid3X3, Library, Lightbulb, Play, RotateCcw, Sparkles, Trash2, Undo2, Volume2, X } from "lucide-react";
+import { useSubjectLists } from "@/features/subjects/use-subject-lists";
 import type { Subject } from "@/types/wanikani";
 import { analyzeJapaneseText, chooseWordleCandidate, evaluateWordleGuess, generateCrossword, isValidWordleGuess, splitKana, wordleCandidates } from "../games";
 import { filterStudySubjects, shuffle } from "../engine";
@@ -13,13 +13,10 @@ import type { CrosswordPuzzle, StudyDataset, StudyFilters, SubjectList } from ".
 import type { StudyStorageScope } from "../storage";
 import { buildSimilarKanjiBoards } from "../similar-kanji";
 import { CROSSWORD_SIZE_PRESETS } from "../mode-config";
-import { loadKanjiStrokeData, medianPoint, validateStroke, type KanjiStrokeData } from "../stroke-data";
+import { evaluateFreehandDrawing, loadKanjiStrokeData, type KanjiStrokeData } from "../stroke-data";
+import { GuidedWritingCanvas, MOBILE_GUIDED_STROKE_TRANSFORM, type GuidedWritingCanvasHandle } from "./guided-writing-canvas";
 import styles from "../study.module.css";
 
-const subjectListStorage: ListStorage = {
-  getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key),
-  setItem: (key, value) => { if (typeof window !== "undefined") window.localStorage.setItem(key, value); },
-};
 
 function primaryMeaning(subject: Subject) {
   return subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? "Unknown";
@@ -68,39 +65,78 @@ export function TextAnalysis({ subjects, scope }: { subjects: Subject[]; scope: 
 
 type Point = { x: number; y: number };
 type Stroke = Point[];
+const MIN_WRITING_STROKE_LENGTH = 8;
+
+function appendStrokePoint(stroke: Stroke, next: Point): Stroke {
+  const previous = stroke.at(-1);
+  return previous && previous.x === next.x && previous.y === next.y ? stroke : [...stroke, next];
+}
+
+function writingStrokeLength(stroke: Stroke) {
+  return stroke.slice(1).reduce((total, current, index) => {
+    const previous = stroke[index];
+    return total + Math.hypot(current.x - previous.x, current.y - previous.y);
+  }, 0);
+}
+
+function initialWritingMessage(mode: StudyFilters["writingMode"]) {
+  return mode === "guided" ? "Loading stroke order…" : "Loading handwriting reference…";
+}
 
 export function WritingPractice({ dataset, filters, scope, onExit }: { dataset: StudyDataset; filters: StudyFilters; scope: StudyStorageScope; onExit: () => void }) {
   const [saved] = useState(() => loadModeState<{ index: number; correct: number; subjectIds: number[] }>(scope, "kanji-writing", "progress"));
   const eligible = useMemo(() => filterStudySubjects(dataset, { ...filters, subjectTypes: ["kanji"] }), [dataset, filters]);
-  const kanji = useMemo(() => {
+  const [kanji] = useState(() => {
     const byId = new Map(eligible.map((subject) => [subject.id, subject]));
     const restored = saved?.subjectIds?.map((id) => byId.get(id)).filter((subject): subject is Subject => Boolean(subject));
     return restored?.length ? restored : shuffle(eligible).slice(0, filters.count);
-  }, [eligible, filters.count, saved]);
+  });
   const [index, setIndex] = useState(() => Math.min(saved?.index ?? 0, kanji.length));
   const [correct, setCorrect] = useState(saved?.correct ?? 0);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
   const [strokeData, setStrokeData] = useState<KanjiStrokeData | null>(null);
+  const [strokeLoadState, setStrokeLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [strokeIndex, setStrokeIndex] = useState(0);
-  const [strokeMessage, setStrokeMessage] = useState(() => filters.writingMode === "guided" ? "Loading stroke order…" : "Draw the complete kanji, then grade your recall.");
+  const [strokeMessage, setStrokeMessage] = useState(() => initialWritingMessage(filters.writingMode));
+  const [guidedMistakes, setGuidedMistakes] = useState(0);
+  const [guidedWriterReady, setGuidedWriterReady] = useState(false);
+  const [guidedReplaying, setGuidedReplaying] = useState(false);
+  const [evaluation, setEvaluation] = useState<ReturnType<typeof evaluateFreehandDrawing> | null>(null);
+  const [replayKey, setReplayKey] = useState(0);
+  const guidedWriterRef = useRef<GuidedWritingCanvasHandle | null>(null);
   const drawing = useRef(false);
   const strokeBuffer = useRef<Stroke>([]);
+  const activePointerId = useRef<number | null>(null);
   const subject = kanji[index];
 
   useEffect(() => {
     saveModeState(scope, "kanji-writing", "progress", { index, correct, subjectIds: kanji.map((item) => item.id) });
   }, [correct, index, kanji, scope]);
   useEffect(() => {
-    if (!subject?.data.characters || filters.writingMode !== "guided") return;
+    if (!subject?.data.characters) return;
     let cancelled = false;
-    void loadKanjiStrokeData(subject.data.characters).then((data) => { if (!cancelled) { setStrokeData(data); setStrokeMessage("Draw stroke 1 in the highlighted direction."); } }).catch(() => { if (!cancelled) setStrokeMessage("Stroke data is unavailable; use freehand or the keyboard path."); });
+    void loadKanjiStrokeData(subject.data.characters).then((data) => {
+      if (cancelled) return;
+      setStrokeData(data);
+      setStrokeLoadState("ready");
+      setStrokeMessage(filters.writingMode === "guided" ? "Preparing guided writer…" : "Draw the complete kanji, then submit it for grading.");
+    }).catch(() => {
+      if (cancelled) return;
+      setStrokeLoadState("error");
+      setStrokeMessage("Handwriting data is unavailable for this kanji.");
+    });
     return () => { cancelled = true; };
-  }, [filters.writingMode, subject?.data.characters]);
+  }, [filters.writingMode, subject?.id, subject?.data.characters]);
 
   const point = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    return { x: ((event.clientX - rect.left) / rect.width) * 1024, y: ((event.clientY - rect.top) / rect.height) * 1024 };
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
+    return {
+      x: Math.min(1024, Math.max(0, ((event.clientX - rect.left) / rect.width) * 1024)),
+      y: Math.min(1024, Math.max(0, ((event.clientY - rect.top) / rect.height) * 1024)),
+    };
   };
   const finish = (remembered: boolean) => {
     const nextIndex = index + 1;
@@ -111,26 +147,129 @@ export function WritingPractice({ dataset, filters, scope, onExit }: { dataset: 
       setCorrect(nextCorrect);
       return;
     }
-    setIndex(nextIndex); setCorrect(nextCorrect); setStrokes([]); setShowAnswer(false); setStrokeIndex(0); setStrokeData(null); setStrokeMessage(filters.writingMode === "guided" ? "Loading stroke order…" : "Draw the complete kanji, then grade your recall.");
+    setIndex(nextIndex); setCorrect(nextCorrect); setStrokes([]); setShowAnswer(false); setStrokeIndex(0); setStrokeData(null); setStrokeLoadState("loading"); setStrokeMessage(initialWritingMessage(filters.writingMode)); setGuidedMistakes(0); setGuidedWriterReady(false); setGuidedReplaying(false); setEvaluation(null);
     saveModeState(scope, "kanji-writing", "progress", { index: nextIndex, correct: nextCorrect, subjectIds: kanji.map((item) => item.id) });
   };
   if (!subject) {
     return <section className={styles.results}><div className={styles.resultMark}><Check size={34} /></div><h2>{kanji.length ? "Writing complete" : "No kanji available"}</h2>{kanji.length ? <><p>You recalled {correct} of {kanji.length} kanji.</p><dl className={styles.resultStats}><div><dt>Recall</dt><dd>{Math.round((correct / kanji.length) * 100)}%</dd></div><div><dt>Remembered</dt><dd>{correct}</dd></div><div><dt>Practiced</dt><dd>{kanji.length}</dd></div></dl></> : <p>Try widening the selected level, SRS range, or subject-list filter.</p>}<button className={styles.primaryButton} onClick={() => { clearModeState(scope, "kanji-writing", "progress"); onExit(); }}>Back to setup</button></section>;
   }
+
+  const guided = filters.writingMode === "guided";
+  const guidedComplete = guided && Boolean(strokeData?.medians.length) && strokeIndex >= (strokeData?.medians.length ?? 0);
+  const canDraw = !guided && strokeLoadState === "ready" && !evaluation;
+  const statusText = evaluation
+    ? `${evaluation.correct ? "Correct" : "Incorrect"} · Similarity ${evaluation.similarityPercent}%`
+    : guidedComplete
+      ? `Complete${guidedMistakes ? ` · ${guidedMistakes} mistake${guidedMistakes === 1 ? "" : "s"}` : " · no mistakes"}`
+      : guided && strokeData
+        ? `Stroke ${Math.min(strokeIndex + 1, strokeData.medians.length)} of ${strokeData.medians.length} · ${strokeMessage}`
+        : strokeMessage;
+
+  const resetAttempt = () => {
+    drawing.current = false;
+    activePointerId.current = null;
+    strokeBuffer.current = [];
+    setStrokes([]);
+    setStrokeIndex(0);
+    setGuidedMistakes(0);
+    setGuidedReplaying(false);
+    setShowAnswer(false);
+    setEvaluation(null);
+    setStrokeMessage(guided ? "Draw the first stroke." : "Draw the complete kanji, then submit it for grading.");
+    if (guided) {
+      setGuidedWriterReady(false);
+      guidedWriterRef.current?.restart();
+    }
+  };
+
+  const showCorrectWriting = () => {
+    if (guided) {
+      guidedWriterRef.current?.replay();
+      return;
+    }
+    setShowAnswer(true);
+    setReplayKey((value) => value + 1);
+  };
+
+  const completePointerStroke = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawing.current || activePointerId.current !== event.pointerId) return;
+    const completedStroke = appendStrokePoint(strokeBuffer.current, point(event));
+    drawing.current = false;
+    activePointerId.current = null;
+    strokeBuffer.current = completedStroke;
+    if (completedStroke.length < 2 || writingStrokeLength(completedStroke) < MIN_WRITING_STROKE_LENGTH) {
+      setStrokes((value) => value.slice(0, -1));
+      setStrokeMessage("Draw the full stroke before releasing.");
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
+      return;
+    }
+    setStrokes((value) => value.map((stroke, itemIndex) => itemIndex === value.length - 1 ? completedStroke : stroke));
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+
   return (
-    <section className={styles.writingShell}>
-      <div className={styles.quizTopbar}><span>{index + 1} / {kanji.length}</span><p>Write the kanji for <strong>{primaryMeaning(subject)}</strong></p><button className={styles.iconButton} onClick={onExit} aria-label="Pause writing practice"><X size={19} /></button></div>
+    <section className={styles.writingShell} data-mode={filters.writingMode}>
+      <div className={styles.quizTopbar}><span>{index + 1} / {kanji.length}</span><p>Write the kanji for <strong>{primaryMeaning(subject)}</strong>{primaryReading(subject) ? <small lang="ja">{primaryReading(subject)}</small> : null}</p><button type="button" className={styles.iconButton} onClick={onExit} aria-label="Pause writing practice"><X size={19} /></button></div>
       <div className={styles.writingStage}>
-        <svg className={styles.writingCanvas} viewBox="0 0 1024 1024" role="img" aria-label={`Drawing area for ${primaryMeaning(subject)}. ${strokeMessage}`} onPointerDown={(event) => { drawing.current = true; event.currentTarget.setPointerCapture(event.pointerId); const first = point(event); strokeBuffer.current = [first]; setStrokes((value) => [...value, [first]]); }} onPointerMove={(event) => { if (!drawing.current) return; const next = point(event); strokeBuffer.current = [...strokeBuffer.current, next]; setStrokes((value) => value.map((stroke, itemIndex) => itemIndex === value.length - 1 ? [...stroke, next] : stroke)); }} onPointerUp={() => { drawing.current = false; if (filters.writingMode === "guided" && strokeData?.medians[strokeIndex]) { const result = validateStroke(strokeBuffer.current, strokeData.medians[strokeIndex]); setStrokeMessage(result.message); if (result.correct) setStrokeIndex((value) => value + 1); else setStrokes((value) => value.slice(0, -1)); } }} onPointerCancel={() => { drawing.current = false; }}>
-          <path d="M512 0V1024M0 512H1024M0 0L1024 1024M1024 0L0 1024" className={styles.guideLines} />
-          {filters.writingMode === "guided" && strokeData?.medians[strokeIndex] ? <polyline className={styles.expectedStroke} points={strokeData.medians[strokeIndex].map((item) => { const value = medianPoint(item); return `${value.x},${value.y}`; }).join(" ")} /> : null}
-          {showAnswer ? <text x="512" y="720" textAnchor="middle" className={styles.answerGhost}>{subject.data.characters}</text> : null}
-          {strokes.map((stroke, strokeIndex) => <polyline key={strokeIndex} points={stroke.map((item) => `${item.x},${item.y}`).join(" ")} className={styles.inkStroke} />)}
-        </svg>
-        <p className={styles.strokeStatus} role="status">{filters.writingMode === "guided" && strokeData ? `Stroke ${Math.min(strokeIndex + 1, strokeData.medians.length)} of ${strokeData.medians.length} · ${strokeMessage}` : strokeMessage}</p>
-        <div className={styles.canvasTools}><button className={styles.secondaryButton} onClick={() => { setStrokes((value) => value.slice(0, -1)); if (filters.writingMode === "guided") setStrokeIndex((value) => Math.max(0, value - 1)); }} disabled={!strokes.length}><Undo2 size={16} /> Undo</button><button className={styles.secondaryButton} onClick={() => { setStrokes([]); setStrokeIndex(0); }} disabled={!strokes.length}><Trash2 size={16} /> Clear</button><button className={styles.secondaryButton} onClick={() => setShowAnswer((value) => !value)}><Eye size={16} /> {showAnswer ? "Hide" : "Show"} answer</button>{filters.writingMode === "guided" && strokeData && strokeIndex < strokeData.medians.length ? <button className={styles.secondaryButton} onClick={() => { setStrokeIndex((value) => value + 1); setStrokeMessage("Stroke practiced with keyboard guidance."); }}><Keyboard size={16} /> Practice next stroke</button> : null}</div>
+        {guided ? (
+          <GuidedWritingCanvas
+            ref={guidedWriterRef}
+            character={subject.data.characters ?? ""}
+            complete={guidedComplete}
+            data={strokeData}
+            label={`Drawing area for ${primaryMeaning(subject)}. ${statusText}`}
+            leniency={filters.strokeLeniency}
+            state={strokeLoadState}
+            showGrid={showGrid}
+            showOutline={showAnswer}
+            onReady={() => {
+              setGuidedWriterReady(true);
+              setGuidedReplaying(false);
+              setStrokeMessage("Draw the first stroke.");
+            }}
+            onError={() => {
+              setGuidedWriterReady(false);
+              setStrokeLoadState("error");
+              setStrokeMessage("Guided handwriting could not be started for this kanji.");
+            }}
+            onMistake={(data) => {
+              if (data.mistakesOnStroke === 2) setGuidedMistakes((value) => value + 1);
+              setStrokeMessage(data.mistakesOnStroke >= 3
+                ? "Try again. The next stroke is highlighted."
+                : data.isBackwards
+                  ? "Check the stroke direction."
+                  : "Try that stroke again.");
+            }}
+            onReplayStateChange={setGuidedReplaying}
+            onCorrectStroke={(data) => {
+              const nextStroke = data.strokeNum + 1;
+              setStrokeIndex(nextStroke);
+              setStrokeMessage(data.strokesRemaining === 0
+                ? "All strokes accepted."
+                : `Stroke accepted. Draw stroke ${nextStroke + 1}.`);
+            }}
+            onComplete={() => {
+              setStrokeIndex(strokeData?.medians.length ?? 0);
+              setStrokeMessage("All strokes accepted.");
+            }}
+            ready={guidedWriterReady}
+          />
+        ) : (
+          <svg className={styles.writingCanvas} data-disabled={!canDraw} data-state={evaluation ? evaluation.correct ? "correct" : "incorrect" : strokeLoadState} viewBox="0 0 1024 1024" role="img" aria-label={`Drawing area for ${primaryMeaning(subject)}. ${statusText}`} onPointerDown={(event) => { if (!canDraw || event.isPrimary === false) return; drawing.current = true; activePointerId.current = event.pointerId; event.currentTarget.setPointerCapture?.(event.pointerId); const first = point(event); strokeBuffer.current = [first]; setStrokes((value) => [...value, [first]]); }} onPointerMove={(event) => { if (!drawing.current || activePointerId.current !== event.pointerId) return; const nextStroke = appendStrokePoint(strokeBuffer.current, point(event)); if (nextStroke === strokeBuffer.current) return; strokeBuffer.current = nextStroke; setStrokes((value) => value.map((stroke, itemIndex) => itemIndex === value.length - 1 ? nextStroke : stroke)); }} onPointerUp={completePointerStroke} onPointerCancel={(event) => { if (!drawing.current || activePointerId.current !== event.pointerId) return; drawing.current = false; activePointerId.current = null; strokeBuffer.current = []; setStrokes((value) => value.slice(0, -1)); if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId); }}>
+            {showGrid ? <path d="M512 0V1024M0 512H1024M0 0L1024 1024M1024 0L0 1024" className={styles.guideLines} /> : null}
+            {strokes.map((stroke, strokeIndex) => <polyline key={strokeIndex} points={stroke.map((item) => `${item.x},${item.y}`).join(" ")} className={styles.inkStroke} />)}
+            {showAnswer && strokeData ? (
+              <g key={replayKey} transform={MOBILE_GUIDED_STROKE_TRANSFORM} aria-hidden>
+                {strokeData.strokes.map((stroke, itemIndex) => <path key={itemIndex} d={stroke} className={styles.answerSourceStroke} style={{ "--stroke-delay": `${itemIndex * 0.28}s` } as React.CSSProperties} />)}
+              </g>
+            ) : null}
+          </svg>
+        )}
+        <p className={styles.strokeStatus} role="status">{statusText}</p>
+        {evaluation ? <dl className={styles.writingDecision} aria-label="Handwriting evaluation"><div data-pass={evaluation.checks.similarity}><dt>Similarity</dt><dd>{evaluation.similarityPercent}%</dd></div><div data-pass={evaluation.checks.coverage}><dt>Coverage</dt><dd>{evaluation.coveragePercent}%</dd></div><div data-pass={evaluation.checks.strokeOrder}><dt>Stroke match</dt><dd>{evaluation.strokeMatchPercent}%</dd></div><div data-pass={evaluation.checks.strokeCount}><dt>Stroke count</dt><dd>{evaluation.drawnStrokeCount}/{evaluation.expectedStrokeCount}</dd></div></dl> : null}
+        <div className={styles.canvasTools}><button type="button" className={styles.optionButton} data-active={showGrid} aria-pressed={showGrid} onClick={() => setShowGrid((value) => !value)}><Grid3X3 size={16} /> Grid</button>{!guided && !evaluation ? <button type="button" className={styles.secondaryButton} onClick={() => setStrokes((value) => value.slice(0, -1))} disabled={!strokes.length}><Undo2 size={16} /> Undo</button> : null}<button type="button" className={styles.secondaryButton} onClick={resetAttempt} disabled={guided ? strokeIndex === 0 && guidedMistakes === 0 : !strokes.length && !evaluation}><Trash2 size={16} /> {guided ? "Restart" : "Clear"}</button><button type="button" className={styles.optionButton} data-active={showAnswer} aria-pressed={showAnswer} onClick={() => setShowAnswer((value) => !value)} disabled={strokeLoadState !== "ready"}><Eye size={16} /> {showAnswer ? "Hide" : "Show"} outline</button>{guided && !guidedComplete && guidedWriterReady ? <button type="button" className={styles.secondaryButton} onClick={() => { guidedWriterRef.current?.highlight(strokeIndex); setStrokeMessage("The next stroke is highlighted."); }}><Lightbulb size={16} /> Hint</button> : null}</div>
       </div>
-      <div className={styles.recallActions}><button className={styles.missButton} onClick={() => finish(false)}><X size={18} /> Needs work</button><button className={styles.primaryButton} disabled={filters.writingMode === "guided" && Boolean(strokeData) && strokeIndex < strokeData!.medians.length} onClick={() => finish(true)}><Check size={18} /> {filters.writingMode === "guided" ? "Stroke order complete" : "I remembered"}</button></div>
+      {strokeLoadState === "error" ? <div className={styles.recallActions}><button type="button" className={styles.missButton} onClick={() => finish(false)}><ArrowRight size={18} /> Skip kanji</button></div> : guided ? guidedComplete ? <div className={styles.recallActions}><button type="button" className={styles.secondaryButton} disabled={guidedReplaying} onClick={showCorrectWriting}><Play size={18} /> {guidedReplaying ? "Replaying…" : "Replay"}</button><button type="button" className={styles.primaryButton} onClick={() => finish(guidedMistakes === 0)}><ArrowRight size={18} /> Next</button></div> : null : evaluation ? <div className={styles.recallActions}><button type="button" className={styles.secondaryButton} onClick={showCorrectWriting}><Play size={18} /> Replay correct</button><button type="button" className={styles.secondaryButton} onClick={resetAttempt}><RotateCcw size={18} /> {evaluation.correct ? "Redraw" : "Retry"}</button><button type="button" className={styles.primaryButton} onClick={() => finish(evaluation.correct)}><ArrowRight size={18} /> Next</button></div> : <div className={styles.recallActions}><button type="button" className={styles.primaryButton} disabled={strokeLoadState !== "ready" || !strokes.length} onClick={() => { if (!strokeData || !strokes.length) return; const result = evaluateFreehandDrawing(strokes, strokeData, filters.strokeLeniency); setEvaluation(result); setStrokeMessage(`${result.correct ? "Correct" : "Incorrect"} · Similarity ${result.similarityPercent}%`); }}><Check size={18} /> Submit</button></div>}
     </section>
   );
 }
@@ -143,23 +282,45 @@ function playAudio(url?: string) {
 }
 
 const HIRAGANA_CELL = /^[\p{Script=Hiragana}ー〜～]$/u;
+const CROSSWORD_TILE_REVEAL_MS = 70;
+const CROSSWORD_WORD_SETTLE_MS = 120;
+const CROSSWORD_ERROR_FEEDBACK_MS = 600;
 
-function CrosswordKanaInput({ label, value, onCommit }: { label: string; value: string; onCommit: (value: string) => void }) {
-  const [draft, setDraft] = useState(value);
+interface CrosswordAttemptFeedback {
+  entryId: string;
+  kind: "correct" | "incorrect";
+  revealedCount: number;
+}
 
-  return <input aria-label={label} lang="ja" value={draft} maxLength={4} onBlur={() => setDraft(value)} onChange={(event) => {
-    const composed = composeKanaInput(event.target.value);
-    setDraft(composed);
-    const characters = splitKana(composed);
-    if (!characters.length || !characters.every((character) => HIRAGANA_CELL.test(character))) return;
-    onCommit(characters[0]);
-    setDraft(characters[0]);
-    const current = event.currentTarget;
-    window.requestAnimationFrame(() => {
-      const inputs = Array.from(current.closest('[aria-label="Crossword grid"]')?.querySelectorAll("input") ?? []);
-      inputs[inputs.indexOf(current) + 1]?.focus();
-    });
-  }} />;
+function waitForCrosswordFeedback(duration: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, duration));
+}
+
+function crosswordEntryCells(entry: CrosswordPuzzle["entries"][number]) {
+  return splitKana(entry.answer).map((_, index) => ({
+    row: entry.row + (entry.direction === "down" ? index : 0),
+    col: entry.col + (entry.direction === "across" ? index : 0),
+  }));
+}
+
+function crosswordCellKey(row: number, col: number) {
+  return `${row}:${col}`;
+}
+
+function crosswordIsComplete(puzzle: CrosswordPuzzle, values: Record<string, string>) {
+  return puzzle.cells.every((row, rowIndex) => row.every((cell, colIndex) =>
+    !cell || values[crosswordCellKey(rowIndex, colIndex)] === cell.answer
+  ));
+}
+
+function crosswordEntryIsCorrect(entry: CrosswordPuzzle["entries"][number], values: Record<string, string>) {
+  return crosswordEntryCells(entry).every(({ row, col }, index) => values[crosswordCellKey(row, col)] === splitKana(entry.answer)[index]);
+}
+
+function crosswordHint(entry: CrosswordPuzzle["entries"][number], clueMode: StudyFilters["crosswordClueMode"]) {
+  if (clueMode === "kanji") return `Meaning: ${entry.meaning}`;
+  if (clueMode === "english" && entry.characters !== entry.answer) return `Written as ${entry.characters}`;
+  return `${splitKana(entry.answer).length} kana`;
 }
 
 export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: StudyDataset; filters: StudyFilters; scope: StudyStorageScope; onExit: () => void }) {
@@ -167,17 +328,72 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
   const stored = loadModeState<SavedCrossword>(scope, "crossword", "game");
   const preset = CROSSWORD_SIZE_PRESETS[filters.crosswordSize];
   const signature = JSON.stringify({ size: filters.crosswordSize, words: filters.crosswordMaxWords, srs: filters.srsGroups, levels: [filters.minLevel, filters.maxLevel], ids: filters.selectedSubjectIds, jlpt: filters.crosswordJlptLevels, hiragana: filters.crosswordHiraganaOnly, clues: filters.crosswordClueMode });
-  const [game, setGame] = useState<SavedCrossword>(() => stored?.signature === signature ? stored : {
-    puzzle: generateCrossword(subjects, preset.gridSize, filters.crosswordMaxWords, Math.random, { clueMode: filters.crosswordClueMode, hiraganaOnly: filters.crosswordHiraganaOnly, jlptLevels: filters.crosswordJlptLevels }),
+  const buildPuzzle = () => generateCrossword(subjects, preset.gridSize, filters.crosswordMaxWords, Math.random, { clueMode: filters.crosswordClueMode, hiraganaOnly: filters.crosswordHiraganaOnly, jlptLevels: filters.crosswordJlptLevels });
+  const storedIsComplete = Boolean(stored?.signature === signature && stored.puzzle && crosswordIsComplete(stored.puzzle, stored.values));
+  const [game, setGame] = useState<SavedCrossword>(() => stored?.signature === signature && !storedIsComplete ? stored : {
+    puzzle: buildPuzzle(),
     values: {},
     checked: false,
     signature,
   });
   const puzzle = game.puzzle;
-  const allCorrect = puzzle ? puzzle.cells.every((row, rowIndex) => row.every((cell, colIndex) => !cell || game.values[`${rowIndex}:${colIndex}`] === cell.answer)) : false;
-  const update = (key: string, value: string) => {
-    if (!puzzle) return;
-    const values = { ...game.values, [key]: splitKana(value).at(-1) ?? "" };
+  const orderedEntries = useMemo(() => puzzle?.entries.toSorted((left, right) => left.number - right.number || (left.direction === "across" ? -1 : 1)) ?? [], [puzzle]);
+  const [activeEntryId, setActiveEntryId] = useState<string | null>(() => orderedEntries[0]?.id ?? null);
+  const [hintedEntryIds, setHintedEntryIds] = useState<Set<string>>(() => new Set());
+  const [wordInput, setWordInput] = useState("");
+  const [wordFeedback, setWordFeedback] = useState<"idle" | "empty" | "correct" | "incorrect">("idle");
+  const [attemptFeedback, setAttemptFeedback] = useState<CrosswordAttemptFeedback | null>(null);
+  const wordInputRef = useRef<HTMLInputElement>(null);
+  const feedbackSequenceRef = useRef(0);
+  const activeEntry = orderedEntries.find((entry) => entry.id === activeEntryId) ?? orderedEntries[0] ?? null;
+  const activeCellKeys = useMemo(() => new Set(activeEntry ? crosswordEntryCells(activeEntry).map(({ row, col }) => crosswordCellKey(row, col)) : []), [activeEntry]);
+  const wordPreviewByCell = useMemo(() => {
+    const preview = new Map<string, string>();
+    if (!activeEntry) return preview;
+    const cells = crosswordEntryCells(activeEntry);
+    for (const [index, character] of Array.from(wordInput).entries()) {
+      if (!HIRAGANA_CELL.test(character) || !cells[index]) break;
+      preview.set(crosswordCellKey(cells[index].row, cells[index].col), character);
+    }
+    return preview;
+  }, [activeEntry, wordInput]);
+  const allCorrect = puzzle ? crosswordIsComplete(puzzle, game.values) : false;
+  const entryIsCorrect = (entry: CrosswordPuzzle["entries"][number]) => crosswordEntryIsCorrect(entry, game.values);
+  const completedCellKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (!puzzle) return keys;
+    puzzle.entries.forEach((entry) => {
+      if (!crosswordEntryIsCorrect(entry, game.values)) return;
+      crosswordEntryCells(entry).forEach(({ row, col }) => keys.add(crosswordCellKey(row, col)));
+    });
+    return keys;
+  }, [game.values, puzzle]);
+  const attemptCellIndexByKey = useMemo(() => {
+    const indexes = new Map<string, number>();
+    const entry = attemptFeedback ? puzzle?.entries.find((item) => item.id === attemptFeedback.entryId) : null;
+    if (!entry) return indexes;
+    crosswordEntryCells(entry).forEach(({ row, col }, index) => indexes.set(crosswordCellKey(row, col), index));
+    return indexes;
+  }, [attemptFeedback, puzzle]);
+  const answerIsAnimating = attemptFeedback?.kind === "correct";
+  const solvedCount = puzzle?.entries.filter(entryIsCorrect).length ?? 0;
+  const filledCount = puzzle?.cells.flat().filter((cell, index) => {
+    if (!cell) return false;
+    const row = Math.floor(index / puzzle.cols);
+    const col = index % puzzle.cols;
+    return Boolean(game.values[crosswordCellKey(row, col)]);
+  }).length ?? 0;
+  const totalCells = puzzle?.cells.flat().filter(Boolean).length ?? 0;
+
+  useEffect(() => {
+    if (storedIsComplete || allCorrect) clearModeState(scope, "crossword", "game");
+  }, [allCorrect, scope, storedIsComplete]);
+  useEffect(() => () => { feedbackSequenceRef.current += 1; }, []);
+
+  const update = (updates: Array<{ key: string; value: string }>) => {
+    if (!puzzle) return null;
+    const values = { ...game.values };
+    updates.forEach(({ key, value }) => { values[key] = value; });
     if (filters.crosswordPlayAudioOnCorrect) {
       for (const entry of puzzle.entries) {
         const cells = splitKana(entry.answer).map((_, index) => `${entry.row + (entry.direction === "down" ? index : 0)}:${entry.col + (entry.direction === "across" ? index : 0)}`);
@@ -187,22 +403,192 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
       }
     }
     const next = { ...game, values, checked: false };
-    setGame(next); saveModeState(scope, "crossword", "game", next);
+    setGame(next);
+    if (crosswordIsComplete(puzzle, values)) clearModeState(scope, "crossword", "game");
+    else saveModeState(scope, "crossword", "game", next);
+    return values;
   };
+
+  const selectEntry = (entryId: string, focus = true) => {
+    const entry = puzzle?.entries.find((item) => item.id === entryId);
+    if (!entry) return;
+    feedbackSequenceRef.current += 1;
+    setActiveEntryId(entry.id);
+    setWordInput("");
+    setWordFeedback("idle");
+    setAttemptFeedback(null);
+    if (!focus) return;
+    window.requestAnimationFrame(() => wordInputRef.current?.focus());
+  };
+
+  const selectCell = (row: number, col: number) => {
+    if (answerIsAnimating) return;
+    const ids = puzzle?.cells[row]?.[col]?.entryIds ?? [];
+    if (!ids.length) return;
+    const incompleteIds = ids.filter((id) => {
+      const entry = puzzle?.entries.find((item) => item.id === id);
+      return entry ? !entryIsCorrect(entry) : false;
+    });
+    const choices = incompleteIds.length ? incompleteIds : ids;
+    const currentIndex = activeEntryId ? choices.indexOf(activeEntryId) : -1;
+    const nextId = currentIndex >= 0 && choices.length > 1 ? choices[(currentIndex + 1) % choices.length] : choices[0];
+    if (nextId) selectEntry(nextId);
+  };
+
+  const revealWord = () => {
+    if (!activeEntry || answerIsAnimating) return;
+    feedbackSequenceRef.current += 1;
+    setWordInput("");
+    setWordFeedback("idle");
+    setAttemptFeedback(null);
+    const answer = splitKana(activeEntry.answer);
+    const cells = crosswordEntryCells(activeEntry);
+    update(cells.map(({ row, col }, index) => ({
+      key: crosswordCellKey(row, col),
+      value: answer[index],
+    })));
+  };
+
+  const checkActiveWord = async () => {
+    if (!activeEntry || !puzzle || answerIsAnimating) return;
+    const candidate = composeKanaInput(wordInput.trim());
+    const candidateCharacters = Array.from(candidate);
+    if (!candidateCharacters.length) {
+      feedbackSequenceRef.current += 1;
+      setWordFeedback("empty");
+      setAttemptFeedback(null);
+      wordInputRef.current?.focus();
+      return;
+    }
+    const answer = splitKana(activeEntry.answer);
+    const isCorrect = candidateCharacters.length === answer.length
+      && candidateCharacters.every((character) => HIRAGANA_CELL.test(character))
+      && candidateCharacters.every((character, index) => character === answer[index]);
+    const sequence = feedbackSequenceRef.current + 1;
+    feedbackSequenceRef.current = sequence;
+    if (!isCorrect) {
+      setWordFeedback("incorrect");
+      setAttemptFeedback({ entryId: activeEntry.id, kind: "incorrect", revealedCount: 1 });
+      wordInputRef.current?.focus();
+      for (let count = 2; count <= answer.length; count += 1) {
+        await waitForCrosswordFeedback(CROSSWORD_TILE_REVEAL_MS);
+        if (feedbackSequenceRef.current !== sequence) return;
+        setAttemptFeedback({ entryId: activeEntry.id, kind: "incorrect", revealedCount: count });
+      }
+      await waitForCrosswordFeedback(Math.max(CROSSWORD_TILE_REVEAL_MS, CROSSWORD_ERROR_FEEDBACK_MS - (answer.length - 1) * CROSSWORD_TILE_REVEAL_MS));
+      if (feedbackSequenceRef.current !== sequence) return;
+      setWordFeedback("idle");
+      setAttemptFeedback(null);
+      return;
+    }
+    setWordFeedback("correct");
+    setAttemptFeedback({ entryId: activeEntry.id, kind: "correct", revealedCount: 1 });
+    for (let count = 2; count <= answer.length; count += 1) {
+      await waitForCrosswordFeedback(CROSSWORD_TILE_REVEAL_MS);
+      if (feedbackSequenceRef.current !== sequence) return;
+      setAttemptFeedback({ entryId: activeEntry.id, kind: "correct", revealedCount: count });
+    }
+    await waitForCrosswordFeedback(CROSSWORD_TILE_REVEAL_MS);
+    if (feedbackSequenceRef.current !== sequence) return;
+    const cells = crosswordEntryCells(activeEntry);
+    const values = update(cells.map(({ row, col }, index) => ({
+      key: crosswordCellKey(row, col),
+      value: answer[index],
+    })));
+    setWordInput("");
+    if (!values || crosswordIsComplete(puzzle, values)) return;
+    await waitForCrosswordFeedback(CROSSWORD_WORD_SETTLE_MS);
+    if (feedbackSequenceRef.current !== sequence) return;
+    const nextEntry = orderedEntries.find((entry) => entry.id !== activeEntry.id && !crosswordEntryIsCorrect(entry, values));
+    if (nextEntry) selectEntry(nextEntry.id);
+  };
+
+  const startNewCrossword = () => {
+    const nextPuzzle = buildPuzzle();
+    const next: SavedCrossword = { puzzle: nextPuzzle, values: {}, checked: false, signature };
+    setGame(next);
+    setActiveEntryId(nextPuzzle?.entries.toSorted((left, right) => left.number - right.number || (left.direction === "across" ? -1 : 1))[0]?.id ?? null);
+    setHintedEntryIds(new Set());
+    setWordInput("");
+    setWordFeedback("idle");
+    setAttemptFeedback(null);
+    feedbackSequenceRef.current += 1;
+    saveModeState(scope, "crossword", "game", next);
+  };
+
   if (!puzzle) return <section className={styles.emptyPanel}><h2>Couldn’t build a crossword</h2><p>Widen the level range so there are more intersecting vocabulary readings.</p><button className={styles.primaryButton} onClick={onExit}>Back to setup</button></section>;
+  if (allCorrect) return (
+    <section className={styles.crosswordGameShell} data-complete="true">
+      <header className={styles.crosswordHeader}>
+        <div><h2>Hiragana crossword</h2><p>{puzzle.entries.length} clues · complete</p></div>
+        <button type="button" className={styles.iconButton} onClick={onExit} aria-label="Close crossword results"><X size={19} /></button>
+      </header>
+      <section className={styles.crosswordResults} aria-labelledby="crossword-complete-title">
+        <div className={styles.crosswordResultLead}>
+          <div className={styles.resultMark}><Check size={26} /></div>
+          <div><h2 id="crossword-complete-title">Crossword complete</h2><p>You solved all {puzzle.entries.length} clues across {totalCells} cells.</p></div>
+        </div>
+        <section className={styles.crosswordResultReview} aria-label="Crossword answers">
+          <div className={styles.crosswordResultReviewHeader}><h3>Answers</h3><p>Review the readings before starting another puzzle.</p></div>
+          <div className={styles.crosswordSolutionGroups}>
+            {(["across", "down"] as const).map((direction) => <section className={styles.crosswordSolutionGroup} key={direction} aria-labelledby={`crossword-result-${direction}`}>
+              <h4 id={`crossword-result-${direction}`}>{direction === "across" ? "Across" : "Down"}</h4>
+              <ol>{orderedEntries.filter((entry) => entry.direction === direction).map((entry) => <li key={entry.id}><b>{entry.number}</b><span>{entry.clue}</span><strong lang="ja">{filters.crosswordShowKanjiSolutions && entry.characters !== entry.answer ? <>{entry.characters}<small>{entry.answer}</small></> : entry.answer}</strong></li>)}</ol>
+            </section>)}
+          </div>
+        </section>
+        <div className={styles.crosswordResultActions}>
+          <button type="button" className={styles.secondaryButton} onClick={onExit}>Back to setup</button>
+          <button type="button" className={styles.primaryButton} onClick={startNewCrossword}><RotateCcw size={17} /> New crossword</button>
+        </div>
+      </section>
+    </section>
+  );
   return (
-    <section className={styles.gameShell}>
-      <div className={styles.gameHeading}><div><h2>Hiragana crossword</h2><p>{puzzle.entries.length} clues · progress is saved in this browser</p></div><button className={styles.iconButton} onClick={onExit} aria-label="Pause crossword"><X size={19} /></button></div>
-      <div className={styles.crosswordLayout}>
-        <div className={styles.crosswordGrid} style={{ gridTemplateColumns: `repeat(${puzzle.cols}, minmax(2.75rem, 2.8rem))` }} aria-label="Crossword grid">{puzzle.cells.flatMap((row, rowIndex) => row.map((cell, colIndex) => {
-          if (!cell) return <span key={`${rowIndex}:${colIndex}`} className={styles.blockedCell} aria-hidden="true" />;
-          const key = `${rowIndex}:${colIndex}`; const value = game.values[key] ?? ""; const incorrect = game.checked && value !== cell.answer;
-          return <label className={styles.crosswordCell} key={`${rowIndex}:${colIndex}`} data-incorrect={incorrect}><span>{cell.number}</span><CrosswordKanaInput key={value} label={`Row ${rowIndex + 1}, column ${colIndex + 1}`} value={value} onCommit={(nextValue) => update(key, nextValue)} /></label>;
-        }))}</div>
-        <div className={styles.clues}><div><h3>Across</h3>{puzzle.entries.filter((entry) => entry.direction === "across").map((entry) => <p key={entry.id}><b>{entry.number}</b> {entry.clue}</p>)}</div><div><h3>Down</h3>{puzzle.entries.filter((entry) => entry.direction === "down").map((entry) => <p key={entry.id}><b>{entry.number}</b> {entry.clue}</p>)}</div></div>
+    <section className={styles.crosswordGameShell}>
+      <header className={styles.crosswordHeader}>
+        <div><h2>Hiragana crossword</h2><p>{puzzle.entries.length} clues · progress is saved in this browser</p></div>
+        <div className={styles.crosswordHeaderActions}><span className={styles.crosswordProgress} aria-live="polite"><b>{solvedCount}</b> / {puzzle.entries.length} solved</span><button className={styles.iconButton} onClick={onExit} aria-label="Pause crossword"><X size={19} /></button></div>
+      </header>
+      <div className={styles.crosswordWorkbench}>
+        <nav className={styles.crosswordClueRail} aria-label="Crossword clues">
+          <div className={styles.crosswordClueRailHeader}><h3>Clues</h3><span>{filledCount} / {totalCells} cells</span></div>
+          {(["across", "down"] as const).map((direction) => <section className={styles.crosswordClueGroup} key={direction} aria-labelledby={`crossword-${direction}`}><h4 id={`crossword-${direction}`}>{direction === "across" ? "Across" : "Down"}</h4>{orderedEntries.filter((entry) => entry.direction === direction).map((entry) => {
+            const selected = entry.id === activeEntry?.id;
+            const solved = entryIsCorrect(entry);
+            return <button type="button" className={styles.crosswordClueButton} key={entry.id} data-selected={selected} data-solved={solved} aria-current={selected ? "true" : undefined} aria-label={`${entry.number} ${direction === "across" ? "Across" : "Down"}: ${entry.clue}`} disabled={answerIsAnimating} onClick={() => selectEntry(entry.id)}><b>{entry.number}</b><span>{entry.clue}</span><small>{splitKana(entry.answer).length}</small>{solved ? <Check size={15} aria-label="Solved" /> : null}</button>;
+          })}</section>)}
+        </nav>
+        <div className={styles.crosswordBoardPane}>
+          <div className={styles.crosswordBoardViewport}>
+            <div className={styles.crosswordGrid} data-feedback={wordFeedback} style={{ "--crossword-cols": puzzle.cols, "--crossword-rows": puzzle.rows } as React.CSSProperties} aria-label="Crossword grid">{puzzle.cells.flatMap((row, rowIndex) => row.map((cell, colIndex) => {
+              const key = crosswordCellKey(rowIndex, colIndex);
+              if (!cell) return <span key={key} className={styles.blockedCell} aria-hidden="true" />;
+              const feedbackIndex = attemptCellIndexByKey.get(key);
+              const feedback = feedbackIndex !== undefined && attemptFeedback && feedbackIndex < attemptFeedback.revealedCount ? attemptFeedback.kind : null;
+              const completed = completedCellKeys.has(key);
+              const value = completed ? cell.answer : wordPreviewByCell.get(key) ?? game.values[key] ?? "";
+              const incorrect = game.checked && value !== cell.answer;
+              return <button type="button" className={styles.crosswordCell} key={key} data-selected={activeCellKeys.has(key)} data-completed={completed} data-feedback={feedback ?? (incorrect ? "incorrect" : undefined)} aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}`} aria-pressed={activeCellKeys.has(key)} disabled={answerIsAnimating} onClick={() => selectCell(rowIndex, colIndex)}>{cell.number !== undefined ? <span className={styles.crosswordCellNumber}>{cell.number}</span> : null}<span className={styles.crosswordCellLetter} data-letter lang="ja">{value}</span></button>;
+            }))}</div>
+          </div>
+          <section className={styles.crosswordActiveClue} aria-label="Selected clue">
+            <div className={styles.crosswordActiveClueTop}>
+              <div className={styles.crosswordActiveClueCopy}><span>{activeEntry ? `${activeEntry.number} ${activeEntry.direction === "across" ? "Across" : "Down"}` : "Select a clue"}</span><strong data-active-clue>{activeEntry?.clue ?? "Pick a clue or a cell"}</strong>{activeEntry && hintedEntryIds.has(activeEntry.id) ? <p>{crosswordHint(activeEntry, filters.crosswordClueMode)}</p> : null}</div>
+              <div className={styles.crosswordHintActions}><button type="button" className={styles.crosswordHintButton} aria-label="Show hint" disabled={!activeEntry || hintedEntryIds.has(activeEntry.id)} onClick={() => activeEntry && setHintedEntryIds((current) => new Set(current).add(activeEntry.id))}><Sparkles size={16} /> Hint</button><button type="button" className={styles.crosswordHintButton} aria-label="Play pronunciation" disabled={!activeEntry?.audioUrl} onClick={() => playAudio(activeEntry?.audioUrl)}><Volume2 size={16} /> Audio</button><button type="button" className={styles.crosswordHintButton} aria-label="Reveal word" disabled={!activeEntry || entryIsCorrect(activeEntry)} onClick={revealWord}><Lightbulb size={16} /> Reveal word</button></div>
+            </div>
+            <form className={styles.crosswordWordForm} data-feedback={wordFeedback} onSubmit={(event) => { event.preventDefault(); void checkActiveWord(); }}>
+              <label htmlFor="crossword-word-answer">Answer</label>
+              <input ref={wordInputRef} id="crossword-word-answer" lang="ja" value={wordInput} placeholder={activeEntry ? `Type ${splitKana(activeEntry.answer).length} kana or romaji` : "Select a clue"} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="go" disabled={answerIsAnimating} aria-invalid={wordFeedback === "empty" || wordFeedback === "incorrect" || undefined} aria-describedby="crossword-word-status" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void checkActiveWord(); } }} onChange={(event) => { feedbackSequenceRef.current += 1; setWordInput(composeKanaInput(event.target.value)); setWordFeedback("idle"); setAttemptFeedback(null); }} />
+              <button type="submit" className={styles.primaryButton} disabled={!activeEntry || answerIsAnimating}>Check word</button>
+            </form>
+          </section>
+          <footer className={styles.crosswordFooter}>
+            <p id="crossword-word-status" role="status">{wordFeedback === "empty" ? "Type the selected word before checking it." : wordFeedback === "correct" ? "Correct. Revealing the word…" : wordFeedback === "incorrect" ? "That answer does not match the selected clue. Try again." : game.checked && !allCorrect ? "Some letters need another look." : "Type below and press Return to check the selected word. Select tiles to change words."}</p>
+            <div className={styles.gameActions}><button type="button" className={styles.primaryButton} disabled={answerIsAnimating} onClick={() => { const next = { ...game, checked: true }; setGame(next); saveModeState(scope, "crossword", "game", next); }}>Check puzzle</button></div>
+          </footer>
+        </div>
       </div>
-      <div className={styles.gameActions}><button className={styles.secondaryButton} onClick={() => { const values: Record<string, string> = {}; puzzle.cells.forEach((row, rowIndex) => row.forEach((cell, colIndex) => { if (cell) values[`${rowIndex}:${colIndex}`] = cell.answer; })); const next = { ...game, values, checked: true }; setGame(next); saveModeState(scope, "crossword", "game", next); }}><Lightbulb size={17} /> Reveal</button><button className={styles.primaryButton} onClick={() => { const next = { ...game, checked: true }; setGame(next); saveModeState(scope, "crossword", "game", next); }}>{allCorrect ? <Check size={17} /> : null}{allCorrect ? "Solved" : "Check puzzle"}</button></div>
-      {game.checked || allCorrect ? <div className={styles.clues} aria-label="Crossword solutions"><div><h3>Solutions</h3>{puzzle.entries.toSorted((left, right) => left.number - right.number).map((entry) => <p key={entry.id}><b>{entry.number}</b> {filters.crosswordShowKanjiSolutions && entry.characters !== entry.answer ? <><span lang="ja">{entry.characters}</span> · </> : null}<span lang="ja">{entry.answer}</span> · {entry.meaning}</p>)}</div></div> : null}
     </section>
   );
 }
@@ -212,7 +598,8 @@ interface SavedWordle { targetId: number; target: string; guesses: string[]; max
 export function KanaWordle({ dataset, filters, scope, onExit }: { dataset: StudyDataset; filters: StudyFilters; scope: StudyStorageScope; onExit: () => void }) {
   const stored = loadModeState<SavedWordle>(scope, "kana-wordle", "game");
   const [length, setLength] = useState(filters.wordLength);
-  const signature = JSON.stringify({ length, attempts: filters.wordleMaxAttempts, srs: filters.srsGroups, levels: [filters.minLevel, filters.maxLevel], types: filters.subjectTypes, ids: filters.selectedSubjectIds });
+  const signatureForLength = (wordLength: number) => JSON.stringify({ length: wordLength, attempts: filters.wordleMaxAttempts, srs: filters.srsGroups, levels: [filters.minLevel, filters.maxLevel], types: filters.subjectTypes, ids: filters.selectedSubjectIds });
+  const signature = signatureForLength(length);
   const candidates = useMemo(() => wordleCandidates(filterStudySubjects(dataset, filters), length), [dataset, filters, length]);
   const [game, setGame] = useState<SavedWordle | null>(() => {
     if (stored?.signature === signature && stored.validWords?.length && candidates.some((candidate) => candidate.subject.id === stored.targetId && candidate.reading === stored.target)) return stored;
@@ -232,17 +619,23 @@ export function KanaWordle({ dataset, filters, scope, onExit }: { dataset: Study
     const next = { ...game, guesses: [...game.guesses, normalized] };
     setGame(next); setGuess(""); setGuessError(""); saveModeState(scope, "kana-wordle", "game", next);
   };
-  const newGame = () => {
-    const pool = wordleCandidates(filterStudySubjects(dataset, filters), length);
+  const startNewGame = (wordLength: number) => {
+    const pool = wordleCandidates(filterStudySubjects(dataset, filters), wordLength);
     const pick = chooseWordleCandidate(pool);
-    if (!pick) { setGame(null); return; }
-    const next = { targetId: pick.subject.id, target: pick.reading, guesses: [], maxAttempts: filters.wordleMaxAttempts, length, validWords: pool.map((item) => item.reading), signature };
+    if (!pick) { setGame(null); setGuess(""); setGuessError(""); return; }
+    const next = { targetId: pick.subject.id, target: pick.reading, guesses: [], maxAttempts: filters.wordleMaxAttempts, length: wordLength, validWords: pool.map((item) => item.reading), signature: signatureForLength(wordLength) };
     setGame(next); setGuess(""); setGuessError(""); saveModeState(scope, "kana-wordle", "game", next);
+  };
+  const newGame = () => startNewGame(length);
+  const changeLength = (wordLength: number) => {
+    setLength(wordLength);
+    clearModeState(scope, "kana-wordle", "game");
+    startNewGame(wordLength);
   };
   return (
     <section className={styles.wordleShell}>
       <div className={styles.gameHeading}><div><h2>Kana Wordle</h2><p>Small kana count as their own tile.</p></div><button className={styles.iconButton} onClick={onExit} aria-label="Pause Kana Wordle"><X size={19} /></button></div>
-      <div className={styles.lengthTabs} role="group" aria-label="Word length">{[3, 4, 5, 6, 7].map((item) => <button key={item} data-active={length === item} onClick={() => { setLength(item); clearModeState(scope, "kana-wordle", "game"); setGame(null); setGuessError(""); }}>{item} kana</button>)}</div>
+      <div className={styles.lengthTabs} role="group" aria-label="Word length">{[3, 4, 5, 6, 7].map((item) => <button key={item} data-active={length === item} onClick={() => changeLength(item)}>{item} kana</button>)}</div>
       {!game ? <div className={styles.emptyPanel}><p>No {length}-kana vocabulary was found in this range.</p><button className={styles.primaryButton} onClick={newGame}>Try another</button></div> : <>
         <div className={styles.wordleBoard} aria-label="Guesses">{Array.from({ length: game.maxAttempts }, (_, row) => {
           const previous = game.guesses[row]; const tiles = previous ? evaluateWordleGuess(game.target, previous) : Array.from({ length: splitKana(game.target).length }, () => ({ character: "", state: "absent" as const }));
@@ -298,14 +691,7 @@ export function CustomLessons({ dataset, filters, scope, onExit }: { dataset: St
 }
 
 export function SubjectLists({ subjects, scope, username }: { subjects: Subject[]; scope: StudyStorageScope; username: string }) {
-  const repository = useMemo(() => createListRepository(subjectListStorage, username), [username]);
-  const subscribe = useCallback((onChange: () => void) => subscribeSubjectLists(username, onChange), [username]);
-  const getSnapshot = useCallback(() => repository.snapshot(), [repository]);
-  const rawLists = useSyncExternalStore(subscribe, getSnapshot, () => "");
-  const lists = useMemo(() => {
-    void rawLists;
-    return repository.load();
-  }, [rawLists, repository]);
+  const { repository, lists } = useSubjectLists(username);
   const [name, setName] = useState("");
   const [activeId, setActiveId] = useState<string | null>(() => lists[0]?.id ?? null);
   const [query, setQuery] = useState("");
@@ -322,5 +708,5 @@ export function SubjectLists({ subjects, scope, username }: { subjects: Subject[
   const commit = (next: SubjectList[]) => { repository.replace(next); };
   const create = () => { const trimmed = name.trim(); if (!trimmed) return; const now = new Date().toISOString(); const list = { id: `list-${Date.now()}`, name: trimmed, subjectIds: [], createdAt: now, updatedAt: now }; commit([...lists, list]); setActiveId(list.id); setName(""); };
   const toggle = (subjectId: number) => { if (!active) return; const ids = active.subjectIds.includes(subjectId) ? active.subjectIds.filter((id) => id !== subjectId) : [...active.subjectIds, subjectId]; commit(lists.map((list) => list.id === active.id ? { ...list, subjectIds: ids, updatedAt: new Date().toISOString() } : list)); };
-  return <div className={styles.listsLayout}><aside className={styles.listsSidebar}><form onSubmit={(event) => { event.preventDefault(); create(); }}><label htmlFor="new-list">New list</label><div><input id="new-list" value={name} onChange={(event) => setName(event.target.value)} placeholder="JLPT refresh" /><button className={styles.primaryButton} disabled={!name.trim()}>Create</button></div></form><nav aria-label="Saved subject lists">{lists.map((list) => <button key={list.id} data-active={list.id === resolvedActiveId} onClick={() => setActiveId(list.id)}><span>{list.name}</span><small>{list.subjectIds.length}</small></button>)}</nav>{deletedList ? <div className={styles.undoNotice} role="status"><span>List deleted</span><button className={styles.textButton} onClick={() => { const next = [...lists]; next.splice(deletedList.index, 0, deletedList.list); commit(next); setActiveId(deletedList.list.id); setDeletedList(null); }}>Undo</button></div> : null}{active ? <button className={styles.dangerButton} onClick={() => { const index = lists.findIndex((list) => list.id === active.id); const next = lists.filter((list) => list.id !== active.id); setDeletedList({ list: active, index }); commit(next); setActiveId(next[0]?.id ?? null); }}><Trash2 size={16} /> Delete list</button> : null}</aside><section className={styles.listEditor}>{active ? <><div className={styles.configTitleRow}><div><h2>{active.name}</h2><p>{active.subjectIds.length} subjects. Lists are stored in this browser.</p></div></div><label className={styles.largeSearch}>Find subjects<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" /></label><div className={styles.subjectPickerGrid}>{shown.map((subject) => { const selected = active.subjectIds.includes(subject.id); return <button type="button" key={subject.id} className={styles.subjectPick} data-active={selected} data-type={subject.object} onClick={() => toggle(subject.id)} aria-pressed={selected}><strong lang="ja">{subject.data.characters ?? "◈"}</strong><span>{primaryMeaning(subject)}</span><small>{selected ? "Added" : `Level ${subject.data.level}`}</small></button>; })}</div></> : <div className={styles.emptyPanel}><Library size={24} aria-hidden="true" /><h2>Create your first list</h2><p>Lists can feed custom reviews, lessons, writing practice, and both games.</p></div>}</section></div>;
+  return <div className={styles.listsLayout}><aside className={styles.listsSidebar}><form onSubmit={(event) => { event.preventDefault(); create(); }}><label htmlFor="new-list">New list</label><div><input id="new-list" value={name} onChange={(event) => setName(event.target.value)} placeholder="JLPT refresh" /><button className={styles.primaryButton} disabled={!name.trim()}>Create</button></div></form><nav aria-label="Saved subject lists">{lists.map((list) => <button key={list.id} data-active={list.id === resolvedActiveId} onClick={() => setActiveId(list.id)}><span>{list.name}</span><small>{list.subjectIds.length}</small></button>)}</nav>{deletedList ? <div className={styles.undoNotice} role="status"><span>List deleted</span><button className={styles.textButton} onClick={() => { const next = [...lists]; next.splice(deletedList.index, 0, deletedList.list); commit(next); setActiveId(deletedList.list.id); setDeletedList(null); }}>Undo</button></div> : null}{active ? <button className={styles.dangerButton} onClick={() => { const index = lists.findIndex((list) => list.id === active.id); const next = lists.filter((list) => list.id !== active.id); setDeletedList({ list: active, index }); commit(next); setActiveId(next[0]?.id ?? null); }}><Trash2 size={16} /> Delete list</button> : null}</aside><section className={styles.listEditor}>{active ? <><div className={styles.configTitleRow}><div><h2>{active.name}</h2><p>{active.subjectIds.length} subjects. Changes sync with your Kakehashi account.</p></div></div><label className={styles.largeSearch}>Find subjects<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" /></label><div className={styles.subjectPickerGrid}>{shown.map((subject) => { const selected = active.subjectIds.includes(subject.id); return <button type="button" key={subject.id} className={styles.subjectPick} data-active={selected} data-type={subject.object} onClick={() => toggle(subject.id)} aria-pressed={selected}><strong lang="ja">{subject.data.characters ?? "◈"}</strong><span>{primaryMeaning(subject)}</span><small>{selected ? "Added" : `Level ${subject.data.level}`}</small></button>; })}</div></> : <div className={styles.emptyPanel}><Library size={24} aria-hidden="true" /><h2>Create your first list</h2><p>Lists can feed custom reviews, lessons, writing practice, and both games.</p></div>}</section></div>;
 }

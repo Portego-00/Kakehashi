@@ -62,6 +62,7 @@ export interface StudyFilters {
   animeSources: string[];
   listeningAutoPlayAudio: boolean;
   writingMode: WritingPracticeMode;
+  strokeLeniency: number;
   wordLength: number;
   wordleMaxAttempts: number;
   similarKanjiSource: SimilarKanjiSource;

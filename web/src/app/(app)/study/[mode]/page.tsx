@@ -12,9 +12,10 @@ export async function generateMetadata({ params }: { params: Promise<{ mode: str
   return isStudyModeId(mode) ? { title: getStudyMode(mode).title } : {};
 }
 
-export default async function StudyModePage({ params, searchParams }: { params: Promise<{ mode: string }>; searchParams: Promise<{ subjectIds?: string | string[] }> }) {
+export default async function StudyModePage({ params, searchParams }: { params: Promise<{ mode: string }>; searchParams: Promise<{ subjectIds?: string | string[]; start?: string | string[] }> }) {
   const { mode } = await params;
   if (!isStudyModeId(mode)) notFound();
   const query = await searchParams;
-  return <StudyModeClient mode={mode} seedSubjectIds={parseSubjectIds(query.subjectIds)} />;
+  const start = Array.isArray(query.start) ? query.start.includes("1") : query.start === "1";
+  return <StudyModeClient mode={mode} seedSubjectIds={parseSubjectIds(query.subjectIds)} startImmediately={start} />;
 }

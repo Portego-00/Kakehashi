@@ -92,7 +92,14 @@ function crosswordCandidates(subjects: Subject[], options: CrosswordGenerationOp
   });
 }
 
-function findPlacement(grid: Array<Array<string | null>>, answer: string): Placement | null {
+function entryOccupiesCell(entry: CrosswordCandidate & Placement, row: number, col: number) {
+  return splitKana(entry.answer).some((_, index) => (
+    entry.row + (entry.direction === "down" ? index : 0) === row
+    && entry.col + (entry.direction === "across" ? index : 0) === col
+  ));
+}
+
+function findPlacement(grid: Array<Array<string | null>>, answer: string, placed: Array<CrosswordCandidate & Placement>): Placement | null {
   const chars = splitKana(answer);
   let best: Placement | null = null;
   for (let row = 0; row < grid.length; row += 1) {
@@ -101,6 +108,13 @@ function findPlacement(grid: Array<Array<string | null>>, answer: string): Place
         const endRow = row + (direction === "down" ? chars.length - 1 : 0);
         const endCol = col + (direction === "across" ? chars.length - 1 : 0);
         if (endRow >= grid.length || endCol >= grid[row].length) continue;
+        const beforeRow = row - (direction === "down" ? 1 : 0);
+        const beforeCol = col - (direction === "across" ? 1 : 0);
+        const afterRow = endRow + (direction === "down" ? 1 : 0);
+        const afterCol = endCol + (direction === "across" ? 1 : 0);
+        const before = grid[beforeRow]?.[beforeCol] ?? null;
+        const after = grid[afterRow]?.[afterCol] ?? null;
+        if (before || after) continue;
         let crossings = 0;
         let valid = true;
         chars.forEach((character, index) => {
@@ -108,7 +122,11 @@ function findPlacement(grid: Array<Array<string | null>>, answer: string): Place
           const c = col + (direction === "across" ? index : 0);
           const current = grid[r][c];
           if (current && current !== character) valid = false;
-          if (current === character) crossings += 1;
+          if (current === character) {
+            const overlapsSameDirection = placed.some((entry) => entry.direction === direction && entryOccupiesCell(entry, r, c));
+            if (overlapsSameDirection) valid = false;
+            else crossings += 1;
+          }
           if (!current) {
             const neighbors = direction === "across" ? [[r - 1, c], [r + 1, c]] : [[r, c - 1], [r, c + 1]];
             if (neighbors.some(([nr, nc]) => nr >= 0 && nr < grid.length && nc >= 0 && nc < grid.length && grid[nr][nc])) valid = false;
@@ -137,7 +155,7 @@ export function generateCrossword(subjects: Subject[], size = 13, maxWords = 10,
   placed.push({ ...first, row: firstRow, col: firstCol, direction: "across", crossings: 0 });
   for (const candidate of candidates) {
     if (placed.length >= targetWords) break;
-    const placement = findPlacement(grid, candidate.answer);
+    const placement = findPlacement(grid, candidate.answer, placed);
     if (!placement) continue;
     splitKana(candidate.answer).forEach((character, index) => {
       grid[placement.row + (placement.direction === "down" ? index : 0)][placement.col + (placement.direction === "across" ? index : 0)] = character;

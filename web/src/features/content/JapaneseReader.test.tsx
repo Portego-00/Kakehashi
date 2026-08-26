@@ -68,6 +68,116 @@ describe("JapaneseReader inspector", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps the annotation key and empty inspector in the default appearance", () => {
+    render(<JapaneseReader text="学校" />);
+
+    expect(screen.getByLabelText("Annotation key")).toBeInTheDocument();
+    expect(screen.getByRole("complementary")).toHaveTextContent("Article annotations");
+  });
+
+  it("renders source furigana semantically and lets the parent turn it off", () => {
+    const onShowFuriganaChange = vi.fn();
+    const blocks = [{
+      type: "text" as const,
+      text: "学校へ行く。",
+      furigana: [{ start: 0, end: 2, reading: "がっこう" }],
+    }];
+    const { container, rerender } = render(
+      <JapaneseReader text="学校へ行く。" blocks={blocks} ariaLabel="Furigana article" showFurigana onShowFuriganaChange={onShowFuriganaChange} />,
+    );
+
+    const ruby = container.querySelector("ruby");
+    expect(ruby).toHaveTextContent("学校がっこう");
+    expect(ruby?.querySelector("rt")).toHaveTextContent("がっこう");
+    expect(screen.getByRole("link", { name: /学校, Guru II WaniKani item/ })).toContainElement(ruby);
+    const toggle = screen.getByRole("button", { name: "Furigana" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(toggle);
+    expect(onShowFuriganaChange).toHaveBeenCalledWith(false);
+
+    rerender(
+      <JapaneseReader text="学校へ行く。" blocks={blocks} ariaLabel="Furigana article" showFurigana={false} onShowFuriganaChange={onShowFuriganaChange} />,
+    );
+    expect(container.querySelector("ruby")).not.toBeInTheDocument();
+    expect(container.querySelector("rt")).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Furigana article" })).toHaveTextContent("学校へ行く。");
+    expect(screen.getByRole("button", { name: "Furigana" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("offers furigana and derives readings when a full article has no source ruby", () => {
+    const onShowFuriganaChange = vi.fn();
+    const blocks = [{ type: "text" as const, text: "学校へ行く。" }];
+    const { container, rerender } = render(
+      <JapaneseReader
+        text="学校へ行く。"
+        blocks={blocks}
+        ariaLabel="Standard NHK article"
+        showFurigana
+        onShowFuriganaChange={onShowFuriganaChange}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Furigana" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector("ruby")).toHaveTextContent("学校がっこう");
+
+    fireEvent.click(screen.getByRole("button", { name: "Furigana" }));
+    expect(onShowFuriganaChange).toHaveBeenCalledWith(false);
+    rerender(
+      <JapaneseReader
+        text="学校へ行く。"
+        blocks={blocks}
+        ariaLabel="Standard NHK article"
+        showFurigana={false}
+        onShowFuriganaChange={onShowFuriganaChange}
+      />,
+    );
+    expect(container.querySelector("ruby")).not.toBeInTheDocument();
+  });
+
+  it("keeps a source ruby range intact when JPDB splits its base into separate tokens", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tokens: [
+          { start: 0, end: 2, surface: "東京", spelling: "東京", reading: "とうきょう", meaning: "Tokyo", meanings: ["Tokyo"], alternativeSpellings: [], partsOfSpeech: ["n"], tokenType: "vocabulary" },
+          { start: 2, end: 3, surface: "都", spelling: "都", reading: "と", meaning: "metropolis", meanings: ["metropolis"], alternativeSpellings: [], partsOfSpeech: ["n"], tokenType: "vocabulary" },
+        ],
+      }),
+    }));
+    const blocks = [{ type: "text" as const, text: "東京都です。", furigana: [{ start: 0, end: 3, reading: "とうきょうと" }] }];
+    const { container, rerender } = render(
+      <JapaneseReader
+        text="東京都です。"
+        blocks={blocks}
+        showFurigana
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped against your WaniKani library"), { timeout: 5_000 });
+    expect(container.querySelectorAll("ruby")).toHaveLength(1);
+    expect(container.querySelector("ruby")).toHaveTextContent("東京都とうきょうと");
+
+    rerender(<JapaneseReader text="東京都です。" blocks={blocks} showFurigana={false} />);
+    expect(container.querySelector("ruby")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /東京, JPDB term, not matched in WaniKani/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /都, JPDB term, not matched in WaniKani/ })).toBeInTheDocument();
+  });
+
+  it("omits reader chrome in the compact appearance until a token is inspected", () => {
+    const { container } = render(<JapaneseReader text="学校" interaction="tooltip" appearance="compact" />);
+
+    expect(container.querySelector('[data-appearance="compact"]')).toBeInTheDocument();
+    expect(screen.queryByLabelText("Annotation key")).not.toBeInTheDocument();
+    expect(screen.queryByText("Article annotations")).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+
+    fireEvent.focus(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
+
+    const inspector = screen.getByRole("complementary");
+    expect(within(inspector).getByRole("button", { name: "Speak 学校" })).toBeInTheDocument();
+    expect(within(inspector).getByText("WaniKani exact match · Guru II")).toBeInTheDocument();
+  });
+
   it("uses the same hover inspector for mapped and JPDB-only tokens", async () => {
     render(<JapaneseReader text="学校と猫" />);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped against your WaniKani library"), { timeout: 5_000 });
@@ -101,7 +211,8 @@ describe("JapaneseReader inspector", () => {
   it("reuses one transcript-level JPDB parse while the displayed subtitle changes", async () => {
     let finishRequest: (() => void) | undefined;
     const requestGate = new Promise<void>((resolve) => { finishRequest = resolve; });
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
       await requestGate;
       return {
         ok: true,

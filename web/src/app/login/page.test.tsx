@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import LoginPage, { LoginFallback, LoginForm } from "./page";
+import { LoginFallback, LoginForm } from "./LoginForm";
+import LoginPage from "./page";
 
 const mocks = vi.hoisted(() => ({
   next: "/dashboard",

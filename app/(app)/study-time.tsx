@@ -26,6 +26,10 @@ import {
   ACTIVITY_CATEGORIES,
 } from "../../src/services/timeTrackingCore";
 import {
+  maybeRefreshStudyTimeHistory,
+} from "../../src/services/studyTimeHistoryService";
+import { normalizeStudyTimeUserId } from "../../src/services/studyTimeStorageScope";
+import {
   getDeviceId,
   getStudyTimeSyncStatus,
   maybeSyncStudyTime,
@@ -42,6 +46,7 @@ import {
   type StudyTimeRangeData,
   type StudyTimeRangeId,
 } from "../../src/utils/studyTimeRanges";
+import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
 const CHART_HEIGHT = 96;
@@ -88,6 +93,10 @@ function readScreenData(range: StudyTimeRangeId): ScreenData {
 export default function StudyTimeScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const userId = normalizeStudyTimeUserId(
+    useAuthStore((state) => state.userData?.id ?? null),
+  );
+  const apiToken = useAuthStore((state) => state.apiToken);
   const [rangeIndex, setRangeIndex] = useState(0);
   const range = STUDY_TIME_RANGE_IDS[rangeIndex];
   const [data, setData] = useState<ScreenData>(() => readScreenData("today"));
@@ -100,12 +109,23 @@ export default function StudyTimeScreen() {
       // Good moment to push totals to Supabase (throttled internally).
       maybeSyncStudyTime();
 
+      let isFocused = true;
       setData(readScreenData(range));
+      if (apiToken && userId) {
+        void maybeRefreshStudyTimeHistory().then(() => {
+          if (isFocused) {
+            setData(readScreenData(range));
+          }
+        });
+      }
       const timer = setInterval(() => {
         setData(readScreenData(range));
       }, 1000);
-      return () => clearInterval(timer);
-    }, [range])
+      return () => {
+        isFocused = false;
+        clearInterval(timer);
+      };
+    }, [apiToken, range, userId])
   );
 
   const { summary, elapsedDays, series, syncStatus, chartTitle, chartUnit } = data;
@@ -145,7 +165,7 @@ export default function StudyTimeScreen() {
             Study Time
           </Text>
           <Text style={[styles.headerMeta, { color: theme.textSecondary }]}>
-            Tracked on this device while the app is open
+            Combined across all your devices
           </Text>
         </View>
         <View style={styles.backButtonSpacer} />
@@ -397,7 +417,7 @@ export default function StudyTimeScreen() {
             <View style={styles.categoryLabelGroup}>
               <Ionicons name="phone-portrait-outline" size={16} color={theme.textSecondary} />
               <Text style={[styles.categoryLabel, { color: theme.textColor }]}>
-                Total time in app
+                Total time in Kakehashi
               </Text>
             </View>
             <RollingNumberText
@@ -406,8 +426,8 @@ export default function StudyTimeScreen() {
             />
           </View>
           <Text style={[styles.footnote, { color: theme.textSecondary }]}>
-            Includes everything you do in the app, not just study screens. Time
-            only counts while the app is in the foreground.
+            Includes everything you do in Kakehashi across your devices, not
+            just study screens. Time counts while Kakehashi is in the foreground.
           </Text>
         </Animated.View>
 
@@ -428,7 +448,9 @@ export default function StudyTimeScreen() {
               style={[styles.syncNowButton, { backgroundColor: theme.primary }]}
               onPress={() => {
                 maybeSyncStudyTime({ force: true });
-                setData(readScreenData(range));
+                void maybeRefreshStudyTimeHistory({ force: true }).then(() => {
+                  setData(readScreenData(range));
+                });
               }}
               activeOpacity={0.85}
             >
@@ -452,7 +474,9 @@ export default function StudyTimeScreen() {
             {syncStatus.at ? ` (${formatTimeAgo(syncStatus.at)})` : ""}
           </Text>
           <Text style={[styles.footnote, { color: theme.textSecondary }]}>
-            Last successful push: {formatTimeAgo(syncStatus.lastSuccessAt)}
+            This device uploads its local ledger; combined totals refresh from
+            your other devices. Last successful push:{" "}
+            {formatTimeAgo(syncStatus.lastSuccessAt)}
           </Text>
           <Text
             style={[styles.footnote, { color: theme.textSecondary }]}

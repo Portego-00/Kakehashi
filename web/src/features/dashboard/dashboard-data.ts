@@ -319,5 +319,5 @@ export function levelTimingRows(progressions: LevelProgression[], currentLevel: 
     const endedAt = progression.data.passed_at || progression.data.completed_at || (progression.data.level === currentLevel ? now.toISOString() : null);
     if (!startedAt || !endedAt) return [];
     return [{ level: progression.data.level, days: Math.max(0.1, (Date.parse(endedAt) - Date.parse(startedAt)) / 86_400_000), current: progression.data.level === currentLevel }];
-  }).sort((a, b) => a.level - b.level).slice(-12);
+  }).sort((a, b) => a.level - b.level);
 }

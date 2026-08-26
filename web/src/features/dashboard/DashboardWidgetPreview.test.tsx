@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DASHBOARD_SECTIONS } from "@/features/settings/settings";
-import { IncompleteLevelsWidget } from "./DashboardDataWidgets";
+import { IncompleteLevelsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
 import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget } from "./DashboardNativeWidgets";
 import { DashboardWidgetPreview } from "./DashboardWidgetPreview";
 import { StudyQueueCard } from "./StudyQueueCard";
+import { cacheRemoteStudyTimeDays, getStudyTimeDeviceId, localDayKey, recordStudyTime } from "./study-time";
 
 describe("dashboard widget previews", () => {
   it("keeps only the Guru target bar in the home level widget", () => {
@@ -90,18 +91,53 @@ describe("dashboard widget previews", () => {
     expect(container.querySelector('[class*="incompleteRingCenter"]')).toHaveTextContent("50%Kanji");
   });
 
-  it("morphs the same incomplete-level rings to the next level values", () => {
+  it("renders combined local and other-device study time", () => {
+    window.localStorage.clear();
+    const now = new Date();
+    const userId = "wk-user-123";
+    const deviceId = getStudyTimeDeviceId(window.localStorage, () => "browser-device-123");
+    recordStudyTime(window.localStorage, userId, deviceId, "reviews", 60, now);
+    cacheRemoteStudyTimeDays(window.localStorage, userId, deviceId, [{
+      day: localDayKey(now),
+      appTotalSeconds: 120,
+      byCategory: { reviews: 60, lessons: 60 },
+    }]);
+
+    const { container } = render(<StudyTimeWidget userId={userId} />);
+
+    expect(container.querySelector('[class*="studyTimeHead"] strong')).toHaveTextContent("3m");
+    expect(container.querySelector('[class*="studyChartHead"]')).toHaveTextContent("All devices");
+    expect(container.querySelector('[data-category="reviews"] dd')).toHaveTextContent("2m");
+    expect(container.querySelector('[data-category="lessons"] dd')).toHaveTextContent("1m");
+    window.localStorage.clear();
+  });
+
+  it("uses the left arrow for lower levels and the right arrow for higher levels", () => {
     const { container } = render(<IncompleteLevelsWidget levels={[
       { level: 12, passed: 6, total: 10, radical: { passed: 1, total: 1 }, kanji: { passed: 2, total: 4 }, vocabulary: { passed: 3, total: 5 } },
       { level: 11, passed: 2, total: 10, radical: { passed: 0, total: 2 }, kanji: { passed: 1, total: 4 }, vocabulary: { passed: 1, total: 4 } },
     ]} />);
     const vocabularyRing = container.querySelector('[data-type="vocabulary"][class*="incompleteRingProgress"]') as SVGCircleElement;
+    const [left, right] = [...container.querySelectorAll('[class*="incompleteSwitcher"] button')] as HTMLButtonElement[];
 
     expect(vocabularyRing.style.getPropertyValue("--ring-progress")).toBe("60");
-    fireEvent.click(screen.getByRole("button", { name: "Show older incomplete level" }));
+    expect(left).toHaveAccessibleName("Show lower incomplete level");
+    expect(right).toHaveAccessibleName("Show higher incomplete level");
+    expect(left).toBeEnabled();
+    expect(right).toBeDisabled();
+
+    fireEvent.click(left);
 
     expect(container.querySelector('[data-type="vocabulary"][class*="incompleteRingProgress"]')).toBe(vocabularyRing);
     expect(vocabularyRing.style.getPropertyValue("--ring-progress")).toBe("25");
+    expect(container.querySelector('[class*="incompleteSwitcher"]')).toHaveTextContent("Level11");
+    expect(left).toBeDisabled();
+    expect(right).toBeEnabled();
+
+    fireEvent.click(right);
+
+    expect(vocabularyRing.style.getPropertyValue("--ring-progress")).toBe("60");
+    expect(container.querySelector('[class*="incompleteSwitcher"]')).toHaveTextContent("Level12");
   });
 
   it("uses the mobile empty-state artwork and copy when a queue is clear", () => {

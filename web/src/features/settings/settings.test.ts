@@ -16,6 +16,18 @@ describe("web settings persistence", () => {
     });
   });
 
+  it("defaults readers to click details and WK plus JPDB recognition", () => {
+    expect(DEFAULT_WEB_SETTINGS.reader).toEqual({ detailsInteraction: "click", recognitionMode: "wk-jpdb" });
+    expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, reader: { detailsInteraction: "hover", recognitionMode: "wk" } }), "tester").reader).toEqual({ detailsInteraction: "hover", recognitionMode: "wk" });
+  });
+
+  it("repairs missing or unsupported reader preferences", () => {
+    expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, reader: { detailsInteraction: "focus", recognitionMode: "jpdb" } }), "tester").reader).toEqual(DEFAULT_WEB_SETTINGS.reader);
+    const legacy = { ...DEFAULT_WEB_SETTINGS } as Partial<typeof DEFAULT_WEB_SETTINGS>;
+    delete legacy.reader;
+    expect(loadWebSettings(storage(legacy), "tester").reader).toEqual(DEFAULT_WEB_SETTINGS.reader);
+  });
+
   it("hydrates the complete study inventory", () => {
     const study = {
       ...DEFAULT_WEB_SETTINGS.study,
@@ -28,8 +40,14 @@ describe("web settings persistence", () => {
       jitaiSelectedFontIds: ["mincho"],
       immersionKitAnimeSources: ["death_note"],
       epubDailyGoalMinutes: 20,
+      showListeningTranslation: false,
     };
     expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study }), "tester").study).toMatchObject(study);
+  });
+
+  it("shows listening translations by default and preserves the saved preference", () => {
+    expect(DEFAULT_WEB_SETTINGS.study.showListeningTranslation).toBe(true);
+    expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, showListeningTranslation: false } }), "tester").study.showListeningTranslation).toBe(false);
   });
 
   it("sanitizes unsupported settings and source lists", () => {
