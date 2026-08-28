@@ -43,6 +43,6 @@ jobs:
         run: npm --prefix web run typecheck
 
       - name: Test web
-        run: npm --prefix web test
+        run: npm --prefix web test -- --maxWorkers=2
         env:
           COMMUNITY_LOCAL_STORE: "1"
