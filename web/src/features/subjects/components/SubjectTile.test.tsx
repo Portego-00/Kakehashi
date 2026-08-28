@@ -28,6 +28,21 @@ const statistic = {
   data: { subject_id: vocabulary.id, percentage_correct: 88 },
 } as ReviewStatistic;
 
+const imageRadical = {
+  id: 876,
+  object: "radical",
+  data: {
+    level: 4,
+    slug: "rib-cage",
+    characters: null,
+    meanings: [{ meaning: "Rib Cage", primary: true }],
+    character_images: [
+      { url: "https://files.wanikani.com/rib-cage-256.png", content_type: "image/png", metadata: { dimensions: "256x256" } },
+      { url: "https://files.wanikani.com/rib-cage.svg", content_type: "image/svg+xml" },
+    ],
+  },
+} as Subject;
+
 describe("SubjectTile", () => {
   it("shows level and SRS stage without a subject-type chip", () => {
     render(<SubjectTile subject={vocabulary} assignment={assignment} />);
@@ -44,5 +59,12 @@ describe("SubjectTile", () => {
     expect(screen.getByText("せかいし")).toHaveAttribute("data-primary", "true");
     expect(screen.getByText("せかいじ")).not.toHaveAttribute("data-primary");
     expect(screen.getByText("+1")).toHaveAccessibleName("1 more reading");
+  });
+
+  it("uses the WaniKani artwork for an image-only radical", () => {
+    render(<SubjectTile subject={imageRadical} />);
+
+    expect(screen.getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/rib-cage.svg");
+    expect(screen.queryByText("Ri")).not.toBeInTheDocument();
   });
 });

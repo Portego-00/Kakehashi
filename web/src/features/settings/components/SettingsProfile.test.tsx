@@ -5,8 +5,10 @@ import { settingsStorageKey } from "../settings";
 import { SettingsWorkspace } from "./SettingsWorkspace";
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: { data: { username: "Tester" } } }),
+  useSession: () => ({ user: { data: { username: "Tester" } }, signOut: vi.fn().mockResolvedValue(undefined) }),
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 
 vi.mock("@/lib/theme", () => ({
   useTheme: () => ({ theme: "light", resolvedTheme: "light", setTheme: vi.fn() }),

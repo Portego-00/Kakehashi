@@ -22,9 +22,16 @@
         "name": "next"
       }
     ],
+    "types": [
+      "node",
+      "vitest/globals"
+    ],
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "wanakana": [
+        "./node_modules/wanakana"
       ]
     }
   },

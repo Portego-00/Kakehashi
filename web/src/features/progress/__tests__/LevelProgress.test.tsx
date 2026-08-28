@@ -38,6 +38,23 @@ function subject(id: number, character: string, level = 2): Subject {
   };
 }
 
+function imageRadical(id: number, meaning: string, level = 2): Subject {
+  return {
+    ...subject(id, meaning.toLocaleLowerCase(), level),
+    object: "radical",
+    data: {
+      ...subject(id, meaning.toLocaleLowerCase(), level).data,
+      slug: meaning.toLocaleLowerCase().replaceAll(" ", "-"),
+      characters: null,
+      meanings: [{ meaning, primary: true, accepted_answer: true }],
+      character_images: [
+        { url: `https://files.wanikani.com/${id}-256.png`, content_type: "image/png", metadata: { dimensions: "256x256" } },
+        { url: `https://files.wanikani.com/${id}.svg`, content_type: "image/svg+xml" },
+      ],
+    },
+  };
+}
+
 function assignment(id: number, stage: number): Assignment {
   const startedAt = stage > 0 ? "2026-08-10T00:00:00Z" : null;
   const passedAt = stage >= 5 ? "2026-08-20T00:00:00Z" : null;
@@ -104,5 +121,15 @@ describe("level progress", () => {
     const recap = screen.getByRole("link", { name: "Open level 1 recap" });
     expect(recap).toHaveTextContent("Kanji1/1");
     expect(within(recap).getByText("100%")).toBeInTheDocument();
+  });
+
+  it("renders WaniKani's SVG for image-only radicals before the text fallback", () => {
+    progressData.subjects = [...progressData.subjects, imageRadical(5, "Rib Cage")];
+    progressData.assignments = [...progressData.assignments, assignment(5, 2)];
+
+    render(<LevelProgress />);
+
+    expect(screen.getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/5.svg");
+    expect(screen.queryByText("Ri")).not.toBeInTheDocument();
   });
 });

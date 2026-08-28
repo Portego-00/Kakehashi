@@ -249,6 +249,8 @@
 .levelItemGlyph[data-character-count="10"],
 .levelItemGlyph[data-character-count="11"],
 .levelItemGlyph[data-character-count="12"] { font-size: var(--text-xs); }
+.levelItemRow[data-type="vocabulary"] .levelItemGlyph,
+.levelItemRow[data-type="kana_vocabulary"] .levelItemGlyph { font-size: var(--text-lg); }
 .levelItemIdentity { min-width: 0; display: grid; }
 .levelItemIdentity > strong,
 .levelItemIdentity > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

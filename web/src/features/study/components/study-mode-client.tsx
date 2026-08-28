@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AlertCircle, ArrowLeft, LoaderCircle, RotateCcw } from "lucide-react";
+import { AlertCircle, ArrowLeft, LoaderCircle, Play } from "lucide-react";
 import { LoadingState } from "@/components/ui/States";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useSubjectLists } from "@/features/subjects/use-subject-lists";
@@ -10,8 +10,8 @@ import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { createStudySession, generateQuestions, getStudyItemProgress } from "../engine";
 import { streamAnimeContext } from "../immersion";
 import { getStudyMode } from "../catalog";
-import { getModeDefaultFilters, hydrateModeFilters, isQuizMode } from "../mode-config";
-import { loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, configKey, sessionKey } from "../storage";
+import { hydrateModeFilters, isQuizMode } from "../mode-config";
+import { clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, configKey, sessionKey } from "../storage";
 import type { StudyFilters, StudyModeId, StudySession } from "../types";
 import { useStudyDataset } from "../use-study-dataset";
 import { QuizSession } from "./quiz-session";
@@ -26,10 +26,16 @@ function Setup({ mode, scope, maxLevel, subjects, assignments, lists, seedSubjec
   const initial = useMemo(() => {
     const hydrated = hydrateModeFilters(mode, rawConfig ? loadStudyConfig(scope, mode) : null, maxLevel);
     const available = new Set(subjects.map((subject) => subject.id));
-    const selectedSubjectIds = (seedSubjectIds.length ? seedSubjectIds : hydrated.selectedSubjectIds).filter((id) => available.has(id));
+    const availableLists = new Set(lists.map((list) => list.id));
+    const selectedListIds = hydrated.selectedListIds.filter((id) => availableLists.has(id));
+    const listSubjectIds = lists.filter((list) => selectedListIds.includes(list.id)).flatMap((list) => list.subjectIds);
+    const savedSubjectIds = mode === "custom-review" || mode === "custom-lessons"
+      ? hydrated.selectedSubjectIds
+      : listSubjectIds;
+    const selectedSubjectIds = (seedSubjectIds.length ? seedSubjectIds : savedSubjectIds).filter((id) => available.has(id));
     const animeSources = mode === "listening" && rawConfig === null ? defaultAnimeSources : hydrated.animeSources;
-    return { ...hydrated, animeSources, selectedSubjectIds };
-  }, [defaultAnimeSources, maxLevel, mode, rawConfig, scope, seedSubjectIds, subjects]);
+    return { ...hydrated, animeSources, selectedListIds, selectedSubjectIds };
+  }, [defaultAnimeSources, lists, maxLevel, mode, rawConfig, scope, seedSubjectIds, subjects]);
   const [filters, setFilters] = useState<StudyFilters>(initial);
   const startedImmediatelyRef = useRef(false);
   const update = (next: StudyFilters) => { setFilters(next); saveStudyConfig(scope, mode, next); };
@@ -41,7 +47,7 @@ function Setup({ mode, scope, maxLevel, subjects, assignments, lists, seedSubjec
   if (startImmediately && filters.selectedSubjectIds.length) {
     return <LoadingState label="Starting your list" detail={`Preparing ${filters.selectedSubjectIds.length} saved ${filters.selectedSubjectIds.length === 1 ? "subject" : "subjects"}.`} />;
   }
-  return <StudyConfig mode={mode} filters={filters} subjects={subjects} assignments={assignments} lists={lists} animeSyncUsernames={animeSyncUsernames} starting={starting} onChange={update} onStart={() => onStart(filters)} />;
+  return <StudyConfig mode={mode} filters={filters} subjects={subjects} assignments={assignments} lists={lists} userLevel={maxLevel} animeSyncUsernames={animeSyncUsernames} starting={starting} onChange={update} onStart={() => onStart(filters)} />;
 }
 
 function ListeningPreparation() {
@@ -50,6 +56,14 @@ function ListeningPreparation() {
     <strong>Finding anime clips…</strong>
     <p>The first scene will open as soon as it is ready.</p>
   </section>;
+}
+
+function ResumeSessionButton({ current, total, onResume }: { current: number; total: number; onResume: () => void }) {
+  return <button className={styles.resumeButton} aria-label={`Resume saved session, item ${current} of ${total}`} onClick={onResume}>
+    <Play size={16} fill="currentColor" aria-hidden="true" />
+    <strong>Resume saved session</strong>
+    <span className={styles.resumeButtonMeta}>{current} / {total}</span>
+  </button>;
 }
 
 export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = false }: { mode: StudyModeId; seedSubjectIds?: number[]; startImmediately?: boolean }) {
@@ -68,6 +82,9 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
   const rawSession = useSyncExternalStore(noopSubscribe, () => window.localStorage.getItem(sessionKey(scope, mode)), () => null);
   const savedSession = useMemo(() => rawSession && isQuizMode(mode) ? loadStudySession(scope, mode) : null, [mode, rawSession, scope]);
   const savedSessionItemProgress = savedSession ? getStudyItemProgress(savedSession.questions, savedSession.currentIndex) : null;
+  const resumableSession = savedSession && savedSessionItemProgress && !savedSession.complete
+    ? { session: savedSession, progress: savedSessionItemProgress }
+    : null;
   const userLevel = user?.data.level ?? 60;
   const username = user?.data.username ?? "anonymous";
   const { repository: listRepository, lists } = useSubjectLists(username);
@@ -83,6 +100,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
   const start = async (filters: StudyFilters) => {
     if (!dataset) return;
     listeningAbortRef.current?.abort();
+    if (isQuizMode(mode)) clearStudySession(scope, mode);
     setListeningLoadingMore(false);
     const effectiveFilters = {
       ...filters,
@@ -99,7 +117,19 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
     }
     if (isQuizMode(mode)) {
       const generationFilters = mode === "listening" ? { ...effectiveFilters, count: Math.min(60, effectiveFilters.count * 3) } : effectiveFilters;
-      const questions = generateQuestions(mode, dataset, generationFilters);
+      const questions = mode === "custom-review"
+        ? generateQuestions(mode, dataset, generationFilters, {
+          customReviewOrder: webSettings.study.customReviewOrder,
+          reviewTypeOrderEnabled: webSettings.study.reviewTypeOrderEnabled,
+          reviewTypeOrder: webSettings.study.reviewTypeOrder,
+          prioritizeCriticalItems: webSettings.study.prioritizeCriticalItems,
+          userLevel,
+          reviewQuestionOrderEnabled: webSettings.study.reviewQuestionOrderEnabled,
+          reviewQuestionOrder: webSettings.study.reviewQuestionOrder,
+          backToBackQuestions: webSettings.study.backToBackQuestions,
+          maxQuestionGap: 10,
+        })
+        : generateQuestions(mode, dataset, generationFilters);
       if (mode === "listening") {
         const controller = new AbortController();
         listeningAbortRef.current = controller;
@@ -160,16 +190,16 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
     && seedSubjectIds.some((id) => validSeedIds.has(id));
   let content: React.ReactNode;
   const preparingListening = mode === "listening" && preparing && !activeSession;
-  if (activeSession) content = <QuizSession key={activeSession.id} scope={scope} initialSession={activeSession} subjects={dataset.subjects} showDetailsAtAnswerStops={webSettings.study.showAnswerStopSubjectDetails} showListeningTranslation={webSettings.study.showListeningTranslation} keyboardShortcuts={webSettings.study.keyboardShortcuts} loadingMore={mode === "listening" && listeningLoadingMore} expectedSubjectCount={mode === "listening" ? listeningTargetCount ?? undefined : undefined} onExit={exit} onRestartMistakes={(ids) => void start({ ...(loadStudyConfig(scope, mode) ? hydrateModeFilters(mode, loadStudyConfig(scope, mode), userLevel) : getModeDefaultFilters(mode, userLevel)), selectedSubjectIds: ids, count: Math.max(5, ids.length) })} />;
+  if (activeSession) content = <QuizSession key={activeSession.id} scope={scope} initialSession={activeSession} subjects={dataset.subjects} assignments={dataset.assignments} reviewPreferences={webSettings.study} subjectDetailSettings={webSettings.subjectDetails} immersionSources={webSettings.study.immersionKitAnimeSources} showDetailsAtAnswerStops={webSettings.study.showAnswerStopSubjectDetails} pauseOnWrong={webSettings.study.pauseOnWrong} pauseOnClose={webSettings.study.pauseOnClose} pauseOnCorrect={webSettings.study.pauseOnCorrect} acceptUserSynonymsAsAnswers={webSettings.study.acceptUserSynonymsAsAnswers} acceptAnyKanjiOnyomiReading={webSettings.study.acceptAnyKanjiOnyomiReading} autoplayVocabularyAudio={webSettings.study.autoplayAudio} vocabularyAudioVoice={webSettings.study.vocabularyAudioVoice} answerFeedbackSoundEnabled={webSettings.study.answerFeedbackSoundEnabled} showListeningTranslation={webSettings.study.showListeningTranslation} keyboardShortcuts={webSettings.study.keyboardShortcuts} loadingMore={mode === "listening" && listeningLoadingMore} expectedSubjectCount={mode === "listening" ? listeningTargetCount ?? undefined : undefined} onExit={exit} />;
   else if (preparingListening) content = <ListeningPreparation />;
   else if (activeFilters && mode === "kanji-writing") content = <WritingPractice dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "crossword") content = <CrosswordGame dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "kana-wordle") content = <KanaWordle dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "similar-kanji") content = <SimilarKanjiMatching dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
-  else if (activeFilters && mode === "custom-lessons") content = <CustomLessons dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
+  else if (activeFilters && mode === "custom-lessons") content = <CustomLessons dataset={dataset} filters={activeFilters} scope={scope} subjectDetailSettings={webSettings.subjectDetails} immersionSources={webSettings.study.immersionKitAnimeSources} onExit={exit} />;
   else if (mode === "text-analysis") content = <TextAnalysis subjects={dataset.subjects} scope={scope} />;
   else if (mode === "subject-lists") content = <SubjectLists subjects={dataset.subjects} scope={scope} username={username} />;
-  else content = <><div className={styles.resumeRow}>{savedSession && savedSessionItemProgress && !savedSession.complete ? <button className={styles.resumeButton} onClick={() => setActiveSession(savedSession)}><RotateCcw size={17} /><span><strong>Resume saved session</strong><small>Item {savedSessionItemProgress.current} of {savedSessionItemProgress.total}</small></span></button> : null}{fetching ? <span className={styles.refreshing}><LoaderCircle className={styles.spinner} size={14} /> Refreshing data</span> : null}</div>{startError ? <p className={styles.startError} role="alert">{startError}</p> : null}<Setup mode={mode} scope={scope} maxLevel={userLevel} subjects={dataset.subjects} assignments={dataset.assignments} lists={lists} seedSubjectIds={seedSubjectIds} startImmediately={startingListSession} defaultAnimeSources={webSettings.study.immersionKitAnimeSources} animeSyncUsernames={{ myanimelist: webSettings.integrations?.myAnimeListUsername ?? "", anilist: webSettings.integrations?.aniListUsername ?? "" }} starting={preparing} onStart={(filters) => { if (startingListSession) setConsumedImmediateStart(immediateStartSignature); void start(filters); }} /></>;
+  else content = <>{startError ? <p className={styles.startError} role="alert">{startError}</p> : null}<Setup mode={mode} scope={scope} maxLevel={userLevel} subjects={dataset.subjects} assignments={dataset.assignments} lists={lists} seedSubjectIds={seedSubjectIds} startImmediately={startingListSession} defaultAnimeSources={webSettings.study.immersionKitAnimeSources} animeSyncUsernames={{ myanimelist: webSettings.integrations?.myAnimeListUsername ?? "", anilist: webSettings.integrations?.aniListUsername ?? "" }} starting={preparing} onStart={(filters) => { if (startingListSession) setConsumedImmediateStart(immediateStartSignature); void start(filters); }} /></>;
 
   const sessionActive = Boolean(activeSession || activeFilters || preparingListening || startingListSession);
 
@@ -177,7 +207,13 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
     <main className={`${sessionActive ? styles.studySessionPage : `page ${styles.studyPage}`} ${styles.fetchReady}`} data-study-session={sessionActive ? "active" : undefined}>
       {!sessionActive ? <header className={styles.modeHeader} data-accent={definition.accent}>
         <Link href="/study" className={styles.backLink}><ArrowLeft size={17} /> All study modes</Link>
-        <div><div><h1>{definition.title}</h1><p>{definition.description}</p></div></div>
+        <div className={styles.modeHeaderMain}>
+          <div className={styles.modeHeaderCopy}><h1>{definition.title}</h1><p>{definition.description}</p></div>
+          {fetching || resumableSession ? <div className={styles.modeHeaderActions}>
+            {fetching ? <span className={styles.refreshing}><LoaderCircle className={styles.spinner} size={14} /> Refreshing data</span> : null}
+            {resumableSession ? <ResumeSessionButton current={resumableSession.progress.current} total={resumableSession.progress.total} onResume={() => setActiveSession(resumableSession.session)} /> : null}
+          </div> : null}
+        </div>
       </header> : null}
       {content}
     </main>

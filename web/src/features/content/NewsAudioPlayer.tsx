@@ -90,7 +90,7 @@ export function NewsAudioPlayer({ src, title }: { src: string; title: string }) 
   }
 
   return (
-    <aside className={styles.newsAudioPlayer} aria-label="Article audio player">
+    <section className={styles.newsAudioPlayer} aria-label="Article audio player">
       <audio
         ref={audioRef}
         className={styles.newsAudioElement}
@@ -206,6 +206,6 @@ export function NewsAudioPlayer({ src, title }: { src: string; title: string }) 
           Audio could not be played. <a href={src} target="_blank" rel="noreferrer">Open audio</a>
         </p>
       ) : null}
-    </aside>
+    </section>
   );
 }

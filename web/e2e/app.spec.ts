@@ -37,6 +37,133 @@ async function fulfillJson(route: Route, json: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(json) });
 }
 
+async function cardMetrics(card: Locator) {
+  return card.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+      width: bounds.width,
+      height: bounds.height,
+      fits: element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight,
+    };
+  });
+}
+
+async function watchNavbarItemMotion(navigation: Locator, href: string) {
+  await navigation.evaluate((element, watchedHref) => {
+    element.setAttribute("data-motion-observed", "false");
+    const check = () => {
+      const item = [...element.querySelectorAll<HTMLElement>("[data-navbar-item]")].find((candidate) => candidate.dataset.navbarItem === watchedHref);
+      if (!item) return;
+      const opacity = Number.parseFloat(item.style.opacity);
+      const transform = item.style.transform;
+      const translated = Boolean(transform && transform !== "none" && transform !== "translateX(0px)");
+      if ((!Number.isNaN(opacity) && opacity < 0.99) || translated) {
+        observer.disconnect();
+        element.setAttribute("data-motion-observed", "true");
+      }
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(element, { attributes: true, attributeFilter: ["style"], childList: true, subtree: true });
+    check();
+    window.setTimeout(() => observer.disconnect(), 500);
+  }, href);
+}
+
+test("keeps off settings switches visible in dark mode", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Color contrast is identical across viewports");
+  await page.addInitScript(() => window.localStorage.setItem("kakehashi-web-theme", "dark"));
+  await mockApp(page);
+  await page.goto("/settings");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  const checkbox = page.getByRole("checkbox", { name: "Shuffle subjects" });
+  await expect(checkbox).not.toBeChecked();
+  const visibleSwitch = checkbox.locator("..").locator(":scope > i");
+  await expect(visibleSwitch).toBeVisible();
+
+  const contrast = await visibleSwitch.evaluate((element) => {
+    type Color = [number, number, number, number];
+    const parse = (value: string): Color => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d")!;
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+      return [red, green, blue, alpha / 255];
+    };
+    const composite = (foreground: Color, background: Color): Color => {
+      const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+      if (alpha === 0) return [0, 0, 0, 0];
+      return [
+        (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
+        (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
+        (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
+        alpha,
+      ];
+    };
+    const luminance = (color: Color) => {
+      const linear = color.slice(0, 3).map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    };
+    const ratio = (first: Color, second: Color) => {
+      const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+      return (lighter + 0.05) / (darker + 0.05);
+    };
+
+    const layers: Color[] = [];
+    let ancestor = element.parentElement;
+    while (ancestor) {
+      const background = parse(getComputedStyle(ancestor).backgroundColor);
+      if (background[3] > 0) layers.push(background);
+      if (background[3] >= 1) break;
+      ancestor = ancestor.parentElement;
+    }
+    const surrounding = layers.reverse().reduce((background, layer) => composite(layer, background), [0, 0, 0, 1] as Color);
+    const style = getComputedStyle(element);
+    const track = composite(parse(style.backgroundColor), surrounding);
+    const border = composite(parse(style.borderTopColor), surrounding);
+    const thumb = composite(parse(getComputedStyle(element, "::after").backgroundColor), track);
+
+    return {
+      borderContrast: ratio(border, surrounding),
+      thumbContrast: ratio(thumb, track),
+      colors: {
+        surrounding: getComputedStyle(element.parentElement!).backgroundColor,
+        track: style.backgroundColor,
+        border: style.borderTopColor,
+        thumb: getComputedStyle(element, "::after").backgroundColor,
+      },
+    };
+  });
+
+  expect(
+    Math.min(contrast.borderContrast, contrast.thumbContrast),
+    `Off switch contrast: ${JSON.stringify(contrast)}`,
+  ).toBeGreaterThanOrEqual(3);
+
+  const checkedSwitch = page.getByRole("checkbox", { name: "Keyboard shortcuts" });
+  await expect(checkedSwitch).toBeChecked();
+  const checkedThumb = await checkedSwitch.locator("..").locator(":scope > i").evaluate((element) => {
+    const probe = document.createElement("i");
+    probe.style.backgroundColor = "var(--color-surface)";
+    document.body.append(probe);
+    const colors = {
+      thumb: getComputedStyle(element, "::after").backgroundColor,
+      surface: getComputedStyle(probe).backgroundColor,
+    };
+    probe.remove();
+    return colors;
+  });
+  expect(checkedThumb.thumb, "Checked switches should retain the existing surface-colored thumb").toBe(checkedThumb.surface);
+});
+
 async function mockApp(page: Page, initiallyAuthenticated = true, mockedUser: MockUser = user) {
   let authenticated = initiallyAuthenticated;
   const communityItems = [{ id: "issue-1", user_id: "user-1", user_username: "WebTester", user_level: 2, title: "Native parity issue", content: "The web community now shares the native issue board.", status: "open", labels: ["origin:web"], created_at: now, updated_at: now, likes_count: 2, reply_count: 0, is_liked: false }];
@@ -60,7 +187,9 @@ async function mockApp(page: Page, initiallyAuthenticated = true, mockedUser: Mo
     if (resource === "summary") return fulfillJson(route, { object: "report", url: "", data_updated_at: now, data: { lessons: [], reviews: [{ available_at: "2026-08-06T21:00:00.000Z", subject_ids: [1, 2] }], next_reviews_at: "2026-08-06T21:00:00.000Z" } });
     return fulfillJson(route, collection([]));
   });
-  await page.route("**/api/study/immersion", (route) => fulfillJson(route, { example: { sentence: "日本史をアニメで勉強します。", translation: "I study Japanese history through anime.", title: "Sample Anime" } }));
+  await page.route("https://apiv2.immersionkit.com/index_meta", (route) => fulfillJson(route, { data: { sample_anime: { title: "Sample Anime", category: "anime" } } }));
+  await page.route(/^https:\/\/apiv2\.immersionkit\.com\/search\?/, (route) => fulfillJson(route, { examples: [{ id: "anime_sample_1", sentence: "日本史をアニメで勉強します。", translation: "I study Japanese history through anime.", title: "sample_anime" }] }));
+  await page.route("**/api/study/immersion", (route) => fulfillJson(route, { error: "Production proxy unavailable" }, 502));
   await page.route("**/api/anime/catalog", (route) => fulfillJson(route, { anime: [
     { id: "death_note", title: "Death Note", malTitle: "Death Note", imageUrl: "https://cdn.myanimelist.net/images/anime/9/9453.jpg", synopsis: "A notebook changes Light's life.", score: 8.62, episodes: 37, mediaType: "tv", malId: 1535, aniListId: 1535 },
     { id: "your_name", title: "Your Name", malTitle: "Kimi no Na wa.", imageUrl: "https://cdn.myanimelist.net/images/anime/5/87048.jpg", synopsis: "Two students mysteriously swap lives.", score: 8.83, episodes: 1, mediaType: "movie", malId: 32281, aniListId: 21519 },
@@ -158,6 +287,20 @@ test("keeps subject details full-width, horizontal, typed, contextual, and anima
   await expect(contextPanel.getByText("日本史を見ます。", { exact: true })).toBeVisible();
   await expect(contextPanel.getByText("Sample Anime", { exact: true })).toBeVisible();
   await expect(contextPanel.getByText("日本史をアニメで勉強します。", { exact: true })).toHaveCSS("font-size", "16px");
+  const highlightedVocabulary = contextPanel.locator("mark");
+  await expect(highlightedVocabulary).toHaveText("日本史");
+  await expect(highlightedVocabulary).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  const highlightStyle = await highlightedVocabulary.evaluate((element) => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-vocabulary)";
+    document.body.append(probe);
+    const style = getComputedStyle(element);
+    const result = { color: style.color, fontWeight: Number(style.fontWeight), vocabularyColor: getComputedStyle(probe).color };
+    probe.remove();
+    return result;
+  });
+  expect(highlightStyle.color).toBe(highlightStyle.vocabularyColor);
+  expect(highlightStyle.fontWeight).toBeGreaterThanOrEqual(700);
   expect(await contextPanel.evaluate((element) => getComputedStyle(element).transitionProperty)).toBe("transform");
 
   await page.goto("/subjects/2");
@@ -236,6 +379,76 @@ test("keeps subject details full-width, horizontal, typed, contextual, and anima
   await expect(page.getByRole("tab", { name: "Context" })).toHaveCount(0);
 });
 
+test("expands vocabulary cards without reducing their default type size", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Runs desktop and narrow geometry in one project");
+  await mockApp(page);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/subjects/3");
+  const shortHero = await cardMetrics(page.locator('header[data-type="vocabulary"] [class*="subjectHeroCharacter"]'));
+  await page.goto("/subjects/6");
+  const longHero = await cardMetrics(page.locator('header[data-type="vocabulary"] [class*="subjectHeroCharacter"]'));
+  expect(longHero.fontSize).toBe(shortHero.fontSize);
+  expect(longHero.height).toBeCloseTo(shortHero.height, 0);
+  expect(longHero.width).toBeGreaterThan(shortHero.width);
+  expect(longHero.width).toBeGreaterThan(longHero.height);
+  expect(longHero.fits).toBe(true);
+
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/search");
+    const shortCard = page.getByRole("link", { name: "一つ, One Thing" }).locator('[class*="subjectCharacters"]');
+    const longCard = page.getByRole("link", { name: "日本史, Japanese History" }).locator('[class*="subjectCharacters"]');
+    const kanjiCard = page.getByRole("link", { name: "一, One" }).locator('[class*="subjectCharacters"]');
+    await expect(longCard).toBeVisible();
+    const [shortMetrics, longMetrics, kanjiMetrics] = await Promise.all([cardMetrics(shortCard), cardMetrics(longCard), cardMetrics(kanjiCard)]);
+    expect(longMetrics.fontSize).toBe(shortMetrics.fontSize);
+    expect(longMetrics.height).toBeCloseTo(shortMetrics.height, 0);
+    expect(longMetrics.width).toBeGreaterThan(shortMetrics.width);
+    expect(longMetrics.width).toBeGreaterThan(longMetrics.height);
+    expect(longMetrics.fits).toBe(true);
+    expect(kanjiMetrics.width).toBeCloseTo(kanjiMetrics.height, 0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `search cards overflow at ${width}px`).toBe(true);
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/progress/wrapped/2");
+  const vocabularyGroup = page.locator('[data-level-subject-type="vocabulary"]');
+  const shortRecap = await cardMetrics(vocabularyGroup.getByRole("link", { name: /One Thing/ }).locator('[class*="levelItemGlyph"]'));
+  const longRecap = await cardMetrics(vocabularyGroup.getByRole("link", { name: /Japanese History/ }).locator('[class*="levelItemGlyph"]'));
+  expect(longRecap.fontSize).toBe(shortRecap.fontSize);
+  expect(longRecap.height).toBeCloseTo(shortRecap.height, 0);
+  expect(longRecap.width).toBeGreaterThan(longRecap.height);
+  expect(longRecap.fits).toBe(true);
+
+  await page.goto("/settings");
+  const preview = page.locator('[data-widget-preview="recent-unlocks"]');
+  const longPreview = await cardMetrics(preview.locator('[data-subject-type="vocabulary"][data-long="true"]'));
+  const kanjiPreview = await cardMetrics(preview.locator('[data-subject-type="kanji"]'));
+  expect(longPreview.fontSize).toBe(kanjiPreview.fontSize);
+  expect(longPreview.width).toBeGreaterThan(longPreview.height);
+  expect(longPreview.fits).toBe(true);
+
+  await page.route("**/api/subjects/lists", (route) => fulfillJson(route, { lists: [{
+    id: "vocabulary-cards",
+    name: "Vocabulary cards",
+    subjectIds: [3, 6],
+    createdAt: now,
+    updatedAt: now,
+  }] }));
+  await page.getByRole("button", { name: "Set Subject Lists to one half" }).click();
+  await page.goto("/dashboard");
+  const listWidget = page.locator('[data-section="subject-lists"]');
+  const listChips = listWidget.locator('[data-subject-type="vocabulary"]');
+  await expect(listChips).toHaveCount(2);
+  const [shortListChip, longListChip] = await Promise.all([cardMetrics(listChips.nth(0)), cardMetrics(listChips.nth(1))]);
+  expect(longListChip.fontSize).toBe(shortListChip.fontSize);
+  expect(longListChip.height).toBeCloseTo(shortListChip.height, 0);
+  expect(longListChip.width).toBeGreaterThan(shortListChip.width);
+  expect(longListChip.width).toBeGreaterThan(longListChip.height);
+  expect(longListChip.fits).toBe(true);
+});
+
 test("keeps the username visible when the desktop header collapses", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop navigation assertion");
   await mockApp(page);
@@ -304,6 +517,59 @@ test("loads every supported study mode and principal feature route", async ({ pa
     await expect(page.locator("body")).not.toContainText(/404|page not found/i);
   }
   expect(consoleErrors.filter((message) => !message.includes("favicon"))).toEqual([]);
+});
+
+test("keeps an idle review question within the desktop viewport", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop viewport assertion");
+  await page.setViewportSize({ width: 1512, height: 864 });
+  await mockApp(page);
+  await page.goto("/study/custom-review?subjectIds=3&start=1");
+
+  await expect(page.getByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ })).toBeVisible();
+  await page.locator('main[data-study-session="active"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
+  const viewport = await page.evaluate(() => ({
+    height: window.innerHeight,
+    scrollHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+  }));
+
+  expect(viewport.scrollHeight, "idle review questions should not scroll").toBeLessThanOrEqual(viewport.height);
+});
+
+test("smoothly restores the review progress bar after advancing from subject details", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop scroll assertion");
+  await page.setViewportSize({ width: 1512, height: 864 });
+  await mockApp(page);
+  await page.goto("/study/custom-review?subjectIds=3&start=1");
+
+  const answer = page.getByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ });
+  await expect(answer).toBeVisible();
+  await answer.fill((await answer.getAttribute("aria-label"))?.includes("Reading") ? "ちがう" : "wrong");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await page.getByRole("button", { name: "Show subject details" }).click();
+  await expect(page.getByRole("button", { name: "Hide subject details" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) > window.innerHeight)).toBe(true);
+  await page.evaluate(() => window.scrollTo({ top: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight), behavior: "auto" }));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    const trackedWindow = window as typeof window & { __reviewScrollCalls?: ScrollToOptions[] };
+    const originalScrollTo = window.scrollTo;
+    trackedWindow.__reviewScrollCalls = [];
+    window.scrollTo = ((...args: Parameters<typeof window.scrollTo>) => {
+      if (typeof args[0] === "object") trackedWindow.__reviewScrollCalls?.push(args[0]);
+      Reflect.apply(originalScrollTo, window, args);
+    }) as typeof window.scrollTo;
+  });
+
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __reviewScrollCalls?: ScrollToOptions[] }).__reviewScrollCalls ?? [])).toContainEqual({ top: 0, behavior: "smooth" });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  const progressBounds = await page.getByRole("progressbar").boundingBox();
+  expect(progressBounds?.y).toBeGreaterThanOrEqual(0);
+  expect((progressBounds?.y ?? 0) + (progressBounds?.height ?? 0)).toBeLessThanOrEqual(864);
 });
 
 test("opens the constellation as a collision-free pan and zoom canvas", async ({ page }, testInfo) => {
@@ -405,7 +671,7 @@ test("has no serious accessibility violations on representative workspaces", asy
   }
 });
 
-test("applies live navigation preferences and preserves core study access", async ({ page }, testInfo) => {
+test("applies live navigation preferences and keeps main study destinations disabled", async ({ page }, testInfo) => {
   await mockApp(page);
   await page.goto("/settings");
   const analyticsToggle = page.getByRole("checkbox", { name: /Show analytics/i });
@@ -414,10 +680,143 @@ test("applies live navigation preferences and preserves core study access", asyn
   await moreButton.click();
   const destinations = page.getByRole("navigation", { name: "All destinations" });
   await expect(destinations.getByRole("link", { name: "Analytics" })).toHaveCount(0);
-  await expect(destinations.getByRole("link", { name: "Reviews" })).toBeVisible();
+  await expect(destinations.getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
+  await expect(destinations.getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
+  await expect(destinations.getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
   await page.getByRole("button", { name: "Close More menu" }).first().click({ position: { x: 4, y: 4 } });
   await expect(moreButton).toBeFocused();
   await analyticsToggle.press("Space");
+});
+
+test("customizes and persists the desktop navbar without hiding destinations", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop navbar assertion");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockApp(page);
+  await page.goto("/settings");
+
+  const appbar = page.getByRole("banner").locator(":scope > div");
+  const mainNavigation = page.getByRole("navigation", { name: "Main navigation" });
+  const newsTabToggle = page.getByRole("checkbox", { name: /^News\b.*NHK Easier/ });
+  const itemsTabToggle = page.getByRole("checkbox", { name: /^Items\b.*Browse radicals/ });
+  const analyticsTabToggle = page.getByRole("checkbox", { name: /^Analytics\b.*Detailed statistics/ });
+  const booksTabToggle = page.getByRole("checkbox", { name: /^Books\b.*EPUB library/ });
+  const videoTabToggle = page.getByRole("checkbox", { name: /^Video\b.*Local video/ });
+  await expect(newsTabToggle).toBeVisible();
+  await expect(mainNavigation.getByRole("link")).toHaveText(["Home", "Level", "News", "Video", "Manga", "Songs"]);
+  for (const toggle of [itemsTabToggle, analyticsTabToggle, booksTabToggle, videoTabToggle]) await expect(toggle).toBeEnabled();
+
+  const banner = page.getByRole("banner");
+  await videoTabToggle.scrollIntoViewIfNeeded();
+  await expect(banner).toHaveAttribute("data-floating", "true");
+  const settleAppbar = () => appbar.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+  });
+  for (const width of [1185, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await videoTabToggle.press("Space");
+    await expect(mainNavigation.getByRole("link", { name: "Video" })).toHaveCount(0);
+    await settleAppbar();
+    const fiveTabBar = await appbar.boundingBox();
+    await videoTabToggle.press("Space");
+    await expect(mainNavigation.getByRole("link", { name: "Video" })).toBeVisible();
+    await settleAppbar();
+    const sixTabBar = await appbar.boundingBox();
+    expect(fiveTabBar).not.toBeNull();
+    expect(sixTabBar).not.toBeNull();
+    expect(sixTabBar!.width, `adding the sixth tab should not expand the app bar at ${width}px`).toBeCloseTo(fiveTabBar!.width, 0);
+  }
+
+  await watchNavbarItemMotion(mainNavigation, "/items");
+  await itemsTabToggle.press("Space");
+  await expect(mainNavigation).toHaveAttribute("data-motion-observed", "true");
+  for (const toggle of [analyticsTabToggle, booksTabToggle]) await toggle.press("Space");
+  await expect(mainNavigation.getByRole("link")).toHaveText(["Home", "Level", "Items", "Analytics", "News", "Books", "Video", "Manga", "Songs"]);
+
+  const expectNavbarFits = async (width: number) => {
+    await page.setViewportSize({ width, height: 720 });
+    await expect(banner).toHaveAttribute("data-floating", "true");
+    await settleAppbar();
+    const [appbarBox, identityBox, navigationBox, searchBox, moreBox] = await Promise.all([
+      appbar.boundingBox(),
+      page.getByRole("link", { name: /^Kakehashi home/ }).boundingBox(),
+      mainNavigation.boundingBox(),
+      page.getByRole("link", { name: "Search subjects" }).boundingBox(),
+      page.getByRole("button", { name: "More destinations" }).boundingBox(),
+    ]);
+    expect(appbarBox).not.toBeNull();
+    expect(identityBox).not.toBeNull();
+    expect(navigationBox).not.toBeNull();
+    expect(searchBox).not.toBeNull();
+    expect(moreBox).not.toBeNull();
+    expect(identityBox!.x, `identity should stay inside the app bar at ${width}px`).toBeGreaterThanOrEqual(appbarBox!.x - 1);
+    expect(navigationBox!.x, `navbar should clear the identity at ${width}px`).toBeGreaterThanOrEqual(identityBox!.x + identityBox!.width - 1);
+    expect(navigationBox!.x + navigationBox!.width, `navbar should clear the actions at ${width}px`).toBeLessThanOrEqual(searchBox!.x + 1);
+    expect(moreBox!.x + moreBox!.width, `actions should stay inside the app bar at ${width}px`).toBeLessThanOrEqual(appbarBox!.x + appbarBox!.width + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `navbar should not overflow at ${width}px`).toBe(true);
+  };
+  for (const width of [864, 928, 1024, 1184, 1185, 1280, 1312, 1313, 1376, 1377, 1408, 1409, 1440]) await expectNavbarFits(width);
+
+  await page.getByRole("radio", { name: /^Extra large\b/ }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.style.fontSize)).toBe("120%");
+  for (const width of [864, 1185, 1280, 1281, 1408, 1409, 1440]) await expectNavbarFits(width);
+
+  await watchNavbarItemMotion(mainNavigation, "/news");
+  await newsTabToggle.press("Space");
+  await expect(mainNavigation).toHaveAttribute("data-motion-observed", "true");
+  await expect(mainNavigation.getByRole("link", { name: "News" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "More destinations" }).click();
+  await expect(page.getByRole("navigation", { name: "All destinations" }).getByRole("link", { name: "News" })).toBeVisible();
+
+  await page.reload();
+  await expect(mainNavigation.getByRole("link")).toHaveText(["Home", "Level", "Items", "Analytics", "Books", "Video", "Manga", "Songs"]);
+});
+
+test("returns the desktop navbar from floating without an inward flicker", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop navbar assertion");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockApp(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Desktop navbar tabs" })).toBeVisible();
+
+  const banner = page.getByRole("banner");
+  const appbar = banner.locator(":scope > div");
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(80);
+  await expect(banner).toHaveAttribute("data-floating", "true");
+  await appbar.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+  });
+
+  const frames = await page.evaluate(async () => {
+    const header = document.querySelector<HTMLElement>("header");
+    const bar = header?.firstElementChild as HTMLElement | null;
+    if (!header || !bar) throw new Error("Navbar geometry is unavailable");
+
+    const read = () => bar.getBoundingClientRect().width;
+
+    return await new Promise<number[]>((resolveFrames) => {
+      const samples = [read()];
+      const observer = new MutationObserver(() => {
+        if (header.dataset.floating === "true") return;
+        observer.disconnect();
+        const stopAt = performance.now() + 500;
+        const sample = () => {
+          samples.push(read());
+          if (performance.now() < stopAt) requestAnimationFrame(sample);
+          else resolveFrames(samples);
+        };
+        requestAnimationFrame(sample);
+      });
+      observer.observe(header, { attributes: true, attributeFilter: ["data-floating"] });
+      window.scrollTo(0, 0);
+    });
+  });
+
+  expect(frames.at(-1)!).toBeGreaterThan(frames[0] + 40);
+  for (let index = 1; index < frames.length; index += 1) {
+    expect(frames[index], `bar moved inward at frame ${index}`).toBeGreaterThanOrEqual(frames[index - 1] - 0.75);
+  }
 });
 
 test("contains focus in More and lets the top backdrop close it", async ({ page }, testInfo) => {
@@ -474,26 +873,29 @@ test("reorders dashboard previews and keeps every optional section responsive", 
 
   const visibleSections = page.getByRole("list", { name: "Visible dashboard sections" });
   const visibleWidgets = visibleSections.locator(":scope > li");
-  const recentMistakes = page.locator('[data-available-section="recent-mistakes"]');
-  await expect(visibleWidgets).toHaveCount(6);
+  await expect(visibleWidgets).toHaveCount(17);
+  expect(await visibleWidgets.evaluateAll((widgets) => widgets.map((widget) => widget.getAttribute("data-editor-section")))).toEqual([
+    "daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time",
+  ]);
+  expect(await visibleWidgets.evaluateAll((widgets) => widgets.map((widget) => Number(widget.getAttribute("data-editor-width"))))).toEqual([
+    12, 12, 12, 12, 6, 6, 12, 8, 4, 8, 4, 4, 8, 6, 6, 6, 6,
+  ]);
+  expect(await visibleWidgets.evaluateAll((widgets) => widgets.every((widget) => !widget.hasAttribute("data-editor-row-start")))).toBe(true);
   await expect(page.locator("[data-widget-preview]")).toHaveCount(17);
   const longVocabularyPreviews = page.locator('[data-widget-preview] [data-subject-type="vocabulary"][data-long="true"]');
-  await expect(longVocabularyPreviews).toHaveCount(4);
+  await expect(longVocabularyPreviews).toHaveCount(3);
   expect(await longVocabularyPreviews.evaluateAll((glyphs) => glyphs.every((glyph) => glyph.scrollWidth <= glyph.clientWidth && glyph.scrollHeight <= glyph.clientHeight)), "long vocabulary should fit inside every subject preview tile").toBe(true);
 
-  await recentMistakes.getByRole("button", { name: "Add Recent Mistakes" }).click();
-  await expect(visibleWidgets).toHaveCount(7);
+  await visibleSections.locator('[data-editor-section="recent-mistakes"]').getByRole("button", { name: "Hide Recent Mistakes" }).click();
+  await expect(visibleWidgets).toHaveCount(16);
+  await page.locator('[data-available-section="recent-mistakes"]').getByRole("button", { name: "Add Recent Mistakes" }).click();
+  await expect(visibleWidgets).toHaveCount(17);
   await expect(visibleWidgets.last()).toContainText("Recent Mistakes");
 
-  const srsBreakdown = visibleSections.locator('[data-editor-section="srs"]');
-  await srsBreakdown.dragTo(visibleWidgets.first());
-  await expect(visibleWidgets.first()).toContainText("SRS Breakdown");
-  await page.getByRole("button", { name: "Set SRS Breakdown to one third" }).click();
-
-  for (const label of ["Usage Streak", "Subject Lists", "Incomplete Levels", "Recent Unlocks", "Critical Items", "Burned Items", "Review Heatmap", "Level Timing", "Today’s Study", "Study Time"]) {
-    await page.getByRole("button", { name: `Add ${label}` }).click();
-  }
-  await expect(visibleWidgets).toHaveCount(17);
+  const levelProgress = visibleSections.locator('[data-editor-section="level"]');
+  await levelProgress.dragTo(visibleWidgets.first());
+  await expect(visibleWidgets.first()).toContainText("Level Progress");
+  await page.getByRole("button", { name: "Set Active Item Spread to one half" }).click();
 
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 800 });
@@ -503,7 +905,7 @@ test("reorders dashboard previews and keeps every optional section responsive", 
 
     await page.goto("/dashboard");
     await expect(page.locator("main [data-section]")).toHaveCount(17);
-    await expect(page.locator('[data-section="srs"]')).toHaveAttribute("data-layout-width", "4");
+    await expect(page.locator('[data-section="srs"]')).toHaveAttribute("data-layout-width", "6");
     await expect(page.getByRole("heading", { name: "Review heatmap" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Study time" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `expanded dashboard overflows at ${width}px`).toBe(true);
@@ -513,6 +915,9 @@ test("reorders dashboard previews and keeps every optional section responsive", 
 test("keeps review stats readable and compact at one-third width", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop widget geometry assertion");
   await page.setViewportSize({ width: 1600, height: 900 });
+  await page.addInitScript(() => window.localStorage.setItem("kakehashi-web:settings:webtester:v1", JSON.stringify({
+    workspace: { dashboardOrder: ["study-pulse"], hiddenDashboard: [], dashboardWidths: { "study-pulse": 4 }, dashboardRowStarts: [] },
+  })));
   await mockApp(page);
   const largeStatistics = statistics.map((statistic, index) => ({
     ...statistic,
@@ -550,7 +955,7 @@ test("keeps review stats readable and compact at one-third width", async ({ page
 test("applies advanced study and reading preferences to their workflows", async ({ page, isMobile }) => {
   await mockApp(page);
   await page.goto("/settings");
-  await page.getByLabel("Self-assessment cards").selectOption("both");
+  await page.getByLabel("Anki mode").selectOption("both");
   await page.getByLabel("EPUB daily goal").selectOption("20");
   await page.evaluate(() => window.scrollTo(0, 240));
   await page.getByRole("button", { name: /Anime listening sources: All 2 anime/i }).click();
@@ -576,13 +981,445 @@ test("applies advanced study and reading preferences to their workflows", async 
   await expect(page.getByRole("button", { name: "Reveal Answer" })).toBeVisible();
   await page.getByRole("button", { name: "Reveal Answer" }).click();
   await expect(page.getByText("Expected meaning")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Got it/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "1 · Wrong" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "2 · Correct" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Anki grading controls should not overflow the viewport").toBe(true);
 
   await page.goto("/epubs");
   await expect(page.getByText("20 minute daily goal")).toBeVisible();
 
   await page.goto("/study/listening");
   await expect(page.getByRole("button", { name: /Anime sources: All 2 anime/i })).toBeVisible();
+});
+
+test("uses the full revealed Anki card as the buttonless gesture surface", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/settings");
+  await page.getByLabel("Anki mode").selectOption("both");
+  await page.getByText("Buttonless Anki mode", { exact: true }).click();
+
+  await page.goto("/reviews");
+  await page.getByRole("button", { name: "Reveal Answer" }).click();
+  const card = page.getByRole("region", { name: "Anki answer" });
+  await expect(card.getByRole("button", { name: "Tap left: mark wrong" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Tap right: mark correct" })).toBeVisible();
+
+  await card.click({ position: { x: 12, y: 12 } });
+  await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
+});
+
+test("preserves listening scenes and answers inside a desktop viewport with or without review extras", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop viewport geometry assertion");
+  await page.setViewportSize({ width: 1503, height: 840 });
+  await mockApp(page);
+  await page.route("**/api/study/vocabulary-frequency", (route) => fulfillJson(route, { result: { provider: "jiten", frequencyRank: 6_961, wordId: 6, readingIndex: 0, matchedText: "日本史", matchedReading: "にほんし", sourceUrl: "https://jiten.moe/search?query=%E6%97%A5%E6%9C%AC%E5%8F%B2" } }));
+
+  const extras = [
+    "Show item level & SRS stage",
+    "Show vocabulary frequency",
+    "Vocabulary context sentence hints",
+    "Review search button",
+  ];
+  const scenarios = [
+    {
+      extrasEnabled: false,
+      kind: "listening-meaning",
+      prompt: "潮＿＿だ",
+      sentence: "潮日本史だ",
+      translation: "It is the tide.",
+      sourceTitle: "Frieren Beyond Journey's End",
+      acceptedAnswer: "Making Allowances",
+      choices: ["Making Allowances", "To Advance Something", "Wakame", "To Throw"],
+      minimumSceneHeight: 260,
+    },
+    {
+      extrasEnabled: true,
+      kind: "listening-characters",
+      prompt: "（報道の音声）先ほど＿＿に大雨特別警報が発表されました",
+      sentence: "（報道の音声）先ほど日本史に大雨特別警報が発表されました",
+      translation: "A special heavy-rain warning was just announced.",
+      sourceTitle: "Weathering with You",
+      acceptedAnswer: "日本史",
+      choices: ["日本史", "一つ", "二人", "これ"],
+      minimumSceneHeight: 220,
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    await page.goto("/settings");
+    for (const label of extras) {
+      const checkbox = page.getByRole("checkbox", { name: label });
+      if (await checkbox.isChecked() !== scenario.extrasEnabled) await page.getByText(label, { exact: true }).click();
+    }
+
+    await page.evaluate(({ timestamp, fixture }) => {
+      window.localStorage.setItem("kakehashi:study:v1:account:1:session:listening", JSON.stringify({
+        version: 1,
+        id: `listening-viewport-${fixture.extrasEnabled ? "extras" : "default"}`,
+        mode: "listening",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        currentIndex: 0,
+        questions: [{
+          id: "6:characters",
+          subjectId: 6,
+          subjectType: "vocabulary",
+          kind: fixture.kind,
+          prompt: fixture.prompt,
+          promptLabel: `Vocabulary · ${fixture.sourceTitle}`,
+          acceptedAnswers: [fixture.acceptedAnswer],
+          displayAnswer: fixture.acceptedAnswer,
+          choices: fixture.choices,
+          characters: "日本史",
+          sentence: { ja: fixture.sentence, en: fixture.translation, masked: fixture.prompt },
+          audioUrl: "data:audio/mpeg;base64,",
+          imageUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='900' viewBox='0 0 1600 900'%3E%3Crect width='1600' height='900' fill='%23777'/%3E%3C/svg%3E",
+          sourceTitle: fixture.sourceTitle,
+          autoPlayAudio: false,
+          stopAfterAnswer: false,
+        }],
+        answers: [],
+        complete: false,
+      }));
+    }, { timestamp: now, fixture: scenario });
+
+    await page.goto("/study/listening");
+    await page.getByRole("button", { name: /Resume saved session/ }).click();
+    const choices = page.getByRole("group", { name: "Answer choices" });
+    const scene = page.getByRole("img", { name: `Scene from ${scenario.sourceTitle}` });
+    const search = page.getByRole("link", { name: "Search this item" });
+    await expect(choices).toBeInViewport({ ratio: 1 });
+    await expect(scene).toBeVisible();
+    if (scenario.extrasEnabled) await expect(search).toBeInViewport({ ratio: 1 });
+    else await expect(search).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Pause and exit session" })).toBeInViewport({ ratio: 1 });
+
+    const layout = await choices.evaluate((element) => ({
+      answerBottom: element.getBoundingClientRect().bottom,
+      pageHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+    }));
+    const sceneBounds = await scene.boundingBox();
+    const audioBounds = await page.getByRole("button", { name: /Replay listening clip/ }).boundingBox();
+    const cardBounds = await scene.evaluate((element) => {
+      const bounds = element.closest("[data-type]")!.getBoundingClientRect();
+      return { top: bounds.top, bottom: bounds.bottom };
+    });
+    expect(sceneBounds).not.toBeNull();
+    expect(audioBounds).not.toBeNull();
+    expect(sceneBounds!.width / sceneBounds!.height, "the listening scene should retain its 16:9 frame").toBeCloseTo(16 / 9, 1);
+    expect(sceneBounds!.height, "the listening scene should use the available vertical space").toBeGreaterThanOrEqual(scenario.minimumSceneHeight);
+    expect(sceneBounds!.y, "the scene should stay below the quiz toolbar").toBeGreaterThanOrEqual(cardBounds.top - 1);
+    expect(audioBounds!.y + audioBounds!.height, "the prompt should not overlap the answer area").toBeLessThanOrEqual(cardBounds.bottom + 1);
+    expect(layout.answerBottom, "the full answer grid should stay above the fold").toBeLessThanOrEqual(layout.viewportHeight + 1);
+    expect(layout.pageHeight, "the listening question should not require page scrolling").toBeLessThanOrEqual(layout.viewportHeight + 1);
+
+    if (!scenario.extrasEnabled) {
+      await page.getByRole("button", { name: new RegExp(scenario.acceptedAnswer) }).click();
+      const highlightedTerm = page.locator("mark", { hasText: "日本史" });
+      await expect(highlightedTerm).toBeVisible();
+      const highlightBackground = await highlightedTerm.evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(highlightBackground, "the restored Japanese term should have a restrained custom highlight").not.toBe("rgba(0, 0, 0, 0)");
+      expect(highlightBackground, "the restored Japanese term should not use the browser's default yellow mark").not.toBe("rgb(255, 255, 0)");
+      await expect(choices).toBeInViewport({ ratio: 1 });
+      const answeredLayout = await page.evaluate(() => ({ pageHeight: document.documentElement.scrollHeight, viewportHeight: window.innerHeight }));
+      expect(answeredLayout.pageHeight, "answer feedback should remain inside the viewport").toBeLessThanOrEqual(answeredLayout.viewportHeight + 1);
+    }
+  }
+});
+
+test("finishing a resumed extra-study quiz clears it and offers no misses restart", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/settings");
+  await page.evaluate((timestamp) => {
+    window.localStorage.setItem("kakehashi:study:v1:account:1:session:random-test", JSON.stringify({
+      version: 1,
+      id: "resumed-random-test",
+      mode: "random-test",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      currentIndex: 0,
+      questions: [{
+        id: "6:meaning",
+        subjectId: 6,
+        subjectType: "vocabulary",
+        kind: "meaning",
+        prompt: "日本史",
+        promptLabel: "Vocabulary meaning",
+        acceptedAnswers: ["Japanese History"],
+        displayAnswer: "Japanese History",
+        choices: ["Japanese History", "One Thing"],
+        characters: "日本史",
+        stopAfterAnswer: true,
+      }],
+      answers: [],
+      complete: false,
+    }));
+  }, now);
+
+  await page.goto("/study/random-test");
+  await page.getByRole("button", { name: /Resume saved session/ }).click();
+  await page.getByRole("button", { name: "One Thing" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByRole("heading", { name: "Session results" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Review .* misses/ })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("kakehashi:study:v1:account:1:session:random-test"))).toBeNull();
+
+  await page.getByRole("button", { name: "Back to setup" }).click();
+  await expect(page.getByRole("button", { name: "Start session" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Resume saved session/ })).toHaveCount(0);
+});
+
+for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone", width: 320, height: 780 }]) {
+  test(`accepts a one-letter meaning typo in extra study without shifting the ${viewport.name} layout`, async ({ page }, testInfo) => {
+    test.skip(!testInfo.project.name.includes("desktop"), "Responsive geometry runs in the installed Chromium project");
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await mockApp(page);
+
+    await page.goto("/settings");
+    const pauseOnClose = page.getByRole("checkbox", { name: "Pause on close answer" });
+    await expect(pauseOnClose).not.toBeChecked();
+    await page.locator("label").filter({ hasText: "Pause on close answer" }).click();
+
+    await page.goto("/study/random-test?subjectIds=6");
+    await page.locator("label").filter({ hasText: /^Reading$/ }).click();
+    await page.getByRole("button", { name: "Start session" }).click();
+
+    const input = page.getByLabel("Vocabulary Meaning");
+    await expect(input).toBeVisible();
+    const formBefore = await input.locator("xpath=ancestor::form").evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { top: bounds.top, width: bounds.width };
+    });
+
+    await input.fill("japanese histoy");
+    await input.press("Enter");
+
+    const status = page.getByRole("status").filter({ hasText: "Accepted with a typo" });
+    await expect(status).toContainText("Correct, with a small typo.");
+    await expect(input).toHaveAttribute("aria-invalid", "false");
+    await expect(page.getByRole("button", { name: "Mark Incorrect" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark Correct" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "extra-study close feedback should not overflow").toBe(true);
+
+    await page.waitForTimeout(350);
+
+    const formAfter = await input.locator("xpath=ancestor::form").evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { top: bounds.top, width: bounds.width };
+    });
+    expect(Math.abs(formAfter.top - formBefore.top), "answer form should not move when close feedback appears").toBeLessThan(1);
+    expect(Math.abs(formAfter.width - formBefore.width), "answer form width should remain stable").toBeLessThan(1);
+
+    const overlap = await page.locator('form button, form input, [role=status], [aria-label="Close answer result"] button').evaluateAll((elements) => elements.some((element, index) => {
+      const a = element.getBoundingClientRect();
+      return elements.slice(index + 1).some((candidate) => {
+        const b = candidate.getBoundingClientRect();
+        const intersectionWidth = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const intersectionHeight = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        return intersectionWidth > 1 && intersectionHeight > 1;
+      });
+    }));
+    expect(overlap, "answer controls and close feedback should not overlap").toBe(false);
+
+    await input.press("Enter");
+    await expect(page.getByRole("button", { name: "Next" })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Correct");
+  });
+}
+
+test("keeps dense mobile-parity review options usable at 320px with large text", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 780 });
+  await mockApp(page);
+
+  const denseVocabulary = {
+    ...subjects[5],
+    data: {
+      ...subjects[5].data,
+      meanings: [
+        { meaning: "Japanese History", primary: true, accepted_answer: true },
+        { meaning: "History of Japan", primary: false, accepted_answer: true },
+      ],
+      readings: [
+        { reading: "にほんし", primary: true, accepted_answer: true, type: "onyomi" },
+        { reading: "にっぽんし", primary: false, accepted_answer: true, type: "onyomi" },
+      ],
+      context_sentences: [
+        { ja: "日本史を大学で勉強しています。", en: "I study Japanese history at university." },
+        { ja: "この本は日本史の流れを説明します。", en: "This book explains the course of Japanese history." },
+        { ja: "日本史には興味深い人物が多く登場します。", en: "Many fascinating people appear in Japanese history." },
+      ],
+      parts_of_speech: ["noun", "proper_noun"],
+      pronunciation_audios: [{ url: "https://example.com/nihonshi.mp3", content_type: "audio/mpeg", metadata: { gender: "female", pronunciation: "にほんし", voice_actor_name: "Kyoko" } }],
+    },
+  };
+  const denseAssignments = assignments.map((assignment, index) => ({
+    ...assignment,
+    data: {
+      ...assignment.data,
+      available_at: assignment.data.subject_id === denseVocabulary.id
+        ? "2019-01-01T00:00:00.000Z"
+        : assignment.data.subject_id === 5
+          ? "2019-01-02T00:00:00.000Z"
+          : `2020-01-0${index + 1}T00:00:00.000Z`,
+    },
+  }));
+  const denseStudyMaterial = {
+    id: 306,
+    object: "study_material",
+    url: "",
+    data_updated_at: now,
+    data: { subject_id: denseVocabulary.id, subject_type: "vocabulary", meaning_synonyms: ["Japan's past", "Japanese chronology"], meaning_note: null, reading_note: null, hidden: false, created_at: now },
+  };
+
+  await page.route(/\/api\/wanikani\/assignments(?:\?.*)?$/, (route) => fulfillJson(route, collection(denseAssignments)));
+  await page.route(/\/api\/wanikani\/subjects(?:\?.*)?$/, (route) => fulfillJson(route, collection(subjects.map((item) => item.id === denseVocabulary.id ? denseVocabulary : item))));
+  await page.route(/\/api\/wanikani\/study_materials(?:\?.*)?$/, (route) => fulfillJson(route, collection([denseStudyMaterial])));
+  await page.route("**/api/study/vocabulary-frequency", (route) => fulfillJson(route, { result: { provider: "jiten", frequencyRank: 12_345, wordId: 6, readingIndex: 0, matchedText: "日本史", matchedReading: "にほんし", sourceUrl: "https://jiten.moe/search?query=%E6%97%A5%E6%9C%AC%E5%8F%B2" } }));
+  await page.route("**/api/subjects/enrichments", (route) => fulfillJson(route, { pitchAccents: [{ r: "にほんし", p: [2] }], patterns: [] }));
+
+  await page.goto("/settings");
+  await page.getByRole("radio", { name: /Extra large/ }).click();
+  await expect(page.getByRole("radio", { name: /Extra large/ })).toHaveAttribute("aria-checked", "true");
+  expect(await page.evaluate(() => document.documentElement.style.fontSize)).toBe("120%");
+
+  await page.getByLabel("Review subject order", { exact: true }).selectOption("oldestAvailableFirst");
+  await page.getByLabel("Wrap-up size").selectOption("5");
+  await page.getByLabel("Review character size").selectOption("1.2");
+  await page.getByLabel("Review answer size").selectOption("1.2");
+  const enableToggle = async (label: string) => {
+    const checkbox = page.getByRole("checkbox", { name: label });
+    if (!await checkbox.isChecked()) await page.getByText(label, { exact: true }).click();
+    await expect(checkbox).toBeChecked();
+  };
+  for (const label of [
+    "Show item level & SRS stage",
+    "Show vocabulary frequency",
+    "Vocabulary context sentence hints",
+    "Review search button",
+    "Allow skipping reviews",
+  ]) {
+    await enableToggle(label);
+  }
+  await page.getByLabel("Anki mode").selectOption("both");
+  for (const label of [
+    "Group meaning and reading",
+    "Show other accepted answers",
+    "Show parts of speech",
+    "Show pitch accent numbers",
+    "Show pitch accent graph",
+    "Show replay audio button",
+  ]) {
+    await enableToggle(label);
+  }
+
+  const reviewSettings = page.locator("section").filter({ has: page.getByRole("heading", { name: "Reviews", exact: true }) });
+  const switchRows = reviewSettings.locator('label:has(> input[type="checkbox"])');
+  const intersectingSwitchCopy = await switchRows.evaluateAll((rows) => rows.flatMap((row) => {
+    const visibleSwitch = row.querySelector<HTMLElement>(":scope > i");
+    if (!visibleSwitch || getComputedStyle(visibleSwitch).display === "none") return [];
+    const switchRect = visibleSwitch.getBoundingClientRect();
+    const copyParts = row.querySelectorAll<HTMLElement>(":scope > span strong, :scope > span small");
+    const intersects = [...copyParts].some((part) => {
+      const walker = document.createTreeWalker(part, NodeFilter.SHOW_TEXT);
+      let textNode = walker.nextNode() as Text | null;
+      while (textNode) {
+        for (let index = 0; index < textNode.data.length; index += 1) {
+          if (!/\S/u.test(textNode.data[index])) continue;
+          const glyphRange = document.createRange();
+          glyphRange.setStart(textNode, index);
+          glyphRange.setEnd(textNode, index + 1);
+          const glyphRect = glyphRange.getBoundingClientRect();
+          const inlineOverlap = Math.min(glyphRect.right, switchRect.right) - Math.max(glyphRect.left, switchRect.left);
+          const blockOverlap = Math.min(glyphRect.bottom, switchRect.bottom) - Math.max(glyphRect.top, switchRect.top);
+          if (inlineOverlap > 1 && blockOverlap > 1) return true;
+        }
+        textNode = walker.nextNode() as Text | null;
+      }
+      return false;
+    });
+    return intersects ? [row.querySelector("strong")?.textContent?.trim() || "Unnamed setting"] : [];
+  }));
+  expect(intersectingSwitchCopy, "settings copy should reserve room for every visible switch").toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "dense settings should not overflow horizontally").toBe(true);
+
+  await page.goto("/reviews");
+  await expect(page.getByText("Level 2", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Vocabulary frequency #12,345")).toBeVisible();
+  await expect(page.getByText("日本史を大学で勉強しています。", { exact: false })).toBeVisible();
+
+  const headerControls = [
+    page.getByRole("button", { name: "Wrap Up 5" }),
+    page.getByRole("button", { name: "Skip review" }),
+    page.getByRole("link", { name: "Search this item" }),
+    page.getByRole("link", { name: "Pause", exact: true }),
+  ];
+  const headerBoxes = [];
+  for (const control of headerControls) {
+    await expect(control).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box).not.toBeNull();
+    headerBoxes.push(box!);
+  }
+  const boxesOverlap = (left: { x: number; y: number; width: number; height: number }, right: { x: number; y: number; width: number; height: number }) => {
+    const inlineOverlap = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
+    const blockOverlap = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y);
+    return inlineOverlap > 1 && blockOverlap > 1;
+  };
+  for (let left = 0; left < headerBoxes.length; left += 1) {
+    expect(headerBoxes[left].x).toBeGreaterThanOrEqual(-1);
+    expect(headerBoxes[left].x + headerBoxes[left].width).toBeLessThanOrEqual(321);
+    for (let right = left + 1; right < headerBoxes.length; right += 1) {
+      expect(boxesOverlap(headerBoxes[left], headerBoxes[right]), `header actions ${left + 1} and ${right + 1} should not overlap`).toBe(false);
+    }
+  }
+  const reviewRoot = page.getByRole("main");
+  expect(await reviewRoot.evaluate((root) => root.scrollWidth <= root.clientWidth + 1), "review root should not overflow horizontally").toBe(true);
+
+  await page.getByRole("button", { name: "Show translations" }).click();
+  await expect(page.getByText("I study Japanese history at university.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Reveal Answer" }).click();
+  const ankiAnswer = page.getByTestId("anki-answer-content");
+  await expect(ankiAnswer.getByText("Other meaning answers", { exact: true })).toBeVisible();
+  await expect(ankiAnswer.getByText("Other reading answers", { exact: true })).toBeVisible();
+  await expect(ankiAnswer.getByText("User synonyms", { exact: true })).toBeVisible();
+  await expect(ankiAnswer.getByText("Part of speech", { exact: true })).toBeVisible();
+  await expect(ankiAnswer.getByTestId("anki-pitch-accent")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Replay vocabulary audio" })).toBeVisible();
+
+  const wrong = page.getByRole("button", { name: "1 · Wrong" });
+  const correct = page.getByRole("button", { name: "2 · Correct" });
+  await wrong.scrollIntoViewIfNeeded();
+  const [wrongBox, correctBox] = await Promise.all([wrong.boundingBox(), correct.boundingBox()]);
+  expect(wrongBox).not.toBeNull();
+  expect(correctBox).not.toBeNull();
+  for (const box of [wrongBox!, correctBox!]) {
+    expect(box.x).toBeGreaterThanOrEqual(-1);
+    expect(box.x + box.width).toBeLessThanOrEqual(321);
+    expect(box.y).toBeGreaterThanOrEqual(-1);
+    expect(box.y + box.height).toBeLessThanOrEqual(781);
+  }
+  expect(boxesOverlap(wrongBox!, correctBox!), "Anki grading buttons should not overlap").toBe(false);
+  expect(await reviewRoot.evaluate((root) => root.scrollWidth <= root.clientWidth + 1), "revealed Anki details should not overflow horizontally").toBe(true);
+
+  await wrong.click();
+  await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
+  const nextQuestion = page.getByRole("button", { name: "Next Question" });
+  await expect(nextQuestion).toBeVisible();
+  await nextQuestion.click();
+
+  const previousAnswer = page.getByRole("link", { name: /^Previous .* answer:/ });
+  await expect(previousAnswer).toBeVisible();
+  await previousAnswer.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
+  const currentCharacters = page.locator('[class*="subjectGlyph"] > [class*="characters"]');
+  await expect(currentCharacters).toBeVisible();
+  const [previousAnswerBox, currentCharactersBox] = await Promise.all([previousAnswer.boundingBox(), currentCharacters.boundingBox()]);
+  expect(previousAnswerBox).not.toBeNull();
+  expect(currentCharactersBox).not.toBeNull();
+  expect(boxesOverlap(previousAnswerBox!, currentCharactersBox!), "previous-answer card should not overlap the narrow prompt").toBe(false);
 });
 
 test("honors Vacation Mode across the dashboard and direct study routes", async ({ page }) => {
@@ -626,7 +1463,7 @@ test("conceals review answers until the learner submits or reveals", async ({ pa
   await expect(page.getByRole("textbox", { name: "Your answer" })).toBeVisible();
   await expect(page.getByText("Ground", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Primary meaning", { exact: true })).toHaveCount(0);
-  await expect(page.getByText(/Accepted meanings and your synonyms are checked/i)).toBeVisible();
+  await expect(page.getByText("Accepted WaniKani meanings are checked.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Info" })).toBeDisabled();
 });
 
@@ -749,7 +1586,7 @@ test("keeps song search and full-context lyrics usable from phone to desktop", a
     id: `spotify-recommendation-${index}`,
     title: `おすすめ ${index + 1}`,
   }));
-  const musicLyrics = { id: 42, trackName: "アイドル", artistName: "YOASOBI", albumName: "アイドル", plainLyrics: "猫と犬が空を見る\n山と川を歩く\n花と鳥が歌う\n月と星が光る", syncedLyrics: "[00:01.00]猫と犬が空を見る\n[00:03.00]山と川を歩く\n[00:05.00]花と鳥が歌う\n[00:07.00]月と星が光る", duration: 213 };
+  const musicLyrics = { id: 42, trackName: "アイドル", artistName: "YOASOBI", albumName: "アイドル", plainLyrics: "一つの猫と犬が空を見る\n山と川を歩く\n花と鳥が歌う\n月と星が光る", syncedLyrics: "[00:01.00]一つの猫と犬が空を見る\n[00:03.00]山と川を歩く\n[00:05.00]花と鳥が歌う\n[00:07.00]月と星が光る", duration: 213 };
   const musicVideo = { videoId: "ZRtdQ81jPUQ", title: "アイドル Official Music Video", channelTitle: "Ayase / YOASOBI", thumbnailUrl: "", duration: 213 };
   await page.route("**/music/discover", (route) => fulfillJson(route, { sections: [{ id: "popular-jpop", title: "Popular J-pop", tracks: musicRecommendations }] }));
   await page.route("**/music/search", (route) => fulfillJson(route, { provider: "spotify", tracks: [musicTrack] }));
@@ -782,6 +1619,21 @@ test("keeps song search and full-context lyrics usable from phone to desktop", a
   });
   expect(recommendationGeometry.firstWidth).toBeLessThanOrEqual(152);
   expect(recommendationGeometry.firstRowCount).toBeGreaterThanOrEqual(6);
+
+  await page.setViewportSize({ width: 1280, height: 500 });
+  await recommendationCards.last().scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await recommendationCards.last().click();
+  const backToSearch = page.getByRole("button", { name: "Back to search" });
+  await expect(backToSearch).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  const shortVideoBox = await page.getByRole("region", { name: "Song video" }).boundingBox();
+  const shortLyricsBox = await page.getByRole("region", { name: "Song lyrics" }).locator("..").boundingBox();
+  expect(shortVideoBox?.height).toBeGreaterThanOrEqual(350);
+  expect(Math.abs((shortVideoBox?.height ?? 0) - (shortLyricsBox?.height ?? 0))).toBeLessThanOrEqual(2);
+  await backToSearch.click();
+  await expect(songSearch).toBeVisible();
+
   await page.setViewportSize({ width: 320, height: 800 });
   await songSearch.fill("YOASOBI");
   const trackResult = page.getByRole("button", { name: /アイドル by YOASOBI/i });
@@ -790,11 +1642,66 @@ test("keeps song search and full-context lyrics usable from phone to desktop", a
   await expect(page.getByText("Spotify catalog")).toHaveCount(0);
   expect(await trackResult.evaluate((element) => ({ display: getComputedStyle(element).display, border: getComputedStyle(element).borderTopStyle }))).toEqual({ display: "grid", border: "solid" });
   await trackResult.click();
-  await expect(page.getByRole("button", { name: "Back to search" })).toBeVisible();
+  const detailBack = page.getByRole("button", { name: "Back to search" });
+  await expect(page.locator("header").getByRole("button", { name: "Back to search" })).toBeVisible();
+  await expect(page.locator("main").getByRole("button", { name: "Back to search" })).toHaveCount(0);
+  await expect(detailBack).toBeVisible();
   await expect(page.getByRole("heading", { name: "Video matches" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lyrics matches" })).toBeVisible();
   await expect(page.getByText("Use manual video or lyrics overrides")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Playback controls" })).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Seek song" })).toBeVisible();
+  const changeVideoSource = page.getByRole("link", { name: "Change video source" });
+  const changeLyricsSource = page.getByRole("link", { name: "Change lyrics source" });
+  await expect(changeVideoSource).toHaveAttribute("href", "#video-matches");
+  await expect(changeLyricsSource).toHaveAttribute("href", "#lyrics-matches");
+  await changeVideoSource.click();
+  await expect(page.getByRole("textbox", { name: "Video search" })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await changeLyricsSource.click();
+  await expect(page.getByRole("textbox", { name: "Lyrics song" })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const mobilePlayerSizing = await page.getByRole("group", { name: "Playback controls" }).evaluate((controls) => ({
+    controlsWidth: controls.getBoundingClientRect().width,
+    cardWidth: controls.parentElement?.getBoundingClientRect().width ?? 0,
+  }));
+  expect(mobilePlayerSizing.controlsWidth).toBeLessThanOrEqual(mobilePlayerSizing.cardWidth);
+  for (const controlName of ["Play song", "Restart song"]) {
+    const controlBox = await page.getByRole("button", { name: controlName }).boundingBox();
+    expect(controlBox?.width).toBeGreaterThanOrEqual(44);
+    expect(controlBox?.height).toBeGreaterThanOrEqual(44);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  const playerHost = page.getByLabel("アイドル on YouTube");
+  await expect(playerHost).toBeVisible();
+  await playerHost.evaluate((element) => {
+    (window as Window & { __kakehashiMusicPlayerHost?: Element }).__kakehashiMusicPlayerHost = element;
+  });
+  const lyricSubject = page.getByRole("button", { name: /Inspect 一つ, .*WaniKani item/ });
+  await expect(lyricSubject).toBeVisible();
+  await lyricSubject.click();
+  const viewDetails = page.getByRole("link", { name: "View details" });
+  await expect(viewDetails).toHaveAttribute("href", /\/subjects\/3\?returnTo=%2Fmusic%3Fsong%3Dsong-/);
+  await viewDetails.click();
+
+  const itemDialog = page.getByRole("dialog", { name: "Item details" });
+  await expect(itemDialog).toBeVisible();
+  await expect(page).toHaveURL(/\/subjects\/3\?returnTo=/);
+  expect(await page.evaluate(() => {
+    const stored = (window as Window & { __kakehashiMusicPlayerHost?: Element }).__kakehashiMusicPlayerHost;
+    return Boolean(stored?.isConnected && stored === document.querySelector('[aria-label="アイドル on YouTube"]'));
+  })).toBe(true);
+
+  await itemDialog.getByRole("button", { name: "Back to lyrics", exact: true }).click();
+  await expect(itemDialog).toHaveCount(0);
+  await expect(page).toHaveURL(/\/music\?song=song-/);
+  await expect(page.getByRole("region", { name: "Song lyrics" })).toBeVisible();
+  expect(await page.evaluate(() => {
+    const stored = (window as Window & { __kakehashiMusicPlayerHost?: Element }).__kakehashiMusicPlayerHost;
+    return Boolean(stored?.isConnected && stored === document.querySelector('[aria-label="アイドル on YouTube"]'));
+  })).toBe(true);
 
   const lyricsFocus = page.getByRole("button", { name: "Focus lyrics" });
   await lyricsFocus.click();
@@ -812,12 +1719,18 @@ test("keeps song search and full-context lyrics usable from phone to desktop", a
   await expect(lyricsRegion.getByText("山と川を歩く", { exact: true })).toBeVisible();
   await expect(lyricsRegion.getByText("月と星が光る", { exact: true })).toBeVisible();
 
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: 1920, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const musicWorkspaceBox = await page.locator("main.page").boundingBox();
+  expect(musicWorkspaceBox?.width).toBeGreaterThan(1504);
   const stageColumns = await videoPanel.locator("..").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
   expect(stageColumns).toBeGreaterThan(1);
   const desktopVideoBox = await videoPanel.boundingBox();
   const desktopLyricsBox = await lyricsPanel.boundingBox();
+  const desktopVideoViewportBox = await videoPanel.locator('[aria-label$="on YouTube"]').boundingBox();
+  expect(desktopVideoBox?.height).toBeGreaterThanOrEqual(650);
+  expect(Math.abs((desktopVideoBox?.height ?? 0) - (desktopLyricsBox?.height ?? 0))).toBeLessThanOrEqual(2);
+  expect(Math.abs((desktopVideoViewportBox?.width ?? 0) / (desktopVideoViewportBox?.height ?? 1) - 16 / 9)).toBeLessThan(0.02);
   expect(desktopLyricsBox?.width).toBeGreaterThan(desktopVideoBox?.width ?? Number.POSITIVE_INFINITY);
   expect(desktopLyricsBox?.x).toBeLessThan(desktopVideoBox?.x ?? 0);
 });

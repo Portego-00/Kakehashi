@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/States";
 import { VacationModeControls } from "@/features/core-study/VacationModeControls";
 import { vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "@/features/core-study/vacation";
 import { dashboardSectionWidth, type DashboardSectionId } from "@/features/settings/settings";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { useSubjectLists } from "@/features/subjects/use-subject-lists";
 import { useWorkspacePreferences } from "@/features/settings/use-workspace-preferences";
 import { STUDY_MODES } from "@/features/study/catalog";
@@ -22,6 +23,7 @@ import { assignmentActivityDays, burnedSubjectRows, criticalSubjectRows, forecas
 import { IncompleteLevelsWidget, ReviewStatsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
 import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, TodayStudyWidget } from "./DashboardNativeWidgets";
 import { SubjectListsWidget } from "./SubjectListsWidget";
+import { RecentMistakesWidget } from "./RecentMistakesWidget";
 import { fetchUsageStreak } from "./usage-streak";
 import { useFirstDashboardReveal } from "./useFirstDashboardReveal";
 import { StudyQueueCard } from "./StudyQueueCard";
@@ -42,11 +44,11 @@ function VacationNotice({ startedAt, compact = false, refresh }: { startedAt: st
   return <div className={styles.vacationNotice} data-compact={compact || undefined} role="region" aria-label="Vacation Mode"><Umbrella className={styles.vacationIcon} size={22} aria-hidden /><div><h3>Vacation Mode</h3><p>{vacationStudyMessage()}</p><span>On vacation since {vacationDateLabel(startedAt)}</span>{refresh ? <VacationModeControls active refresh={refresh} className={styles.vacationActions} /> : null}</div></div>;
 }
 
-function SubjectRows({ items, empty, value, limit }: { items: DashboardSubjectRow[]; empty: string; value?: (item: DashboardSubjectRow) => string; limit?: number }) {
+export function SubjectRows({ items, empty, value, limit }: { items: DashboardSubjectRow[]; empty: string; value?: (item: DashboardSubjectRow) => string; limit?: number }) {
   if (!items.length) return <p className={styles.emptyCopy}>{empty}</p>;
   return <ul className={styles.subjectRows}>{items.slice(0, limit ?? items.length).map((item) => {
     const glyphLength = [...item.characters].length;
-    return <li key={item.id}><Link href={`/subjects/${item.id}`}><span className={styles.subjectGlyph} data-subject-type={item.type} data-long={glyphLength > 2 || undefined} data-very-long={glyphLength > 4 || undefined} lang="ja" title={item.characters}>{item.characters}</span><span><strong>{item.meaning}</strong><small>{item.type} · Level {item.level}</small></span>{value ? <span className={styles.subjectValue}>{value(item)}</span> : null}<ArrowRight size={14} aria-hidden /></Link></li>;
+    return <li key={item.id}><Link href={`/subjects/${item.id}`}><SubjectCharacter subject={item.subject} fallbackText={item.characters} imageSize="68%" className={styles.subjectGlyph} data-subject-type={item.type} data-long={glyphLength > 2 || undefined} data-very-long={glyphLength > 4 || undefined} title={item.characters} /><span><strong>{item.meaning}</strong><small>{item.type} · Level {item.level}</small></span>{value ? <span className={styles.subjectValue}>{value(item)}</span> : null}<ArrowRight size={14} aria-hidden /></Link></li>;
   })}</ul>;
 }
 
@@ -105,7 +107,7 @@ export function Dashboard() {
     forecast: <section className={styles.section}><SectionHeader title="Next 12 hours" detail={isOnVacation ? "Review scheduling is paused" : "Reviews available at the top of each hour"}><ButtonLink href="/analytics" tone="ghost" size="small">Open forecast <ArrowRight size={15} /></ButtonLink></SectionHeader>{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} compact /> : summary.isLoading ? <Skeleton height="10rem" /> : <div className={styles.forecast} {...forecastReveal}>{forecast.map((row) => <div className={styles.forecastCol} key={row.start.toISOString()}><div className={styles.forecastBarTrack} aria-hidden><div className={styles.forecastBar} data-empty={row.count === 0 || undefined} title={`${row.count} reviews`} style={{ "--bar-height": chartBarHeight(row.count, forecastMax) } as React.CSSProperties} /></div><strong>{row.count || "·"}</strong><span>{row.start.toLocaleTimeString([], { hour: "numeric" })}</span></div>)}</div>}</section>,
     "extra-study": <section className={`${styles.section} ${styles.sectionFlat}`}><SectionHeader title="Extra study" detail={`${STUDY_MODES.length} ways to practice without changing SRS progress`}><div className={styles.headerActions}><span className={styles.railCue} aria-hidden>Scroll <ArrowRight size={14} /></span><ButtonLink href="/study" tone="ghost" size="small">All modes <ArrowRight size={15} /></ButtonLink></div></SectionHeader><nav className={styles.studyModeRail} aria-label="Extra study modes" tabIndex={0}>{STUDY_MODES.map((mode) => <StudyModeCard mode={mode} key={mode.id} />)}</nav></section>,
     "study-pulse": statistics.isLoading ? <section className={styles.section}><SectionHeader title="Review stats" detail="Accuracy across your complete review history" /><Skeleton height="9rem" /></section> : <ReviewStatsWidget statistics={statisticRows} />,
-    "recent-mistakes": <section className={styles.section}><SectionHeader title="Recent mistakes" detail="Updated in the last seven days with a broken answer streak" />{statistics.isLoading || allSubjects.isLoading ? <Skeleton height="12rem" /> : <SubjectRows items={mistakeRows} empty="No recent broken answer streaks were found." value={(item) => `${item.value ?? 0}%`} />}</section>,
+    "recent-mistakes": isOnVacation ? <RecentMistakesWidget items={[]} username={username} now={now} /> : statistics.isLoading || allSubjects.isLoading ? <section className={styles.section}><SectionHeader title="Recent Mistakes" detail="Updated subjects with a broken answer streak" /><Skeleton height="12rem" /></section> : <RecentMistakesWidget items={mistakeRows} username={username} now={now} />,
     "study-streak": <AppStreakWidget current={appStreak.data?.current ?? null} longest={appStreak.data?.longest ?? null} days={appStreak.data?.days ?? []} freezeAvailable={appStreak.data?.freezeAvailable} freezeDaysUntilReload={appStreak.data?.freezeDaysUntilReload} loading={appStreak.isLoading} error={appStreak.isError} />,
     "subject-lists": <SubjectListsSection username={username} subjects={allSubjectRows} />,
     "incomplete-levels": allSubjects.isLoading ? <section className={styles.section}><SectionHeader title="Incomplete levels" detail="Passing-stage progress by subject type" /><Skeleton height="12rem" /></section> : <IncompleteLevelsWidget levels={incompleteLevels} />,
@@ -123,8 +125,10 @@ export function Dashboard() {
     <div className={styles.grid}>
       {visibleSections.map((id) => {
         const sectionId = id as DashboardSectionId;
+        const section = sections[sectionId];
+        if (section == null) return null;
         const width = dashboardSectionWidth(sectionId, workspace.dashboardWidths?.[sectionId]);
-        return <div data-section={sectionId} data-layout-width={width} data-layout-row-start={workspace.dashboardRowStarts?.includes(sectionId) || undefined} style={{ "--dashboard-section-span": width } as React.CSSProperties} key={sectionId}>{sections[sectionId]}</div>;
+        return <div data-section={sectionId} data-layout-width={width} data-layout-row-start={workspace.dashboardRowStarts?.includes(sectionId) || undefined} style={{ "--dashboard-section-span": width } as React.CSSProperties} key={sectionId}>{section}</div>;
       })}
       {!visibleSections.length ? <section className={`${styles.section} ${styles.sectionWide}`}><h2>Your dashboard is clear</h2><p className={styles.emptyCopy}>Turn sections back on in Settings whenever you need them.</p><ButtonLink href="/settings" tone="primary">Customize dashboard</ButtonLink></section> : null}
     </div>

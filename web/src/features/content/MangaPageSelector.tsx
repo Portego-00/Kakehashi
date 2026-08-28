@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { X } from "lucide-react";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { normalizeMangaOcrSelection, type MangaOcrSelection } from "./manga-ocr";
@@ -25,6 +26,7 @@ interface DraftSelection {
 export interface MangaPageSelectorTooltip {
   busy?: boolean;
   content: ReactNode;
+  onDismiss?: () => void;
   selection: MangaOcrSelection;
   tone?: "default" | "error";
 }
@@ -185,6 +187,12 @@ export function MangaPageSelector({
       updateSelection(null);
       return;
     }
+    if (event.key === "Escape" && tooltip?.onDismiss) {
+      event.preventDefault();
+      event.stopPropagation();
+      tooltip.onDismiss();
+      return;
+    }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       event.stopPropagation();
@@ -238,13 +246,15 @@ export function MangaPageSelector({
       onPointerCancel={cancelSelection}
       onKeyDown={handleKeyboardSelection}
     >
-      <span className="sr-only" id={instructionsId}>Press Enter or Space to create a crop. Use arrow keys to move it, Shift plus arrow keys to resize it, Enter or Space to recognize it, and Escape to cancel.</span>
+      <span className="sr-only" id={instructionsId}>Press Enter or Space to create a crop. Use arrow keys to move it, Shift plus arrow keys to resize it, Enter or Space to recognize it, and Escape to cancel a crop or close the OCR result.</span>
       <Image
         className={styles.mangaPageImage}
         src={src}
         width={width}
         height={height}
         sizes="(max-width: 56rem) 100vw, 70vw"
+        loading="eager"
+        decoding="async"
         unoptimized
         draggable={false}
         alt={alt}
@@ -256,11 +266,24 @@ export function MangaPageSelector({
         style={resultStyle}
         data-placement={tooltipPosition?.placement}
         data-tone={tooltip.tone ?? "default"}
-        role="status"
-        aria-live="polite"
+        data-dismissible={tooltip.onDismiss ? "true" : undefined}
+        role={tooltip.onDismiss ? "dialog" : "status"}
+        aria-label={tooltip.onDismiss ? "OCR result" : undefined}
+        aria-live={tooltip.onDismiss ? undefined : "polite"}
         aria-atomic="true"
         aria-busy={tooltip.busy || undefined}
-      >{tooltip.content}</div> : null}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {tooltip.onDismiss ? <button
+          className={styles.mangaSelectionTooltipDismiss}
+          type="button"
+          aria-label="Close OCR result"
+          onClick={tooltip.onDismiss}
+        >
+          <X size={17} aria-hidden="true" />
+        </button> : null}
+        {tooltip.content}
+      </div> : null}
     </div>
   </div>;
 }

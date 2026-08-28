@@ -78,6 +78,7 @@ export type LevelWidgetSubject = {
   meaning: string;
   type: "radical" | "kanji";
   stage: number;
+  subject?: Subject;
 };
 
 export function levelWidgetSubjects(subjects: Subject[], assignments: Assignment[]): LevelWidgetSubject[] {
@@ -91,6 +92,7 @@ export function levelWidgetSubjects(subjects: Subject[], assignments: Assignment
       meaning,
       type: subject.object,
       stage: assignmentBySubject.get(subject.id)?.data.srs_stage ?? 0,
+      subject,
     } satisfies LevelWidgetSubject];
   }).sort((left, right) => right.stage - left.stage || left.id - right.id);
 }
@@ -141,6 +143,7 @@ export type DashboardSubjectRow = {
   level: number;
   value?: number;
   date?: string;
+  subject: Subject;
 };
 
 function subjectRowsById(subjects: Subject[]) {
@@ -154,6 +157,7 @@ function subjectRow(subject: Subject): DashboardSubjectRow {
     meaning: subject.data.meanings.find((meaning) => meaning.primary)?.meaning || subject.data.meanings[0]?.meaning || subject.data.slug,
     type: subject.object === "kana_vocabulary" ? "vocabulary" : subject.object,
     level: subject.data.level,
+    subject,
   };
 }
 
@@ -167,7 +171,7 @@ export function recentMistakeRows(statistics: ReviewStatistic[], subjects: Subje
     const subject = subjectsById.get(statistic.data.subject_id);
     if (!subject || (!Number.isNaN(updatedAt) && updatedAt < cutoff) || (!hasRecentMeaningMistake && !hasRecentReadingMistake)) return [];
     return [{ ...subjectRow(subject), value: statistic.data.percentage_correct, date: statistic.data_updated_at }];
-  }).sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || "")).slice(0, 8);
+  }).sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || ""));
 }
 
 export function recentUnlockRows(assignments: Assignment[], subjects: Subject[]) {

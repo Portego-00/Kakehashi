@@ -102,13 +102,13 @@ browser and are not sent to the model host.
 
 Normal vocabulary context sentences can use an optional, entirely local voice:
 
-- Piper Plus 0.6.0 browser runtime (MIT; `licenses/PIPER_PLUS_MIT.txt`): https://github.com/ayutaz/piper-plus
-- CSS10 Japanese six-language VITS model (CSS10 public domain): https://huggingface.co/ayousanz/piper-plus-css10-ja-6lang
+- Supertonic browser inference example (MIT; `licenses/SUPERTONIC_MIT.txt`): https://github.com/supertone-inc/supertonic/tree/main/web
+- Supertonic 3 model and F3 voice style (BigScience Open RAIL-M): https://huggingface.co/Supertone/supertonic-3
 - ONNX Runtime Web 1.29.0 (MIT): https://github.com/microsoft/onnxruntime
 
-The model is fetched only after the user asks for it, from pinned revision
-`bf70fae2e21f9670456ebb40e8df131f146f1821`, and is stored in the browser's
-site data. Text and generated audio stay on the device. The Piper Plus WASM
-bundle incorporates Open JTalk, HTS Engine, MeCab, and Japanese dictionary
-data under BSD-3-Clause terms; their required notices and disclaimers are
-reproduced in `licenses/PIPER_PLUS_THIRD_PARTY_LICENSES.md`.
+The model, selected voice style, and model license are fetched only after the
+user asks for them, directly from pinned revision
+`3cadd1ee6394adea1bd021217a0e650ede09a323`, and are stored in the browser's
+site data. Text and generated audio stay on the device. The model's Open
+RAIL-M license includes use-based restrictions; the pinned license is included
+in the browser download and remains available at the model link above.

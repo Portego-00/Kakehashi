@@ -117,10 +117,13 @@ export interface StudyQuestion {
   retryNumber?: number;
 }
 
+export type StudyAnswerStatus = "correct" | "close" | "incorrect";
+
 export interface StudyAnswer {
   questionId: string;
   value: string;
   correct: boolean;
+  status?: StudyAnswerStatus;
   answeredAt: string;
 }
 

@@ -9,6 +9,7 @@ import { EmptyState, Skeleton } from "@/components/ui/States";
 import { buildConstellationLayout, constellationNodeFontSize, type ConstellationBounds, type ConstellationNodePosition } from "@/features/subjects/constellation-canvas-layout";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import type { Subject } from "@/types/wanikani";
+import { SubjectCharacter } from "./SubjectCharacter";
 import styles from "../subjects.module.css";
 
 const MIN_SCALE = 0.14;
@@ -287,7 +288,7 @@ function ConstellationNode({ node, centerId }: { node: ConstellationNodePosition
   const label = subject.data.characters ?? meaning;
   const isCenter = node.kind === "center";
   const content = <>
-    <strong data-node-label lang={subject.data.characters ? "ja" : undefined} style={{ fontSize: `${constellationNodeFontSize(label, { center: isCenter })}px` }}>{label}</strong>
+    <strong data-node-label style={{ fontSize: `${constellationNodeFontSize(label, { center: isCenter })}px` }}><SubjectCharacter subject={subject} imageSize={isCenter ? "3.5rem" : "2.5rem"} /></strong>
     {(isCenter || tone === "vocabulary") && reading ? <small data-node-reading lang="ja" style={{ fontSize: `${constellationNodeFontSize(reading, { center: isCenter, reading: true })}px` }}>{reading}</small> : null}
   </>;
   const style = { left: `${node.x}px`, top: `${node.y}px` } as CSSProperties;

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ExternalLink, RefreshCw, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, RefreshCw, Search } from "lucide-react";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import { JapaneseReader } from "./JapaneseReader";
 import {
@@ -610,16 +610,19 @@ export function NewsIndex() {
         <label className="sr-only" htmlFor="news-source">
           Source
         </label>
-        <select
-          id="news-source"
-          className={styles.newsSourceSelect}
-          value={sourcePreference}
-          onChange={(event) => selectSource(event.target.value)}
-        >
-          <option value="easy">Easy</option>
-          <option value="regular">Standard</option>
-          <option value="both">Both</option>
-        </select>
+        <span className={`${styles.newsSelectWrap} ${styles.newsSourceControl}`}>
+          <select
+            id="news-source"
+            className={styles.newsSourceSelect}
+            value={sourcePreference}
+            onChange={(event) => selectSource(event.target.value)}
+          >
+            <option value="easy">Easy</option>
+            <option value="regular">Standard</option>
+            <option value="both">Both</option>
+          </select>
+          <ChevronDown size={16} aria-hidden="true" />
+        </span>
         <button
           className={styles.secondaryButton}
           type="button"
@@ -694,15 +697,19 @@ export function NewsIndex() {
                 </div>
                 <label className={styles.newsSort}>
                   <span>Sort</span>
-                  <select
-                    value={sort}
-                    onChange={(event) =>
-                      setSort(event.target.value as NewsSort)
-                    }
-                  >
-                    <option value="date">Newest</option>
-                    <option value="known">Known kanji %</option>
-                  </select>
+                  <span className={styles.newsSelectWrap}>
+                    <select
+                      className={styles.newsSortSelect}
+                      value={sort}
+                      onChange={(event) =>
+                        setSort(event.target.value as NewsSort)
+                      }
+                    >
+                      <option value="date">Newest</option>
+                      <option value="known">Known kanji %</option>
+                    </select>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </span>
                 </label>
               </div>
               <div className={styles.articleList}>

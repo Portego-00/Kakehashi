@@ -2,13 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, ArrowRight, Check, CircleCheck, Download, Expand, FileText, Images, KeyRound, Languages, Minimize2, Pencil, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { ArrowLeft, ArrowRight, Check, Download, Expand, FileText, Images, KeyRound, Languages, Minimize2, Pencil, Trash2, Upload, X } from "lucide-react";
+import { MotionConfig, Reorder, useDragControls, type Transition } from "motion/react";
+import { LoadingState } from "@/components/ui/States";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useSession } from "@/lib/session";
+import { FileDropOverlay } from "./FileDropOverlay";
 import { JapaneseReader } from "./JapaneseReader";
+import { LocalFilePicker } from "./LocalFilePicker";
 import { MangaPageSelector } from "./MangaPageSelector";
-import { prepareMangaImport, type MangaImportSource } from "./manga-import";
+import { linkedFileIds, linkedMetadata, requestLinkedFilePermission, requestPersistentLocalStorage } from "./local-file-source";
+import { createMangaCoverThumbnail } from "./manga-cover-thumbnail";
+import { resolveLinkedMangaSource, type LinkedMangaSourceResult } from "./manga-linked-source";
+import { isMangaContainer, isMangaImage, prepareMangaImport, type MangaImportSource, type PreparedMangaImport } from "./manga-import";
 import {
   downloadMangaOcrModel,
   getMangaOcrModelStatus,
@@ -33,10 +40,13 @@ import {
   loadLibrary,
   loadMangaOcrPage,
   removeAsset,
+  removeFileHandle,
+  reorderLibrary,
   saveAsset,
+  saveFileHandle,
   saveLibrary,
   saveMangaOcrPage,
-  upsertRecord,
+  updateRecordInPlace,
 } from "./storage";
 import type { ContentRecord } from "./types";
 import { useDelayedDeletion } from "./useDelayedDeletion";
@@ -45,6 +55,10 @@ import { ContentHeader, ContentPage, EmptyState, Progress, UndoNotice } from "./
 import styles from "./content.module.css";
 
 const TWO_PAGE_QUERY = "(min-width: 56rem)";
+const MANGA_REORDER_TRANSITION: Transition = {
+  layout: { type: "spring", visualDuration: 0.24, bounce: 0.08 },
+  scale: { duration: 0.14, ease: [0.2, 0, 0, 1] },
+};
 
 interface LoadedMangaPage {
   blob: Blob;
@@ -80,7 +94,98 @@ type MangaTranslationState =
   | { status: "ready"; sourceText: string; translation: string; isTruncated: boolean }
   | { status: "error"; sourceText: string; message: string };
 
+type MangaImportProgress =
+  | { stage: "preparing"; current: number; total: number; name: string }
+  | { stage: "saving"; current: number; total: number; name: string; pageCount: number; sourceType: MangaImportSource; linked: boolean };
+
+type ReadyLinkedMangaSource = Extract<LinkedMangaSourceResult, { status: "ready" }>;
+type MangaSourceAccess = "permission" | "missing" | "unavailable" | null;
+
 const EMPTY_MANGA_TRANSLATION: MangaTranslationState = { status: "idle", sourceText: "" };
+const MANGA_PICKER_ACCEPT = {
+  "application/epub+zip": [".epub"],
+  "application/pdf": [".pdf"],
+  "application/vnd.comicbook+zip": [".cbz"],
+  "application/zip": [".zip"],
+  "image/*": [".avif", ".gif", ".jpeg", ".jpg", ".png", ".webp"],
+} as const;
+
+function groupMangaImportFiles(files: readonly File[]) {
+  const isLooseImage = (file: File) => !isMangaContainer(file) && isMangaImage(file);
+  const imageFiles = files.filter(isLooseImage);
+  let includedImageGroup = false;
+
+  return files.flatMap((file) => {
+    if (!isLooseImage(file)) return [[file]];
+    if (includedImageGroup) return [];
+    includedImageGroup = true;
+    return [imageFiles];
+  });
+}
+
+function mangaImportGroupName(files: readonly File[]) {
+  if (files.length === 1) return files[0].name;
+  return `${files.length.toLocaleString()} image pages`;
+}
+
+function mangaImportProgressDetail(progress: MangaImportProgress) {
+  if (progress.stage === "preparing") return `Preparing “${progress.name}” in this browser.`;
+  if (progress.linked) {
+    return progress.sourceType === "images"
+      ? `Linking ${progress.pageCount.toLocaleString()} original page${progress.pageCount === 1 ? "" : "s"} for “${progress.name}”.`
+      : `Linking “${progress.name}” to its original file.`;
+  }
+  if (progress.sourceType === "pdf") return `Saving “${progress.name}” in this browser.`;
+  return `Saving ${progress.pageCount.toLocaleString()} page${progress.pageCount === 1 ? "" : "s"} for “${progress.name}” in this browser.`;
+}
+
+function linkedHandlesForMangaImport(
+  sourceFiles: readonly File[],
+  preparedAssets: readonly File[],
+  sourceType: MangaImportSource,
+  handleByFile: ReadonlyMap<File, FileSystemFileHandle | null>,
+) {
+  const filesToLink = sourceType === "images" ? preparedAssets : sourceFiles.slice(0, 1);
+  const handles = filesToLink.map((file) => handleByFile.get(file) ?? null);
+  return handles.length > 0 && handles.every((handle): handle is FileSystemFileHandle => handle !== null)
+    ? handles
+    : null;
+}
+
+async function preparedMangaCoverThumbnail(prepared: PreparedMangaImport) {
+  let cover: Blob | null = prepared.assets[0] ?? null;
+  if (!cover) return null;
+
+  if (prepared.sourceType === "pdf") {
+    const document = await openMangaPdf(cover);
+    try {
+      cover = await document.renderPage(1);
+    } finally {
+      await document.destroy();
+    }
+  }
+
+  return createMangaCoverThumbnail(cover);
+}
+
+function moveMangaRecord(records: readonly ContentRecord[], sourceId: string, targetId: string) {
+  if (sourceId === targetId) return records;
+  const sourceIndex = records.findIndex((record) => record.id === sourceId);
+  const targetIndex = records.findIndex((record) => record.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0) return records;
+  const next = [...records];
+  const [moved] = next.splice(sourceIndex, 1);
+  next.splice(targetIndex, 0, moved);
+  return next;
+}
+
+function hasMangaOrder(records: readonly ContentRecord[], orderedIds: readonly string[]) {
+  return records.length === orderedIds.length && records.every((record, index) => record.id === orderedIds[index]);
+}
+
+function stopMangaDragPropagation(event: ReactPointerEvent<HTMLElement>) {
+  event.stopPropagation();
+}
 
 function mangaSource(record: ContentRecord): MangaImportSource {
   const source = record.metadata?.sourceType;
@@ -102,8 +207,15 @@ function sourceLabel(record: ContentRecord) {
   return "Images";
 }
 
-function MangaCover({ record }: { record: ContentRecord }) {
+function linkedMangaAccessMessage(result: Exclude<LinkedMangaSourceResult, { status: "not-linked" | "ready" }>) {
+  if (result.status === "permission") return "Allow access to the original manga file to continue.";
+  if (result.status === "missing") return "The link to the original manga was lost. Locate it again to continue.";
+  return result.error.message || "The original manga file is temporarily unavailable.";
+}
+
+function MangaCover({ record, onMissingAsset }: { record: ContentRecord; onMissingAsset: (recordId: string) => void }) {
   const coverAssetId = record.assetIds[0];
+  const linkedIds = linkedFileIds(record);
   const source = mangaSource(record);
   const [coverUrl, setCoverUrl] = useState("");
   const [failed, setFailed] = useState(!coverAssetId);
@@ -115,12 +227,18 @@ function MangaCover({ record }: { record: ContentRecord }) {
     async function loadCover() {
       setCoverUrl("");
       setFailed(false);
-      const storedAsset = await loadAsset(coverAssetId);
-      if (!storedAsset) throw new Error("The cover is missing.");
+      let cover: Blob | null = coverAssetId ? await loadAsset(coverAssetId) : null;
 
-      let cover = storedAsset;
-      if (source === "pdf") {
-        const document = await openMangaPdf(storedAsset);
+      if (!cover) {
+        if (!cancelled) {
+          setFailed(true);
+          if (!linkedIds.length) onMissingAsset(record.id);
+        }
+        return;
+      }
+
+      if (source === "pdf" && !linkedIds.length) {
+        const document = await openMangaPdf(cover);
         try {
           cover = await document.renderPage(1);
         } finally {
@@ -147,12 +265,16 @@ function MangaCover({ record }: { record: ContentRecord }) {
       cancelled = true;
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [coverAssetId, source]);
+  }, [coverAssetId, linkedIds.length, onMissingAsset, record.id, source]);
 
-  return <div className={styles.mangaShelfCover} data-state={failed ? "error" : coverUrl ? "ready" : "loading"}>
-    {coverUrl && !failed ? <Image
-      src={coverUrl}
+  const visibleCoverUrl = coverAssetId ? coverUrl : "";
+  const coverFailed = !coverAssetId || failed;
+
+  return <div className={styles.mangaShelfCover} data-state={coverFailed ? "error" : visibleCoverUrl ? "ready" : "loading"}>
+    {visibleCoverUrl && !coverFailed ? <Image
+      src={visibleCoverUrl}
       alt={`Cover of ${record.title}`}
+      draggable={false}
       fill
       sizes="(max-width: 40rem) 42vw, (max-width: 72rem) 22vw, 12rem"
       unoptimized
@@ -164,14 +286,33 @@ function MangaCover({ record }: { record: ContentRecord }) {
 }
 
 function MangaShelfItem({
+  canDrag,
+  canRemove,
+  canReorder,
+  dragging,
   item,
+  onClickCapture,
+  onDragEnd,
+  onDragStart,
+  onMissingAsset,
+  onMove,
   onRemove,
   onRename,
 }: {
+  canDrag: boolean;
+  canRemove: boolean;
+  canReorder: boolean;
+  dragging: boolean;
   item: ContentRecord;
+  onClickCapture: (event: ReactMouseEvent<HTMLLIElement>) => void;
+  onDragEnd: () => void;
+  onDragStart: (item: ContentRecord) => void;
+  onMissingAsset: (recordId: string) => void;
+  onMove: (item: ContentRecord, offset: -1 | 1) => void;
   onRemove: (item: ContentRecord) => void;
   onRename: (item: ContentRecord, title: string) => boolean;
 }) {
+  const dragControls = useDragControls();
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(item.title);
   const [titleError, setTitleError] = useState("");
@@ -185,6 +326,7 @@ function MangaShelfItem({
   function saveTitle() {
     const title = draftTitle.trim();
     if (!title) {
+      setDraftTitle("");
       setTitleError("Enter a title.");
       return;
     }
@@ -195,62 +337,105 @@ function MangaShelfItem({
     }
   }
 
-  return <article className={styles.mangaShelfItem}>
-    <Link className={styles.mangaShelfCoverLink} href={`/manga/${item.id}`} aria-label={`Read ${item.title}`}>
-      <MangaCover record={item} />
-    </Link>
-    <div className={styles.mangaShelfCopy}>
-      {editing ? <form className={styles.mangaTitleForm} onSubmit={(event) => {
-        event.preventDefault();
-        saveTitle();
-      }}>
-        <input
-          className={styles.input}
-          aria-label="Manga title"
-          autoFocus
-          maxLength={200}
-          value={draftTitle}
-          onChange={(event) => {
-            setDraftTitle(event.target.value);
-            setTitleError("");
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              cancelEditing();
-            }
-          }}
-        />
-        <button className={styles.iconButton} type="submit" aria-label="Save title">
-          <Check size={16} aria-hidden="true" />
-        </button>
-        <button className={styles.iconButton} type="button" aria-label="Cancel title editing" onClick={cancelEditing}>
-          <X size={16} aria-hidden="true" />
-        </button>
-        {titleError ? <span className={styles.mangaTitleError} role="alert">{titleError}</span> : null}
-      </form> : <div className={styles.mangaShelfTitleRow}>
-        <h2><Link href={`/manga/${item.id}`}>{item.title}</Link></h2>
-        <button className={styles.mangaShelfEditButton} type="button" aria-label={`Edit title for ${item.title}`} onClick={() => {
-          setDraftTitle(item.title);
-          setTitleError("");
-          setEditing(true);
+  function handleReorderKeyDown(event: ReactKeyboardEvent<HTMLLIElement>) {
+    if (!canReorder || event.target !== event.currentTarget || !event.altKey) return;
+    const offset = event.key === "ArrowLeft" || event.key === "ArrowUp"
+      ? -1
+      : event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : null;
+    if (!offset) return;
+    event.preventDefault();
+    onMove(item, offset);
+  }
+
+  function handleReorderPointerDown(event: ReactPointerEvent<HTMLLIElement>) {
+    if (!canDrag || event.pointerType !== "mouse") return;
+    dragControls.start(event, { distanceThreshold: 6 });
+  }
+
+  return <Reorder.Item
+    className={styles.mangaShelfItem}
+    value={item.id}
+    drag={canDrag}
+    dragControls={dragControls}
+    dragListener={false}
+    dragMomentum={false}
+    draggable={false}
+    layout="position"
+    transition={MANGA_REORDER_TRANSITION}
+    whileDrag={canDrag ? { scale: 1.025 } : undefined}
+    data-can-drag={canDrag || undefined}
+    data-dragging={dragging || undefined}
+    tabIndex={canReorder ? 0 : undefined}
+    aria-keyshortcuts={canReorder ? "Alt+ArrowLeft Alt+ArrowUp Alt+ArrowRight Alt+ArrowDown" : undefined}
+    onClickCapture={onClickCapture}
+    onDragStart={() => onDragStart(item)}
+    onDragEnd={onDragEnd}
+    onKeyDown={handleReorderKeyDown}
+    onPointerDown={handleReorderPointerDown}
+  >
+    <div className={styles.mangaShelfCard}>
+      <div className={styles.mangaShelfCoverFrame}>
+        <Link draggable={false} className={styles.mangaShelfCoverLink} href={`/manga/${item.id}`} aria-label={`Read ${item.title}`}>
+          <MangaCover record={item} onMissingAsset={onMissingAsset} />
+        </Link>
+      </div>
+      <div className={styles.mangaShelfCopy}>
+        {editing ? <form className={styles.mangaTitleForm} onPointerDownCapture={stopMangaDragPropagation} onSubmit={(event) => {
+          event.preventDefault();
+          saveTitle();
         }}>
-          <Pencil size={14} aria-hidden="true" />
+          <input
+            className={styles.input}
+            aria-label="Manga title"
+            aria-invalid={Boolean(titleError)}
+            autoFocus
+            maxLength={200}
+            placeholder={titleError || undefined}
+            value={draftTitle}
+            onChange={(event) => {
+              setDraftTitle(event.target.value);
+              setTitleError("");
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                cancelEditing();
+              }
+            }}
+          />
+          <button className={styles.iconButton} type="submit" aria-label="Save title">
+            <Check size={16} aria-hidden="true" />
+          </button>
+          <button className={styles.iconButton} type="button" aria-label="Cancel title editing" onClick={cancelEditing}>
+            <X size={16} aria-hidden="true" />
+          </button>
+          {titleError ? <span className={styles.visuallyHidden} role="alert">{titleError}</span> : null}
+        </form> : <div className={styles.mangaShelfTitleRow}>
+          <h2><Link draggable={false} href={`/manga/${item.id}`}>{item.title}</Link></h2>
+          <button className={styles.mangaShelfEditButton} type="button" aria-label={`Edit title for ${item.title}`} onPointerDownCapture={stopMangaDragPropagation} onClick={() => {
+            setDraftTitle(item.title);
+            setTitleError("");
+            setEditing(true);
+          }}>
+            <Pencil size={14} aria-hidden="true" />
+          </button>
+        </div>}
+        <p className={styles.mangaShelfMeta}>{sourceLabel(item)} · {item.totalPages ?? item.assetIds.length} pages</p>
+        <Progress
+          label={item.progress > 0 ? `Page ${item.currentPage}${item.totalPages ? ` of ${item.totalPages}` : ""}` : "Not started"}
+          value={item.progress}
+        />
+      </div>
+      <div className={styles.mangaShelfActions}>
+        <Link draggable={false} className={styles.secondaryButton} href={`/manga/${item.id}`} onPointerDownCapture={stopMangaDragPropagation}>{item.progress > 0 ? "Continue" : "Read"}</Link>
+        <button className={styles.iconButton} type="button" disabled={!canRemove} onPointerDownCapture={stopMangaDragPropagation} onClick={() => onRemove(item)} aria-label={`Remove ${item.title}`}>
+          <Trash2 size={16} aria-hidden="true" />
         </button>
-      </div>}
-      <p className={styles.mangaShelfMeta}>{sourceLabel(item)} · {item.totalPages ?? item.assetIds.length} pages</p>
-      <Progress
-        label={item.progress > 0 ? `Page ${item.currentPage}${item.totalPages ? ` of ${item.totalPages}` : ""}` : "Not started"}
-        value={item.progress}
-      />
+      </div>
     </div>
-    <div className={styles.mangaShelfActions}>
-      <Link className={styles.secondaryButton} href={`/manga/${item.id}`}>{item.progress > 0 ? "Continue" : "Read"}</Link>
-      <button className={styles.iconButton} type="button" onClick={() => onRemove(item)} aria-label={`Remove ${item.title}`}>
-        <Trash2 size={16} aria-hidden="true" />
-      </button>
-    </div>
-  </article>;
+  </Reorder.Item>;
 }
 
 async function imageSize(blob: Blob) {
@@ -273,6 +458,14 @@ async function imageSize(blob: Blob) {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+async function decodeMangaPage(url: string) {
+  const image = new window.Image();
+  image.decoding = "async";
+  image.loading = "eager";
+  image.src = url;
+  if (typeof image.decode === "function") await image.decode();
 }
 
 function wideReaderSnapshot() {
@@ -445,21 +638,20 @@ function MangaOcrModelControl({
   const isReady = state.status === "ready";
   const shownLoadedBytes = activeDownload?.loadedBytes ?? state.loadedBytes;
   const shownTotalBytes = activeDownload?.totalBytes ?? state.totalBytes;
-  const label = isReady
-    ? "OCR model ready offline"
-    : activeDownload
-      ? `OCR model · ${formatModelBytes(activeDownload.loadedBytes)} / ${formatModelBytes(activeDownload.totalBytes)}`
-      : state.status === "downloading"
-        ? `${state.assetLabel} · ${formatModelBytes(state.loadedBytes)} / ${formatModelBytes(state.totalBytes)}`
-      : state.status === "checking"
-        ? "Checking OCR model…"
-        : state.loadedBytes > 0
-          ? `${formatModelBytes(state.loadedBytes)} of ${formatModelBytes(state.totalBytes)} saved`
-          : `${formatModelBytes(state.totalBytes)} download`;
+  const label = activeDownload
+    ? `OCR model · ${formatModelBytes(activeDownload.loadedBytes)} / ${formatModelBytes(activeDownload.totalBytes)}`
+    : state.status === "downloading"
+      ? `${state.assetLabel} · ${formatModelBytes(state.loadedBytes)} / ${formatModelBytes(state.totalBytes)}`
+    : state.status === "checking"
+      ? "Checking OCR model…"
+      : state.loadedBytes > 0
+        ? `${formatModelBytes(state.loadedBytes)} of ${formatModelBytes(state.totalBytes)} saved`
+        : `${formatModelBytes(state.totalBytes)} download`;
+
+  if (isReady) return null;
 
   return <div className={styles.mangaModelControl} data-state={state.status}>
     <div className={styles.mangaModelStatus} role="status" aria-live="polite">
-      {isReady ? <CircleCheck size={17} aria-hidden="true" /> : null}
       <span>{label}</span>
     </div>
     {isDownloading ? <progress
@@ -486,6 +678,17 @@ export function MangaLibrary() {
   const [manga, setManga] = useState<ContentRecord[]>(() => loadLibrary("manga"));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [importProgress, setImportProgress] = useState<MangaImportProgress | null>(null);
+  const [importAnnouncement, setImportAnnouncement] = useState("");
+  const [draggedMangaId, setDraggedMangaId] = useState<string | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+  const draggedMangaIdRef = useRef<string | null>(null);
+  const dragStartOrderRef = useRef<string[] | null>(null);
+  const mangaOrderRef = useRef(manga);
+  const suppressClickAfterDragRef = useRef(false);
+  const suppressClickTimerRef = useRef<number | null>(null);
+  const importInFlightRef = useRef(false);
+  const missingMangaCleanupRef = useRef(new Set<string>());
   const deletion = useDelayedDeletion<ContentRecord>({
     onCommit: deleteRecord,
     onError: () => {
@@ -493,106 +696,349 @@ export function MangaLibrary() {
       setMessage("The manga could not be removed from browser storage, so it was restored.");
     },
   });
+  const canReorder = manga.length > 1 && !busy && !deletion.pending;
+  const canDrag = canReorder;
 
-  async function importFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    if (!files.length) return;
+  const removeMangaWithMissingAsset = useCallback((recordId: string) => {
+    if (missingMangaCleanupRef.current.has(recordId)) return;
+    const record = loadLibrary("manga").find((candidate) => candidate.id === recordId);
+    if (!record) return;
+    missingMangaCleanupRef.current.add(recordId);
+
+    const cleanup = deleteRecord(record);
+    const stored = loadLibrary("manga");
+    mangaOrderRef.current = stored;
+    setManga((current) => current.filter((candidate) => candidate.id !== recordId));
+    setMessage("Removed manga whose local files were no longer available.");
+
+    void cleanup.catch(() => {
+      const restored = loadLibrary("manga");
+      mangaOrderRef.current = restored;
+      setManga(restored);
+      setMessage("A manga with missing local files could not be removed from the library.");
+      missingMangaCleanupRef.current.delete(recordId);
+    });
+  }, []);
+
+  useEffect(() => {
+    function resetDragOnBlur() {
+      if (!draggedMangaIdRef.current) return;
+      const stored = loadLibrary("manga");
+      mangaOrderRef.current = stored;
+      setManga(stored);
+      draggedMangaIdRef.current = null;
+      dragStartOrderRef.current = null;
+      suppressClickAfterDragRef.current = false;
+      setDraggedMangaId(null);
+    }
+    window.addEventListener("blur", resetDragOnBlur);
+    return () => {
+      window.removeEventListener("blur", resetDragOnBlur);
+      if (suppressClickTimerRef.current !== null) window.clearTimeout(suppressClickTimerRef.current);
+      draggedMangaIdRef.current = null;
+      dragStartOrderRef.current = null;
+    };
+  }, []);
+
+  async function importFiles(files: File[], handles: Array<FileSystemFileHandle | null> = []) {
+    if (!files.length || importInFlightRef.current || deletion.pending) return;
+    const importGroups = groupMangaImportFiles(files);
+    if (!importGroups.length) return;
+    const handleByFile = new Map(files.map((file, index) => [file, handles[index] ?? null]));
+    importInFlightRef.current = true;
     const savedAssetIds: string[] = [];
+    const savedHandleIds: string[] = [];
     setBusy(true);
     setMessage("");
+    setImportAnnouncement("");
 
     try {
-      const prepared = await prepareMangaImport(files);
-      const importMetadata = prepared.metadata ?? {
-        readingDirection: "rtl" as const,
-        pagePlacements: Array<MangaPagePlacement>(prepared.pageCount).fill(null),
-      };
-      for (const asset of prepared.assets) {
-        const assetId = createLocalId("manga-page");
-        await saveAsset(assetId, asset);
-        savedAssetIds.push(assetId);
+      const records: ContentRecord[] = [];
+
+      for (const [groupIndex, importGroup] of importGroups.entries()) {
+        setImportProgress({
+          stage: "preparing",
+          current: groupIndex + 1,
+          total: importGroups.length,
+          name: mangaImportGroupName(importGroup),
+        });
+        const prepared = await prepareMangaImport(importGroup);
+        const importMetadata = prepared.metadata ?? {
+          readingDirection: "rtl" as const,
+          pagePlacements: Array<MangaPagePlacement>(prepared.pageCount).fill(null),
+        };
+        const linkedHandles = linkedHandlesForMangaImport(
+          importGroup,
+          prepared.assets,
+          prepared.sourceType,
+          handleByFile,
+        );
+        setImportProgress({
+          stage: "saving",
+          current: groupIndex + 1,
+          total: importGroups.length,
+          name: prepared.title,
+          pageCount: prepared.pageCount,
+          sourceType: prepared.sourceType,
+          linked: Boolean(linkedHandles),
+        });
+        const recordAssetIds: string[] = [];
+        const recordHandleIds: string[] = [];
+
+        if (linkedHandles) {
+          const pendingHandles = linkedHandles.map((handle) => ({
+            handle,
+            id: createLocalId("manga-file"),
+          }));
+          const handleSaves = await Promise.allSettled(
+            pendingHandles.map(({ handle, id }) => saveFileHandle(id, handle)),
+          );
+          if (handleSaves.every((result) => result.status === "fulfilled")) {
+            recordHandleIds.push(...pendingHandles.map(({ id }) => id));
+            savedHandleIds.push(...recordHandleIds);
+          } else {
+            await Promise.all(pendingHandles.map(({ id }) => removeFileHandle(id).catch(() => undefined)));
+          }
+        }
+
+        if (recordHandleIds.length) {
+          const thumbnail = await preparedMangaCoverThumbnail(prepared).catch(() => null);
+          if (thumbnail) {
+            const coverAssetId = createLocalId("manga-cover");
+            try {
+              await saveAsset(coverAssetId, thumbnail);
+              recordAssetIds.push(coverAssetId);
+              savedAssetIds.push(coverAssetId);
+            } catch {
+              await removeAsset(coverAssetId).catch(() => undefined);
+            }
+          }
+        }
+
+        if (!recordHandleIds.length) {
+          setImportProgress({
+            stage: "saving",
+            current: groupIndex + 1,
+            total: importGroups.length,
+            name: prepared.title,
+            pageCount: prepared.pageCount,
+            sourceType: prepared.sourceType,
+            linked: false,
+          });
+          for (const asset of prepared.assets) {
+            const assetId = createLocalId("manga-page");
+            recordAssetIds.push(assetId);
+            savedAssetIds.push(assetId);
+            await saveAsset(assetId, asset);
+          }
+        }
+
+        const now = new Date().toISOString();
+        records.push({
+          id: createLocalId("manga"),
+          kind: "manga",
+          title: prepared.title,
+          fileName: prepared.fileName,
+          mimeType: prepared.sourceType === "pdf" ? "application/pdf" : "image/*",
+          assetIds: recordAssetIds,
+          createdAt: now,
+          updatedAt: now,
+          progress: 0,
+          currentPage: 1,
+          totalPages: prepared.pageCount,
+          metadata: {
+            sourceType: prepared.sourceType,
+            isPdf: prepared.sourceType === "pdf",
+            readingDirection: importMetadata.readingDirection,
+            pagePlacements: JSON.stringify(importMetadata.pagePlacements),
+            ...linkedMetadata(recordHandleIds),
+          },
+        });
       }
 
-      const now = new Date().toISOString();
-      const record: ContentRecord = {
-        id: createLocalId("manga"),
-        kind: "manga",
-        title: prepared.title,
-        fileName: prepared.fileName,
-        mimeType: prepared.sourceType === "pdf" ? "application/pdf" : "image/*",
-        assetIds: savedAssetIds,
-        createdAt: now,
-        updatedAt: now,
-        progress: 0,
-        currentPage: 1,
-        totalPages: prepared.pageCount,
-        metadata: {
-          sourceType: prepared.sourceType,
-          isPdf: prepared.sourceType === "pdf",
-          readingDirection: importMetadata.readingDirection,
-          pagePlacements: JSON.stringify(importMetadata.pagePlacements),
-        },
-      };
-      setManga(upsertRecord(record));
+      const next = [...loadLibrary("manga"), ...records];
+      if (!saveLibrary("manga", next)) throw new Error("Browser storage is full or unavailable.");
+      setManga(next);
+      setImportAnnouncement(records.length === 1 ? `Imported “${records[0].title}”.` : `Imported ${records.length} manga.`);
+      if (savedHandleIds.length) void requestPersistentLocalStorage();
     } catch (error) {
-      await Promise.all(savedAssetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)));
-      setMessage(error instanceof Error ? error.message : "Those pages could not be imported.");
+      await Promise.all([
+        ...savedAssetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)),
+        ...savedHandleIds.map((handleId) => removeFileHandle(handleId).catch(() => undefined)),
+      ]);
+      const errorMessage = error instanceof Error ? error.message : "Those pages could not be imported.";
+      setMessage(`${errorMessage} Nothing from this import was added.`);
     } finally {
+      importInFlightRef.current = false;
       setBusy(false);
-      event.target.value = "";
+      setImportProgress(null);
     }
   }
 
   function remove(item: ContentRecord) {
+    if (importInFlightRef.current) return;
     setManga((current) => current.filter((candidate) => candidate.id !== item.id));
     deletion.requestDeletion(item);
   }
 
   function rename(item: ContentRecord, title: string) {
-    const updated = { ...item, title, updatedAt: new Date().toISOString() };
-    const next = manga.map((candidate) => candidate.id === item.id ? updated : candidate);
-    if (!saveLibrary("manga", next)) {
+    const stored = loadLibrary("manga").find((candidate) => candidate.id === item.id) ?? item;
+    const updated = { ...stored, title, updatedAt: new Date().toISOString() };
+    try {
+      setManga(updateRecordInPlace(updated));
+    } catch {
       setMessage("The title could not be saved in browser storage.");
       return false;
     }
-    setManga(next);
     setMessage("");
     return true;
+  }
+
+  function persistMangaOrder(next: readonly ContentRecord[], moved: ContentRecord) {
+    let savedOrder: ContentRecord[];
+    try {
+      savedOrder = reorderLibrary("manga", next.map((record) => record.id));
+    } catch {
+      const restored = loadLibrary("manga");
+      mangaOrderRef.current = restored;
+      setManga(restored);
+      setMessage("The manga order could not be saved in browser storage, so the previous order was restored.");
+      setReorderAnnouncement(`The position of ${moved.title} could not be saved.`);
+      return;
+    }
+    mangaOrderRef.current = savedOrder;
+    setManga(savedOrder);
+    setMessage("");
+    const position = savedOrder.findIndex((record) => record.id === moved.id) + 1;
+    setReorderAnnouncement(`${moved.title} moved to position ${position} of ${savedOrder.length}.`);
+  }
+
+  function startMangaDrag(item: ContentRecord) {
+    if (!canReorder) return;
+    if (suppressClickTimerRef.current !== null) window.clearTimeout(suppressClickTimerRef.current);
+    mangaOrderRef.current = manga;
+    dragStartOrderRef.current = manga.map((record) => record.id);
+    draggedMangaIdRef.current = item.id;
+    suppressClickAfterDragRef.current = true;
+    setDraggedMangaId(item.id);
+  }
+
+  function previewMangaOrder(orderedIds: string[]) {
+    if (!canReorder || !draggedMangaIdRef.current) return;
+    if (hasMangaOrder(mangaOrderRef.current, orderedIds)) return;
+    const recordsById = new Map(mangaOrderRef.current.map((record) => [record.id, record]));
+    const next = orderedIds.flatMap((id) => {
+      const record = recordsById.get(id);
+      return record ? [record] : [];
+    });
+    if (next.length !== mangaOrderRef.current.length) return;
+    mangaOrderRef.current = next;
+    setManga(next);
+  }
+
+  function finishMangaDrag() {
+    const sourceId = draggedMangaIdRef.current;
+    const startOrder = dragStartOrderRef.current;
+    const next = mangaOrderRef.current;
+    draggedMangaIdRef.current = null;
+    dragStartOrderRef.current = null;
+    setDraggedMangaId(null);
+    suppressClickTimerRef.current = window.setTimeout(() => {
+      suppressClickAfterDragRef.current = false;
+      suppressClickTimerRef.current = null;
+    }, 0);
+    if (!sourceId || !startOrder || hasMangaOrder(next, startOrder)) return;
+    const moved = next.find((record) => record.id === sourceId);
+    if (moved) persistMangaOrder(next, moved);
+  }
+
+  function preventClickAfterDrag(event: ReactMouseEvent<HTMLLIElement>) {
+    if (!suppressClickAfterDragRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function moveMangaBy(item: ContentRecord, offset: -1 | 1) {
+    if (!canReorder) return;
+    const index = manga.findIndex((record) => record.id === item.id);
+    const target = manga[index + offset];
+    if (target) persistMangaOrder(moveMangaRecord(manga, item.id, target.id), item);
   }
 
   return <ContentPage variant="library">
     <ContentHeader
       title="Manga library"
-      description="Import single-image-page EPUB, CBZ, ZIP, PDF, or image pages. Page images stay in this browser."
+      description="Import single-image-page EPUB, CBZ, ZIP, PDF, or image pages. Supported browsers link to the originals on this device."
       actions={<>
         <MangaOcrModelControl />
         <Link className={styles.secondaryButton} href="/settings#jpdb-api-key">
           <KeyRound size={16} aria-hidden="true" />
           Add JPDB API key
         </Link>
-        <label className={styles.button}>
+        <LocalFilePicker
+          className={styles.button}
+          accept={MANGA_PICKER_ACCEPT}
+          aria-busy={busy || undefined}
+          data-disabled={deletion.pending ? "true" : undefined}
+          description="Manga files"
+          disabled={busy || Boolean(deletion.pending)}
+          multiple
+          onFiles={importFiles}
+          onPickerError={(error) => setMessage(error.message || "The manga picker could not be opened.")}
+        >
           <Upload size={16} aria-hidden="true" />
-          {busy ? "Importing…" : "Import manga"}
-          <input
-            className={styles.fileInput}
-            type="file"
-            accept=".epub,.cbz,.zip,.pdf,application/epub+zip,application/pdf,application/zip,application/vnd.comicbook+zip,image/*"
-            multiple
-            disabled={busy}
-            onChange={(event) => void importFiles(event)}
-          />
-        </label>
+          <span>{busy ? "Importing…" : "Import manga"}</span>
+        </LocalFilePicker>
       </>}
     />
+    <FileDropOverlay
+      disabled={busy || Boolean(deletion.pending)}
+      hint="EPUB · CBZ · ZIP · PDF · image pages"
+      icon={<Upload size={32} aria-hidden="true" />}
+      label="Drop to import manga"
+      multiple
+      onFiles={importFiles}
+    />
+    {importProgress ? <LoadingState
+      className={styles.mangaImportStatus}
+      compact
+      label={importProgress.total === 1 ? "Importing manga…" : `Importing manga ${importProgress.current} of ${importProgress.total}…`}
+      detail={mangaImportProgressDetail(importProgress)}
+    /> : null}
     {message ? <div className={styles.notice} role="alert">{message}</div> : null}
-    {manga.length ? <div className={styles.mangaShelfGrid} {...firstLibraryReveal}>
-      {manga.map((item) => <MangaShelfItem
-        item={item}
-        key={item.id}
-        onRemove={remove}
-        onRename={rename}
-      />)}
-    </div> : <EmptyState title="No manga yet">Import one EPUB, CBZ, ZIP, or PDF, or select a set of image pages. All files remain in this browser.</EmptyState>}
+    {manga.length ? <MotionConfig reducedMotion="user">
+      <Reorder.Group
+        as="ol"
+        axis="xy"
+        className={styles.mangaShelfGrid}
+        aria-label="Manga library order"
+        aria-describedby={manga.length > 1 ? "manga-reorder-instructions" : undefined}
+        values={manga.map((record) => record.id)}
+        onReorder={previewMangaOrder}
+        {...firstLibraryReveal}
+      >
+        {manga.map((item) => <MangaShelfItem
+          canDrag={canDrag}
+          canRemove={!busy}
+          canReorder={canReorder}
+          dragging={draggedMangaId === item.id}
+          item={item}
+          key={item.id}
+          onClickCapture={preventClickAfterDrag}
+          onDragEnd={finishMangaDrag}
+          onDragStart={startMangaDrag}
+          onMissingAsset={removeMangaWithMissingAsset}
+          onMove={moveMangaBy}
+          onRemove={remove}
+          onRename={rename}
+        />)}
+      </Reorder.Group>
+      {manga.length > 1 ? <p className={styles.visuallyHidden} id="manga-reorder-instructions">
+        Drag a manga card to reorder it. Keyboard users can focus a card and hold Alt while pressing an arrow key.
+      </p> : null}
+    </MotionConfig> : <EmptyState title="No manga yet">Import one EPUB, CBZ, ZIP, or PDF, or select a set of image pages. Files remain on this device.</EmptyState>}
+    <p className={styles.visuallyHidden} role="status" aria-live="polite">{importAnnouncement}</p>
+    <p className={styles.visuallyHidden} role="status" aria-live="polite">{reorderAnnouncement}</p>
     {deletion.pending ? <UndoNotice message={`“${deletion.pending.title}” removed`} onUndo={() => {
       deletion.undoDeletion();
       setManga(loadLibrary("manga"));
@@ -620,6 +1066,8 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
   const [translation, setTranslation] = useState<MangaTranslationState>(EMPTY_MANGA_TRANSLATION);
   const [modelRefreshToken, setModelRefreshToken] = useState(0);
   const [message, setMessage] = useState(initialRecord ? "" : "This manga is not in the local library.");
+  const [sourceAccess, setSourceAccess] = useState<MangaSourceAccess>(null);
+  const [sourceRetryToken, setSourceRetryToken] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const pdfDocument = useRef<MangaPdfDocument | null>(null);
   const ocrAbort = useRef<AbortController | null>(null);
@@ -631,6 +1079,9 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
   const pageUrls = useRef(new Set<string>());
   const spreadTransitionTimer = useRef<number | null>(null);
   const readerRoot = useRef<HTMLDivElement | null>(null);
+  const linkedSource = useRef<{ recordId: string; source: ReadyLinkedMangaSource } | null>(null);
+  const linkedPermissionHandle = useRef<FileSystemFileHandle | null>(null);
+  const sourceRecoveryPending = useRef(false);
   const wideReader = useWideMangaReader();
   const totalPages = Math.max(1, record?.totalPages ?? record?.assetIds.length ?? 1);
   const direction = record ? readingDirection(record) : "rtl";
@@ -661,10 +1112,11 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
 
   const finishOutgoingSpread = useCallback((spread: LoadedMangaSpread) => {
     if (outgoingSpreadRef.current !== spread) return;
+    if (spreadTransitionTimer.current !== null) window.clearTimeout(spreadTransitionTimer.current);
+    spreadTransitionTimer.current = null;
     outgoingSpreadRef.current = null;
     setOutgoingSpread(null);
     revokeSpreadUrls(spread);
-    spreadTransitionTimer.current = null;
   }, [revokeSpreadUrls]);
 
   useEffect(() => () => {
@@ -676,6 +1128,8 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     ocrAbort.current?.abort();
     ocrAbort.current = null;
     if (spreadTransitionTimer.current !== null) window.clearTimeout(spreadTransitionTimer.current);
+    spreadTransitionTimer.current = null;
+    outgoingSpreadRef.current = null;
     for (const url of pageUrls.current) URL.revokeObjectURL(url);
     pageUrls.current.clear();
     disposeMangaOcr();
@@ -757,12 +1211,45 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
       const item = loadLibrary("manga").find((candidate) => candidate.id === mangaId);
       if (!item) throw new Error("This manga is not in the local library.");
       const source = mangaSource(item);
-      let pageCount = source === "pdf" ? item.totalPages ?? 1 : item.assetIds.length;
+      const handleIds = linkedFileIds(item);
+      let resolvedLinkedSource: ReadyLinkedMangaSource | null = null;
+      if (handleIds.length) {
+        const cached = linkedSource.current;
+        const linked = cached?.recordId === item.id
+          ? cached.source
+          : await resolveLinkedMangaSource(item);
+        if (linked.status === "permission") {
+          linkedPermissionHandle.current = linked.handle;
+          setSourceAccess("permission");
+          throw new Error(linkedMangaAccessMessage(linked));
+        }
+        if (linked.status === "missing") {
+          setSourceAccess("missing");
+          throw new Error(linkedMangaAccessMessage(linked));
+        }
+        if (linked.status === "unavailable") {
+          setSourceAccess("unavailable");
+          throw new Error(linkedMangaAccessMessage(linked));
+        }
+        if (linked.status !== "ready") throw new Error("The linked manga source could not be opened.");
+        linkedPermissionHandle.current = null;
+        linkedSource.current = { recordId: item.id, source: linked };
+        resolvedLinkedSource = linked;
+        setSourceAccess(null);
+      }
+
+      let pageCount = resolvedLinkedSource?.kind === "pages"
+        ? resolvedLinkedSource.pages.length
+        : source === "pdf"
+          ? item.totalPages ?? 1
+          : item.assetIds.length;
 
       if (source === "pdf") {
         let document = pdfDocument.current;
         if (!document) {
-          const storedPdf = await loadAsset(item.assetIds[0]);
+          const storedPdf = resolvedLinkedSource?.kind === "pdf"
+            ? resolvedLinkedSource.file
+            : await loadAsset(item.assetIds[0]);
           if (!storedPdf) throw new Error("The local PDF is missing.");
           document = await openMangaPdf(storedPdf);
           if (cancelled) {
@@ -782,6 +1269,11 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
           if (!document) throw new Error("The local PDF could not be opened.");
           return { blob: await document.renderPage(pageNumber), pageNumber };
         }
+        if (resolvedLinkedSource?.kind === "pages") {
+          const linkedPage = resolvedLinkedSource.pages[pageNumber - 1];
+          if (!linkedPage) throw new Error("This linked manga page is missing.");
+          return { blob: linkedPage, pageNumber };
+        }
         const assetId = item.assetIds[pageNumber - 1];
         const storedPage = await loadAsset(assetId);
         if (!storedPage) throw new Error("This local manga page is missing.");
@@ -800,6 +1292,8 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
         trackedPageUrls.add(url);
         return { ...loadedPage, url };
       });
+      await Promise.all(loadedPages.map((loadedPage) => decodeMangaPage(loadedPage.url)));
+      if (cancelled || spreadLoadGeneration.current !== generation || targetSpreadKeyRef.current !== targetSpreadKey) return;
       const focusPage = targetSpread.pages.includes(page) ? page : targetSpread.resumePage;
       const cachedText = loadMangaOcrPage(mangaId, focusPage)?.text ?? "";
       setActiveOcrPage(focusPage);
@@ -841,7 +1335,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
       };
       if (record?.totalPages !== pageCount) setRecord(updated);
       try {
-        upsertRecord(updated);
+        updateRecordInPlace(updated);
       } catch {
         setMessage("The pages opened, but reading progress could not be saved.");
       }
@@ -862,10 +1356,10 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
         URL.revokeObjectURL(url);
       }
     };
-  }, [direction, finishOutgoingSpread, mangaId, navigationDirection, page, record?.totalPages, revokeSpreadUrls, targetSpread, targetSpreadKey]);
+  }, [direction, finishOutgoingSpread, mangaId, navigationDirection, page, record?.totalPages, revokeSpreadUrls, sourceRetryToken, targetSpread, targetSpreadKey]);
 
   const changeSpread = useCallback((offset: -1 | 1) => {
-    if (navigationPending.current || loadedSpreadKeyRef.current !== targetSpreadKeyRef.current) return;
+    if (navigationPending.current || outgoingSpreadRef.current || loadedSpreadKeyRef.current !== targetSpreadKeyRef.current) return;
     const nextSpread = spreads[currentSpreadIndex + offset];
     if (!nextSpread) return;
     navigationPending.current = true;
@@ -969,6 +1463,166 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     }
   }
 
+  async function allowLinkedMangaAccess() {
+    const permissionHandle = linkedPermissionHandle.current;
+    if (!record || !permissionHandle || sourceRecoveryPending.current) return;
+    sourceRecoveryPending.current = true;
+    const permissionRequest = requestLinkedFilePermission(permissionHandle);
+    setIsSpreadLoading(true);
+    setMessage("");
+    try {
+      const permission = await permissionRequest;
+      if (permission.status !== "granted") {
+        setIsSpreadLoading(false);
+        setSourceAccess(permission.status === "permission" ? "permission" : "unavailable");
+        setMessage(permission.status === "permission"
+          ? "File access was not granted. You can try again or locate the original files."
+          : permission.error.message);
+        return;
+      }
+      const linked = await resolveLinkedMangaSource(record);
+      if (linked.status === "ready") {
+        linkedPermissionHandle.current = null;
+        linkedSource.current = { recordId: record.id, source: linked };
+        setSourceAccess(null);
+        setSourceRetryToken((value) => value + 1);
+        return;
+      }
+      setIsSpreadLoading(false);
+      if (linked.status === "permission" || linked.status === "missing" || linked.status === "unavailable") {
+        linkedPermissionHandle.current = linked.status === "permission" ? linked.handle : null;
+        setSourceAccess(linked.status);
+        setMessage(linkedMangaAccessMessage(linked));
+      }
+    } catch (error) {
+      setIsSpreadLoading(false);
+      setMessage(error instanceof Error ? error.message : "File access could not be restored.");
+    } finally {
+      sourceRecoveryPending.current = false;
+    }
+  }
+
+  async function reconnectLinkedManga(
+    files: File[],
+    handles: Array<FileSystemFileHandle | null> = [],
+  ) {
+    if (!record || !files.length || sourceRecoveryPending.current) return;
+    sourceRecoveryPending.current = true;
+    const previousAssetIds = [...record.assetIds];
+    const previousHandleIds = linkedFileIds(record);
+    const newAssetIds: string[] = [];
+    const newHandleIds: string[] = [];
+    let committed = false;
+    setIsSpreadLoading(true);
+    setMessage("");
+
+    try {
+      const prepared = await prepareMangaImport(files);
+      const handleByFile = new Map(files.map((file, index) => [file, handles[index] ?? null]));
+      const linkedHandles = linkedHandlesForMangaImport(files, prepared.assets, prepared.sourceType, handleByFile);
+
+      if (linkedHandles) {
+        const pendingHandles = linkedHandles.map((handle) => ({
+          handle,
+          id: createLocalId("manga-file"),
+        }));
+        const saves = await Promise.allSettled(
+          pendingHandles.map(({ handle, id }) => saveFileHandle(id, handle)),
+        );
+        if (saves.every((result) => result.status === "fulfilled")) {
+          newHandleIds.push(...pendingHandles.map(({ id }) => id));
+        } else {
+          await Promise.all(pendingHandles.map(({ id }) => removeFileHandle(id).catch(() => undefined)));
+        }
+      }
+
+      if (newHandleIds.length) {
+        const thumbnail = await preparedMangaCoverThumbnail(prepared).catch(() => null);
+        if (thumbnail) {
+          const coverAssetId = createLocalId("manga-cover");
+          try {
+            await saveAsset(coverAssetId, thumbnail);
+            newAssetIds.push(coverAssetId);
+          } catch {
+            await removeAsset(coverAssetId).catch(() => undefined);
+          }
+        }
+      }
+
+      if (!newHandleIds.length) {
+        for (const asset of prepared.assets) {
+          const assetId = createLocalId("manga-page");
+          await saveAsset(assetId, asset);
+          newAssetIds.push(assetId);
+        }
+      }
+
+      const resumePage = Math.min(Math.max(1, record.currentPage ?? 1), prepared.pageCount);
+      const updated: ContentRecord = {
+        ...record,
+        fileName: prepared.fileName,
+        mimeType: prepared.sourceType === "pdf" ? "application/pdf" : "image/*",
+        assetIds: newAssetIds,
+        currentPage: resumePage,
+        totalPages: prepared.pageCount,
+        progress: record.progress > 0 ? resumePage / prepared.pageCount : 0,
+        updatedAt: new Date().toISOString(),
+        metadata: {
+          ...record.metadata,
+          sourceType: prepared.sourceType,
+          isPdf: prepared.sourceType === "pdf",
+          readingDirection: prepared.metadata.readingDirection,
+          pagePlacements: JSON.stringify(prepared.metadata.pagePlacements),
+          ...linkedMetadata(newHandleIds),
+        },
+      };
+      spreadLoadGeneration.current += 1;
+      linkedPermissionHandle.current = null;
+      linkedSource.current = null;
+      const document = pdfDocument.current;
+      if (document) await document.destroy();
+      pdfDocument.current = null;
+      updateRecordInPlace(updated);
+      committed = true;
+      const shownSpread = loadedSpreadRef.current;
+      loadedSpreadRef.current = null;
+      setLoadedSpread(null);
+      revokeSpreadUrls(shownSpread);
+      setRecord(updated);
+      setPage(resumePage);
+      setSourceAccess(null);
+      setMessage(newHandleIds.length
+        ? "Reconnected to the original manga files."
+        : "The manga was restored with a browser-stored copy.");
+      setSourceRetryToken((value) => value + 1);
+      if (newHandleIds.length) void requestPersistentLocalStorage();
+
+      await Promise.all([
+        ...previousAssetIds.map((id) => removeAsset(id).catch(() => undefined)),
+        ...previousHandleIds.map((id) => removeFileHandle(id).catch(() => undefined)),
+      ]);
+    } catch (error) {
+      if (!committed) {
+        await Promise.all([
+          ...newAssetIds.map((id) => removeAsset(id).catch(() => undefined)),
+          ...newHandleIds.map((id) => removeFileHandle(id).catch(() => undefined)),
+        ]);
+      }
+      setIsSpreadLoading(false);
+      setMessage(error instanceof Error ? error.message : "The original manga files could not be reconnected.");
+    } finally {
+      sourceRecoveryPending.current = false;
+    }
+  }
+
+  function retryLinkedManga() {
+    linkedSource.current = null;
+    setSourceAccess(null);
+    setMessage("");
+    setIsSpreadLoading(true);
+    setSourceRetryToken((value) => value + 1);
+  }
+
   const activeTranslation = jpdbApiKey && translation.sourceText === ocrText.trim()
     ? translation
     : EMPTY_MANGA_TRANSLATION;
@@ -988,6 +1642,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
           : text,
       tone: ocrState.status === "error" ? "error" as const : "default" as const,
       busy: isOcrBusy(ocrState),
+      onDismiss: isOcrBusy(ocrState) ? undefined : () => setOcrState({ status: "idle" }),
     };
   }
 
@@ -1001,17 +1656,18 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
 
   const leftNavigationOffset: -1 | 1 = direction === "rtl" ? 1 : -1;
   const rightNavigationOffset: -1 | 1 = direction === "rtl" ? -1 : 1;
-  const navigationIsDisabled = isSpreadLoading || !displayedSpreadIsCurrent;
-  const pageCounter = targetSpread.pages.length > 1
-    ? `${targetSpread.pages[0]}–${targetSpread.pages.at(-1)} / ${totalPages}`
-    : `${targetSpread.pages[0]} / ${totalPages}`;
+  const navigationIsDisabled = isSpreadLoading || Boolean(outgoingSpread) || !displayedSpreadIsCurrent;
+  const counterSpread = loadedSpread?.spread ?? targetSpread;
+  const pageCounter = counterSpread.pages.length > 1
+    ? `${counterSpread.pages[0]}–${counterSpread.pages.at(-1)} / ${totalPages}`
+    : `${counterSpread.pages[0]} / ${totalPages}`;
 
   return <ContentPage variant="media">
     <div
       ref={readerRoot}
       className={styles.mangaReader}
       data-fullscreen={isFullscreen ? "true" : "false"}
-      aria-busy={isSpreadLoading}
+      aria-busy={isSpreadLoading || Boolean(outgoingSpread)}
       aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown"
     >
       <h1 className={styles.visuallyHidden}>{record.title}</h1>
@@ -1023,6 +1679,41 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
         </button>
       </div>
       {message ? <div className={styles.errorNotice} role="status">{message}</div> : null}
+      {sourceAccess ? <div className={styles.inline}>
+        {sourceAccess === "permission" ? <>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            disabled={isSpreadLoading}
+            onClick={() => void allowLinkedMangaAccess()}
+          >Allow file access</button>
+          <LocalFilePicker
+            className={styles.secondaryButton}
+            accept={MANGA_PICKER_ACCEPT}
+            description="Original manga files"
+            disabled={isSpreadLoading}
+            multiple={mangaSource(record) === "images"}
+            onFiles={reconnectLinkedManga}
+            onPickerError={(error) => setMessage(error.message || "The manga picker could not be opened.")}
+          >Locate original {mangaSource(record) === "images" ? "pages" : "file"}</LocalFilePicker>
+        </> : sourceAccess === "missing" ? <LocalFilePicker
+          className={styles.secondaryButton}
+          accept={MANGA_PICKER_ACCEPT}
+          description="Original manga files"
+          disabled={isSpreadLoading}
+          multiple={mangaSource(record) === "images"}
+          onFiles={reconnectLinkedManga}
+          onPickerError={(error) => setMessage(error.message || "The manga picker could not be opened.")}
+        >
+          <Upload size={16} aria-hidden="true" />
+          Locate original {mangaSource(record) === "images" ? "pages" : "file"}
+        </LocalFilePicker> : <button
+          className={styles.secondaryButton}
+          type="button"
+          disabled={isSpreadLoading}
+          onClick={retryLinkedManga}
+        >Try again</button>}
+      </div> : null}
       <div className={styles.mangaReaderGrid}>
         <section className={styles.mangaSpreadColumn} aria-label="Manga pages">
           <div className={styles.mangaSpreadStage} data-testid="manga-spread-stage">
@@ -1033,6 +1724,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
                 data-transition-layer="outgoing"
                 data-turn-origin={turnOrigin}
                 aria-hidden="true"
+                key={outgoingSpread.key}
               >
                 {outgoingSpread.pages.map((loadedPage) => <div
                   className={styles.mangaSpreadPage}
@@ -1044,14 +1736,13 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
                   )}
                   key={loadedPage.pageNumber}
                 >
-                  <Image
-                    className={styles.mangaPageImage}
+                  <MangaPageSelector
                     src={loadedPage.url}
                     width={loadedPage.width}
                     height={loadedPage.height}
-                    sizes="(max-width: 56rem) 100vw, 70vw"
-                    unoptimized
-                    alt=""
+                    alt={`${record.title}, page ${loadedPage.pageNumber}`}
+                    disabled
+                    onSelectionComplete={() => undefined}
                   />
                 </div>)}
               </div> : null}
@@ -1064,6 +1755,10 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
                 data-transition-layer="incoming"
                 data-turn-origin={turnOrigin}
                 data-testid="manga-spread"
+                key={loadedSpread.key}
+                onAnimationEnd={(event) => {
+                  if (event.target === event.currentTarget && outgoingSpread) finishOutgoingSpread(outgoingSpread);
+                }}
               >
                 {loadedSpread.pages.map((loadedPage) => <div
                   className={styles.mangaSpreadPage}
@@ -1085,8 +1780,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
                     tooltip={tooltipFor(loadedPage.pageNumber)}
                   />
                 </div>)}
-              </div> : <EmptyState title="Preparing pages">Opening the locally stored manga…</EmptyState>}
-              {isSpreadLoading ? <div className={styles.mangaSpreadLoading} role="status">Opening pages…</div> : null}
+              </div> : <EmptyState title="Preparing pages">Opening the manga from this device…</EmptyState>}
             </div>
             <nav className={styles.mangaEdgeNavigation} aria-label="Manga page navigation">
               <button
@@ -1121,19 +1815,18 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
               totalBytes: ocrState.totalBytes,
             } : undefined}
           />
-          {isOcrBusy(ocrState) ? <MangaRecognitionLoader state={ocrState} /> : ocrState.status !== "idle" ? <p
-            className={ocrState.status === "error" ? styles.error : styles.success}
+          {isOcrBusy(ocrState) ? <MangaRecognitionLoader state={ocrState} /> : ocrState.status === "error" ? <p
+            className={styles.error}
             role="status"
             aria-live="polite"
-          >{ocrState.status === "complete" ? "Text recognized." : ocrStatusText(ocrState)}</p> : null}
+          >{ocrStatusText(ocrState)}</p> : null}
           {!isOcrBusy(ocrState) && ocrText.trim() ? <div className={styles.mangaRecognitionResult} key={`${activeOcrPage}:${ocrText}`}>
             <JapaneseReader
               text={ocrText}
               ariaLabel={`Recognized manga text from page ${activeOcrPage}`}
-              interaction="tooltip"
               appearance="compact"
+              supplement={<MangaTranslation state={activeTranslation} />}
             />
-            <MangaTranslation state={activeTranslation} />
           </div> : !isOcrBusy(ocrState) ? <p className={styles.mangaOcrEmpty}>Drag across Japanese text on a page to recognize it.</p> : null}
         </aside>
       </div>

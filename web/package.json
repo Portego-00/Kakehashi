@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "patch-package",
     "sync:anime-catalog": "node scripts/sync-anime-catalog.mjs",
     "sync:srs-icons": "node scripts/sync-srs-icons.mjs",
     "dev": "next dev --webpack",
@@ -23,13 +22,15 @@
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
+    "@floating-ui/react-dom": "^2.1.9",
     "@tanstack/react-query": "^5.101.4",
+    "epubjs": "^0.3.93",
     "fflate": "^0.8.3",
     "hanzi-writer": "^3.7.3",
     "lucide-react": "^1.29.0",
+    "motion": "^13.1.1",
     "next": "^16.3.0",
     "onnxruntime-web": "^1.29.0",
-    "piper-plus": "0.6.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -49,8 +50,11 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.3.0",
     "jsdom": "^27.4.0",
-    "patch-package": "^8.0.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.8.15",
+    "nanoid": "3.3.18"
   }
 }

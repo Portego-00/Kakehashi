@@ -1,6 +1,4 @@
-import { ChevronRight } from "lucide-react";
 import Image from "next/image";
-import { ButtonLink } from "@/components/ui/Button";
 import styles from "./dashboard.module.css";
 
 type StudyQueueCardProps = {
@@ -26,25 +24,18 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
   const displayCount = Math.max(0, count);
   const ready = preview || loading || displayCount > 0;
   const title = lessons ? "Lessons" : "Reviews";
-  const actionLabel = `Start ${title}`;
-  const subtitle = loading
-    ? "Checking your queue…"
-    : ready
-      ? lessons
-        ? "We cooked up these lessons just for you."
-        : "Review these items to level them up!"
-      : lessons
-        ? "You’ve done all your available lessons!"
-        : "There are no more reviews to do right now.";
+  const subtitle = lessons
+    ? "Main lessons are coming to the web app."
+    : "Main reviews are coming to the web app.";
   const art = QUEUE_ART[type][ready ? "ready" : "empty"];
 
   return (
     <article
       className={styles.queueRow}
       data-kind={type}
-      data-state={loading ? "loading" : ready ? "ready" : "empty"}
+      data-state="coming-soon"
       aria-busy={loading || undefined}
-      aria-label={`${title} study queue`}
+      aria-label={`${title} study queue, coming soon`}
     >
       <Image
         className={styles.queueArtwork}
@@ -68,25 +59,9 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
         <p className={styles.queueSubtitle}>{subtitle}</p>
 
         <div className={styles.queueBottom}>
-          {ready ? (
-            preview ? (
-              <span className={styles.queueAction}>{actionLabel}<ChevronRight size={16} aria-hidden /></span>
-            ) : (
-              <ButtonLink
-                className={styles.queueAction}
-                href={lessons ? "/lessons" : "/reviews"}
-                size="small"
-                state={loading ? "loading" : "idle"}
-                disabled={loading}
-              >
-                {actionLabel}<ChevronRight size={16} aria-hidden />
-              </ButtonLink>
-            )
-          ) : lessons ? (
-            <p className={styles.queueEmptyMessage}>No lessons available right now.</p>
-          ) : (
-            <span className={styles.queueAction} aria-disabled="true">{actionLabel}<ChevronRight size={16} aria-hidden /></span>
-          )}
+          {preview
+            ? <span className={styles.queueAction} aria-disabled="true">Coming soon</span>
+            : <button className={styles.queueAction} type="button" disabled>Coming soon</button>}
         </div>
       </div>
     </article>

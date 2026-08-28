@@ -7,15 +7,16 @@ import styles from "./ui.module.css";
 export type ButtonTone = "default" | "primary" | "accent" | "danger" | "ghost";
 export type ButtonState = "idle" | "loading" | "error" | "success";
 type ButtonVisualProps = { children: ReactNode; tone?: ButtonTone; size?: "default" | "small"; wide?: boolean; state?: ButtonState };
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & ButtonVisualProps & { interactiveWhileLoading?: boolean };
 
 function buttonClassName({ tone = "default", size = "default", wide = false, className }: Omit<ButtonVisualProps, "children" | "state"> & { className?: string }) {
   return cn(styles.button, styles[`button${tone[0].toUpperCase()}${tone.slice(1)}`], size === "small" && styles.buttonSmall, wide && styles.buttonWide, className);
 }
 
-export function Button({ children, tone = "default", size = "default", wide = false, state = "idle", disabled, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & ButtonVisualProps) {
+export function Button({ children, tone = "default", size = "default", wide = false, state = "idle", disabled, interactiveWhileLoading = false, className, ...props }: ButtonProps) {
   const icon = state === "loading" ? <span className={styles.spinner} aria-hidden /> : state === "error" ? <CircleAlert size={16} aria-hidden /> : state === "success" ? <Check size={16} aria-hidden /> : null;
   return (
-    <button className={buttonClassName({ tone, size, wide, className })} data-state={state} disabled={disabled || state === "loading"} aria-busy={state === "loading"} {...props}>
+    <button className={buttonClassName({ tone, size, wide, className })} data-state={state} data-loading-interactive={interactiveWhileLoading || undefined} disabled={disabled || (state === "loading" && !interactiveWhileLoading)} aria-busy={state === "loading"} {...props}>
       {icon}{children}
     </button>
   );

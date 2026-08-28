@@ -25,6 +25,7 @@
 .button:active { transform: translateY(1px); }
 .button:disabled, .button[aria-disabled="true"] { cursor: not-allowed; opacity: .55; transform: none; background: var(--color-paper-3); border-color: var(--color-rule); color: var(--color-ink-2); }
 .button[data-state="loading"] { cursor: progress; }
+.button[data-state="loading"][data-loading-interactive="true"] { cursor: pointer; }
 .button[data-state="error"] { border-color: var(--color-danger); background: var(--color-danger-soft); color: var(--color-danger); }
 .button[data-state="success"] { border-color: var(--color-success); background: var(--color-success-soft); color: var(--color-success); }
 .button[data-state="error"] > svg:first-child, .button[data-state="success"] > svg:first-child { animation: buttonStateIconIn var(--dur-short) var(--ease-out) both; }

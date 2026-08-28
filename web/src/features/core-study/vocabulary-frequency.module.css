@@ -1,0 +1,22 @@
+.badge {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+}
+
+.review {
+  min-width: 44px;
+  margin-top: 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.details {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}

@@ -23,6 +23,15 @@ function subject(id: number, object: Subject["object"], characters: string | nul
   };
 }
 
+function imageRadical(id: number, meaning: string): Subject {
+  const value = subject(id, "radical", null, meaning);
+  value.data.character_images = [
+    { url: `https://files.wanikani.com/${id}-256.png`, content_type: "image/png", metadata: { dimensions: "256x256" } },
+    { url: `https://files.wanikani.com/${id}.svg`, content_type: "image/svg+xml" },
+  ];
+  return value;
+}
+
 const lists: SubjectList[] = [{
   id: "core",
   name: "Core review",
@@ -71,5 +80,17 @@ describe("SubjectListsWidget", () => {
 
     rerender(<SubjectListsWidget lists={[]} subjects={[]} syncing={false} syncError="offline" />);
     expect(screen.getByText("Saved locally; account sync is temporarily unavailable")).toBeInTheDocument();
+  });
+
+  it("uses radical artwork in list preview chips when WaniKani has no characters", () => {
+    render(<SubjectListsWidget
+      lists={[{ ...lists[0], subjectIds: [1] }]}
+      subjects={[imageRadical(1, "Creeper")]}
+      syncing={false}
+      syncError=""
+    />);
+
+    expect(screen.getByRole("img", { name: "Creeper radical", hidden: true })).toHaveAttribute("src", "https://files.wanikani.com/1.svg");
+    expect(screen.queryByText("CR")).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { deleteRecord, loadMangaOcrPage, saveLibrary, saveMangaOcrPage } from "../storage";
+import { deleteRecord, loadLibrary, loadMangaOcrPage, reorderLibrary, saveLibrary, saveMangaOcrPage, updateRecordInPlace } from "../storage";
 import type { ContentRecord } from "../types";
 
 const record: ContentRecord = {
@@ -31,5 +31,26 @@ describe("manga OCR storage", () => {
     saveMangaOcrPage(record.id, 1, "学校へ行く");
     await deleteRecord(record);
     expect(loadMangaOcrPage(record.id, 1)).toBeNull();
+  });
+
+  it("updates manga progress without changing a custom library order", () => {
+    const second = { ...record, id: "manga-2", title: "Second manga" };
+    saveLibrary("manga", [second, record]);
+
+    updateRecordInPlace({ ...record, progress: 0.5, currentPage: 6 });
+
+    expect(loadLibrary("manga").map((item) => item.id)).toEqual([second.id, record.id]);
+    expect(loadLibrary("manga")[1]).toMatchObject({ progress: 0.5, currentPage: 6 });
+  });
+
+  it("reorders the latest stored manga records by id", () => {
+    const second = { ...record, id: "manga-2", title: "Second manga", progress: 0.75 };
+    saveLibrary("manga", [record, second]);
+
+    const reordered = reorderLibrary("manga", [second.id, record.id]);
+
+    expect(reordered.map((item) => item.id)).toEqual([second.id, record.id]);
+    expect(reordered[0].progress).toBe(0.75);
+    expect(loadLibrary("manga").map((item) => item.id)).toEqual([second.id, record.id]);
   });
 });

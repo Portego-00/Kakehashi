@@ -1,7 +1,8 @@
 "use client";
 
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowUp, BookOpenText, Check, Download, ExternalLink, EyeOff, FileUp, GripVertical, HeartHandshake, KeyRound, Keyboard, LayoutDashboard, Moon, Palette, Plus, RotateCcw, SlidersHorizontal, Trash2, Type, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, BookOpenText, Check, Download, ExternalLink, EyeOff, FileUp, GripVertical, HeartHandshake, KeyRound, Keyboard, LayoutDashboard, LogOut, Moon, Palette, Plus, RotateCcw, SlidersHorizontal, Trash2, Type, UserRound, Volume2 } from "lucide-react";
 import { GitHubMark, PatreonIcon } from "@/components/icons/BrandIcons";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -9,14 +10,14 @@ import { Card } from "@/components/ui/Card";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import type { AnimeListProvider } from "@/features/anime/types";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
-import { JAPANESE_VOICE_DOWNLOAD_LABEL } from "@/features/speech/japanese-voice-assets";
+import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import { useSession } from "@/lib/session";
 import { useTheme, type ThemeMode } from "@/lib/theme";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
 import { GITHUB_REPOSITORY_URL, PATREON_URL } from "@/lib/project-links";
 import { BUILT_IN_JITAI_FONTS, deleteCustomJitaiFont, installCustomJitaiFonts, readFontFile, saveCustomJitaiFont } from "../jitai";
-import { applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DASHBOARD_SECTIONS, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, OPTIONAL_NAV_ITEMS, saveWebSettings, SUBJECT_COLOR_PRESETS, type AnswerStopBehavior, type AnkiMode, type DashboardSectionId, type DashboardSectionWidth, type QuestionOrder, type TextScale, type WebSettings } from "../settings";
+import { applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, NAVBAR_TAB_IDS, OPTIONAL_NAV_ITEMS, REQUIRED_NAVBAR_TAB_IDS, REVIEW_BATCH_SIZE_VALUES, saveWebSettings, settingsStorageKey, SUBJECT_COLOR_PRESETS, type AnkiMode, type DashboardSectionId, type DashboardSectionWidth, type NavbarTabId, type QuestionOrder, type TextScale, type WebSettings } from "../settings";
 import styles from "../settings.module.css";
 
 const storage = {
@@ -37,7 +38,35 @@ const TEXT_SCALES: Array<{ value: TextScale; label: string; description: string 
   { value: 1.1, label: "Large", description: "More comfortable text" },
   { value: 1.2, label: "Extra large", description: "Maximum readability" },
 ];
-const WORKSPACE_LABELS: Record<string, string> = { analytics: "Analytics", items: "Items", search: "Search", lists: "Subject lists", news: "News", reader: "Text reader", epubs: "Books", music: "Lyrics", video: "Video", manga: "Manga", translator: "Translator", community: "Community" };
+const REVIEW_ORDER_OPTIONS = [
+  { value: "random", label: "Random" },
+  { value: "ascendingSrsStage", label: "Lower SRS first" },
+  { value: "descendingSrsStage", label: "Higher SRS first" },
+  { value: "currentLevelFirst", label: "Current level first" },
+  { value: "lowestLevelFirst", label: "Lowest level first" },
+  { value: "newestAvailableFirst", label: "Newest available first" },
+  { value: "oldestAvailableFirst", label: "Oldest available first" },
+  { value: "longestRelativeWait", label: "Most overdue first" },
+] as const satisfies ReadonlyArray<{ value: WebSettings["study"]["reviewOrder"]; label: string }>;
+const REVIEW_TYPE_LABELS = {
+  radical: "Radicals",
+  kanji: "Kanji",
+  vocabulary: "Vocabulary",
+} as const;
+const REVIEW_TYPE_POSITIONS = ["First", "Second", "Third"] as const;
+const WORKSPACE_LABELS: Record<string, string> = { analytics: "Analytics", items: "Items", search: "Search", lists: "Subject lists", news: "News", reader: "Text reader", epubs: "Books", music: "Songs", video: "Video", manga: "Manga", translator: "Translator", community: "Community" };
+const NAVBAR_TAB_OPTIONS: Array<{ id: NavbarTabId; label: string; description: string }> = [
+  { id: "home", label: "Home", description: "Dashboard with lessons, reviews, and progress." },
+  { id: "level", label: "Level", description: "Current level progress and SRS stages." },
+  { id: "items", label: "Items", description: "Browse radicals, kanji, and vocabulary." },
+  { id: "analytics", label: "Analytics", description: "Detailed statistics and review history." },
+  { id: "news", label: "News", description: "NHK Easier articles and reading practice." },
+  { id: "epubs", label: "Books", description: "Your EPUB library and reader." },
+  { id: "video", label: "Video", description: "Local video with Japanese subtitles." },
+  { id: "manga", label: "Manga", description: "Manga reading with on-device OCR." },
+  { id: "music", label: "Songs", description: "Japanese music, synced lyrics, and translation." },
+];
+const REQUIRED_NAVBAR_TABS = new Set<NavbarTabId>(REQUIRED_NAVBAR_TAB_IDS);
 const DASHBOARD_DEFINITION_BY_ID = new Map(DASHBOARD_SECTION_DEFINITIONS.map((definition) => [definition.id, definition]));
 const DASHBOARD_WIDTH_LABELS: Record<DashboardSectionWidth, string> = { 4: "⅓", 6: "½", 8: "⅔", 12: "Full" };
 const DASHBOARD_WIDTH_NAMES: Record<DashboardSectionWidth, string> = { 4: "one third", 6: "one half", 8: "two thirds", 12: "full width" };
@@ -111,7 +140,8 @@ function moveRadio(event: KeyboardEvent<HTMLButtonElement>, index: number, total
 }
 
 export function SettingsWorkspace() {
-  const { user } = useSession();
+  const router = useRouter();
+  const { user, signOut } = useSession();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const username = user?.data.username ?? "anonymous";
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_WEB_SETTINGS);
@@ -120,19 +150,27 @@ export function SettingsWorkspace() {
   const [fontError, setFontError] = useState("");
   const [gravatarEmailInput, setGravatarEmailInput] = useState("");
   const [gravatarEmailError, setGravatarEmailError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
   const voiceSupported = useSyncExternalStore(noopSubscribe, () => {
     const browser = window as typeof window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
     return Boolean(browser.SpeechRecognition || browser.webkitSpeechRecognition);
   }, () => false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const load = () => {
       const loaded = loadWebSettings(storage, username);
       setSettings(loaded);
       setGravatarEmailInput(loaded.profile.gravatarEmail);
       applyWebSettings(loaded);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    };
+    const timer = window.setTimeout(load, 0);
+    const onStorage = (event: StorageEvent) => { if (event.key === settingsStorageKey(username)) load(); };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [username]);
 
   useEffect(() => { void installCustomJitaiFonts(settings.study.jitaiCustomFonts).catch(() => setFontError("A saved custom font could not be loaded by this browser.")); }, [settings.study.jitaiCustomFonts]);
@@ -145,6 +183,13 @@ export function SettingsWorkspace() {
     window.setTimeout(() => setSaved(false), 1200);
   };
   const updateStudy = <Key extends keyof WebSettings["study"],>(key: Key, value: WebSettings["study"][Key]) => update({ ...settings, study: { ...settings.study, [key]: value } });
+  const updateReviewTypePosition = (position: number, value: WebSettings["study"]["reviewTypeOrder"][number]) => {
+    const reviewTypeOrder = [...settings.study.reviewTypeOrder];
+    const previousPosition = reviewTypeOrder.indexOf(value);
+    if (previousPosition < 0 || previousPosition === position) return;
+    [reviewTypeOrder[position], reviewTypeOrder[previousPosition]] = [reviewTypeOrder[previousPosition], reviewTypeOrder[position]];
+    updateStudy("reviewTypeOrder", reviewTypeOrder);
+  };
   const updateReader = <Key extends keyof WebSettings["reader"],>(key: Key, value: WebSettings["reader"][Key]) => update({ ...settings, reader: { ...settings.reader, [key]: value } });
   const updateAnimeUsername = (provider: AnimeListProvider, value: string) => update({ ...settings, integrations: { ...settings.integrations, [provider === "myanimelist" ? "myAnimeListUsername" : "aniListUsername"]: value } });
   const updateSubjectDetails = <Key extends keyof WebSettings["subjectDetails"],>(key: Key, value: WebSettings["subjectDetails"][Key]) => update({ ...settings, subjectDetails: { ...settings.subjectDetails, [key]: value } });
@@ -160,6 +205,13 @@ export function SettingsWorkspace() {
     update({ ...settings, profile: { ...settings.profile, gravatarEmail } });
   };
   const toggleNav = (id: string) => update({ ...settings, workspace: { ...settings.workspace, visibleNav: settings.workspace.visibleNav.includes(id) ? settings.workspace.visibleNav.filter((item) => item !== id) : [...settings.workspace.visibleNav, id] } });
+  const toggleNavbarTab = (id: NavbarTabId) => {
+    if (REQUIRED_NAVBAR_TABS.has(id)) return;
+    const selected = new Set(settings.workspace.navbarTabs);
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    update({ ...settings, workspace: { ...settings.workspace, navbarTabs: NAVBAR_TAB_IDS.filter((tabId) => selected.has(tabId)) } });
+  };
   const reset = () => {
     settings.study.jitaiCustomFonts.forEach((font) => { void deleteCustomJitaiFont(font.id).catch(() => undefined); });
     setGravatarEmailInput(DEFAULT_WEB_SETTINGS.profile.gravatarEmail);
@@ -167,6 +219,18 @@ export function SettingsWorkspace() {
     update(DEFAULT_WEB_SETTINGS);
     setTheme("system");
     setConfirmReset(false);
+  };
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    setSignOutError("");
+    try {
+      await signOut();
+      router.replace("/login");
+    } catch (cause) {
+      setSignOutError(cause instanceof Error ? cause.message : "Kakehashi could not sign out. Check your connection and try again.");
+    } finally {
+      setSigningOut(false);
+    }
   };
   const toggleJitaiFont = (id: string) => {
     const selected = settings.study.jitaiSelectedFontIds;
@@ -188,6 +252,7 @@ export function SettingsWorkspace() {
     update({ ...settings, study: { ...settings.study, jitaiCustomFonts: settings.study.jitaiCustomFonts.filter((font) => font.id !== id), jitaiSelectedFontIds: settings.study.jitaiSelectedFontIds.filter((fontId) => fontId !== id) } });
     void deleteCustomJitaiFont(id).catch(() => setFontError("The font was removed from settings, but its browser asset could not be deleted."));
   };
+  const groupedAnkiQuestions = settings.study.ankiMode === "both" && settings.study.ankiGroupQuestions;
 
   return <main className={`page ${styles.page}`}>
     <header className="page-header"><div><h1>Settings</h1><p>Appearance and study behavior are saved locally for {username} on this browser.</p></div><div className={styles.headerActions}><span className={styles.savedStatus} role="status" aria-live="polite">{saved ? <Badge tone="success"><Check size={13} /> Saved</Badge> : null}</span>{confirmReset ? <><Button tone="danger" onClick={reset}>Confirm Reset</Button><Button tone="ghost" onClick={() => setConfirmReset(false)}>Cancel</Button></> : <Button tone="ghost" onClick={() => setConfirmReset(true)}><RotateCcw size={16} /> Reset</Button>}</div></header>
@@ -224,6 +289,8 @@ export function SettingsWorkspace() {
       </Card>
     </section>
 
+    <JapaneseVoiceDownloadSetting />
+
     <section className={styles.settingsSection} aria-labelledby="appearance-heading">
       <div className={styles.sectionIntro}><Moon size={19} /><div><h2 id="appearance-heading">Appearance</h2><p>Choose a base theme. System mode tracks the browser setting.</p></div></div>
       <Card padding="none" className={styles.optionCard}><div className={styles.themeOptions} role="radiogroup" aria-label="Theme">{THEMES.map((option, index) => <button type="button" role="radio" aria-checked={theme === option.id} tabIndex={theme === option.id ? 0 : -1} key={option.id} onClick={() => setTheme(option.id)} onKeyDown={(event) => moveRadio(event, index, THEMES.length, (next) => setTheme(THEMES[next].id))}><span className={styles.themeSwatch} data-theme-swatch={option.id === "system" ? resolvedTheme : option.id} /><span><strong>{option.label}</strong><small>{option.description}</small></span>{theme === option.id ? <Check size={17} aria-hidden /> : null}</button>)}</div></Card>
@@ -242,29 +309,89 @@ export function SettingsWorkspace() {
       </Card>
     </section>
 
-    <section className={styles.settingsSection} aria-labelledby="study-heading">
-      <div className={styles.sectionIntro}><SlidersHorizontal size={19} /><div><h2 id="study-heading">Study preferences</h2><p>Defaults used when you start lessons, reviews, and extra study modes.</p></div></div>
+    <section className={styles.settingsSection} aria-labelledby="lessons-heading">
+      <div className={styles.sectionIntro}><BookOpenText size={19} aria-hidden /><div><h2 id="lessons-heading">Lessons</h2><p>Choose how lessons are selected, grouped, and quizzed.</p></div></div>
       <Card padding="none" className={styles.preferenceCard}>
-        <ToggleRow label="Autoplay pronunciation audio" description="Play vocabulary audio after a correct answer." checked={settings.study.autoplayAudio} onChange={(value) => updateStudy("autoplayAudio", value)} />
-        <ToggleRow label="Show SRS indicator" description="Keep the subject’s current stage visible during study." checked={settings.study.showSrsIndicator} onChange={(value) => updateStudy("showSrsIndicator", value)} />
-        <ToggleRow label="Keyboard shortcuts" description="Use number keys, Enter, and Space in study sessions." checked={settings.study.keyboardShortcuts} onChange={(value) => updateStudy("keyboardShortcuts", value)} icon={<Keyboard size={17} />} />
-        <ToggleRow label="Shuffle subjects" description="Randomize selected subjects before a session starts." checked={settings.study.shuffleSubjects} onChange={(value) => updateStudy("shuffleSubjects", value)} />
-        <label className={styles.selectRow}><span><strong>Lesson batch size</strong><small>Subjects shown together in one lesson batch.</small></span><select value={settings.study.lessonsBatchSize} onChange={(event) => updateStudy("lessonsBatchSize", Number(event.target.value))}>{[3, 5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        <label className={styles.selectRow}><span><strong>Lesson question order</strong><small>Order meaning and reading prompts in lesson quizzes.</small></span><select value={settings.study.lessonQuestionOrder} onChange={(event) => updateStudy("lessonQuestionOrder", event.target.value as QuestionOrder)}><option value="mixed">Per subject</option><option value="meaning-first">All meanings first</option><option value="reading-first">All readings first</option></select></label>
-        <label className={styles.selectRow}><span><strong>Review question order</strong><small>Order meaning and reading prompts in reviews.</small></span><select value={settings.study.reviewQuestionOrder} onChange={(event) => updateStudy("reviewQuestionOrder", event.target.value as QuestionOrder)}><option value="mixed">Per subject</option><option value="meaning-first">All meanings first</option><option value="reading-first">All readings first</option></select></label>
-        <label className={styles.selectRow}><span><strong>Pause after answers</strong><small>Choose when answer feedback waits for you before continuing.</small></span><select value={settings.study.answerStopBehavior} onChange={(event) => updateStudy("answerStopBehavior", event.target.value as AnswerStopBehavior)}><option value="always">Every answer</option><option value="incorrect">Incorrect answers only</option><option value="never">Never (brief feedback)</option></select></label>
-        <ToggleRow label="Show details at answer stops" description="Expand meaning, reading, and context while feedback is paused." checked={settings.study.showAnswerStopSubjectDetails} onChange={(value) => updateStudy("showAnswerStopSubjectDetails", value)} />
-        <ToggleRow label="Show listening translation control" description="Add a reveal button to anime listening prompts. Translations stay hidden until you choose to show them." checked={settings.study.showListeningTranslation} onChange={(value) => updateStudy("showListeningTranslation", value)} />
-        <label className={styles.selectRow}><span><strong>Self-assessment cards</strong><small>Reveal the answer and grade yourself instead of typing.</small></span><select value={settings.study.ankiMode} onChange={(event) => updateStudy("ankiMode", event.target.value as AnkiMode)}><option value="off">Off</option><option value="both">Meanings and readings</option><option value="meaning">Meanings only</option><option value="reading">Readings only</option></select></label>
-        <ToggleRow label="Voice answers" description={voiceSupported ? "Dictate into the focused answer field using browser speech recognition." : "Unavailable in this browser; typed answers remain available."} checked={voiceSupported && settings.study.voiceAnswers} disabled={!voiceSupported} onChange={(value) => updateStudy("voiceAnswers", value)} />
-        <label className={styles.selectRow}><span><strong>Daily lesson limit</strong><small>Cap lessons started in this browser each day.</small></span><select value={settings.study.dailyLessonLimit} onChange={(event) => updateStudy("dailyLessonLimit", Number(event.target.value))}><option value={0}>No limit</option>{[5, 10, 15, 20, 30].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        <label className={styles.selectRow}><span><strong>Lesson order</strong><small>Choose how available lessons enter a batch.</small></span><select value={settings.study.lessonOrder} onChange={(event) => updateStudy("lessonOrder", event.target.value as WebSettings["study"]["lessonOrder"])}><option value="available">Available first</option><option value="subject-type">Radicals, kanji, vocabulary</option><option value="level">Lowest level first</option></select></label>
-        <label className={styles.selectRow}><span><strong>Review order</strong><small>Choose how ready reviews enter the session.</small></span><select value={settings.study.reviewOrder} onChange={(event) => updateStudy("reviewOrder", event.target.value as WebSettings["study"]["reviewOrder"])}><option value="random">Random</option><option value="available">Oldest available first</option><option value="srs">Lowest SRS stage first</option><option value="subject-type">Radicals, kanji, vocabulary</option></select></label>
-        <label className={styles.selectRow}><span><strong>Review batch size</strong><small>Maximum review subjects loaded into one session.</small></span><select value={settings.study.reviewBatchSize} onChange={(event) => updateStudy("reviewBatchSize", Number(event.target.value))}>{[10, 25, 50].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        <label className={styles.selectRow}><span><strong>Wrap-up size</strong><small>Subjects kept when you choose Wrap Up.</small></span><select value={settings.study.reviewWrapUpSize} onChange={(event) => updateStudy("reviewWrapUpSize", Number(event.target.value))}>{[5, 10, 15].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        <div className={styles.animePickerRow}><span><strong>Anime listening sources</strong><small>Choose visually or sync the shows you watch on MyAnimeList or AniList.</small></span><AnimePicker selectedSources={settings.study.immersionKitAnimeSources} onChange={(sources) => updateStudy("immersionKitAnimeSources", sources)} label="Anime listening sources" syncUsernames={{ myanimelist: settings.integrations.myAnimeListUsername, anilist: settings.integrations.aniListUsername }} onSyncUsernameChange={updateAnimeUsername} /></div>
-        <label className={styles.selectRow}><span><strong>EPUB daily goal</strong><small>Active reading time counted locally while a book is open.</small></span><select value={settings.study.epubDailyGoalMinutes} onChange={(event) => updateStudy("epubDailyGoalMinutes", Number(event.target.value))}>{[5, 10, 15, 20, 30, 45, 60].map((value) => <option key={value} value={value}>{value} minutes</option>)}</select></label>
+        <label className={styles.selectRow}><span><strong>Lesson batch size</strong><small>Subjects shown together in one lesson batch.</small></span><select aria-label="Lesson batch size" value={settings.study.lessonsBatchSize} onChange={(event) => updateStudy("lessonsBatchSize", Number(event.target.value))}>{[3, 5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label className={styles.selectRow}><span><strong>Daily lesson limit</strong><small>Cap lessons started in this browser each day.</small></span><select aria-label="Daily lesson limit" value={settings.study.dailyLessonLimit} onChange={(event) => updateStudy("dailyLessonLimit", Number(event.target.value))}><option value={0}>No limit</option>{[5, 10, 15, 20, 30].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label className={styles.selectRow}><span><strong>Lesson order</strong><small>Choose how available lessons enter a batch.</small></span><select aria-label="Lesson order" value={settings.study.lessonOrder} onChange={(event) => updateStudy("lessonOrder", event.target.value as WebSettings["study"]["lessonOrder"])}><option value="available">Available first</option><option value="subject-type">Radicals, kanji, vocabulary</option><option value="level">Lowest level first</option></select></label>
+        <label className={styles.selectRow}><span><strong>Lesson question order</strong><small>Order meaning and reading prompts in lesson quizzes.</small></span><select aria-label="Lesson question order" value={settings.study.lessonQuestionOrder} onChange={(event) => updateStudy("lessonQuestionOrder", event.target.value as QuestionOrder)}><option value="mixed">Per subject</option><option value="meaning-first">All meanings first</option><option value="reading-first">All readings first</option></select></label>
+      </Card>
+    </section>
+
+    <section className={styles.settingsSection} aria-labelledby="reviews-heading">
+      <div className={styles.sectionIntro}><SlidersHorizontal size={19} aria-hidden /><div><h2 id="reviews-heading">Reviews</h2><p>Match the mobile app’s review order, prompt, answer, and Anki behavior.</p></div></div>
+      <Card padding="none" className={styles.preferenceCard}>
+        <div className={styles.subsectionHead}><h3>Review order</h3><p>Control which subjects appear first and how their questions are paired.</p></div>
+        <label className={styles.selectRow}><span><strong>Review subject order</strong><small>Used by regular WaniKani review sessions.</small></span><select aria-label="Review subject order" value={settings.study.reviewOrder} onChange={(event) => updateStudy("reviewOrder", event.target.value as WebSettings["study"]["reviewOrder"])}>{REVIEW_ORDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label className={styles.selectRow}><span><strong>Custom review subject order</strong><small>Used by custom reviews.</small></span><select aria-label="Custom review subject order" value={settings.study.customReviewOrder} onChange={(event) => updateStudy("customReviewOrder", event.target.value as WebSettings["study"]["customReviewOrder"])}>{REVIEW_ORDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <ToggleRow label="Group by item type" description="Keep radicals, kanji, and vocabulary grouped in your chosen order." checked={settings.study.reviewTypeOrderEnabled} onChange={(value) => updateStudy("reviewTypeOrderEnabled", value)} />
+        {settings.study.reviewTypeOrderEnabled ? REVIEW_TYPE_POSITIONS.map((positionLabel, position) => {
+          const reviewType = settings.study.reviewTypeOrder[position];
+          if (!reviewType) return null;
+          return <label className={styles.selectRow} key={positionLabel}><span><strong>{positionLabel} item type</strong><small>{positionLabel} group shown when item type grouping is enabled.</small></span><select aria-label={`${positionLabel} item type`} value={reviewType} onChange={(event) => updateReviewTypePosition(position, event.target.value as WebSettings["study"]["reviewTypeOrder"][number])}>{Object.entries(REVIEW_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>;
+        }) : null}
+        <ToggleRow label="Force meaning/reading order" description="Always ask your preferred question type first when both are available." checked={settings.study.reviewQuestionOrderEnabled} onChange={(value) => updateStudy("reviewQuestionOrderEnabled", value)} />
+        {settings.study.reviewQuestionOrderEnabled
+          ? <label className={styles.selectRow}><span><strong>Review question order</strong><small>Choose whether meaning or reading comes first.</small></span><select aria-label="Review question order" value={settings.study.reviewQuestionOrder === "reading-first" ? "reading-first" : "meaning-first"} onChange={(event) => updateStudy("reviewQuestionOrder", event.target.value as QuestionOrder)}><option value="meaning-first">Meaning first</option><option value="reading-first">Reading first</option></select></label>
+          : <p className={styles.conditionalHint}>Turn this on to always show your preferred question type first.</p>}
+        <ToggleRow label="Prioritize critical items" description="Show current-level Apprentice radicals and kanji first." checked={settings.study.prioritizeCriticalItems} onChange={(value) => updateStudy("prioritizeCriticalItems", value)} />
+
+        <div className={styles.subsectionHead}><h3>Prompt</h3><p>Choose the information and aids visible while a review is active.</p></div>
+        <ToggleRow label="Show item level & SRS stage" description="Display the subject level and current SRS stage together during reviews." checked={settings.study.showReviewItemLevelAndSrsStage} onChange={(value) => updateStudy("showReviewItemLevelAndSrsStage", value)} />
+        <ToggleRow label="Show vocabulary frequency" description="Look up and display the word’s Jiten frequency rank on vocabulary prompts." checked={settings.study.showVocabularyFrequency} onChange={(value) => updateStudy("showVocabularyFrequency", value)} />
+        <ToggleRow label="Vocabulary context sentence hints" description="Offer Japanese context during vocabulary reviews; translations remain hidden until revealed." checked={settings.study.showVocabContextSentencesInReviews} onChange={(value) => updateStudy("showVocabContextSentencesInReviews", value)} />
+        <ToggleRow label="Review search button" description="Open this subject in Search without closing the review tab." checked={settings.study.reviewSearchButtonEnabled} onChange={(value) => updateStudy("reviewSearchButtonEnabled", value)} />
+        <label className={styles.selectRow}><span><strong>Review character size</strong><small>Scale the large Japanese prompt independently of the rest of the app.</small></span><select aria-label="Review character size" value={settings.study.reviewCharacterFontScale} onChange={(event) => updateStudy("reviewCharacterFontScale", Number(event.target.value))}>{[0.7, 0.8, 0.9, 1, 1.1, 1.2].map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
+        <label className={styles.selectRow}><span><strong>Review answer size</strong><small>Scale text entered in the review answer field.</small></span><select aria-label="Review answer size" value={settings.study.reviewInputFontScale} onChange={(event) => updateStudy("reviewInputFontScale", Number(event.target.value))}>{[0.7, 0.8, 0.9, 1, 1.1, 1.2].map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
         <div className={styles.jitaiRow}><div><strong>Jitai font randomization</strong><small>Randomize the Japanese prompt font per question from your selected pool.</small></div><ToggleRow label="Enable Jitai" description="" checked={settings.study.jitaiEnabled} onChange={(value) => updateStudy("jitaiEnabled", value)} /><div className={styles.fontGrid}>{BUILT_IN_JITAI_FONTS.map((font) => <label key={font.id} style={{ fontFamily: font.family }}><input type="checkbox" checked={settings.study.jitaiSelectedFontIds.includes(font.id)} onChange={() => toggleJitaiFont(font.id)} />{font.name} 日本語</label>)}{settings.study.jitaiCustomFonts.map((font) => <div key={font.id}><label style={{ fontFamily: `KakehashiJitai_${font.id.replace(/[^a-z0-9_]/gi, "_")}` }}><input type="checkbox" checked={settings.study.jitaiSelectedFontIds.includes(font.id)} onChange={() => toggleJitaiFont(font.id)} />{font.name} 日本語</label><button type="button" onClick={() => removeFont(font.id)} aria-label={`Remove ${font.name}`}><Trash2 size={15} aria-hidden /></button></div>)}</div><label className={styles.fontUpload}><FileUp size={16} aria-hidden />Upload font<input type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" onChange={(event) => { void importFont(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>{fontError ? <p className={styles.inlineError} role="alert">{fontError}</p> : null}</div>
+
+        <div className={styles.subsectionHead}><h3>Answer behavior</h3><p>Control pauses, accepted answers, navigation, and queue limits.</p></div>
+        <ToggleRow label="Keyboard shortcuts" description="Use number keys, Enter, and Space in review sessions." checked={settings.study.keyboardShortcuts} onChange={(value) => updateStudy("keyboardShortcuts", value)} icon={<Keyboard size={17} />} />
+        <ToggleRow label="Pause on wrong answer" description="Wait so you can inspect the correct answer before continuing." checked={settings.study.pauseOnWrong} onChange={(value) => updateStudy("pauseOnWrong", value)} />
+        <ToggleRow label="Pause on close answer" description="Wait after a fuzzy meaning match so you can inspect what was accepted." checked={settings.study.pauseOnClose} onChange={(value) => updateStudy("pauseOnClose", value)} />
+        <ToggleRow label="Pause on correct answer" description="Wait after precise answers instead of progressing automatically." checked={settings.study.pauseOnCorrect} onChange={(value) => updateStudy("pauseOnCorrect", value)} />
+        <ToggleRow label="Answer feedback sounds" description="Play a short cue after correct and incorrect review answers." checked={settings.study.answerFeedbackSoundEnabled} onChange={(value) => updateStudy("answerFeedbackSoundEnabled", value)} />
+        <label className={styles.selectRow}><span><strong>SRS progression</strong><small>Show the new SRS stage after a review subject is submitted.</small></span><select aria-label="SRS progression" value={settings.study.srsProgressionCardDisplayMode} onChange={(event) => updateStudy("srsProgressionCardDisplayMode", event.target.value as WebSettings["study"]["srsProgressionCardDisplayMode"])}><option value="normal">Normal</option><option value="compact">Compact</option><option value="hidden">Hidden</option></select></label>
+        <ToggleRow label="Show details on answer pause" description="Open the full subject details when the selected answer outcome pauses." checked={settings.study.showAnswerStopSubjectDetails} onChange={(value) => updateStudy("showAnswerStopSubjectDetails", value)} />
+        <ToggleRow label="Allow skipping reviews" description="Move the current question to the end without recording an incorrect answer." checked={settings.study.allowSkippingReviews} onChange={(value) => updateStudy("allowSkippingReviews", value)} />
+        <ToggleRow label="Accept user synonyms" description="Treat your WaniKani meaning synonyms as correct review answers." checked={settings.study.acceptUserSynonymsAsAnswers} onChange={(value) => updateStudy("acceptUserSynonymsAsAnswers", value)} />
+        <ToggleRow label="Show + Synonym button" description="Show the synonym action when a meaning answer is paused as wrong." checked={settings.study.showAddSynonymButton} onChange={(value) => updateStudy("showAddSynonymButton", value)} />
+        <ToggleRow label="Accept any kanji on’yomi reading" description="Treat every accepted on’yomi as correct on kanji reading questions." checked={settings.study.acceptAnyKanjiOnyomiReading} onChange={(value) => updateStudy("acceptAnyKanjiOnyomiReading", value)} />
+        <ToggleRow label="Voice answers" description={voiceSupported ? "Dictate into the focused answer field using browser speech recognition." : "Unavailable in this browser; typed answers remain available."} checked={voiceSupported && settings.study.voiceAnswers} disabled={!voiceSupported} onChange={(value) => updateStudy("voiceAnswers", value)} />
+        <ToggleRow label="Back-to-back questions" description="Show meaning and reading questions consecutively for each item." checked={settings.study.backToBackQuestions} disabled={groupedAnkiQuestions} onChange={(value) => updateStudy("backToBackQuestions", value)} />
+        {settings.study.backToBackQuestions && !groupedAnkiQuestions ? <ToggleRow label="Immediate retry on wrong" description="Re-ask failed questions right away in back-to-back mode." checked={settings.study.backToBackImmediateRetryIncorrect} onChange={(value) => updateStudy("backToBackImmediateRetryIncorrect", value)} /> : null}
+        <ToggleRow label="Animate previous question" description="Move the previous answer card from the center to the top-left." checked={settings.study.reviewAnimatePreviousQuestion} onChange={(value) => updateStudy("reviewAnimatePreviousQuestion", value)} />
+        <label className={styles.selectRow}><span><strong>Wrap-up size</strong><small>Subjects left after choosing Wrap Up.</small></span><select aria-label="Wrap-up size" value={settings.study.reviewWrapUpSize} onChange={(event) => updateStudy("reviewWrapUpSize", Number(event.target.value))}>{[5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <ToggleRow label="Limit review batch size" description="Cap the number of reviews loaded into the queue." checked={settings.study.reviewBatchSizeEnabled} onChange={(value) => updateStudy("reviewBatchSizeEnabled", value)} />
+        {settings.study.reviewBatchSizeEnabled ? <label className={styles.selectRow}><span><strong>Review batch size</strong><small>Number of subjects loaded per review session.</small></span><select aria-label="Review batch size" value={settings.study.reviewBatchSize} onChange={(event) => updateStudy("reviewBatchSize", Number(event.target.value))}>{REVIEW_BATCH_SIZE_VALUES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label> : null}
+
+        <div className={styles.subsectionHead}><h3>Anki mode</h3><p>Reveal answers and grade yourself using the familiar Anki flow.</p></div>
+        <label className={styles.selectRow}><span><strong>Anki mode</strong><small>Choose which question types use reveal-and-grade cards.</small></span><select aria-label="Anki mode" value={settings.study.ankiMode} onChange={(event) => { const ankiMode = event.target.value as AnkiMode; update({ ...settings, study: { ...settings.study, ankiMode, ankiGroupQuestions: ankiMode === "both" ? settings.study.ankiGroupQuestions : false } }); }}><option value="off">Off</option><option value="both">Meanings and readings</option><option value="meaning">Meanings only</option><option value="reading">Readings only</option></select></label>
+        {settings.study.ankiMode !== "off" ? <>
+          <ToggleRow label="Group meaning and reading" description={settings.study.ankiMode === "both" ? "Reveal and grade both sides of a subject on one card." : "Only available when “Meanings and readings” is selected."} checked={settings.study.ankiGroupQuestions} disabled={settings.study.ankiMode !== "both"} onChange={(value) => updateStudy("ankiGroupQuestions", value)} />
+          <ToggleRow label="Hide answer completely" description="Hide the answer until reveal instead of showing a blurred length hint." checked={settings.study.ankiHideAnswerCompletely} onChange={(value) => updateStudy("ankiHideAnswerCompletely", value)} />
+          <ToggleRow label="Buttonless Anki mode" description="After reveal, tap or swipe the card to grade, show details, or skip." checked={settings.study.ankiButtonlessMode} onChange={(value) => updateStudy("ankiButtonlessMode", value)} />
+          <ToggleRow label="Show other accepted answers" description="Include alternate accepted answers and your user synonyms after reveal." checked={settings.study.ankiShowOtherAcceptedAnswersAndUserSynonyms} onChange={(value) => updateStudy("ankiShowOtherAcceptedAnswersAndUserSynonyms", value)} />
+          <ToggleRow label="Show parts of speech" description="Include WaniKani vocabulary grammar tags after reveal." checked={settings.study.ankiShowWaniKaniGrammarTags} onChange={(value) => updateStudy("ankiShowWaniKaniGrammarTags", value)} />
+          <ToggleRow label="Show pitch accent numbers" description="Add compact pitch numbers to vocabulary reading cards." checked={settings.study.ankiShowPitchAccentNumbers} onChange={(value) => updateStudy("ankiShowPitchAccentNumbers", value)} />
+          <ToggleRow label="Show pitch accent graph" description="Add the mobile-style pitch contour after revealing a reading." checked={settings.study.ankiShowPitchAccentGraph} onChange={(value) => updateStudy("ankiShowPitchAccentGraph", value)} />
+          <ToggleRow label="Show replay audio button" description="Add a pronunciation replay action beside the revealed answer." checked={settings.study.ankiShowReplayAudioButton} onChange={(value) => updateStudy("ankiShowReplayAudioButton", value)} />
+        </> : null}
+
+        <div className={styles.subsectionHead}><h3>Vocabulary audio</h3><p>Choose automatic pronunciation and the preferred voice.</p></div>
+        <ToggleRow label="Autoplay vocabulary audio" description="Play pronunciation after a correct reading or when an Anki reading is revealed." checked={settings.study.autoplayAudio} onChange={(value) => updateStudy("autoplayAudio", value)} />
+        {settings.study.autoplayAudio ? <label className={styles.selectRow}><span><strong>Voice actor</strong><small>Prefer Kyoko, Kenichi, a random voice, or play both.</small></span><select aria-label="Voice actor" value={settings.study.vocabularyAudioVoice} onChange={(event) => updateStudy("vocabularyAudioVoice", event.target.value as WebSettings["study"]["vocabularyAudioVoice"])}><option value="female">Female · Kyoko</option><option value="male">Male · Kenichi</option><option value="random">Random</option><option value="both">Both</option></select></label> : null}
+      </Card>
+    </section>
+
+    <section className={styles.settingsSection} aria-labelledby="extra-study-reading-heading">
+      <div className={styles.sectionIntro}><Check size={19} aria-hidden /><div><h2 id="extra-study-reading-heading">Extra study &amp; reading</h2><p>Set defaults for custom quizzes, listening practice, and books.</p></div></div>
+      <Card padding="none" className={styles.preferenceCard}>
+        <ToggleRow label="Shuffle subjects" description="Randomize selected subjects before an extra study session starts." checked={settings.study.shuffleSubjects} onChange={(value) => updateStudy("shuffleSubjects", value)} />
+        <ToggleRow label="Show listening translation control" description="Add a reveal button to anime listening prompts. Translations stay hidden until you choose to show them." checked={settings.study.showListeningTranslation} onChange={(value) => updateStudy("showListeningTranslation", value)} />
+        <div className={styles.animePickerRow}><span><strong>Anime listening sources</strong><small>Choose visually or sync the shows you watch on MyAnimeList or AniList.</small></span><AnimePicker selectedSources={settings.study.immersionKitAnimeSources} onChange={(sources) => updateStudy("immersionKitAnimeSources", sources)} label="Anime listening sources" syncUsernames={{ myanimelist: settings.integrations.myAnimeListUsername, anilist: settings.integrations.aniListUsername }} onSyncUsernameChange={updateAnimeUsername} /></div>
+        <label className={styles.selectRow}><span><strong>EPUB daily goal</strong><small>Active reading time counted locally while a book is open.</small></span><select aria-label="EPUB daily goal" value={settings.study.epubDailyGoalMinutes} onChange={(event) => updateStudy("epubDailyGoalMinutes", Number(event.target.value))}>{[5, 10, 15, 20, 30, 45, 60].map((value) => <option key={value} value={value}>{value} minutes</option>)}</select></label>
       </Card>
     </section>
 
@@ -276,7 +403,6 @@ export function SettingsWorkspace() {
         <ToggleRow label="Show kanji stroke order" description="Add an animated Stroke tab to kanji details." checked={settings.subjectDetails.showStrokeOrder} onChange={(value) => updateSubjectDetails("showStrokeOrder", value)} />
         <ToggleRow label="Show vocabulary patterns of use" description="Add selectable collocation patterns and examples to vocabulary context." checked={settings.subjectDetails.showPatternsOfUse} onChange={(value) => updateSubjectDetails("showPatternsOfUse", value)} />
         <ToggleRow label="Show WaniKani context sentences" description="Include the official example sentences supplied with vocabulary subjects." checked={settings.subjectDetails.showContextSentences} onChange={(value) => updateSubjectDetails("showContextSentences", value)} />
-        <JapaneseVoiceDownloadSetting />
         <ToggleRow label="Show anime context examples" description="Look up an ImmersionKit scene using your saved anime source preferences." checked={settings.subjectDetails.showImmersionExamples} onChange={(value) => updateSubjectDetails("showImmersionExamples", value)} />
       </Card>
     </section>
@@ -286,16 +412,44 @@ export function SettingsWorkspace() {
       <Card padding="none" className={styles.preferenceCard}>
         <label className={styles.selectRow}><span><strong>Word details</strong><small>Click keeps hover as a visual highlight only. Hover opens details as soon as the pointer enters a word.</small></span><select value={settings.reader.detailsInteraction} onChange={(event) => updateReader("detailsInteraction", event.target.value as WebSettings["reader"]["detailsInteraction"])}><option value="click">Click</option><option value="hover">Hover</option></select></label>
         <label className={styles.selectRow}><span><strong>Text recognition</strong><small>Choose exact WaniKani matching or add JPDB parsing for grammar, verbs, and vocabulary.</small></span><select value={settings.reader.recognitionMode} onChange={(event) => updateReader("recognitionMode", event.target.value as WebSettings["reader"]["recognitionMode"])}><option value="wk">WaniKani only</option><option value="wk-jpdb">WaniKani + JPDB</option></select></label>
-        <label id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB API key</strong><small>Saved only in this browser and sent through Kakehashi when you analyze Japanese or translate a manga selection. Copy your free key from JPDB account settings.</small></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>
+        <label id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB API key</strong><small>Saved only in this browser and sent through Kakehashi when you analyze Japanese, translate a manga selection, or translate song lyrics. Copy your free key from JPDB account settings.</small></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>
+        <ToggleRow label="English lyric translations" description={settings.integrations.jpdbApiKey.trim() ? "Show JPDB machine translations beneath each Japanese lyric line." : "Save a JPDB API key to enable line-by-line song translations."} checked={settings.study.songsLyricsLineTranslationsEnabled} disabled={!settings.integrations.jpdbApiKey.trim()} onChange={(value) => updateStudy("songsLyricsLineTranslationsEnabled", value)} />
       </Card>
     </section>
 
     <section className={styles.settingsSection} aria-labelledby="workspace-heading">
-      <div className={styles.sectionIntro}><LayoutDashboard size={19} /><div><h2 id="workspace-heading">Workspace layout</h2><p>Keep optional destinations visible and put dashboard sections in the order you use them.</p></div></div>
+      <div className={styles.sectionIntro}><LayoutDashboard size={19} /><div><h2 id="workspace-heading">Workspace layout</h2><p>Choose your desktop navbar tabs, trim optional destinations, and arrange dashboard sections.</p></div></div>
       <div className={styles.workspaceOptions}>
-        <Card padding="none" className={styles.preferenceCard}><div className={styles.subsectionHead}><h3>Navigation</h3><p>Core study destinations always remain available.</p></div>{OPTIONAL_NAV_ITEMS.map((id) => <ToggleRow key={id} label={WORKSPACE_LABELS[id]} description={`Show ${WORKSPACE_LABELS[id].toLocaleLowerCase()} in the desktop navigation.`} checked={settings.workspace.visibleNav.includes(id)} onChange={() => toggleNav(id)} />)}</Card>
+        <Card padding="none" className={styles.preferenceCard}>
+          <div className={styles.subsectionHead}><h3>Desktop navbar tabs</h3><p>{settings.workspace.navbarTabs.length} shown. Home and Level are fixed; other tabs stay in More unless hidden below.</p></div>
+          {NAVBAR_TAB_OPTIONS.map((option) => {
+            const checked = settings.workspace.navbarTabs.includes(option.id);
+            const required = REQUIRED_NAVBAR_TABS.has(option.id);
+            const description = required ? `${option.description} Always shown.` : option.description;
+            return <ToggleRow key={option.id} label={option.label} description={description} checked={checked} disabled={required} onChange={() => toggleNavbarTab(option.id)} />;
+          })}
+          <div className={styles.subsectionHead}><h3>More menu</h3><p>Choose which optional destinations appear in More and in standalone header shortcuts.</p></div>
+          {OPTIONAL_NAV_ITEMS.map((id) => <ToggleRow key={id} label={WORKSPACE_LABELS[id]} description={`Show ${WORKSPACE_LABELS[id].toLocaleLowerCase()} in More and related shortcuts.`} checked={settings.workspace.visibleNav.includes(id)} onChange={() => toggleNav(id)} />)}
+        </Card>
         <DashboardLayoutEditor settings={settings} onChange={update} />
       </div>
+    </section>
+
+    <section className={styles.settingsSection} aria-labelledby="account-heading">
+      <div className={styles.sectionIntro}><LogOut size={19} aria-hidden /><div><h2 id="account-heading">Account</h2><p>Manage the active WaniKani session on this browser.</p></div></div>
+      <Card padding="none" className={styles.preferenceCard}>
+        <div className={styles.accountRow}>
+          <span>
+            <strong>Sign out</strong>
+            <small>Your settings and locally stored reading data will stay on this device.</small>
+            {signOutError ? <small className={styles.inlineError} role="alert">{signOutError}</small> : null}
+          </span>
+          <Button type="button" tone="danger" state={signingOut ? "loading" : signOutError ? "error" : "idle"} onClick={() => void handleSignOut()}>
+            {!signingOut && !signOutError ? <LogOut size={16} aria-hidden /> : null}
+            {signingOut ? "Signing out…" : signOutError ? "Try again" : "Sign out"}
+          </Button>
+        </div>
+      </Card>
     </section>
   </main>;
 }
@@ -344,7 +498,7 @@ function DashboardLayoutEditor({ settings, onChange }: { settings: WebSettings; 
     setAnnouncement(`${DASHBOARD_DEFINITION_BY_ID.get(id)?.label} set to ${DASHBOARD_WIDTH_NAMES[width]}.`);
   };
   const restoreDashboard = () => {
-    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DASHBOARD_SECTIONS], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [] } });
+    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [] } });
     setAnnouncement("Dashboard layout restored to its default sections and sizes.");
   };
   const startDrag = (event: DragEvent<HTMLElement>, id: DashboardSectionId) => {
@@ -453,21 +607,44 @@ function DashboardLayoutEditor({ settings, onChange }: { settings: WebSettings; 
 
 export function JapaneseVoiceDownloadSetting() {
   const voice = useJapaneseVoice();
-  if (!voice.checked || !voice.supported || voice.downloaded) return null;
+  if (voice.downloaded) return null;
 
+  const checking = !voice.checked;
   const downloading = voice.activity === "downloading";
-  return <div className={styles.downloadRow}>
-    <span>
-      <strong>Japanese context voice</strong>
-      {voice.error
-        ? <small className={styles.inlineError} role="alert">{voice.error}</small>
-        : <small>{downloading && voice.message ? voice.message : `Download once to play normal vocabulary context sentences locally (${JAPANESE_VOICE_DOWNLOAD_LABEL}).`}</small>}
-    </span>
-    <Button type="button" size="small" state={downloading ? "loading" : voice.error ? "error" : "idle"} onClick={() => void voice.download()}>
-      {!downloading && !voice.error ? <Download size={15} aria-hidden /> : null}
-      {downloading ? `Downloading${voice.progress ? ` ${voice.progress}%` : "…"}` : voice.error ? "Retry download" : `Download voice · ${JAPANESE_VOICE_DOWNLOAD_LABEL}`}
-    </Button>
-  </div>;
+  const unavailable = voice.checked && !voice.supported;
+  const buttonLabel = checking
+    ? "Checking…"
+    : unavailable
+      ? "Unavailable"
+      : downloading
+        ? "Cancel download"
+        : voice.error
+          ? "Retry download"
+          : `Download voice · ${JAPANESE_VOICE_DOWNLOAD_LABEL}`;
+
+  return <section id="japanese-voice" className={`${styles.settingsSection} ${styles.settingsAnchor}`} aria-labelledby="japanese-voice-heading">
+    <div className={styles.sectionIntro}><Volume2 size={19} aria-hidden /><div><h2 id="japanese-voice-heading">Japanese voice</h2><p>Optional local speech for normal vocabulary context sentences.</p></div></div>
+    <Card padding="none" className={styles.preferenceCard}>
+      <div className={styles.downloadRow}>
+        <span>
+          <strong>Japanese context voice</strong>
+          {voice.error
+            ? <small className={styles.inlineError} role="alert">{voice.error}</small>
+            : <small>{checking
+              ? "Checking whether this browser can save and run the voice…"
+              : unavailable
+                ? "This browser cannot save or run the optional voice. Context sentences remain readable."
+                : downloading && voice.message
+                  ? voice.message
+                  : `Download ${JAPANESE_VOICE_NAME} once and keep it in this browser (${JAPANESE_VOICE_DOWNLOAD_LABEL}).`}</small>}
+        </span>
+        <Button type="button" size="small" disabled={checking || unavailable} interactiveWhileLoading={downloading} state={downloading ? "loading" : voice.error ? "error" : "idle"} onClick={() => downloading ? voice.cancelDownload() : void voice.download()}>
+          {!checking && !unavailable && !downloading && !voice.error ? <Download size={15} aria-hidden /> : null}
+          {buttonLabel}
+        </Button>
+      </div>
+    </Card>
+  </section>;
 }
 
 function ToggleRow({ label, description, checked, onChange, icon, disabled = false }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; icon?: React.ReactNode; disabled?: boolean }) {

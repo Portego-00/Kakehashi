@@ -1,16 +1,21 @@
 import type { StudyFilters, StudyQuestion } from "./types";
+import {
+  buildImmersionExamples,
+  IMMERSION_KIT_API_BASE,
+  immersionKitSearchUrl,
+  type ImmersionExample,
+  type ImmersionKitIndexMeta,
+  type ImmersionKitSearchPayload,
+} from "./immersion-kit";
 
-export interface ImmersionExample {
-  sentence: string;
-  translation: string;
-  title: string;
-  audio?: string;
-  imageUrl?: string;
-}
+export type { ImmersionExample } from "./immersion-kit";
 
 const DEFAULT_RATE_LIMIT_DELAY_MS = 2_000;
 const MAX_RATE_LIMIT_DELAY_MS = 30_000;
 const MAX_RATE_LIMIT_RETRIES = 3;
+const LOOKUP_TIMEOUT_MS = 12_000;
+let indexMetaPromise: Promise<ImmersionKitIndexMeta> | null = null;
+let indexMetaFetch: typeof fetch | null = null;
 
 class ImmersionLookupError extends Error {
   constructor(message: string, readonly status: number, readonly retryAfterMs?: number) {
@@ -39,17 +44,110 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-export async function fetchImmersionExamples(characters: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample[]> {
+function abortReason(signal: AbortSignal) {
+  return signal.reason ?? new DOMException("Aborted", "AbortError");
+}
+
+function createLookupSignal(parent?: AbortSignal) {
+  const controller = new AbortController();
+  const relayAbort = () => controller.abort(parent ? abortReason(parent) : new DOMException("Aborted", "AbortError"));
+  if (parent?.aborted) relayAbort();
+  else parent?.addEventListener("abort", relayAbort, { once: true });
+  const timeout = globalThis.setTimeout(
+    () => controller.abort(new DOMException("Immersion lookup timed out.", "TimeoutError")),
+    LOOKUP_TIMEOUT_MS,
+  );
+  return {
+    signal: controller.signal,
+    cleanup() {
+      globalThis.clearTimeout(timeout);
+      parent?.removeEventListener("abort", relayAbort);
+    },
+  };
+}
+
+function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(abortReason(signal));
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
+function isTransportFailure(error: unknown) {
+  return error instanceof TypeError
+    || (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError"));
+}
+
+function getIndexMeta() {
+  const fetcher = fetch;
+  if (indexMetaFetch !== fetcher) {
+    indexMetaFetch = fetcher;
+    indexMetaPromise = null;
+  }
+  if (indexMetaPromise) return indexMetaPromise;
+  const request = createLookupSignal();
+  indexMetaPromise = fetcher(`${IMMERSION_KIT_API_BASE}/index_meta`, {
+    headers: { Accept: "application/json" },
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    signal: request.signal,
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`ImmersionKit index returned ${response.status}.`);
+    const payload = await response.json() as { data?: ImmersionKitIndexMeta };
+    return payload.data ?? {};
+  }).catch(() => {
+    if (indexMetaFetch === fetcher) indexMetaPromise = null;
+    return {};
+  }).finally(request.cleanup);
+  return indexMetaPromise;
+}
+
+async function fetchImmersionExamplesDirect(query: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample[]> {
+  const request = createLookupSignal(signal);
+  const indexMeta = getIndexMeta();
+  try {
+    const response = await fetch(immersionKitSearchUrl(query), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      signal: request.signal,
+    });
+    if (!response.ok) throw new ImmersionLookupError(`Immersion lookup failed with ${response.status}.`, response.status, retryDelay(response));
+    const payload = await response.json() as ImmersionKitSearchPayload;
+    return buildImmersionExamples(payload.examples, await abortable(indexMeta, request.signal), sources);
+  } finally {
+    request.cleanup();
+  }
+}
+
+async function fetchImmersionExamplesViaProxy(query: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample[]> {
   const response = await fetch("/api/study/immersion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: characters, sources }),
+    body: JSON.stringify({ query, sources }),
     signal,
   });
   if (!response.ok) throw new ImmersionLookupError(`Immersion lookup failed with ${response.status}.`, response.status, retryDelay(response));
   const payload = await response.json() as { examples?: ImmersionExample[]; example?: ImmersionExample | null };
   if (Array.isArray(payload.examples)) return payload.examples;
   return payload.example ? [payload.example] : [];
+}
+
+export async function fetchImmersionExamples(characters: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample[]> {
+  const query = characters.trim();
+  if (!query || characters.length > 16) throw new ImmersionLookupError("Invalid query.", 400);
+  const selectedSources = sources.slice(0, 100);
+  if (selectedSources.includes("!")) return [];
+  if (signal?.aborted) throw abortReason(signal);
+  try {
+    return await fetchImmersionExamplesDirect(query, selectedSources, signal);
+  } catch (error) {
+    if (error instanceof ImmersionLookupError || signal?.aborted || !isTransportFailure(error)) throw error;
+    return fetchImmersionExamplesViaProxy(query, selectedSources, signal);
+  }
 }
 
 export async function fetchImmersionExample(characters: string, sources: string[], signal?: AbortSignal): Promise<ImmersionExample | null> {

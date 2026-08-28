@@ -2,23 +2,27 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Check, Download, ExternalLink, Headphones, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Download, ExternalLink, Headphones, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { Button, type ButtonState } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TextAreaField } from "@/components/ui/Field";
 import { EmptyState, Skeleton } from "@/components/ui/States";
+import type { WebSettings } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import { fetchImmersionExamples, type ImmersionExample } from "@/features/study/immersion";
 import { fetchSubjectEnrichments, pitchAccentLabel, splitReadingIntoMoras, type PitchAccentEntry, type UsagePattern } from "@/features/subjects/enrichments";
 import { groupVocabularyByKanjiReading, normalizeKanjiReading } from "@/features/subjects/reading-examples";
+import { subjectReturnLabel } from "@/features/subjects/subject-detail-navigation";
 import { useSession } from "@/lib/session";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import type { Assignment, ContextSentence, PronunciationAudio, ReviewStatistic, StudyMaterial, Subject, SubjectReading } from "@/types/wanikani";
+import { SubjectAudioButton, SubjectAudioProvider } from "./SubjectAudioControls";
+import { SubjectCharacter } from "./SubjectCharacter";
 import { StrokeOrder } from "./StrokeOrder";
 import styles from "../subjects.module.css";
 
@@ -37,13 +41,15 @@ export function plainMnemonic(value?: string) {
   return plain.split(/\n\s*\n/).map((paragraph) => paragraph.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
-type DetailTab = "meaning" | "reading" | "stroke" | "context";
+export type SubjectDetailTab = "meaning" | "reading" | "stroke" | "context";
 
-export function SubjectDetail({ id, returnTo = "/search" }: { id: number; returnTo?: string }) {
+export type SubjectDetailInitialTab = Exclude<SubjectDetailTab, "stroke">;
+
+export function SubjectDetail({ id, returnTo = "/search", presentation = "page" }: { id: number; returnTo?: string; presentation?: "page" | "panel" }) {
+  const returnLabel = subjectReturnLabel(returnTo);
   const { user } = useSession();
   const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const detailSettings = webSettings.subjectDetails;
-  const [activeTab, setActiveTab] = useState<DetailTab>("meaning");
   const subjectHeroRef = useRef<HTMLElement>(null);
   const subject = useQuery({ queryKey: ["wanikani", "subject", id], queryFn: () => wkRequest<Subject>(`subjects/${id}`), staleTime: 24 * 60 * 60_000 });
   const assignment = useQuery({ queryKey: ["wanikani", "assignments", `subject:${id}`], queryFn: () => wkCollection<Assignment>(`assignments?subject_ids=${id}`), staleTime: 5 * 60_000 });
@@ -76,102 +82,58 @@ export function SubjectDetail({ id, returnTo = "/search" }: { id: number; return
   });
 
   if (subject.isLoading) return <SubjectDetailSkeleton />;
-  if (subject.isError || !subject.data) return <main className={`page ${styles.page}`}><EmptyState title="Subject not found" description="This subject may be outside your subscription or no longer available." action={<Link href={returnTo} className={styles.inlineButton}>Back to search</Link>} /></main>;
+  if (subject.isError || !subject.data) return <main className={`page ${styles.page}`}><EmptyState title="Subject not found" description="This subject may be outside your subscription or no longer available." action={<Link href={returnTo} className={styles.inlineButton}>{returnLabel}</Link>} /></main>;
 
   const record = subject.data;
   const subjectAssignment = assignment.data?.[0];
   const reviewStatistic = statistic.data?.[0];
   const meaning = record.data.meanings.find((item) => item.primary)?.meaning ?? record.data.meanings[0]?.meaning ?? record.data.slug;
   const tone = record.object === "kana_vocabulary" ? "vocabulary" : record.object;
-  const isVocabulary = record.object === "vocabulary" || record.object === "kana_vocabulary";
-  const relationById = new Map((relations.data ?? []).map((item) => [item.id, item]));
-  const amalgamationSubjects = (record.data.amalgamation_subject_ids ?? []).map((relationId) => relationById.get(relationId)).filter((item): item is Subject => Boolean(item));
-  const meaningMnemonic = plainMnemonic(record.data.meaning_mnemonic);
-  const readingMnemonic = plainMnemonic(record.data.reading_mnemonic);
-  const primaryMeaning = record.data.meanings.find((item) => item.primary)?.meaning ?? meaning;
-  const alternativeMeanings = record.data.meanings.filter((item) => !item.primary).map((item) => item.meaning);
-  const characters = record.data.characters || meaning;
-  const characterCount = Array.from(characters).length;
+  const identityText = record.data.characters || meaning;
+  const characterCount = Array.from(identityText).length;
   const primaryReading = record.data.readings?.filter((reading) => reading.primary).map((reading) => reading.reading).join(" · ") || record.data.readings?.[0]?.reading;
-  const hasContextContent = Boolean(
-    isVocabulary && (
-      (detailSettings.showContextSentences && record.data.context_sentences?.length)
-      || (detailSettings.showImmersionExamples && record.data.characters)
-      || (detailSettings.showPatternsOfUse && enrichments.data?.patterns.length)
-    ),
-  );
-  const tabs: Array<{ id: DetailTab; label: string }> = [
-    { id: "meaning", label: "Meaning" },
-    ...(record.data.readings?.length ? [{ id: "reading" as const, label: "Reading" }] : []),
-    ...(record.object === "kanji" && detailSettings.showStrokeOrder ? [{ id: "stroke" as const, label: "Stroke" }] : []),
-    ...(hasContextContent ? [{ id: "context" as const, label: "Context" }] : []),
-  ];
-  const resolvedActiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0].id;
-  const activeTabIndex = tabs.findIndex((tab) => tab.id === resolvedActiveTab);
-  const tabPosition = (tab: DetailTab) => {
-    const index = tabs.findIndex((item) => item.id === tab);
-    return index < activeTabIndex ? "before" : index > activeTabIndex ? "after" : "active";
-  };
-  const tabPagerStyle = (tab: DetailTab) => ({ "--pager-position": `${(tabs.findIndex((item) => item.id === tab) - activeTabIndex) * 100}%` }) as CSSProperties;
 
   return <main className={`page ${styles.page} ${styles.subjectDetailPage}`} data-subject-detail-type={tone}>
     <header ref={subjectHeroRef} className={styles.subjectHero} data-type={tone}>
-      <Link href={returnTo} className={styles.subjectHeroBack}><ArrowLeft size={19} aria-hidden /><span>Subject search</span></Link>
+      {presentation === "page" ? <Link href={returnTo} className={styles.subjectHeroBack}><ArrowLeft size={19} aria-hidden /><span>{returnLabel}</span></Link> : null}
       <div className={styles.subjectHeroActions}>
         <Link href={`/subjects/${id}/constellation`} aria-label="Explore subject constellation"><ConstellationIcon /></Link>
         <a href={record.data.document_url} target="_blank" rel="noreferrer" aria-label="Open subject on WaniKani"><ExternalLink size={18} aria-hidden /></a>
       </div>
       <div className={styles.subjectHeroCopy}>
-        <div className={styles.subjectHeroCharacter} lang={record.data.characters ? "ja" : undefined} data-character-count={Math.min(characterCount, 12)}>{characters}</div>
+        <SubjectCharacter subject={record} imageSize="5rem" imageTone="subject" eager className={styles.subjectHeroCharacter} data-character-count={Math.min(characterCount, 12)} />
         <h1>{meaning}</h1>
         {primaryReading ? <p lang="ja">{primaryReading}</p> : null}
       </div>
       <div className={styles.subjectHeroMeta}><span>Level {record.data.level}</span><span>{subjectAssignment ? <><SrsStageIcon stage={subjectAssignment.data.srs_stage} size={16} />{srsStageLabel(subjectAssignment.data.srs_stage)}</> : "Locked"}</span>{reviewStatistic ? <span>{reviewStatistic.data.percentage_correct}% accuracy</span> : null}</div>
     </header>
 
-    <SubjectStickyHeader heroRef={subjectHeroRef} characters={characters} characterCount={characterCount} meaning={meaning} reading={primaryReading} level={record.data.level} />
+    {presentation === "page" ? <SubjectStickyHeader heroRef={subjectHeroRef} subject={record} meaning={meaning} reading={primaryReading} level={record.data.level} /> : null}
 
-    <nav className={styles.detailTabs} data-count={tabs.length} role="tablist" aria-label="Subject details">
-      {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`subject-tab-${tab.id}`} aria-selected={resolvedActiveTab === tab.id} aria-controls={`subject-panel-${tab.id}`} tabIndex={resolvedActiveTab === tab.id ? 0 : -1} onClick={() => setActiveTab(tab.id)} onKeyDown={(event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length; const nextTab = tabs[nextIndex]; setActiveTab(nextTab.id); window.requestAnimationFrame(() => document.getElementById(`subject-tab-${nextTab.id}`)?.focus()); }}>{tab.label}</button>)}
-    </nav>
-
-    <div className={styles.detailContent}>
-      <DetailPager className={styles.detailPanels} activeIndex={activeTabIndex} count={tabs.length} onNavigate={(index) => setActiveTab(tabs[index].id)}>
-      <section id="subject-panel-meaning" role="tabpanel" aria-labelledby="subject-tab-meaning" aria-hidden={resolvedActiveTab !== "meaning"} inert={resolvedActiveTab !== "meaning" ? true : undefined} data-tab-position={tabPosition("meaning")} className={styles.detailPanelStack} style={tabPagerStyle("meaning")}>
-        <DetailSection title="Name" icon={<BookOpen size={19} aria-hidden />}><dl className={styles.nameDetails}><div><dt>Primary</dt><dd>{primaryMeaning}</dd></div>{alternativeMeanings.length ? <div><dt>Alternative</dt><dd>{alternativeMeanings.join(", ")}</dd></div> : null}{material.data?.[0]?.data.meaning_synonyms.length ? <div><dt>User synonyms</dt><dd>{material.data[0].data.meaning_synonyms.join(", ")}</dd></div> : null}{record.data.parts_of_speech?.length ? <div><dt>Part of speech</dt><dd>{record.data.parts_of_speech.map((part) => part.replaceAll("_", " ")).join(", ")}</dd></div> : null}</dl></DetailSection>
-        {meaningMnemonic.length ? <DetailSection title="Mnemonic"><Mnemonic paragraphs={meaningMnemonic} />{record.object === "radical" ? <RadicalMnemonicIllustration key={record.data.document_url} documentUrl={record.data.document_url} meaning={primaryMeaning} /> : null}{record.data.meaning_hint ? <p className={styles.subjectHint}>{record.data.meaning_hint}</p> : null}</DetailSection> : null}
-        <StudyMaterialEditor key={material.data?.[0]?.id ?? `new-${id}`} subjectId={id} material={material.data?.[0]} queryKey={materialsKey} loading={material.isLoading} />
-        <RelationSection title="Components" ids={record.data.component_subject_ids} subjects={relationById} returnTo={returnTo} />
-        <RelationSection title="Visually similar" ids={record.data.visually_similar_subject_ids} subjects={relationById} returnTo={returnTo} />
-        {record.object === "radical" ? <RelationSection title="Found in kanji" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} /> : null}
-        {record.object === "kanji" ? <RelationSection title="Found in vocabulary" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} /> : null}
-        <DetailSection title="Your progression"><dl className={styles.progressionDetails}><div><dt>Stage</dt><dd>{subjectAssignment ? <><SrsStageIcon stage={subjectAssignment.data.srs_stage} size={22} />{srsStageLabel(subjectAssignment.data.srs_stage)}</> : "Locked"}</dd></div><div><dt>Next review</dt><dd>{subjectAssignment?.data.available_at ? new Date(subjectAssignment.data.available_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "No review scheduled"}</dd></div>{reviewStatistic ? <><div><dt>Meaning streak</dt><dd>{reviewStatistic.data.meaning_current_streak}</dd></div><div><dt>Reading streak</dt><dd>{reviewStatistic.data.reading_current_streak}</dd></div><div><dt>Accuracy</dt><dd>{reviewStatistic.data.percentage_correct}%</dd></div></> : null}</dl></DetailSection>
-      </section>
-
-      {record.data.readings?.length ? <section id="subject-panel-reading" role="tabpanel" aria-labelledby="subject-tab-reading" aria-hidden={resolvedActiveTab !== "reading"} inert={resolvedActiveTab !== "reading" ? true : undefined} data-tab-position={tabPosition("reading")} className={styles.detailPanelStack} style={tabPagerStyle("reading")}>
-        <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings} pitchAccents={detailSettings.showPitchAccent ? enrichments.data?.pitchAccents ?? [] : []} /></DetailSection>
-        {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{record.data.reading_hint ? <p className={styles.subjectHint}>{record.data.reading_hint}</p> : null}</DetailSection> : null}
-        {record.object === "kanji" && detailSettings.showKanjiReadingExamples && amalgamationSubjects.length ? <KanjiReadingExamples kanji={record} vocabulary={amalgamationSubjects} returnTo={returnTo} /> : null}
-        {record.data.pronunciation_audios?.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{uniqueAudio(record).map((audio) => <PronunciationPlayer key={audio.metadata.source_id} audio={audio} />)}</div></DetailSection> : null}
-      </section> : null}
-
-      {record.object === "kanji" && detailSettings.showStrokeOrder ? <section id="subject-panel-stroke" role="tabpanel" aria-labelledby="subject-tab-stroke" aria-hidden={resolvedActiveTab !== "stroke"} inert={resolvedActiveTab !== "stroke" ? true : undefined} data-tab-position={tabPosition("stroke")} className={styles.detailPanelStack} style={tabPagerStyle("stroke")}>
-        <DetailSection title="Stroke order"><StrokeOrder character={characters} /></DetailSection>
-      </section> : null}
-
-      {hasContextContent ? <section id="subject-panel-context" role="tabpanel" aria-labelledby="subject-tab-context" aria-hidden={resolvedActiveTab !== "context"} inert={resolvedActiveTab !== "context" ? true : undefined} data-tab-position={tabPosition("context")} className={styles.detailPanelStack} style={tabPagerStyle("context")}>
-        {detailSettings.showPatternsOfUse && enrichments.data?.patterns.length ? <UsagePatterns patterns={enrichments.data.patterns} /> : null}
-        {detailSettings.showContextSentences && record.data.context_sentences?.length ? <ContextSentences sentences={record.data.context_sentences} /> : null}
-        {detailSettings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersion.data ?? []} query={characters} loading={immersion.isLoading} failed={immersion.isError} /> : null}
-      </section> : null}
-      </DetailPager>
-    </div>
+    <SubjectDetailPanels
+      record={record}
+      assignment={subjectAssignment}
+      reviewStatistic={reviewStatistic}
+      material={material.data?.[0]}
+      materialLoading={material.isLoading}
+      materialsKey={materialsKey}
+      relatedSubjects={relations.data ?? []}
+      pitchAccents={enrichments.data?.pitchAccents ?? []}
+      usagePatterns={enrichments.data?.patterns ?? []}
+      immersionExamples={immersion.data ?? []}
+      immersionLoading={immersion.isLoading}
+      immersionFailed={immersion.isError}
+      settings={detailSettings}
+      returnTo={returnTo}
+      replaceRelated={presentation === "panel"}
+    />
   </main>;
 }
 
-export function SubjectStickyHeader({ heroRef, characters, characterCount, meaning, reading, level }: { heroRef: RefObject<HTMLElement | null>; characters: string; characterCount: number; meaning: string; reading?: string; level: number }) {
+export function SubjectStickyHeader({ heroRef, subject, meaning, reading, level }: { heroRef: RefObject<HTMLElement | null>; subject: Subject; meaning: string; reading?: string; level: number }) {
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const characterCount = Array.from(subject.data.characters || meaning).length;
 
   useEffect(() => {
     let frame = 0;
@@ -212,7 +174,7 @@ export function SubjectStickyHeader({ heroRef, characters, characterCount, meani
 
   return <div ref={stickyHeaderRef} className={styles.subjectStickyHeader} data-visible={visible || undefined} aria-hidden={!visible}>
     <button type="button" className={styles.subjectStickyContent} aria-label={`Back to ${meaning}`} tabIndex={visible ? 0 : -1} onClick={scrollToSubject}>
-      <span className={styles.subjectStickyCharacter} lang={characters === meaning ? undefined : "ja"} data-character-count={Math.min(characterCount, 12)}>{characters}</span>
+      <SubjectCharacter subject={subject} imageSize="1.75rem" imageTone="subject" className={styles.subjectStickyCharacter} data-character-count={Math.min(characterCount, 12)} />
       <span className={styles.subjectStickyCopy}>
         <strong>{meaning}</strong>
         {reading ? <span lang="ja">{reading}</span> : null}
@@ -305,10 +267,15 @@ function uniqueAudio(subject: Subject) {
   });
 }
 
-function PronunciationPlayer({ audio }: { audio: PronunciationAudio }) {
+function PronunciationPlayer({ audio, index }: { audio: PronunciationAudio; index: number }) {
+  const actor = audio.metadata.voice_actor_name || "Audio";
+  const details = [audio.metadata.voice_description, audio.metadata.pronunciation].filter(Boolean).join(" · ");
+  const audioKey = `pronunciation:${audio.metadata.source_id ?? audio.metadata.voice_actor_id ?? index}`;
   return <figure>
-    <figcaption><strong>{audio.metadata.voice_actor_name}</strong><span>{audio.metadata.voice_description}{audio.metadata.pronunciation ? ` · ${audio.metadata.pronunciation}` : ""}</span></figcaption>
-    <audio controls preload="none" src={audio.url}>Audio playback is not supported by this browser.</audio>
+    <SubjectAudioButton audioKey={audioKey} src={audio.url} label={`${actor} pronunciation`} variant="pronunciation">
+      <span>{actor}{audio.metadata.gender ? ` (${audio.metadata.gender})` : ""}</span>
+    </SubjectAudioButton>
+    {details ? <figcaption>{details}</figcaption> : null}
   </figure>;
 }
 
@@ -350,21 +317,42 @@ function PitchAccentCard({ reading, accent }: { reading: string; accent: number 
   </figure>;
 }
 
-function KanjiReadingExamples({ kanji, vocabulary, returnTo }: { kanji: Subject; vocabulary: Subject[]; returnTo: string }) {
+function KanjiReadingExamples({ kanji, vocabulary, returnTo, replaceRelated = false }: { kanji: Subject; vocabulary: Subject[]; returnTo: string; replaceRelated?: boolean }) {
   const groups = groupVocabularyByKanjiReading(kanji, vocabulary);
   if (!groups.length) return null;
   return <DetailSection title="Examples by reading"><div className={styles.readingExamples}>{groups.map((group) => <section key={group.normalizedReading}>
     <header><span lang="ja">{group.reading}</span><small>{readingLabel(group.type)}</small></header>
-    <div>{group.subjects.map((subject) => <Link key={subject.id} href={`/subjects/${subject.id}?returnTo=${encodeURIComponent(returnTo)}`}><strong lang="ja">{subject.data.characters}</strong><span>{subject.data.readings?.find((reading) => reading.primary)?.reading}</span><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>)}</div>
+    <div>{group.subjects.map((subject) => <Link key={subject.id} replace={replaceRelated} href={`/subjects/${subject.id}?returnTo=${encodeURIComponent(returnTo)}`}><strong lang="ja">{subject.data.characters}</strong><span>{subject.data.readings?.find((reading) => reading.primary)?.reading}</span><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>)}</div>
   </section>)}</div></DetailSection>;
 }
 
 function UsagePatterns({ patterns }: { patterns: UsagePattern[] }) {
   const [selected, setSelected] = useState(0);
+  const id = useId();
   const active = patterns[Math.min(selected, patterns.length - 1)];
+  const selectPattern = (index: number, focus = false) => {
+    setSelected(index);
+    if (focus) window.requestAnimationFrame(() => document.getElementById(`${id}-pattern-tab-${index}`)?.focus());
+  };
   return <DetailSection title="Patterns of use"><div className={styles.usagePatterns}>
-    <div className={styles.patternTabs} role="tablist" aria-label="Vocabulary usage patterns">{patterns.map((pattern, index) => <button key={`${pattern.name}-${index}`} type="button" role="tab" aria-selected={index === selected} onClick={() => setSelected(index)}>{pattern.name}</button>)}</div>
-    <div className={styles.patternExamples}>{active.examples.map((example, index) => <blockquote key={`${example.ja}-${index}`}><p lang="ja">{example.ja}</p><footer>{example.en}</footer></blockquote>)}</div>
+    <div className={styles.patternTabs} role="tablist" aria-label="Vocabulary usage patterns">{patterns.map((pattern, index) => <button
+      key={`${pattern.name}-${index}`}
+      id={`${id}-pattern-tab-${index}`}
+      type="button"
+      role="tab"
+      aria-selected={index === selected}
+      aria-controls={`${id}-pattern-panel`}
+      tabIndex={index === selected ? 0 : -1}
+      onClick={() => selectPattern(index)}
+      onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? patterns.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + patterns.length) % patterns.length;
+        selectPattern(nextIndex, true);
+      }}
+    >{pattern.name}</button>)}</div>
+    <div id={`${id}-pattern-panel`} className={styles.patternExamples} role="tabpanel" aria-labelledby={`${id}-pattern-tab-${selected}`}>{active.examples.map((example, index) => <blockquote key={`${example.ja}-${index}`}><p lang="ja">{example.ja}</p><footer>{example.en}</footer></blockquote>)}</div>
   </div></DetailSection>;
 }
 
@@ -373,7 +361,7 @@ export function ContextSentences({ sentences }: { sentences: ContextSentence[] }
   const downloading = voice.activity === "downloading";
   const downloadState: ButtonState = downloading ? "loading" : voice.error && !voice.downloaded ? "error" : "idle";
   const action = voice.checked && voice.downloaded
-    ? <span className={styles.voiceSaved} title="The model is stored in this browser's site data."><Check size={15} aria-hidden />Saved in this browser</span>
+    ? null
     : <Button className={styles.voiceDownload} type="button" size="small" state={downloadState} disabled={!voice.checked || !voice.supported} onClick={() => void voice.download()}>
       {downloadState === "idle" ? <Download size={15} aria-hidden /> : null}
       {!voice.checked ? "Checking voice…" : !voice.supported ? "Voice unavailable" : downloading ? `Downloading${voice.progress ? ` ${voice.progress}%` : "…"}` : voice.error ? "Retry voice download" : `Download voice · ${JAPANESE_VOICE_DOWNLOAD_LABEL}`}
@@ -445,12 +433,193 @@ function AnimeContext({ examples, query, loading, failed }: { examples: Immersio
   if (loading) return <DetailSection title="Anime context"><Skeleton height="10rem" /></DetailSection>;
   if (failed || !examples.length) return <DetailSection title="Anime context"><p className={styles.contextUnavailable}>No matching ImmersionKit scene was found for this subject and source selection.</p></DetailSection>;
   const visibleExamples = examples.slice(0, visibleCount);
-  return <DetailSection title="Anime context"><div className={styles.immersionList}>{visibleExamples.map((example, index) => <figure className={styles.immersionExample} key={`${example.title}-${example.sentence}-${index}`}>{example.imageUrl ? <Image src={example.imageUrl} alt={`Scene from ${example.title}`} width={480} height={360} sizes="(max-width: 42rem) 7rem, 7.5rem" loader={passthroughImageLoader} unoptimized /> : null}<figcaption><strong>{example.title}</strong><p lang="ja"><HighlightedJapanese value={example.sentence} query={query} /></p><span>{example.translation}</span>{example.audio ? <audio controls preload="none" src={example.audio}>Audio playback is not supported by this browser.</audio> : null}</figcaption></figure>)}</div>{visibleCount < examples.length ? <Button className={styles.immersionMore} type="button" tone="ghost" onClick={() => setVisibleCount((count) => Math.min(count + 10, examples.length))}>Show more scenes</Button> : null}</DetailSection>;
+  return <DetailSection title="Anime context"><div className={styles.immersionList}>{visibleExamples.map((example, index) => {
+    const source = example.title || "this scene";
+    return <figure className={styles.immersionExample} key={`${example.title}-${example.sentence}-${index}`}>
+      {example.imageUrl ? <Image src={example.imageUrl} alt={`Scene from ${example.title}`} width={480} height={360} sizes="(max-width: 42rem) 7rem, 7.5rem" loader={passthroughImageLoader} unoptimized /> : null}
+      <figcaption>
+        <div className={styles.immersionHeader}>
+          <strong>{example.title}</strong>
+          <SubjectAudioButton audioKey={`anime:${index}:${example.audio ?? "unavailable"}`} src={example.audio} label={`anime clip from ${source}`} variant="scene" />
+        </div>
+        <p lang="ja"><HighlightedJapanese value={example.sentence} query={query} /></p>
+        <span>{example.translation}</span>
+      </figcaption>
+    </figure>;
+  })}</div>{visibleCount < examples.length ? <Button className={styles.immersionMore} type="button" tone="ghost" onClick={() => setVisibleCount((count) => Math.min(count + 10, examples.length))}>Show more scenes</Button> : null}</DetailSection>;
 }
 
-function RelationSection({ title, ids, subjects, returnTo }: { title: string; ids?: number[]; subjects: Map<number, Subject>; returnTo: string }) {
+function RelationSection({ title, ids, subjects, returnTo, replaceRelated = false }: { title: string; ids?: number[]; subjects: Map<number, Subject>; returnTo: string; replaceRelated?: boolean }) {
   if (!ids?.length) return null;
-  return <DetailSection title={title}><div className={styles.relations}>{ids.map((id) => { const subject = subjects.get(id); if (!subject) return null; const tone = subject.object === "kana_vocabulary" ? "vocabulary" : subject.object; return <Link href={`/subjects/${id}?returnTo=${encodeURIComponent(returnTo)}`} key={id} data-type={tone}><span lang="ja">{subject.data.characters ?? subject.data.meanings[0]?.meaning}</span><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>; })}</div></DetailSection>;
+  return <DetailSection title={title}><div className={styles.relations}>{ids.map((id) => { const subject = subjects.get(id); if (!subject) return null; const tone = subject.object === "kana_vocabulary" ? "vocabulary" : subject.object; return <Link href={`/subjects/${id}?returnTo=${encodeURIComponent(returnTo)}`} replace={replaceRelated} key={id} data-type={tone}><SubjectCharacter subject={subject} imageSize="2rem" /><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>; })}</div></DetailSection>;
+}
+
+interface SubjectDetailPanelsProps {
+  record: Subject;
+  assignment?: Assignment;
+  reviewStatistic?: ReviewStatistic;
+  material?: StudyMaterial;
+  materialLoading: boolean;
+  materialsKey: readonly unknown[];
+  relatedSubjects: Subject[];
+  pitchAccents: PitchAccentEntry[];
+  usagePatterns: UsagePattern[];
+  immersionExamples: ImmersionExample[];
+  immersionLoading: boolean;
+  immersionFailed: boolean;
+  settings: WebSettings["subjectDetails"];
+  returnTo: string;
+  initialTab?: SubjectDetailInitialTab;
+  activeTab?: SubjectDetailTab;
+  onActiveTabChange?: (tab: SubjectDetailTab) => void;
+  idPrefix?: string;
+  embedded?: boolean;
+  replaceRelated?: boolean;
+  sequentialNavigation?: {
+    previous?: () => void;
+    next: () => void;
+  };
+}
+
+export function SubjectDetailPanels({
+  record,
+  assignment,
+  reviewStatistic,
+  material,
+  materialLoading,
+  materialsKey,
+  relatedSubjects,
+  pitchAccents,
+  usagePatterns,
+  immersionExamples,
+  immersionLoading,
+  immersionFailed,
+  settings,
+  returnTo,
+  initialTab = "meaning",
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  idPrefix = "subject",
+  embedded = false,
+  replaceRelated = false,
+  sequentialNavigation,
+}: SubjectDetailPanelsProps) {
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SubjectDetailTab>(initialTab);
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
+  const selectTab = useCallback((tab: SubjectDetailTab) => {
+    if (controlledActiveTab === undefined) setUncontrolledActiveTab(tab);
+    onActiveTabChange?.(tab);
+  }, [controlledActiveTab, onActiveTabChange]);
+  const relationById = new Map(relatedSubjects.map((item) => [item.id, item]));
+  const amalgamationSubjects = (record.data.amalgamation_subject_ids ?? []).map((relationId) => relationById.get(relationId)).filter((item): item is Subject => Boolean(item));
+  const meaning = record.data.meanings.find((item) => item.primary)?.meaning ?? record.data.meanings[0]?.meaning ?? record.data.slug;
+  const primaryMeaning = record.data.meanings.find((item) => item.primary)?.meaning ?? meaning;
+  const alternativeMeanings = record.data.meanings.filter((item) => !item.primary).map((item) => item.meaning);
+  const meaningMnemonic = plainMnemonic(record.data.meaning_mnemonic);
+  const readingMnemonic = plainMnemonic(record.data.reading_mnemonic);
+  const characters = record.data.characters || meaning;
+  const isVocabulary = record.object === "vocabulary" || record.object === "kana_vocabulary";
+  const tone = record.object === "kana_vocabulary" ? "vocabulary" : record.object;
+  const hasContextContent = Boolean(
+    isVocabulary && (
+      (settings.showContextSentences && record.data.context_sentences?.length)
+      || (settings.showImmersionExamples && record.data.characters)
+      || (settings.showPatternsOfUse && usagePatterns.length)
+    ),
+  );
+  const tabs = useMemo<Array<{ id: SubjectDetailTab; label: string }>>(() => [
+    { id: "meaning", label: "Meaning" },
+    ...(record.data.readings?.length ? [{ id: "reading" as const, label: "Reading" }] : []),
+    ...(record.object === "kanji" && settings.showStrokeOrder ? [{ id: "stroke" as const, label: "Stroke" }] : []),
+    ...(hasContextContent ? [{ id: "context" as const, label: "Context" }] : []),
+  ], [hasContextContent, record.data.readings?.length, record.object, settings.showStrokeOrder]);
+  const resolvedActiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0].id;
+  const activeTabIndex = tabs.findIndex((tab) => tab.id === resolvedActiveTab);
+  const tabPosition = (tab: SubjectDetailTab) => {
+    const index = tabs.findIndex((item) => item.id === tab);
+    return index < activeTabIndex ? "before" : index > activeTabIndex ? "after" : "active";
+  };
+  const tabPagerStyle = (tab: SubjectDetailTab) => ({ "--pager-position": `${(tabs.findIndex((item) => item.id === tab) - activeTabIndex) * 100}%` }) as CSSProperties;
+  const tabId = (tab: SubjectDetailTab) => `${idPrefix}-tab-${tab}`;
+  const panelId = (tab: SubjectDetailTab) => `${idPrefix}-panel-${tab}`;
+
+  const navigateSequentially = useCallback((direction: -1 | 1, focusTab: boolean) => {
+    const nextIndex = activeTabIndex + direction;
+    if (nextIndex >= 0 && nextIndex < tabs.length) {
+      const nextTab = tabs[nextIndex];
+      selectTab(nextTab.id);
+      window.requestAnimationFrame(() => {
+        const tab = document.getElementById(`${idPrefix}-tab-${nextTab.id}`);
+        if (focusTab) tab?.focus();
+        else tab?.scrollIntoView({ block: "start" });
+      });
+      return;
+    }
+    if (direction < 0) sequentialNavigation?.previous?.();
+    else sequentialNavigation?.next();
+  }, [activeTabIndex, idPrefix, selectTab, sequentialNavigation, tabs]);
+
+  useEffect(() => {
+    if (!sequentialNavigation) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, audio, video, [role="slider"], [role="tablist"] [role="tab"], [contenteditable]:not([contenteditable="false"])')) return;
+      event.preventDefault();
+      navigateSequentially(event.key === "ArrowLeft" ? -1 : 1, false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigateSequentially, sequentialNavigation]);
+
+  return <SubjectAudioProvider><div className={`${styles.subjectDetailPanels}${embedded ? ` ${styles.embeddedSubjectDetails}` : ""}`} data-subject-detail-type={tone}>
+    <nav className={`${styles.detailTabs}${embedded ? ` ${styles.embeddedDetailTabs}` : ""}`} data-count={tabs.length} role="tablist" aria-label="Subject details">
+      {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={tabId(tab.id)} aria-selected={resolvedActiveTab === tab.id} aria-controls={panelId(tab.id)} tabIndex={resolvedActiveTab === tab.id ? 0 : -1} onClick={() => selectTab(tab.id)} onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (sequentialNavigation && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          navigateSequentially(event.key === "ArrowLeft" ? -1 : 1, true);
+          return;
+        }
+        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        const nextTab = tabs[nextIndex];
+        selectTab(nextTab.id);
+        window.requestAnimationFrame(() => document.getElementById(tabId(nextTab.id))?.focus());
+      }}>{tab.label}</button>)}
+    </nav>
+
+    <div className={`${styles.detailContent}${embedded ? ` ${styles.embeddedDetailContent}` : ""}`}>
+      <DetailPager className={styles.detailPanels} activeIndex={activeTabIndex} count={tabs.length} onNavigate={(index) => selectTab(tabs[index].id)}>
+        <section id={panelId("meaning")} role="tabpanel" aria-labelledby={tabId("meaning")} aria-hidden={resolvedActiveTab !== "meaning"} inert={resolvedActiveTab !== "meaning" ? true : undefined} data-tab-position={tabPosition("meaning")} className={styles.detailPanelStack} style={tabPagerStyle("meaning")}>
+          <DetailSection title="Name" icon={<BookOpen size={19} aria-hidden />}><dl className={styles.nameDetails}><div><dt>Primary</dt><dd>{primaryMeaning}</dd></div>{alternativeMeanings.length ? <div><dt>Alternative</dt><dd>{alternativeMeanings.join(", ")}</dd></div> : null}{material?.data.meaning_synonyms.length ? <div><dt>User synonyms</dt><dd>{material.data.meaning_synonyms.join(", ")}</dd></div> : null}{record.data.parts_of_speech?.length ? <div><dt>Part of speech</dt><dd>{record.data.parts_of_speech.map((part) => part.replaceAll("_", " ")).join(", ")}</dd></div> : null}</dl></DetailSection>
+          {meaningMnemonic.length ? <DetailSection title="Mnemonic"><Mnemonic paragraphs={meaningMnemonic} />{record.object === "radical" ? <RadicalMnemonicIllustration key={record.data.document_url} documentUrl={record.data.document_url} meaning={primaryMeaning} /> : null}{record.data.meaning_hint ? <p className={styles.subjectHint}>{record.data.meaning_hint}</p> : null}</DetailSection> : null}
+          <StudyMaterialEditor key={`${record.id}:${material?.id ?? "new"}`} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} />
+          <RelationSection title="Components" ids={record.data.component_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
+          <RelationSection title="Visually similar" ids={record.data.visually_similar_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
+          {record.object === "radical" ? <RelationSection title="Found in kanji" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
+          {record.object === "kanji" ? <RelationSection title="Found in vocabulary" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
+          <DetailSection title="Your progression"><dl className={styles.progressionDetails}><div><dt>Stage</dt><dd>{assignment ? <><SrsStageIcon stage={assignment.data.srs_stage} size={22} />{srsStageLabel(assignment.data.srs_stage)}</> : "Locked"}</dd></div><div><dt>Next review</dt><dd>{assignment?.data.available_at ? new Date(assignment.data.available_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "No review scheduled"}</dd></div>{reviewStatistic ? <><div><dt>Meaning streak</dt><dd>{reviewStatistic.data.meaning_current_streak}</dd></div><div><dt>Reading streak</dt><dd>{reviewStatistic.data.reading_current_streak}</dd></div><div><dt>Accuracy</dt><dd>{reviewStatistic.data.percentage_correct}%</dd></div></> : null}</dl></DetailSection>
+        </section>
+
+        {record.data.readings?.length ? <section id={panelId("reading")} role="tabpanel" aria-labelledby={tabId("reading")} aria-hidden={resolvedActiveTab !== "reading"} inert={resolvedActiveTab !== "reading" ? true : undefined} data-tab-position={tabPosition("reading")} className={styles.detailPanelStack} style={tabPagerStyle("reading")}>
+          <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings} pitchAccents={settings.showPitchAccent ? pitchAccents : []} /></DetailSection>
+          {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{record.data.reading_hint ? <p className={styles.subjectHint}>{record.data.reading_hint}</p> : null}</DetailSection> : null}
+          {record.object === "kanji" && settings.showKanjiReadingExamples && amalgamationSubjects.length ? <KanjiReadingExamples kanji={record} vocabulary={amalgamationSubjects} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
+          {record.data.pronunciation_audios?.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{uniqueAudio(record).map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
+        </section> : null}
+
+        {record.object === "kanji" && settings.showStrokeOrder ? <section id={panelId("stroke")} role="tabpanel" aria-labelledby={tabId("stroke")} aria-hidden={resolvedActiveTab !== "stroke"} inert={resolvedActiveTab !== "stroke" ? true : undefined} data-tab-position={tabPosition("stroke")} className={styles.detailPanelStack} style={tabPagerStyle("stroke")}>
+          <DetailSection title="Stroke order"><StrokeOrder character={characters} /></DetailSection>
+        </section> : null}
+
+        {hasContextContent ? <section id={panelId("context")} role="tabpanel" aria-labelledby={tabId("context")} aria-hidden={resolvedActiveTab !== "context"} inert={resolvedActiveTab !== "context" ? true : undefined} data-tab-position={tabPosition("context")} className={styles.detailPanelStack} style={tabPagerStyle("context")}>
+          {settings.showPatternsOfUse && usagePatterns.length ? <UsagePatterns patterns={usagePatterns} /> : null}
+          {settings.showContextSentences && record.data.context_sentences?.length ? <ContextSentences sentences={record.data.context_sentences} /> : null}
+          {settings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
+        </section> : null}
+      </DetailPager>
+    </div>
+  </div></SubjectAudioProvider>;
 }
 
 type StudyMaterialDraft = {
@@ -488,7 +657,11 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading }: 
     },
     onMutate: () => setButtonState("loading"),
     onSuccess: (saved) => {
-      queryClient.setQueryData(queryKey, [saved]);
+      queryClient.setQueryData<StudyMaterial[]>(queryKey, (current = []) => {
+        const exists = current.some((item) => item.data.subject_id === saved.data.subject_id);
+        if (!exists) return [...current, saved];
+        return current.map((item) => item.data.subject_id === saved.data.subject_id ? saved : item);
+      });
       setMeaningNote(saved.data.meaning_note ?? "");
       setReadingNote(saved.data.reading_note ?? "");
       setSynonyms(saved.data.meaning_synonyms);

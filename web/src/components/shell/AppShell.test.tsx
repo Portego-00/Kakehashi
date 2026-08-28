@@ -3,6 +3,12 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WKUser } from "@/types/wanikani";
 import { AppShell, backTargetForPathname } from "./AppShell";
+import { type AppShellBackAction, useAppShellBackAction } from "./app-shell-back-action";
+
+function PageBackRegistration({ action }: { action: AppShellBackAction }) {
+  useAppShellBackAction(action);
+  return <p>Song detail</p>;
+}
 
 const mocks = vi.hoisted(() => ({
   assignments: [
@@ -18,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   gravatarEmail: "",
   visibleNav: ["search"],
+  navbarTabs: ["home", "level", "news", "manga", "music"],
   session: {
     status: "loading" as "loading" | "authenticated" | "anonymous" | "unavailable",
     user: null as WKUser | null,
@@ -51,7 +58,7 @@ vi.mock("@/lib/theme", () => ({
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
   useWebSettings: () => ({
     profile: { gravatarEmail: mocks.gravatarEmail },
-    workspace: { visibleNav: mocks.visibleNav },
+    workspace: { visibleNav: mocks.visibleNav, navbarTabs: mocks.navbarTabs },
   }),
 }));
 
@@ -76,6 +83,7 @@ describe("AppShell session bootstrap", () => {
     mocks.replace.mockClear();
     mocks.gravatarEmail = "";
     mocks.visibleNav = ["search"];
+    mocks.navbarTabs = ["home", "level", "news", "manga", "music"];
   });
 
   it("uses a branded, polite status while the session is checked", () => {
@@ -178,6 +186,51 @@ describe("AppShell session bootstrap", () => {
     );
   });
 
+  it("renders only the selected navbar tabs while keeping hidden tabs in More", () => {
+    mocks.pathname = "/items";
+    mocks.visibleNav = ["analytics", "items", "search", "lists", "news", "reader", "epubs", "music", "video", "manga", "translator", "community"];
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
+    mocks.navbarTabs = ["home", "level", "items", "analytics", "video", "music"];
+    mocks.session.status = "authenticated";
+    mocks.session.user = {
+      id: 1,
+      object: "user",
+      url: "https://api.wanikani.com/v2/user",
+      data_updated_at: "2026-08-24T00:00:00.000Z",
+      data: {
+        username: "Pozab",
+        level: 21,
+        profile_url: "https://www.wanikani.com/users/Pozab",
+        started_at: "2020-01-01T00:00:00.000Z",
+        current_vacation_started_at: null,
+        preferences: {
+          default_voice_actor_id: 1,
+          lessons_autoplay_audio: true,
+          lessons_batch_size: 5,
+          lessons_presentation_order: "ascending_level_then_subject",
+          reviews_autoplay_audio: true,
+          reviews_display_srs_indicator: true,
+        },
+        subscription: { active: true, type: "lifetime", max_level_granted: 60, period_ends_at: null },
+      },
+    };
+
+    const { container } = render(<AppShell><p>Items content</p></AppShell>);
+
+    const mainNavigation = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(mainNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "Level", "Items", "Analytics", "Video", "Songs"]);
+    expect(container.querySelector('[data-navbar-density="dense"]')).not.toBeInTheDocument();
+    expect(within(mainNavigation).getByRole("link", { name: "Items" })).toHaveAttribute("aria-current", "page");
+    expect(within(mainNavigation).queryByRole("link", { name: "News" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    const allDestinations = screen.getByRole("navigation", { name: "All destinations" });
+    expect(within(allDestinations).getByRole("link", { name: "News" })).toHaveAttribute("href", "/news");
+    expect(within(allDestinations).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
+    expect(within(allDestinations).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
+    expect(within(allDestinations).getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
+  });
+
   it("morphs the desktop app bar after the deliberate scroll threshold", async () => {
     mocks.session.status = "authenticated";
     mocks.session.user = {
@@ -250,6 +303,8 @@ describe("AppShell contextual back navigation", () => {
     mocks.back.mockClear();
     mocks.push.mockClear();
     mocks.replace.mockClear();
+    mocks.visibleNav = ["search"];
+    mocks.navbarTabs = ["home", "level", "news", "manga", "music"];
   });
 
   it.each([
@@ -290,5 +345,23 @@ describe("AppShell contextual back navigation", () => {
 
     expect(mocks.back).toHaveBeenCalledTimes(1);
     expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("lets in-page detail state use the nav back button without changing routes", async () => {
+    mocks.pathname = "/music";
+    const pageBack = vi.fn();
+    const action = { label: "Back to search", onBack: pageBack };
+    const { rerender } = render(<AppShell><PageBackRegistration action={action} /></AppShell>);
+
+    const backButton = await screen.findByRole("button", { name: "Back to search" });
+    expect(backButton).toHaveAttribute("data-visible", "true");
+    fireEvent.click(backButton);
+
+    expect(pageBack).toHaveBeenCalledTimes(1);
+    expect(mocks.back).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+
+    rerender(<AppShell><p>Song search</p></AppShell>);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Back to search" })).not.toBeInTheDocument());
   });
 });

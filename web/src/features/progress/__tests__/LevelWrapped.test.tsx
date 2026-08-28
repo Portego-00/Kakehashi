@@ -152,4 +152,16 @@ describe("level recap", () => {
     expect(screen.getByText("Burned", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText("こんにちは")).toHaveAttribute("data-character-count", "5");
   });
+
+  it("uses WaniKani artwork for image-only radicals in the level inventory", () => {
+    progressData.subjects[0].data.character_images = [
+      { url: "https://files.wanikani.com/ground-256.png", content_type: "image/png", metadata: { dimensions: "256x256" } },
+      { url: "https://files.wanikani.com/ground.svg", content_type: "image/svg+xml" },
+    ];
+
+    render(<LevelWrapped level={5} />);
+
+    expect(screen.getByRole("img", { name: "Ground radical" })).toHaveAttribute("src", "https://files.wanikani.com/ground.svg");
+    expect(screen.queryByText("Gr")).not.toBeInTheDocument();
+  });
 });

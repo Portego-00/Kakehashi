@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildLyricsQuiz, parseYouTubeId } from "../lyrics";
+import {
+  buildDisplayTranslationsForLines,
+  buildLyricsQuiz,
+  lyricsTranslationFingerprint,
+  LYRIC_TRANSLATION_MAX_CHARACTERS,
+  parseYouTubeId,
+  sanitizeLyricLineTranslations,
+  selectLyricLinesForTranslation,
+  uniqueLyricLinesForTranslation,
+} from "../lyrics";
 import type { TimedLyricLine } from "../types";
 
 const lines: TimedLyricLine[] = [
@@ -27,6 +36,50 @@ describe("lyrics practice", () => {
 
   it("does not invent distractors for a lyric with too little vocabulary", () => {
     expect(buildLyricsQuiz([{ id: "one", text: "朝", startMs: 0, endMs: 5000 }])).toEqual([]);
+  });
+
+  it("normalizes, filters, and deduplicates Japanese lines for JPDB", () => {
+    expect(uniqueLyricLinesForTranslation([
+      "[00:01.00] 猫と犬が空を見る ",
+      "English only",
+      "猫と犬が空を見る",
+      "山と川を歩く",
+      "",
+    ])).toEqual(["猫と犬が空を見る", "山と川を歩く"]);
+    expect(lyricsTranslationFingerprint("猫\n犬")).toBe(lyricsTranslationFingerprint("猫\n犬"));
+    expect(lyricsTranslationFingerprint("猫\n犬")).not.toBe(lyricsTranslationFingerprint("猫\n鳥"));
+  });
+
+  it("bounds lyric translation batches without rejecting an entire long song", () => {
+    const lines = Array.from({ length: 121 }, (_, index) => `日本語の歌詞 ${index}`);
+    const selected = selectLyricLinesForTranslation(lines);
+
+    expect(selected.lines).toHaveLength(120);
+    expect(selected.lines.at(-1)).toBe("日本語の歌詞 119");
+    expect(selected.skippedCount).toBe(1);
+  });
+
+  it("sanitizes cached translations and preserves mobile comma carry-over", () => {
+    const allowed = new Set(["猫と犬が空を見る", "山と川を歩く", "花と鳥が歌う", "空と海が笑う"]);
+    const translations = sanitizeLyricLineTranslations({
+      "猫と犬が空を見る": " Cats and dogs look at the sky ",
+      "山と川を歩く": ", walking by mountains and rivers",
+      "花と鳥が歌う": ",",
+      "English only": "ignored",
+      "月と星が光る": 42,
+      "空と海が笑う": "a".repeat(LYRIC_TRANSLATION_MAX_CHARACTERS),
+    }, allowed);
+
+    expect(buildDisplayTranslationsForLines([...allowed].slice(0, 3), translations)).toEqual([
+      "Cats and dogs look at the sky,",
+      "walking by mountains and rivers,",
+      null,
+    ]);
+    expect(translations["空と海が笑う"]).toHaveLength(LYRIC_TRANSLATION_MAX_CHARACTERS);
+
+    expect(sanitizeLyricLineTranslations({
+      "花と鳥が歌う": "a".repeat(LYRIC_TRANSLATION_MAX_CHARACTERS + 1),
+    }, allowed)).toEqual({});
   });
 
   it("accepts standard, short, Shorts, and embed YouTube URLs only", () => {

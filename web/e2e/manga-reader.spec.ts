@@ -104,6 +104,34 @@ async function seedPortraitManga(page: Page) {
   });
 }
 
+async function seedMangaShelf(page: Page) {
+  await page.goto("/manga");
+  await page.evaluate((timestamp) => {
+    const titles = ["Manga A", "Manga B", "Manga C"];
+    const records = titles.map((title, index) => ({
+      id: `shelf-manga-${index + 1}`,
+      kind: "manga",
+      title,
+      fileName: `${title}.cbz`,
+      mimeType: "image/*",
+      assetIds: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      progress: 0,
+      currentPage: 1,
+      totalPages: 1,
+      metadata: {
+        sourceType: "cbz",
+        isPdf: false,
+        readingDirection: "rtl",
+        pagePlacements: "[null]",
+      },
+    }));
+    localStorage.setItem("kakehashi:content:v1:library:manga", JSON.stringify(records));
+  }, now);
+  await page.reload();
+}
+
 function intersects(
   left: { x: number; y: number; width: number; height: number },
   right: { x: number; y: number; width: number; height: number },
@@ -166,4 +194,82 @@ test("keeps portrait pages fitted and non-fullscreen controls outside page conte
     await Promise.all(spread.getAnimations().map((animation) => animation.finished));
   });
   await expectPagesToFitOutsideControls(page);
+});
+
+test("aligns the manga header actions and keeps one empty-state divider", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop header alignment assertion");
+  await mockSession(page);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("/manga");
+
+  const download = page.getByRole("button", { name: "Download OCR model" });
+  const jpdb = page.getByRole("link", { name: "Add JPDB API key" });
+  const importAction = page.getByText("Import manga", { exact: true }).locator("..");
+  await expect(download).toBeVisible();
+
+  const boxes = await Promise.all([download, jpdb, importAction].map((action) => action.boundingBox()));
+  expect(boxes.every(Boolean)).toBe(true);
+  const centers = boxes.flatMap((box) => box ? [box.y + box.height / 2] : []);
+  expect(Math.max(...centers) - Math.min(...centers)).toBeLessThanOrEqual(2);
+
+  const emptyState = page.getByRole("heading", { name: "No manga yet" }).locator("..");
+  await expect(emptyState).toHaveCSS("border-top-width", "0px");
+});
+
+test("removes manga metadata when its local file is gone", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop local-storage assertion");
+  await mockSession(page);
+  await page.goto("/manga");
+  await page.evaluate((timestamp) => {
+    localStorage.setItem("kakehashi:content:v1:library:manga", JSON.stringify([{
+      id: "missing-local-manga",
+      kind: "manga",
+      title: "Missing local manga",
+      fileName: "missing.cbz",
+      mimeType: "image/*",
+      assetIds: ["cleared-indexeddb-page"],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      progress: 0,
+      currentPage: 1,
+      totalPages: 1,
+      metadata: { sourceType: "cbz", isPdf: false, readingDirection: "rtl", pagePlacements: "[null]" },
+    }]));
+  }, now);
+  await page.reload();
+
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("kakehashi:content:v1:library:manga"))).toBe("[]");
+  await expect(page.getByRole("heading", { name: "Missing local manga" })).toHaveCount(0);
+});
+
+test("reorders the manga shelf by drag and keeps the order after reload", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop drag-and-drop assertion");
+  await mockSession(page);
+  await seedMangaShelf(page);
+
+  const shelf = page.getByRole("list", { name: "Manga library order" });
+  const shelfItems = shelf.getByRole("listitem");
+  await expect(shelfItems).toHaveCount(3);
+  await expect(shelfItems.getByRole("heading", { level: 2 })).toHaveText(["Manga A", "Manga B", "Manga C"]);
+
+  const source = shelfItems.filter({ has: page.getByRole("heading", { level: 2, name: "Manga C" }) });
+  const target = shelfItems.filter({ has: page.getByRole("heading", { level: 2, name: "Manga A" }) });
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(targetBox).not.toBeNull();
+  if (!sourceBox || !targetBox) return;
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.width * 0.75);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.width * 0.75, { steps: 16 });
+  await page.mouse.up();
+
+  await expect(shelfItems.getByRole("heading", { level: 2 })).toHaveText(["Manga C", "Manga A", "Manga B"]);
+  await expect(page.getByText("Manga C moved to position 1 of 3.", { exact: true })).toHaveCount(1);
+  await expect(page).toHaveURL(/\/manga$/u);
+  await expect(page.getByText("Drop to import manga", { exact: true })).toHaveCount(0);
+
+  await page.reload();
+  await expect(shelfItems.getByRole("heading", { level: 2 })).toHaveText(["Manga C", "Manga A", "Manga B"]);
 });

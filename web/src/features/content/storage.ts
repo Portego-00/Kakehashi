@@ -1,7 +1,9 @@
 import type { CommunityPost, ContentKind, ContentRecord } from "./types";
 
 const DB_NAME = "kakehashi-content-v1";
+const DB_VERSION = 2;
 const ASSET_STORE = "assets";
+const FILE_HANDLE_STORE = "file-handles";
 const PREFIX = "kakehashi:content:v1";
 
 function canUseStorage() {
@@ -28,7 +30,7 @@ export function writeLocal(key: string, value: unknown) {
   }
 }
 
-function removeLocal(key: string) {
+export function removeLocal(key: string) {
   if (!canUseStorage()) return;
   window.localStorage.removeItem(`${PREFIX}:${key}`);
 }
@@ -39,10 +41,11 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(new Error("This browser does not provide IndexedDB storage."));
       return;
     }
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(ASSET_STORE)) database.createObjectStore(ASSET_STORE);
+      if (!database.objectStoreNames.contains(FILE_HANDLE_STORE)) database.createObjectStore(FILE_HANDLE_STORE);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open the local library."));
@@ -83,6 +86,49 @@ export async function removeAsset(id: string) {
   database.close();
 }
 
+export async function saveFileHandle(id: string, handle: FileSystemFileHandle) {
+  const database = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
+      transaction.objectStore(FILE_HANDLE_STORE).put(handle, id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Could not save this file link."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("The file link save was cancelled."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+export async function loadFileHandle(id: string): Promise<FileSystemFileHandle | null> {
+  const database = await openDatabase();
+  try {
+    const value = await new Promise<FileSystemFileHandle | undefined>((resolve, reject) => {
+      const request = database.transaction(FILE_HANDLE_STORE, "readonly").objectStore(FILE_HANDLE_STORE).get(id);
+      request.onsuccess = () => resolve(request.result as FileSystemFileHandle | undefined);
+      request.onerror = () => reject(request.error ?? new Error("Could not read this file link."));
+    });
+    return value ?? null;
+  } finally {
+    database.close();
+  }
+}
+
+export async function removeFileHandle(id: string) {
+  const database = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
+      transaction.objectStore(FILE_HANDLE_STORE).delete(id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Could not remove this file link."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
 export function contentKey(kind: ContentKind) {
   return `library:${kind}`;
 }
@@ -102,10 +148,49 @@ export function upsertRecord(record: ContentRecord) {
   return next;
 }
 
+export function updateRecordInPlace(record: ContentRecord) {
+  const records = loadLibrary(record.kind);
+  const index = records.findIndex((item) => item.id === record.id);
+  if (index < 0) throw new Error("This item is no longer in the library.");
+  const next = [...records];
+  next[index] = record;
+  if (!saveLibrary(record.kind, next)) throw new Error("Browser storage is full or unavailable.");
+  return next;
+}
+
+export function reorderLibrary(kind: ContentKind, orderedIds: readonly string[]) {
+  const records = loadLibrary(kind);
+  if (records.length !== orderedIds.length || new Set(orderedIds).size !== orderedIds.length) {
+    throw new Error("The library changed before its new order could be saved.");
+  }
+  const recordsById = new Map(records.map((record) => [record.id, record]));
+  const orderedRecords: ContentRecord[] = [];
+  for (const id of orderedIds) {
+    const record = recordsById.get(id);
+    if (!record) throw new Error("The library changed before its new order could be saved.");
+    orderedRecords.push(record);
+  }
+  if (!saveLibrary(kind, orderedRecords)) throw new Error("Browser storage is full or unavailable.");
+  return orderedRecords;
+}
+
 export async function deleteRecord(record: ContentRecord) {
   const next = loadLibrary(record.kind).filter((item) => item.id !== record.id);
   if (!saveLibrary(record.kind, next)) throw new Error("Browser storage did not accept the library update.");
-  await Promise.all(record.assetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)));
+  const serializedLinkedFileIds = record.metadata?.linkedFileIds;
+  let linkedFileIds: string[] = [];
+  if (typeof serializedLinkedFileIds === "string") {
+    try {
+      const parsed = JSON.parse(serializedLinkedFileIds) as unknown;
+      if (Array.isArray(parsed)) linkedFileIds = [...new Set(parsed.filter((id): id is string => typeof id === "string" && id.length > 0))];
+    } catch {
+      // Malformed metadata must not prevent the rest of the record from being deleted.
+    }
+  }
+  await Promise.all([
+    ...record.assetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)),
+    ...linkedFileIds.map((fileId) => removeFileHandle(fileId).catch(() => undefined)),
+  ]);
   if (record.kind === "manga") removeLocal(`manga-ocr:${record.id}`);
 }
 

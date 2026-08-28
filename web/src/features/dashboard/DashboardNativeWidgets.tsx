@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { SrsStageIcon } from "@/components/SrsStageIcon";
 import type { StudyModeDefinition } from "@/features/study/catalog";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import type { LevelWidgetSubject, SrsStageSpreadRow } from "./dashboard-data";
 import type { UsageStreakDay } from "./usage-streak";
 import styles from "./dashboard.module.css";
@@ -117,7 +118,10 @@ function SubjectStageMeter({ meaning, stage }: { meaning: string; stage: number 
 
 function LevelSubjectTile({ subject, preview }: { subject: LevelWidgetSubject; preview: boolean }) {
   const status = subject.stage >= 5 ? "passed" : subject.stage > 0 ? "started" : "unstarted";
-  const content = <><span className={styles.levelSubjectBlock}><span lang="ja">{subject.characters}</span></span><SubjectStageMeter meaning={subject.meaning} stage={subject.stage} /></>;
+  const character = subject.subject
+    ? <SubjectCharacter subject={subject.subject} fallbackText={subject.characters} imageSize="72%" imageTone="subject" className={styles.levelSubjectCharacter} />
+    : <span lang="ja">{subject.characters}</span>;
+  const content = <><span className={styles.levelSubjectBlock}>{character}</span><SubjectStageMeter meaning={subject.meaning} stage={subject.stage} /></>;
   if (preview) return <span className={styles.levelSubjectTile} data-subject={subject.type} data-status={status}>{content}</span>;
   return <Link href={`/subjects/${subject.id}`} className={styles.levelSubjectTile} data-subject={subject.type} data-status={status} title={`${subject.characters} · ${subject.meaning}`}>{content}</Link>;
 }

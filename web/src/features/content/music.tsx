@@ -1,21 +1,24 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   type FormEvent,
   type MutableRefObject,
   type RefObject,
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import {
-  ArrowLeft,
-  BookOpenText,
   Check,
-  Clock3,
+  Languages,
+  ListChecks,
   ListMusic,
   LoaderCircle,
   Maximize2,
@@ -24,13 +27,34 @@ import {
   Pause,
   Play,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   Video,
   X,
 } from "lucide-react";
-import { JapaneseReader } from "./JapaneseReader";
-import { buildLyricsQuiz } from "./lyrics";
+import { useAppShellBackAction } from "@/components/shell/app-shell-back-action";
+import { saveWebSettings } from "@/features/settings/settings";
+import { useWebSettings } from "@/features/settings/use-workspace-preferences";
+import { useSession } from "@/lib/session";
+import { JapaneseReader, useJapaneseReaderAnalysisContexts } from "./JapaneseReader";
+import {
+  MusicTranslationStreamError,
+  readMusicTranslationResponse,
+} from "./music-translation-stream";
+import {
+  buildDisplayTranslationsForLines,
+  buildLyricsQuiz,
+  lyricsTranslationFingerprint,
+  sanitizeLyricLineTranslations,
+  selectLyricLinesForTranslation,
+  type LyricLineTranslations,
+} from "./lyrics";
+import {
+  loadSongLyricTranslations,
+  removeSongLyricTranslations,
+  saveSongLyricTranslations,
+} from "./music-translations";
 import { formatTrackDuration, type LyricsPayload, type MusicTrack, type YouTubeVideo } from "./music-providers";
 import { parseLrc, plainLyricsToLines } from "./parsers";
 import { ContentPage, Progress, UndoNotice, formatTime } from "./ui";
@@ -55,13 +79,20 @@ interface ImportPayload {
 type Feedback = { tone: "error" | "notice"; text: string } | null;
 type ResolutionState = "idle" | "loading" | "ready" | "error";
 type MatchSource = "all" | "lyrics" | "video";
+type LyricsTranslationState = {
+  sourceKey: string;
+  status: "idle" | "loading" | "ready" | "error";
+  translations: LyricLineTranslations;
+  message: string | null;
+  code: string | null;
+};
 
-function lyricsForRecord(record: ContentRecord | null) {
-  if (!record?.text) return { lines: [] as TimedLyricLine[], timed: false };
-  const timed = parseLrc(record.text);
+function lyricsForText(text: string) {
+  if (!text) return { lines: [] as TimedLyricLine[], timed: false };
+  const timed = parseLrc(text);
   return timed.length
     ? { lines: timed, timed: true }
-    : { lines: plainLyricsToLines(record.text), timed: false };
+    : { lines: plainLyricsToLines(text), timed: false };
 }
 
 function safeAlbumArt(value: unknown) {
@@ -145,9 +176,17 @@ function resetPlaybackState(
   setAnswer(null);
 }
 
-export function MusicWorkspace() {
+export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {}) {
+  const router = useRouter();
+  const { user } = useSession();
+  const settingsUsername = user?.data.username ?? "anonymous";
+  const settings = useWebSettings(settingsUsername);
+  const jpdbApiKey = settings.integrations.jpdbApiKey;
+  const jpdbReaderAnalysisEnabled = Boolean(jpdbApiKey) && settings.reader?.recognitionMode === "wk-jpdb";
+  const lyricTranslationsAvailable = jpdbApiKey.length > 0;
+  const lyricTranslationsEnabled = lyricTranslationsAvailable && settings.study.songsLyricsLineTranslationsEnabled;
   const [songs, setSongs] = useState<ContentRecord[]>(() => loadLibrary("song"));
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(initialSongId ?? null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
@@ -172,8 +211,17 @@ export function MusicWorkspace() {
   const [lyricsSearchTrack, setLyricsSearchTrack] = useState("");
   const [lyricsSearchArtist, setLyricsSearchArtist] = useState("");
   const [removedSong, setRemovedSong] = useState<ContentRecord | null>(null);
+  const [translationRetryToken, setTranslationRetryToken] = useState(0);
+  const [lyricsTranslation, setLyricsTranslation] = useState<LyricsTranslationState>({
+    sourceKey: "",
+    status: "idle",
+    translations: {},
+    message: null,
+    code: null,
+  });
   const searchAbortRef = useRef<AbortController | null>(null);
   const importAbortRef = useRef<AbortController | null>(null);
+  const translationAbortRef = useRef<AbortController | null>(null);
   const answerTimerRef = useRef<number | null>(null);
   const undoTimerRef = useRef<number | null>(null);
   const lyricLineRefs = useRef(new Map<string, HTMLElement>());
@@ -181,7 +229,36 @@ export function MusicWorkspace() {
   const playerRef = useRef<YouTubePlayerHandle>(null);
 
   const activeSong = songs.find((song) => song.id === activeId) ?? null;
-  const lyricsView = useMemo(() => lyricsForRecord(activeSong), [activeSong]);
+  const activeSongText = activeSong?.text ?? "";
+  const lyricsView = useMemo(() => lyricsForText(activeSongText), [activeSongText]);
+  const lyricTranslationSelection = useMemo(
+    () => selectLyricLinesForTranslation(lyricsView.lines.map((line) => line.text)),
+    [lyricsView.lines],
+  );
+  const translatableLyricLines = lyricTranslationSelection.lines;
+  const translationSourceKey = activeId && activeSongText
+    ? `${activeId}:${lyricsTranslationFingerprint(activeSongText)}`
+    : "";
+  const displayTranslations = useMemo(() => buildDisplayTranslationsForLines(
+    lyricsView.lines.map((line) => line.text),
+    lyricTranslationsEnabled && lyricsTranslation.sourceKey === translationSourceKey
+      ? lyricsTranslation.translations
+      : {},
+  ), [lyricTranslationsEnabled, lyricsTranslation.sourceKey, lyricsTranslation.translations, lyricsView.lines, translationSourceKey]);
+  const translationStateMatches = lyricTranslationsEnabled && lyricsTranslation.sourceKey === translationSourceKey;
+  const translationHasMissingLines = translatableLyricLines.some((line) => !lyricsTranslation.translations[line]);
+  const translationCanRetry = translationStateMatches
+    && lyricsTranslation.status !== "idle"
+    && lyricsTranslation.status !== "loading"
+    && lyricsTranslation.code !== "text_too_long"
+    && translationHasMissingLines;
+  const translationLimitMessage = lyricTranslationsEnabled && lyricTranslationSelection.skippedCount > 0
+    ? `${lyricTranslationSelection.skippedCount} ${lyricTranslationSelection.skippedCount === 1 ? "lyric line remains" : "lyric lines remain"} in Japanese because this song exceeds the safe translation limits.`
+    : null;
+  const visibleTranslationMessage = [
+    translationStateMatches ? lyricsTranslation.message : null,
+    translationLimitMessage,
+  ].filter((message): message is string => Boolean(message)).join(" ") || null;
   const questions = useMemo(() => buildLyricsQuiz(lyricsView.lines), [lyricsView.lines]);
   const question = questions[questionIndex] ?? null;
   const lyricTimeMs = Math.max(0, elapsedMs - lyricsOffsetMs);
@@ -193,12 +270,132 @@ export function MusicWorkspace() {
   const youtubeId = typeof activeSong?.metadata?.youtubeId === "string" ? activeSong.metadata.youtubeId : null;
   const visibleSearchResults = searchedQuery === searchQuery.trim() ? searchResults : [];
 
+  const showSong = useCallback((songId: string) => {
+    setActiveId(songId);
+    router.push(`/music?song=${encodeURIComponent(songId)}`, { scroll: false });
+  }, [router]);
+  const returnToSearch = useCallback(() => {
+    importAbortRef.current?.abort();
+    translationAbortRef.current?.abort();
+    setActiveId(null);
+    setResolutionState("idle");
+    setMatchingSource(null);
+    setFeedback(null);
+    setPlaying(false);
+    setLyricsFocus(false);
+    router.replace("/music", { scroll: false });
+  }, [router]);
+  const shellBackAction = useMemo(() => activeId ? { label: "Back to search", onBack: returnToSearch } : null, [activeId, returnToSearch]);
+  useAppShellBackAction(shellBackAction);
+
   useEffect(() => () => {
     searchAbortRef.current?.abort();
     importAbortRef.current?.abort();
+    translationAbortRef.current?.abort();
     if (answerTimerRef.current !== null) window.clearTimeout(answerTimerRef.current);
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
   }, []);
+
+  useLayoutEffect(() => {
+    if (activeId === null) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [activeId]);
+
+  useEffect(() => {
+    translationAbortRef.current?.abort();
+    if (!activeId || !activeSongText || !lyricTranslationsEnabled || translatableLyricLines.length === 0) {
+      return;
+    }
+
+    const cachedTranslations = loadSongLyricTranslations(activeId, activeSongText, translatableLyricLines);
+    const missingTranslations = translatableLyricLines.some((line) => !cachedTranslations[line]);
+    if (!missingTranslations) {
+      let current = true;
+      void Promise.resolve().then(() => {
+        if (!current) return;
+        setLyricsTranslation({
+          sourceKey: translationSourceKey,
+          status: "ready",
+          translations: cachedTranslations,
+          message: null,
+          code: null,
+        });
+      });
+      return () => { current = false; };
+    }
+
+    const controller = new AbortController();
+    translationAbortRef.current = controller;
+    let current = true;
+    void (async () => {
+      await Promise.resolve();
+      if (!current || controller.signal.aborted) return;
+      setLyricsTranslation({
+        sourceKey: translationSourceKey,
+        status: "loading",
+        translations: cachedTranslations,
+        message: null,
+        code: null,
+      });
+      try {
+        const allowedLines = new Set(translatableLyricLines);
+        let accumulatedTranslations = cachedTranslations;
+        const completion = await readMusicTranslationResponse(await fetch("/music/translate", {
+          method: "POST",
+          headers: {
+            Accept: "application/x-ndjson",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            lines: translatableLyricLines,
+            cachedTranslations: Object.entries(cachedTranslations).map(([source, translation]) => ({ source, translation })),
+            apiKey: jpdbApiKey,
+          }),
+          signal: controller.signal,
+        }), ({ source, translation }) => {
+          if (!current || controller.signal.aborted || !allowedLines.has(source)) return;
+          const nextTranslations = sanitizeLyricLineTranslations({
+            ...accumulatedTranslations,
+            [source]: translation,
+          }, allowedLines);
+          if (!nextTranslations[source]) return;
+          accumulatedTranslations = nextTranslations;
+          saveSongLyricTranslations(activeId, activeSongText, translatableLyricLines, accumulatedTranslations);
+          setLyricsTranslation((state) => state.sourceKey === translationSourceKey
+            ? {
+              ...state,
+              status: "loading",
+              translations: accumulatedTranslations,
+            }
+            : state);
+        });
+        if (!current || controller.signal.aborted) return;
+        saveSongLyricTranslations(activeId, activeSongText, translatableLyricLines, accumulatedTranslations);
+        setLyricsTranslation({
+          sourceKey: translationSourceKey,
+          status: "ready",
+          translations: accumulatedTranslations,
+          message: completion.warning,
+          code: completion.code,
+        });
+      } catch (error) {
+        if (!current || controller.signal.aborted) return;
+        setLyricsTranslation((state) => ({
+          sourceKey: translationSourceKey,
+          status: "error",
+          translations: state.sourceKey === translationSourceKey ? state.translations : cachedTranslations,
+          message: error instanceof Error ? error.message : "JPDB lyric translation is temporarily unavailable.",
+          code: error instanceof MusicTranslationStreamError ? error.code : null,
+        }));
+      }
+    })();
+
+    return () => {
+      current = false;
+      controller.abort();
+      if (translationAbortRef.current === controller) translationAbortRef.current = null;
+    };
+  }, [activeId, activeSongText, jpdbApiKey, lyricTranslationsEnabled, translatableLyricLines, translationRetryToken, translationSourceKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -356,7 +553,7 @@ export function MusicWorkspace() {
     const existing = songs.find((song) => song.metadata?.spotifyId === selectedTrack.id);
     const record = existing ?? recordForTrack(selectedTrack);
     if (!existing) setSongs(upsertRecord(record));
-    setActiveId(record.id);
+    showSong(record.id);
     setDurationMs(selectedTrack.durationMs);
     setVideoSearchQuery(`${selectedTrack.title} ${selectedTrack.artist}`.trim());
     setLyricsSearchTrack(selectedTrack.title);
@@ -366,11 +563,11 @@ export function MusicWorkspace() {
     setLyricsFocus(false);
     resetPlaybackState(setElapsedMs, setPlaying, setLyricsOffsetMs, setQuizMode, setQuestionIndex, setAnswer);
     void resolveSong(selectedTrack, record.id, { applyBest: !existing });
-  }, [resolveSong, songs]);
+  }, [resolveSong, showSong, songs]);
 
   function openSavedSong(song: ContentRecord) {
     const selectedTrack = trackForRecord(song);
-    setActiveId(song.id);
+    showSong(song.id);
     setDurationMs(selectedTrack.durationMs);
     setVideoSearchQuery(`${selectedTrack.title} ${selectedTrack.artist}`.trim());
     setLyricsSearchTrack(selectedTrack.title);
@@ -382,28 +579,32 @@ export function MusicWorkspace() {
     void resolveSong(selectedTrack, song.id, { applyBest: false });
   }
 
-  function returnToSearch() {
-    importAbortRef.current?.abort();
-    setActiveId(null);
-    setResolutionState("idle");
-    setMatchingSource(null);
-    setFeedback(null);
-    setPlaying(false);
-    setLyricsFocus(false);
-  }
-
   const handlePlayerTime = useCallback((nextElapsedMs: number, nextDurationMs: number) => {
     setElapsedMs(nextElapsedMs);
     if (nextDurationMs > 0) setDurationMs(nextDurationMs);
   }, []);
   const handlePlaying = useCallback((nextPlaying: boolean) => setPlaying(nextPlaying), []);
+  const changeLyricTranslations = useCallback((enabled: boolean) => {
+    saveWebSettings(window.localStorage, settingsUsername, {
+      ...settings,
+      study: { ...settings.study, songsLyricsLineTranslationsEnabled: enabled },
+    });
+  }, [settings, settingsUsername]);
+  const retryLyricTranslations = useCallback(() => {
+    translationAbortRef.current?.abort();
+    setTranslationRetryToken((token) => token + 1);
+  }, []);
 
   function removeSong(song: ContentRecord) {
     const next = songs.filter((item) => item.id !== song.id);
     saveLibrary("song", next);
+    removeSongLyricTranslations(song.id);
     setSongs(next);
     setRemovedSong(song);
-    if (activeId === song.id) setActiveId(null);
+    if (activeId === song.id) {
+      setActiveId(null);
+      router.replace("/music", { scroll: false });
+    }
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
     undoTimerRef.current = window.setTimeout(() => setRemovedSong(null), 8_000);
   }
@@ -427,6 +628,12 @@ export function MusicWorkspace() {
 
   function seekToLyric(startMs: number) {
     const target = Math.max(0, startMs + lyricsOffsetMs);
+    setElapsedMs(target);
+    playerRef.current?.seekTo(target);
+  }
+
+  function seekPlayback(targetMs: number) {
+    const target = Math.max(0, durationMs > 0 ? Math.min(durationMs, targetMs) : targetMs);
     setElapsedMs(target);
     playerRef.current?.seekTo(target);
   }
@@ -519,7 +726,7 @@ export function MusicWorkspace() {
           onTimeChange={handlePlayerTime}
           onTogglePlayback={() => { if (playing) playerRef.current?.pause(); else playerRef.current?.play(); }}
           onRestart={() => { playerRef.current?.seekTo(0); setElapsedMs(0); }}
-          onBack={returnToSearch}
+          onSeekPlayback={seekPlayback}
           onRefresh={refreshMatches}
           onSelectVideo={selectVideo}
           onSelectLyrics={selectLyrics}
@@ -547,6 +754,17 @@ export function MusicWorkspace() {
           questionIndex={questionIndex}
           answer={answer}
           onAnswer={chooseAnswer}
+          translations={displayTranslations}
+          jpdbAnalysisApiKey={jpdbApiKey}
+          jpdbAnalysisEnabled={jpdbReaderAnalysisEnabled}
+          translationsAvailable={lyricTranslationsAvailable}
+          translationsEligible={translatableLyricLines.length > 0}
+          translationsEnabled={lyricTranslationsEnabled}
+          onTranslationsEnabledChange={changeLyricTranslations}
+          translationStatus={translationStateMatches ? lyricsTranslation.status : translationLimitMessage ? "ready" : "idle"}
+          translationMessage={visibleTranslationMessage}
+          translationCanRetry={translationCanRetry}
+          onTranslationRetry={retryLyricTranslations}
         />
       ) : (
         <SearchScreen
@@ -692,7 +910,7 @@ function RecommendationSkeleton() {
   return <section className={styles.discoverySection} aria-label="Loading music recommendations"><div className={styles.musicSectionHead}><span className={styles.skeletonHeading} /></div><div className={styles.musicShelf}>{Array.from({ length: 9 }, (_, item) => <div className={styles.shelfSkeleton} key={item}><span /><i /><i /></div>)}</div></section>;
 }
 
-function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolutionState, matchingSource, feedback, elapsedMs, durationMs, playing, playerRef, onPlayingChange, onTimeChange, onTogglePlayback, onRestart, onBack, onRefresh, onSelectVideo, onSelectLyrics, videoSearchQuery, onVideoSearchQueryChange, onVideoSearch, lyricsSearchTrack, lyricsSearchArtist, onLyricsSearchTrackChange, onLyricsSearchArtistChange, onLyricsSearch, lines, timed, currentLine, lyricLineRefs, lyricsViewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer }: {
+function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolutionState, matchingSource, feedback, elapsedMs, durationMs, playing, playerRef, onPlayingChange, onTimeChange, onTogglePlayback, onRestart, onSeekPlayback, onRefresh, onSelectVideo, onSelectLyrics, videoSearchQuery, onVideoSearchQueryChange, onVideoSearch, lyricsSearchTrack, lyricsSearchArtist, onLyricsSearchTrackChange, onLyricsSearchArtistChange, onLyricsSearch, lines, timed, currentLine, lyricLineRefs, lyricsViewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, translations, jpdbAnalysisApiKey, jpdbAnalysisEnabled, translationsAvailable, translationsEligible, translationsEnabled, onTranslationsEnabledChange, translationStatus, translationMessage, translationCanRetry, onTranslationRetry }: {
   song: ContentRecord;
   youtubeId: string | null;
   videoCandidates: YouTubeVideo[];
@@ -708,7 +926,7 @@ function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolu
   onTimeChange: (elapsedMs: number, durationMs: number) => void;
   onTogglePlayback: () => void;
   onRestart: () => void;
-  onBack: () => void;
+  onSeekPlayback: (elapsedMs: number) => void;
   onRefresh: () => void;
   onSelectVideo: (video: YouTubeVideo) => void;
   onSelectLyrics: (lyrics: LyricsPayload) => void;
@@ -736,32 +954,61 @@ function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolu
   questionIndex: number;
   answer: string | null;
   onAnswer: (option: string) => void;
+  translations: Array<string | null>;
+  jpdbAnalysisApiKey: string;
+  jpdbAnalysisEnabled: boolean;
+  translationsAvailable: boolean;
+  translationsEligible: boolean;
+  translationsEnabled: boolean;
+  onTranslationsEnabledChange: (enabled: boolean) => void;
+  translationStatus: LyricsTranslationState["status"];
+  translationMessage: string | null;
+  translationCanRetry: boolean;
+  onTranslationRetry: () => void;
 }) {
-  const albumArt = safeAlbumArt(song.metadata?.albumArt);
-  const artist = String(song.metadata?.artist || "Unknown artist");
+  const playbackMax = Math.max(1, durationMs);
+  const playbackValue = Math.min(playbackMax, Math.max(0, elapsedMs));
+  const videoMatchesRef = useRef<HTMLElement | null>(null);
+  const videoSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const lyricsMatchesRef = useRef<HTMLElement | null>(null);
+  const lyricsSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  function moveToSource(sectionRef: RefObject<HTMLElement | null>, inputRef: RefObject<HTMLInputElement | null>) {
+    const section = sectionRef.current;
+    if (!section) return;
+    inputRef.current?.focus({ preventScroll: true });
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    section.scrollIntoView?.({ behavior: reducedMotion ? "auto" : "smooth", block: "start", inline: "nearest" });
+  }
+
   return (
     <div className={styles.songScreen}>
-      <header className={styles.songTopbar}>
-        <button className={styles.backButton} type="button" onClick={onBack}><ArrowLeft size={18} aria-hidden="true" />Back to search</button>
-        <div className={styles.songIdentity}>
-          <span className={styles.songIdentityArt}>{albumArt ? <Image src={albumArt} alt="" width={56} height={56} sizes="56px" unoptimized /> : <Music2 size={22} aria-hidden="true" />}</span>
-          <span><h1>{song.title}</h1><p>{artist}</p></span>
-        </div>
-        <button className={styles.refreshButton} type="button" onClick={onRefresh} disabled={resolutionState === "loading"}>{resolutionState === "loading" ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : <RefreshCw size={17} aria-hidden="true" />}{resolutionState === "loading" ? "Matching…" : "Refresh matches"}</button>
-      </header>
+      <h1 className={styles.visuallyHidden}>{song.title}</h1>
       {feedback ? <p className={feedback.tone === "error" ? styles.errorNotice : styles.notice} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</p> : null}
 
       <div className={styles.songStage} data-lyrics-focus={lyricsFocus || undefined}>
         <section className={styles.playerColumn} aria-label="Song video">
-          {youtubeId ? <YouTubePlayer ref={playerRef} videoId={youtubeId} title={`${song.title} on YouTube`} onPlayingChange={onPlayingChange} onTimeChange={onTimeChange} /> : <div className={styles.videoEmpty}><Video size={30} aria-hidden="true" /><strong>No playable video selected</strong><p>The song workspace remains available. Adjust the video search or choose a match below.</p></div>}
-          <div className={styles.playerControls}>
-            <button className={styles.playButton} type="button" onClick={onTogglePlayback} disabled={!youtubeId}>{playing ? <Pause size={17} aria-hidden="true" /> : <Play size={17} aria-hidden="true" />}{playing ? "Pause" : "Play"}</button>
-            <button className={styles.controlButton} type="button" onClick={onRestart} disabled={!youtubeId}>Restart</button>
-            <span className={styles.playerTime}><Clock3 size={14} aria-hidden="true" />{formatTime(elapsedMs)}{durationMs > 0 ? ` / ${formatTime(durationMs)}` : ""}</span>
+          <div className={styles.playerMediaViewport}>
+            {youtubeId ? <YouTubePlayer ref={playerRef} videoId={youtubeId} title={`${song.title} on YouTube`} onPlayingChange={onPlayingChange} onTimeChange={onTimeChange} /> : <div className={styles.videoEmpty}><Video size={30} aria-hidden="true" /><strong>No playable video selected</strong><p>The song workspace remains available. Adjust the video search or choose a match below.</p></div>}
           </div>
+          <div className={styles.playerControls} role="group" aria-label="Playback controls">
+            <button className={`${styles.playerControlButton} ${styles.playerControlPrimary} ${styles.playerPlayControl}`} type="button" aria-label={playing ? "Pause song" : "Play song"} onClick={onTogglePlayback} disabled={!youtubeId}>{playing ? <Pause size={17} aria-hidden="true" /> : <Play size={17} aria-hidden="true" />}</button>
+            <button className={`${styles.playerControlButton} ${styles.playerRestartControl}`} type="button" aria-label="Restart song" onClick={onRestart} disabled={!youtubeId}><RotateCcw size={16} aria-hidden="true" /></button>
+            <span className={`${styles.playerTime} ${styles.playerElapsed}`}>{formatTime(playbackValue)}</span>
+            <span className={styles.playerSeek}>
+              <progress className={styles.playerSeekProgress} max={playbackMax} value={playbackValue} aria-hidden="true" />
+              <input type="range" min={0} max={playbackMax} step={1_000} value={playbackValue} aria-label="Seek song" aria-valuetext={`${formatTime(playbackValue)} of ${durationMs > 0 ? formatTime(durationMs) : "0:00"}`} disabled={!youtubeId || durationMs <= 0} onChange={(event) => onSeekPlayback(Number(event.currentTarget.value))} />
+            </span>
+            <span className={`${styles.playerTime} ${styles.playerDuration}`}>{durationMs > 0 ? formatTime(durationMs) : "0:00"}</span>
+          </div>
+          <nav className={styles.playerSourceLinks} aria-label="Song sources">
+            <a href="#video-matches" aria-label="Change video source" aria-controls="video-matches" onClick={(event) => { event.preventDefault(); moveToSource(videoMatchesRef, videoSearchInputRef); }}><Video size={16} aria-hidden="true" />Change video</a>
+            <a href="#lyrics-matches" aria-label="Change lyrics source" aria-controls="lyrics-matches" onClick={(event) => { event.preventDefault(); moveToSource(lyricsMatchesRef, lyricsSearchInputRef); }}><ListMusic size={16} aria-hidden="true" />Change lyrics</a>
+          </nav>
         </section>
 
         <LyricsPanel
+          subjectReturnTo={`/music?song=${encodeURIComponent(song.id)}`}
           lines={lines}
           timed={timed}
           currentLine={currentLine}
@@ -779,37 +1026,107 @@ function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolu
           answer={answer}
           onAnswer={onAnswer}
           loading={resolutionState === "loading" && lines.length === 0}
+          translations={translations}
+          jpdbAnalysisApiKey={jpdbAnalysisApiKey}
+          jpdbAnalysisEnabled={jpdbAnalysisEnabled}
+          translationsAvailable={translationsAvailable}
+          translationsEligible={translationsEligible}
+          translationsEnabled={translationsEnabled}
+          onTranslationsEnabledChange={onTranslationsEnabledChange}
+          translationStatus={translationStatus}
+          translationMessage={translationMessage}
+          translationCanRetry={translationCanRetry}
+          onTranslationRetry={onTranslationRetry}
         />
       </div>
 
-      <div className={styles.sourcePickerGrid}>
-        <VideoMatches
-          videos={videoCandidates}
-          selectedId={youtubeId}
-          loading={resolutionState === "loading" && matchingSource !== "lyrics"}
-          query={videoSearchQuery}
-          onQueryChange={onVideoSearchQueryChange}
-          onSearch={onVideoSearch}
-          onSelect={onSelectVideo}
-        />
-        <LyricsMatches
-          lyrics={lyricsCandidates}
-          selectedId={typeof song.metadata?.lrclibId === "number" ? song.metadata.lrclibId : null}
-          loading={resolutionState === "loading" && matchingSource !== "video"}
-          trackQuery={lyricsSearchTrack}
-          artistQuery={lyricsSearchArtist}
-          onTrackQueryChange={onLyricsSearchTrackChange}
-          onArtistQueryChange={onLyricsSearchArtistChange}
-          onSearch={onLyricsSearch}
-          onSelect={onSelectLyrics}
-        />
+      <div className={styles.sourcePickerWorkspace}>
+        <div className={styles.sourcePickerActions}>
+          <button className={styles.refreshButton} type="button" onClick={onRefresh} disabled={resolutionState === "loading"}>{resolutionState === "loading" ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : <RefreshCw size={17} aria-hidden="true" />}{resolutionState === "loading" ? "Matching…" : "Refresh matches"}</button>
+        </div>
+        <div className={styles.sourcePickerGrid}>
+          <VideoMatches
+            sectionRef={videoMatchesRef}
+            searchInputRef={videoSearchInputRef}
+            videos={videoCandidates}
+            selectedId={youtubeId}
+            loading={resolutionState === "loading" && matchingSource !== "lyrics"}
+            query={videoSearchQuery}
+            onQueryChange={onVideoSearchQueryChange}
+            onSearch={onVideoSearch}
+            onSelect={onSelectVideo}
+          />
+          <LyricsMatches
+            sectionRef={lyricsMatchesRef}
+            searchInputRef={lyricsSearchInputRef}
+            lyrics={lyricsCandidates}
+            selectedId={typeof song.metadata?.lrclibId === "number" ? song.metadata.lrclibId : null}
+            loading={resolutionState === "loading" && matchingSource !== "video"}
+            trackQuery={lyricsSearchTrack}
+            artistQuery={lyricsSearchArtist}
+            onTrackQueryChange={onLyricsSearchTrackChange}
+            onArtistQueryChange={onLyricsSearchArtistChange}
+            onSearch={onLyricsSearch}
+            onSelect={onSelectLyrics}
+          />
+        </div>
       </div>
 
     </div>
   );
 }
 
-function LyricsPanel({ lines, timed, currentLine, lineRefs, viewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, loading }: {
+const StreamingLyricTranslation = memo(function StreamingLyricTranslation({ text }: { text: string }) {
+  const [visibleCharacterCount, setVisibleCharacterCount] = useState(0);
+  const previousTextRef = useRef("");
+
+  useEffect(() => {
+    let timer: number | null = null;
+    const animationFrame = window.requestAnimationFrame(() => {
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        previousTextRef.current = text;
+        setVisibleCharacterCount(text.length);
+        return;
+      }
+
+      const previousText = previousTextRef.current;
+      previousTextRef.current = text;
+      if (previousText && !text.startsWith(previousText)) {
+        setVisibleCharacterCount(text.length);
+        return;
+      }
+
+      const startCount = previousText ? previousText.length : 0;
+      setVisibleCharacterCount((currentCount) => Math.max(currentCount, startCount));
+      const charactersPerTick = text.length > 140 ? 8 : text.length > 80 ? 6 : 4;
+      timer = window.setInterval(() => {
+        setVisibleCharacterCount((currentCount) => {
+          const nextCount = Math.min(text.length, currentCount + charactersPerTick);
+          if (nextCount >= text.length && timer !== null) {
+            window.clearInterval(timer);
+            timer = null;
+          }
+          return nextCount;
+        });
+      }, 10);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      if (timer !== null) window.clearInterval(timer);
+    };
+  }, [text]);
+
+  return <p
+    className={styles.lyricLineTranslation}
+    lang="en"
+    aria-label={text}
+    data-streaming-line="true"
+  >{text.slice(0, visibleCharacterCount)}</p>;
+});
+
+function LyricsPanel({ subjectReturnTo, lines, timed, currentLine, lineRefs, viewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, loading, translations, jpdbAnalysisApiKey, jpdbAnalysisEnabled, translationsAvailable, translationsEligible, translationsEnabled, onTranslationsEnabledChange, translationStatus, translationMessage, translationCanRetry, onTranslationRetry }: {
+  subjectReturnTo: string;
   lines: TimedLyricLine[];
   timed: boolean;
   currentLine: TimedLyricLine | null;
@@ -827,18 +1144,61 @@ function LyricsPanel({ lines, timed, currentLine, lineRefs, viewportRef, onSeek,
   answer: string | null;
   onAnswer: (option: string) => void;
   loading: boolean;
+  translations: Array<string | null>;
+  jpdbAnalysisApiKey: string;
+  jpdbAnalysisEnabled: boolean;
+  translationsAvailable: boolean;
+  translationsEligible: boolean;
+  translationsEnabled: boolean;
+  onTranslationsEnabledChange: (enabled: boolean) => void;
+  translationStatus: LyricsTranslationState["status"];
+  translationMessage: string | null;
+  translationCanRetry: boolean;
+  onTranslationRetry: () => void;
 }) {
   const activeQuestion = questions[questionIndex] ?? null;
+  const [inspectorLineId, setInspectorLineId] = useState<string | null>(null);
+  const activeInspectorLineId = inspectorLineId && lines.some((line) => line.id === inspectorLineId) ? inspectorLineId : null;
+  const analysisContexts = useJapaneseReaderAnalysisContexts(lines, {
+    apiKey: jpdbAnalysisApiKey,
+    enabled: jpdbAnalysisEnabled,
+  });
+  const translationHelpVisible = !translationsAvailable || (!loading && lines.length > 0 && !translationsEligible);
+  const focusControlLabel = lyricsFocus ? "Balanced view" : "Focus lyrics";
+  const quizControlLabel = quizMode ? "Exit quiz" : "Quiz mode";
+
   return (
     <section className={styles.lyricsPanel} aria-labelledby="lyrics-panel-title">
       <div className={styles.lyricsPanelHeader}>
-        <div><h2 id="lyrics-panel-title">Lyrics</h2><p>{timed ? "Synced to playback" : lines.length ? "Plain lyrics" : "No lyrics selected"}</p></div>
+        <div>
+          <h2 id="lyrics-panel-title">Lyrics</h2>
+          <p>{timed ? "Synced to playback" : lines.length ? "Plain lyrics" : "No lyrics selected"}</p>
+          {translationStatus === "loading" ? <p className={styles.lyricsTranslationStatus} role="status">Translating lyric lines…</p> : null}
+          {translationStatus !== "loading" && translationMessage ? <div className={styles.lyricsTranslationFeedback}>
+            <p className={translationStatus === "error" ? styles.lyricsTranslationError : styles.lyricsTranslationStatus} role={translationStatus === "error" ? "alert" : "status"}>{translationMessage}</p>
+            {translationCanRetry ? <button type="button" onClick={onTranslationRetry}>Retry translations</button> : null}
+          </div> : null}
+          {translationHelpVisible ? <p id="lyrics-translation-help" className={styles.lyricsTranslationHelp}>{!translationsAvailable
+            ? <><Link href="/settings#jpdb-api-key">Add a JPDB key in Settings</Link> to enable English lyric translations.</>
+            : "No Japanese lyric lines are eligible for translation."}</p> : null}
+        </div>
         <div className={styles.lyricsPanelActions}>
-          <button className={styles.lyricsFocusToggle} type="button" aria-pressed={lyricsFocus} onClick={() => onLyricsFocusChange(!lyricsFocus)}>
-            {lyricsFocus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
-            {lyricsFocus ? "Balanced view" : "Focus lyrics"}
+          <button
+            className={styles.translationToggle}
+            type="button"
+            aria-label="English lyric translations"
+            title="English lyric translations"
+            aria-pressed={translationsEnabled}
+            aria-describedby={translationHelpVisible ? "lyrics-translation-help" : undefined}
+            disabled={!translationsAvailable || !translationsEligible}
+            onClick={() => onTranslationsEnabledChange(!translationsEnabled)}
+          >
+            <Languages size={16} aria-hidden="true" />
           </button>
-          <button className={styles.quizToggle} type="button" disabled={!questions.length} aria-pressed={quizMode} onClick={() => onQuizModeChange(!quizMode)}>{quizMode ? "Exit quiz" : "Quiz mode"}</button>
+          <button className={styles.lyricsFocusToggle} type="button" aria-label={focusControlLabel} title={focusControlLabel} aria-pressed={lyricsFocus} onClick={() => onLyricsFocusChange(!lyricsFocus)}>
+            {lyricsFocus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+          </button>
+          <button className={styles.quizToggle} type="button" aria-label={quizControlLabel} title={quizControlLabel} disabled={!questions.length} aria-pressed={quizMode} onClick={() => onQuizModeChange(!quizMode)}><ListChecks size={16} aria-hidden="true" /></button>
         </div>
       </div>
       {timed ? <div className={styles.offsetControl} aria-label="Lyrics timing offset"><span>Offset</span><button type="button" onClick={() => onOffsetChange(lyricsOffsetMs - 500)}>−0.5s</button><strong>{lyricsOffsetMs > 0 ? "+" : ""}{(lyricsOffsetMs / 1_000).toFixed(1)}s</strong><button type="button" onClick={() => onOffsetChange(lyricsOffsetMs + 500)}>+0.5s</button><button type="button" onClick={() => onOffsetChange(0)} disabled={lyricsOffsetMs === 0}>Reset</button></div> : null}
@@ -850,6 +1210,8 @@ function LyricsPanel({ lines, timed, currentLine, lineRefs, viewportRef, onSeek,
           const isCurrent = timed && currentLine?.id === line.id;
           const isQuizLine = quizMode && activeQuestion?.lineIndex === lineIndex;
           const correct = isQuizLine && answer === activeQuestion?.answer;
+          const canInspectLine = !isQuizLine || correct;
+          const translation = translations[lineIndex];
           return <article
             className={`${styles.lyricLine} ${isCurrent ? styles.lyricLineActive : ""} ${isQuizLine ? styles.lyricLineQuestion : ""}`}
             key={line.id}
@@ -858,10 +1220,23 @@ function LyricsPanel({ lines, timed, currentLine, lineRefs, viewportRef, onSeek,
           >
             <div className={styles.lyricLineMain}>
               {timed ? <button className={styles.lyricTimeButton} type="button" onClick={() => onSeek(line.startMs)} aria-label={`Seek to ${formatTime(line.startMs)}`}>{formatTime(line.startMs)}</button> : <span className={styles.lyricUntimedMarker} aria-hidden="true" />}
-              {isCurrent && !isQuizLine ? <div className={styles.lyricStudyInline}>
-                <span className={styles.lyricStudyHeading}><BookOpenText size={14} aria-hidden="true" /><strong>Study current line</strong><small>Hover or focus a highlighted word</small></span>
-                <JapaneseReader text={line.text} ariaLabel="Current lyric line" interaction="tooltip" />
-              </div> : <p lang="ja">{isQuizLine && activeQuestion ? <>{activeQuestion.before}<span className={`${styles.blank} ${correct ? styles.blankRevealed : ""}`}>{correct ? activeQuestion.answer : "＿".repeat(Math.max(2, activeQuestion.answer.length))}</span>{activeQuestion.after}</> : line.text}</p>}
+              <div className={styles.lyricLineCopy}>
+                {canInspectLine ? <div className={styles.lyricStudyInline}>
+                  <JapaneseReader
+                    text={line.text}
+                    analysisContext={analysisContexts.get(line.id)}
+                    ariaLabel={`Lyric line ${lineIndex + 1}`}
+                    appearance="compact"
+                    inspectorMode="floating"
+                    inspectorActive={activeInspectorLineId === line.id}
+                    onSelectionChange={(open) => setInspectorLineId((currentId) => open
+                      ? line.id
+                      : currentId === line.id ? null : currentId)}
+                    subjectReturnTo={subjectReturnTo}
+                  />
+                </div> : <p lang="ja">{isQuizLine && activeQuestion ? <>{activeQuestion.before}<span className={`${styles.blank} ${correct ? styles.blankRevealed : ""}`}>{correct ? activeQuestion.answer : "＿".repeat(Math.max(2, activeQuestion.answer.length))}</span>{activeQuestion.after}</> : line.text}</p>}
+                {translation && (!isQuizLine || correct) ? <StreamingLyricTranslation text={translation} /> : null}
+              </div>
             </div>
             {isQuizLine && activeQuestion && !correct ? <div className={styles.answerGrid}>{activeQuestion.options.map((option, index) => <button key={option} className={`${styles.answer} ${answer === option ? styles.answerWrong : ""}`} type="button" onClick={() => onAnswer(option)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div> : null}
           </article>;
@@ -871,7 +1246,9 @@ function LyricsPanel({ lines, timed, currentLine, lineRefs, viewportRef, onSeek,
   );
 }
 
-function VideoMatches({ videos, selectedId, loading, query, onQueryChange, onSearch, onSelect }: {
+function VideoMatches({ sectionRef, searchInputRef, videos, selectedId, loading, query, onQueryChange, onSearch, onSelect }: {
+  sectionRef: RefObject<HTMLElement | null>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
   videos: YouTubeVideo[];
   selectedId: string | null;
   loading: boolean;
@@ -881,12 +1258,12 @@ function VideoMatches({ videos, selectedId, loading, query, onQueryChange, onSea
   onSelect: (video: YouTubeVideo) => void;
 }) {
   return (
-    <section className={styles.sourcePicker} aria-labelledby="video-matches-title">
+    <section ref={sectionRef} id="video-matches" className={styles.sourcePicker} aria-labelledby="video-matches-title">
       <div className={styles.musicSectionHead}><h2 id="video-matches-title">Video matches</h2><span>YouTube</span></div>
       <form className={styles.sourceSearchForm} role="search" onSubmit={onSearch}>
         <label htmlFor="video-match-search">Video search</label>
         <div className={styles.sourceSearchRow}>
-          <span className={styles.sourceSearchInput}><Search size={17} aria-hidden="true" /><input id="video-match-search" value={query} onChange={(event) => onQueryChange(event.target.value)} autoComplete="off" /></span>
+          <span className={styles.sourceSearchInput}><Search size={17} aria-hidden="true" /><input ref={searchInputRef} id="video-match-search" value={query} onChange={(event) => onQueryChange(event.target.value)} autoComplete="off" /></span>
           <button className={styles.sourceSearchButton} type="submit" disabled={loading || !query.trim()}>{loading ? <LoaderCircle className={styles.spin} size={16} aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}{loading ? "Searching…" : "Search"}</button>
         </div>
       </form>
@@ -911,7 +1288,9 @@ function lyricsPreviewLines(result: LyricsPayload) {
   return result.syncedLyrics ? parseLrc(result.syncedLyrics).map((line) => line.text.trim()).filter(Boolean).slice(0, 2) : [];
 }
 
-function LyricsMatches({ lyrics, selectedId, loading, trackQuery, artistQuery, onTrackQueryChange, onArtistQueryChange, onSearch, onSelect }: {
+function LyricsMatches({ sectionRef, searchInputRef, lyrics, selectedId, loading, trackQuery, artistQuery, onTrackQueryChange, onArtistQueryChange, onSearch, onSelect }: {
+  sectionRef: RefObject<HTMLElement | null>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
   lyrics: LyricsPayload[];
   selectedId: number | null;
   loading: boolean;
@@ -923,11 +1302,11 @@ function LyricsMatches({ lyrics, selectedId, loading, trackQuery, artistQuery, o
   onSelect: (lyrics: LyricsPayload) => void;
 }) {
   return (
-    <section className={styles.sourcePicker} aria-labelledby="lyrics-matches-title">
+    <section ref={sectionRef} id="lyrics-matches" className={styles.sourcePicker} aria-labelledby="lyrics-matches-title">
       <div className={styles.musicSectionHead}><h2 id="lyrics-matches-title">Lyrics matches</h2><span>LRCLIB</span></div>
       <form className={styles.sourceSearchForm} role="search" onSubmit={onSearch}>
         <div className={styles.sourceSearchFields}>
-          <label htmlFor="lyrics-track-search">Song<input id="lyrics-track-search" aria-label="Lyrics song" value={trackQuery} onChange={(event) => onTrackQueryChange(event.target.value)} autoComplete="off" /></label>
+          <label htmlFor="lyrics-track-search">Song<input ref={searchInputRef} id="lyrics-track-search" aria-label="Lyrics song" value={trackQuery} onChange={(event) => onTrackQueryChange(event.target.value)} autoComplete="off" /></label>
           <label htmlFor="lyrics-artist-search">Artist<input id="lyrics-artist-search" aria-label="Lyrics artist" value={artistQuery} onChange={(event) => onArtistQueryChange(event.target.value)} autoComplete="off" /></label>
         </div>
         <button className={styles.sourceSearchButton} type="submit" disabled={loading || (!trackQuery.trim() && !artistQuery.trim())}>{loading ? <LoaderCircle className={styles.spin} size={16} aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}{loading ? "Searching…" : "Search lyrics"}</button>

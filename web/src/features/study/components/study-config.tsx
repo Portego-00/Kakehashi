@@ -1,10 +1,12 @@
 "use client";
 
-import { Search, SlidersHorizontal } from "lucide-react";
-import { useId, useMemo, useState, type ReactNode } from "react";
-import { SrsStageIcon } from "@/components/SrsStageIcon";
+import { Check, Search, SlidersHorizontal, X } from "lucide-react";
+import { useDeferredValue, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import { hasSelectedAnime } from "@/features/anime/types";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
+import { searchSubjects } from "@/features/subjects/search";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import { activeStrokeLeniencyPreset, CROSSWORD_SIZE_PRESETS, fixedSubjectTypes, STROKE_LENIENCY_PRESETS } from "../mode-config";
 import type { SrsGroup, StudyFilters, StudyModeId, SubjectList } from "../types";
@@ -36,6 +38,12 @@ const SRS_STAGES = [
   { value: 9, label: "Burned" },
 ] as const;
 const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
+const SUBJECT_TYPE_LABELS: Record<SubjectType, string> = {
+  radical: "Radical",
+  kanji: "Kanji",
+  vocabulary: "Vocabulary",
+  kana_vocabulary: "Kana vocabulary",
+};
 
 function subjectTypeOptions(mode: StudyModeId) {
   if (mode === "vocab-reading") return SUBJECT_TYPES.filter((option) => option.value !== "radical");
@@ -49,62 +57,268 @@ function toggleValue<T>(values: T[], value: T) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function SubjectPicker({ subjects, assignments, selected, lists, filters, onChange }: { subjects: Subject[]; assignments: Assignment[]; selected: number[]; lists: SubjectList[]; filters: StudyFilters; onChange: (ids: number[]) => void }) {
+type CustomPickerMode = Extract<StudyModeId, "custom-review" | "custom-lessons">;
+
+function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, userLevel, starting, onChange, onStart }: { mode: CustomPickerMode; subjects: Subject[]; assignments: Assignment[]; lists: SubjectList[]; filters: StudyFilters; userLevel: number; starting: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
   const [query, setQuery] = useState("");
-  const stageBySubjectId = useMemo(() => new Map(assignments.map((assignment) => [assignment.data.subject_id, assignment.data.srs_stage])), [assignments]);
+  const [showFilters, setShowFilters] = useState(false);
+  const deferredQuery = useDeferredValue(query);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const filterToggleRef = useRef<HTMLButtonElement>(null);
+  const pickerTitleId = useId();
+  const filterPanelId = useId();
+  const resultHeadingId = useId();
+  const isLessons = mode === "custom-lessons";
+  const catalogMaxLevel = isLessons ? 60 : userLevel;
+  const selectedSet = useMemo(() => new Set(filters.selectedSubjectIds), [filters.selectedSubjectIds]);
+  const runnableSubjectIds = useMemo(() => new Set(subjects.filter((subject) => !subject.data.hidden_at).map((subject) => subject.id)), [subjects]);
+  const selectedCount = useMemo(() => [...selectedSet].filter((subjectId) => runnableSubjectIds.has(subjectId)).length, [runnableSubjectIds, selectedSet]);
+  const availableListIds = useMemo(() => new Set(lists.map((list) => list.id)), [lists]);
+  const validSelectedListIds = useMemo(() => filters.selectedListIds.filter((listId) => availableListIds.has(listId)), [availableListIds, filters.selectedListIds]);
+  const selectedListSubjectIds = useMemo(() => {
+    if (!validSelectedListIds.length) return null;
+    const selectedListIds = new Set(validSelectedListIds);
+    return new Set(lists.filter((list) => selectedListIds.has(list.id)).flatMap((list) => list.subjectIds));
+  }, [lists, validSelectedListIds]);
+  const effectiveMinLevel = filters.useCustomLevelRange ? filters.minLevel : 1;
+  const effectiveMaxLevel = filters.useCustomLevelRange ? filters.maxLevel : catalogMaxLevel;
   const matching = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase();
-    return subjects.filter((subject) => filters.subjectTypes.includes(subject.object) && filters.selectedSrsStages.includes(stageBySubjectId.get(subject.id) ?? 0) && subject.data.level >= filters.minLevel && subject.data.level <= filters.maxLevel).filter((subject) => !normalized || subject.data.characters?.includes(query) || subject.data.meanings.some((meaning) => meaning.meaning.toLocaleLowerCase().includes(normalized)));
-  }, [filters.maxLevel, filters.minLevel, filters.selectedSrsStages, filters.subjectTypes, query, stageBySubjectId, subjects]);
+    if (!filters.subjectTypes.length || !filters.selectedSrsStages.length) return [];
+    return searchSubjects(subjects, assignments, {
+      query: deferredQuery,
+      types: filters.subjectTypes,
+      minLevel: effectiveMinLevel,
+      maxLevel: effectiveMaxLevel,
+      srs: [],
+    }).filter(({ subject, assignment }) => {
+      const stageMatches = filters.selectedSrsStages.includes(assignment?.data.srs_stage ?? 0);
+      const listMatches = !selectedListSubjectIds || selectedListSubjectIds.has(subject.id);
+      return stageMatches && listMatches;
+    });
+  }, [assignments, deferredQuery, effectiveMaxLevel, effectiveMinLevel, filters.selectedSrsStages, filters.subjectTypes, selectedListSubjectIds, subjects]);
   const shown = matching.slice(0, 200);
-  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const allMatchingSelected = matching.length > 0 && matching.every(({ subject }) => selectedSet.has(subject.id));
+  const activeFilterCount = Number(filters.subjectTypes.length !== SUBJECT_TYPES.length)
+    + Number(filters.selectedSrsStages.length !== SRS_STAGES.length)
+    + Number(filters.useCustomLevelRange)
+    + validSelectedListIds.length;
+  const hasActiveSearchOrFilters = Boolean(deferredQuery.trim() || activeFilterCount > 0);
+  const matchingToggleLabel = allMatchingSelected
+    ? (hasActiveSearchOrFilters ? "Deselect filtered" : "Deselect all")
+    : (hasActiveSearchOrFilters ? "Select filtered" : "Select all");
+  const compactMatchingToggleLabel = allMatchingSelected ? "Deselect" : (hasActiveSearchOrFilters ? "Select" : "Select all");
+  const set = <K extends keyof StudyFilters>(key: K, value: StudyFilters[K]) => onChange({ ...filters, [key]: value });
+
+  const toggleList = (listId: string) => {
+    const addingList = !validSelectedListIds.includes(listId);
+    const selectedListIds = toggleValue(validSelectedListIds, listId);
+    if (isLessons) {
+      onChange({ ...filters, selectedListIds });
+      return;
+    }
+    const selectedSubjectIds = new Set(filters.selectedSubjectIds);
+    if (addingList) lists.find((list) => list.id === listId)?.subjectIds.forEach((subjectId) => selectedSubjectIds.add(subjectId));
+    onChange({ ...filters, selectedListIds, selectedSubjectIds: [...selectedSubjectIds] });
+  };
+  const toggleMatching = () => {
+    const next = new Set(filters.selectedSubjectIds);
+    matching.forEach(({ subject }) => {
+      if (allMatchingSelected) next.delete(subject.id);
+      else next.add(subject.id);
+    });
+    set("selectedSubjectIds", [...next]);
+  };
+  const resetFilters = () => {
+    onChange({
+      ...filters,
+      subjectTypes: SUBJECT_TYPES.map((option) => option.value),
+      selectedSrsStages: SRS_STAGES.map((option) => option.value),
+      useCustomLevelRange: false,
+      minLevel: 1,
+      maxLevel: catalogMaxLevel,
+      selectedListIds: [],
+    });
+  };
 
   return (
-    <section className={styles.picker} aria-labelledby="pick-subjects-title">
-      <div className={styles.configTitleRow}>
+    <section className={styles.reviewPicker} aria-labelledby={pickerTitleId} data-picker-mode={mode}>
+      <header className={styles.reviewPickerHeader}>
         <div>
-          <h2 id="pick-subjects-title">Choose subjects</h2>
-          <p>{selected.length ? `${selected.length} selected` : "Select subjects or use one of your lists."}</p>
+          <h2 id={pickerTitleId}>Choose subjects</h2>
+          <p role="status" aria-live="polite" aria-atomic="true">
+            <strong>{selectedCount.toLocaleString()}</strong> selected · {matching.length.toLocaleString()} matching
+          </p>
         </div>
-        <div className={styles.optionRow}>
-          <button type="button" className={styles.textButton} disabled={!matching.length} onClick={() => onChange([...new Set([...selected, ...matching.map((subject) => subject.id)])])}>
-            Select all matches
-          </button>
-          {selected.length ? (
-            <button type="button" className={styles.textButton} onClick={() => onChange([])}>
-              Clear
+        <button className={styles.primaryButton} type="button" disabled={starting || selectedCount === 0} onClick={onStart}>
+          {starting ? "Preparing…" : isLessons ? "Start lessons" : "Start review"}
+        </button>
+      </header>
+
+      <div className={styles.reviewPickerControls}>
+        <div className={styles.searchField}>
+          <Search size={18} aria-hidden="true" />
+          <label className="sr-only" htmlFor={`${mode}-subject-search`}>Search subjects</label>
+          <input id={`${mode}-subject-search`} ref={searchRef} name={`${mode}-subject-search`} autoComplete="off" spellCheck={false} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters, meanings, or readings" />
+          {query ? (
+            <button type="button" aria-label="Clear search" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>
+              <X size={17} aria-hidden="true" />
             </button>
           ) : null}
         </div>
+        <button
+          ref={filterToggleRef}
+          type="button"
+          className={styles.reviewFilterToggle}
+          data-active={activeFilterCount > 0}
+          aria-expanded={showFilters}
+          aria-controls={filterPanelId}
+          aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"}
+          onClick={() => setShowFilters((current) => !current)}
+        >
+          <SlidersHorizontal size={18} aria-hidden="true" />
+          <span>Filters</span>
+          {activeFilterCount > 0 ? <strong aria-label={`${activeFilterCount} active filters`}>{activeFilterCount}</strong> : null}
+        </button>
       </div>
-      {lists.length ? (
-        <div className={styles.optionRow} aria-label="Subject lists">
-          {lists.map((list) => (
-            <button type="button" className={styles.optionButton} key={list.id} onClick={() => onChange([...new Set([...selected, ...list.subjectIds])])}>
-              {list.name} <span>{list.subjectIds.length}</span>
-            </button>
-          ))}
-        </div>
+
+      {showFilters ? (
+        <section id={filterPanelId} className={styles.reviewFilterPanel} aria-label="Subject filters">
+          <div className={styles.reviewFilterHeader}>
+            <div>
+              <h3>Filters</h3>
+              <p>{isLessons ? "Narrow the subjects available for these lessons." : "Narrow the subjects available for this review."}</p>
+            </div>
+            {activeFilterCount > 0 ? (
+              <button type="button" className={styles.textButton} onClick={() => { resetFilters(); filterToggleRef.current?.focus(); }}>
+                Reset filters
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.reviewFilterGrid}>
+            <fieldset className={styles.reviewFilterGroup}>
+              <legend>Subject types</legend>
+              <div className={styles.reviewFilterOptions}>
+                {SUBJECT_TYPES.map((option) => (
+                  <label key={option.value} className={styles.checkOption} data-active={filters.subjectTypes.includes(option.value)}>
+                    <input type="checkbox" checked={filters.subjectTypes.includes(option.value)} onChange={() => set("subjectTypes", toggleValue(filters.subjectTypes, option.value))} />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className={styles.reviewFilterGroup}>
+              <legend>Levels</legend>
+              <div className={styles.reviewFilterOptions}>
+                <button type="button" className={styles.optionButton} data-active={!filters.useCustomLevelRange} aria-pressed={!filters.useCustomLevelRange} onClick={() => set("useCustomLevelRange", false)}>
+                  All levels
+                </button>
+                <button type="button" className={styles.optionButton} data-active={filters.useCustomLevelRange} aria-pressed={filters.useCustomLevelRange} onClick={() => set("useCustomLevelRange", true)}>
+                  Custom range
+                </button>
+              </div>
+              {filters.useCustomLevelRange ? (
+                <div className={styles.levelFields}>
+                  <label>
+                    From <input name={`${mode}-min-level`} autoComplete="off" type="number" min={1} max={filters.maxLevel} value={filters.minLevel} onChange={(event) => set("minLevel", Math.max(1, Math.min(filters.maxLevel, Number(event.target.value))))} />
+                  </label>
+                  <span aria-hidden="true">—</span>
+                  <label>
+                    To <input name={`${mode}-max-level`} autoComplete="off" type="number" min={filters.minLevel} max={catalogMaxLevel} value={filters.maxLevel} onChange={(event) => set("maxLevel", Math.max(filters.minLevel, Math.min(catalogMaxLevel, Number(event.target.value))))} />
+                  </label>
+                </div>
+              ) : <p className={styles.levelSummary}>Levels 1–{catalogMaxLevel}</p>}
+            </fieldset>
+            <fieldset className={styles.reviewFilterGroup} data-wide="true">
+              <legend>SRS stages</legend>
+              <div className={styles.reviewFilterOptions}>
+                {SRS_STAGES.map((option) => (
+                  <label key={option.value} className={styles.checkOption} data-active={filters.selectedSrsStages.includes(option.value)}>
+                    <input type="checkbox" checked={filters.selectedSrsStages.includes(option.value)} onChange={() => set("selectedSrsStages", toggleValue(filters.selectedSrsStages, option.value))} />
+                    {option.value > 0 ? <SrsStageIcon stage={option.value} size={18} /> : null}
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {lists.length ? (
+              <fieldset className={styles.reviewFilterGroup} data-wide="true">
+                <legend>Subject lists</legend>
+                <p>{isLessons ? "Selected lists narrow the catalog. Your selection stays intact." : "Selecting a list adds its subjects to your selection."}</p>
+                <div className={styles.reviewFilterOptions}>
+                  {lists.map((list) => (
+                    <button type="button" className={styles.optionButton} data-active={validSelectedListIds.includes(list.id)} aria-pressed={validSelectedListIds.includes(list.id)} key={list.id} onClick={() => toggleList(list.id)}>
+                      <span className={styles.reviewListName}>{list.name}</span> <span>{list.subjectIds.length}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+          </div>
+        </section>
       ) : null}
-      <label className={styles.searchField}>
-        <Search size={17} aria-hidden="true" />
-        <span className="sr-only">Search subjects</span>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" />
-      </label>
-      <div className={styles.subjectPickerGrid} role="group" aria-label="Available subjects">
-        {shown.map((subject) => {
-          const active = selectedSet.has(subject.id);
-          const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.meanings[0]?.meaning;
-          return (
-            <button type="button" key={subject.id} className={styles.subjectPick} data-active={active} data-type={subject.object} aria-pressed={active} onClick={() => onChange(toggleValue(selected, subject.id))}>
-              <strong lang="ja">{subject.data.characters ?? "◈"}</strong>
-              <span>{meaning}</span>
-              <small>Level {subject.data.level}</small>
-            </button>
-          );
-        })}
+
+      <div className={styles.reviewBulkBar}>
+        <p id={resultHeadingId} className={styles.reviewResultCount}>
+          {matching.length.toLocaleString()} {hasActiveSearchOrFilters ? "matching" : "available"} {matching.length === 1 ? "subject" : "subjects"}
+        </p>
+        <div className={styles.reviewBulkActions}>
+          <button type="button" className={styles.textButton} aria-label={matchingToggleLabel} disabled={!matching.length} onClick={toggleMatching}>
+            <span className={styles.reviewBulkActionLong}>{matchingToggleLabel}</span>
+            <span className={styles.reviewBulkActionShort} aria-hidden="true">{compactMatchingToggleLabel}</span>
+          </button>
+          <button type="button" className={styles.textButton} aria-label="Clear selection" disabled={!filters.selectedSubjectIds.length} onClick={() => set("selectedSubjectIds", [])}>
+            <span className={styles.reviewBulkActionLong}>Clear selection</span>
+            <span className={styles.reviewBulkActionShort} aria-hidden="true">Clear</span>
+          </button>
+        </div>
       </div>
-      {matching.length > 200 ? <p className={styles.pickerHint}>Showing 200 of {matching.length} matches. Select all still includes the full result.</p> : null}
+
+      {shown.length ? (
+        <ul className={styles.reviewSubjectList} aria-labelledby={resultHeadingId}>
+          {shown.map(({ subject, assignment }) => {
+            const active = selectedSet.has(subject.id);
+            const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? subject.data.slug;
+            const stage = assignment?.data.srs_stage ?? 0;
+            const characterCount = Array.from(subject.data.characters ?? "◈").length;
+            const accessibleIdentity = subject.data.characters ? `${subject.data.characters}, ${meaning}` : meaning;
+            return (
+              <li key={subject.id}>
+                <button
+                  type="button"
+                  className={styles.reviewSubjectRow}
+                  data-active={active}
+                  data-type={subject.object}
+                  aria-pressed={active}
+                  aria-label={`Choose ${accessibleIdentity}, ${SUBJECT_TYPE_LABELS[subject.object]}, level ${subject.data.level}, ${stage ? srsStageLabel(stage) : "Locked"}`}
+                  onClick={() => set("selectedSubjectIds", toggleValue(filters.selectedSubjectIds, subject.id))}
+                >
+                  <SubjectCharacter subject={subject} fallbackText="◈" imageSize="2rem" className={styles.reviewSubjectCharacter} imageTone={isLessons ? "subject" : "light"} data-character-count={Math.min(characterCount, 12)} />
+                  <span className={styles.reviewSubjectCopy}>
+                    <strong>{meaning}</strong>
+                    <span className={styles.reviewSubjectMeta}>
+                      {SUBJECT_TYPE_LABELS[subject.object]} · Level {subject.data.level}
+                      <span className={styles.reviewSubjectInlineSrs}> · {stage ? srsStageLabel(stage) : "Locked"}</span>
+                    </span>
+                  </span>
+                  <span className={styles.reviewSubjectSrs}>
+                    {stage > 0 ? <SrsStageIcon stage={stage} size={18} /> : null}
+                    <span>{stage ? srsStageLabel(stage) : "Locked"}</span>
+                  </span>
+                  <span className={styles.reviewSelectionIndicator} data-active={active} aria-hidden="true">
+                    {active ? <Check size={17} strokeWidth={3} /> : null}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className={styles.reviewPickerEmpty}>
+          <strong>No subjects match</strong>
+          <p>Change the search or filters to widen the list.</p>
+        </div>
+      )}
+      {matching.length > 200 ? <p className={styles.reviewPickerHint}>Showing the first 200 matches. Bulk selection still includes all {matching.length.toLocaleString()}.</p> : null}
     </section>
   );
 }
@@ -125,7 +339,7 @@ function SettingGroup({ title, detail, children, layout = "row", accessibleTitle
   );
 }
 
-export function StudyConfig({ mode, filters, subjects, assignments = [], lists, animeSyncUsernames, starting = false, onChange, onStart }: { mode: StudyModeId; filters: StudyFilters; subjects: Subject[]; assignments?: Assignment[]; lists: SubjectList[]; animeSyncUsernames?: { myanimelist?: string; anilist?: string }; starting?: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
+export function StudyConfig({ mode, filters, subjects, assignments = [], lists, userLevel = filters.maxLevel, animeSyncUsernames, starting = false, onChange, onStart }: { mode: StudyModeId; filters: StudyFilters; subjects: Subject[]; assignments?: Assignment[]; lists: SubjectList[]; userLevel?: number; animeSyncUsernames?: { myanimelist?: string; anilist?: string }; starting?: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
   const fixedTypes = fixedSubjectTypes(mode);
   const needsSelection = mode === "custom-review" || mode === "custom-lessons";
   const needsQuestionKind = mode === "random-test";
@@ -137,6 +351,10 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
   const hasCoreFilters = mode === "recent-lessons" || needsSelection || (filters.srsGroups.length > 0 && filters.subjectTypes.length > 0);
   const canStart = !starting && hasCoreFilters && hasRequiredAnime && (!needsSelection || filters.selectedSubjectIds.length > 0) && (!needsQuestionKind || filters.questionKinds.length > 0);
   const set = <K extends keyof StudyFilters>(key: K, value: StudyFilters[K]) => onChange({ ...filters, [key]: value });
+
+  if (mode === "custom-review" || mode === "custom-lessons") {
+    return <CustomSubjectPicker mode={mode} subjects={subjects} assignments={assignments} lists={lists} filters={filters} userLevel={userLevel} starting={starting} onChange={onChange} onStart={onStart} />;
+  }
 
   return (
     <div className={styles.configLayout}>
@@ -531,7 +749,6 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
           </p>
         </div>
       </form>
-      {needsSelection ? <SubjectPicker subjects={subjects} assignments={assignments} selected={filters.selectedSubjectIds} lists={lists} filters={filters} onChange={(ids) => set("selectedSubjectIds", ids)} /> : null}
     </div>
   );
 }

@@ -17,6 +17,14 @@ describe("study persistence", () => {
     expect(loadStudySession(scope, "random-test")).toBeNull();
   });
 
+  it("never persists a completed session as resumable", () => {
+    const session = createStudySession("random-test", [{ id: "q", subjectId: 7, subjectType: "kanji", kind: "meaning", prompt: "七", promptLabel: "Meaning", acceptedAnswers: ["Seven"], displayAnswer: "Seven" }], new Date("2026-08-06T10:00:00Z"));
+    saveStudySession(scope, session);
+
+    expect(saveStudySession(scope, { ...session, currentIndex: 1, complete: true })).toBe(true);
+    expect(loadStudySession(scope, "random-test")).toBeNull();
+  });
+
   it("persists reusable subject lists and ignores malformed data", () => {
     const list = { id: "list-1", name: "Trouble", subjectIds: [1, 2], createdAt: "2026-08-06", updatedAt: "2026-08-06" };
     expect(saveSubjectLists(scope, [list])).toBe(true);

@@ -223,7 +223,7 @@ export function LevelTimingChart({ timings, resetCount, density = "default" }: {
           {medianPosition !== null ? <span className={styles.timingMedianSticky} data-testid="timing-median-sticky" style={{ top: `${100 - medianPosition}%` }}>median {formatCompactDuration(summary.median as number)}</span> : null}
         </div>
       </div>
-      <div className={styles.timingLegend} aria-label="Level timing legend"><span data-tone="fastest"><i />Fastest</span><span data-tone="typical"><i />At or below median</span><span data-tone="above"><i />Above median</span><span data-tone="slowest"><i />Slowest</span><span data-tone="progress"><i />In progress</span>{hasExclusions ? <span data-tone="excluded"><i />Excluded</span> : null}</div>
+      <div className={styles.timingLegend} aria-label="Level timing legend"><span data-tone="fastest"><i />Quickest level</span><span data-tone="typical"><i />Median or faster</span><span data-tone="above"><i />Slower than median</span><span data-tone="slowest"><i />Longest level</span><span data-tone="progress"><i />Current level</span>{hasExclusions ? <span data-tone="excluded"><i />Excluded</span> : null}</div>
     </section>
   );
 }

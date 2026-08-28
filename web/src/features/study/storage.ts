@@ -83,6 +83,10 @@ export function loadStudySession(scope: StudyStorageScope, mode: StudyModeId): S
 }
 
 export function saveStudySession(scope: StudyStorageScope, session: StudySession) {
+  if (session.complete) {
+    clearStudySession(scope, session.mode);
+    return true;
+  }
   return writeJson(sessionKey(scope, session.mode), { ...session, updatedAt: new Date().toISOString() });
 }
 

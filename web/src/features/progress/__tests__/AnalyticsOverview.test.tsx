@@ -95,6 +95,11 @@ describe("analytics dashboard", () => {
     render(<LevelTimingChart timings={timings} resetCount={null} />);
 
     expect(screen.getByText("median 12.9d")).toBeInTheDocument();
+    expect(screen.getByText("Quickest level")).toBeInTheDocument();
+    expect(screen.getByText("Median or faster")).toBeInTheDocument();
+    expect(screen.getByText("Slower than median")).toBeInTheDocument();
+    expect(screen.getByText("Longest level")).toBeInTheDocument();
+    expect(screen.getByText("Current level")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exclude level 14, 78.4 days" })).toHaveTextContent("78.4d");
     expect(screen.getByRole("button", { name: "Exclude level 15, 49.6 days" })).toHaveTextContent("49.6d");
   });

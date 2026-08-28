@@ -56,8 +56,10 @@
 .profileRow > .inlineError { grid-column: 1 / -1; color: var(--color-danger); }
 .workspaceOptions { display: contents; }
 .workspaceOptions > :first-child { grid-column: 2; }
-.subsectionHead { padding: var(--space-md); }
+.subsectionHead { display: grid; gap: var(--space-3xs); padding: var(--space-md); background: var(--color-paper-2); }
+.subsectionHead h3 { font-size: var(--text-md); }
 .subsectionHead p { color: var(--color-muted); font-size: var(--text-sm); }
+.conditionalHint { min-height: 3.25rem; padding: var(--space-sm) var(--space-md); color: var(--color-muted); font-size: var(--text-sm); }
 .supportLinks { display: grid; }
 .supportLink { min-height: 4.5rem; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-md); padding: var(--space-sm) var(--space-md); outline: 2px solid transparent; outline-offset: -2px; color: var(--color-ink); text-decoration: none; transition: background-color var(--dur-short) var(--ease-out); }
 .supportLink + .supportLink { border-block-start: var(--rule-thin) solid var(--color-rule-2); }
@@ -72,7 +74,8 @@
 .toggleRow,
 .selectRow,
 .animePickerRow,
-.downloadRow { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg); min-height: 4.5rem; padding: var(--space-sm) var(--space-md); }
+.downloadRow,
+.accountRow { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg); min-height: 4.5rem; padding: var(--space-sm) var(--space-md); }
 .toggleRow, .selectRow { cursor: pointer; }
 .toggleRow > span,
 .selectRow > span,
@@ -80,22 +83,31 @@
 .toggleRow > span > span,
 .selectRow > span,
 .animePickerRow > span,
-.downloadRow > span { min-width: 0; display: grid; }
+.downloadRow > span,
+.accountRow > span { min-width: 0; display: grid; }
 .toggleRow small,
 .selectRow small,
 .animePickerRow small,
-.downloadRow small { color: var(--color-muted); }
+.downloadRow small,
+.accountRow small { color: var(--color-muted); }
 .downloadRow .inlineError { color: var(--color-danger); }
-.downloadRow > button { flex: 0 0 auto; white-space: nowrap; }
+.accountRow .inlineError { color: var(--color-danger); }
+.downloadRow > button,
+.accountRow > button { flex: 0 0 auto; white-space: nowrap; }
 .toggleRow input { position: absolute; opacity: 0; pointer-events: none; }
 .toggleRow > i { position: relative; width: 2.75rem; height: 1.5rem; flex: 0 0 auto; border: var(--rule-thin) solid var(--color-rule); border-radius: 1rem; background: var(--color-paper-3); transition: background-color var(--dur-short) var(--ease-out); }
-.toggleRow > i::after { content: ""; position: absolute; width: 1rem; height: 1rem; inset-block-start: 0.2rem; inset-inline-start: 0.22rem; border-radius: 50%; background: var(--color-surface); transition: transform var(--dur-short) var(--ease-out); }
+.toggleRow > i::after { content: ""; position: absolute; width: 1rem; height: 1rem; inset-block-start: 0.2rem; inset-inline-start: 0.22rem; border-radius: 50%; background: var(--color-surface); transition: transform var(--dur-short) var(--ease-out), background-color var(--dur-short) var(--ease-out); }
+.toggleRow input:not(:checked) + i { border-color: color-mix(in oklch, var(--color-rule) 60%, var(--color-ink)); }
+.toggleRow input:not(:checked) + i::after { background: var(--color-muted); }
 .toggleRow input:checked + i { background: var(--color-accent); border-color: var(--color-accent); }
 .toggleRow input:checked + i::after { transform: translateX(1.18rem); }
 .toggleRow input:focus-visible + i { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .toggleRow[aria-disabled="true"] { cursor: not-allowed; color: var(--color-ink-2); }
-.toggleRow input:disabled + i { background: var(--color-paper-2); }
-.selectRow select { min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
+.toggleRow input:disabled + i { opacity: .6; }
+.toggleRow input:disabled:not(:checked) + i { background: var(--color-paper-2); }
+.selectRow[aria-disabled="true"] { cursor: default; color: var(--color-ink-2); }
+.selectRow select { max-width: min(100%, 22rem); min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
+.selectRow select:disabled { opacity: .65; cursor: not-allowed; }
 .textInput { width: min(100%, 22rem); min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
 .settingsAnchor { scroll-margin-block-start: calc(var(--banner-height) + var(--space-lg)); }
 .jitaiRow { display: grid; gap: var(--space-md); padding: var(--space-md); }
@@ -214,14 +226,17 @@
   .toggleRow,
   .selectRow,
   .animePickerRow,
-  .downloadRow { align-items: start; flex-direction: column; }
+  .downloadRow,
+  .accountRow { align-items: start; flex-direction: column; }
   .toggleRow > i { position: absolute; inset-inline-end: var(--space-md); inset-block-start: var(--space-md); }
+  .toggleRow > span { width: 100%; padding-inline-end: calc(2.75rem + var(--space-md)); }
   .colorInputs > label > span:last-child { width: 100%; }
   .colorInputs input[type="text"] { width: 100%; }
   .selectRow select,
   .profileControls,
   .textInput,
-  .downloadRow > button { width: 100%; }
+  .downloadRow > button,
+  .accountRow > button { width: 100%; }
   .profileControls { align-items: stretch; flex-direction: column; }
   .profileRow { grid-template-columns: minmax(0, 1fr); }
   .fontGrid { grid-template-columns: minmax(0, 1fr); }

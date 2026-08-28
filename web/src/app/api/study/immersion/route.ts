@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
+import {
+  buildImmersionExamples,
+  IMMERSION_KIT_API_BASE,
+  immersionKitSearchUrl,
+  type ImmersionKitIndexMeta,
+  type ImmersionKitSearchPayload,
+} from "@/features/study/immersion-kit";
 
-const API_BASE = "https://apiv2.immersionkit.com";
-const MEDIA_BASE = "https://us-southeast-1.linodeobjects.com/immersionkit/media";
-
-type RawExample = { id?: string; sentence?: string; translation?: string; title?: string; sound?: string; image?: string };
-type IndexMeta = Record<string, { title?: string; category?: string }>;
-let indexMetaPromise: Promise<IndexMeta> | null = null;
+let indexMetaPromise: Promise<ImmersionKitIndexMeta> | null = null;
 
 function getIndexMeta() {
-  indexMetaPromise ??= fetch(`${API_BASE}/index_meta`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000), next: { revalidate: 86_400 } })
+  indexMetaPromise ??= fetch(`${IMMERSION_KIT_API_BASE}/index_meta`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000), next: { revalidate: 86_400 } })
     .then((response) => response.ok ? response.json() : { data: {} })
-    .then((payload: { data?: IndexMeta }) => payload.data ?? {})
+    .then((payload: { data?: ImmersionKitIndexMeta }) => payload.data ?? {})
     .catch(() => ({}));
   return indexMetaPromise;
 }
@@ -21,8 +23,7 @@ export async function POST(request: Request) {
     if (typeof body.query !== "string" || !body.query.trim() || body.query.length > 16) return NextResponse.json({ error: "Invalid query." }, { status: 400 });
     const sourceValues = Array.isArray(body.sources) ? body.sources.filter((value): value is string => typeof value === "string").slice(0, 100) : [];
     if (sourceValues.includes("!")) return NextResponse.json({ example: null });
-    const sources = sourceValues.includes("*") ? new Set<string>() : new Set(sourceValues.filter((value) => value !== "!"));
-    const url = `${API_BASE}/search?q=${encodeURIComponent(body.query.trim())}&exactMatch=true&limit=50&offset=0`;
+    const url = immersionKitSearchUrl(body.query.trim());
     const [response, indexMeta] = await Promise.all([fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000), cache: "no-store" }), getIndexMeta()]);
     if (!response.ok) {
       const rateLimited = response.status === 429;
@@ -32,21 +33,8 @@ export async function POST(request: Request) {
         { status: rateLimited ? 429 : 502, headers: rateLimited && retryAfter ? { "Retry-After": retryAfter } : undefined },
       );
     }
-    const payload = await response.json() as { examples?: RawExample[] };
-    const candidates = (payload.examples ?? []).filter((item) => item.sentence && item.translation && item.title && (!sources.size || sources.has(item.title)));
-    const seen = new Set<string>();
-    const examples = candidates.flatMap((candidate) => {
-      if (!candidate.sentence || !candidate.translation || !candidate.title) return [];
-      const dedupeKey = `${candidate.title}\u0000${candidate.sentence}\u0000${candidate.sound ?? ""}`;
-      if (seen.has(dedupeKey)) return [];
-      seen.add(dedupeKey);
-      const meta = indexMeta[candidate.title];
-      const category = meta?.category ?? candidate.id?.match(/^(anime|drama|games|literature|news)_/)?.[1] ?? "anime";
-      if (category !== "anime") return [];
-      const folder = encodeURIComponent(meta?.title ?? candidate.title);
-      const base = `${MEDIA_BASE}/${category}/${folder}/media`;
-      return [{ sentence: candidate.sentence, translation: candidate.translation, title: meta?.title ?? candidate.title, audio: candidate.sound ? `${base}/${encodeURIComponent(candidate.sound)}` : undefined, imageUrl: candidate.image ? `${base}/${encodeURIComponent(candidate.image)}` : undefined }];
-    }).sort((left, right) => left.sentence.length - right.sentence.length).slice(0, 50);
+    const payload = await response.json() as ImmersionKitSearchPayload;
+    const examples = buildImmersionExamples(payload.examples, indexMeta, sourceValues);
     return NextResponse.json({ examples, example: examples[0] ?? null });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Immersion lookup failed." }, { status: 502 });

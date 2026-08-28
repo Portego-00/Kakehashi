@@ -50,6 +50,13 @@ describe("mobile-parity dashboard derivations", () => {
     expect(burnedSubjectRows(rows, subjects, now)[0].id).toBe(1);
   });
 
+  it("keeps the complete seven-day mistake batch for the horizontal widget rail", () => {
+    const subjects = Array.from({ length: 9 }, (_, index) => subject(index + 1));
+    const statistics = subjects.map((item) => statistic({ subject_id: item.id }));
+
+    expect(recentMistakeRows(statistics, subjects, now)).toHaveLength(9);
+  });
+
   it("finds incomplete previous levels", () => {
     const rows = [assignment({ subject_id: 1, srs_stage: 4 }), { ...assignment({ subject_id: 2, srs_stage: 5 }), id: 2 }];
     expect(incompleteLevelRows([subject(1, 2), subject(2, 2)], rows, 3)).toEqual([{
@@ -65,10 +72,12 @@ describe("mobile-parity dashboard derivations", () => {
   it("builds the current-level radical and kanji tiles from real assignment stages", () => {
     const radical = { ...subject(1), object: "radical" as const, data: { ...subject(1).data, characters: null } };
     const rows = [assignment({ subject_id: 1, subject_type: "radical", srs_stage: 4 }), { ...assignment({ subject_id: 2, srs_stage: 2 }), id: 2 }];
-    expect(levelWidgetSubjects([radical, subject(2)], rows)).toEqual([
+    const levelSubjects = levelWidgetSubjects([radical, subject(2)], rows);
+    expect(levelSubjects).toMatchObject([
       { id: 1, characters: "Me", meaning: "Meaning 1", type: "radical", stage: 4 },
       { id: 2, characters: "字2", meaning: "Meaning 2", type: "kanji", stage: 2 },
     ]);
+    expect(levelSubjects[0].subject).toBe(radical);
   });
 
   it("derives activity, streak, and today's study without inventing review events", () => {

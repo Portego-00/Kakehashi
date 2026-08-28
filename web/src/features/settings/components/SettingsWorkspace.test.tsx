@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { settingsStorageKey } from "../settings";
+import { DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, settingsStorageKey } from "../settings";
 import { JapaneseVoiceDownloadSetting, SettingsWorkspace } from "./SettingsWorkspace";
 
 const voiceMock = vi.hoisted(() => ({
@@ -13,11 +13,21 @@ const voiceMock = vi.hoisted(() => ({
   message: null as string | null,
   error: null as string | null,
   download: vi.fn(),
+  cancelDownload: vi.fn(),
+}));
+const sessionMock = vi.hoisted(() => ({
+  user: { data: { username: "Tester" } },
+  signOut: vi.fn<() => Promise<void>>(),
+}));
+const routerMock = vi.hoisted(() => ({
+  replace: vi.fn<(href: string) => void>(),
 }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: { data: { username: "Tester" } } }),
+  useSession: () => sessionMock,
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
 
 vi.mock("@/lib/theme", () => ({
   useTheme: () => ({ theme: "light", resolvedTheme: "light", setTheme: vi.fn() }),
@@ -38,6 +48,9 @@ beforeEach(() => {
     error: null,
   });
   voiceMock.download.mockReset();
+  voiceMock.cancelDownload.mockReset();
+  sessionMock.signOut.mockReset().mockResolvedValue(undefined);
+  routerMock.replace.mockReset();
 });
 
 function dataTransfer() {
@@ -82,6 +95,34 @@ describe("project support links", () => {
   });
 });
 
+describe("account sign out", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("places sign out at the bottom of settings and returns to login", async () => {
+    render(<SettingsWorkspace />);
+
+    const accountHeading = screen.getByRole("heading", { level: 2, name: "Account" });
+    const accountSection = accountHeading.closest("section");
+    expect(accountSection).toBe(document.querySelector("main > section:last-child"));
+
+    fireEvent.click(within(accountSection!).getByRole("button", { name: "Sign out" }));
+
+    expect(sessionMock.signOut).toHaveBeenCalledOnce();
+    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/login"));
+  });
+
+  it("keeps the action available and explains when sign out fails", async () => {
+    sessionMock.signOut.mockRejectedValueOnce(new Error("Sign out is temporarily unavailable."));
+    render(<SettingsWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign out is temporarily unavailable.");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+    expect(routerMock.replace).not.toHaveBeenCalled();
+  });
+});
+
 describe("listening preferences", () => {
   beforeEach(() => window.localStorage.clear());
 
@@ -97,12 +138,188 @@ describe("listening preferences", () => {
   });
 });
 
+describe("navbar tab preferences", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("exposes all candidates and persists any number of selected tabs", () => {
+    render(<SettingsWorkspace />);
+
+    const heading = screen.getByRole("heading", { level: 3, name: "Desktop navbar tabs" });
+    const card = heading.parentElement?.parentElement;
+    expect(card).not.toBeNull();
+    const navbar = within(card!);
+    const moreHeading = navbar.getByRole("heading", { level: 3, name: "More menu" });
+    const navbarCheckboxes: HTMLInputElement[] = [];
+    let row = heading.parentElement?.nextElementSibling;
+    while (row && row !== moreHeading.parentElement) {
+      const checkbox = row.querySelector<HTMLInputElement>('input[type="checkbox"]');
+      if (checkbox) navbarCheckboxes.push(checkbox);
+      row = row.nextElementSibling;
+    }
+    expect(navbarCheckboxes).toHaveLength(9);
+    const [home, level, items, analytics, news, books, video, manga, songs] = navbarCheckboxes;
+    for (const [checkbox, name] of navbarCheckboxes.map((checkbox, index) => [checkbox, ["Home", "Level", "Items", "Analytics", "News", "Books", "Video", "Manga", "Songs"][index]] as const)) {
+      expect(checkbox).toHaveAccessibleName(new RegExp(`^${name}`));
+    }
+    for (const required of [home, level]) {
+      expect(required).toBeChecked();
+      expect(required).toBeDisabled();
+    }
+    for (const selected of [news, video, manga, songs]) expect(selected).toBeChecked();
+    for (const optional of [items, analytics, books]) {
+      expect(optional).not.toBeChecked();
+      expect(optional).toBeEnabled();
+      fireEvent.click(optional);
+      expect(optional).toBeChecked();
+    }
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace.navbarTabs).toEqual([
+      "home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music",
+    ]);
+  });
+
+  it("refreshes the controls when another browser tab changes the saved navbar", async () => {
+    render(<SettingsWorkspace />);
+    const key = settingsStorageKey("Tester");
+    const items = screen.getByRole("checkbox", { name: /^Items.*Browse radicals/ });
+    const news = screen.getByRole("checkbox", { name: /^News.*NHK Easier/ });
+
+    window.localStorage.setItem(key, JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      workspace: { ...DEFAULT_WEB_SETTINGS.workspace, navbarTabs: ["home", "level", "items"] },
+    }));
+    fireEvent(window, new StorageEvent("storage", { key }));
+
+    await waitFor(() => expect(items).toBeChecked());
+    expect(news).not.toBeChecked();
+  });
+});
+
+describe("review question preferences", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("organizes lesson and review settings like the mobile app", () => {
+    render(<SettingsWorkspace />);
+
+    const lessonsHeading = screen.getByRole("heading", { level: 2, name: "Lessons" });
+    const reviewsHeading = screen.getByRole("heading", { level: 2, name: "Reviews" });
+    const lessonsSection = lessonsHeading.closest("section");
+    const reviewsSection = reviewsHeading.closest("section");
+
+    expect(lessonsSection).not.toBeNull();
+    expect(reviewsSection).not.toBeNull();
+    expect(within(lessonsSection!).getByRole("combobox", { name: "Lesson batch size" })).toBeInTheDocument();
+    expect(within(lessonsSection!).getByRole("combobox", { name: "Lesson question order" })).toBeInTheDocument();
+    expect(within(reviewsSection!).getByRole("heading", { level: 3, name: "Review order" })).toBeInTheDocument();
+    expect(within(reviewsSection!).getByRole("heading", { name: "Anki mode" })).toBeInTheDocument();
+    expect(within(reviewsSection!).getByText("Used by custom reviews.")).toBeInTheDocument();
+    expect(within(reviewsSection!).queryByText(/custom lesson quizzes/i)).not.toBeInTheDocument();
+
+    const studyHeadings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent)
+      .filter((heading) => heading === "Lessons" || heading === "Reviews");
+    expect(studyHeadings).toEqual(["Lessons", "Reviews"]);
+  });
+
+  it("distinguishes subject ordering from meaning and reading question ordering", () => {
+    render(<SettingsWorkspace />);
+
+    const reviewsSection = screen.getByRole("heading", { level: 2, name: "Reviews" }).closest("section");
+    expect(reviewsSection).not.toBeNull();
+    const reviews = within(reviewsSection!);
+
+    const subjectOrder = reviews.getByRole("combobox", { name: "Review subject order" });
+    expect(reviews.queryByRole("combobox", { name: "Review question order" })).not.toBeInTheDocument();
+    fireEvent.click(reviews.getByRole("checkbox", { name: /Force meaning\/reading order/i }));
+    const questionOrder = reviews.getByRole("combobox", { name: "Review question order" });
+    expect(within(subjectOrder).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Random",
+      "Lower SRS first",
+      "Higher SRS first",
+      "Current level first",
+      "Lowest level first",
+      "Newest available first",
+      "Oldest available first",
+      "Most overdue first",
+    ]);
+    const questionOptions = within(questionOrder).getAllByRole("option").map((option) => option.textContent);
+    expect(questionOptions).toEqual(expect.arrayContaining(["Meaning first", "Reading first"]));
+    expect(questionOptions).not.toEqual(expect.arrayContaining(["All meanings first", "All readings first"]));
+    expect(screen.queryByRole("combobox", { name: "Review order" })).not.toBeInTheDocument();
+  });
+
+  it("uses the familiar Anki mode name everywhere", () => {
+    render(<SettingsWorkspace />);
+
+    expect(screen.getByRole("heading", { name: "Anki mode" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Anki mode" })).toBeInTheDocument();
+    expect(screen.queryByText(/Self-assessment cards/i)).not.toBeInTheDocument();
+  });
+
+  it("groups the mobile-parity review controls and persists their choices", async () => {
+    render(<SettingsWorkspace />);
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Reviews" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Show item level & SRS stage/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Show vocabulary frequency/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Vocabulary context sentence hints/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Answer feedback sounds/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Allow skipping reviews/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Accept user synonyms/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: /SRS progression/i }), { target: { value: "compact" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /Anki mode/i }), { target: { value: "both" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Group meaning and reading/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: /Review character size/i }), { target: { value: "1.2" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /Review answer size/i }), { target: { value: "0.9" } });
+
+    const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
+    expect(study).toMatchObject({
+      showReviewItemLevelAndSrsStage: true,
+      showVocabularyFrequency: true,
+      showVocabContextSentencesInReviews: true,
+      answerFeedbackSoundEnabled: false,
+      allowSkippingReviews: true,
+      acceptUserSynonymsAsAnswers: true,
+      srsProgressionCardDisplayMode: "compact",
+      ankiMode: "both",
+      ankiGroupQuestions: true,
+      reviewCharacterFontScale: 1.2,
+      reviewInputFontScale: 0.9,
+    });
+  }, 10_000);
+
+  it("clears grouped grading when Anki mode no longer applies to both question types", async () => {
+    render(<SettingsWorkspace />);
+    const mode = await screen.findByRole("combobox", { name: /Anki mode/i });
+
+    fireEvent.change(mode, { target: { value: "both" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Group meaning and reading/i }));
+    fireEvent.change(mode, { target: { value: "meaning" } });
+
+    const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
+    expect(study).toMatchObject({ ankiMode: "meaning", ankiGroupQuestions: false });
+    expect(screen.getByText('Only available when “Meanings and readings” is selected.')).toBeInTheDocument();
+  });
+});
+
 describe("Japanese context voice download", () => {
+  it("keeps the missing voice in its own discoverable settings section", () => {
+    Object.assign(voiceMock, { downloaded: false });
+    render(<SettingsWorkspace />);
+
+    const section = document.getElementById("japanese-voice");
+    expect(section).toHaveAccessibleName("Japanese voice");
+    expect(section).toContainElement(screen.getByRole("button", { name: "Download voice · about 400 MB" }));
+  });
+
   it("downloads from settings when the voice is missing", () => {
     Object.assign(voiceMock, { downloaded: false });
     render(<SettingsWorkspace />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Download voice · about 65 MB" }));
+    const download = screen.getByRole("button", { name: "Download voice · about 400 MB" });
+    expect(document.getElementById("japanese-voice")).toContainElement(download);
+    fireEvent.click(download);
     expect(voiceMock.download).toHaveBeenCalledOnce();
   });
 
@@ -117,10 +334,13 @@ describe("Japanese context voice download", () => {
     expect(screen.queryByRole("button", { name: /Download voice/u })).not.toBeInTheDocument();
   });
 
-  it("shows progress and keeps failures retryable", () => {
+  it("keeps an in-progress download cancelable and failures retryable", () => {
     Object.assign(voiceMock, { downloaded: false, activity: "downloading", progress: 42, message: "Downloading voice model…" });
     const { rerender } = render(<JapaneseVoiceDownloadSetting />);
-    expect(screen.getByRole("button", { name: "Downloading 42%" })).toBeDisabled();
+    const cancel = screen.getByRole("button", { name: "Cancel download" });
+    expect(cancel).toBeEnabled();
+    fireEvent.click(cancel);
+    expect(voiceMock.cancelDownload).toHaveBeenCalledOnce();
 
     Object.assign(voiceMock, { activity: "idle", progress: null, message: null, error: "The download failed." });
     rerender(<JapaneseVoiceDownloadSetting />);
@@ -129,14 +349,16 @@ describe("Japanese context voice download", () => {
     expect(voiceMock.download).toHaveBeenCalledOnce();
   });
 
-  it("stays hidden while checking or when the browser is unsupported", () => {
+  it("keeps a clear status visible while checking or when the browser is unsupported", () => {
     Object.assign(voiceMock, { downloaded: false, checked: false });
     const { rerender } = render(<JapaneseVoiceDownloadSetting />);
-    expect(screen.queryByText("Japanese context voice")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Japanese voice" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Checking…" })).toBeDisabled();
 
     Object.assign(voiceMock, { checked: true, supported: false });
     rerender(<JapaneseVoiceDownloadSetting />);
-    expect(screen.queryByText("Japanese context voice")).not.toBeInTheDocument();
+    expect(screen.getByText(/This browser cannot save or run the optional voice/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unavailable" })).toBeDisabled();
   });
 });
 
@@ -155,10 +377,39 @@ describe("reader integrations", () => {
       recognitionMode: "wk",
     });
   });
+
+  it("requires a saved JPDB key before opting into English lyric translations", () => {
+    render(<SettingsWorkspace />);
+
+    const jpdbSetting = screen.getByText("JPDB API key").closest("label");
+    const translationToggle = screen.getByRole("checkbox", { name: /English lyric translations/i });
+    expect(jpdbSetting).toHaveTextContent(/song lyrics/i);
+    expect(translationToggle).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText("Paste JPDB key"), { target: { value: "  jpdb-key  " } });
+    expect(translationToggle).toBeEnabled();
+
+    fireEvent.click(translationToggle);
+    expect(translationToggle).toBeChecked();
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study.songsLyricsLineTranslationsEnabled).toBe(true);
+  });
 });
 
 describe("dashboard layout drag targets", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    const visibleDashboard = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse"];
+    const hiddenDashboard = DASHBOARD_SECTIONS.filter((id) => !visibleDashboard.includes(id));
+    window.localStorage.setItem(settingsStorageKey("Tester"), JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      workspace: {
+        ...DEFAULT_WEB_SETTINGS.workspace,
+        dashboardOrder: [...visibleDashboard, ...hiddenDashboard],
+        hiddenDashboard,
+        dashboardWidths: { ...DEFAULT_WEB_SETTINGS.workspace.dashboardWidths, level: 8, forecast: 8, "study-pulse": 4 },
+      },
+    }));
+  });
 
   async function renderLayout() {
     const { container } = render(<SettingsWorkspace />);
@@ -217,5 +468,17 @@ describe("dashboard layout drag targets", () => {
       "forecast",
     ]);
     expect(container.querySelector('[data-editor-section="study-pulse"]')).toHaveAttribute("data-editor-row-start", "true");
+  });
+
+  it("restores the full dashboard layout as the default", async () => {
+    render(<SettingsWorkspace />);
+    const list = await screen.findByRole("list", { name: "Visible dashboard sections" });
+    await waitFor(() => expect(list.querySelectorAll(":scope > li")).toHaveLength(6));
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore dashboard" }));
+
+    await waitFor(() => expect(list.querySelectorAll(":scope > li")).toHaveLength(17));
+    const savedWorkspace = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace;
+    expect(savedWorkspace).toMatchObject(DEFAULT_WEB_SETTINGS.workspace);
   });
 });

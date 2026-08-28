@@ -30,6 +30,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: join(projectRoot, ".."),
   },
+  webpack(config) {
+    config.resolve.modules = [join(projectRoot, "node_modules"), ...(config.resolve.modules ?? [])];
+    return config;
+  },
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },

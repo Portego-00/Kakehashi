@@ -70,6 +70,7 @@ describe("NHK News web source parity", () => {
   beforeEach(() => window.localStorage.clear());
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -159,15 +160,66 @@ describe("NHK News web source parity", () => {
     expect(screen.getByRole("button", { name: "Furigana" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("renders the Easy article audio with native playback controls", async () => {
+  it("renders a floating Easy audio player with playback and seeking controls", async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
     vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
 
-    render(<NewsArticleView articleId={easyArticle.id} />);
+    const { container } = render(<NewsArticleView articleId={easyArticle.id} />);
 
-    const audio = await screen.findByLabelText(`Audio for ${easyArticle.title}`);
+    const player = await screen.findByRole("region", { name: "Article audio player" });
+    expect(within(player).getByText("NHK Easy audio")).toBeInTheDocument();
+    expect(within(player).getByText(easyArticle.title)).toBeInTheDocument();
+
+    const audio = container.querySelector("audio");
+    expect(audio).not.toBeNull();
     expect(audio).toHaveAttribute("src", EASY_AUDIO_URL);
-    expect(audio).toHaveAttribute("controls");
-    expect(audio).toHaveAttribute("preload", "none");
+    expect(audio).not.toHaveAttribute("controls");
+    expect(audio).toHaveAttribute("preload", "metadata");
+
+    Object.defineProperties(audio!, {
+      duration: { configurable: true, value: 125 },
+      currentTime: { configurable: true, writable: true, value: 35 },
+    });
+    fireEvent.loadedMetadata(audio!);
+    fireEvent.timeUpdate(audio!);
+
+    expect(await within(player).findByText("0:35 / 2:05")).toBeInTheDocument();
+    const progress = within(player).getByRole("slider", { name: "Audio progress" });
+    expect(progress).toHaveValue("35");
+    expect(progress).toHaveAttribute("max", "125");
+
+    fireEvent.change(progress, { target: { value: "100" } });
+    expect(audio!.currentTime).toBe(100);
+    fireEvent.click(within(player).getByRole("button", { name: "Forward 10 seconds" }));
+    expect(audio!.currentTime).toBe(110);
+    audio!.currentTime = 123;
+    fireEvent.click(within(player).getByRole("button", { name: "Forward 10 seconds" }));
+    expect(audio!.currentTime).toBe(125);
+    fireEvent.click(within(player).getByRole("button", { name: "Rewind 10 seconds" }));
+    expect(audio!.currentTime).toBe(115);
+
+    fireEvent.click(within(player).getByRole("button", { name: "Play article audio" }));
+    await waitFor(() => expect(play).toHaveBeenCalledOnce());
+    fireEvent.click(within(player).getByRole("button", { name: "Pause article audio" }));
+    expect(pause).toHaveBeenCalledOnce();
+
+    fireEvent.click(within(player).getByRole("button", { name: "Mute article audio" }));
+    expect(audio!.muted).toBe(true);
+    expect(within(player).getByRole("button", { name: "Unmute article audio" })).toBeInTheDocument();
+  });
+
+  it("offers the direct Easy audio link when browser playback fails", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+
+    const { container } = render(<NewsArticleView articleId={easyArticle.id} />);
+    const player = await screen.findByRole("region", { name: "Article audio player" });
+    const audio = container.querySelector("audio");
+    expect(audio).not.toBeNull();
+
+    fireEvent.error(audio!);
+    expect(within(player).getByRole("alert")).toHaveTextContent("Audio could not be played.");
+    expect(within(player).getByRole("link", { name: "Open audio" })).toHaveAttribute("href", EASY_AUDIO_URL);
   });
 
   it("renders an explicit NHK summary fallback without starting article analysis", async () => {
@@ -185,7 +237,7 @@ describe("NHK News web source parity", () => {
     expect(await screen.findByText("NHK ONE News summary")).toBeInTheDocument();
     expect(screen.getByText(summaryArticle.summary ?? "")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Open on NHK/ })).not.toHaveLength(0);
-    expect(screen.queryByLabelText(/Audio for/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Article audio player" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("japanese-reader")).not.toBeInTheDocument();
   });
 });

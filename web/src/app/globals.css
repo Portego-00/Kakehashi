@@ -8,7 +8,7 @@ html { color-scheme: light; background: var(--color-paper); }
 html[data-theme="dark"], html[data-theme="midnight"] { color-scheme: dark; }
 body {
   margin: 0;
-  min-width: 20rem;
+  min-width: min(20rem, 100%);
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-body);

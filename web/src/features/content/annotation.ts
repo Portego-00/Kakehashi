@@ -17,6 +17,7 @@ export interface ReaderAnnotation {
   text: string;
   spelling: string;
   reading: string;
+  surfaceReading?: string;
   meaning: string;
   meanings: string[];
   alternativeSpellings: string[];
@@ -192,6 +193,7 @@ export function annotateJpdbTokens(tokens: JpdbTokenAnnotation[], subjects: Subj
       text: token.surface,
       spelling: token.spelling,
       reading: token.reading,
+      surfaceReading: token.surfaceReading,
       meaning: token.meaning,
       meanings: token.meanings,
       alternativeSpellings: token.alternativeSpellings,

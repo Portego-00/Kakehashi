@@ -4,14 +4,16 @@ import { LevelTimingChart } from "@/features/progress/components/AnalyticsOvervi
 import type { LevelTiming } from "@/features/progress/calculations";
 import { STUDY_MODES } from "@/features/study/catalog";
 import type { DashboardSectionId } from "@/features/settings/settings";
-import type { SrsStageSpreadRow } from "./dashboard-data";
+import type { Subject } from "@/types/wanikani";
+import type { DashboardSubjectRow, SrsStageSpreadRow } from "./dashboard-data";
 import { IncompleteLevelsWidget, ReviewStatsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
 import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, TodayStudyWidget } from "./DashboardNativeWidgets";
+import { RecentMistakesWidget } from "./RecentMistakesWidget";
 import type { UsageStreakDay } from "./usage-streak";
 import { StudyQueueCard } from "./StudyQueueCard";
 import styles from "./dashboard.module.css";
 
-const SUBJECT_PREVIEW_IDS: DashboardSectionId[] = ["recent-mistakes", "recent-unlocks", "critical-items", "burned-items"];
+const SUBJECT_PREVIEW_IDS: DashboardSectionId[] = ["recent-unlocks", "critical-items", "burned-items"];
 const FORECAST_HEIGHTS = [34, 62, 48, 78, 56, 88, 44, 72, 38, 65, 52, 30];
 const HEATMAP_LEVELS = Array.from({ length: 70 }, (_, index) => index % 9 === 0 ? 4 : index % 5 === 0 ? 3 : index % 3 === 0 ? 1 : 0);
 const SRS_PREVIEW_ROWS: SrsStageSpreadRow[] = [
@@ -30,6 +32,17 @@ const STREAK_PREVIEW_DAYS: UsageStreakDay[] = Array.from({ length: 7 }, (_, inde
   return { date, dayKey: `preview-${index}`, label: date.toLocaleDateString(undefined, { weekday: "narrow" }), active: index !== 2, isToday: index === 6 };
 });
 const TIMING_PREVIEW_ROWS: LevelTiming[] = [5.2, 7.4, 6.1, 9.3, 5.8, 7, 6.5, 8.4].map((days, index) => ({ level: index + 13, startedAt: "2026-01-01", passedAt: "2026-01-02", completedAt: null, daysToPass: days, daysToComplete: null, activeDays: days }));
+const RECENT_MISTAKES_PREVIEW_NOW = new Date("2026-08-25T12:00:00Z");
+const RECENT_MISTAKES_PREVIEW: DashboardSubjectRow[] = [
+  ["見当たる", "Vocabulary", "vocabulary", "2026-08-25T11:40:00Z"],
+  ["語", "Language", "kanji", "2026-08-25T08:00:00Z"],
+  ["文", "Writing", "radical", "2026-08-24T16:00:00Z"],
+].map(([characters, meaning, type, date], index) => {
+  const id = -(index + 1);
+  const object = type as DashboardSubjectRow["type"];
+  const subject = { id, object, data: { characters, level: 1, slug: String(meaning).toLocaleLowerCase(), meanings: [{ meaning, primary: true, accepted_answer: true }] } } as Subject;
+  return { id, characters, meaning, type: object, level: 1, date, subject };
+});
 
 function PreviewHeader({ title, detail, icon }: { title: string; detail: string; icon?: ReactNode }) {
   return <div className={styles.widgetHeader}><div><h2>{title}</h2><p>{detail}</p></div>{icon}</div>;
@@ -60,9 +73,10 @@ function DashboardWidgetPreviewComponent({ id, density = "canvas" }: { id: Dashb
     preview = <section className={styles.section}><PreviewHeader title="Next 12 hours" detail="Reviews available at the top of each hour" /><div className={styles.forecast}>{FORECAST_HEIGHTS.map((height, index) => <div className={styles.forecastCol} key={index}><div className={styles.forecastBarTrack}><div className={styles.forecastBar} style={{ "--bar-height": `${height}%` } as CSSProperties} /></div><strong>·</strong><span>{index % 3 === 0 ? "Now" : "+1h"}</span></div>)}</div></section>;
   } else if (id === "study-pulse") {
     preview = <ReviewStatsWidget statistics={[]} preview />;
+  } else if (id === "recent-mistakes") {
+    preview = <RecentMistakesWidget items={RECENT_MISTAKES_PREVIEW} now={RECENT_MISTAKES_PREVIEW_NOW} preview />;
   } else if (SUBJECT_PREVIEW_IDS.includes(id)) {
     const titles: Partial<Record<DashboardSectionId, [string, string]>> = {
-      "recent-mistakes": ["Recent mistakes", "Updated subjects with a broken answer streak"],
       "recent-unlocks": ["Recent unlocks", "The latest subjects added to your study path"],
       "critical-items": ["Critical items", "Subjects with the lowest answer accuracy"],
       "burned-items": ["Burned items", "Burned during the last 30 days"],

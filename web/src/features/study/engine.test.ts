@@ -1,5 +1,5 @@
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
-import { advanceStudySession, answerStudyQuestion, checkAnswer, createStudySession, DEFAULT_STUDY_FILTERS, filterStudySubjects, generateQuestions, getSessionSummary, getStudyItemProgress, normalizeMeaning, normalizeReading, recentLessonSubjectIds, unlockedLessonSubjects } from "./engine";
+import { advanceStudySession, answerStudyQuestion, checkAnswer, createStudySession, DEFAULT_STUDY_FILTERS, filterStudySubjects, generateQuestions, getSessionSummary, getStudyItemProgress, normalizeMeaning, normalizeReading, recentLessonSubjectIds, resolveStudyAnswerStatus, unlockedLessonSubjects } from "./engine";
 import type { StudyFilters, StudyQuestion } from "./types";
 
 function subject(id: number, object: SubjectType, characters: string, meaning: string, reading = ""): Subject {
@@ -33,6 +33,39 @@ describe("study question engine", () => {
     expect(checkAnswer(question, "")).toBe(false);
   });
 
+  it("persists an already-evaluated close answer without exact regrading", () => {
+    const question: StudyQuestion = { id: "close", subjectId: 1, subjectType: "vocabulary", kind: "meaning", prompt: "七日", promptLabel: "Meaning", acceptedAnswers: ["Seventh Day"], displayAnswer: "Seventh Day" };
+    const session = answerStudyQuestion(
+      createStudySession("random-test", [question]),
+      "sevent day",
+      new Date("2026-08-27T14:00:00Z"),
+      "close",
+    );
+
+    expect(session.answers).toEqual([{
+      questionId: "close",
+      value: "sevent day",
+      correct: true,
+      status: "close",
+      answeredAt: "2026-08-27T14:00:00.000Z",
+    }]);
+    expect(getSessionSummary(session)).toMatchObject({ correct: 1, accuracy: 100, incorrectSubjectIds: [] });
+
+    const rejected = resolveStudyAnswerStatus(session, "close", "incorrect", new Date("2026-08-27T14:01:00Z"));
+    expect(rejected.answers[0]).toMatchObject({ value: "sevent day", correct: false, status: "incorrect" });
+    expect(rejected.updatedAt).toBe("2026-08-27T14:01:00.000Z");
+    expect(getSessionSummary(rejected)).toMatchObject({ correct: 0, accuracy: 0, incorrectSubjectIds: [1] });
+  });
+
+  it("keeps exact grading as the fallback and records its outcome", () => {
+    const question: StudyQuestion = { id: "exact", subjectId: 1, subjectType: "vocabulary", kind: "meaning", prompt: "七日", promptLabel: "Meaning", acceptedAnswers: ["Seventh Day"], displayAnswer: "Seventh Day" };
+    const accepted = answerStudyQuestion(createStudySession("random-test", [question]), "Seventh Day");
+    const rejected = answerStudyQuestion(createStudySession("random-test", [question]), "Sevent Day");
+
+    expect(accepted.answers[0]).toMatchObject({ correct: true, status: "correct" });
+    expect(rejected.answers[0]).toMatchObject({ correct: false, status: "incorrect" });
+  });
+
   it("filters by assignment SRS and selected subjects", () => {
     const selected = filterStudySubjects({ subjects, assignments }, { ...filters, selectedSubjectIds: [1] });
     expect(selected.map((item) => item.id)).toEqual([1]);
@@ -47,10 +80,9 @@ describe("study question engine", () => {
 
   it("honors an exact custom-review selection even without assignments", () => {
     const locked = subject(40, "vocabulary", "犬", "Dog", "いぬ");
-    expect(generateQuestions("custom-review", { subjects: [...subjects, locked], assignments }, { ...filters, selectedSubjectIds: [40], count: 10 }, () => 0.5)).toEqual([
-      expect.objectContaining({ subjectId: 40, kind: "meaning" }),
-      expect.objectContaining({ subjectId: 40, kind: "reading" }),
-    ]);
+    const questions = generateQuestions("custom-review", { subjects: [...subjects, locked], assignments }, { ...filters, selectedSubjectIds: [40], count: 10 }, () => 0.5);
+    expect(questions.map((question) => question.subjectId)).toEqual([40, 40]);
+    expect(questions.map((question) => question.kind).toSorted()).toEqual(["meaning", "reading"]);
   });
 
   it("counts paired meaning and reading prompts as one custom-review item", () => {
@@ -59,7 +91,7 @@ describe("study question engine", () => {
       "custom-review",
       { subjects: reviewSubjects, assignments: [] },
       { ...filters, selectedSubjectIds: reviewSubjects.map((item) => item.id), count: 5 },
-      () => 0.5,
+      { random: () => 0.5, backToBackQuestions: true },
     );
 
     expect(new Set(questions.map((question) => question.subjectId))).toHaveLength(5);
@@ -70,6 +102,101 @@ describe("study question engine", () => {
     for (const reviewSubject of reviewSubjects) {
       expect(questions.filter((question) => question.subjectId === reviewSubject.id).map((question) => question.kind).toSorted()).toEqual(["meaning", "reading"]);
     }
+  });
+
+  it("uses the separate custom review subject order", () => {
+    const low = { ...subject(60, "kanji", "下", "Below", "した"), data: { ...subject(60, "kanji", "下", "Below", "した").data, level: 2 } };
+    const high = { ...subject(61, "kanji", "上", "Above", "うえ"), data: { ...subject(61, "kanji", "上", "Above", "うえ").data, level: 12 } };
+
+    const questions = generateQuestions(
+      "custom-review",
+      { subjects: [low, high], assignments: [assignment(low.id), assignment(high.id)] },
+      { ...filters, selectedSubjectIds: [low.id, high.id] },
+      {
+        random: () => 0,
+        customReviewOrder: "currentLevelFirst",
+        reviewQuestionOrderEnabled: true,
+        reviewQuestionOrder: "meaning-first",
+        backToBackQuestions: true,
+      },
+    );
+
+    expect(Array.from(new Set(questions.map((question) => question.subjectId)))).toEqual([high.id, low.id]);
+  });
+
+  it("uses a shuffled rank as the final tie-break for custom review order", () => {
+    const tiedSubjects = [
+      subject(90, "kanji", "一", "One", "いち"),
+      subject(91, "kanji", "二", "Two", "に"),
+      subject(92, "kanji", "三", "Three", "さん"),
+    ];
+    const questions = generateQuestions(
+      "custom-review",
+      { subjects: tiedSubjects, assignments: tiedSubjects.map((item) => assignment(item.id)) },
+      { ...filters, selectedSubjectIds: tiedSubjects.map((item) => item.id) },
+      {
+        random: () => 0,
+        customReviewOrder: "lowestLevelFirst",
+        reviewQuestionOrderEnabled: true,
+        reviewQuestionOrder: "meaning-first",
+        backToBackQuestions: true,
+      },
+    );
+
+    expect(Array.from(new Set(questions.map((question) => question.subjectId)))).toEqual([91, 92, 90]);
+  });
+
+  it("applies custom type grouping and critical priority before custom review order", () => {
+    const olderRadical = { ...subject(70, "radical", "一", "One"), data: { ...subject(70, "radical", "一", "One").data, level: 9 } };
+    const criticalKanji = { ...subject(71, "kanji", "二", "Two", "に"), data: { ...subject(71, "kanji", "二", "Two", "に").data, level: 10 } };
+    const vocabulary = { ...subject(72, "vocabulary", "三つ", "Three", "みっつ"), data: { ...subject(72, "vocabulary", "三つ", "Three", "みっつ").data, level: 10 } };
+    const reviewAssignments = [
+      { ...assignment(70, 1), data: { ...assignment(70, 1).data, subject_type: "radical" as const } },
+      { ...assignment(71, 2), data: { ...assignment(71, 2).data, subject_type: "kanji" as const } },
+      { ...assignment(72, 1), data: { ...assignment(72, 1).data, subject_type: "vocabulary" as const } },
+    ];
+
+    const questions = generateQuestions(
+      "custom-review",
+      { subjects: [olderRadical, criticalKanji, vocabulary], assignments: reviewAssignments },
+      { ...filters, selectedSubjectIds: [70, 71, 72] },
+      {
+        random: () => 0,
+        customReviewOrder: "lowestLevelFirst",
+        reviewTypeOrderEnabled: true,
+        reviewTypeOrder: ["vocabulary", "radical", "kanji"],
+        prioritizeCriticalItems: true,
+        userLevel: 10,
+        backToBackQuestions: true,
+      },
+    );
+
+    expect(Array.from(new Set(questions.map((question) => question.subjectId)))).toEqual([criticalKanji.id, vocabulary.id, olderRadical.id]);
+  });
+
+  it("spreads custom review counterparts with the preferred side first", () => {
+    const reviewSubjects = Array.from({ length: 4 }, (_, index) => subject(80 + index, "vocabulary", `例${index}`, `Example ${index}`, `れい${index}`));
+    const questions = generateQuestions(
+      "custom-review",
+      { subjects: reviewSubjects, assignments: reviewSubjects.map((item) => assignment(item.id)) },
+      { ...filters, selectedSubjectIds: reviewSubjects.map((item) => item.id) },
+      {
+        random: () => 0,
+        customReviewOrder: "lowestLevelFirst",
+        reviewQuestionOrderEnabled: true,
+        reviewQuestionOrder: "reading-first",
+        backToBackQuestions: false,
+        maxQuestionGap: 10,
+      },
+    );
+
+    for (const reviewSubject of reviewSubjects) {
+      const readingIndex = questions.findIndex((question) => question.subjectId === reviewSubject.id && question.kind === "reading");
+      const meaningIndex = questions.findIndex((question) => question.subjectId === reviewSubject.id && question.kind === "meaning");
+      expect(readingIndex).toBeLessThan(meaningIndex);
+      expect(meaningIndex - readingIndex).toBeLessThanOrEqual(10);
+    }
+    expect(questions.slice(0, reviewSubjects.length).every((question) => question.kind === "reading")).toBe(true);
   });
 
   it("counts paired meaning and reading prompts as one random-test item", () => {
@@ -90,11 +217,26 @@ describe("study question engine", () => {
     const dataset = { subjects, assignments };
     expect(generateQuestions("vocab-reading", dataset, filters, () => 0.5)[0]).toMatchObject({ kind: "meaning-to-reading", prompt: "Cat", acceptedAnswers: ["ねこ"] });
     expect(generateQuestions("similar-kanji", dataset, { ...filters, subjectTypes: ["kanji"] }, () => 0.5)[0]).toMatchObject({ kind: "similar-kanji", acceptedAnswers: ["末"] });
-    expect(generateQuestions("listening", dataset, { ...filters, subjectTypes: ["vocabulary"] }, () => 0.5)).toEqual([
-      expect.objectContaining({ kind: "listening-characters", acceptedAnswers: ["猫"], audioUrl: "https://example.com/audio.mp3", stopAfterAnswer: false }),
-      expect.objectContaining({ kind: "listening-meaning", acceptedAnswers: expect.arrayContaining(["Cat"]), audioUrl: "https://example.com/audio.mp3", stopAfterAnswer: false }),
+    const listeningQuestions = generateQuestions("listening", dataset, { ...filters, subjectTypes: ["vocabulary"] }, () => 0.5);
+    expect(listeningQuestions).toEqual([
+      expect.objectContaining({ kind: "listening-characters", acceptedAnswers: ["猫"], audioUrl: "https://example.com/audio.mp3" }),
+      expect.objectContaining({ kind: "listening-meaning", acceptedAnswers: expect.arrayContaining(["Cat"]), audioUrl: "https://example.com/audio.mp3" }),
     ]);
+    expect(listeningQuestions.every((question) => question.stopAfterAnswer === undefined)).toBe(true);
     expect(generateQuestions("context-sentences", dataset, { ...filters, subjectTypes: ["vocabulary"] }, () => 0.5)[0].prompt).toContain("＿＿");
+  });
+
+  it("accepts kana readings for typed listening vocabulary prompts", () => {
+    const question = generateQuestions(
+      "listening",
+      { subjects, assignments },
+      { ...filters, subjectTypes: ["vocabulary"], answerMode: "typed" },
+      () => 0.5,
+    ).find((candidate) => candidate.kind === "listening-characters");
+
+    expect(question).toMatchObject({ acceptedAnswers: ["猫", "ねこ"], choices: undefined });
+    expect(checkAnswer(question!, "ねこ")).toBe(true);
+    expect(checkAnswer(question!, "neko")).toBe(true);
   });
 
   it("summarizes unique missed subjects", () => {

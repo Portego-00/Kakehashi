@@ -10,8 +10,11 @@ export function usesSelfAssessment(kind: QuestionKind, preferences: WebStudyPref
   return preferences.ankiMode === "both" || preferences.ankiMode === kind;
 }
 
-export function shouldPauseAfterAnswer(correct: boolean, preferences: WebStudyPreferences) {
-  return preferences.answerStopBehavior === "always" || (preferences.answerStopBehavior === "incorrect" && !correct);
+export function shouldPauseAfterResult(status: "correct" | "close" | "incorrect" | "blocked", preferences: WebStudyPreferences) {
+  if (status === "blocked") return false;
+  const configured = status === "incorrect" ? preferences.pauseOnWrong : status === "close" ? preferences.pauseOnClose : preferences.pauseOnCorrect;
+  if (typeof configured === "boolean") return configured;
+  return preferences.answerStopBehavior === "always" || (preferences.answerStopBehavior === "incorrect" && status === "incorrect");
 }
 
 export function canonicalAnswer(subject: Subject, kind: QuestionKind) {

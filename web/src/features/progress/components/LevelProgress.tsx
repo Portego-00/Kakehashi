@@ -5,6 +5,7 @@ import { ArrowRight, Clock3, Flame, Grid3X3, LockKeyhole, Play } from "lucide-re
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { useSession } from "@/lib/session";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import { calculateLevelProgress, calculateLevelTimings, srsBucketForStage } from "../calculations";
@@ -76,7 +77,7 @@ function formatDays(value: number) {
 function LevelSubjectGrid({ title, subjects, assignments }: { title: string; subjects: Subject[]; assignments: Map<number, Assignment> }) {
   if (!subjects.length) return null;
   const ordered = [...subjects].sort((left, right) => (assignments.get(right.id)?.data.srs_stage ?? 0) - (assignments.get(left.id)?.data.srs_stage ?? 0) || left.id - right.id);
-  return <section className={styles.levelSubjectSection}><h3>{title}</h3><div className={styles.levelSubjectGrid}>{ordered.map((subject) => { const assignment = assignments.get(subject.id); const stage = assignment?.data.srs_stage ?? 0; const status = stage >= 5 ? "passed" : stage > 0 ? "started" : assignment?.data.unlocked_at ? "unlocked" : "locked"; const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug; return <Link href={`/subjects/${subject.id}`} key={subject.id} data-type={subject.object} data-status={status} title={`${subject.data.characters ?? meaning} · ${meaning} · ${assignment ? srsBucketForStage(stage) : "Locked"}`}><span lang={subject.data.characters ? "ja" : undefined}>{subject.data.characters ?? meaning.slice(0, 2)}</span><SubjectStageProgress meaning={meaning} stage={stage} /></Link>; })}</div></section>;
+  return <section className={styles.levelSubjectSection}><h3>{title}</h3><div className={styles.levelSubjectGrid}>{ordered.map((subject) => { const assignment = assignments.get(subject.id); const stage = assignment?.data.srs_stage ?? 0; const status = stage >= 5 ? "passed" : stage > 0 ? "started" : assignment?.data.unlocked_at ? "unlocked" : "locked"; const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug; return <Link href={`/subjects/${subject.id}`} key={subject.id} data-type={subject.object} data-status={status} title={`${subject.data.characters ?? meaning} · ${meaning} · ${assignment ? srsBucketForStage(stage) : "Locked"}`}><SubjectCharacter subject={subject} fallbackText={meaning.slice(0, 2)} imageSize="70%" imageTone="subject" className={styles.levelSubjectCharacter} /><SubjectStageProgress meaning={meaning} stage={stage} /></Link>; })}</div></section>;
 }
 
 function SubjectStageProgress({ meaning, stage }: { meaning: string; stage: number }) {

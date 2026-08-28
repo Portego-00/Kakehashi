@@ -52,10 +52,36 @@ vi.mock("../games", async (importOriginal) => {
 });
 
 import { CrosswordGame } from "./special-modes";
+import { generateCrossword } from "../games";
 
 const dataset: StudyDataset = { subjects: [], assignments: [] };
 
-function renderCrossword() {
+const hospitalPuzzle = {
+  rows: 1,
+  cols: 5,
+  cells: [[
+    { answer: "び", number: 1, entryIds: ["hospital"] },
+    { answer: "ょ", entryIds: ["hospital"] },
+    { answer: "う", entryIds: ["hospital"] },
+    { answer: "い", entryIds: ["hospital"] },
+    { answer: "ん", entryIds: ["hospital"] },
+  ]],
+  entries: [{
+    id: "hospital",
+    subjectId: 3,
+    answer: "びょういん",
+    clue: "Hospital",
+    characters: "病院",
+    meaning: "Hospital",
+    row: 0,
+    col: 0,
+    direction: "across",
+    number: 1,
+  }],
+} satisfies CrosswordPuzzle;
+
+function renderCrossword(nextPuzzle?: CrosswordPuzzle) {
+  if (nextPuzzle) vi.mocked(generateCrossword).mockReturnValueOnce(nextPuzzle);
   return render(
     <CrosswordGame
       dataset={dataset}
@@ -113,6 +139,22 @@ describe("crossword keyboard interaction", () => {
     expect(tileLetter(1, 2)).toBeEmptyDOMElement();
   });
 
+  it("flushes a trailing romaji n before checking the selected word", () => {
+    renderCrossword(hospitalPuzzle);
+
+    const answer = screen.getByRole("textbox", { name: "Answer" }) as HTMLInputElement;
+    for (const character of "byouin") {
+      fireEvent.change(answer, { target: { value: `${answer.value}${character}` } });
+    }
+    expect(answer).toHaveValue("びょういn");
+
+    fireEvent.click(screen.getByRole("button", { name: "Check word" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Correct. Revealing the word");
+    expect(answer).toHaveValue("びょういん");
+    expect(answer).not.toHaveAttribute("aria-invalid");
+  });
+
   it("ties clue selection, grid highlighting, and per-word hint controls together", () => {
     renderCrossword();
 
@@ -164,6 +206,22 @@ describe("crossword keyboard interaction", () => {
     expect(tileLetter(1, 1)).toHaveTextContent("な");
     expect(tileLetter(1, 2)).toHaveTextContent("つ");
     expect(tile(1, 2)).toHaveAttribute("data-completed", "true");
+  });
+
+  it("advances to the next word when Return is pressed with an empty answer", async () => {
+    renderCrossword();
+
+    const answer = screen.getByRole("textbox", { name: "Answer" });
+    answer.focus();
+    expect(screen.getByText("Summer", { selector: "[data-active-clue]" })).toBeVisible();
+    expect(answer).toHaveValue("");
+
+    fireEvent.keyDown(answer, { key: "Enter" });
+
+    await waitFor(() => expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible());
+    expect(answer).toHaveValue("");
+    expect(answer).not.toHaveAttribute("aria-invalid");
+    await waitFor(() => expect(answer).toHaveFocus());
   });
 
   it("keeps an incorrect checked word editable without committing it", async () => {

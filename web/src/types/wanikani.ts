@@ -49,6 +49,7 @@ export interface SubjectMeaning { meaning: string; primary: boolean; accepted_an
 export interface SubjectReading { reading: string; primary: boolean; accepted_answer: boolean; type?: "onyomi" | "kunyomi" | "nanori" }
 export interface ContextSentence { en: string; ja: string }
 export interface PronunciationAudio { url: string; content_type: string; metadata: { gender: string; source_id: number; pronunciation: string; voice_actor_id: number; voice_actor_name: string; voice_description: string } }
+export interface CharacterImage { url: string; content_type?: string; metadata?: { inline_styles?: boolean; color?: string; dimensions?: string; style_name?: string } }
 export interface SubjectData {
   level: number;
   lesson_position?: number;
@@ -58,6 +59,7 @@ export interface SubjectData {
   document_url: string;
   hidden_at: string | null;
   characters: string | null;
+  character_images?: CharacterImage[];
   meanings: SubjectMeaning[];
   auxiliary_meanings: Array<{ meaning: string; type: "whitelist" | "blacklist" }>;
   meaning_mnemonic?: string;

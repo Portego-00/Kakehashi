@@ -1,9 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LevelTiming } from "@/features/progress/calculations";
 import { Dashboard } from "./Dashboard";
 
-const { levelProgressions } = vi.hoisted(() => ({
+const { dashboardTestState, levelProgressions } = vi.hoisted(() => ({
+  dashboardTestState: {
+    dashboardOrder: ["level-timing"],
+    user: { id: 1, data: { username: "tester", level: 15, current_vacation_started_at: null as string | null } },
+  },
   levelProgressions: Array.from({ length: 15 }, (_, index) => ({
     data: {
       level: index + 1,
@@ -17,12 +21,12 @@ const { levelProgressions } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: { id: 1, data: { username: "tester", level: 15 } } }),
+  useSession: () => ({ user: dashboardTestState.user }),
 }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
   useWorkspacePreferences: () => ({
-    dashboardOrder: ["level-timing"],
+    dashboardOrder: dashboardTestState.dashboardOrder,
     hiddenDashboard: [],
     dashboardWidths: {},
     dashboardRowStarts: [],
@@ -58,12 +62,28 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
   };
 });
 
-describe("dashboard level timing", () => {
+afterEach(() => {
+  dashboardTestState.dashboardOrder = ["level-timing"];
+  dashboardTestState.user.data.current_vacation_started_at = null;
+});
+
+describe("dashboard", () => {
   it("passes every level progression to the timing chart", () => {
     render(<Dashboard />);
 
     expect(screen.getByTestId("dashboard-level-timings")).toHaveTextContent(
       "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",
     );
+  });
+
+  it("renders Recent Mistakes as empty during Vacation Mode", () => {
+    dashboardTestState.dashboardOrder = ["recent-mistakes"];
+    dashboardTestState.user.data.current_vacation_started_at = "2026-08-20T12:00:00Z";
+
+    render(<Dashboard />);
+
+    expect(screen.getByRole("heading", { name: "Recent Mistakes" })).toBeInTheDocument();
+    expect(screen.getByText("No mistakes in the past 24 hours")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Extra Study" })).toBeDisabled();
   });
 });

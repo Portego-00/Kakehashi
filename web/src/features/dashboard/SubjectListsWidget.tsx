@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
 import type { SubjectList } from "@/features/subjects/lists";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import type { Subject } from "@/types/wanikani";
 import styles from "./dashboard.module.css";
 
@@ -59,13 +60,14 @@ export function SubjectListsWidget({
                 {previewIds.map((subjectId, index) => {
                   const subject = subjectById.get(subjectId);
                   const label = subjectPreviewLabel(subject);
-                  return <span
-                    className={styles.subjectListsPreviewChip}
-                    data-long={Array.from(label).length > 2 || undefined}
-                    data-subject-type={subjectPreviewType(subject)}
-                    key={`${subjectId}-${index}`}
-                    lang={subject?.data.characters ? "ja" : undefined}
-                  >{label}</span>;
+                  const props = {
+                    className: styles.subjectListsPreviewChip,
+                    "data-long": Array.from(label).length > 2 || undefined,
+                    "data-subject-type": subjectPreviewType(subject),
+                  };
+                  return subject
+                    ? <SubjectCharacter {...props} subject={subject} fallbackText={label} imageSize="72%" key={`${subjectId}-${index}`} />
+                    : <span {...props} key={`${subjectId}-${index}`}>{label}</span>;
                 })}
                 {remaining ? <span className={styles.subjectListsPreviewMore}>+{remaining}</span> : null}
               </span>

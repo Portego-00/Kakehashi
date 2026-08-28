@@ -3,9 +3,7 @@
 import { ArrowRight, CircleAlert, ExternalLink, ShieldCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { KakehashiBrand } from "@/components/brand/KakehashiBrand";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { safeInternalPath } from "@/lib/navigation";
 import { useSession } from "@/lib/session";
@@ -54,15 +52,14 @@ export function LoginForm() {
   const tokenError = token && token.length < 20 ? "That token is incomplete. Paste the full value." : undefined;
 
   return (
-    <Card padding="lg" className={styles.form} data-phase={phase}>
+    <div className={styles.form} data-phase={phase}>
       <form className={styles.formBody} onSubmit={submit} aria-busy={isLoading}>
         <div className={styles.formHeading}>
-          <KakehashiBrand className={styles.formMark} showName={false} />
           <h2>Connect WaniKani</h2>
-          <p className={styles.formLead}>Bring your lessons, reviews, and study data into Kakehashi.</p>
+          <p className={styles.formLead}>Use your personal access token to open Kakehashi.</p>
           <p className={styles.privacy}>
             <ShieldCheck className={styles.inlineIcon} size={16} aria-hidden />
-            Your token is encrypted into an HttpOnly session and never stored in browser storage.
+            Encrypted in a secure session. Never saved to browser storage.
           </p>
         </div>
 
@@ -114,26 +111,22 @@ export function LoginForm() {
           rel="noreferrer"
           className={styles.privacy}
         >
-          Manage API tokens on WaniKani <ExternalLink className={styles.inlineIcon} size={14} aria-hidden />
+          Manage token on WaniKani <ExternalLink className={styles.inlineIcon} size={14} aria-hidden />
         </a>
       </form>
-    </Card>
+    </div>
   );
 }
 
 export function LoginFallback() {
   return (
-    <Card padding="lg" className={styles.form} data-phase="loading">
+    <div className={styles.form} data-phase="loading">
       <div className={styles.fallback} role="status" aria-live="polite">
         <div className={styles.formHeading}>
-          <KakehashiBrand className={styles.formMark} showName={false} />
           <h2>Connect WaniKani</h2>
           <p className={styles.privacy}>Checking for an existing secure session…</p>
         </div>
-        <span className={styles.loadingTrack} aria-hidden>
-          <span />
-        </span>
       </div>
-    </Card>
+    </div>
   );
 }

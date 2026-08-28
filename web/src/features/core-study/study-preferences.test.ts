@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import type { Subject } from "@/types/wanikani";
-import { canonicalAnswer, questionOrderForMode, shouldPauseAfterAnswer, usesSelfAssessment } from "./study-preferences";
+import { canonicalAnswer, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
 
 const preferences = DEFAULT_WEB_SETTINGS.study;
 const subject = { data: { slug: "water", meanings: [{ meaning: "Water", primary: true, accepted_answer: true }], readings: [{ reading: "みず", primary: true, accepted_answer: true }] } } as Subject;
@@ -18,10 +18,12 @@ describe("core study preferences", () => {
     expect(usesSelfAssessment("reading", { ...preferences, ankiMode: "meaning" })).toBe(false);
   });
 
-  it("honors answer stop behavior", () => {
-    expect(shouldPauseAfterAnswer(true, { ...preferences, answerStopBehavior: "incorrect" })).toBe(false);
-    expect(shouldPauseAfterAnswer(false, { ...preferences, answerStopBehavior: "incorrect" })).toBe(true);
-    expect(shouldPauseAfterAnswer(false, { ...preferences, answerStopBehavior: "never" })).toBe(false);
+  it("honors independent mobile-style answer pauses", () => {
+    const configured = { ...preferences, pauseOnWrong: true, pauseOnClose: false, pauseOnCorrect: false };
+    expect(shouldPauseAfterResult("correct", configured)).toBe(false);
+    expect(shouldPauseAfterResult("close", configured)).toBe(false);
+    expect(shouldPauseAfterResult("incorrect", configured)).toBe(true);
+    expect(shouldPauseAfterResult("blocked", configured)).toBe(false);
   });
 
   it("reveals canonical self-assessment answers", () => {

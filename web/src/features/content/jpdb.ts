@@ -1,5 +1,5 @@
 export const JPDB_PARSE_ENDPOINT = "https://jpdb.io/api/v1/parse";
-export const JPDB_PARSE_TOKEN_FIELDS = ["vocabulary_index", "position", "length"] as const;
+export const JPDB_PARSE_TOKEN_FIELDS = ["vocabulary_index", "position", "length", "furigana"] as const;
 export const JPDB_PARSE_VOCABULARY_FIELDS = ["spelling", "reading", "part_of_speech", "meanings_chunks", "alt_spellings"] as const;
 
 export interface JpdbTokenAnnotation {
@@ -8,6 +8,7 @@ export interface JpdbTokenAnnotation {
   surface: string;
   spelling: string;
   reading: string;
+  surfaceReading?: string;
   meaning: string;
   meanings: string[];
   alternativeSpellings: string[];
@@ -28,6 +29,38 @@ const CONTEXTUAL_PARTICLES: Record<string, string[]> = {
   "か": ["marks a question", "or"],
   "や": ["and; among other examples"],
 };
+
+const KANA_ONLY = /^[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9fー]+$/u;
+
+function contextualSurfaceReading(surface: string, value: unknown, dictionaryReading: string) {
+  const normalizedSurface = surface.normalize("NFKC");
+  const fallback = KANA_ONLY.test(normalizedSurface) ? normalizedSurface : dictionaryReading;
+  if (!Array.isArray(value) || value.length === 0) return fallback;
+
+  let renderedSurface = "";
+  let renderedReading = "";
+  for (const part of value) {
+    if (typeof part === "string") {
+      renderedSurface += part;
+      renderedReading += part;
+      continue;
+    }
+    if (
+      !Array.isArray(part)
+      || part.length !== 2
+      || typeof part[0] !== "string"
+      || typeof part[1] !== "string"
+      || !part[0]
+      || !part[1]
+    ) return fallback;
+    renderedSurface += part[0];
+    renderedReading += part[1];
+  }
+
+  return renderedSurface.normalize("NFKC") === normalizedSurface && renderedReading.trim()
+    ? renderedReading.normalize("NFKC")
+    : fallback;
+}
 
 function meanings(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -83,6 +116,7 @@ function correctContextualParticles(tokens: JpdbTokenAnnotation[]) {
       ...token,
       spelling: token.surface,
       reading: token.surface,
+      surfaceReading: token.surface,
       meaning: particleMeanings[0],
       meanings: particleMeanings,
       alternativeSpellings: [],
@@ -121,7 +155,7 @@ export function parseJpdbResponse(text: string, payload: unknown): JpdbTokenAnno
     const partsOfSpeech = Array.isArray(entry[2]) ? entry[2].filter((part): part is string => typeof part === "string").map((part) => part.trim().toLocaleLowerCase()).filter(Boolean) : [];
     const tokenMeanings = meanings(entry[3]);
     if (!/[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff々]/u.test(`${surface}${spelling}`)) continue;
-    tokens.push({ start, end: start + length, surface, spelling, reading, meaning: tokenMeanings[0] ?? "", meanings: tokenMeanings, alternativeSpellings: alternativeSpellings(entry[4]), partsOfSpeech, tokenType: tokenType(partsOfSpeech) });
+    tokens.push({ start, end: start + length, surface, spelling, reading, surfaceReading: contextualSurfaceReading(surface, tuple[3], reading), meaning: tokenMeanings[0] ?? "", meanings: tokenMeanings, alternativeSpellings: alternativeSpellings(entry[4]), partsOfSpeech, tokenType: tokenType(partsOfSpeech) });
   }
 
   return correctContextualParticles(tokens.sort((left, right) => left.start - right.start || right.end - left.end));

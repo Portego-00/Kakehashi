@@ -18,8 +18,9 @@ describe("live kana composition", () => {
     expect(questionUsesKanaComposition(question("meaning-to-reading"))).toBe(true);
     expect(questionUsesKanaComposition(question("context"))).toBe(true);
     expect(questionUsesKanaComposition(question("listening-characters", "kana_vocabulary"))).toBe(true);
+    expect(questionUsesKanaComposition(question("listening-characters", "vocabulary"))).toBe(true);
     expect(questionUsesKanaComposition(question("meaning"))).toBe(false);
     expect(questionUsesKanaComposition(question("kana-to-kanji"))).toBe(false);
-    expect(questionUsesKanaComposition(question("listening-characters", "vocabulary"))).toBe(false);
+    expect(questionUsesKanaComposition(question("listening-meaning", "vocabulary"))).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import {
   BarChart3,
   BookOpen,
   Brain,
+  ChartColumn,
   Clapperboard,
   GraduationCap,
   House,
@@ -17,6 +18,7 @@ import {
   Menu,
   MessageSquareText,
   Moon,
+  Music2,
   Newspaper,
   Search,
   Settings,
@@ -25,14 +27,16 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { AnimatePresence, MotionConfig, motion, type Variants } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { KakehashiBrand } from "@/components/brand/KakehashiBrand";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/States";
 import { WebAnalyticsTracker } from "@/features/analytics/WebAnalyticsTracker";
 import { SettingsApplicator } from "@/features/settings/components/SettingsApplicator";
+import { DEFAULT_NAVBAR_TABS, type NavbarTabId } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { PatreonIcon } from "@/components/icons/BrandIcons";
 import { PATREON_URL } from "@/lib/project-links";
@@ -40,6 +44,11 @@ import { cn } from "@/lib/cn";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
 import { assignmentsQuery } from "@/lib/wanikani/queries";
+import {
+  AppShellBackActionProvider,
+  type AppShellBackAction,
+  type RegisterAppShellBackAction,
+} from "./app-shell-back-action";
 import styles from "./shell.module.css";
 
 type Destination = {
@@ -47,22 +56,42 @@ type Destination = {
   label: string;
   icon: typeof House;
   preference?: string;
+  comingSoon?: boolean;
 };
 
 const home: Destination = { href: "/dashboard", label: "Home", icon: House };
 const level: Destination = { href: "/progress", label: "Level", icon: BarChart3 };
 const news: Destination = { href: "/news", label: "News", icon: Newspaper, preference: "news" };
 const manga: Destination = { href: "/manga", label: "Manga", icon: Images, preference: "manga" };
-const songs: Destination = { href: "/music", label: "Songs", icon: BookOpen, preference: "music" };
+const songs: Destination = { href: "/music", label: "Songs", icon: Music2, preference: "music" };
 const search: Destination = { href: "/search", label: "Search", icon: Search, preference: "search" };
+const analytics: Destination = { href: "/analytics", label: "Analytics", icon: ChartColumn, preference: "analytics" };
+const items: Destination = { href: "/items", label: "Items", icon: Library, preference: "items" };
+const books: Destination = { href: "/epubs", label: "Books", icon: BookOpen, preference: "epubs" };
+const video: Destination = { href: "/video", label: "Video", icon: Clapperboard, preference: "video" };
 
-const primaryNavigation = [home, level, news, manga, songs];
+const navbarDestinationById: Record<NavbarTabId, Destination> = {
+  home,
+  level,
+  items,
+  analytics,
+  news,
+  epubs: books,
+  video,
+  manga,
+  music: songs,
+};
+const NAVBAR_TAB_VARIANTS = {
+  initial: { opacity: 0, x: -6 },
+  animate: { opacity: 1, x: 0, transition: { duration: 0.18, ease: [0.2, 0, 0, 1] } },
+  exit: { opacity: 0, x: 6, transition: { duration: 0.13, ease: [0.3, 0, 1, 1] } },
+} satisfies Variants;
 const destinationGroups: Array<{ title: string; links: Destination[] }> = [
   {
     title: "Study",
     links: [
-      { href: "/lessons", label: "Lessons", icon: GraduationCap },
-      { href: "/reviews", label: "Reviews", icon: Brain },
+      { href: "/lessons", label: "Lessons", icon: GraduationCap, comingSoon: true },
+      { href: "/reviews", label: "Reviews", icon: Brain, comingSoon: true },
       { href: "/study", label: "Extra study", icon: Sparkles },
     ],
   },
@@ -70,8 +99,8 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
     title: "Progress",
     links: [
       level,
-      { href: "/analytics", label: "Analytics", icon: BarChart3, preference: "analytics" },
-      { href: "/items", label: "Items", icon: Library, preference: "items" },
+      analytics,
+      items,
       search,
       { href: "/lists", label: "Subject lists", icon: List, preference: "lists" },
     ],
@@ -81,9 +110,9 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
     links: [
       news,
       { href: "/reader", label: "Text reader", icon: BookOpen, preference: "reader" },
-      { href: "/epubs", label: "Books", icon: Library, preference: "epubs" },
+      books,
       manga,
-      { href: "/video", label: "Video", icon: Clapperboard, preference: "video" },
+      video,
       { href: "/translator", label: "Translator", icon: Languages, preference: "translator" },
       songs,
     ],
@@ -132,12 +161,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [floatingNav, setFloatingNav] = useState(false);
   const [hasInternalHistory, setHasInternalHistory] = useState(false);
+  const [pageBackAction, setPageBackAction] = useState<AppShellBackAction | null>(null);
   const [signOutError, setSignOutError] = useState("");
   const moreDialogRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const previousPathRef = useRef(pathname);
+  const pageBackRegistrationRef = useRef<symbol | null>(null);
   const immersive = pathname === "/lessons" || pathname === "/reviews";
   const backTarget = backTargetForPathname(pathname);
+  const hasBack = Boolean(pageBackAction || backTarget);
+
+  const registerPageBackAction = useCallback<RegisterAppShellBackAction>((action) => {
+    const registration = Symbol("app-shell-back-action");
+    pageBackRegistrationRef.current = registration;
+    setPageBackAction(action);
+
+    return () => {
+      if (pageBackRegistrationRef.current !== registration) return;
+      pageBackRegistrationRef.current = null;
+      setPageBackAction(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (status === "anonymous") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -230,22 +274,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
   const closeMore = () => setMoreOpen(false);
   const goBack = () => {
+    if (pageBackAction) {
+      pageBackAction.onBack();
+      return;
+    }
     if (!backTarget) return;
     if (hasInternalHistory) router.back();
     else router.replace(backTarget);
   };
-  const visiblePrimaryNavigation = primaryNavigation.filter((destination) => isVisible(destination, workspace.visibleNav));
+  const visiblePrimaryNavigation = (workspace.navbarTabs ?? DEFAULT_NAVBAR_TABS).map((id) => navbarDestinationById[id]);
   const learnedKanjiLabel = learnedKanji.data?.toLocaleString() ?? (learnedKanji.isError ? "—" : "…");
 
-  return <div className={styles.shell}>
+  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell}>
     <SettingsApplicator />
     <WebAnalyticsTracker />
     <a className={styles.skipLink} href="#main-content" inert={moreOpen ? true : undefined}>Skip to main content</a>
 
     <header className={styles.topbar} data-floating={floatingNav || undefined} inert={moreOpen ? true : undefined}>
       <div className={styles.appbar}>
-        <div className={styles.identityArea} data-has-back={backTarget ? "true" : undefined}>
-          <button type="button" className={styles.backButton} data-visible={backTarget ? "true" : undefined} aria-label="Back" aria-hidden={!backTarget} tabIndex={backTarget ? 0 : -1} disabled={!backTarget} onClick={goBack}>
+        <div className={styles.identityArea} data-has-back={hasBack ? "true" : undefined}>
+          <button type="button" className={styles.backButton} data-visible={hasBack ? "true" : undefined} aria-label={pageBackAction?.label ?? "Back"} aria-hidden={!hasBack} tabIndex={hasBack ? 0 : -1} disabled={!hasBack} onClick={goBack}>
             <ArrowLeft size={19} aria-hidden />
           </button>
           <Link href="/dashboard" className={styles.identity} aria-label={`Kakehashi home for ${user.data.username}`}>
@@ -261,7 +309,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className={styles.primaryNav} aria-label="Main navigation">
-          {visiblePrimaryNavigation.map((destination) => <Link key={destination.href} href={destination.href} className={cn(styles.primaryLink, isActive(pathname, destination.href) && styles.primaryLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined}><destination.icon className={styles.primaryIcon} size={17} aria-hidden /><span>{destination.label}</span></Link>)}
+          <MotionConfig reducedMotion="user">
+            <AnimatePresence initial={false} mode="popLayout">
+              {visiblePrimaryNavigation.map((destination) => <motion.span key={destination.href} layout="position" className={styles.primaryNavItem} data-navbar-item={destination.href} variants={NAVBAR_TAB_VARIANTS} initial="initial" animate="animate" exit="exit" transition={{ layout: { duration: 0.18, ease: [0.2, 0, 0, 1] } }}><Link href={destination.href} className={cn(styles.primaryLink, isActive(pathname, destination.href) && styles.primaryLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined}><destination.icon className={styles.primaryIcon} size={17} aria-hidden /><span>{destination.label}</span></Link></motion.span>)}
+            </AnimatePresence>
+          </MotionConfig>
         </nav>
 
         <div className={styles.topActions}>
@@ -290,10 +342,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div ref={moreDialogRef} className={styles.moreSheet} id="more-navigation" role="dialog" aria-modal="true" aria-labelledby="more-title">
         <div className={styles.moreHeader}><h2 id="more-title">All destinations</h2><Button className={styles.iconButton} tone="ghost" aria-label="Close More menu" onClick={closeMore}><X size={18} aria-hidden /></Button></div>
         <nav className={styles.moreNav} aria-label="All destinations">
-          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => isVisible(destination, workspace.visibleNav)).map((destination) => <Link key={destination.href} href={destination.href} className={cn(styles.moreLink, isActive(pathname, destination.href) && styles.moreLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined} onClick={closeMore}><destination.icon size={18} aria-hidden /><span>{destination.label}</span></Link>)}</div></section>)}
+          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => isVisible(destination, workspace.visibleNav)).map((destination) => destination.comingSoon
+            ? <button key={destination.href} type="button" className={styles.moreLink} aria-label={`${destination.label}, coming soon`} disabled><destination.icon size={18} aria-hidden /><span>{destination.label}</span><span className={styles.moreStatus}>Coming soon</span></button>
+            : <Link key={destination.href} href={destination.href} className={cn(styles.moreLink, isActive(pathname, destination.href) && styles.moreLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined} onClick={closeMore}><destination.icon size={18} aria-hidden /><span>{destination.label}</span></Link>)}</div></section>)}
           <section><h3>Account</h3><div><Link href="/settings" className={cn(styles.moreLink, isActive(pathname, "/settings") && styles.moreLinkActive)} onClick={closeMore}><Settings size={18} aria-hidden /><span>Settings</span></Link><button type="button" className={styles.moreLink} onClick={() => { setSignOutError(""); void signOut().then(() => router.replace("/login")).catch((cause) => setSignOutError(cause instanceof Error ? cause.message : "Kakehashi could not sign out.")); }}><LogOut size={18} aria-hidden /><span>Sign out</span></button></div></section>
         </nav>
       </div>
     </div> : null}
-  </div>;
+  </div></AppShellBackActionProvider>;
 }

@@ -13,7 +13,7 @@ intentionally; do not introduce page-local visual themes.
 ## Macrostructure family
 
 - App pages · Workbench. A floating three-part app bar with centered primary navigation, compact page title, then task surfaces. The app bar condenses after a deliberate scroll threshold without changing the document’s header height.
-- Authentication · Native Welcome. The login route uses the installed app’s purple-to-pink field, crab-throne illustration, full Kakehashi lockup, and a single raised light form surface. This is the only app route allowed to use that gradient and branded hero artwork.
+- Authentication · Static Welcome. The login route uses a calm, cardless brand-and-form diptych on one warm neutral canvas: the full Kakehashi lockup, one short study statement, and the existing crab-throne illustration as a compact supporting asset occupy the quieter column, while WaniKani account access remains the single task. The illustration is capped at 16rem and never becomes a hero or stage. Narrow viewports collapse to one column without changing reading order. Authentication uses no product reel, feature list, full-width raster hero, video, gradient, fake device or browser chrome, glass, raised form card, decorative divider, or timed presentation.
 - Study sessions · Focused Prompt. A full-width subject-colour prompt stage, a narrow prompt-type strip, then one aligned answer or lesson-detail region. Answers and hints stay hidden until the learner submits.
 - Content pages · Long Document or dense media index. Reading measure is narrow; news and library indexes use image-led rows or carousels.
 - Settings · Native grouped list. Horizontal category strip, section surfaces, full-width rows, and right-edge controls.
@@ -47,7 +47,7 @@ repeat literal theme values.
 
 ## Motion stance
 
-- Silent and state-led: 100 ms press, 180–220 ms menu/content crossfade, progress change, async loading. Persistent chrome motion is reserved for the app-bar scroll morph and the subject identity bar that continues the same header transition.
+- Silent and state-led: 100 ms press, 180–220 ms menu/content crossfade, progress change, async loading. Persistent chrome motion is reserved for the app-bar scroll morph and the subject identity bar that continues the same header transition. Authentication has no decorative, timed, or feature motion; only direct form feedback may move.
 - No card lift, universal reveal, bounce, gradient motion, or decorative looping.
 - Focus rings appear instantly. Reduced-motion fallback removes spatial motion and keeps functional transitions at or below 150 ms.
 

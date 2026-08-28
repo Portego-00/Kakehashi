@@ -1,5 +1,104 @@
 [
   {
+    "date": "2026-08-28",
+    "scope": "authentication-compact-artwork",
+    "macrostructure": "Split Studio / static brand-and-form diptych / compact supporting artwork",
+    "theme": "studied-DNA (source: Kakehashi design.md + existing phone-login artwork)",
+    "enrichment": "existing Kakehashi crab-throne artwork at 12–16rem",
+    "brief": "Restore the phone-login artwork at a deliberately smaller size while keeping authentication simple and static",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "high-resolution source restored as one decorative image with empty alt text; rendered at 12rem on phones, 14rem on tablet, and 16rem on desktop; no video, feature reel, gradient, fake device chrome, decorative divider, or timed motion; no active CSS animations; one Kakehashi brand mark; static brand-and-form reading order; no horizontal overflow or wrapped primary action at 320, 375, 414, 768, 1280, and 1920 pixels; 8 focused tests; changed-file lint; typecheck; production build; desktop and mobile browser review; no browser warnings or errors"
+  },
+  {
+    "date": "2026-08-28",
+    "scope": "authentication-static-login",
+    "macrostructure": "Split Studio / static brand-and-form diptych / flat single-task access",
+    "theme": "studied-DNA (source: Kakehashi design.md + existing authentication tokens)",
+    "enrichment": "none",
+    "brief": "Return authentication to a simple, polished login with no feature animation, video, or replacement media",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "feature reel disconnected and neutralized; no feature list, stage, device chrome, image hero, video, gradient, decorative divider, form card, or timed presentation; one Kakehashi brand mark; static brand-and-form reading order; secure token, loading, success, error, and redirect behavior preserved; 44px or larger interactive targets; visible 2px keyboard focus ring; no horizontal overflow or wrapped actions at 320, 375, 414, 768, 1280, and 1920 pixels; contrast pairs verified; 8 focused tests; changed-file lint; typecheck; production build; desktop and mobile browser review"
+  },
+  {
+    "date": "2026-08-27",
+    "scope": "custom-lessons-picker-workbench",
+    "macrostructure": "Subject-first Lesson Workbench / compact control rail / flat selectable catalog",
+    "theme": "studied-DNA (source: Kakehashi design.md + native Custom Lessons + web Subjects catalog)",
+    "enrichment": "none",
+    "brief": "Bring Custom Lessons into the same subject-first selection workspace as Custom Review while preserving lesson-specific filtering and selection behavior",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "reading and romaji search with direct clearing; exact-stage, type, 1–60 level, and saved-list filters; lesson lists narrow the visible catalog without erasing selected subjects; hidden and stale IDs cannot enable an empty lesson; adaptive long-vocabulary and radical-image tiles; stable accessible toggle names and focus restoration after filter reset; 200-row render cap with all-match bulk selection; direct lesson start action; light and dark visual checks; no horizontal overflow or wrapped actions at 320, 375, 414, 768, 1280, and 1920 pixels; 12 focused tests; 905 full-suite tests with 1 skipped; changed-file lint; typecheck; production build"
+  },
+  {
+    "date": "2026-08-27",
+    "scope": "authentication-surprise-feature-reel",
+    "macrostructure": "Welcome Workbench / form-led split / undisclosed CSS use sequence in a minimal laptop silhouette",
+    "theme": "studied-DNA (source: Kakehashi design.md + real listening, crossword, manga OCR, and song UI)",
+    "enrichment": "Tier-A CSS product reenactments with setup, action, and feedback choreography",
+    "brief": "Hide the feature roadmap and show unexpected, animated use of custom study, manga OCR, and synchronized lyrics instead",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "Today, Study, Read, Progress, feature tabs, and visible timer removed; anime listening, hiragana crossword, manga OCR, and synchronized lyrics scenes rotate every 8.5 seconds without announcing automatic changes; one 44px overlay pause/play control; hover and focus pause; reduced-motion autoplay disabled with manual next; OCR scan traverses its selection; elapsed song time advances with playback; desktop visual review of all four scenes at 1280-by-800; mobile visual review at 320 and 375 pixels; no horizontal overflow at 320, 375, 414, 768, 1280, and 1920 pixels; 13 focused tests; changed-file lint; typecheck; production build; two independent reviews"
+  },
+  {
+    "date": "2026-08-27",
+    "scope": "authentication-feature-reel",
+    "macrostructure": "Welcome Workbench / form-led split / CSS product reel in a minimal laptop silhouette",
+    "theme": "studied-DNA (source: Kakehashi design.md + existing Dashboard, Study, Reader, and Progress UI)",
+    "enrichment": "Tier-A CSS-built product preview with four truthful feature states",
+    "brief": "Remove the divider and low-resolution login artwork, then showcase real app features with polished automatic transitions every five to ten seconds",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "raster hero and form divider removed; Dashboard, Study, Reader, and Progress scenes rotate every seven seconds; real pointer Pause and Play; temporary hover pause; persistent keyboard and manual-selection pause; grouped direct controls; paused-state live announcements; reduced-motion autoplay disabled; DOM and mobile visual order aligned; contrast pairs 7.05:1 or higher; no horizontal overflow or wrapped controls at 320, 375, 414, 640, 768, 960, 1280, 1440, and 1920 pixels; 1280-by-800 fold and 200 percent text reflow; 13 focused tests; changed-file lint; typecheck; production build; independent review"
+  },
+  {
+    "date": "2026-08-27",
+    "scope": "custom-review-picker-workbench",
+    "macrostructure": "Subject-first Review Workbench / compact control rail / flat selectable catalog",
+    "theme": "studied-DNA (source: Kakehashi design.md + native Custom Review + web Subjects catalog)",
+    "enrichment": "none",
+    "brief": "Replace the split settings-and-mini-card custom review picker with a subject-first workspace matching native and existing web study patterns",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "reading and romaji search with direct clearing; exact-stage, type, level, and saved-list filters; non-destructive list selection; adaptive vocabulary identity tiles; accessible selectable rows; filtered and all bulk actions; direct start action; light and dark visual checks; no horizontal overflow at 320, 375, 414, 768, 1280, and 1920 pixels; 8 focused tests; 887 full-suite tests; changed-file lint; typecheck; production build"
+  },
+  {
+    "date": "2026-08-27",
+    "scope": "authentication",
+    "macrostructure": "Offset Welcome / compact mobile prelude / desktop bridge artwork",
+    "theme": "studied-DNA (source: Kakehashi design.md + Mobbin authentication references)",
+    "enrichment": "existing Kakehashi crab-throne artwork as a compact grid-break",
+    "brief": "Remove the login gradient, reduce the soft artwork footprint, and redesign authentication with a distinctive form-led composition",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "gradient-free token-driven composition; 646KB source image capped at 14rem, 20rem, and 30rem by breakpoint; art visible in the first narrow viewport and crossing the stage edge on desktop; no horizontal overflow at 320, 375, 414, 768, 960, 1280, and 1440 pixels; 200% text reflow; focused tests; changed-file lint; typecheck; production build"
+  },
+  {
+    "date": "2026-08-27",
+    "scope": "song-player-workbench",
+    "macrostructure": "Workbench / wide cinematic player / synchronized lyrics",
+    "theme": "studied-DNA (source: Kakehashi design.md + supplied song-screen reference)",
+    "enrichment": "none",
+    "brief": "Widen the large-screen song workspace, preserve a true 16:9 player, and add direct source-change shortcuts",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "112rem media workspace; size-contained 16:9 video viewport inside the full-height player card; paired 44px source shortcuts with reduced-motion scrolling and search focus; no horizontal overflow or wrapped labels at 320, 375, 414, and 768 pixels; ultrawide visual check; targeted unit and desktop end-to-end tests; typecheck; changed-file lint"
+  },
+  {
+    "date": "2026-08-26",
+    "scope": "text-reader-workbench",
+    "macrostructure": "Focused Reading Workbench / paper stage / sticky lookup rail",
+    "theme": "studied-DNA (source: Kakehashi design.md + manga reader precedent)",
+    "enrichment": "none",
+    "brief": "Remove the active text-reader header and give reading a focused, manga-inspired workspace",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "active-state header replaced by an accessible compact toolbar; token-driven page stage; sticky desktop lookup rail; stacked mobile inspector; light and dark visual checks; no horizontal overflow at 320, 375, 414, and 768 pixels; 16 focused reader tests; changed-file lint; repository typecheck blocked by an unrelated study-preferences test export mismatch"
+  },
+  {
     "date": "2026-08-26",
     "scope": "hiragana-crossword-workbench",
     "macrostructure": "Fitted Crossword Workbench / desktop clue rail / mobile clue ribbon / compact action dock",
@@ -112,15 +211,5 @@
     "score": "P5 H5 E5 S5 R5 V5",
     "result": "pass",
     "checks": "adaptive subject glyphs through long vocabulary; URL-backed search return state; representative search and detail skeletons; subject-colour detail stage with accessible tabs; native level progress hierarchy; truthful analytics cards; persisted drag, reorder, compact, and full-width dashboard controls; semantic tokens; visible focus; reduced motion; 73 test files and 238 tests; lint, typecheck, and production build"
-  },
-  {
-    "date": "2026-08-25",
-    "phase": "native-subject-enrichment-and-constellation",
-    "scope": "vocabulary audio, anime context, reading aids, optional subject sections, settings, and subject constellation",
-    "macrostructure": "Focused Subject / orbit constellation canvas",
-    "theme": "studied-DNA (source: supplied Kakehashi mobile references and native detail implementations)",
-    "score": "P5 H5 E5 S5 R5 V5",
-    "result": "pass",
-    "checks": "responsive native audio cards; 4:3 buffered anime scenes with exact vocabulary highlighting and progressive reveal; subject-colour primary reading chips; shared pitch and usage-pattern datasets; reading-group examples; animated stroke tab; settings-backed optional visibility; collision-free pan, pinch, wheel, keyboard, and fit constellation; no horizontal overflow or audio overflow at 320, 375, 414, and 768 pixels; semantic subject tokens; visible focus; reduced motion; 106 test files with 381 passing and 1 skipped test; lint pass; optimized production compilation before unrelated JapaneseReader test typing failures"
   }
 ]

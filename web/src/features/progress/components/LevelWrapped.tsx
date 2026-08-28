@@ -6,6 +6,7 @@ import { useState } from "react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, Skeleton } from "@/components/ui/States";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import type { Subject, SubjectType } from "@/types/wanikani";
 import { calculateAccuracy, calculateLevelTimings, srsBucketForStage } from "../calculations";
 import { useProgressData } from "../data";
@@ -111,7 +112,7 @@ function LevelItemRow({ item }: { item: LevelItem }) {
   const { subject, stage, meaning, reading } = item;
   const characters = subject.data.characters ?? meaning.slice(0, 2);
   return <li><Link href={`/subjects/${subject.id}`} className={styles.levelItemRow} data-type={subject.object}>
-    <span className={styles.levelItemGlyph} lang={subject.data.characters ? "ja" : undefined} data-character-count={Math.min(12, Array.from(characters).length)}>{characters}</span>
+    <SubjectCharacter subject={subject} fallbackText={characters} imageSize="70%" className={styles.levelItemGlyph} data-character-count={Math.min(12, Array.from(characters).length)} />
     <span className={styles.levelItemIdentity}><strong>{meaning}</strong>{reading ? <span lang="ja">{reading}</span> : <span>{subject.object === "radical" ? "Radical" : "No reading"}</span>}</span>
     <span className={styles.levelItemStage}>{stage > 0 ? <SrsStageIcon stage={stage} size={18} /> : <i aria-hidden />}<span>{srsStageLabel(stage)}</span></span>
     <SubjectGuruProgress meaning={meaning} stage={stage} />

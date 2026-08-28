@@ -82,6 +82,10 @@ function isArchive(file: Pick<File, "name" | "type">) {
     || file.type === "application/vnd.comicbook+zip";
 }
 
+export function isMangaContainer(file: Pick<File, "name" | "type">) {
+  return isEpub(file) || isArchive(file) || isPdf(file);
+}
+
 function imageMimeType(fileName: string) {
   const value = extension(fileName);
   if (value === "jpg" || value === "jpeg") return "image/jpeg";

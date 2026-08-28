@@ -28,12 +28,46 @@ describe("login feedback", () => {
     mocks.signIn.mockReset();
   });
 
-  it("uses the native Kakehashi artwork and real crab-on-bridge mark", () => {
+  it("uses one brand mark and the compact phone-login artwork in a static composition", () => {
     const { container } = render(<LoginPage />);
+    const artwork = container.querySelector('img[src*="kakehashi-login-hd.png"]');
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Kakehashi");
-    expect(container.querySelector('img[src*="kakehashi-login-hd.png"]')).toBeInTheDocument();
-    expect(container.querySelectorAll('img[src*="kakehashi-mark.png"]')).toHaveLength(2);
+    expect(screen.getByRole("heading", { level: 2, name: "Review. Read. Keep going." })).toBeInTheDocument();
+    expect(screen.getByText("A focused companion for your WaniKani study.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Connect your WaniKani account" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Kakehashi feature preview" })).not.toBeInTheDocument();
+    expect(container.querySelector("video")).not.toBeInTheDocument();
+    expect(container.querySelector('img[src*="kakehashi-login.png"]')).not.toBeInTheDocument();
+    expect(artwork).toBeInTheDocument();
+    expect(artwork).toHaveAttribute("alt", "");
+    expect(container.querySelectorAll('img[src*="kakehashi-mark.png"]')).toHaveLength(1);
+  });
+
+  it("keeps the login presentation free of gradients, device chrome, dividers, and decorative motion", () => {
+    const css = readFileSync("src/app/login/login.module.css", "utf8");
+    const pageSource = readFileSync("src/app/login/page.tsx", "utf8");
+    const showcase = readFileSync("src/app/login/LoginFeatureShowcase.tsx", "utf8");
+    const formRules = css.match(/\.form\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(css).not.toContain("linear-gradient(");
+    expect(css).not.toContain("radial-gradient(");
+    expect(css).toContain(".artwork");
+    expect(css).toContain("width: min(12rem, 100%)");
+    expect(css).toContain("width: min(14rem, 100%)");
+    expect(css).toContain("width: min(16rem, 100%)");
+    expect(css).not.toContain(".device");
+    expect(css).not.toContain(".showcase");
+    expect(css).not.toContain("@keyframes");
+    expect(css).not.toContain("animation:");
+    expect(pageSource).not.toContain("LoginFeatureShowcase");
+    expect(pageSource).not.toContain("<video");
+    expect(pageSource).toContain("kakehashi-login-hd.png");
+    expect(pageSource).toContain('loading="eager"');
+    expect(showcase).not.toContain("setTimeout");
+    expect(showcase).not.toContain("FEATURES");
+    expect(showcase).toContain("return null");
+    expect(formRules).not.toContain("border-block-start");
   });
 
   it("shows verification and success states during the real sign-in transition", async () => {
@@ -88,15 +122,10 @@ describe("login feedback", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Checking for an existing secure session…");
   });
 
-  it("turns off entrance, feedback, and loading motion when reduced motion is requested", () => {
-    const css = readFileSync("src/app/login/login.module.css", "utf8");
-    const reducedMotionRules = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+  it("uses static session-checking feedback without a progress reel", () => {
+    const formSource = readFileSync("src/app/login/LoginForm.tsx", "utf8");
 
-    expect(reducedMotionRules).toContain(".heroBrand");
-    expect(reducedMotionRules).toContain(".artwork");
-    expect(reducedMotionRules).toContain('.form[data-phase="error"]');
-    expect(reducedMotionRules).toContain('.submit[data-state="success"] svg');
-    expect(reducedMotionRules).toContain(".loadingTrack > span");
-    expect(reducedMotionRules).toContain("animation: none");
+    expect(formSource).not.toContain("loadingTrack");
+    expect(formSource).not.toContain("video");
   });
 });

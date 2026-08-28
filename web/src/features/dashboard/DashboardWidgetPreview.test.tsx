@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DASHBOARD_SECTIONS } from "@/features/settings/settings";
 import { IncompleteLevelsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
@@ -30,7 +31,7 @@ describe("dashboard widget previews", () => {
       "Extra study",
       "Next 12 hours",
       "Review stats",
-      "Recent mistakes",
+      "Recent Mistakes",
       "App Streak",
       "Subject lists",
       "Incomplete levels",
@@ -55,7 +56,7 @@ describe("dashboard widget previews", () => {
     expect(unstartedSubject?.querySelector('[class*="levelSubjectMeter"] [data-filled]')).toBeNull();
     expect(container.querySelectorAll('[data-widget-preview="study-streak"] [class*="streakDay"]')).toHaveLength(7);
     expect(container.querySelectorAll('[data-widget-preview="forecast"] [class*="forecastCol"]')).toHaveLength(12);
-    expect(container.querySelectorAll('[data-widget-preview="recent-mistakes"] [class*="subjectGlyph"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-widget-preview="recent-mistakes"] [class*="recentMistakeTile"]')).toHaveLength(3);
     expect(container.querySelector('[data-widget-preview="daily-study"] img[src*="Lessons.png"]')).not.toBeNull();
     expect(container.querySelector('[data-widget-preview="daily-study"] img[src*="Reviews.png"]')).not.toBeNull();
     expect(container.querySelector('[data-widget-preview="recent-unlocks"] [data-long="true"]')).toHaveTextContent("見当たる");
@@ -140,13 +141,34 @@ describe("dashboard widget previews", () => {
     expect(container.querySelector('[class*="incompleteSwitcher"]')).toHaveTextContent("Level12");
   });
 
-  it("uses the mobile empty-state artwork and copy when a queue is clear", () => {
+  it("releases the initial ring draw so level changes can morph and disables motion for reduced-motion users", () => {
+    const css = readFileSync("src/features/dashboard/dashboard.module.css", "utf8");
+    const ringRule = css.match(/\.incompleteRingProgress \{ stroke:[^}]+\}/)?.[0] ?? "";
+    const reducedMotionRules = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+
+    expect(ringRule).toContain("animation: dashboardRingDraw var(--dur-long) var(--ease-out)");
+    expect(ringRule).not.toContain("both");
+    expect(ringRule).toContain("transition: --ring-progress 320ms var(--ease-out)");
+    expect(reducedMotionRules).toContain(".incompleteRingProgress { transition: none; }");
+  });
+
+  it("keeps the main lesson and review queues disabled while they are coming soon", () => {
+    render(<><StudyQueueCard type="lesson" count={12} /><StudyQueueCard type="review" count={34} /></>);
+
+    for (const name of ["Lessons", "Reviews"]) {
+      const queue = screen.getByRole("article", { name: `${name} study queue, coming soon` });
+      expect(within(queue).getByRole("button", { name: "Coming soon" })).toBeDisabled();
+      expect(within(queue).queryByRole("link")).not.toBeInTheDocument();
+    }
+  });
+
+  it("uses the mobile empty-state artwork while a queue is clear", () => {
     const { container } = render(<><StudyQueueCard type="lesson" count={0} /><StudyQueueCard type="review" count={0} /></>);
 
     expect(container.querySelector('img[src*="NoLessons.png"]')).not.toBeNull();
     expect(container.querySelector('img[src*="ReviewsFinished.png"]')).not.toBeNull();
-    expect(container).toHaveTextContent("You’ve done all your available lessons!");
-    expect(container).toHaveTextContent("There are no more reviews to do right now.");
+    expect(container).toHaveTextContent("Main lessons are coming to the web app.");
+    expect(container).toHaveTextContent("Main reviews are coming to the web app.");
   });
 
   it("renders streak days without React key warnings when identifiers repeat", () => {

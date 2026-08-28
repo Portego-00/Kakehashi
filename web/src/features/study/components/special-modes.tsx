@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { toHiragana } from "wanakana";
 import { ArrowLeft, ArrowRight, Check, Eye, Grid3X3, Library, Lightbulb, Play, RotateCcw, Sparkles, Trash2, Undo2, Volume2, X } from "lucide-react";
+import type { WebSettings } from "@/features/settings/settings";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { useSubjectLists } from "@/features/subjects/use-subject-lists";
 import type { Subject } from "@/types/wanikani";
 import { analyzeJapaneseText, chooseWordleCandidate, evaluateWordleGuess, generateCrossword, isValidWordleGuess, splitKana, wordleCandidates } from "../games";
@@ -17,6 +20,14 @@ import { evaluateFreehandDrawing, loadKanjiStrokeData, type KanjiStrokeData } fr
 import { GuidedWritingCanvas, MOBILE_GUIDED_STROKE_TRANSFORM, type GuidedWritingCanvasHandle } from "./guided-writing-canvas";
 import styles from "../study.module.css";
 
+const StudySubjectDetails = dynamic(
+  () => import("./study-subject-details").then((module) => module.StudySubjectDetails),
+  { loading: CustomLessonSubjectDetailsLoading },
+);
+
+function CustomLessonSubjectDetailsLoading() {
+  return <section id="study-item-details" className={styles.itemDetails} aria-labelledby="study-item-details-title" aria-busy="true"><header className={styles.itemDetailsHeader}><div><h3 id="study-item-details-title">Subject details</h3><p>Loading subject sections…</p></div></header></section>;
+}
 
 function primaryMeaning(subject: Subject) {
   return subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? "Unknown";
@@ -24,10 +35,6 @@ function primaryMeaning(subject: Subject) {
 
 function primaryReading(subject: Subject) {
   return subject.data.readings?.find((item) => item.primary)?.reading ?? subject.data.readings?.[0]?.reading ?? "";
-}
-
-function plainMnemonic(value?: string) {
-  return value?.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() ?? "";
 }
 
 export function TextAnalysis({ subjects, scope }: { subjects: Subject[]; scope: StudyStorageScope }) {
@@ -57,7 +64,7 @@ export function TextAnalysis({ subjects, scope }: { subjects: Subject[]; scope: 
       </section>
       <section className={styles.analysisResults} aria-live="polite">
         <div className={styles.analysisHeader}><h2>{view === "library" ? "WaniKani matches" : "Grammar and tokens"}</h2><div className={styles.lengthTabs} role="group" aria-label="Analysis view"><button data-active={view === "library"} onClick={() => setView("library")}>Library</button><button data-active={view === "grammar"} onClick={() => setView("grammar")}>Grammar</button></div></div>
-        {!text.trim() ? <p>Paste Japanese to inspect vocabulary, kanji, verbs, and grammar markers.</p> : view === "library" ? analysis.matches.length ? <div className={styles.analysisList}>{analysis.matches.map((subject) => <article key={subject.id} data-type={subject.object}><strong lang="ja">{subject.data.characters}</strong><div><h3>{primaryMeaning(subject)}</h3><p lang="ja">{primaryReading(subject) || subject.object.replace("_", " ")}</p></div><span>Level {subject.data.level}</span></article>)}</div> : <p>No exact WaniKani subjects were found in this text.</p> : <><div className={styles.tokenizedText} lang="ja">{analysis.tokens.map((token, index) => token.type === "plain" ? <span key={index}>{token.text}</span> : <button type="button" key={index} data-token-type={token.type} data-active={selectedToken === index} onClick={() => setSelectedToken(index)}>{token.text}</button>)}</div>{selectedToken !== null && analysis.tokens[selectedToken] ? <article className={styles.tokenDetail}><h3>{analysis.tokens[selectedToken].text}</h3><p>{analysis.tokens[selectedToken].type}{analysis.tokens[selectedToken].partsOfSpeech?.length ? ` · ${analysis.tokens[selectedToken].partsOfSpeech!.join(", ")}` : ""}</p>{analysis.tokens[selectedToken].reading ? <p lang="ja">Reading: {analysis.tokens[selectedToken].reading}</p> : null}{analysis.tokens[selectedToken].meaning ? <strong>{analysis.tokens[selectedToken].meaning}</strong> : null}</article> : <p>Select an underlined token for details.</p>}</>}
+        {!text.trim() ? <p>Paste Japanese to inspect vocabulary, kanji, verbs, and grammar markers.</p> : view === "library" ? analysis.matches.length ? <div className={styles.analysisList}>{analysis.matches.map((subject) => <article key={subject.id} data-type={subject.object}><strong><SubjectCharacter subject={subject} className={styles.surfaceSubjectCharacter} imageTone="subject" imageSize="2.25rem" /></strong><div><h3>{primaryMeaning(subject)}</h3><p lang="ja">{primaryReading(subject) || subject.object.replace("_", " ")}</p></div><span>Level {subject.data.level}</span></article>)}</div> : <p>No exact WaniKani subjects were found in this text.</p> : <><div className={styles.tokenizedText} lang="ja">{analysis.tokens.map((token, index) => token.type === "plain" ? <span key={index}>{token.text}</span> : <button type="button" key={index} data-token-type={token.type} data-active={selectedToken === index} onClick={() => setSelectedToken(index)}>{token.text}</button>)}</div>{selectedToken !== null && analysis.tokens[selectedToken] ? <article className={styles.tokenDetail}><h3>{analysis.tokens[selectedToken].text}</h3><p>{analysis.tokens[selectedToken].type}{analysis.tokens[selectedToken].partsOfSpeech?.length ? ` · ${analysis.tokens[selectedToken].partsOfSpeech!.join(", ")}` : ""}</p>{analysis.tokens[selectedToken].reading ? <p lang="ja">Reading: {analysis.tokens[selectedToken].reading}</p> : null}{analysis.tokens[selectedToken].meaning ? <strong>{analysis.tokens[selectedToken].meaning}</strong> : null}</article> : <p>Select an underlined token for details.</p>}</>}
       </section>
     </div>
   );
@@ -421,6 +428,15 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     window.requestAnimationFrame(() => wordInputRef.current?.focus());
   };
 
+  const selectNextEntry = (fromEntryId: string) => {
+    if (!orderedEntries.length) return;
+    const currentIndex = orderedEntries.findIndex((entry) => entry.id === fromEntryId);
+    const nextEntry = orderedEntries.find((entry, index) => index > currentIndex && !entryIsCorrect(entry))
+      ?? orderedEntries.find((entry) => !entryIsCorrect(entry))
+      ?? orderedEntries[currentIndex >= 0 ? (currentIndex + 1) % orderedEntries.length : 0];
+    if (nextEntry) selectEntry(nextEntry.id);
+  };
+
   const selectCell = (row: number, col: number) => {
     if (answerIsAnimating) return;
     const ids = puzzle?.cells[row]?.[col]?.entryIds ?? [];
@@ -451,13 +467,11 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
 
   const checkActiveWord = async () => {
     if (!activeEntry || !puzzle || answerIsAnimating) return;
-    const candidate = composeKanaInput(wordInput.trim());
+    const candidate = toHiragana(wordInput.trim());
+    setWordInput(candidate);
     const candidateCharacters = Array.from(candidate);
     if (!candidateCharacters.length) {
-      feedbackSequenceRef.current += 1;
-      setWordFeedback("empty");
-      setAttemptFeedback(null);
-      wordInputRef.current?.focus();
+      selectNextEntry(activeEntry.id);
       return;
     }
     const answer = splitKana(activeEntry.answer);
@@ -679,7 +693,7 @@ export function SimilarKanjiMatching({ dataset, filters, scope, onExit }: { data
   return <section className={styles.gameShell}><div className={styles.gameHeading}><div><h2>Match kanji to meanings</h2><p>Round {roundIndex + 1} of {rounds.length} · {filters.similarKanjiSource === "niai" ? "Niai" : "WaniKani"} similarity</p></div><button className={styles.iconButton} onClick={onExit} aria-label="Pause similar kanji matching"><X size={19} /></button></div><div className={styles.matchingBoard}><div aria-label="Kanji choices">{round.items.map((item) => <button type="button" key={item.subjectId} className={styles.matchingKanji} data-active={selectedSubjectId === item.subjectId} data-matched={matched.has(item.subjectId)} disabled={matched.has(item.subjectId)} onClick={() => { setSelectedSubjectId(item.subjectId); setMessage(`Now choose the meaning for ${item.characters}.`); }} lang="ja">{item.characters}</button>)}</div><div aria-label="Meaning choices">{meanings.map((item) => <button type="button" key={item.subjectId} className={styles.matchingMeaning} data-matched={matched.has(item.subjectId)} disabled={matched.has(item.subjectId) || selectedSubjectId === null} onClick={() => chooseMeaning(item.subjectId)}>{item.meaning}</button>)}</div></div><p className={styles.matchingStatus} role="status">{message}</p>{complete ? <div className={styles.gameActions}><button className={styles.primaryButton} onClick={() => { const next = roundIndex + 1; setRoundIndex(next); setMatched(new Set()); setSelectedSubjectId(null); setMessage("Choose a kanji, then choose its meaning."); persist(next, correct, mistakes); }}>{roundIndex + 1 >= rounds.length ? "Finish" : "Next round"} <ArrowRight size={17} /></button></div> : null}</section>;
 }
 
-export function CustomLessons({ dataset, filters, scope, onExit }: { dataset: StudyDataset; filters: StudyFilters; scope: StudyStorageScope; onExit: () => void }) {
+export function CustomLessons({ dataset, filters, scope, subjectDetailSettings, immersionSources = [], onExit }: { dataset: StudyDataset; filters: StudyFilters; scope: StudyStorageScope; subjectDetailSettings?: WebSettings["subjectDetails"]; immersionSources?: string[]; onExit: () => void }) {
   const subjects = useMemo(() => dataset.subjects.filter((subject) => filters.selectedSubjectIds.includes(subject.id) && !subject.data.hidden_at), [dataset.subjects, filters.selectedSubjectIds]);
   const saved = loadModeState<{ index: number }>(scope, "custom-lessons", "progress");
   const [index, setIndex] = useState(() => Math.min(saved?.index ?? 0, Math.max(subjects.length - 1, 0)));
@@ -687,7 +701,8 @@ export function CustomLessons({ dataset, filters, scope, onExit }: { dataset: St
   const move = (next: number) => { setIndex(next); saveModeState(scope, "custom-lessons", "progress", { index: next }); };
   if (!subject) return <section className={styles.emptyPanel}><h2>No subjects selected</h2><p>Return to setup and choose at least one unlocked subject.</p><button className={styles.primaryButton} onClick={onExit}>Back to setup</button></section>;
   const meaning = primaryMeaning(subject); const reading = primaryReading(subject);
-  return <section className={styles.lessonShell}><div className={styles.quizTopbar}><span>{index + 1} / {subjects.length}</span><div className={styles.progressTrack}><span style={{ transform: `scaleX(${(index + 1) / subjects.length})` }} /></div><button className={styles.iconButton} onClick={onExit} aria-label="Pause lessons"><X size={19} /></button></div><article className={styles.lessonCard} data-type={subject.object}><p>{subject.object.replace("_", " ")} · Level {subject.data.level}</p><h2 lang="ja">{subject.data.characters ?? meaning}</h2><div className={styles.lessonFacts}><div><h3>Meaning</h3><strong>{meaning}</strong><p>{subject.data.meanings.map((item) => item.meaning).join(" · ")}</p></div>{reading ? <div><h3>Reading</h3><strong lang="ja">{reading}</strong><p lang="ja">{subject.data.readings?.map((item) => item.reading).join(" · ")}</p></div> : null}</div>{subject.data.meaning_mnemonic ? <div className={styles.lessonNote}><h3>Meaning mnemonic</h3><p>{plainMnemonic(subject.data.meaning_mnemonic)}</p></div> : null}{subject.data.reading_mnemonic ? <div className={styles.lessonNote}><h3>Reading mnemonic</h3><p>{plainMnemonic(subject.data.reading_mnemonic)}</p></div> : null}{subject.data.context_sentences?.[0] ? <div className={styles.contextExample}><p lang="ja">{subject.data.context_sentences[0].ja}</p><span>{subject.data.context_sentences[0].en}</span></div> : null}</article><div className={styles.lessonNav}><button className={styles.secondaryButton} disabled={index === 0} onClick={() => move(index - 1)}><ArrowLeft size={17} /> Previous</button>{index < subjects.length - 1 ? <button className={styles.primaryButton} onClick={() => move(index + 1)}>Next <ArrowRight size={17} /></button> : <button className={styles.primaryButton} onClick={() => { clearModeState(scope, "custom-lessons", "progress"); onExit(); }}><Check size={17} /> Finish</button>}</div></section>;
+  const assignment = dataset.assignments.find((candidate) => candidate.data.subject_id === subject.id);
+  return <section className={styles.lessonShell}><div className={styles.quizTopbar}><span>{index + 1} / {subjects.length}</span><div className={styles.progressTrack}><span style={{ transform: `scaleX(${(index + 1) / subjects.length})` }} /></div><button className={styles.iconButton} onClick={onExit} aria-label="Pause lessons"><X size={19} /></button></div><article className={styles.lessonCard} data-type={subject.object}><p>{subject.object.replace("_", " ")} · Level {subject.data.level}</p><h2><SubjectCharacter subject={subject} fallbackText={meaning} className={styles.surfaceSubjectCharacter} imageTone="subject" eager /></h2><div className={styles.lessonFacts}><div><h3>Meaning</h3><strong>{meaning}</strong><p>{subject.data.meanings.map((item) => item.meaning).join(" · ")}</p></div>{reading ? <div><h3>Reading</h3><strong lang="ja">{reading}</strong><p lang="ja">{subject.data.readings?.map((item) => item.reading).join(" · ")}</p></div> : null}</div><StudySubjectDetails key={subject.id} record={subject} subjects={dataset.subjects} assignment={assignment} settings={subjectDetailSettings} immersionSources={immersionSources} initialTab="meaning" idPrefix={`custom-lesson-${subject.id}`} returnTo="/study/custom-lessons" /></article><div className={styles.lessonNav}><button className={styles.secondaryButton} disabled={index === 0} onClick={() => move(index - 1)}><ArrowLeft size={17} /> Previous</button>{index < subjects.length - 1 ? <button className={styles.primaryButton} onClick={() => move(index + 1)}>Next <ArrowRight size={17} /></button> : <button className={styles.primaryButton} onClick={() => { clearModeState(scope, "custom-lessons", "progress"); onExit(); }}><Check size={17} /> Finish</button>}</div></section>;
 }
 
 export function SubjectLists({ subjects, scope, username }: { subjects: Subject[]; scope: StudyStorageScope; username: string }) {
@@ -708,5 +723,5 @@ export function SubjectLists({ subjects, scope, username }: { subjects: Subject[
   const commit = (next: SubjectList[]) => { repository.replace(next); };
   const create = () => { const trimmed = name.trim(); if (!trimmed) return; const now = new Date().toISOString(); const list = { id: `list-${Date.now()}`, name: trimmed, subjectIds: [], createdAt: now, updatedAt: now }; commit([...lists, list]); setActiveId(list.id); setName(""); };
   const toggle = (subjectId: number) => { if (!active) return; const ids = active.subjectIds.includes(subjectId) ? active.subjectIds.filter((id) => id !== subjectId) : [...active.subjectIds, subjectId]; commit(lists.map((list) => list.id === active.id ? { ...list, subjectIds: ids, updatedAt: new Date().toISOString() } : list)); };
-  return <div className={styles.listsLayout}><aside className={styles.listsSidebar}><form onSubmit={(event) => { event.preventDefault(); create(); }}><label htmlFor="new-list">New list</label><div><input id="new-list" value={name} onChange={(event) => setName(event.target.value)} placeholder="JLPT refresh" /><button className={styles.primaryButton} disabled={!name.trim()}>Create</button></div></form><nav aria-label="Saved subject lists">{lists.map((list) => <button key={list.id} data-active={list.id === resolvedActiveId} onClick={() => setActiveId(list.id)}><span>{list.name}</span><small>{list.subjectIds.length}</small></button>)}</nav>{deletedList ? <div className={styles.undoNotice} role="status"><span>List deleted</span><button className={styles.textButton} onClick={() => { const next = [...lists]; next.splice(deletedList.index, 0, deletedList.list); commit(next); setActiveId(deletedList.list.id); setDeletedList(null); }}>Undo</button></div> : null}{active ? <button className={styles.dangerButton} onClick={() => { const index = lists.findIndex((list) => list.id === active.id); const next = lists.filter((list) => list.id !== active.id); setDeletedList({ list: active, index }); commit(next); setActiveId(next[0]?.id ?? null); }}><Trash2 size={16} /> Delete list</button> : null}</aside><section className={styles.listEditor}>{active ? <><div className={styles.configTitleRow}><div><h2>{active.name}</h2><p>{active.subjectIds.length} subjects. Changes sync with your Kakehashi account.</p></div></div><label className={styles.largeSearch}>Find subjects<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" /></label><div className={styles.subjectPickerGrid}>{shown.map((subject) => { const selected = active.subjectIds.includes(subject.id); return <button type="button" key={subject.id} className={styles.subjectPick} data-active={selected} data-type={subject.object} onClick={() => toggle(subject.id)} aria-pressed={selected}><strong lang="ja">{subject.data.characters ?? "◈"}</strong><span>{primaryMeaning(subject)}</span><small>{selected ? "Added" : `Level ${subject.data.level}`}</small></button>; })}</div></> : <div className={styles.emptyPanel}><Library size={24} aria-hidden="true" /><h2>Create your first list</h2><p>Lists can feed custom reviews, lessons, writing practice, and both games.</p></div>}</section></div>;
+  return <div className={styles.listsLayout}><aside className={styles.listsSidebar}><form onSubmit={(event) => { event.preventDefault(); create(); }}><label htmlFor="new-list">New list</label><div><input id="new-list" value={name} onChange={(event) => setName(event.target.value)} placeholder="JLPT refresh" /><button className={styles.primaryButton} disabled={!name.trim()}>Create</button></div></form><nav aria-label="Saved subject lists">{lists.map((list) => <button key={list.id} data-active={list.id === resolvedActiveId} onClick={() => setActiveId(list.id)}><span>{list.name}</span><small>{list.subjectIds.length}</small></button>)}</nav>{deletedList ? <div className={styles.undoNotice} role="status"><span>List deleted</span><button className={styles.textButton} onClick={() => { const next = [...lists]; next.splice(deletedList.index, 0, deletedList.list); commit(next); setActiveId(deletedList.list.id); setDeletedList(null); }}>Undo</button></div> : null}{active ? <button className={styles.dangerButton} onClick={() => { const index = lists.findIndex((list) => list.id === active.id); const next = lists.filter((list) => list.id !== active.id); setDeletedList({ list: active, index }); commit(next); setActiveId(next[0]?.id ?? null); }}><Trash2 size={16} /> Delete list</button> : null}</aside><section className={styles.listEditor}>{active ? <><div className={styles.configTitleRow}><div><h2>{active.name}</h2><p>{active.subjectIds.length} subjects. Changes sync with your Kakehashi account.</p></div></div><label className={styles.largeSearch}>Find subjects<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search characters or meanings" /></label><div className={styles.subjectPickerGrid}>{shown.map((subject) => { const selected = active.subjectIds.includes(subject.id); return <button type="button" key={subject.id} className={styles.subjectPick} data-active={selected} data-type={subject.object} onClick={() => toggle(subject.id)} aria-pressed={selected}><strong><SubjectCharacter subject={subject} fallbackText="◈" className={styles.surfaceSubjectCharacter} imageTone="subject" /></strong><span>{primaryMeaning(subject)}</span><small>{selected ? "Added" : `Level ${subject.data.level}`}</small></button>; })}</div></> : <div className={styles.emptyPanel}><Library size={24} aria-hidden="true" /><h2>Create your first list</h2><p>Lists can feed custom reviews, lessons, writing practice, and both games.</p></div>}</section></div>;
 }
