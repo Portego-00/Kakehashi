@@ -1,0 +1,60 @@
+{
+  "name": "kakehashi-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:anime-catalog": "node scripts/sync-anime-catalog.mjs",
+    "sync:srs-icons": "node scripts/sync-srs-icons.mjs",
+    "dev": "next dev --webpack",
+    "dev:expo-env": "cd .. && eas env:exec production \"npm --prefix web run dev\"",
+    "build": "next build --webpack",
+    "build:expo-env": "cd .. && eas env:exec production \"npm --prefix web run build\"",
+    "start": "next start",
+    "start:expo-env": "cd .. && eas env:exec production \"npm --prefix web run start\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:all": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@floating-ui/react-dom": "^2.1.9",
+    "@tanstack/react-query": "^5.101.4",
+    "epubjs": "^0.3.93",
+    "fflate": "^0.8.3",
+    "hanzi-writer": "^3.7.3",
+    "lucide-react": "^1.29.0",
+    "motion": "^13.1.1",
+    "next": "^16.3.0",
+    "onnxruntime-web": "^1.29.0",
+    "pdfjs-dist": "^4.10.38",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "wanakana": "^5.3.1",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.3.0",
+    "jsdom": "^27.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.8.15",
+    "nanoid": "3.3.18"
+  }
+}

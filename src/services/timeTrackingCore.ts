@@ -198,6 +198,18 @@ export class TimeTrackingCore {
   }
 
   /**
+   * End every registered activity without resetting the token sequence. Used
+   * when account ownership changes so an old screen cannot accrue into, or
+   * later end a token belonging to, the next account.
+   */
+  clearActivityRegistrations(): void {
+    this.fold();
+    this.registrations = [];
+    this.currentActivity = null;
+    this.activityMarkMs = null;
+  }
+
+  /**
    * Add elapsed time since the last fold to the day buckets and advance the
    * marks. Returns true when any bucket changed.
    */

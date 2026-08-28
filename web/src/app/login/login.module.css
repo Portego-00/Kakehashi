@@ -1,0 +1,332 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Split Studio · theme: studied-DNA (source: design.md) · designed-as-app
+ * structural fingerprint: quiet brand column / compact bridge illustration / open gutter / flat account-access form
+ * variation knobs: no stage / no card / no divider / artwork capped at 12–16rem · enrichment: existing phone-login artwork · tone: calm, exact · anchor hue: warm neutral
+ * pre-emit critique: P5 H5 E5 S5 R5 V4
+ * audit: contrast pass (40–41) · slop pass (1–58) · nav/footer omitted · honest pass (46) · chrome pass (47) · tokens pass (48) · mobile pass (34, 49–57) · icons pass (30)
+ */
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  overflow-x: clip;
+  padding-block: max(var(--space-lg), env(safe-area-inset-top)) max(var(--space-lg), env(safe-area-inset-bottom));
+  padding-inline: max(var(--space-md), env(safe-area-inset-left)) max(var(--space-md), env(safe-area-inset-right));
+  background: var(--color-login-canvas);
+  color: var(--color-login-ink);
+}
+
+.shell {
+  width: min(100%, var(--study-max));
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2xl);
+}
+
+.identity {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.brandHeading,
+.brandHeading h1 {
+  min-width: 0;
+}
+
+.brandHeading h1 {
+  margin: 0;
+  font: inherit;
+}
+
+.heroBrand {
+  --kakehashi-mark-size: 2.75rem;
+  --kakehashi-name-size: var(--text-2xl);
+  gap: var(--space-md);
+  color: var(--color-login-ink);
+}
+
+.identityCopy {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.identityCopy h2 {
+  max-width: 12ch;
+  color: var(--color-login-ink);
+  font-size: clamp(var(--text-2xl), 8vw, var(--text-display));
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.identityCopy p {
+  max-width: 45ch;
+  color: var(--color-login-muted);
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+.artwork {
+  width: min(12rem, 100%);
+  min-width: 0;
+  margin: var(--space-sm) 0 0;
+}
+
+.artworkImage {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.independent {
+  color: var(--color-login-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.access {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  justify-items: start;
+}
+
+.form {
+  --color-paper: var(--color-login-canvas);
+  --color-paper-2: color-mix(in oklch, var(--color-login-canvas) 92%, var(--color-login-rule));
+  --color-paper-3: color-mix(in oklch, var(--color-login-canvas) 82%, var(--color-login-rule));
+  --color-surface: var(--color-login-surface);
+  --color-ink: var(--color-login-ink);
+  --color-ink-2: var(--color-login-muted);
+  --color-muted: var(--color-login-muted);
+  --color-rule: var(--color-login-rule);
+  --color-rule-2: color-mix(in oklch, var(--color-login-rule) 68%, var(--color-login-canvas));
+  --color-accent: var(--color-login-action);
+  --color-accent-ink: var(--color-login-surface);
+  --color-focus: var(--color-login-action);
+
+  width: min(100%, 30rem);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-login-ink);
+  box-shadow: none;
+}
+
+.formBody,
+.fallback {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.formBody > *,
+.fallback > * {
+  min-width: 0;
+}
+
+.formHeading {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-sm);
+}
+
+.formHeading h2 {
+  min-width: 0;
+  color: var(--color-login-ink);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.formLead {
+  max-width: 45ch;
+  color: var(--color-login-muted);
+  font-size: var(--text-base);
+  line-height: 1.55;
+}
+
+.privacy {
+  max-width: 48ch;
+  color: var(--color-login-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.privacy[href] {
+  width: fit-content;
+  min-height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-login-action);
+  text-decoration: underline;
+  text-decoration-thickness: var(--rule-thin);
+  text-underline-offset: 0.22em;
+  white-space: nowrap;
+}
+
+.inlineIcon {
+  display: inline;
+  flex: none;
+  margin-inline-start: var(--space-2xs);
+  vertical-align: -0.18em;
+}
+
+.privacy > .inlineIcon:first-child {
+  margin-inline: 0 var(--space-2xs);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border: var(--rule-thin) solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-login-surface);
+  color: var(--color-danger);
+  line-height: 1.5;
+}
+
+.error svg {
+  flex: none;
+  margin-block-start: var(--space-3xs);
+}
+
+.form input::placeholder {
+  color: var(--color-login-placeholder);
+}
+
+.form input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.form input,
+.submit {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: calc(var(--control-height) + var(--space-xs));
+}
+
+.submit {
+  flex-wrap: nowrap;
+  border-color: var(--color-login-action);
+  border-radius: var(--radius-md);
+  background: var(--color-login-action);
+  color: var(--color-login-surface);
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.submit[data-state="success"],
+.submit[data-state="success"]:disabled {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-success-ink);
+  opacity: 1;
+}
+
+.fallback {
+  min-height: 16rem;
+  align-content: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .privacy[href]:hover {
+    color: var(--color-login-ink);
+    text-decoration-thickness: var(--space-3xs);
+  }
+}
+
+@media (max-width: 39.999rem) {
+  .shell {
+    gap: var(--space-lg);
+  }
+
+  .identityCopy,
+  .independent {
+    display: none;
+  }
+}
+
+@media (min-width: 40rem) {
+  .page {
+    padding-inline: max(var(--space-xl), env(safe-area-inset-left)) max(var(--space-xl), env(safe-area-inset-right));
+  }
+
+  .shell {
+    gap: var(--space-3xl);
+  }
+
+  .heroBrand {
+    --kakehashi-mark-size: 3rem;
+    --kakehashi-name-size: var(--text-2xl);
+  }
+
+  .artwork {
+    width: min(14rem, 100%);
+  }
+}
+
+@media (min-width: 60rem) {
+  .page {
+    padding-block: var(--space-xl);
+  }
+
+  .shell {
+    min-height: calc(100dvh - (var(--space-xl) * 2));
+    grid-template-columns: minmax(18rem, 0.78fr) minmax(28rem, 1.22fr);
+    align-items: stretch;
+    gap: var(--space-3xl);
+  }
+
+  .identity {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding-block: var(--space-xl);
+  }
+
+  .identityCopy {
+    align-self: center;
+  }
+
+  .artwork {
+    width: min(16rem, 100%);
+  }
+
+  .access {
+    justify-items: center;
+    padding-block: var(--space-xl);
+  }
+}
+
+@media (min-width: 90rem) {
+  .shell {
+    grid-template-columns: minmax(20rem, 0.82fr) minmax(30rem, 1.18fr);
+  }
+}
+
+@media (max-width: 22rem) {
+  .heroBrand {
+    --kakehashi-mark-size: 2.5rem;
+    --kakehashi-name-size: var(--text-xl);
+    gap: var(--space-sm);
+  }
+
+  .identityCopy h2 {
+    overflow-wrap: normal;
+  }
+
+  .privacy[href] {
+    font-size: var(--text-xs);
+  }
+}

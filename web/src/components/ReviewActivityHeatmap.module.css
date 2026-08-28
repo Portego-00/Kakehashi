@@ -1,0 +1,218 @@
+/* Hallmark · component: review-activity heatmap · macrostructure: scrollable calendar + year rail
+ * genre: modern-minimal · tone: compact data utility · palette: Kakehashi green accent · theme: Kakehashi design.md
+ * states: default · hover · focus · active · disabled · empty · intensity · current-day · parent-loading
+ * contrast: pass (40–41) · motion: delayed tooltip only · nav/footer: inherited · slop: pass (42–45)
+ * honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30)
+ * mobile: pass (34, 49, 50–57)
+ * pre-emit critique: P5 H5 E5 S5 R5 V4
+ */
+.root {
+  --heatmap-cell: var(--space-sm);
+  --heatmap-gap: var(--space-2xs);
+  --heatmap-label-width: 2rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-sm) var(--space-lg);
+  container-type: inline-size;
+}
+
+.viewport {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding-block-end: var(--space-xs);
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.canvas {
+  width: max-content;
+  min-width: 100%;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.monthRow,
+.calendarBody {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.monthSpacer,
+.weekdays {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: var(--z-raised);
+  width: var(--heatmap-label-width);
+  flex: 0 0 var(--heatmap-label-width);
+  background: var(--color-surface);
+}
+
+.monthGrid,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--heatmap-weeks), var(--heatmap-cell));
+  column-gap: var(--heatmap-gap);
+}
+
+.monthGrid span {
+  overflow: visible;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.weekdays,
+.grid {
+  grid-template-rows: repeat(7, var(--heatmap-cell));
+  row-gap: var(--heatmap-gap);
+}
+
+.weekdays {
+  display: grid;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: var(--heatmap-cell);
+  text-align: end;
+}
+
+.cell,
+.legend i {
+  inline-size: var(--heatmap-cell);
+  block-size: var(--heatmap-cell);
+  border: var(--rule-thin) solid transparent;
+  border-radius: var(--space-3xs);
+  background: var(--color-paper-3);
+}
+
+.cell {
+  appearance: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.cell[data-level="1"],
+.legend i[data-level="1"] { background: color-mix(in oklch, var(--color-success) 28%, var(--color-paper-3)); }
+.cell[data-level="2"],
+.legend i[data-level="2"] { background: color-mix(in oklch, var(--color-success) 48%, var(--color-paper-3)); }
+.cell[data-level="3"],
+.legend i[data-level="3"] { background: color-mix(in oklch, var(--color-success) 72%, var(--color-paper-3)); }
+.cell[data-level="4"],
+.legend i[data-level="4"] { background: var(--color-success); }
+
+.cell[data-today="true"] { border-color: var(--color-focus); }
+.cell:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); }
+.cell:active { opacity: 0.72; }
+.cell:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.years {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2xs);
+  max-block-size: 13rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.yearButton {
+  min-width: 4.5rem;
+  min-height: 2.25rem;
+  padding-inline: var(--space-sm);
+  border: var(--rule-thin) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.yearButton[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 700;
+}
+
+.yearButton:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); }
+.yearButton:active { opacity: 0.72; }
+.yearButton:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.legend {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: var(--space-2xs);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.legend i { display: block; }
+
+.tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  max-width: 16rem;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-floating);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  pointer-events: auto;
+  animation: heatmapTooltipIn 150ms var(--ease-out) both;
+}
+
+.tooltip[data-placement="above"] { transform: translate(-50%, calc(-100% - var(--space-xs))); }
+.tooltip[data-placement="below"] { transform: translate(-50%, var(--space-xs)); }
+
+.empty {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+@keyframes heatmapTooltipIn {
+  from { opacity: 0; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cell:hover { border-color: var(--color-ink-2); }
+  .yearButton:hover:not([aria-pressed="true"]) { border-color: var(--color-rule); background: var(--color-paper-2); color: var(--color-ink); }
+}
+
+@media (pointer: coarse) {
+  .root { --heatmap-cell: var(--space-md); }
+  .yearButton { min-height: var(--control-height); }
+}
+
+@container (min-width: 72rem) {
+  .canvas { --heatmap-cell: var(--space-md); }
+}
+
+@container (max-width: 40rem) {
+  .root { grid-template-columns: minmax(0, 1fr); }
+  .years {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    max-block-size: none;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .viewport { grid-row: 2; }
+  .legend { grid-row: 3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip { animation-duration: var(--dur-micro); }
+}

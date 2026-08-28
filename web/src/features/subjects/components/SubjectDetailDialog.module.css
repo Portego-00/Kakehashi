@@ -1,0 +1,63 @@
+.dialog {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+}
+
+.dialog::backdrop { background: color-mix(in oklch, var(--color-ink) 48%, transparent); }
+
+.sheet {
+  width: min(58rem, calc(100vw - 3rem));
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  margin-inline-start: auto;
+  overflow: hidden;
+  border-inline-start: var(--rule-thin) solid var(--color-rule);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-floating);
+  animation: detailSheetIn var(--dur-short) var(--ease-out);
+}
+
+.toolbar {
+  min-height: 3.75rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  border-block-end: var(--rule-thin) solid var(--color-rule);
+  background: var(--color-surface);
+}
+
+.toolbar > span { color: var(--color-muted); font-size: var(--text-sm); font-weight: 700; }
+.toolbar button { min-height: 2.75rem; border: 0; background: transparent; color: var(--color-ink); cursor: pointer; }
+.back { min-width: 0; display: inline-flex; align-items: center; justify-self: start; gap: var(--space-xs); padding-inline: var(--space-xs); font-weight: 700; }
+.close { width: 2.75rem; display: grid; place-items: center; justify-self: end; border-radius: var(--radius-sm); }
+.toolbar button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.body { min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--color-paper); }
+
+@media (hover: hover) {
+  .toolbar button:hover { background: var(--color-paper-2); }
+}
+
+@media (max-width: 42rem) {
+  .sheet { width: 100vw; border-inline-start: 0; }
+  .toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .toolbar > span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet { animation: none; }
+}
+
+@keyframes detailSheetIn {
+  from { transform: translateX(1.25rem); }
+}

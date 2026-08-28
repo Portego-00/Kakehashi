@@ -126,7 +126,8 @@
     ],
     "testPathIgnorePatterns": [
       "<rootDir>/test.js",
-      "<rootDir>/test.ts"
+      "<rootDir>/test.ts",
+      "<rootDir>/web/"
     ]
   }
 }

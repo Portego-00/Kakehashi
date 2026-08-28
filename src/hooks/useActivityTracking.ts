@@ -2,6 +2,9 @@ import { NavigationContext } from "@react-navigation/native";
 import { useContext, useEffect } from "react";
 import { timeTrackingService } from "../services/timeTrackingService";
 import type { ActivityKey } from "../services/timeTrackingCore";
+import { normalizeStudyTimeUserId } from "../services/studyTimeStorageScope";
+import { getDeviceId } from "../services/timeTrackingSyncService";
+import { useAuthStore } from "../utils/store";
 
 type ActivityTrackingOptions = {
   /**
@@ -36,11 +39,19 @@ export function useActivityTracking(
 ): void {
   const { mode = "mount", enabled = true } = options;
   const navigation = useContext(NavigationContext);
+  const userId = normalizeStudyTimeUserId(
+    useAuthStore((state) => state.userData?.id ?? null),
+  );
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !userId) {
       return;
     }
+
+    // Child screen effects can run before the root layout's effects on first
+    // mount. Scope synchronously before registering so the activity can never
+    // land in an old account/device and survives the root scope handoff.
+    timeTrackingService.setUserDeviceScope(userId, getDeviceId());
 
     let token: number | null = null;
     const start = () => {
@@ -71,5 +82,5 @@ export function useActivityTracking(
       unsubscribeBlur();
       stop();
     };
-  }, [activity, mode, enabled, navigation]);
+  }, [activity, mode, enabled, navigation, userId]);
 }

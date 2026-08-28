@@ -39,7 +39,7 @@ export default function PrivacyPolicy() {
           transition={{ duration: 0.5 }}
         >
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Privacy Policy</h1>
-          <p className="text-gray-400 mb-12">Last updated: January 20, 2026</p>
+          <p className="text-gray-400 mb-12">Last updated: August 26, 2026</p>
 
           <div className="prose prose-invert prose-gray max-w-none">
             <section className="mb-10">
@@ -52,12 +52,12 @@ export default function PrivacyPolicy() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-white mb-4">Data We Collect</h2>
               <p className="text-gray-400 leading-relaxed mb-4">
-                Kakehashi collects and stores the following data locally on your device:
+                Kakehashi collects and stores the following data locally or, where noted, for account-backed features:
               </p>
               <ul className="space-y-3 text-gray-400">
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
-                  <span><strong className="text-white">WaniKani API Token:</strong> Stored securely on your device to authenticate with WaniKani&apos;s servers. This token is never transmitted to any server other than WaniKani&apos;s official API.</span>
+                  <span><strong className="text-white">WaniKani API Token:</strong> Stored securely on your device. It is sent over HTTPS to WaniKani&apos;s official API and, for account-backed features such as combined study-time history, to Kakehashi&apos;s verification endpoint. Kakehashi uses it only to verify your WaniKani identity and does not store it.</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
@@ -69,7 +69,7 @@ export default function PrivacyPolicy() {
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
-                  <span><strong className="text-white">App Session Records:</strong> We may log basic app session information, such as user ID, username, level, app version, platform, and session time, to power usage streaks and understand app usage.</span>
+                  <span><strong className="text-white">App Usage and Study-Time Records:</strong> We may log basic session information and daily foreground-time totals, such as user ID, username, level, app version, platform, session time, and time grouped by study activity, to power usage streaks and understand app usage.</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
@@ -95,7 +95,7 @@ export default function PrivacyPolicy() {
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
-                  <span>We do not share your data with third parties</span>
+                  <span>We do not sell your data or share it with third parties for advertising</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
@@ -116,7 +116,7 @@ export default function PrivacyPolicy() {
                 </li>
                 <li className="flex gap-2">
                   <span className="text-sakura-400">•</span>
-                  <span><strong className="text-white">Kakehashi API:</strong> To support usage streaks, optional server-backed features, and proxy secret-backed provider APIs without shipping provider keys in the app.</span>
+                  <span><strong className="text-white">Kakehashi API:</strong> To verify your WaniKani identity, combine study-time history across your devices, support usage streaks and other server-backed features, and proxy secret-backed provider APIs without shipping provider keys in the app.</span>
                 </li>
               </ul>
             </section>
@@ -124,14 +124,14 @@ export default function PrivacyPolicy() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-white mb-4">Data Storage</h2>
               <p className="text-gray-400 leading-relaxed">
-                Most app data is stored locally on your device using secure storage mechanisms provided by your operating system. Your API token is stored using secure device storage. Server-backed features store only the records needed to provide those features.
+                Most app data is stored locally on your device using secure storage mechanisms provided by your operating system. Your API token is stored using secure device storage and is not retained by Kakehashi&apos;s backend after identity verification. Server-backed features store only the records needed to provide those features.
               </p>
             </section>
 
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-white mb-4">Data Deletion</h2>
               <p className="text-gray-400 leading-relaxed mb-4">
-                You can delete all app data at any time by:
+                You can delete locally stored app data at any time by:
               </p>
               <ul className="space-y-3 text-gray-400">
                 <li className="flex gap-2">
@@ -143,6 +143,9 @@ export default function PrivacyPolicy() {
                   <span>Uninstalling the app (removes all locally stored data)</span>
                 </li>
               </ul>
+              <p className="text-gray-400 leading-relaxed mt-4">
+                Logging out or uninstalling does not automatically delete account-backed records already stored by Kakehashi. To request deletion of those records, contact <a href="mailto:kakehashi.app@gmail.com" className="text-sakura-400 hover:text-sakura-300">kakehashi.app@gmail.com</a>.
+              </p>
             </section>
 
             <section className="mb-10">

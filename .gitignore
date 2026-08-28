@@ -7,6 +7,9 @@ node_modules/
 .expo/
 dist/
 web-build/
+.next/
+playwright-report/
+test-results/
 expo-env.d.ts
 
 # Native
@@ -37,9 +40,11 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+web/.data/
 
 # python
 __pycache__/
 *.py[cod]
 
 app-example
+.vercel

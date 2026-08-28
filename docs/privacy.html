@@ -18,25 +18,26 @@
     </header>
 
     <main>
-      <p class="updated">Last updated: January 20, 2026</p>
+      <p class="updated">Last updated: August 26, 2026</p>
 
       <h2>Overview</h2>
       <p>Kakehashi is committed to protecting your privacy. This policy explains what data we collect, how we use it, and your rights regarding your information.</p>
 
       <h2>Data We Collect</h2>
-      <p>Kakehashi collects and stores the following data locally on your device:</p>
+      <p>Kakehashi collects and stores the following data locally or, where noted, for account-backed features:</p>
       <ul>
-        <li><strong>WaniKani API Token:</strong> Stored securely on your device to authenticate with WaniKani's servers. This token is never transmitted to any server other than WaniKani's official API.</li>
+        <li><strong>WaniKani API Token:</strong> Stored securely on your device. It is sent over HTTPS to WaniKani's official API and, for account-backed features such as combined study-time history, to Kakehashi's verification endpoint. Kakehashi uses it only to verify your WaniKani identity and does not store it.</li>
         <li><strong>App Settings:</strong> Your preferences such as review batch size, display options, and notification settings are stored locally on your device.</li>
         <li><strong>Cached WaniKani Data:</strong> Subject data (kanji, vocabulary, radicals) is cached locally to improve performance and enable offline access.</li>
+        <li><strong>App Usage and Study-Time Records:</strong> Daily foreground-time totals may be stored by account and device to provide combined study-time history and usage streaks.</li>
       </ul>
 
       <h2>Data We Do NOT Collect</h2>
       <ul>
-        <li>We do not collect personal information</li>
-        <li>We do not use analytics or tracking services</li>
-        <li>We do not transmit your data to our servers (we don't have any)</li>
-        <li>We do not share your data with third parties</li>
+        <li>We do not store your WaniKani API token on Kakehashi's backend</li>
+        <li>We do not use third-party advertising trackers</li>
+        <li>We do not transmit your core learning data to Kakehashi's backend unless you use a server-backed feature</li>
+        <li>We do not sell your data or share it with third parties for advertising</li>
         <li>We do not store your WaniKani password</li>
       </ul>
 
@@ -44,17 +45,19 @@
       <p>Kakehashi connects to the following third-party services:</p>
       <ul>
         <li><strong>WaniKani API:</strong> To fetch your learning data and submit review results. Please refer to <a href="https://www.wanikani.com/privacy" target="_blank">WaniKani's Privacy Policy</a> for information about how they handle your data.</li>
+        <li><strong>Kakehashi API:</strong> To verify your WaniKani identity, combine study-time history across devices, and provide other server-backed features.</li>
       </ul>
 
       <h2>Data Storage</h2>
-      <p>All data is stored locally on your device using secure storage mechanisms provided by iOS/Android. Your API token is stored using the device's secure keychain/keystore.</p>
+      <p>Most data is stored locally on your device using secure storage mechanisms provided by iOS/Android. Your API token is stored using the device's secure keychain/keystore and is not retained by Kakehashi's backend after identity verification. Server-backed features store only the records needed to provide those features.</p>
 
       <h2>Data Deletion</h2>
-      <p>You can delete all app data at any time by:</p>
+      <p>You can delete locally stored app data at any time by:</p>
       <ul>
         <li>Logging out of the app (clears your API token and cached data)</li>
         <li>Uninstalling the app (removes all locally stored data)</li>
       </ul>
+      <p>Logging out or uninstalling does not automatically delete account-backed records already stored by Kakehashi. To request deletion of those records, contact <a href="mailto:kakehashi.app@gmail.com">kakehashi.app@gmail.com</a>.</p>
 
       <h2>Children's Privacy</h2>
       <p>Kakehashi does not knowingly collect any personal information from children under 13.</p>

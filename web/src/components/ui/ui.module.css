@@ -1,0 +1,146 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: design.md · designed-as-app */
+.button {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink);
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+.buttonPrimary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); }
+.buttonAccent { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); }
+.buttonDanger { background: var(--color-danger); border-color: var(--color-danger); color: var(--color-danger-ink); }
+.buttonGhost { background: transparent; border-color: transparent; color: var(--color-ink-2); }
+.buttonSmall { min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); font-size: var(--text-sm); }
+.buttonWide { width: 100%; }
+.button:active { transform: translateY(1px); }
+.button:disabled, .button[aria-disabled="true"] { cursor: not-allowed; opacity: .55; transform: none; background: var(--color-paper-3); border-color: var(--color-rule); color: var(--color-ink-2); }
+.button[data-state="loading"] { cursor: progress; }
+.button[data-state="loading"][data-loading-interactive="true"] { cursor: pointer; }
+.button[data-state="error"] { border-color: var(--color-danger); background: var(--color-danger-soft); color: var(--color-danger); }
+.button[data-state="success"] { border-color: var(--color-success); background: var(--color-success-soft); color: var(--color-success); }
+.button[data-state="error"] > svg:first-child, .button[data-state="success"] > svg:first-child { animation: buttonStateIconIn var(--dur-short) var(--ease-out) both; }
+.spinner { width: 1rem; height: 1rem; border: 2px solid currentColor; border-inline-end-color: transparent; border-radius: 50%; animation: spin 800ms linear infinite, spinnerIn var(--dur-short) var(--ease-out) both; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spinnerIn { from { opacity: 0; border-width: 0; } }
+@keyframes buttonStateIconIn { from { opacity: 0; transform: translateX(calc(var(--space-2xs) * -1)); } }
+
+.card {
+  min-width: 0;
+  border: 0;
+  border-block: var(--rule-thin) solid var(--color-rule-2);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-ink);
+}
+.cardInteractive { transition: border-color var(--dur-short) var(--ease-out), background-color var(--dur-short) var(--ease-out); }
+.cardPaddingSm { padding: var(--space-md); }
+.cardPaddingMd { padding: var(--space-lg); }
+.cardPaddingLg { padding: var(--space-lg); }
+
+.field { display: grid; gap: var(--space-xs); }
+.label { color: var(--color-ink); font-weight: 700; font-size: var(--text-sm); }
+.inputWrap { position: relative; }
+.input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-sm) calc(var(--space-xl) + var(--space-2xs)) var(--space-sm) var(--space-sm);
+  border: var(--rule-thin) solid var(--color-rule);
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: background-color var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out);
+}
+.textarea { min-height: 7rem; resize: vertical; line-height: 1.5; }
+.input::placeholder { color: var(--color-muted); }
+.input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; border-color: var(--color-ink-2); }
+.input:disabled { cursor: not-allowed; background: var(--color-paper-3); color: var(--color-ink-2); }
+.inputError { border-color: var(--color-danger); }
+.inputSuccess { border-color: var(--color-success); }
+.fieldIcon { position: absolute; inset-inline-end: var(--space-sm); inset-block-start: 50%; transform: translateY(-50%); color: var(--color-muted); pointer-events: none; }
+.fieldIcon[data-state="loading"] svg { animation: spin 800ms linear infinite; }
+.fieldIcon[data-state="error"] svg,
+.fieldIcon[data-state="success"] svg { animation: fieldStateIn var(--dur-short) var(--ease-out) both; }
+@keyframes fieldStateIn { from { opacity: 0; transform: translateX(calc(var(--space-2xs) * -1)); } }
+.helper { min-height: 1.35rem; color: var(--color-muted); font-size: var(--text-sm); }
+.helperError { color: var(--color-danger); }
+.helperSuccess { color: var(--color-success); }
+
+.progress { width: 100%; height: 0.375rem; overflow: hidden; border-radius: var(--radius-sm); background: var(--color-paper-3); }
+.progressValue { width: 100%; height: 100%; transform: scaleX(var(--progress)); transform-origin: left; background: var(--color-accent); transition: transform var(--dur-long) var(--ease-out); }
+.progressLabel { display: flex; justify-content: space-between; gap: var(--space-md); color: var(--color-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+
+.badge { display: inline-flex; align-items: center; gap: var(--space-2xs); padding: var(--space-2xs) var(--space-xs); border-radius: var(--radius-sm); background: var(--color-paper-2); color: var(--color-ink-2); font-size: var(--text-sm); white-space: nowrap; }
+.badgeRadical { background: color-mix(in oklch, var(--color-radical) 18%, var(--color-surface)); color: var(--color-radical-ink); }
+.badgeKanji { background: color-mix(in oklch, var(--color-kanji) 14%, var(--color-surface)); color: var(--color-kanji-ink); }
+.badgeVocabulary { background: color-mix(in oklch, var(--color-vocabulary) 14%, var(--color-surface)); color: var(--color-vocabulary-ink); }
+.badgeDanger { background: var(--color-danger-soft); color: var(--color-danger); }
+.badgeSuccess { background: var(--color-success-soft); color: color-mix(in oklch, var(--color-success) 88%, var(--color-ink)); }
+
+.skeleton { position: relative; width: 100%; overflow: hidden; min-height: 1rem; border-radius: var(--radius-sm); background: var(--color-paper-3); }
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 100%;
+  background: linear-gradient(90deg, transparent 42%, color-mix(in oklch, var(--color-ink) 9%, transparent) 50%, transparent 58%);
+  transform: translateX(-100%);
+  animation: skeletonShimmer 1.55s var(--ease-in-out) infinite;
+  will-change: transform;
+}
+@keyframes skeletonShimmer { to { transform: translateX(100%); } }
+
+.loadingState {
+  min-height: 11rem;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-sm);
+  color: var(--color-ink);
+  text-align: center;
+  animation: loadingStateIn var(--dur-long) var(--ease-out) both;
+}
+.loadingTrack { position: relative; width: min(10rem, 42vw); height: 2px; overflow: hidden; background: var(--color-rule-2); }
+.loadingTrack > span { position: absolute; inset-block: 0; inset-inline-start: 0; width: 32%; background: var(--color-accent); transform: translateX(-110%); animation: loadingProgress 1.45s var(--ease-in-out) infinite; will-change: transform; }
+.loadingCopy { display: grid; justify-items: center; gap: var(--space-2xs); }
+.loadingLabel { font-size: var(--text-sm); font-weight: 700; }
+.loadingDetail { max-width: 34rem; color: var(--color-muted); font-size: var(--text-xs); }
+.loadingState[data-compact="true"] { min-height: 0; grid-template-columns: 2.75rem minmax(0, auto); place-content: initial; justify-items: stretch; align-items: center; justify-content: start; gap: var(--space-sm); text-align: start; animation-duration: var(--dur-short); }
+.loadingState[data-compact="true"] .loadingTrack { width: 2.75rem; }
+.loadingState[data-compact="true"] .loadingCopy { justify-items: start; }
+@keyframes loadingStateIn { from { transform: translateY(var(--space-2xs)); } }
+@keyframes loadingProgress { 0% { transform: translateX(-110%); } 55%, 100% { transform: translateX(320%); } }
+
+.empty { min-height: 11rem; display: grid; place-items: center; text-align: center; padding: var(--space-lg); }
+.emptyInner { display: grid; justify-items: center; gap: var(--space-sm); max-width: 34rem; }
+.emptyIcon { color: var(--color-muted); }
+.empty p { color: var(--color-muted); }
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover:not(:disabled) { background: var(--color-paper-2); }
+  .buttonPrimary:hover:not(:disabled) { background: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink)); color: var(--color-accent-ink); }
+  .buttonAccent:hover:not(:disabled) { background: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink)); color: var(--color-accent-ink); }
+  .buttonDanger:hover:not(:disabled) { filter: brightness(0.92); }
+  .buttonGhost:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); }
+  .cardInteractive:hover { border-color: var(--color-rule); background: var(--color-paper-2); }
+  .input:hover:not(:disabled) { background: var(--color-paper-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .button[data-state="error"] > svg:first-child, .button[data-state="success"] > svg:first-child, .fieldIcon svg { animation: none; }
+  .skeleton::after { animation: none; transform: none; }
+  .loadingState { animation: none; }
+  .loadingTrack > span { width: 46%; animation: none; transform: none; }
+}

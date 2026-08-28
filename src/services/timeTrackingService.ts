@@ -11,9 +11,14 @@ import {
   type DayStore,
   type RangeSummary,
 } from "./timeTrackingCore";
+import {
+  getUserDeviceDayKeyPrefix,
+  normalizeStudyTimeUserId,
+} from "./studyTimeStorageScope";
 
-const DAY_KEY_PREFIX = "ttv1.day.";
-const MAX_HISTORY_DAYS = 400;
+// Match the authenticated server/web window so rows excluded as "this device"
+// never disappear locally before they age out of combined history.
+const MAX_HISTORY_DAYS = 430;
 
 // Dedicated instance so frequent small heartbeat writes never contend with the
 // main app cache, and the data survives cache clears.
@@ -21,15 +26,40 @@ const timeTrackingStorage = new MMKV({ id: "kakehashi-time-tracking" });
 
 class MmkvDayStore implements DayStore {
   private cache = new Map<string, DayRecord>();
+  private userId: string | null = null;
+  private deviceId: string | null = null;
+
+  setUserDeviceScope(userId: string | null, deviceId: string | null): void {
+    if (this.userId === userId && this.deviceId === deviceId) {
+      return;
+    }
+    this.cache.clear();
+    this.userId = userId;
+    this.deviceId = deviceId;
+  }
+
+  isScopedTo(userId: string | null, deviceId: string | null): boolean {
+    return this.userId === userId && this.deviceId === deviceId;
+  }
+
+  private getDayKeyPrefix(): string | null {
+    return this.userId && this.deviceId
+      ? getUserDeviceDayKeyPrefix(this.userId, this.deviceId)
+      : null;
+  }
 
   getDay(dateKey: string): DayRecord | null {
+    const dayKeyPrefix = this.getDayKeyPrefix();
+    if (!dayKeyPrefix) {
+      return null;
+    }
     const cached = this.cache.get(dateKey);
     if (cached) {
       return cached;
     }
 
     try {
-      const raw = timeTrackingStorage.getString(DAY_KEY_PREFIX + dateKey);
+      const raw = timeTrackingStorage.getString(dayKeyPrefix + dateKey);
       if (!raw) {
         return null;
       }
@@ -45,22 +75,30 @@ class MmkvDayStore implements DayStore {
   }
 
   setDay(dateKey: string, record: DayRecord): void {
+    const dayKeyPrefix = this.getDayKeyPrefix();
+    if (!dayKeyPrefix) {
+      return;
+    }
     this.cache.set(dateKey, record);
     try {
       // Synchronous MMKV write: this is the crash-safety point. Once this
       // returns, the folded time is durable even if the process dies.
-      timeTrackingStorage.set(DAY_KEY_PREFIX + dateKey, JSON.stringify(record));
+      timeTrackingStorage.set(dayKeyPrefix + dateKey, JSON.stringify(record));
     } catch (error) {
       console.error("Failed to persist time tracking day record:", error);
     }
   }
 
   getAllDayKeys(): string[] {
+    const dayKeyPrefix = this.getDayKeyPrefix();
+    if (!dayKeyPrefix) {
+      return [];
+    }
     try {
       return timeTrackingStorage
         .getAllKeys()
-        .filter((key) => key.startsWith(DAY_KEY_PREFIX))
-        .map((key) => key.slice(DAY_KEY_PREFIX.length))
+        .filter((key) => key.startsWith(dayKeyPrefix))
+        .map((key) => key.slice(dayKeyPrefix.length))
         .sort();
     } catch {
       return [];
@@ -68,9 +106,13 @@ class MmkvDayStore implements DayStore {
   }
 
   deleteDay(dateKey: string): void {
+    const dayKeyPrefix = this.getDayKeyPrefix();
+    if (!dayKeyPrefix) {
+      return;
+    }
     this.cache.delete(dateKey);
     try {
-      timeTrackingStorage.delete(DAY_KEY_PREFIX + dateKey);
+      timeTrackingStorage.delete(dayKeyPrefix + dateKey);
     } catch {
       // Pruning is best-effort.
     }
@@ -98,6 +140,45 @@ class TimeTrackingService {
     AppState.addEventListener("change", this.handleAppStateChange);
 
     this.pruneOldDays();
+  }
+
+  /**
+   * Select the verified WaniKani user and current device for all local reads
+   * and writes. Legacy `ttv1.day.*` records intentionally remain quarantined:
+   * they carry no owner metadata, so assigning them to the next login could
+   * leak another account.
+   */
+  setUserDeviceScope(
+    userId: unknown,
+    deviceId: string | null,
+  ): void {
+    const normalizedUserId = normalizeStudyTimeUserId(userId);
+    const normalizedDeviceId = deviceId?.trim() || null;
+    if (this.dayStore.isScopedTo(normalizedUserId, normalizedDeviceId)) {
+      return;
+    }
+
+    const wasForeground = this.core.isForeground();
+    if (wasForeground) {
+      // Fold the final span into the old owner before changing the store.
+      this.core.setForeground(false);
+    }
+    this.core.clearActivityRegistrations();
+    this.dayStore.setUserDeviceScope(normalizedUserId, normalizedDeviceId);
+    if (wasForeground) {
+      this.core.setForeground(true);
+    }
+    this.pruneOldDays();
+  }
+
+  isScopedToUserDevice(
+    userId: unknown,
+    deviceId: string | null | undefined,
+  ): boolean {
+    const normalizedUserId = normalizeStudyTimeUserId(userId);
+    const normalizedDeviceId = deviceId?.trim() || null;
+    return Boolean(normalizedUserId && normalizedDeviceId) &&
+      this.dayStore.isScopedTo(normalizedUserId, normalizedDeviceId);
   }
 
   /**
@@ -151,6 +232,15 @@ class TimeTrackingService {
       summary: this.getSummaryBetween(firstDayKey, todayKey),
       firstDayKey: keys.length > 0 ? keys[0] : null,
     };
+  }
+
+  /** Whether a local day has study activity, including today's live clock. */
+  hasStudyOnDay(dateKey: string): boolean {
+    const record =
+      dateKey === this.getTodayDateKey()
+        ? this.core.getLiveDayRecord(dateKey)
+        : this.dayStore.getDay(dateKey);
+    return record ? studyMsOfRecord(record) > 0 : false;
   }
 
   /** Study totals for the last `dayCount` calendar days (today last, live). */
@@ -216,7 +306,7 @@ class TimeTrackingService {
   private pruneOldDays(): void {
     try {
       const minDate = new Date();
-      minDate.setDate(minDate.getDate() - MAX_HISTORY_DAYS);
+      minDate.setDate(minDate.getDate() - (MAX_HISTORY_DAYS - 1));
       const minKey = getLocalDateKey(minDate.getTime());
 
       for (const dateKey of this.dayStore.getAllDayKeys()) {

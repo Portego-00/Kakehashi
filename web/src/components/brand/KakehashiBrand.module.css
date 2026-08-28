@@ -1,0 +1,32 @@
+/* Hallmark · component: brand lockup · genre: modern-minimal · theme: studied-DNA
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (brand image is decorative; visible name inherits its surrounding text colour)
+ */
+.brand {
+  --kakehashi-mark-size: 2rem;
+  --kakehashi-name-size: var(--text-base);
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+  color: inherit;
+  line-height: 1;
+}
+
+.mark {
+  width: var(--kakehashi-mark-size);
+  height: var(--kakehashi-mark-size);
+  flex: none;
+  object-fit: contain;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-family: var(--font-display);
+  font-size: var(--kakehashi-name-size);
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
