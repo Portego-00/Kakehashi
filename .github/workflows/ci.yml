@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -29,3 +32,17 @@ jobs:
 
       - name: Test
         run: npm test -- --runInBand
+
+      - name: Install web dependencies
+        run: npm ci --prefix web
+
+      - name: Lint web
+        run: npm --prefix web run lint
+
+      - name: Type-check web
+        run: npm --prefix web run typecheck
+
+      - name: Test web
+        run: npm --prefix web test
+        env:
+          COMMUNITY_LOCAL_STORE: "1"

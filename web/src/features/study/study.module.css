@@ -605,6 +605,7 @@
 }
 @media (min-width: 64rem) {
   .quizShell[data-listening="true"] { height: max(30rem, calc(100dvh - var(--banner-height))); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .quizShell[data-listening="true"][data-details-open="true"] { height: auto; grid-template-rows: auto auto auto; }
   .quizShell[data-listening="true"] .questionCard { min-height: 0; gap: var(--space-xs); padding-block: var(--space-sm); }
   .quizShell[data-listening="true"][data-scene="true"] .questionCard { grid-template-rows: minmax(0, 1fr); grid-auto-rows: max-content; align-content: stretch; }
   .quizShell[data-listening="true"][data-scene="true"] .sceneFrame { width: auto; height: 100%; max-width: min(100%, 30rem); max-height: 16.875rem; align-self: center; aspect-ratio: 16 / 9; }

@@ -248,6 +248,17 @@
   }
 }
 
+@media (max-width: 39.999rem) {
+  .shell {
+    gap: var(--space-lg);
+  }
+
+  .identityCopy,
+  .independent {
+    display: none;
+  }
+}
+
 @media (min-width: 40rem) {
   .page {
     padding-inline: max(var(--space-xl), env(safe-area-inset-left)) max(var(--space-xl), env(safe-area-inset-right));

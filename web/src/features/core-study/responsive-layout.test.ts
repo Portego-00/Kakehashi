@@ -7,6 +7,7 @@ const globalsCss = source("src/app/globals.css");
 const settingsCss = source("src/features/settings/settings.module.css");
 const coreStudyCss = source("src/features/core-study/core-study.module.css");
 const ankiCss = source("src/features/core-study/AnkiAnswerContent.module.css");
+const studyCss = source("src/features/study/study.module.css");
 
 describe("review workspace responsive CSS contracts", () => {
   it("does not turn the 20rem body floor into horizontal overflow at larger text scales", () => {
@@ -38,6 +39,12 @@ describe("review workspace responsive CSS contracts", () => {
     expect(coreStudyCss).toMatch(/\.srsProgressionSlot\[data-mode="compact"\]\s*{\s*min-height:\s*2\.75rem;/);
     expect(coreStudyCss).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.srsProgression,[\s\S]*?animation:\s*none;/,
+    );
+  });
+
+  it("lets expanded listening details grow below the prompt instead of collapsing its fixed viewport row", () => {
+    expect(studyCss).toMatch(
+      /\.quizShell\[data-listening="true"\]\[data-details-open="true"\]\s*{[^}]*height:\s*auto;/,
     );
   });
 });

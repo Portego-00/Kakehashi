@@ -16,7 +16,7 @@ import { STUDY_MODES } from "@/features/study/catalog";
 import { calculateLevelTimings } from "@/features/progress/calculations";
 import { LevelTimingChart } from "@/features/progress/components/AnalyticsOverview";
 import { useSession } from "@/lib/session";
-import { assignmentsQuery, levelProgressionsQuery, reviewStatisticsQuery, subjectsQuery, summaryQuery, userQuery } from "@/lib/wanikani/queries";
+import { assignmentsQuery, availableReviewCountQuery, levelProgressionsQuery, reviewStatisticsQuery, subjectsQuery, summaryQuery, userQuery } from "@/lib/wanikani/queries";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import type { Subject } from "@/types/wanikani";
 import { assignmentActivityDays, burnedSubjectRows, criticalSubjectRows, forecastRows, incompleteLevelRows, isLessonAvailable, isReviewAvailable, levelProgress, levelWidgetSubjects, recentMistakeRows, recentUnlockRows, srsStageSpread, todayStudyActivity, type DashboardSubjectRow } from "./dashboard-data";
@@ -63,10 +63,12 @@ export function Dashboard() {
   const username = user?.data.username ?? "anonymous";
   const workspace = useWorkspacePreferences(username);
   const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id));
+  const needsDailyStudy = visibleSections.includes("daily-study");
   const needsSubjectCatalog = visibleSections.some((id) => SUBJECT_CATALOG_SECTIONS.has(id));
   const needsLevelTiming = visibleSections.includes("level-timing");
   const currentUser = useQuery(userQuery());
   const assignments = useQuery(assignmentsQuery());
+  const availableReviewCount = useQuery({ ...availableReviewCountQuery(), enabled: needsDailyStudy });
   const summary = useQuery(summaryQuery());
   const statistics = useQuery(reviewStatisticsQuery());
   const liveUser = currentUser.data ?? user;
@@ -82,9 +84,10 @@ export function Dashboard() {
   const assignmentRows = assignments.data || [];
   const statisticRows = statistics.data || [];
   const allSubjectRows = allSubjects.data || [];
-  const availabilityLoading = assignments.isLoading || (currentUser.isLoading && !currentVacationStartedAt);
+  const availabilityLoading = assignments.isLoading || availableReviewCount.isLoading || (currentUser.isLoading && !currentVacationStartedAt);
   const lessonCount = assignmentRows.filter((row) => isLessonAvailable(row, currentVacationStartedAt)).length;
-  const reviewCount = assignmentRows.filter((row) => isReviewAvailable(row, now, currentVacationStartedAt)).length;
+  const fallbackReviewCount = assignmentRows.filter((row) => isReviewAvailable(row, now, currentVacationStartedAt)).length;
+  const reviewCount = currentVacationStartedAt ? 0 : (availableReviewCount.data ?? fallbackReviewCount);
   const srsSpread = srsStageSpread(assignmentRows);
   const forecast = forecastRows(summary.data, now);
   const forecastMax = Math.max(1, ...forecast.map((row) => row.count));
@@ -121,7 +124,7 @@ export function Dashboard() {
   };
 
   return <main className="page">
-    {(assignments.error || summary.error || currentUser.error || (needsSubjectCatalog && allSubjects.error) || (needsLevelTiming && levelProgressions.error)) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
+    {(assignments.error || summary.error || currentUser.error || (needsDailyStudy && availableReviewCount.error) || (needsSubjectCatalog && allSubjects.error) || (needsLevelTiming && levelProgressions.error)) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
     <div className={styles.grid}>
       {visibleSections.map((id) => {
         const sectionId = id as DashboardSectionId;

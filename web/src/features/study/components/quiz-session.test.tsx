@@ -1391,7 +1391,9 @@ describe("extra-study quiz interaction", () => {
     }
 
     expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Hide subject details/ })).toHaveAttribute("aria-expanded", "true");
+    const detailsButton = screen.getByRole("button", { name: /Hide subject details/ });
+    expect(detailsButton).toHaveAttribute("aria-expanded", "true");
+    expect(detailsButton.closest("section")).toHaveAttribute("data-details-open", "true");
     expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
     expect(screen.queryByText("犬が走ります。", { exact: true })).not.toBeInTheDocument();
   });

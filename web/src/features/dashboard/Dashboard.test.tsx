@@ -1,12 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LevelTiming } from "@/features/progress/calculations";
+import type { Assignment, Subject } from "@/types/wanikani";
 import { Dashboard } from "./Dashboard";
 
 const { dashboardTestState, levelProgressions } = vi.hoisted(() => ({
   dashboardTestState: {
     dashboardOrder: ["level-timing"],
     user: { id: 1, data: { username: "tester", level: 15, current_vacation_started_at: null as string | null } },
+    assignments: [] as Assignment[],
+    subjects: [] as Subject[],
   },
   levelProgressions: Array.from({ length: 15 }, (_, index) => ({
     data: {
@@ -51,8 +54,19 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
     ...actual,
     useQuery: (options: { queryKey?: unknown[] }) => {
       const isLevelProgressions = options.queryKey?.some((part) => String(part).includes("level-progressions"));
+      const resource = options.queryKey?.[1];
+      const assignmentScope = options.queryKey?.[2];
+      const hiddenSubjectIds = new Set(dashboardTestState.subjects.filter((subject) => subject.data.hidden_at).map((subject) => subject.id));
       return {
-        data: isLevelProgressions ? levelProgressions : undefined,
+        data: isLevelProgressions
+          ? levelProgressions
+          : resource === "assignments"
+            ? assignmentScope === "available-review-count"
+              ? dashboardTestState.assignments.filter((assignment) => !hiddenSubjectIds.has(assignment.data.subject_id)).length
+              : dashboardTestState.assignments
+            : resource === "subjects"
+              ? dashboardTestState.subjects
+              : undefined,
         error: null,
         isError: false,
         isLoading: false,
@@ -63,8 +77,11 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   dashboardTestState.dashboardOrder = ["level-timing"];
   dashboardTestState.user.data.current_vacation_started_at = null;
+  dashboardTestState.assignments = [];
+  dashboardTestState.subjects = [];
 });
 
 describe("dashboard", () => {
@@ -85,5 +102,51 @@ describe("dashboard", () => {
     expect(screen.getByRole("heading", { name: "Recent Mistakes" })).toBeInTheDocument();
     expect(screen.getByText("No mistakes in the past 24 hours")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Extra Study" })).toBeDisabled();
+  });
+
+  it("excludes assignments tied to hidden subjects from the available review count", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-28T12:00:00Z"));
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    dashboardTestState.assignments = Array.from({ length: 222 }, (_, index) => ({
+      id: index + 1,
+      object: "assignment" as const,
+      url: "",
+      data_updated_at: "2026-08-28T10:00:00Z",
+      data: {
+        subject_id: index + 1,
+        subject_type: "kanji" as const,
+        srs_stage: 2,
+        available_at: "2026-08-28T11:00:00Z",
+        started_at: "2026-08-01T00:00:00Z",
+        unlocked_at: "2026-08-01T00:00:00Z",
+        passed_at: null,
+        burned_at: null,
+        resurrected_at: null,
+        hidden: false,
+        created_at: "2026-08-01T00:00:00Z",
+      },
+    }));
+    dashboardTestState.subjects = Array.from({ length: 222 }, (_, index) => ({
+      id: index + 1,
+      object: "kanji" as const,
+      url: "",
+      data_updated_at: "2026-08-28T10:00:00Z",
+      data: {
+        level: 15,
+        created_at: "2026-08-01T00:00:00Z",
+        slug: `kanji-${index + 1}`,
+        document_url: "",
+        hidden_at: index < 8 ? "2026-08-28T10:30:00Z" : null,
+        characters: `字${index + 1}`,
+        meanings: [{ meaning: `Meaning ${index + 1}`, primary: true, accepted_answer: true }],
+        auxiliary_meanings: [],
+      },
+    }));
+
+    render(<Dashboard />);
+
+    const reviews = screen.getByRole("article", { name: "Reviews study queue, coming soon" });
+    expect(within(reviews).getByText("214")).toBeInTheDocument();
   });
 });

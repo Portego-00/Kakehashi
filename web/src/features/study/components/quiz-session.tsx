@@ -708,7 +708,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   );
 
   return (
-    <section className={styles.quizShell} data-type={question.subjectType} data-listening={listeningQuestion || undefined} data-scene={Boolean(question.imageUrl) || undefined} data-advancing={advancingQuestion || undefined} aria-labelledby="question-prompt">
+    <section className={styles.quizShell} data-type={question.subjectType} data-listening={listeningQuestion || undefined} data-scene={Boolean(question.imageUrl) || undefined} data-details-open={detailsOpen || undefined} data-advancing={advancingQuestion || undefined} aria-labelledby="question-prompt">
       <div className={styles.quizTopbar}>
         <span className={styles.numeric}>{displayedCurrent} / {visibleTotal}</span>
         <div className={styles.progressTrack} role="progressbar" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={visibleTotal}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>

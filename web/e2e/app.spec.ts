@@ -504,6 +504,45 @@ test("signs in without storing the token in browser storage", async ({ page }) =
   expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes("wk_test_token")))).toBe(false);
 });
 
+test("keeps the login controls inside the initial short mobile viewport", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "A single browser engine is enough for responsive layout geometry");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await mockApp(page, false);
+  await page.goto("/login");
+
+  const token = page.getByRole("textbox", { name: "API token" });
+  const submit = page.getByRole("button", { name: "Open Kakehashi" });
+
+  await expect(token).toBeVisible();
+  await expect(submit).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(token).toBeInViewport({ ratio: 1 });
+  await expect(submit).toBeInViewport({ ratio: 1 });
+});
+
+test("keeps the desktop login split layout", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop layout assertion");
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await mockApp(page, false);
+  await page.goto("/login");
+
+  const identity = page.locator('section[aria-labelledby="login-title"]');
+  const access = page.getByRole("region", { name: "Connect your WaniKani account" });
+  const [identityBox, accessBox, viewport] = await Promise.all([
+    identity.boundingBox(),
+    access.boundingBox(),
+    page.viewportSize(),
+  ]);
+
+  expect(identityBox).not.toBeNull();
+  expect(accessBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(identityBox!.x + identityBox!.width).toBeLessThanOrEqual(accessBox!.x);
+  expect(
+    await page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)),
+  ).toBeLessThanOrEqual(viewport!.height + 1);
+});
+
 test("loads every supported study mode and principal feature route", async ({ page }) => {
   await mockApp(page);
   const studyModes = ["recent-lessons", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "text-analysis", "kanji-writing", "crossword", "kana-wordle", "custom-review", "custom-lessons", "subject-lists"];
@@ -1126,6 +1165,84 @@ test("preserves listening scenes and answers inside a desktop viewport with or w
       expect(answeredLayout.pageHeight, "answer feedback should remain inside the viewport").toBeLessThanOrEqual(answeredLayout.viewportHeight + 1);
     }
   }
+});
+
+test("keeps listening prompts above answers when subject details expand", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop viewport geometry assertion");
+  await page.setViewportSize({ width: 1503, height: 840 });
+  await mockApp(page);
+  await page.goto("/settings");
+  const pauseOnCorrect = page.getByRole("checkbox", { name: "Pause on correct answer" });
+  if (!await pauseOnCorrect.isChecked()) await page.getByText("Pause on correct answer", { exact: true }).click();
+  await page.evaluate((timestamp) => {
+    window.localStorage.setItem("kakehashi:study:v1:account:1:session:listening", JSON.stringify({
+      version: 1,
+      id: "listening-expanded-details",
+      mode: "listening",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      currentIndex: 0,
+      questions: [{
+        id: "6:characters",
+        subjectId: 6,
+        subjectType: "vocabulary",
+        kind: "listening-meaning",
+        prompt: "潮＿＿だ",
+        promptLabel: "Vocabulary · Frieren Beyond Journey's End",
+        acceptedAnswers: ["Making Allowances"],
+        displayAnswer: "Making Allowances",
+        choices: ["Making Allowances", "To Advance Something", "Wakame", "To Throw"],
+        characters: "日本史",
+        sentence: { ja: "潮日本史だ", en: "It is the tide.", masked: "潮＿＿だ" },
+        audioUrl: "data:audio/mpeg;base64,",
+        imageUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='900' viewBox='0 0 1600 900'%3E%3Crect width='1600' height='900' fill='%23777'/%3E%3C/svg%3E",
+        sourceTitle: "Frieren Beyond Journey's End",
+        autoPlayAudio: false,
+        stopAfterAnswer: false,
+      }],
+      answers: [],
+      complete: false,
+    }));
+  }, now);
+
+  await page.goto("/study/listening");
+  await page.getByRole("button", { name: /Resume saved session/ }).click();
+  const scene = page.getByRole("img", { name: "Scene from Frieren Beyond Journey's End" });
+  const sceneHeightBeforeDetails = (await scene.boundingBox())!.height;
+  await page.getByRole("button", { name: "Making Allowances" }).click();
+  await page.getByRole("button", { name: "Show subject details" }).click();
+  await expect(page.getByRole("button", { name: "Hide subject details" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Subject details" })).toBeVisible();
+
+  const expandedLayout = await scene.evaluate((element) => {
+    const questionCard = element.closest("[data-type]")!;
+    const answerArea = questionCard.nextElementSibling!;
+    const choices = answerArea.querySelector('[role="group"][aria-label="Answer choices"]')!;
+    const audioButton = questionCard.querySelector("button[aria-label^='Replay listening clip']")!;
+    const details = answerArea.querySelector("#study-item-details")!;
+    const shell = questionCard.closest("section")!;
+    const questionBounds = questionCard.getBoundingClientRect();
+    const choiceBounds = choices.getBoundingClientRect();
+    const audioBounds = audioButton.getBoundingClientRect();
+    const detailsBounds = details.getBoundingClientRect();
+    return {
+      detailsOpen: shell.getAttribute("data-details-open"),
+      sceneHeight: element.getBoundingClientRect().height,
+      questionBottom: questionBounds.bottom,
+      choiceTop: choiceBounds.top,
+      choiceBottom: choiceBounds.bottom,
+      audioBottom: audioBounds.bottom,
+      detailsTop: detailsBounds.top,
+      pageHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(expandedLayout.detailsOpen).toBe("true");
+  expect(expandedLayout.sceneHeight, "opening details should not collapse the listening scene").toBeGreaterThanOrEqual(sceneHeightBeforeDetails - 1);
+  expect(expandedLayout.questionBottom, "the listening prompt should end before its answers").toBeLessThanOrEqual(expandedLayout.choiceTop + 1);
+  expect(expandedLayout.audioBottom, "listening controls should not overlap the answer choices").toBeLessThanOrEqual(expandedLayout.choiceTop + 1);
+  expect(expandedLayout.detailsTop, "subject details should flow below the answer choices").toBeGreaterThanOrEqual(expandedLayout.choiceBottom - 1);
+  expect(expandedLayout.pageHeight, "expanded details may extend the document below the fitted quiz viewport").toBeGreaterThan(expandedLayout.viewportHeight);
 });
 
 test("finishing a resumed extra-study quiz clears it and offers no misses restart", async ({ page }) => {
