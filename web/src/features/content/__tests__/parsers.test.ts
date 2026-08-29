@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractReadableTextFromHtml, findCueAt, parseLrc, parseSrt, parseTimestamp, plainLyricsToLines } from "../parsers";
+import { extractReadableTextFromHtml, findCueAt, parseLrc, parseLyricsText, parseSrt, parseTimestamp, plainLyricsToLines } from "../parsers";
 
 describe("subtitle and content parsers", () => {
   it("parses SRT blocks, multiline cues, HTML formatting, and comma milliseconds", () => {
@@ -43,6 +43,14 @@ describe("subtitle and content parsers", () => {
     expect(lines.map((line) => line.startMs)).toEqual([1200, 3450, 65000]);
     expect(lines[0].endMs).toBe(3450);
     expect(lines[2].endMs).toBe(70000);
+  });
+
+  it("detects plain, LRC, SRT, WebVTT, and leading-timestamp lyrics", () => {
+    expect(parseLyricsText("一行目\n二行目")).toMatchObject({ timed: false, format: "plain", lines: [{ text: "一行目" }, { text: "二行目" }] });
+    expect(parseLyricsText("[01:02:03.45]長い曲")).toMatchObject({ timed: true, format: "lrc", lines: [{ startMs: 3_723_450, text: "長い曲" }] });
+    expect(parseLyricsText("1\n00:00:01,000 --> 00:00:03,000\n字幕")).toMatchObject({ timed: true, format: "srt", lines: [{ startMs: 1000, endMs: 3000, text: "字幕" }] });
+    expect(parseLyricsText("WEBVTT\n\n00:01.000 --> 00:03.000\n字幕")).toMatchObject({ timed: true, format: "webvtt", lines: [{ startMs: 1000, endMs: 3000, text: "字幕" }] });
+    expect(parseLyricsText("00:05 最初\n01:03 - 次")).toMatchObject({ timed: true, format: "timestamped", lines: [{ startMs: 5000, endMs: 63000, text: "最初" }, { startMs: 63000, text: "次" }] });
   });
 
   it("turns plain lyrics into predictable practice timing", () => {

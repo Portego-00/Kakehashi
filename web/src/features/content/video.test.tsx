@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fixtures = vi.hoisted(() => ({
   fileHandles: new Map<string, FileSystemFileHandle>(),
@@ -126,6 +126,8 @@ describe("video workspace", () => {
     youtubePlayerMocks.play.mockClear();
     youtubePlayerMocks.seekTo.mockClear();
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("starts on a home screen with previously watched videos", () => {
     saveLibrary("video", [savedVideo]);
@@ -512,6 +514,36 @@ describe("video workspace", () => {
     expect(player.currentTime).toBe(0);
   });
 
+  it("saves pasted plain or timed text with a video", () => {
+    saveLibrary("video", [savedVideo]);
+    render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Open 日本語のビデオ" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste transcript" }));
+    const plainEditor = screen.getByRole("textbox", { name: "Custom transcript" });
+    expect(plainEditor).toHaveValue(savedVideo.text);
+    fireEvent.change(plainEditor, { target: { value: "一行目\n二行目" } });
+    expect(screen.getByText("Detected: Plain text · 2 lines")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save transcript" }));
+
+    expect(screen.getByText("2 plain lines")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Seek to/ })).not.toBeInTheDocument();
+    expect(loadLibrary("video")[0]).toEqual(expect.objectContaining({
+      text: "一行目\n二行目",
+      metadata: expect.objectContaining({ transcriptFormat: "plain", transcriptSource: "custom" }),
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste transcript" }));
+    const timedEditor = screen.getByRole("textbox", { name: "Custom transcript" });
+    fireEvent.change(timedEditor, { target: { value: "[00:01.00]最初\n[00:03.00]次" } });
+    expect(screen.getByText("Detected: LRC · 2 timed lines")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save transcript" }));
+
+    expect(screen.getByText("2 synchronized cues")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Seek to 0:01" })).toBeInTheDocument();
+    expect(loadLibrary("video")[0].metadata).toEqual(expect.objectContaining({ transcriptFormat: "lrc", transcriptSource: "custom" }));
+  });
+
   it("recognizes YouTube URLs as playable video sources", async () => {
     render(<VideoWorkspace />);
     const urlInput = screen.getByRole("textbox", { name: "Video URL" });
@@ -519,6 +551,33 @@ describe("video workspace", () => {
     fireEvent.submit(urlInput.closest("form")!);
 
     expect(await screen.findByTestId("youtube-player")).toHaveTextContent("dQw4w9WgXcQ");
+  });
+
+  it("automatically imports and saves timed captions for a YouTube URL", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+      title: "日本語レッスン",
+      language: "ja",
+      transcript: "[00:01.00]こんにちは。\n[00:04.00]また明日。",
+      cueCount: 2,
+    }), { headers: { "content-type": "application/json" } }));
+    render(<VideoWorkspace />);
+    const urlInput = screen.getByRole("textbox", { name: "Video URL" });
+    fireEvent.change(urlInput, { target: { value: "https://youtu.be/dQw4w9WgXcQ" } });
+    fireEvent.submit(urlInput.closest("form")!);
+
+    expect(await screen.findByRole("heading", { name: "日本語レッスン" })).toBeInTheDocument();
+    expect(screen.getByText("2 synchronized cues")).toBeInTheDocument();
+    expect(await screen.findByTestId("japanese-reader")).toHaveTextContent("こんにちは。");
+    expect(fetchMock).toHaveBeenCalledWith("/video/transcript", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ videoId: "dQw4w9WgXcQ", language: "ja" }),
+    }));
+    expect(loadLibrary("video")[0]).toEqual(expect.objectContaining({
+      title: "日本語レッスン",
+      text: "[00:01.00]こんにちは。\n[00:04.00]また明日。",
+      metadata: expect.objectContaining({ transcriptSource: "youtube", transcriptLanguage: "ja" }),
+    }));
+    fetchMock.mockRestore();
   });
 
   it("connects the music-player controls to YouTube playback", async () => {

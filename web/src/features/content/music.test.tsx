@@ -216,6 +216,38 @@ describe("music workspace provider flow", () => {
     expect(loadLibrary("song")).toHaveLength(1);
   });
 
+  it("saves pasted plain or timed lyrics on a song", async () => {
+    saveSongFixture(lyrics.syncedLyrics);
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input) => String(input) === "/music/discover"
+      ? response({ sections: [] })
+      : (() => { throw new Error(`Unexpected request: ${String(input)}`); })()));
+
+    render(<MusicWorkspace initialSongId="saved-song" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste lyrics" }));
+    const plainEditor = screen.getByRole("textbox", { name: "Custom lyrics" });
+    expect(plainEditor).toHaveValue(lyrics.syncedLyrics);
+    fireEvent.change(plainEditor, { target: { value: "一行目\n二行目" } });
+    expect(screen.getByText("Detected: Plain text · 2 lines")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save lyrics" }));
+
+    expect(screen.getByText("Plain lyrics")).toBeInTheDocument();
+    expect(loadLibrary("song")[0]).toEqual(expect.objectContaining({
+      text: "一行目\n二行目",
+      metadata: expect.objectContaining({ lyricsSource: "custom", lrclibId: null }),
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste lyrics" }));
+    const timedEditor = screen.getByRole("textbox", { name: "Custom lyrics" });
+    fireEvent.change(timedEditor, { target: { value: "WEBVTT\n\n00:01.000 --> 00:03.000\n最初\n\n00:03.000 --> 00:05.000\n次" } });
+    expect(screen.getByText("Detected: WebVTT · 2 timed lines")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save lyrics" }));
+
+    expect(screen.getByText("Synced to playback")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Seek to 0:01" })).toBeInTheDocument();
+    expect(loadLibrary("song")[0].text).toContain("WEBVTT");
+  });
+
   it("searches progressively, opens the song screen, and saves matched sources", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       if (String(input) === "/music/discover") return response({ sections: [] });

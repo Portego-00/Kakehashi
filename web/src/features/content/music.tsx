@@ -17,6 +17,7 @@ import {
 } from "react";
 import {
   Check,
+  ClipboardPaste,
   Languages,
   ListChecks,
   ListMusic,
@@ -38,6 +39,7 @@ import { saveWebSettings } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useSession } from "@/lib/session";
 import { JapaneseReader, useJapaneseReaderAnalysisContexts } from "./JapaneseReader";
+import { LyricsTextEditor } from "./LyricsTextEditor";
 import {
   MusicTranslationStreamError,
   readMusicTranslationResponse,
@@ -56,7 +58,7 @@ import {
   saveSongLyricTranslations,
 } from "./music-translations";
 import { formatTrackDuration, type LyricsPayload, type MusicTrack, type YouTubeVideo } from "./music-providers";
-import { parseLrc, plainLyricsToLines } from "./parsers";
+import { parseLrc, parseLyricsText } from "./parsers";
 import { ContentPage, Progress, UndoNotice, formatTime } from "./ui";
 import { createLocalId, loadLibrary, saveLibrary, upsertRecord } from "./storage";
 import type { ContentRecord, TimedLyricLine } from "./types";
@@ -88,11 +90,7 @@ type LyricsTranslationState = {
 };
 
 function lyricsForText(text: string) {
-  if (!text) return { lines: [] as TimedLyricLine[], timed: false };
-  const timed = parseLrc(text);
-  return timed.length
-    ? { lines: timed, timed: true }
-    : { lines: plainLyricsToLines(text), timed: false };
+  return parseLyricsText(text);
 }
 
 function safeAlbumArt(value: unknown) {
@@ -657,6 +655,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
         artist: lyrics.artistName || stored.metadata?.artist || "",
         albumName: lyrics.albumName || stored.metadata?.albumName || "",
         lrclibId: lyrics.id,
+        lyricsSource: "lrclib",
         lyricsWarning: null,
       },
     }));
@@ -664,6 +663,33 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
     setQuestionIndex(0);
     setAnswer(null);
     setFeedback(null);
+  }
+
+  function saveCustomLyrics(text: string) {
+    if (!activeSong) return false;
+    try {
+      const updated = updateSong(activeSong.id, (stored) => ({
+        ...stored,
+        text,
+        metadata: {
+          ...stored.metadata,
+          lrclibId: null,
+          lyricsSource: "custom",
+          lyricsWarning: null,
+        },
+      }));
+      if (!updated) return false;
+      removeSongLyricTranslations(activeSong.id);
+      setLyricsOffsetMs(0);
+      setQuizMode(false);
+      setQuestionIndex(0);
+      setAnswer(null);
+      setFeedback({ tone: "notice", text: "Custom lyrics saved." });
+      return true;
+    } catch (error) {
+      setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Custom lyrics could not be saved." });
+      return false;
+    }
   }
 
   function refreshMatches() {
@@ -730,6 +756,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
           onRefresh={refreshMatches}
           onSelectVideo={selectVideo}
           onSelectLyrics={selectLyrics}
+          onSaveCustomLyrics={saveCustomLyrics}
           videoSearchQuery={videoSearchQuery}
           onVideoSearchQueryChange={setVideoSearchQuery}
           onVideoSearch={searchVideoMatches}
@@ -910,7 +937,7 @@ function RecommendationSkeleton() {
   return <section className={styles.discoverySection} aria-label="Loading music recommendations"><div className={styles.musicSectionHead}><span className={styles.skeletonHeading} /></div><div className={styles.musicShelf}>{Array.from({ length: 9 }, (_, item) => <div className={styles.shelfSkeleton} key={item}><span /><i /><i /></div>)}</div></section>;
 }
 
-function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolutionState, matchingSource, feedback, elapsedMs, durationMs, playing, playerRef, onPlayingChange, onTimeChange, onTogglePlayback, onRestart, onSeekPlayback, onRefresh, onSelectVideo, onSelectLyrics, videoSearchQuery, onVideoSearchQueryChange, onVideoSearch, lyricsSearchTrack, lyricsSearchArtist, onLyricsSearchTrackChange, onLyricsSearchArtistChange, onLyricsSearch, lines, timed, currentLine, lyricLineRefs, lyricsViewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, translations, jpdbAnalysisApiKey, jpdbAnalysisEnabled, translationsAvailable, translationsEligible, translationsEnabled, onTranslationsEnabledChange, translationStatus, translationMessage, translationCanRetry, onTranslationRetry }: {
+function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolutionState, matchingSource, feedback, elapsedMs, durationMs, playing, playerRef, onPlayingChange, onTimeChange, onTogglePlayback, onRestart, onSeekPlayback, onRefresh, onSelectVideo, onSelectLyrics, onSaveCustomLyrics, videoSearchQuery, onVideoSearchQueryChange, onVideoSearch, lyricsSearchTrack, lyricsSearchArtist, onLyricsSearchTrackChange, onLyricsSearchArtistChange, onLyricsSearch, lines, timed, currentLine, lyricLineRefs, lyricsViewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, translations, jpdbAnalysisApiKey, jpdbAnalysisEnabled, translationsAvailable, translationsEligible, translationsEnabled, onTranslationsEnabledChange, translationStatus, translationMessage, translationCanRetry, onTranslationRetry }: {
   song: ContentRecord;
   youtubeId: string | null;
   videoCandidates: YouTubeVideo[];
@@ -930,6 +957,7 @@ function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolu
   onRefresh: () => void;
   onSelectVideo: (video: YouTubeVideo) => void;
   onSelectLyrics: (lyrics: LyricsPayload) => void;
+  onSaveCustomLyrics: (text: string) => boolean;
   videoSearchQuery: string;
   onVideoSearchQueryChange: (value: string) => void;
   onVideoSearch: (event: FormEvent) => void;
@@ -1009,6 +1037,8 @@ function SongScreen({ song, youtubeId, videoCandidates, lyricsCandidates, resolu
 
         <LyricsPanel
           subjectReturnTo={`/music?song=${encodeURIComponent(song.id)}`}
+          sourceText={song.text ?? ""}
+          onSaveCustomLyrics={onSaveCustomLyrics}
           lines={lines}
           timed={timed}
           currentLine={currentLine}
@@ -1125,8 +1155,10 @@ const StreamingLyricTranslation = memo(function StreamingLyricTranslation({ text
   >{text.slice(0, visibleCharacterCount)}</p>;
 });
 
-function LyricsPanel({ subjectReturnTo, lines, timed, currentLine, lineRefs, viewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, loading, translations, jpdbAnalysisApiKey, jpdbAnalysisEnabled, translationsAvailable, translationsEligible, translationsEnabled, onTranslationsEnabledChange, translationStatus, translationMessage, translationCanRetry, onTranslationRetry }: {
+function LyricsPanel({ subjectReturnTo, sourceText, onSaveCustomLyrics, lines, timed, currentLine, lineRefs, viewportRef, onSeek, lyricsOffsetMs, onOffsetChange, lyricsFocus, onLyricsFocusChange, quizMode, onQuizModeChange, questions, questionIndex, answer, onAnswer, loading, translations, jpdbAnalysisApiKey, jpdbAnalysisEnabled, translationsAvailable, translationsEligible, translationsEnabled, onTranslationsEnabledChange, translationStatus, translationMessage, translationCanRetry, onTranslationRetry }: {
   subjectReturnTo: string;
+  sourceText: string;
+  onSaveCustomLyrics: (text: string) => boolean;
   lines: TimedLyricLine[];
   timed: boolean;
   currentLine: TimedLyricLine | null;
@@ -1156,6 +1188,7 @@ function LyricsPanel({ subjectReturnTo, lines, timed, currentLine, lineRefs, vie
   translationCanRetry: boolean;
   onTranslationRetry: () => void;
 }) {
+  const [editorOpen, setEditorOpen] = useState(false);
   const activeQuestion = questions[questionIndex] ?? null;
   const [inspectorLineId, setInspectorLineId] = useState<string | null>(null);
   const activeInspectorLineId = inspectorLineId && lines.some((line) => line.id === inspectorLineId) ? inspectorLineId : null;
@@ -1183,6 +1216,7 @@ function LyricsPanel({ subjectReturnTo, lines, timed, currentLine, lineRefs, vie
             : "No Japanese lyric lines are eligible for translation."}</p> : null}
         </div>
         <div className={styles.lyricsPanelActions}>
+          <button className={styles.secondaryButton} type="button" aria-expanded={editorOpen} onClick={() => setEditorOpen((open) => !open)}><ClipboardPaste size={16} aria-hidden="true" />Paste lyrics</button>
           <button
             className={styles.translationToggle}
             type="button"
@@ -1200,6 +1234,7 @@ function LyricsPanel({ subjectReturnTo, lines, timed, currentLine, lineRefs, vie
           </button>
           <button className={styles.quizToggle} type="button" aria-label={quizControlLabel} title={quizControlLabel} disabled={!questions.length} aria-pressed={quizMode} onClick={() => onQuizModeChange(!quizMode)}><ListChecks size={16} aria-hidden="true" /></button>
         </div>
+        {editorOpen ? <LyricsTextEditor kind="lyrics" initialValue={sourceText} onCancel={() => setEditorOpen(false)} onSave={onSaveCustomLyrics} /> : null}
       </div>
       {timed ? <div className={styles.offsetControl} aria-label="Lyrics timing offset"><span>Offset</span><button type="button" onClick={() => onOffsetChange(lyricsOffsetMs - 500)}>−0.5s</button><strong>{lyricsOffsetMs > 0 ? "+" : ""}{(lyricsOffsetMs / 1_000).toFixed(1)}s</strong><button type="button" onClick={() => onOffsetChange(lyricsOffsetMs + 500)}>+0.5s</button><button type="button" onClick={() => onOffsetChange(0)} disabled={lyricsOffsetMs === 0}>Reset</button></div> : null}
       {quizMode && questions.length ? <Progress label={`Question ${questionIndex + 1} of ${questions.length}`} value={(questionIndex + 1) / questions.length} /> : null}

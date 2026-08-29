@@ -2,14 +2,15 @@
 
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Captions, Film, Link2, Pause, Play, RotateCcw, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Captions, ClipboardPaste, Film, Link2, Pause, Play, RotateCcw, Trash2, Upload } from "lucide-react";
 import { FileDropOverlay } from "./FileDropOverlay";
 import { JapaneseReader, type JapaneseReaderAnalysisContext } from "./JapaneseReader";
 import { LocalFilePicker } from "./LocalFilePicker";
+import { LyricsTextEditor } from "./LyricsTextEditor";
 import { linkedFileIds, linkedMetadata, requestLinkedFilePermission, requestPersistentLocalStorage, resolveLinkedFile } from "./local-file-source";
 import { YouTubePlayer, type YouTubePlayerHandle } from "./YouTubePlayer";
 import { transcodeMpegToMp4 } from "./mpeg-converter";
-import { findCueAt, parseSrt } from "./parsers";
+import { findCueAt, parseLyricsText } from "./parsers";
 import { ContentPage, EmptyState, UndoNotice, formatTime } from "./ui";
 import { createLocalId, deleteRecord, loadAsset, loadLibrary, removeFileHandle, saveFileHandle, saveLibrary, upsertRecord } from "./storage";
 import type { ContentRecord, SubtitleCue } from "./types";
@@ -24,6 +25,12 @@ type ResolvedVideoSource =
 type LocalVideoAccessState = {
   videoId: string;
   status: "loading" | "permission" | "missing" | "unavailable";
+};
+
+type YouTubeTranscriptRequestState = {
+  videoId: string;
+  status: "loading" | "error";
+  message?: string;
 };
 
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"]);
@@ -229,11 +236,13 @@ export function VideoWorkspace() {
   const [localVideoUrls, setLocalVideoUrls] = useState<Record<string, string>>({});
   const [urlInput, setUrlInput] = useState("");
   const [legacySubtitleText, setLegacySubtitleText] = useState("");
+  const [transcriptEditorOpen, setTranscriptEditorOpen] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [inspectorCueId, setInspectorCueId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [youtubeTranscriptRequest, setYoutubeTranscriptRequest] = useState<YouTubeTranscriptRequestState | null>(null);
   const [mpegConversion, setMpegConversion] = useState<{ videoId: string; percent: number } | null>(null);
   const [localVideoAccess, setLocalVideoAccess] = useState<LocalVideoAccessState | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -255,19 +264,22 @@ export function VideoWorkspace() {
   const activeLinkedFileId = activeVideo ? linkedFileIds(activeVideo)[0] ?? "" : "";
   const localVideoUrl = activeId ? localVideoUrls[activeId] || "" : "";
   const activeLocalVideoAccess = localVideoAccess?.videoId === activeId ? localVideoAccess : null;
+  const activeYoutubeTranscriptRequest = youtubeTranscriptRequest?.videoId === activeId ? youtubeTranscriptRequest : null;
   const resolvedSource = useMemo<ResolvedVideoSource | null>(() => {
     if (activeSourceType === "youtube") return activeYoutubeId ? { kind: "youtube", videoId: activeYoutubeId } : null;
     if (activeSourceType === "url") return activeVideoUrl ? { kind: "native", url: activeVideoUrl } : null;
     return localVideoUrl ? { kind: "native", url: localVideoUrl } : null;
   }, [activeSourceType, activeVideoUrl, activeYoutubeId, localVideoUrl]);
-  const cues = useMemo(() => parseSrt(activeVideo?.text || legacySubtitleText), [activeVideo?.text, legacySubtitleText]);
+  const transcript = useMemo(() => parseLyricsText(activeVideo?.text || legacySubtitleText), [activeVideo?.text, legacySubtitleText]);
+  const cues = transcript.lines;
   const sortedCues = useMemo(() => cues.toSorted((left, right) => left.startMs - right.startMs), [cues]);
   const subtitleAnalysisContexts = useMemo(() => buildSubtitleAnalysisContexts(sortedCues), [sortedCues]);
   const activeCue = useMemo(() => {
+    if (!transcript.timed) return null;
     const matched = findCueAt(sortedCues, elapsedMs);
     if (matched) return matched;
     return sortedCues.findLast((cue) => elapsedMs >= cue.startMs) ?? sortedCues[0] ?? null;
-  }, [elapsedMs, sortedCues]);
+  }, [elapsedMs, sortedCues, transcript.timed]);
   const activeInspectorCueId = inspectorCueId && sortedCues.some((cue) => cue.id === inspectorCueId) ? inspectorCueId : null;
   const studyCueId = activeInspectorCueId ?? activeCue?.id ?? null;
 
@@ -334,7 +346,7 @@ export function VideoWorkspace() {
     void loadAsset(subtitleAssetId).then(async (subtitleAsset) => {
       if (!cancelled && subtitleAsset) setLegacySubtitleText(await subtitleAsset.text());
     }).catch(() => {
-      if (!cancelled) setMessage("The saved subtitle file could not be opened. You can select the SRT again.");
+      if (!cancelled) setMessage("The saved subtitle file could not be opened. You can select it again.");
     });
     return () => { cancelled = true; };
   }, [activeId, activeVideo?.text, subtitleAssetId]);
@@ -378,6 +390,7 @@ export function VideoWorkspace() {
     const savedDuration = Number(record.metadata?.duration || 0);
     setMessage("");
     setLegacySubtitleText("");
+    setTranscriptEditorOpen(false);
     setElapsedMs(Number.isFinite(savedTime) ? savedTime * 1_000 : 0);
     setDurationMs(Number.isFinite(savedDuration) ? savedDuration * 1_000 : 0);
     setPlaying(false);
@@ -479,6 +492,10 @@ export function VideoWorkspace() {
     if (existing) {
       activateVideo(existing);
       setUrlInput("");
+      const existingYoutubeId = youtubeIdForRecord(existing);
+      if (existingYoutubeId && !existing.text && !metadataText(existing, "subtitleAssetId")) {
+        void requestYoutubeTranscript(existing, existingYoutubeId);
+      }
       return;
     }
 
@@ -504,8 +521,61 @@ export function VideoWorkspace() {
       setVideos(upsertRecord(record));
       activateVideo(record);
       setUrlInput("");
+      if (youtubeId) void requestYoutubeTranscript(record, youtubeId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The video URL could not be added.");
+    }
+  }
+
+  async function requestYoutubeTranscript(record: ContentRecord, youtubeId: string) {
+    setYoutubeTranscriptRequest({ videoId: record.id, status: "loading" });
+    setMessage("");
+    try {
+      const response = await fetch("/video/transcript", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: youtubeId, language: "ja" }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        title?: unknown;
+        language?: unknown;
+        transcript?: unknown;
+        error?: unknown;
+      } | null;
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === "string" ? payload.error : "YouTube captions could not be imported.");
+      }
+      if (typeof payload?.transcript !== "string") throw new Error("The transcript service returned an unreadable response.");
+      const parsed = parseLyricsText(payload.transcript);
+      if (!parsed.lines.length || !parsed.timed) throw new Error("No usable timed captions were found for this YouTube video.");
+
+      const stored = loadLibrary("video").find((item) => item.id === record.id) ?? record;
+      const oldSubtitleAssetId = metadataText(stored, "subtitleAssetId");
+      const updated: ContentRecord = {
+        ...stored,
+        title: typeof payload.title === "string" && payload.title.trim() ? payload.title.trim() : stored.title,
+        text: payload.transcript,
+        assetIds: stored.assetIds.filter((id) => id !== oldSubtitleAssetId),
+        metadata: {
+          ...stored.metadata,
+          subtitleAssetId: null,
+          subtitleFileName: null,
+          transcriptFormat: parsed.format,
+          transcriptSource: "youtube",
+          transcriptLanguage: typeof payload.language === "string" ? payload.language : null,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      setVideos(upsertRecord(updated));
+      setLegacySubtitleText("");
+      setInspectorCueId(null);
+      setYoutubeTranscriptRequest(null);
+    } catch (error) {
+      setYoutubeTranscriptRequest({
+        videoId: record.id,
+        status: "error",
+        message: error instanceof Error ? error.message : "YouTube captions could not be imported.",
+      });
     }
   }
 
@@ -558,22 +628,53 @@ export function VideoWorkspace() {
     setMessage("");
     try {
       const text = await file.text();
-      const parsed = parseSrt(text);
-      if (!parsed.length) throw new Error("No valid subtitle cues were found in that SRT file.");
+      const parsed = parseLyricsText(text);
+      if (!parsed.lines.length) throw new Error("No readable lyrics or subtitle lines were found in that file.");
       const oldSubtitleAssetId = metadataText(activeVideo, "subtitleAssetId");
       const updated: ContentRecord = {
         ...activeVideo,
         text,
         assetIds: activeVideo.assetIds.filter((id) => id !== oldSubtitleAssetId),
-        metadata: { ...activeVideo.metadata, subtitleAssetId: null, subtitleFileName: file.name },
+        metadata: { ...activeVideo.metadata, subtitleAssetId: null, subtitleFileName: file.name, transcriptFormat: parsed.format, transcriptSource: "file" },
         updatedAt: new Date().toISOString(),
       };
       setVideos(upsertRecord(updated));
       setLegacySubtitleText("");
+      setTranscriptEditorOpen(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Subtitles could not be imported.");
     } finally {
       event.target.value = "";
+    }
+  }
+
+  function saveCustomTranscript(text: string) {
+    if (!activeVideo) return false;
+    const parsed = parseLyricsText(text);
+    if (!parsed.lines.length) return false;
+    const oldSubtitleAssetId = metadataText(activeVideo, "subtitleAssetId");
+    const updated: ContentRecord = {
+      ...activeVideo,
+      text,
+      assetIds: activeVideo.assetIds.filter((id) => id !== oldSubtitleAssetId),
+      metadata: {
+        ...activeVideo.metadata,
+        subtitleAssetId: null,
+        subtitleFileName: null,
+        transcriptFormat: parsed.format,
+        transcriptSource: "custom",
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      setVideos(upsertRecord(updated));
+      setLegacySubtitleText("");
+      setInspectorCueId(null);
+      setMessage("");
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The custom transcript could not be saved.");
+      return false;
     }
   }
 
@@ -711,6 +812,7 @@ export function VideoWorkspace() {
     else videoRef.current?.pause();
     setMessage("");
     setLegacySubtitleText("");
+    setTranscriptEditorOpen(false);
     setElapsedMs(0);
     setDurationMs(0);
     setPlaying(false);
@@ -812,14 +914,25 @@ export function VideoWorkspace() {
 
             <section className={styles.lyricsPanel} aria-labelledby="video-transcript-title">
               <div className={styles.lyricsPanelHeader}>
-                <div><h2 id="video-transcript-title">Transcript</h2><p>{cues.length ? `${cues.length} synchronized ${cues.length === 1 ? "cue" : "cues"}` : "Add an SRT subtitle file"}</p></div>
-                <label className={styles.secondaryButton}><Captions size={16} aria-hidden="true" />{cues.length ? "Replace SRT" : "Add SRT"}<input className={styles.fileInput} type="file" accept=".srt,application/x-subrip,text/plain" onChange={(event) => void importSubtitles(event)} /></label>
+                <div><h2 id="video-transcript-title">Transcript</h2><p>{cues.length ? transcript.timed ? `${cues.length} synchronized ${cues.length === 1 ? "cue" : "cues"}` : `${cues.length} plain ${cues.length === 1 ? "line" : "lines"}` : activeYoutubeTranscriptRequest?.status === "loading" ? "Getting available YouTube captions…" : "Add plain or timed text"}</p></div>
+                <div className={styles.lyricsPanelActions}>
+                  {activeSourceType === "youtube" && !cues.length ? <button
+                    className={styles.secondaryButton}
+                    type="button"
+                    disabled={activeYoutubeTranscriptRequest?.status === "loading"}
+                    onClick={() => void requestYoutubeTranscript(activeVideo, activeYoutubeId)}
+                  ><Captions size={16} aria-hidden="true" />{activeYoutubeTranscriptRequest?.status === "loading" ? "Getting captions…" : "Get YouTube captions"}</button> : null}
+                  <button className={styles.secondaryButton} type="button" aria-expanded={transcriptEditorOpen} onClick={() => setTranscriptEditorOpen((open) => !open)}><ClipboardPaste size={16} aria-hidden="true" />Paste transcript</button>
+                  <label className={styles.secondaryButton}><Captions size={16} aria-hidden="true" />Import file<input className={styles.fileInput} type="file" accept=".lrc,.srt,.txt,.vtt,application/x-subrip,text/plain,text/vtt" onChange={(event) => void importSubtitles(event)} /></label>
+                </div>
+                {activeYoutubeTranscriptRequest?.status === "error" ? <p className={styles.transcriptFetchError} role="alert">{activeYoutubeTranscriptRequest.message}</p> : null}
+                {transcriptEditorOpen ? <LyricsTextEditor kind="transcript" initialValue={activeVideo.text || legacySubtitleText} onCancel={() => setTranscriptEditorOpen(false)} onSave={saveCustomTranscript} /> : null}
               </div>
               <div ref={transcriptRef} className={styles.lyricsViewport} role="region" aria-label="Video subtitles">
-                {!sortedCues.length ? <div className={styles.lyricsEmpty}><strong>No subtitles yet</strong><p>Select an SRT file for synchronized Japanese analysis.</p></div> : null}
+                {!sortedCues.length ? <div className={styles.lyricsEmpty}><strong>{activeYoutubeTranscriptRequest?.status === "loading" ? "Getting transcript…" : "No transcript yet"}</strong><p>{activeYoutubeTranscriptRequest?.status === "loading" ? "Checking the public captions available for this video." : "Get available YouTube captions, paste text, or import an LRC, SRT, WebVTT, or text file."}</p></div> : null}
                 {sortedCues.map((cue) => {
                   const isCurrent = activeCue?.id === cue.id;
-                  const isStudyCue = studyCueId === cue.id;
+                  const isStudyCue = !transcript.timed || studyCueId === cue.id;
                   return (
                     <article
                       className={`${styles.lyricLine} ${isCurrent ? styles.lyricLineActive : ""}`}
@@ -828,7 +941,7 @@ export function VideoWorkspace() {
                       aria-current={isCurrent ? "true" : undefined}
                     >
                       <div className={styles.lyricLineMain}>
-                        <button className={styles.lyricTimeButton} type="button" onClick={() => seek(cue)} aria-label={`Seek to ${formatTime(cue.startMs)}`}>{formatTime(cue.startMs)}</button>
+                        {transcript.timed ? <button className={styles.lyricTimeButton} type="button" onClick={() => seek(cue)} aria-label={`Seek to ${formatTime(cue.startMs)}`}>{formatTime(cue.startMs)}</button> : <span className={styles.lyricUntimedMarker} aria-hidden="true" />}
                         {isStudyCue ? (
                           <div className={styles.lyricStudyInline}>
                             <JapaneseReader
@@ -876,7 +989,7 @@ export function VideoWorkspace() {
               <button className={styles.sourceSearchButton} type="submit" disabled={!urlInput.trim()}>Add URL</button>
             </form>
           </div>
-          <p className={styles.videoPrivacyNote}>Local videos play from the selected file and are never uploaded or copied into browser storage.</p>
+          <p className={styles.videoPrivacyNote}>Local videos stay on this device. For YouTube links, Kakehashi requests available public captions from a fair-use transcript service.</p>
           {message ? <p className={styles.notice} role="alert">{message}</p> : null}
 
           {videos.length ? (

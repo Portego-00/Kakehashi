@@ -20,6 +20,8 @@ MyAnimeList sync reuses `EXPO_PUBLIC_MAL_CLIENT_ID` from the Expo app. Keep that
 
 For Songs, add server-only `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `YOUTUBE_API_KEY` values. Spotify supplies catalog results and track metadata, YouTube supplies embeddable playback, and LRCLIB supplies exact or best-matched synced lyrics. None of these credentials are sent to the browser.
 
+The Video workspace can import timed captions for a pasted YouTube URL through youtube-transcript.ai's no-key fair-use endpoint. This works only for public videos with available captions and remains subject to that provider's usage limits; commercial or sustained high-volume deployments should arrange appropriate service terms or replace the adapter.
+
 ## Included
 
 - Dashboard, lessons, reviews, assignments, forecasts, and formal WaniKani review submission

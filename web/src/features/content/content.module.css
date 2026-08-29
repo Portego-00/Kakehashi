@@ -925,11 +925,18 @@
 .lyricsPanelHeader p { margin-block-start: var(--space-3xs); color: var(--color-muted); font-size: var(--text-xs); }
 .lyricsPanelHeader .lyricsTranslationStatus { color: var(--color-accent); }
 .lyricsPanelHeader .lyricsTranslationError { color: var(--color-danger); }
+.lyricsPanelHeader .transcriptFetchError { width: 100%; margin: 0; color: var(--color-danger); }
 .lyricsTranslationFeedback { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); }
 .lyricsTranslationFeedback button { min-height: 2rem; border: 0; background: transparent; color: var(--color-accent); padding: 0; font-size: var(--text-xs); font-weight: 700; text-decoration: underline; text-underline-offset: 0.18em; cursor: pointer; }
 .lyricsPanelHeader .lyricsTranslationHelp { max-width: 54ch; }
 .lyricsTranslationHelp a { color: var(--color-accent); font-weight: 700; text-underline-offset: 0.18em; }
 .lyricsPanelActions { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); }
+.lyricsTextEditor { width: 100%; min-width: 0; display: grid; gap: var(--space-sm); padding-block-start: var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule); }
+.lyricsTextEditor .field > span { color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.lyricsTextEditor .textarea { min-height: 10rem; background: var(--color-surface); font-family: var(--font-japanese); font-size: var(--text-sm); }
+.lyricsPanelHeader .lyricsTextEditorHint { max-width: 68ch; margin: 0; line-height: 1.5; }
+.lyricsPanelHeader .lyricsTextEditorDetection { margin: 0; color: var(--color-accent); font-weight: 700; }
+.lyricsTextEditorActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-xs); }
 .lyricsPanel .meter { padding: 0 var(--space-md) var(--space-sm); border-block-end: var(--rule-thin) solid var(--color-rule); }
 .lyricsViewport { min-height: 25rem; max-height: min(58vh, 42rem); overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; scroll-padding-block: 35%; }
 .lyricsSkeleton { display: grid; gap: var(--space-lg); padding: var(--space-xl) var(--space-lg); }
@@ -1044,7 +1051,7 @@
   .backButton { grid-column: 1; grid-row: 1; }
   .answerGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sourceSearchFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lyricsPanelHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+  .lyricsPanelHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); }
 }
 
 @media (max-width: 30rem) {
