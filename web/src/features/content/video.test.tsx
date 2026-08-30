@@ -4,11 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fixtures = vi.hoisted(() => ({
   fileHandles: new Map<string, FileSystemFileHandle>(),
+  jpdbApiKey: "",
 }));
 const youtubePlayerMocks = vi.hoisted(() => ({
   pause: vi.fn(),
   play: vi.fn(),
   seekTo: vi.fn(),
+}));
+
+vi.mock("@/features/settings/use-workspace-preferences", () => ({
+  useWebSettings: () => ({ integrations: { jpdbApiKey: fixtures.jpdbApiKey } }),
+}));
+vi.mock("@/lib/session", () => ({
+  useSession: () => ({ user: { data: { username: "video-test" } } }),
 }));
 
 vi.mock("./JapaneseReader", () => ({
@@ -108,6 +116,7 @@ describe("video workspace", () => {
   beforeEach(() => {
     window.localStorage.clear();
     fixtures.fileHandles.clear();
+    fixtures.jpdbApiKey = "";
     vi.stubGlobal("indexedDB", undefined);
     Object.defineProperty(window, "showOpenFilePicker", { configurable: true, value: undefined });
     Object.defineProperty(URL, "createObjectURL", {
@@ -542,6 +551,53 @@ describe("video workspace", () => {
     expect(screen.getByText("2 synchronized cues")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Seek to 0:01" })).toBeInTheDocument();
     expect(loadLibrary("video")[0].metadata).toEqual(expect.objectContaining({ transcriptFormat: "lrc", transcriptSource: "custom" }));
+  });
+
+  it("uses icon controls and translates transcript lines with JPDB", async () => {
+    fixtures.jpdbApiKey = "configured-jpdb-key";
+    saveLibrary("video", [savedVideo]);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === "/video/translate") {
+        return new Response(JSON.stringify({
+          translations: [{ source: "今日は晴れです。", translation: "It is sunny today." }],
+        }), { headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
+
+    render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Open 日本語のビデオ" }));
+
+    expect(screen.getByRole("button", { name: "Paste transcript" })).not.toHaveTextContent("Paste transcript");
+    expect(screen.getByRole("button", { name: "Import transcript file" })).not.toHaveTextContent("Import transcript file");
+    const translationToggle = screen.getByRole("button", { name: "English transcript translations" });
+    expect(translationToggle).toBeEnabled();
+    expect(translationToggle).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(translationToggle);
+
+    expect(await screen.findByText("It is sunny today.")).toBeInTheDocument();
+    expect(translationToggle).toHaveAttribute("aria-pressed", "true");
+    expect(fetchMock).toHaveBeenCalledWith("/video/translate", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        lines: ["今日は晴れです。"],
+        cachedTranslations: [],
+        apiKey: "configured-jpdb-key",
+      }),
+    }));
+
+    fireEvent.click(translationToggle);
+    expect(screen.queryByText("It is sunny today.")).not.toBeInTheDocument();
+  });
+
+  it("links to JPDB settings when transcript translation is unavailable", () => {
+    saveLibrary("video", [savedVideo]);
+    render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Open 日本語のビデオ" }));
+
+    expect(screen.getByRole("button", { name: "English transcript translations" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Add a JPDB key in Settings" })).toHaveAttribute("href", "/settings#jpdb-api-key");
   });
 
   it("recognizes YouTube URLs as playable video sources", async () => {

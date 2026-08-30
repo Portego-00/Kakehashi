@@ -17,6 +17,7 @@ import { useStudyDataset } from "../use-study-dataset";
 import { QuizSession } from "./quiz-session";
 import { StudyConfig } from "./study-config";
 import { CrosswordGame, CustomLessons, KanaWordle, SimilarKanjiMatching, SubjectLists, TextAnalysis, WritingPractice } from "./special-modes";
+import { WordSearchGame } from "./word-search-game";
 import styles from "../study.module.css";
 
 const noopSubscribe = () => () => {};
@@ -194,6 +195,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
   else if (preparingListening) content = <ListeningPreparation />;
   else if (activeFilters && mode === "kanji-writing") content = <WritingPractice dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "crossword") content = <CrosswordGame dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
+  else if (activeFilters && mode === "word-search") content = <WordSearchGame dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "kana-wordle") content = <KanaWordle dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "similar-kanji") content = <SimilarKanjiMatching dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "custom-lessons") content = <CustomLessons dataset={dataset} filters={activeFilters} scope={scope} subjectDetailSettings={webSettings.subjectDetails} immersionSources={webSettings.study.immersionKitAnimeSources} onExit={exit} />;

@@ -323,7 +323,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
   );
 }
 
-const LIST_ENABLED_MODES = new Set<StudyModeId>(["random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "kanji-writing", "crossword", "kana-wordle", "custom-review", "custom-lessons"]);
+const LIST_ENABLED_MODES = new Set<StudyModeId>(["random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "kanji-writing", "crossword", "word-search", "kana-wordle", "custom-review", "custom-lessons"]);
 
 function SettingGroup({ title, detail, children, layout = "row", accessibleTitle }: { title: string; detail?: string; children: ReactNode; layout?: "row" | "stacked"; accessibleTitle?: string }) {
   const titleId = useId();
@@ -344,8 +344,8 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
   const needsSelection = mode === "custom-review" || mode === "custom-lessons";
   const needsQuestionKind = mode === "random-test";
   const usesCount = mode !== "recent-lessons" && mode !== "crossword" && mode !== "kana-wordle" && mode !== "custom-review" && mode !== "custom-lessons";
-  const countLabel = mode === "kanji-writing" ? "kanji" : mode === "similar-kanji" ? "rounds" : "questions";
-  const countMaximum = mode === "listening" ? 20 : mode === "context-sentences" || mode === "kanji-writing" ? 50 : 100;
+  const countLabel = mode === "kanji-writing" ? "kanji" : mode === "similar-kanji" ? "rounds" : mode === "word-search" ? "words" : "questions";
+  const countMaximum = mode === "word-search" ? 15 : mode === "listening" ? 20 : mode === "context-sentences" || mode === "kanji-writing" ? 50 : 100;
   const usesStandardFilters = mode !== "recent-lessons";
   const hasRequiredAnime = mode !== "listening" || hasSelectedAnime(filters.animeSources);
   const hasCoreFilters = mode === "recent-lessons" || needsSelection || (filters.srsGroups.length > 0 && filters.subjectTypes.length > 0);
@@ -528,6 +528,19 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
               </label>
             </SettingGroup>
           </>
+        ) : null}
+
+        {mode === "word-search" ? (
+          <SettingGroup title="Study direction" detail="Choose what the clues show and what is hidden in the board.">
+            <div className={styles.optionRow}>
+              <button type="button" className={styles.optionButton} data-active={filters.wordSearchDirection === "kanji-to-kana"} aria-pressed={filters.wordSearchDirection === "kanji-to-kana"} onClick={() => set("wordSearchDirection", "kanji-to-kana")}>
+                Kanji clues → kana grid
+              </button>
+              <button type="button" className={styles.optionButton} data-active={filters.wordSearchDirection === "kana-to-kanji"} aria-pressed={filters.wordSearchDirection === "kana-to-kanji"} onClick={() => set("wordSearchDirection", "kana-to-kanji")}>
+                Kana clues → kanji grid
+              </button>
+            </div>
+          </SettingGroup>
         ) : null}
 
         {mode === "similar-kanji" ? (
@@ -742,7 +755,7 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
 
         <div className={styles.configSubmit}>
           <button className={styles.primaryButton} type="submit" disabled={!canStart}>
-            {starting ? "Preparing…" : "Start session"}
+            {starting ? "Preparing…" : mode === "word-search" ? "Build puzzle" : "Start session"}
           </button>
           <p className={styles.formMessage} role="status">
             {canStart || starting ? "" : needsSelection ? "Choose at least one eligible subject." : !hasRequiredAnime ? "Choose at least one anime source." : "Choose at least one subject type, question type, and SRS stage."}

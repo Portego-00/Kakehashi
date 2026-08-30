@@ -308,6 +308,20 @@ describe("native-parity study configuration", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ crosswordSize: "large", crosswordMaxWords: 16 }));
   });
 
+  it("configures both word-search directions with a compact word count", () => {
+    const filters = getModeDefaultFilters("word-search", 60);
+    const onChange = vi.fn();
+    renderConfig(<StudyConfig mode="word-search" filters={filters} subjects={[]} lists={[]} onChange={onChange} onStart={vi.fn()} />);
+
+    expect(screen.getByLabelText("Session length")).toHaveAttribute("max", "15");
+    expect(screen.getByText("10", { selector: "output strong" })).toBeInTheDocument();
+    expect(screen.getByText("words", { selector: "output span" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kanji clues → kana grid" })).toHaveAttribute("data-active", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Kana clues → kanji grid" }));
+    expect(onChange).toHaveBeenCalledWith({ ...filters, wordSearchDirection: "kana-to-kanji" });
+    expect(screen.getByRole("button", { name: "Build puzzle" })).toBeInTheDocument();
+  });
+
   it("matches the native listening and context controls", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const { rerender } = render(<QueryClientProvider client={client}><StudyConfig mode="listening" filters={{ ...getModeDefaultFilters("listening", 60), animeSources: ["death_note"] }} subjects={[]} lists={[]} onChange={vi.fn()} onStart={vi.fn()} /></QueryClientProvider>);

@@ -1,13 +1,27 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Captions, ClipboardPaste, Film, Link2, Pause, Play, RotateCcw, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Captions, ClipboardPaste, Film, Languages, Link2, Pause, Play, RotateCcw, Trash2, Upload } from "lucide-react";
+import { useWebSettings } from "@/features/settings/use-workspace-preferences";
+import { useSession } from "@/lib/session";
 import { FileDropOverlay } from "./FileDropOverlay";
 import { JapaneseReader, type JapaneseReaderAnalysisContext } from "./JapaneseReader";
 import { LocalFilePicker } from "./LocalFilePicker";
 import { LyricsTextEditor } from "./LyricsTextEditor";
+import {
+  buildDisplayTranslationsForLines,
+  lyricsTranslationFingerprint,
+  sanitizeLyricLineTranslations,
+  selectLyricLinesForTranslation,
+  type LyricLineTranslations,
+} from "./lyrics";
 import { linkedFileIds, linkedMetadata, requestLinkedFilePermission, requestPersistentLocalStorage, resolveLinkedFile } from "./local-file-source";
+import {
+  MusicTranslationStreamError,
+  readMusicTranslationResponse,
+} from "./music-translation-stream";
 import { YouTubePlayer, type YouTubePlayerHandle } from "./YouTubePlayer";
 import { transcodeMpegToMp4 } from "./mpeg-converter";
 import { findCueAt, parseLyricsText } from "./parsers";
@@ -16,6 +30,11 @@ import { createLocalId, deleteRecord, loadAsset, loadLibrary, removeFileHandle, 
 import type { ContentRecord, SubtitleCue } from "./types";
 import { useDelayedDeletion } from "./useDelayedDeletion";
 import { useFirstContentReveal } from "./useFirstContentReveal";
+import {
+  loadVideoTranscriptTranslations,
+  removeVideoTranscriptTranslations,
+  saveVideoTranscriptTranslations,
+} from "./video-translations";
 import styles from "./content.module.css";
 
 type ResolvedVideoSource =
@@ -31,6 +50,14 @@ type YouTubeTranscriptRequestState = {
   videoId: string;
   status: "loading" | "error";
   message?: string;
+};
+
+type TranscriptTranslationState = {
+  sourceKey: string;
+  status: "idle" | "loading" | "ready" | "error";
+  translations: LyricLineTranslations;
+  message: string | null;
+  code: string | null;
 };
 
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"]);
@@ -230,6 +257,9 @@ function SavedVideoThumbnail({ record, localVideoUrl }: { record: ContentRecord;
 }
 
 export function VideoWorkspace() {
+  const { user } = useSession();
+  const settings = useWebSettings(user?.data.username ?? "anonymous");
+  const jpdbApiKey = settings.integrations.jpdbApiKey;
   const firstLibraryReveal = useFirstContentReveal();
   const [videos, setVideos] = useState<ContentRecord[]>(() => loadLibrary("video"));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -243,6 +273,15 @@ export function VideoWorkspace() {
   const [inspectorCueId, setInspectorCueId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [youtubeTranscriptRequest, setYoutubeTranscriptRequest] = useState<YouTubeTranscriptRequestState | null>(null);
+  const [transcriptTranslationsEnabled, setTranscriptTranslationsEnabled] = useState(false);
+  const [translationRetryToken, setTranslationRetryToken] = useState(0);
+  const [transcriptTranslation, setTranscriptTranslation] = useState<TranscriptTranslationState>({
+    sourceKey: "",
+    status: "idle",
+    translations: {},
+    message: null,
+    code: null,
+  });
   const [mpegConversion, setMpegConversion] = useState<{ videoId: string; percent: number } | null>(null);
   const [localVideoAccess, setLocalVideoAccess] = useState<LocalVideoAccessState | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -252,6 +291,8 @@ export function VideoWorkspace() {
   const convertedMpegIds = useRef(new Set<string>());
   const cueRefs = useRef(new Map<string, HTMLElement>());
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const transcriptFileInputRef = useRef<HTMLInputElement>(null);
+  const translationAbortRef = useRef<AbortController | null>(null);
   const lastSavedSecond = useRef(-1);
   const linkedResolutionGeneration = useRef(0);
   const linkedPermissionHandle = useRef<{ videoId: string; handle: FileSystemFileHandle } | null>(null);
@@ -270,9 +311,42 @@ export function VideoWorkspace() {
     if (activeSourceType === "url") return activeVideoUrl ? { kind: "native", url: activeVideoUrl } : null;
     return localVideoUrl ? { kind: "native", url: localVideoUrl } : null;
   }, [activeSourceType, activeVideoUrl, activeYoutubeId, localVideoUrl]);
-  const transcript = useMemo(() => parseLyricsText(activeVideo?.text || legacySubtitleText), [activeVideo?.text, legacySubtitleText]);
+  const transcriptSourceText = activeVideo?.text || legacySubtitleText;
+  const transcript = useMemo(() => parseLyricsText(transcriptSourceText), [transcriptSourceText]);
   const cues = transcript.lines;
   const sortedCues = useMemo(() => cues.toSorted((left, right) => left.startMs - right.startMs), [cues]);
+  const transcriptTranslationSelection = useMemo(
+    () => selectLyricLinesForTranslation(sortedCues.map((cue) => cue.text)),
+    [sortedCues],
+  );
+  const translatableTranscriptLines = transcriptTranslationSelection.lines;
+  const transcriptTranslationSourceKey = activeId && transcriptSourceText
+    ? `${activeId}:${lyricsTranslationFingerprint(transcriptSourceText)}`
+    : "";
+  const transcriptTranslationsAvailable = jpdbApiKey.length > 0;
+  const transcriptTranslationsEligible = translatableTranscriptLines.length > 0;
+  const transcriptTranslationStateMatches = transcriptTranslationsEnabled
+    && transcriptTranslation.sourceKey === transcriptTranslationSourceKey;
+  const transcriptDisplayTranslations = useMemo(() => buildDisplayTranslationsForLines(
+    sortedCues.map((cue) => cue.text),
+    transcriptTranslationStateMatches ? transcriptTranslation.translations : {},
+  ), [sortedCues, transcriptTranslation.translations, transcriptTranslationStateMatches]);
+  const transcriptTranslationHasMissingLines = translatableTranscriptLines.some(
+    (line) => !transcriptTranslation.translations[line],
+  );
+  const transcriptTranslationCanRetry = transcriptTranslationStateMatches
+    && transcriptTranslation.status !== "idle"
+    && transcriptTranslation.status !== "loading"
+    && transcriptTranslation.code !== "text_too_long"
+    && transcriptTranslationHasMissingLines;
+  const transcriptTranslationLimitMessage = transcriptTranslationsEnabled
+    && transcriptTranslationSelection.skippedCount > 0
+    ? `${transcriptTranslationSelection.skippedCount} ${transcriptTranslationSelection.skippedCount === 1 ? "transcript line remains" : "transcript lines remain"} in Japanese because this transcript exceeds the safe translation limits.`
+    : null;
+  const visibleTranscriptTranslationMessage = [
+    transcriptTranslationStateMatches ? transcriptTranslation.message : null,
+    transcriptTranslationLimitMessage,
+  ].filter((value): value is string => Boolean(value)).join(" ") || null;
   const subtitleAnalysisContexts = useMemo(() => buildSubtitleAnalysisContexts(sortedCues), [sortedCues]);
   const activeCue = useMemo(() => {
     if (!transcript.timed) return null;
@@ -286,6 +360,7 @@ export function VideoWorkspace() {
   const deletion = useDelayedDeletion<ContentRecord>({
     onCommit: async (record) => {
       await deleteRecord(record);
+      removeVideoTranscriptTranslations(record.id);
       const media = localMedia.current.get(record.id);
       if (media) URL.revokeObjectURL(media.url);
       localMedia.current.delete(record.id);
@@ -373,8 +448,134 @@ export function VideoWorkspace() {
 
   useEffect(() => {
     const media = localMedia.current;
-    return () => media.forEach(({ url }) => URL.revokeObjectURL(url));
+    return () => {
+      translationAbortRef.current?.abort();
+      media.forEach(({ url }) => URL.revokeObjectURL(url));
+    };
   }, []);
+
+  useEffect(() => {
+    translationAbortRef.current?.abort();
+    if (
+      !activeId
+      || !transcriptSourceText
+      || !transcriptTranslationsEnabled
+      || !transcriptTranslationsAvailable
+      || translatableTranscriptLines.length === 0
+    ) return;
+
+    const cachedTranslations = loadVideoTranscriptTranslations(
+      activeId,
+      transcriptSourceText,
+      translatableTranscriptLines,
+    );
+    const missingTranslations = translatableTranscriptLines.some((line) => !cachedTranslations[line]);
+    if (!missingTranslations) {
+      let current = true;
+      void Promise.resolve().then(() => {
+        if (!current) return;
+        setTranscriptTranslation({
+          sourceKey: transcriptTranslationSourceKey,
+          status: "ready",
+          translations: cachedTranslations,
+          message: null,
+          code: null,
+        });
+      });
+      return () => { current = false; };
+    }
+
+    const controller = new AbortController();
+    translationAbortRef.current = controller;
+    let current = true;
+    void (async () => {
+      await Promise.resolve();
+      if (!current || controller.signal.aborted) return;
+      setTranscriptTranslation({
+        sourceKey: transcriptTranslationSourceKey,
+        status: "loading",
+        translations: cachedTranslations,
+        message: null,
+        code: null,
+      });
+      try {
+        const allowedLines = new Set(translatableTranscriptLines);
+        let accumulatedTranslations = cachedTranslations;
+        const completion = await readMusicTranslationResponse(await fetch("/video/translate", {
+          method: "POST",
+          headers: {
+            Accept: "application/x-ndjson",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            lines: translatableTranscriptLines,
+            cachedTranslations: Object.entries(cachedTranslations).map(([source, translation]) => ({ source, translation })),
+            apiKey: jpdbApiKey,
+          }),
+          signal: controller.signal,
+        }), ({ source, translation }) => {
+          if (!current || controller.signal.aborted || !allowedLines.has(source)) return;
+          const nextTranslations = sanitizeLyricLineTranslations({
+            ...accumulatedTranslations,
+            [source]: translation,
+          }, allowedLines);
+          if (!nextTranslations[source]) return;
+          accumulatedTranslations = nextTranslations;
+          saveVideoTranscriptTranslations(
+            activeId,
+            transcriptSourceText,
+            translatableTranscriptLines,
+            accumulatedTranslations,
+          );
+          setTranscriptTranslation((state) => state.sourceKey === transcriptTranslationSourceKey
+            ? { ...state, status: "loading", translations: accumulatedTranslations }
+            : state);
+        });
+        if (!current || controller.signal.aborted) return;
+        saveVideoTranscriptTranslations(
+          activeId,
+          transcriptSourceText,
+          translatableTranscriptLines,
+          accumulatedTranslations,
+        );
+        setTranscriptTranslation({
+          sourceKey: transcriptTranslationSourceKey,
+          status: "ready",
+          translations: accumulatedTranslations,
+          message: completion.warning?.replaceAll("lyric", "transcript") ?? null,
+          code: completion.code,
+        });
+      } catch (error) {
+        if (!current || controller.signal.aborted) return;
+        setTranscriptTranslation((state) => ({
+          sourceKey: transcriptTranslationSourceKey,
+          status: "error",
+          translations: state.sourceKey === transcriptTranslationSourceKey
+            ? state.translations
+            : cachedTranslations,
+          message: error instanceof Error
+            ? error.message.replaceAll("lyric", "transcript")
+            : "JPDB transcript translation is temporarily unavailable.",
+          code: error instanceof MusicTranslationStreamError ? error.code : null,
+        }));
+      }
+    })();
+
+    return () => {
+      current = false;
+      controller.abort();
+      if (translationAbortRef.current === controller) translationAbortRef.current = null;
+    };
+  }, [
+    activeId,
+    jpdbApiKey,
+    transcriptSourceText,
+    transcriptTranslationSourceKey,
+    transcriptTranslationsAvailable,
+    transcriptTranslationsEnabled,
+    translatableTranscriptLines,
+    translationRetryToken,
+  ]);
 
   useEffect(() => {
     const viewport = transcriptRef.current;
@@ -914,7 +1115,21 @@ export function VideoWorkspace() {
 
             <section className={styles.lyricsPanel} aria-labelledby="video-transcript-title">
               <div className={styles.lyricsPanelHeader}>
-                <div><h2 id="video-transcript-title">Transcript</h2><p>{cues.length ? transcript.timed ? `${cues.length} synchronized ${cues.length === 1 ? "cue" : "cues"}` : `${cues.length} plain ${cues.length === 1 ? "line" : "lines"}` : activeYoutubeTranscriptRequest?.status === "loading" ? "Getting available YouTube captions…" : "Add plain or timed text"}</p></div>
+                <div>
+                  <h2 id="video-transcript-title">Transcript</h2>
+                  <p>{cues.length ? transcript.timed ? `${cues.length} synchronized ${cues.length === 1 ? "cue" : "cues"}` : `${cues.length} plain ${cues.length === 1 ? "line" : "lines"}` : activeYoutubeTranscriptRequest?.status === "loading" ? "Getting available YouTube captions…" : "Add plain or timed text"}</p>
+                  {transcriptTranslationStateMatches && transcriptTranslation.status === "loading" ? <p className={styles.lyricsTranslationStatus} role="status">Translating transcript lines…</p> : null}
+                  {transcriptTranslationStateMatches && transcriptTranslation.status !== "loading" && visibleTranscriptTranslationMessage ? <div className={styles.lyricsTranslationFeedback}>
+                    <p className={transcriptTranslation.status === "error" ? styles.lyricsTranslationError : styles.lyricsTranslationStatus} role={transcriptTranslation.status === "error" ? "alert" : "status"}>{visibleTranscriptTranslationMessage}</p>
+                    {transcriptTranslationCanRetry ? <button type="button" onClick={() => {
+                      translationAbortRef.current?.abort();
+                      setTranslationRetryToken((token) => token + 1);
+                    }}>Retry translations</button> : null}
+                  </div> : null}
+                  {!transcriptTranslationsAvailable || (cues.length > 0 && !transcriptTranslationsEligible) ? <p id="transcript-translation-help" className={styles.lyricsTranslationHelp}>{!transcriptTranslationsAvailable
+                    ? <><Link href="/settings#jpdb-api-key">Add a JPDB key in Settings</Link> to enable English transcript translations.</>
+                    : "No Japanese transcript lines are eligible for translation."}</p> : null}
+                </div>
                 <div className={styles.lyricsPanelActions}>
                   {activeSourceType === "youtube" && !cues.length ? <button
                     className={styles.secondaryButton}
@@ -922,17 +1137,29 @@ export function VideoWorkspace() {
                     disabled={activeYoutubeTranscriptRequest?.status === "loading"}
                     onClick={() => void requestYoutubeTranscript(activeVideo, activeYoutubeId)}
                   ><Captions size={16} aria-hidden="true" />{activeYoutubeTranscriptRequest?.status === "loading" ? "Getting captions…" : "Get YouTube captions"}</button> : null}
-                  <button className={styles.secondaryButton} type="button" aria-expanded={transcriptEditorOpen} onClick={() => setTranscriptEditorOpen((open) => !open)}><ClipboardPaste size={16} aria-hidden="true" />Paste transcript</button>
-                  <label className={styles.secondaryButton}><Captions size={16} aria-hidden="true" />Import file<input className={styles.fileInput} type="file" accept=".lrc,.srt,.txt,.vtt,application/x-subrip,text/plain,text/vtt" onChange={(event) => void importSubtitles(event)} /></label>
+                  <button className={styles.iconButton} type="button" aria-label="Paste transcript" title="Paste transcript" aria-expanded={transcriptEditorOpen} onClick={() => setTranscriptEditorOpen((open) => !open)}><ClipboardPaste size={16} aria-hidden="true" /></button>
+                  <button className={styles.iconButton} type="button" aria-label="Import transcript file" title="Import transcript file" onClick={() => transcriptFileInputRef.current?.click()}><Upload size={16} aria-hidden="true" /></button>
+                  <input ref={transcriptFileInputRef} className={styles.fileInput} type="file" accept=".lrc,.srt,.txt,.vtt,application/x-subrip,text/plain,text/vtt" aria-label="Transcript file picker" onChange={(event) => void importSubtitles(event)} />
+                  <button
+                    className={styles.translationToggle}
+                    type="button"
+                    aria-label="English transcript translations"
+                    title="English transcript translations"
+                    aria-pressed={transcriptTranslationsEnabled}
+                    aria-describedby={!transcriptTranslationsAvailable || (cues.length > 0 && !transcriptTranslationsEligible) ? "transcript-translation-help" : undefined}
+                    disabled={!transcriptTranslationsAvailable || !transcriptTranslationsEligible}
+                    onClick={() => setTranscriptTranslationsEnabled((enabled) => !enabled)}
+                  ><Languages size={16} aria-hidden="true" /></button>
                 </div>
                 {activeYoutubeTranscriptRequest?.status === "error" ? <p className={styles.transcriptFetchError} role="alert">{activeYoutubeTranscriptRequest.message}</p> : null}
                 {transcriptEditorOpen ? <LyricsTextEditor kind="transcript" initialValue={activeVideo.text || legacySubtitleText} onCancel={() => setTranscriptEditorOpen(false)} onSave={saveCustomTranscript} /> : null}
               </div>
               <div ref={transcriptRef} className={styles.lyricsViewport} role="region" aria-label="Video subtitles">
                 {!sortedCues.length ? <div className={styles.lyricsEmpty}><strong>{activeYoutubeTranscriptRequest?.status === "loading" ? "Getting transcript…" : "No transcript yet"}</strong><p>{activeYoutubeTranscriptRequest?.status === "loading" ? "Checking the public captions available for this video." : "Get available YouTube captions, paste text, or import an LRC, SRT, WebVTT, or text file."}</p></div> : null}
-                {sortedCues.map((cue) => {
+                {sortedCues.map((cue, cueIndex) => {
                   const isCurrent = activeCue?.id === cue.id;
                   const isStudyCue = !transcript.timed || studyCueId === cue.id;
+                  const translation = transcriptDisplayTranslations[cueIndex];
                   return (
                     <article
                       className={`${styles.lyricLine} ${isCurrent ? styles.lyricLineActive : ""}`}
@@ -942,17 +1169,20 @@ export function VideoWorkspace() {
                     >
                       <div className={styles.lyricLineMain}>
                         {transcript.timed ? <button className={styles.lyricTimeButton} type="button" onClick={() => seek(cue)} aria-label={`Seek to ${formatTime(cue.startMs)}`}>{formatTime(cue.startMs)}</button> : <span className={styles.lyricUntimedMarker} aria-hidden="true" />}
-                        {isStudyCue ? (
-                          <div className={styles.lyricStudyInline}>
-                            <JapaneseReader
-                              text={cue.text}
-                              analysisContext={subtitleAnalysisContexts.get(cue.id)}
-                              ariaLabel="Current subtitle"
-                              inspectorMode="floating"
-                              onSelectionChange={(open) => setInspectorCueId(open ? cue.id : null)}
-                            />
-                          </div>
-                        ) : <p lang="ja">{cue.text}</p>}
+                        <div className={styles.lyricLineCopy}>
+                          {isStudyCue ? (
+                            <div className={styles.lyricStudyInline}>
+                              <JapaneseReader
+                                text={cue.text}
+                                analysisContext={subtitleAnalysisContexts.get(cue.id)}
+                                ariaLabel="Current subtitle"
+                                inspectorMode="floating"
+                                onSelectionChange={(open) => setInspectorCueId(open ? cue.id : null)}
+                              />
+                            </div>
+                          ) : <p lang="ja">{cue.text}</p>}
+                          {translation ? <p className={styles.lyricLineTranslation} lang="en">{translation}</p> : null}
+                        </div>
                       </div>
                     </article>
                   );

@@ -208,7 +208,8 @@ export interface JapaneseReaderProps {
   analysisContext?: JapaneseReaderAnalysisContext;
   ariaLabel?: string;
   onProgress?: (progress: number) => void;
-  appearance?: "default" | "compact";
+  appearance?: "default" | "compact" | "inline";
+  tokenDecoration?: "annotated" | "plain";
   inspectorMode?: "inline" | "floating";
   onSelectionChange?: (open: boolean) => void;
   inspectorActive?: boolean;
@@ -347,7 +348,7 @@ function renderAnnotationFurigana(annotation: ReaderAnnotation, enabled: boolean
   return <ruby>{annotation.text}<rt>{reading}</rt></ruby>;
 }
 
-export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, appearance = "default", inspectorMode = "inline", onSelectionChange, inspectorActive, subjectReturnTo, showFurigana = false, onShowFuriganaChange, supplement, selectionRequest, inspectorOnly = false, onSelectionResolved }: JapaneseReaderProps) {
+export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, appearance = "default", tokenDecoration = "annotated", inspectorMode = "inline", onSelectionChange, inspectorActive, subjectReturnTo, showFurigana = false, onShowFuriganaChange, supplement, selectionRequest, inspectorOnly = false, onSelectionResolved }: JapaneseReaderProps) {
   const { user, dataset, loading } = useStudyDataset();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
   const voice = useJapaneseVoice();
@@ -800,6 +801,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   if (inspectorOnly) return <div
     className={styles.readerGrid}
     data-appearance={appearance}
+    data-token-decoration={tokenDecoration}
     data-inspector-mode={inspectorMode}
     data-details-interaction={detailsInteraction}
     data-has-selection={selected ? "true" : "false"}
@@ -807,7 +809,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   >{positionedInspector}</div>;
 
   return (
-    <div className={styles.readerGrid} data-appearance={appearance} data-inspector-mode={inspectorMode} data-details-interaction={detailsInteraction} data-has-selection={selected ? "true" : "false"}>
+    <div className={styles.readerGrid} data-appearance={appearance} data-token-decoration={tokenDecoration} data-inspector-mode={inspectorMode} data-details-interaction={detailsInteraction} data-has-selection={selected ? "true" : "false"}>
       <div className={styles.readerColumn}>
         {appearance === "default" ? <div className={styles.readerAnnotationBar} aria-label="Annotation key">
           <span data-token-kind="vocabulary"><i aria-hidden="true" />Vocabulary</span>

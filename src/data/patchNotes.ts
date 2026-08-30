@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.7",
+    date: "2026-08-30",
+    changes: [
+      {
+        type: "feature",
+        title: "Word Search",
+        description:
+          "Find Japanese vocabulary hidden in a grid by matching kanji clues to kana readings, or kana clues to written words.",
+        link: {
+          route: "/word-search-config",
+          label: "Play Word Search",
+        },
+      },
+    ],
+  },
+  {
     version: "1.3.1",
     date: "2026-08-23",
     changes: [

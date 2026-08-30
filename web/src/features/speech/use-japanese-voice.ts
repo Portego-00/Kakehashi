@@ -131,7 +131,7 @@ function getWorker() {
   return worker;
 }
 
-function requestVoice(request: { type: "synthesize"; text: string }) {
+function requestVoice(request: { type: "synthesize"; text: string; speed: number }) {
   const id = `voice-${Date.now()}-${requestSequence++}`;
   return new Promise<JapaneseVoiceWorkerResponse>((resolve, reject) => {
     pending.set(id, { resolve, reject });
@@ -240,21 +240,23 @@ export function stopJapaneseVoice() {
   }
 }
 
-export async function playJapaneseSentence(text: string) {
+export async function playJapaneseSentence(text: string, options: { speed?: number } = {}) {
   const context = getAudioContext();
   const resumePromise = context.state === "suspended" ? context.resume() : Promise.resolve();
   await checkJapaneseVoice();
   if (!state.downloaded || !await hasSavedJapaneseVoice()) {
     emit({ downloaded: false, error: "The saved Japanese voice is no longer available. Download it again." });
-    return;
+    return false;
   }
 
   stopJapaneseVoice();
   const operation = playbackSequence;
   emit({ activity: "synthesizing", activeSentence: text, progress: null, message: "Creating speech…", error: null });
   try {
-    const response = await requestVoice({ type: "synthesize", text });
-    if (operation !== playbackSequence || response.type !== "audio") return;
+    const requestedSpeed = options.speed ?? 1;
+    const speed = Number.isFinite(requestedSpeed) ? Math.min(1.3, Math.max(0.7, requestedSpeed)) : 1;
+    const response = await requestVoice({ type: "synthesize", text, speed });
+    if (operation !== playbackSequence || response.type !== "audio") return false;
     await resumePromise;
     const samples = new Float32Array(response.samples);
     const buffer = context.createBuffer(1, samples.length, response.sampleRate);
@@ -282,11 +284,13 @@ export async function playJapaneseSentence(text: string) {
       audioSource = null;
       emit({ activity: "idle", activeSentence: null, message: null });
     }
+    return true;
   } catch (error) {
     if (operation === playbackSequence) {
       audioSource = null;
       emit({ activity: "idle", activeSentence: null, progress: null, message: null, error: asFriendlyError(error) });
     }
+    return false;
   }
 }
 

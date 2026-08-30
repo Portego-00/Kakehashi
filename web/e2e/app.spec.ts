@@ -905,6 +905,88 @@ test("keeps key workspaces inside a narrow mobile viewport", async ({ page }, te
   }
 });
 
+test("keeps the JLPT hub, focused quiz, and results usable on a narrow phone", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("kakehashi-web-theme", "dark"));
+  await mockApp(page);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/jlpt");
+
+  await expect(page.getByRole("heading", { name: "JLPT Quiz" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const selectedLevel = page.getByRole("radio", { name: "N5" });
+  await expect(selectedLevel).toBeChecked();
+  const selectedContrast = await selectedLevel.evaluate((element) => {
+    type Color = [number, number, number, number];
+    const parse = (value: string): Color => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+      return [red, green, blue, alpha / 255];
+    };
+    const composite = (foreground: Color, background: Color): Color => {
+      const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+      return [
+        (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
+        (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
+        (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
+        alpha,
+      ];
+    };
+    const luminance = (color: Color) => color
+      .slice(0, 3)
+      .map((channel) => channel / 255)
+      .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+      .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    const ratio = (first: Color, second: Color) => {
+      const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+      return (lighter + 0.05) / (darker + 0.05);
+    };
+    const style = getComputedStyle(element);
+    const primary = getComputedStyle(element.querySelector("strong")!);
+    const secondary = getComputedStyle(element.querySelector("span")!);
+    const background = parse(style.backgroundColor);
+    return {
+      background: style.backgroundColor,
+      primary: primary.color,
+      secondary: secondary.color,
+      primaryRatio: ratio(background, composite(parse(primary.color), background)),
+      secondaryRatio: ratio(background, composite(parse(secondary.color), background)),
+    };
+  });
+  expect(
+    Math.min(selectedContrast.primaryRatio, selectedContrast.secondaryRatio),
+    `Selected JLPT level contrast: ${JSON.stringify(selectedContrast)}`,
+  ).toBeGreaterThanOrEqual(4.5);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "JLPT hub should not overflow").toBe(true);
+
+  await page.getByRole("button", { name: "Start quick quiz" }).click();
+  await expect(page.getByText(/Question 1 of 10/)).toBeVisible();
+  await expect(page.getByRole("group", { name: "Answer choices" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check answer" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "JLPT quiz should not overflow").toBe(true);
+
+  for (let questionNumber = 1; questionNumber <= 10; questionNumber += 1) {
+    const choices = page.getByRole("group", { name: "Answer choices" }).getByRole("button");
+    const composition = page.getByRole("list", { name: "Your sentence order" });
+    if (await composition.isVisible().catch(() => false)) {
+      for (let optionIndex = 0; optionIndex < await choices.count(); optionIndex += 1) await choices.nth(optionIndex).click();
+    } else {
+      await choices.first().click();
+    }
+    await page.getByRole("button", { name: "Check answer" }).click();
+    await page.getByRole("button", { name: questionNumber === 10 ? "See results" : "Next question" }).click();
+  }
+
+  await expect(page.getByRole("heading", { name: "Quiz results" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What to do next" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Missed question review" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "JLPT results should not overflow").toBe(true);
+});
+
 test("reorders dashboard previews and keeps every optional section responsive", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop drag-and-drop assertion");
   await mockApp(page);

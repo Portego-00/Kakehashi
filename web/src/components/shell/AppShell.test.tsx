@@ -229,6 +229,7 @@ describe("AppShell session bootstrap", () => {
     expect(within(allDestinations).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
     expect(within(allDestinations).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
     expect(within(allDestinations).getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
+    expect(within(allDestinations).getByRole("link", { name: "JLPT" })).toHaveAttribute("href", "/jlpt");
   });
 
   it("morphs the desktop app bar after the deliberate scroll threshold", async () => {

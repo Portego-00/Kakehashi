@@ -29,7 +29,9 @@ export type ActivityKey =
   | "context_sentence"
   | "listening_practice"
   | "crossword"
+  | "word_search"
   | "wordle"
+  | "jlpt"
   | "news"
   | "songs"
   | "epub"
@@ -61,7 +63,9 @@ export const CATEGORY_BY_ACTIVITY: Record<ActivityKey, ActivityCategory> = {
   context_sentence: "extra_study",
   listening_practice: "extra_study",
   crossword: "extra_study",
+  word_search: "extra_study",
   wordle: "extra_study",
+  jlpt: "extra_study",
   news: "news",
   songs: "songs",
   epub: "epub",

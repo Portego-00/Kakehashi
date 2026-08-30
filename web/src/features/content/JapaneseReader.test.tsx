@@ -103,6 +103,21 @@ describe("JapaneseReader inspector", () => {
     expect(screen.getByRole("complementary")).toHaveTextContent("Hover only highlights it");
   });
 
+  it("supports undecorated inline tokens for tooltip-only surfaces", () => {
+    const { container } = render(
+      <JapaneseReader
+        text="学校"
+        appearance="inline"
+        tokenDecoration="plain"
+        inspectorMode="floating"
+      />,
+    );
+
+    const reader = container.querySelector('[data-appearance="inline"]');
+    expect(reader).toHaveAttribute("data-token-decoration", "plain");
+    expect(screen.getByRole("article", { name: "Japanese reading text" })).toHaveTextContent("学校");
+  });
+
   it("renders source furigana semantically and lets the parent turn it off", () => {
     const onShowFuriganaChange = vi.fn();
     const blocks = [{

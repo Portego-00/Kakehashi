@@ -5,7 +5,7 @@ describe("extra-study catalog", () => {
   it("contains every web-supported mobile mode exactly once", () => {
     expect(STUDY_MODES.map((mode) => mode.id)).toEqual([
       "recent-lessons", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji",
-      "listening", "context-sentences", "text-analysis", "kanji-writing", "crossword", "kana-wordle",
+      "listening", "context-sentences", "text-analysis", "kanji-writing", "crossword", "word-search", "kana-wordle",
       "custom-review", "custom-lessons", "subject-lists",
     ]);
     expect(new Set(STUDY_MODES.map((mode) => mode.id)).size).toBe(STUDY_MODES.length);
@@ -73,5 +73,15 @@ describe("extra-study catalog", () => {
       contextSentenceBreakdown: true,
       contextStopAfterAnswer: false,
     });
+  });
+
+  it("defaults the word search to kanji clues and sanitizes its direction", () => {
+    expect(getModeDefaultFilters("word-search", 42)).toMatchObject({
+      count: 10,
+      subjectTypes: ["vocabulary"],
+      wordSearchDirection: "kanji-to-kana",
+    });
+    expect(hydrateModeFilters("word-search", { wordSearchDirection: "kana-to-kanji" }, 60).wordSearchDirection).toBe("kana-to-kanji");
+    expect(hydrateModeFilters("word-search", { wordSearchDirection: "invalid" as never }, 60).wordSearchDirection).toBe("kanji-to-kana");
   });
 });

@@ -72,6 +72,7 @@ export const DEFAULT_STUDY_FILTERS: StudyFilters = {
   crosswordClueMode: "english",
   crosswordShowKanjiSolutions: false,
   crosswordPlayAudioOnCorrect: true,
+  wordSearchDirection: "kanji-to-kana",
 };
 
 export function normalizeMeaning(value: string): string {
@@ -563,5 +564,6 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
     crosswordClueMode: source.crosswordClueMode === "kanji" || source.crosswordClueMode === "english_kanji" ? source.crosswordClueMode : "english",
     crosswordShowKanjiSolutions: source.crosswordShowKanjiSolutions === true,
     crosswordPlayAudioOnCorrect: source.crosswordPlayAudioOnCorrect !== false,
+    wordSearchDirection: source.wordSearchDirection === "kana-to-kanji" ? "kana-to-kanji" : "kanji-to-kana",
   };
 }

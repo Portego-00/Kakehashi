@@ -11,6 +11,7 @@ export const EXTRA_STUDY_CONFIG_STORAGE_KEYS = {
   WRITING_PRACTICE: "extra_study_config:writing_practice",
   CROSSWORD: "extra_study_config:crossword",
   WORDLE: "extra_study_config:wordle",
+  WORD_SEARCH: "extra_study_config:word_search",
 } as const;
 
 export async function loadExtraStudyConfig<T extends object>(

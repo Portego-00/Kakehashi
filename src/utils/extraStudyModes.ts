@@ -10,9 +10,11 @@ export type ExtraStudyModeId =
   | "kana-kanji-test"
   | "listening-practice"
   | "context-sentence-practice"
+  | "jlpt-quiz"
   | "text-analysis"
   | "writing-practice"
   | "crossword"
+  | "word-search"
   | "wordle"
   | "custom-review"
   | "custom-lessons"
@@ -89,6 +91,14 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     route: "/context-sentence-practice-config",
   },
   {
+    id: "jlpt-quiz",
+    title: "JLPT Quiz",
+    subtitle: "Quick quizzes and timed N5–N1 mock exams",
+    icon: "school",
+    route: "/jlpt",
+    requiresUsername: "Portego",
+  },
+  {
     id: "text-analysis",
     title: "Japanese Text",
     subtitle: "Analyze pasted grammar and vocabulary",
@@ -108,6 +118,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     subtitle: "Solve a hiragana crossword from English clues",
     icon: "grid",
     route: "/crossword-config",
+  },
+  {
+    id: "word-search",
+    title: "Word Search",
+    subtitle: "Find kana readings or kanji from vocabulary clues",
+    icon: "search",
+    route: "/word-search-config",
   },
   {
     id: "wordle",
@@ -168,6 +185,7 @@ export const RESUMABLE_EXTRA_STUDY_MODE_SESSION_KEYS: Partial<
     EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE,
   "writing-practice": EXTRA_STUDY_SESSION_STORAGE_KEYS.WRITING_PRACTICE,
   crossword: EXTRA_STUDY_SESSION_STORAGE_KEYS.CROSSWORD,
+  "word-search": EXTRA_STUDY_SESSION_STORAGE_KEYS.WORD_SEARCH,
   wordle: EXTRA_STUDY_SESSION_STORAGE_KEYS.WORDLE,
   "custom-review": EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW,
 };

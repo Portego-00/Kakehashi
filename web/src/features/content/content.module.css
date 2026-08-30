@@ -296,6 +296,10 @@
 .readerGrid[data-appearance="compact"] .readerColumn { gap: 0; }
 .readerGrid[data-appearance="compact"] .readingSurface { min-height: 0; max-width: none; margin: 0; padding: 0; border: 0; background: transparent; font-size: var(--text-md); line-height: 1.75; }
 .readerGrid[data-appearance="compact"] .inspector { position: static; }
+.readerGrid[data-appearance="inline"] { display: inline; }
+.readerGrid[data-appearance="inline"] .readerColumn { display: inline; }
+.readerGrid[data-appearance="inline"] .readingSurface { display: inline; min-height: 0; max-width: none; margin: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: inherit; }
+.readerGrid[data-appearance="inline"] .readerTextBlock { display: inline; }
 
 .token {
   --reader-token-color: var(--color-reader-vocabulary);
@@ -319,6 +323,7 @@
 .tokenVocabulary { --reader-token-color: var(--color-reader-vocabulary); }
 .tokenVerb { --reader-token-color: var(--color-reader-verb); }
 .tokenGrammar { --reader-token-color: var(--color-reader-grammar); }
+.readerGrid[data-token-decoration="plain"] .token { padding: 0; text-decoration: none; }
 .tokenSelected { border-radius: var(--radius-sm); background: color-mix(in oklch, var(--reader-token-color) 18%, transparent); box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-ink) 34%, transparent); color: inherit; }
 
 .inspector { --reader-inspector-color: var(--color-vocabulary); display: grid; gap: 0; overflow: hidden; padding: 0; border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-floating); }

@@ -259,12 +259,12 @@ describe("Japanese voice lifecycle", () => {
   it("constructs the worker lazily and posts synthesis only when playback starts", async () => {
     storage.cache.seedCompleteVoice();
     const { result } = await renderVoice();
-    let playPromise: Promise<void> | undefined;
+    let playPromise: Promise<boolean> | undefined;
 
     expect(result.current.downloaded).toBe(true);
     expect(workers).toHaveLength(0);
     act(() => {
-      playPromise = result.current.play("猫です。");
+      playPromise = result.current.play("猫です。", { speed: 0.82 });
     });
 
     await waitFor(() => expect(workers).toHaveLength(1));
@@ -272,6 +272,7 @@ describe("Japanese voice lifecycle", () => {
     expect(workers[0].postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "synthesize",
       text: "猫です。",
+      speed: 0.82,
     }));
 
     await act(async () => {
@@ -283,7 +284,7 @@ describe("Japanese voice lifecycle", () => {
   it("terminates in-flight synthesis and returns the UI state to idle when stopped", async () => {
     storage.cache.seedCompleteVoice();
     const { result } = await renderVoice();
-    let playPromise: Promise<void> | undefined;
+    let playPromise: Promise<boolean> | undefined;
     act(() => {
       playPromise = result.current.play("学校へ行きます。");
     });
@@ -330,7 +331,7 @@ describe("Japanese voice lifecycle", () => {
   it("does not expose a redundant status message while audio is playing", async () => {
     storage.cache.seedCompleteVoice();
     const { result } = await renderVoice();
-    let playPromise: Promise<void> | undefined;
+    let playPromise: Promise<boolean> | undefined;
     act(() => {
       playPromise = result.current.play("これはテストです。");
     });

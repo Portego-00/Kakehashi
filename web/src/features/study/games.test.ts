@@ -1,5 +1,5 @@
 import type { Subject } from "@/types/wanikani";
-import { analyzeJapaneseText, chooseWordleCandidate, evaluateWordleGuess, generateCrossword, isValidWordleGuess, splitKana, tokenizeJapaneseText, wordleCandidates } from "./games";
+import { analyzeJapaneseText, chooseWordleCandidate, evaluateWordleGuess, findWordSearchEntry, generateCrossword, generateWordSearch, isValidWordleGuess, splitKana, tokenizeJapaneseText, wordleCandidates, wordSearchSelectionPath } from "./games";
 
 function vocabulary(id: number, characters: string, reading: string, meaning: string, object: "vocabulary" | "kana_vocabulary" = "vocabulary"): Subject {
   return { id, object, url: "", data_updated_at: "", data: { level: 1, created_at: "", slug: characters, document_url: "", hidden_at: null, characters, meanings: [{ meaning, primary: true, accepted_answer: true }], auxiliary_meanings: [], readings: [{ reading, primary: true, accepted_answer: true }] } };
@@ -67,6 +67,46 @@ describe("study games", () => {
     expect(kanaOnly!.entries.every((entry) => !/[\p{Script=Han}\p{Script=Katakana}]/u.test(entry.characters))).toBe(true);
     const kanjiClues = generateCrossword(subjects, 11, 6, () => 0.99, { clueMode: "kanji" });
     expect(kanjiClues!.entries.every((entry) => entry.clue === entry.characters || entry.clue === entry.answer)).toBe(true);
+  });
+
+  it("builds word searches in both study directions", () => {
+    const pool = [
+      ...subjects,
+      vocabulary(30, "学校", "がっこう", "School"),
+      vocabulary(31, "日本語", "にほんご", "Japanese language"),
+      vocabulary(32, "電車", "でんしゃ", "Train"),
+    ];
+    let seed = 17;
+    const random = () => {
+      seed = (seed * 48271) % 2147483647;
+      return seed / 2147483647;
+    };
+    const kanaPuzzle = generateWordSearch(pool, "kanji-to-kana", 9, 5, random);
+    expect(kanaPuzzle).not.toBeNull();
+    expect(kanaPuzzle!.entries).toHaveLength(5);
+    kanaPuzzle!.entries.forEach((entry) => {
+      expect(entry.prompt).toBe(entry.characters);
+      expect(entry.path.map(({ row, col }) => kanaPuzzle!.grid[row][col]).join("")).toBe(entry.answer);
+    });
+
+    const kanjiPuzzle = generateWordSearch(pool, "kana-to-kanji", 9, 5, random);
+    expect(kanjiPuzzle).not.toBeNull();
+    expect(kanjiPuzzle!.entries.every((entry) => entry.prompt === entry.reading && entry.answer === entry.characters)).toBe(true);
+  });
+
+  it("recognizes straight word-search selections in either direction", () => {
+    const path = wordSearchSelectionPath({ row: 1, col: 1 }, { row: 3, col: 3 });
+    expect(path).toEqual([{ row: 1, col: 1 }, { row: 2, col: 2 }, { row: 3, col: 3 }]);
+    expect(wordSearchSelectionPath({ row: 0, col: 0 }, { row: 1, col: 2 })).toEqual([]);
+
+    const puzzle = {
+      size: 3,
+      direction: "kanji-to-kana" as const,
+      grid: [["ね", "こ", "あ"], ["い", "う", "え"], ["お", "か", "き"]],
+      entries: [{ id: "cat", subjectId: 1, prompt: "猫", answer: "ねこ", characters: "猫", reading: "ねこ", meaning: "Cat", path: [{ row: 0, col: 0 }, { row: 0, col: 1 }] }],
+    };
+    expect(findWordSearchEntry(puzzle, [{ row: 0, col: 1 }, { row: 0, col: 0 }])?.id).toBe("cat");
+    expect(findWordSearchEntry(puzzle, puzzle.entries[0].path, ["cat"])).toBeNull();
   });
 
   it("finds exact vocabulary and unique kanji in pasted Japanese", () => {

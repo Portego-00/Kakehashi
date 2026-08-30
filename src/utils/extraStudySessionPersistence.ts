@@ -13,6 +13,7 @@ export const EXTRA_STUDY_SESSION_STORAGE_KEYS = {
   WRITING_PRACTICE: "extra_study_session:writing_practice",
   CROSSWORD: "extra_study_session:crossword",
   WORDLE: "extra_study_session:wordle",
+  WORD_SEARCH: "extra_study_session:word_search",
 } as const;
 
 export async function loadExtraStudySessionState<T extends object>(

@@ -12,6 +12,7 @@ export type StudyModeId =
   | "text-analysis"
   | "kanji-writing"
   | "crossword"
+  | "word-search"
   | "kana-wordle"
   | "custom-review"
   | "custom-lessons"
@@ -19,7 +20,7 @@ export type StudyModeId =
 
 export type QuizModeId = Exclude<
   StudyModeId,
-  "text-analysis" | "kanji-writing" | "crossword" | "kana-wordle" | "custom-lessons" | "subject-lists"
+  "text-analysis" | "kanji-writing" | "crossword" | "word-search" | "kana-wordle" | "custom-lessons" | "subject-lists"
 >;
 
 export type QuestionKind =
@@ -43,6 +44,7 @@ export type SimilarKanjiSource = "wanikani" | "niai";
 export type SimilarKanjiMode = "matching" | "choice";
 export type CrosswordSize = "small" | "medium" | "large";
 export type CrosswordClueMode = "english" | "kanji" | "english_kanji";
+export type WordSearchDirection = "kanji-to-kana" | "kana-to-kanji";
 export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
 export interface StudyFilters {
@@ -81,6 +83,7 @@ export interface StudyFilters {
   crosswordClueMode: CrosswordClueMode;
   crosswordShowKanjiSolutions: boolean;
   crosswordPlayAudioOnCorrect: boolean;
+  wordSearchDirection: WordSearchDirection;
 }
 
 export interface StudyTokenDetail {
@@ -176,4 +179,27 @@ export interface CrosswordPuzzle {
   cols: number;
   cells: Array<Array<{ answer: string; number?: number; entryIds: string[] } | null>>;
   entries: CrosswordEntry[];
+}
+
+export interface WordSearchCell {
+  row: number;
+  col: number;
+}
+
+export interface WordSearchEntry {
+  id: string;
+  subjectId: number;
+  prompt: string;
+  answer: string;
+  characters: string;
+  reading: string;
+  meaning: string;
+  path: WordSearchCell[];
+}
+
+export interface WordSearchPuzzle {
+  size: number;
+  direction: WordSearchDirection;
+  grid: string[][];
+  entries: WordSearchEntry[];
 }

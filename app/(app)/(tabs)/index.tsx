@@ -69,6 +69,7 @@ import {
 } from "../../../src/utils/openSourceAnnouncement";
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import { useTheme } from "../../../src/utils/theme";
+import { loadNativeJlptSession } from "../../../src/features/jlpt/storage";
 import {
   reloadHomeWidget,
   updateHomeWidgetSnapshot,
@@ -708,12 +709,19 @@ export default function StudyTab() {
       }
 
       const refreshExtraStudySessionIndicators = async () => {
-        const sessionStates = await Promise.all(
+        const regularSessionStates = await Promise.all(
           RESUMABLE_EXTRA_STUDY_MODE_SESSION_ENTRIES.map(
             async ([modeId, storageKey]) =>
               [modeId, await hasExtraStudySessionState(storageKey)] as const,
           ),
         );
+        const jlptSession = await loadNativeJlptSession(
+          userData?.id ?? userData?.username ?? "anonymous",
+        );
+        const sessionStates: readonly (readonly [ExtraStudyModeId, boolean])[] = [
+          ...regularSessionStates,
+          ["jlpt-quiz", Boolean(jlptSession && jlptSession.status !== "complete")],
+        ];
 
         if (isFocused) {
           setActiveExtraStudySessionModeIds(
@@ -753,6 +761,7 @@ export default function StudyTab() {
       refreshLessonsReviewsCounts,
       refreshStreakIfCalendarDayChanged,
       userData?.id,
+      userData?.username,
     ]),
   );
 

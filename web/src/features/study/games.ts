@@ -1,6 +1,6 @@
 import { toHiragana } from "wanakana";
 import type { Subject } from "@/types/wanikani";
-import type { CrosswordEntry, CrosswordPuzzle, WordleTile } from "./types";
+import type { CrosswordEntry, CrosswordPuzzle, WordleTile, WordSearchCell, WordSearchDirection, WordSearchEntry, WordSearchPuzzle } from "./types";
 import type { CrosswordClueMode, JlptLevel } from "./types";
 import { KANJI_TO_JLPT } from "@/features/progress/catalogs/jlptKanji";
 import type { StudyTokenDetail } from "./types";
@@ -62,6 +62,140 @@ export interface CrosswordGenerationOptions {
 
 const HIRAGANA_WORD = /^[\p{Script=Hiragana}ー〜～]+$/u;
 const KANJI_CHARACTER = /\p{Script=Han}/u;
+const JAPANESE_WORD = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}々〆ヶー〜～]+$/u;
+const WORD_SEARCH_DIRECTIONS = [
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1], [0, 1],
+  [1, -1], [1, 0], [1, 1],
+] as const;
+const HIRAGANA_FILLERS = splitKana("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽゃゅょっ");
+const KANJI_FILLERS = Array.from("日本人大小中上下左右前後時分学校生年月火水木金土語見行来食飲読書話聞買");
+
+interface WordSearchCandidate {
+  subjectId: number;
+  prompt: string;
+  answer: string;
+  characters: string;
+  reading: string;
+  meaning: string;
+}
+
+interface WordSearchPlacement {
+  row: number;
+  col: number;
+  rowStep: number;
+  colStep: number;
+  overlaps: number;
+}
+
+function wordSearchAnswerCharacters(answer: string, direction: WordSearchDirection) {
+  return direction === "kanji-to-kana" ? splitKana(answer) : Array.from(answer.normalize("NFKC").trim());
+}
+
+function wordSearchCandidates(subjects: Subject[], direction: WordSearchDirection, size: number): WordSearchCandidate[] {
+  const seenAnswers = new Set<string>();
+  return subjects.flatMap((subject) => {
+    if (subject.object !== "vocabulary") return [];
+    const reading = subject.data.readings?.find((item) => item.primary)?.reading ?? subject.data.readings?.[0]?.reading;
+    const characters = subject.data.characters?.normalize("NFKC").trim() ?? "";
+    const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.meanings[0]?.meaning;
+    if (!reading || !characters || !meaning || !HIRAGANA_WORD.test(reading) || !JAPANESE_WORD.test(characters) || !KANJI_CHARACTER.test(characters)) return [];
+    const answer = direction === "kanji-to-kana" ? toHiragana(reading) : characters;
+    const answerLength = wordSearchAnswerCharacters(answer, direction).length;
+    if (answerLength < 2 || answerLength > size || seenAnswers.has(answer)) return [];
+    seenAnswers.add(answer);
+    return [{
+      subjectId: subject.id,
+      prompt: direction === "kanji-to-kana" ? characters : toHiragana(reading),
+      answer,
+      characters,
+      reading: toHiragana(reading),
+      meaning,
+    }];
+  });
+}
+
+function availableWordSearchPlacements(grid: Array<Array<string | null>>, characters: string[]): WordSearchPlacement[] {
+  const placements: WordSearchPlacement[] = [];
+  const size = grid.length;
+  for (const [rowStep, colStep] of WORD_SEARCH_DIRECTIONS) {
+    for (let row = 0; row < size; row += 1) {
+      for (let col = 0; col < size; col += 1) {
+        const endRow = row + rowStep * (characters.length - 1);
+        const endCol = col + colStep * (characters.length - 1);
+        if (endRow < 0 || endRow >= size || endCol < 0 || endCol >= size) continue;
+        let overlaps = 0;
+        let valid = true;
+        for (let index = 0; index < characters.length; index += 1) {
+          const current = grid[row + rowStep * index][col + colStep * index];
+          if (current && current !== characters[index]) {
+            valid = false;
+            break;
+          }
+          if (current === characters[index]) overlaps += 1;
+        }
+        if (valid) placements.push({ row, col, rowStep, colStep, overlaps });
+      }
+    }
+  }
+  return placements;
+}
+
+export function generateWordSearch(subjects: Subject[], direction: WordSearchDirection = "kanji-to-kana", size = 10, maxWords = 10, random: () => number = Math.random): WordSearchPuzzle | null {
+  const boardSize = Math.min(13, Math.max(7, Math.round(size)));
+  const targetWords = Math.min(15, Math.max(3, Math.round(maxWords)));
+  const candidates = shuffle(wordSearchCandidates(subjects, direction, boardSize), random)
+    .toSorted((left, right) => wordSearchAnswerCharacters(right.answer, direction).length - wordSearchAnswerCharacters(left.answer, direction).length);
+  if (candidates.length < 2) return null;
+
+  const grid = Array.from({ length: boardSize }, () => Array<string | null>(boardSize).fill(null));
+  const entries: WordSearchEntry[] = [];
+  for (const candidate of candidates) {
+    if (entries.length >= targetWords) break;
+    const characters = wordSearchAnswerCharacters(candidate.answer, direction);
+    const placements = availableWordSearchPlacements(grid, characters);
+    if (!placements.length) continue;
+    const highestOverlap = Math.max(...placements.map((placement) => placement.overlaps));
+    const preferred = placements.filter((placement) => placement.overlaps === highestOverlap);
+    const placement = preferred[Math.min(preferred.length - 1, Math.floor(random() * preferred.length))];
+    const path = characters.map((character, index) => {
+      const row = placement.row + placement.rowStep * index;
+      const col = placement.col + placement.colStep * index;
+      grid[row][col] = character;
+      return { row, col };
+    });
+    entries.push({ id: `word-search-${candidate.subjectId}`, ...candidate, path });
+  }
+  if (entries.length < 2) return null;
+
+  const answerFillers = entries.flatMap((entry) => wordSearchAnswerCharacters(entry.answer, direction));
+  const fillers = [...new Set([...answerFillers, ...(direction === "kanji-to-kana" ? HIRAGANA_FILLERS : KANJI_FILLERS)])];
+  const filledGrid = grid.map((row) => row.map((character) => character ?? fillers[Math.min(fillers.length - 1, Math.floor(random() * fillers.length))]));
+  return { size: boardSize, direction, grid: filledGrid, entries: shuffle(entries, random) };
+}
+
+export function wordSearchSelectionPath(start: WordSearchCell, end: WordSearchCell): WordSearchCell[] {
+  const rowDistance = end.row - start.row;
+  const colDistance = end.col - start.col;
+  const aligned = rowDistance === 0 || colDistance === 0 || Math.abs(rowDistance) === Math.abs(colDistance);
+  if (!aligned) return [];
+  const length = Math.max(Math.abs(rowDistance), Math.abs(colDistance)) + 1;
+  const rowStep = Math.sign(rowDistance);
+  const colStep = Math.sign(colDistance);
+  return Array.from({ length }, (_, index) => ({ row: start.row + rowStep * index, col: start.col + colStep * index }));
+}
+
+function wordSearchPathKey(path: WordSearchCell[]) {
+  return path.map(({ row, col }) => `${row}:${col}`).join("|");
+}
+
+export function findWordSearchEntry(puzzle: WordSearchPuzzle, path: WordSearchCell[], excludedEntryIds: Iterable<string> = []): WordSearchEntry | null {
+  if (path.length < 2) return null;
+  const excluded = new Set(excludedEntryIds);
+  const selected = wordSearchPathKey(path);
+  const reversed = wordSearchPathKey([...path].reverse());
+  return puzzle.entries.find((entry) => !excluded.has(entry.id) && (wordSearchPathKey(entry.path) === selected || wordSearchPathKey(entry.path) === reversed)) ?? null;
+}
 
 function estimatedJlptLevel(subject: Subject): JlptLevel | null {
   const characters = subject.data.characters ?? "";

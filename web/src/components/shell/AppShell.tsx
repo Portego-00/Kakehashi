@@ -8,6 +8,7 @@ import {
   Brain,
   ChartColumn,
   Clapperboard,
+  ClipboardCheck,
   GraduationCap,
   House,
   Images,
@@ -93,6 +94,7 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
       { href: "/lessons", label: "Lessons", icon: GraduationCap, comingSoon: true },
       { href: "/reviews", label: "Reviews", icon: Brain, comingSoon: true },
       { href: "/study", label: "Extra study", icon: Sparkles },
+      { href: "/jlpt", label: "JLPT", icon: ClipboardCheck },
     ],
   },
   {
