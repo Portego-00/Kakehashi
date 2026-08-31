@@ -2616,6 +2616,13 @@ export default function VocabularyDetails({
               >
                 {activeTab === "meaning" ? (
                   <TouchableOpacity
+                    accessible={!vocabulary.meaningNote}
+                    accessibilityLabel={
+                      vocabulary.meaningNote ? undefined : "Add meaning note"
+                    }
+                    accessibilityRole={
+                      vocabulary.meaningNote ? undefined : "button"
+                    }
                     style={styles.noteContainer}
                     onPress={() => vocabulary.onEditNote?.("meaning")}
                   >
@@ -2623,14 +2630,24 @@ export default function VocabularyDetails({
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                         Meaning Note
                       </Text>
-                      <View style={styles.editButton}>
+                      <TouchableOpacity
+                        accessible={Boolean(vocabulary.meaningNote)}
+                        accessibilityLabel="Edit meaning note"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          vocabulary.onEditNote?.("meaning");
+                        }}
+                        style={styles.editButton}
+                      >
                         <Ionicons
                           name="pencil"
                           size={16}
                           color={theme.textSecondary}
                           style={{ fontWeight: "bold" }}
                         />
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     {vocabulary.meaningNote ? (
                       <FormattedNoteText
@@ -2645,6 +2662,13 @@ export default function VocabularyDetails({
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
+                    accessible={!vocabulary.readingNote}
+                    accessibilityLabel={
+                      vocabulary.readingNote ? undefined : "Add reading note"
+                    }
+                    accessibilityRole={
+                      vocabulary.readingNote ? undefined : "button"
+                    }
                     style={styles.noteContainer}
                     onPress={() => vocabulary.onEditNote?.("reading")}
                   >
@@ -2652,14 +2676,24 @@ export default function VocabularyDetails({
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                         Reading Note
                       </Text>
-                      <View style={styles.editButton}>
+                      <TouchableOpacity
+                        accessible={Boolean(vocabulary.readingNote)}
+                        accessibilityLabel="Edit reading note"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          vocabulary.onEditNote?.("reading");
+                        }}
+                        style={styles.editButton}
+                      >
                         <Ionicons
                           name="pencil"
                           size={16}
                           color={theme.textSecondary}
                           style={{ fontWeight: "bold" }}
                         />
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     {vocabulary.readingNote ? (
                       <FormattedNoteText
@@ -3166,23 +3200,29 @@ export default function VocabularyDetails({
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          {onAddToList && (
-            <TouchableOpacity
-              onPress={onAddToList}
-              style={styles.addToListButton}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isBookmarked ? "Edit saved lists" : "Add to saved lists"
-              }
-              accessibilityState={{ selected: isBookmarked }}
-            >
-              <Ionicons
-                name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                size={20}
-                color="#fff"
-              />
-            </TouchableOpacity>
-          )}
+          <View style={styles.headerActions}>
+            {onAddToList && (
+              <TouchableOpacity
+                onPress={onAddToList}
+                style={styles.addToListButton}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isBookmarked ? "Edit saved lists" : "Add to saved lists"
+                }
+                accessibilityState={{ selected: isBookmarked }}
+              >
+                <Ionicons
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  size={20}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{vocabulary.level}</Text>
+            </View>
+          </View>
 
           {onOpenConstellation && vocabulary.object !== "kana_vocabulary" && (
             <TouchableOpacity
@@ -3192,10 +3232,6 @@ export default function VocabularyDetails({
               <Ionicons name="planet-outline" size={24} color="#fff" />
             </TouchableOpacity>
           )}
-
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{vocabulary.level}</Text>
-          </View>
 
           <TouchableOpacity
             ref={mainCharacterRef}
@@ -3423,9 +3459,12 @@ const createStyles = (subjectColors: SubjectColors) =>
   },
   stickyLevelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
@@ -3461,11 +3500,16 @@ const createStyles = (subjectColors: SubjectColors) =>
     alignItems: "center",
     zIndex: 10,
   },
-  addToListButton: {
+  headerActions: {
     position: "absolute",
     top: HEADER_TOP_OFFSET,
-    right: 56,
+    right: 16,
     zIndex: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  addToListButton: {
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -3475,14 +3519,14 @@ const createStyles = (subjectColors: SubjectColors) =>
   },
   levelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
-    position: "absolute",
-    top: HEADER_TOP_OFFSET,
-    right: 16,
   },
   levelText: {
     color: "white",
@@ -4267,9 +4311,12 @@ const createStyles = (subjectColors: SubjectColors) =>
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.kanji,
     justifyContent: "center",
     alignItems: "center",
@@ -4285,9 +4332,12 @@ const createStyles = (subjectColors: SubjectColors) =>
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.vocabulary,
     justifyContent: "center",
     alignItems: "center",

@@ -70,4 +70,35 @@ describe("VocabularyFrequencyBadge", () => {
     renderBadge();
     expect(await screen.findByLabelText("Vocabulary frequency unavailable")).toHaveTextContent("#---");
   });
+
+  it("accepts a direct request and shares its query with the matching subject", async () => {
+    const remote = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ result: {
+      provider: "jiten",
+      frequencyRank: 12_345,
+      wordId: 1390020,
+      readingIndex: 0,
+      matchedText: "川",
+      matchedReading: "かわ",
+      sourceUrl: "https://jiten.moe/search?query=%E5%B7%9D",
+    } }), { status: 200 }));
+    vi.stubGlobal("fetch", remote);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <VocabularyFrequencyBadge subject={subject} enabled />
+        <VocabularyFrequencyBadge request={{ expression: " ～ 川 ", readings: ["カワ", "かわ"] }} enabled />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findAllByLabelText(`Vocabulary frequency #${(12_345).toLocaleString()}`))
+      .toHaveLength(2);
+    expect(remote).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(remote.mock.calls[0]?.[1]?.body))).toEqual({
+      expression: "川",
+      readings: ["かわ"],
+    });
+  });
 });

@@ -109,7 +109,7 @@ export function RecentUnlocks({ items, onItemPress, onViewAll }: UnlocksProps) {
                 item.type === "vocabulary" &&
                   item.characters &&
                   item.characters.length > 1 && {
-                    width: 48 + (item.characters.length - 2) * 24 + 16,
+                    minWidth: 48 + (item.characters.length - 2) * 24 + 16,
                   },
               ]}
             >
@@ -226,7 +226,7 @@ export function CriticalItems({
                 item.type === "vocabulary" &&
                   item.characters &&
                   item.characters.length > 1 && {
-                    width: 48 + (item.characters.length - 2) * 24 + 16,
+                    minWidth: 48 + (item.characters.length - 2) * 24 + 16,
                   },
               ]}
             >
@@ -241,16 +241,18 @@ export function CriticalItems({
                 { backgroundColor: theme.isDark ? "#333" : "#f0f0f0" },
               ]}
             >
-              <View
-                style={[
-                  styles.percentageBar,
-                  {
-                    width: `${item.percentage}%`,
-                    backgroundColor:
-                      item.percentage < 70 ? "#ff4d4d" : "#ffcc00",
-                  },
-                ]}
-              />
+              <View style={styles.percentageBarClip}>
+                <View
+                  style={[
+                    styles.percentageBar,
+                    {
+                      width: `${item.percentage}%`,
+                      backgroundColor:
+                        item.percentage < 70 ? "#ff4d4d" : "#ffcc00",
+                    },
+                  ]}
+                />
+              </View>
               <Text style={[styles.percentageText, { color: theme.textColor }]}>
                 {item.percentage}%
               </Text>
@@ -343,7 +345,7 @@ export function BurnedItems({
                     item.type === "kana_vocabulary") &&
                     item.characters &&
                     item.characters.length > 1 && {
-                      width: 48 + (item.characters.length - 2) * 24 + 16,
+                      minWidth: 48 + (item.characters.length - 2) * 24 + 16,
                     },
                 ]}
               >
@@ -411,12 +413,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   itemTypeIndicator: {
-    width: 40,
-    height: 40,
+    minWidth: 40,
+    minHeight: 40,
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     marginRight: 12,
+    flexShrink: 0,
   },
   itemCharacter: {
     fontSize: 20,
@@ -426,17 +431,27 @@ const styles = StyleSheet.create({
   },
   itemMeaning: {
     flex: 1,
+    minWidth: 0,
     fontSize: 16,
   },
   itemDate: {
     fontSize: 14,
   },
   percentageContainer: {
-    width: 80,
-    height: 24,
-    borderRadius: 12,
-    overflow: "hidden",
+    minWidth: 80,
+    minHeight: 24,
+    borderRadius: 999,
     position: "relative",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  percentageBarClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+    overflow: "hidden",
   },
   percentageBar: {
     height: "100%",
@@ -445,12 +460,10 @@ const styles = StyleSheet.create({
     top: 0,
   },
   percentageText: {
-    position: "absolute",
-    width: "100%",
     textAlign: "center",
     fontSize: 12,
     fontWeight: "bold",
-    lineHeight: 24,
+    zIndex: 1,
   },
   viewAllButton: {
     marginTop: 16,

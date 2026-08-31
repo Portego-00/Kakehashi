@@ -23,6 +23,9 @@ describe("verified study-time storage migration", () => {
     expect(migration).not.toMatch(
       /set verified = true\s+where not verified/,
     );
+    expect(migration).not.toMatch(
+      /update public\.study_time_days\s+set verified = true/i,
+    );
     expect(migration).toContain("where not study_time_days.verified");
     expect(migration).toMatch(/updated_at, verified\)\s+select[\s\S]*?false/);
   });

@@ -2,15 +2,23 @@ import { Ionicons } from "@expo/vector-icons";
 import { File as FSFile, Paths } from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "@/src/utils/haptics";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
@@ -24,17 +32,25 @@ import Animated, {
 } from "react-native-reanimated";
 import { WrappedData } from "../../../hooks/useWrappedData";
 import { getSubjectTypeColor } from "../../../utils/subjectColors";
+import { useSettingsStore } from "../../../utils/store";
 import { RadialGlow } from "../RadialGlow";
 import { generateShareCardHtml } from "../shareCardHtml";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } =
-  Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 /* ──── Confetti ──── */
 
 const CONFETTI_COLORS = [
-  "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
-  "#FFD93D", "#C9B1FF", "#FF9FF3", "#54A0FF", "#5F27CD",
+  "#FF6B6B",
+  "#4ECDC4",
+  "#45B7D1",
+  "#FFA07A",
+  "#98D8C8",
+  "#FFD93D",
+  "#C9B1FF",
+  "#FF9FF3",
+  "#54A0FF",
+  "#5F27CD",
 ];
 
 function ConfettiParticle({
@@ -59,23 +75,23 @@ function ConfettiParticle({
       withTiming(SCREEN_HEIGHT + 50, {
         duration: 3000 + Math.random() * 2000,
         easing: Easing.out(Easing.quad),
-      })
+      }),
     );
     translateX.value = withDelay(
       delay,
       withTiming(startX + (Math.random() - 0.5) * 120, {
         duration: 3000 + Math.random() * 2000,
-      })
+      }),
     );
     rotate.value = withDelay(
       delay,
-      withTiming(360 * (Math.random() > 0.5 ? 1 : -1), { duration: 3000 })
+      withTiming(360 * (Math.random() > 0.5 ? 1 : -1), { duration: 3000 }),
     );
     scale.value = withDelay(
       delay,
-      withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.5)) })
+      withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.5)) }),
     );
-  }, []);
+  }, [delay, opacity, rotate, scale, startX, translateX, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -120,7 +136,7 @@ function getSubjectColor(type: string): string {
 
 function formatDateRange(
   startedAt: string | null,
-  passedAt: string | null
+  passedAt: string | null,
 ): string {
   const fmt = (d: string | null) => {
     if (!d) return "";
@@ -165,14 +181,14 @@ function buildShareText(data: WrappedData): string {
 
   if (data.starPerformer) {
     lines.push(
-      `Star performer: ${data.starPerformer.characters} (${data.starPerformer.primaryMeaning})`
+      `Star performer: ${data.starPerformer.characters} (${data.starPerformer.primaryMeaning})`,
     );
   }
 
   const toughest = data.mostMissed.slice(0, 2);
   if (toughest.length > 0) {
     lines.push(
-      `Toughest: ${toughest.map((s) => `${s.characters}`).join(", ")}`
+      `Toughest: ${toughest.map((s) => `${s.characters}`).join(", ")}`,
     );
   }
 
@@ -182,13 +198,7 @@ function buildShareText(data: WrappedData): string {
 }
 
 /* ──── Character badge (uniform size for all sections) ──── */
-function CharBadge({
-  character,
-  type,
-}: {
-  character: string;
-  type: string;
-}) {
+function CharBadge({ character, type }: { character: string; type: string }) {
   const color = getSubjectColor(type);
   return (
     <View
@@ -200,14 +210,7 @@ function CharBadge({
         },
       ]}
     >
-      <Text
-        style={[styles.charBadgeText, { color }]}
-        adjustsFontSizeToFit
-        minimumFontScale={0.5}
-        numberOfLines={1}
-      >
-        {character}
-      </Text>
+      <Text style={[styles.charBadgeText, { color }]}>{character}</Text>
     </View>
   );
 }
@@ -220,6 +223,9 @@ interface SummarySlideProps {
 
 export function SummarySlide({ data }: SummarySlideProps) {
   const isAndroid = Platform.OS === "android";
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const { fontScale } = useWindowDimensions();
+  const usesLargeText = appTextSizeScale > 1 || fontScale > 1;
   /* Animation values */
   const cardScale = useSharedValue(0.88);
   const cardOpacity = useSharedValue(0);
@@ -230,13 +236,13 @@ export function SummarySlide({ data }: SummarySlideProps) {
 
   const dateRange = useMemo(
     () => formatDateRange(data.startedAt, data.passedAt),
-    [data.startedAt, data.passedAt]
+    [data.startedAt, data.passedAt],
   );
 
   useEffect(() => {
     cardOpacity.value = withDelay(
       200,
-      withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
+      withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }),
     );
     cardScale.value = withDelay(
       200,
@@ -245,28 +251,35 @@ export function SummarySlide({ data }: SummarySlideProps) {
           duration: 500,
           easing: Easing.out(Easing.cubic),
         }),
-        withTiming(1, { duration: 300, easing: Easing.inOut(Easing.quad) })
-      )
+        withTiming(1, { duration: 300, easing: Easing.inOut(Easing.quad) }),
+      ),
     );
 
     contentOpacity.value = withDelay(
       600,
-      withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) })
+      withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) }),
     );
     contentTranslateY.value = withDelay(
       600,
-      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) })
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) }),
     );
 
     shareOpacity.value = withDelay(
       1200,
-      withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) })
+      withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) }),
     );
     shareTranslateY.value = withDelay(
       1200,
-      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) })
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) }),
     );
-  }, []);
+  }, [
+    cardOpacity,
+    cardScale,
+    contentOpacity,
+    contentTranslateY,
+    shareOpacity,
+    shareTranslateY,
+  ]);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ scale: cardScale.value }],
@@ -324,7 +337,7 @@ export function SummarySlide({ data }: SummarySlideProps) {
         if (result.type === "success" && result.data) {
           const base64 = (result.data as string).replace(
             /^data:image\/png;base64,/,
-            ""
+            "",
           );
           const file = new FSFile(Paths.cache, "level-summary.png");
           file.write(base64, { encoding: "base64" });
@@ -342,7 +355,7 @@ export function SummarySlide({ data }: SummarySlideProps) {
       }
       await fallbackTextShare();
     },
-    [cleanupCapture, fallbackTextShare]
+    [cleanupCapture, fallbackTextShare],
   );
 
   const topMissed = data.mostMissed.slice(0, 2);
@@ -363,7 +376,7 @@ export function SummarySlide({ data }: SummarySlideProps) {
         color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
         startX: Math.random() * SCREEN_WIDTH,
       })),
-    []
+    [],
   );
 
   return (
@@ -385,186 +398,239 @@ export function SummarySlide({ data }: SummarySlideProps) {
         ))}
       </View>
 
-      <Animated.View
-        style={[
-          styles.cardWrapper,
-          cardStyle,
-          isAndroid && styles.cardWrapperNoShareAndroid,
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          usesLargeText && styles.scrollContentLargeText,
         ]}
+        showsVerticalScrollIndicator={usesLargeText}
+        directionalLockEnabled
+        nestedScrollEnabled
       >
-        <LinearGradient
-          colors={["#120428", "#1e0c50", "#321872", "#4a20a0"]}
-          start={{ x: 0.15, y: 0 }}
-          end={{ x: 0.85, y: 1 }}
-          style={styles.card}
+        <Animated.View
+          style={[
+            styles.cardWrapper,
+            cardStyle,
+            isAndroid && styles.cardWrapperNoShareAndroid,
+          ]}
         >
-          {/* Decorative glow behind level number */}
-          <View style={styles.glowAnchor} pointerEvents="none">
-            <RadialGlow
-              size={260}
-              color="#8b5cf6"
-              intensity={0.3}
-              style={{ top: -90, left: -90 }}
-            />
-          </View>
-
-          {/* ── Hero header ── */}
-          <View style={styles.hero}>
-            <View style={styles.accentLine} />
-            <Text style={styles.levelLabel}>LEVEL</Text>
-            <Text style={styles.levelNumber}>{data.level}</Text>
-            <Text style={styles.summaryLabel}>SUMMARY</Text>
-            <View style={styles.accentLine} />
-            {(data.username || dateRange) && (
-              <Text style={styles.metaText}>
-                {data.username ? `@${data.username}` : ""}
-                {data.username && dateRange ? "  ·  " : ""}
-                {dateRange}
-              </Text>
-            )}
-          </View>
-
-          {/* ── Body ── */}
-          <Animated.View style={contentStyle}>
-            {/* Stats strip */}
-            <View style={styles.statsStrip}>
-              <View style={styles.statCol}>
-                <Text style={styles.statValue}>{timeDaysDisplay}</Text>
-                <Text style={styles.statLabel}>{timeDaysLabel}</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statCol}>
-                <Text style={styles.statValue}>{data.overallAccuracy}%</Text>
-                <Text style={styles.statLabel}>ACCURACY</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statCol}>
-                <Text style={styles.statValue}>
-                  {data.totalReviews.toLocaleString()}
-                </Text>
-                <Text style={styles.statLabel}>REVIEWS</Text>
-              </View>
+          <LinearGradient
+            colors={["#120428", "#1e0c50", "#321872", "#4a20a0"]}
+            start={{ x: 0.15, y: 0 }}
+            end={{ x: 0.85, y: 1 }}
+            style={styles.card}
+          >
+            {/* Decorative glow behind level number */}
+            <View style={styles.glowAnchor} pointerEvents="none">
+              <RadialGlow
+                size={260}
+                color="#8b5cf6"
+                intensity={0.3}
+                style={{ top: -90, left: -90 }}
+              />
             </View>
 
-            {/* Highlights */}
+            {/* ── Hero header ── */}
+            <View style={styles.hero}>
+              <View style={styles.accentLine} />
+              <Text style={styles.levelLabel}>LEVEL</Text>
+              <Text style={styles.levelNumber}>{data.level}</Text>
+              <Text style={styles.summaryLabel}>SUMMARY</Text>
+              <View style={styles.accentLine} />
+              {(data.username || dateRange) && (
+                <Text style={styles.metaText}>
+                  {data.username ? `@${data.username}` : ""}
+                  {data.username && dateRange ? "  ·  " : ""}
+                  {dateRange}
+                </Text>
+              )}
+            </View>
 
-            {/* Toughest */}
-            {topMissed.length > 0 && (
-              <View style={styles.highlightBlock}>
-                <View style={styles.highlightTitleRow}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={10}
-                    color="#f87171"
-                  />
-                  <Text style={styles.highlightTitle}>TOUGHEST</Text>
+            {/* ── Body ── */}
+            <Animated.View style={contentStyle}>
+              {/* Stats strip */}
+              <View
+                style={[
+                  styles.statsStrip,
+                  usesLargeText && styles.statsStripLargeText,
+                ]}
+              >
+                <View style={styles.statCol}>
+                  <Text style={styles.statValue}>{timeDaysDisplay}</Text>
+                  <Text style={styles.statLabel}>{timeDaysLabel}</Text>
                 </View>
-                {topMissed.map((s, i) => (
-                  <View key={i} style={styles.highlightRow}>
+                <View
+                  style={[
+                    styles.statDivider,
+                    usesLargeText && styles.statDividerLargeText,
+                  ]}
+                />
+                <View style={styles.statCol}>
+                  <Text style={styles.statValue}>{data.overallAccuracy}%</Text>
+                  <Text style={styles.statLabel}>ACCURACY</Text>
+                </View>
+                <View
+                  style={[
+                    styles.statDivider,
+                    usesLargeText && styles.statDividerLargeText,
+                  ]}
+                />
+                <View style={styles.statCol}>
+                  <Text style={styles.statValue}>
+                    {data.totalReviews.toLocaleString()}
+                  </Text>
+                  <Text style={styles.statLabel}>REVIEWS</Text>
+                </View>
+              </View>
+
+              {/* Highlights */}
+
+              {/* Toughest */}
+              {topMissed.length > 0 && (
+                <View style={styles.highlightBlock}>
+                  <View style={styles.highlightTitleRow}>
+                    <Ionicons name="alert-circle" size={10} color="#f87171" />
+                    <Text style={styles.highlightTitle}>TOUGHEST</Text>
+                  </View>
+                  {topMissed.map((s, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.highlightRow,
+                        usesLargeText && styles.highlightRowLargeText,
+                      ]}
+                    >
+                      <CharBadge
+                        character={s.characters}
+                        type={s.subjectType}
+                      />
+                      <View
+                        style={[
+                          styles.highlightRowInfo,
+                          usesLargeText && styles.highlightRowInfoLargeText,
+                        ]}
+                      >
+                        <Text
+                          style={styles.highlightMeaning}
+                          numberOfLines={usesLargeText ? undefined : 1}
+                        >
+                          {s.primaryMeaning}
+                        </Text>
+                        <Text style={styles.highlightStat}>
+                          {s.percentageCorrect}% accuracy
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Star performer */}
+              {data.starPerformer && (
+                <View style={styles.highlightBlock}>
+                  <View style={styles.highlightTitleRow}>
+                    <Ionicons name="star" size={10} color="#fbbf24" />
+                    <Text style={styles.highlightTitle}>STAR PERFORMER</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.highlightRow,
+                      usesLargeText && styles.highlightRowLargeText,
+                    ]}
+                  >
                     <CharBadge
-                      character={s.characters}
-                      type={s.subjectType}
+                      character={data.starPerformer.characters}
+                      type={data.starPerformer.subjectType}
                     />
-                    <View style={styles.highlightRowInfo}>
+                    <View
+                      style={[
+                        styles.highlightRowInfo,
+                        usesLargeText && styles.highlightRowInfoLargeText,
+                      ]}
+                    >
                       <Text
                         style={styles.highlightMeaning}
-                        numberOfLines={1}
+                        numberOfLines={usesLargeText ? undefined : 1}
                       >
-                        {s.primaryMeaning}
+                        {data.starPerformer.primaryMeaning}
                       </Text>
                       <Text style={styles.highlightStat}>
-                        {s.percentageCorrect}% accuracy
+                        {data.starPerformer.percentageCorrect}% ·{" "}
+                        {data.starPerformer.maxStreak} streak
                       </Text>
                     </View>
                   </View>
-                ))}
-              </View>
-            )}
-
-            {/* Star performer */}
-            {data.starPerformer && (
-              <View style={styles.highlightBlock}>
-                <View style={styles.highlightTitleRow}>
-                  <Ionicons name="star" size={10} color="#fbbf24" />
-                  <Text style={styles.highlightTitle}>STAR PERFORMER</Text>
                 </View>
-                <View style={styles.highlightRow}>
-                  <CharBadge
-                    character={data.starPerformer.characters}
-                    type={data.starPerformer.subjectType}
-                  />
-                  <View style={styles.highlightRowInfo}>
-                    <Text
-                      style={styles.highlightMeaning}
-                      numberOfLines={1}
+              )}
+
+              {/* Fastest to guru */}
+              {showFastest && data.fastestToGuru && (
+                <View style={styles.highlightBlock}>
+                  <View style={styles.highlightTitleRow}>
+                    <Ionicons name="flash" size={10} color="#34d399" />
+                    <Text style={styles.highlightTitle}>FASTEST TO GURU</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.highlightRow,
+                      usesLargeText && styles.highlightRowLargeText,
+                    ]}
+                  >
+                    <CharBadge
+                      character={data.fastestToGuru.characters}
+                      type={data.fastestToGuru.subjectType}
+                    />
+                    <View
+                      style={[
+                        styles.highlightRowInfo,
+                        usesLargeText && styles.highlightRowInfoLargeText,
+                      ]}
                     >
-                      {data.starPerformer.primaryMeaning}
-                    </Text>
-                    <Text style={styles.highlightStat}>
-                      {data.starPerformer.percentageCorrect}% ·{" "}
-                      {data.starPerformer.maxStreak} streak
-                    </Text>
+                      <Text
+                        style={styles.highlightMeaning}
+                        numberOfLines={usesLargeText ? undefined : 1}
+                      >
+                        {data.fastestToGuru.primaryMeaning}
+                      </Text>
+                      <Text style={styles.highlightStat}>
+                        {formatTimeToGuru(data.fastestToGuru.timeToGuru)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            )}
+              )}
+            </Animated.View>
 
-            {/* Fastest to guru */}
-            {showFastest && data.fastestToGuru && (
-              <View style={styles.highlightBlock}>
-                <View style={styles.highlightTitleRow}>
-                  <Ionicons name="flash" size={10} color="#34d399" />
-                  <Text style={styles.highlightTitle}>FASTEST TO GURU</Text>
-                </View>
-                <View style={styles.highlightRow}>
-                  <CharBadge
-                    character={data.fastestToGuru.characters}
-                    type={data.fastestToGuru.subjectType}
-                  />
-                  <View style={styles.highlightRowInfo}>
-                    <Text
-                      style={styles.highlightMeaning}
-                      numberOfLines={1}
-                    >
-                      {data.fastestToGuru.primaryMeaning}
-                    </Text>
-                    <Text style={styles.highlightStat}>
-                      {formatTimeToGuru(data.fastestToGuru.timeToGuru)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-          </Animated.View>
-
-          {/* ── Branding footer ── */}
-          <View style={styles.brandingRow}>
-            <View style={styles.brandLine} />
-            <Text style={styles.brandText}>KAKEHASHI</Text>
-            <View style={styles.brandLine} />
-          </View>
-        </LinearGradient>
-      </Animated.View>
-
-      {!isAndroid && (
-        <Animated.View style={[styles.shareWrapper, shareStyle]}>
-          <TouchableOpacity
-            style={styles.shareBtn}
-            onPress={handleShare}
-            activeOpacity={0.8}
-            disabled={isCapturing}
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="share-outline" size={20} color="#fff" />
-            )}
-            <Text style={styles.shareBtnText}>
-              {isCapturing ? "Generating…" : "Share"}
-            </Text>
-          </TouchableOpacity>
+            {/* ── Branding footer ── */}
+            <View style={styles.brandingRow}>
+              <View style={styles.brandLine} />
+              <Text style={styles.brandText}>KAKEHASHI</Text>
+              <View style={styles.brandLine} />
+            </View>
+          </LinearGradient>
         </Animated.View>
-      )}
+
+        {!isAndroid && (
+          <Animated.View style={[styles.shareWrapper, shareStyle]}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={handleShare}
+              activeOpacity={0.8}
+              disabled={isCapturing}
+            >
+              {isCapturing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="share-outline" size={20} color="#fff" />
+              )}
+              <Text style={styles.shareBtnText}>
+                {isCapturing ? "Generating…" : "Share"}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+      </ScrollView>
 
       {/* Hidden WebView for image capture (renders card → html2canvas → base64) */}
       {!isAndroid && isCapturing && (
@@ -592,9 +658,21 @@ const styles = StyleSheet.create({
   /* Outer page */
   container: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+  },
+  scrollView: {
+    flex: 1,
+    width: "100%",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scrollContentLargeText: {
+    paddingTop: 112,
+    paddingBottom: 112,
   },
   confettiContainer: {
     ...StyleSheet.absoluteFillObject,
@@ -686,6 +764,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 14,
   },
+  statsStripLargeText: {
+    flexDirection: "column",
+    gap: 12,
+    paddingHorizontal: 12,
+  },
   statCol: {
     flex: 1,
     alignItems: "center",
@@ -694,6 +777,11 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: "rgba(255,255,255,0.1)",
     marginVertical: 2,
+  },
+  statDividerLargeText: {
+    width: "100%",
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 0,
   },
   statValue: {
     fontSize: 20,
@@ -734,9 +822,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  highlightRowLargeText: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+  },
   highlightRowInfo: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
+  },
+  highlightRowInfoLargeText: {
+    flex: 0,
+    width: "100%",
   },
   highlightMeaning: {
     fontSize: 14,
@@ -749,19 +846,25 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.4)",
   },
 
-  /* Character badge – uniform 40x40 for all sections */
+  /* Character badge – preserves a 40x40 minimum and grows with text */
   charBadge: {
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     minWidth: 40,
-    height: 40,
+    minHeight: 40,
+    maxWidth: "100%",
     borderRadius: 10,
     paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexShrink: 1,
   },
   charBadgeText: {
+    minWidth: 0,
+    maxWidth: "100%",
     fontWeight: "700",
     fontSize: 20,
+    textAlign: "center",
   },
 
   /* ── Branding ── */

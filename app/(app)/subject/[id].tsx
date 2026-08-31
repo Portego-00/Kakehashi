@@ -22,7 +22,10 @@ import AddToSubjectListsModal from "../../../src/components/AddToSubjectListsMod
 import KanjiDetails from "../../../src/components/KanjiDetails";
 import RadicalDetails from "../../../src/components/RadicalDetails";
 import VocabularyDetails from "../../../src/components/VocabularyDetails";
-import { FormattedNoteEditor } from "../../../src/components/formatted-note";
+import {
+  FormattedNoteEditor,
+  type FormattedNoteEditorHandle,
+} from "../../../src/components/formatted-note";
 import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
 import {
   createStudyMaterial,
@@ -157,6 +160,7 @@ export default function SubjectDetailsScreen() {
   } = useSubjectLists();
   const requestIdRef = useRef(0);
   const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
+  const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
   const isBookmarked = subjectData
     ? subjectLists.some((list) => list.subjectIds.includes(subjectData.id))
     : false;
@@ -1076,12 +1080,17 @@ export default function SubjectDetailsScreen() {
     }
   };
 
+  const handleNoteModalRequestClose = () => {
+    if (noteEditorRef.current?.closeLinkPicker()) return;
+    closeNoteModal();
+  };
+
   const renderNoteModal = () => (
     <Modal
       visible={showNoteModal}
       transparent={true}
       animationType="fade"
-      onRequestClose={closeNoteModal}
+      onRequestClose={handleNoteModalRequestClose}
     >
       <KeyboardAvoidingView
         style={styles.modalOverlay}
@@ -1118,6 +1127,7 @@ export default function SubjectDetailsScreen() {
           </View>
 
           <FormattedNoteEditor
+            ref={noteEditorRef}
             key={`${noteType}:${showNoteModal}`}
             containerStyle={styles.noteEditor}
             style={[
@@ -1348,6 +1358,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 450,
     maxHeight: "85%",
+    flexShrink: 1,
   },
   modalHeader: {
     flexDirection: "row",

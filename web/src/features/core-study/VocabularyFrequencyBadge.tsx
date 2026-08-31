@@ -3,38 +3,62 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   VOCABULARY_FREQUENCY_STALE_TIME_MS,
-  fetchVocabularyFrequency,
-  vocabularyFrequencyQueryKey,
+  fetchVocabularyFrequencyForRequest,
+  normalizeVocabularyFrequencyRequest,
+  vocabularyFrequencyQueryKeyForRequest,
   vocabularyFrequencyRequestForSubject,
+  type VocabularyFrequencyRequest,
   type VocabularyFrequencySubject,
 } from "./vocabulary-frequency";
 import styles from "./vocabulary-frequency.module.css";
 
-export interface VocabularyFrequencyBadgeProps {
-  subject: VocabularyFrequencySubject;
+interface VocabularyFrequencyBadgeCommonProps {
   enabled: boolean;
   variant?: "review" | "details";
   className?: string;
 }
 
-export function VocabularyFrequencyBadge({
-  subject,
-  enabled,
-  variant = "review",
-  className,
-}: VocabularyFrequencyBadgeProps) {
-  if (!enabled || !vocabularyFrequencyRequestForSubject(subject)) return null;
-  return <EnabledVocabularyFrequencyBadge subject={subject} variant={variant} className={className} />;
+type VocabularyFrequencyBadgeSourceProps =
+  | { subject: VocabularyFrequencySubject; request?: never }
+  | { subject?: never; request: VocabularyFrequencyRequest };
+
+export type VocabularyFrequencyBadgeProps = VocabularyFrequencyBadgeCommonProps & VocabularyFrequencyBadgeSourceProps;
+
+export function VocabularyFrequencyBadge(props: VocabularyFrequencyBadgeProps) {
+  if (!props.enabled) return null;
+
+  const hasSubject = props.subject !== undefined;
+  const hasRequest = props.request !== undefined;
+  if (hasSubject === hasRequest) return null;
+
+  const request = props.request !== undefined
+    ? normalizeVocabularyFrequencyRequest(props.request)
+    : props.subject !== undefined
+      ? vocabularyFrequencyRequestForSubject(props.subject)
+      : null;
+  if (!request) return null;
+
+  return (
+    <EnabledVocabularyFrequencyBadge
+      request={request}
+      variant={props.variant ?? "review"}
+      className={props.className}
+    />
+  );
 }
 
 function EnabledVocabularyFrequencyBadge({
-  subject,
+  request,
   variant,
   className,
-}: Omit<VocabularyFrequencyBadgeProps, "enabled">) {
+}: {
+  request: VocabularyFrequencyRequest;
+  variant: NonNullable<VocabularyFrequencyBadgeProps["variant"]>;
+  className?: string;
+}) {
   const query = useQuery({
-    queryKey: vocabularyFrequencyQueryKey(subject),
-    queryFn: ({ signal }) => fetchVocabularyFrequency(subject, signal),
+    queryKey: vocabularyFrequencyQueryKeyForRequest(request),
+    queryFn: ({ signal }) => fetchVocabularyFrequencyForRequest(request, signal),
     staleTime: VOCABULARY_FREQUENCY_STALE_TIME_MS,
     retry: false,
     refetchOnWindowFocus: false,
@@ -45,7 +69,7 @@ function EnabledVocabularyFrequencyBadge({
     : query.isPending
       ? "Vocabulary frequency loading"
       : "Vocabulary frequency unavailable";
-  const classes = [styles.badge, styles[variant ?? "review"], className].filter(Boolean).join(" ");
+  const classes = [styles.badge, styles[variant], className].filter(Boolean).join(" ");
 
   return (
     <span className={classes} aria-label={accessibilityLabel} aria-live="polite">

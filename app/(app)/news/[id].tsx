@@ -2600,9 +2600,12 @@ const styles = StyleSheet.create({
   },
   inlineChipWrapper: {
     position: "relative",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipWrapperWithBadge: {
-    marginRight: 6,
+    marginRight: 2,
   },
   inlineChip: {
     position: "relative",
@@ -2613,6 +2616,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
     justifyContent: "center",
     alignItems: "center",
+    flexDirection: "row",
     borderWidth: 1.5,
     borderColor: "rgba(255, 255, 255, 0.4)",
     shadowColor: "rgba(0,0,0,0.3)",
@@ -2621,6 +2625,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     overflow: "visible",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipTitle: {
     minHeight: 38,
@@ -2633,6 +2640,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     includeFontPadding: false,
     textAlignVertical: "center",
+    flexShrink: 1,
   },
   inlineChipJapaneseText: {
     fontWeight: "normal",
@@ -2642,12 +2650,11 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
   levelBadgeChip: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 18,
+    minHeight: 18,
+    marginLeft: 4,
+    flexShrink: 0,
+    borderRadius: 999,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
@@ -2731,11 +2738,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     marginLeft: 8,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   tooltipLevelBadgeText: {
     color: "white",
     fontSize: 11,
     fontWeight: "bold",
+    flexShrink: 1,
   },
   tooltipPopupContent: {
     padding: 16,
@@ -2770,10 +2780,13 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   tooltipKanjiChipText: {
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 1,
   },
   tooltipPopupInflectionNote: {
     fontSize: 12,

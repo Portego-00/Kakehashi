@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -14,7 +15,7 @@ import { useSession } from "../../src/contexts/AuthContext";
 import { usePatreonSupporterUsernames } from "../../src/hooks/usePatreonSupporterUsernames";
 import { Issue, issueService } from "../../src/services/issueService";
 import { rankByFuzzyQuery } from "../../src/utils/fuzzyText";
-import { useAuthStore } from "../../src/utils/store";
+import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
 import IssueList from "../../src/components/issue/IssueList";
@@ -30,6 +31,7 @@ interface StatusTabProps {
   onPress: () => void;
   activeBackground: string;
   inactiveTextColor: string;
+  useLargeTextLayout: boolean;
 }
 
 function formatBadgeCount(value: number): string {
@@ -44,6 +46,7 @@ function StatusTab({
   onPress,
   activeBackground,
   inactiveTextColor,
+  useLargeTextLayout,
 }: StatusTabProps) {
   const showBadge = typeof count === "number";
   const labelColor = active ? "#FFFFFF" : inactiveTextColor;
@@ -53,6 +56,7 @@ function StatusTab({
       onPress={onPress}
       style={[
         styles.statusTab,
+        useLargeTextLayout && styles.statusTabLargeText,
         active && { backgroundColor: activeBackground },
       ]}
     >
@@ -88,6 +92,9 @@ export default function CommunityTab() {
   const PAGE_SIZE = 20;
 
   const router = useRouter();
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const { fontScale } = useWindowDimensions();
+  const useLargeTextLayout = appTextSizeScale > 1 || fontScale > 1;
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
@@ -410,6 +417,7 @@ export default function CommunityTab() {
           <View
             style={[
               styles.statusFilterTrack,
+              useLargeTextLayout && styles.statusFilterTrackLargeText,
               { backgroundColor: theme.headerSurface },
             ]}
           >
@@ -420,6 +428,7 @@ export default function CommunityTab() {
               onPress={() => handleFilterChange("open")}
               activeBackground={theme.primary}
               inactiveTextColor={theme.headerText}
+              useLargeTextLayout={useLargeTextLayout}
             />
             <StatusTab
               label="Closed"
@@ -428,6 +437,7 @@ export default function CommunityTab() {
               onPress={() => handleFilterChange("closed")}
               activeBackground={theme.primary}
               inactiveTextColor={theme.headerText}
+              useLargeTextLayout={useLargeTextLayout}
             />
           </View>
         </View>
@@ -555,11 +565,14 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    rowGap: 8,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     flex: 1,
+    minWidth: 0,
   },
   searchBar: {
     marginTop: 12,
@@ -569,20 +582,27 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 10,
-    height: 38,
+    paddingVertical: 4,
+    minHeight: 38,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    height: "100%",
-    padding: 0,
+    paddingVertical: 4,
   },
   statusFilterTrack: {
     flexDirection: "row",
-    height: 30,
+    minHeight: 30,
     borderRadius: 8,
     padding: 2,
+    alignItems: "stretch",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  statusFilterTrackLargeText: {
+    width: "100%",
   },
   statusTab: {
     flexDirection: "row",
@@ -590,23 +610,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 6,
     paddingHorizontal: 10,
+    paddingVertical: 4,
     gap: 5,
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  statusTabLargeText: {
+    flex: 1,
+    flexWrap: "wrap",
+    alignContent: "center",
+    rowGap: 2,
   },
   statusTabLabel: {
     fontSize: 12,
     fontWeight: "600",
+    textAlign: "center",
+    flexShrink: 1,
   },
   statusBadge: {
     minWidth: 18,
     paddingHorizontal: 5,
     paddingVertical: 0,
-    borderRadius: 8,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
   statusBadgeText: {
     fontSize: 10,
     fontWeight: "700",
+    textAlign: "center",
   },
   content: {
     flex: 1,

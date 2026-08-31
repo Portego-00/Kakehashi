@@ -127,13 +127,22 @@
 .counts > button:disabled { opacity: .6; cursor: wait; }
 .readonlyCount { min-height: 2.25rem; display: inline-flex; align-items: center; gap: var(--space-2xs); color: var(--color-muted); padding-inline: var(--space-sm); font-variant-numeric: tabular-nums; }
 .meta { color: var(--color-muted); font-size: var(--text-sm); }
+.authorMeta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); }
+.authorName { min-width: 0; display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2xs); color: var(--color-ink-2); }
+.authorName strong { overflow: hidden; text-overflow: ellipsis; }
+.developerBadge, .supporterBadge { min-height: 1.25rem; padding: 0 var(--space-2xs); font-size: .625rem; font-weight: 800; line-height: 1; }
+.developerBadge { background: var(--color-accent); color: var(--color-accent-ink); }
+.supporterBadge { border: var(--rule-thin) solid var(--color-rule); background: var(--color-paper-2); color: var(--color-ink-2); }
 .loading { min-height: 13rem; display: grid; place-items: center; color: var(--color-muted); }
 
-.avatar {
+.userMark {
   position: relative;
   width: 2.5rem;
   height: 2.5rem;
   flex: 0 0 auto;
+}
+.userMark > .avatar {
+  --profile-avatar-size: 2.5rem;
   display: grid;
   place-items: center;
   border: var(--rule-thin) solid var(--color-rule);
@@ -142,7 +151,7 @@
   color: var(--color-ink-2);
   font-weight: 750;
 }
-.avatar small { position: absolute; right: -.25rem; bottom: -.2rem; min-width: 1.15rem; height: 1.15rem; display: grid; place-items: center; border: 2px solid var(--color-surface); border-radius: 50%; background: var(--color-accent); color: var(--color-accent-ink); font-size: .6rem; line-height: 1; }
+.userMark small { position: absolute; right: -.25rem; bottom: -.2rem; min-width: 1.15rem; height: 1.15rem; display: grid; place-items: center; border: 2px solid var(--color-surface); border-radius: 50%; background: var(--color-accent); color: var(--color-accent-ink); font-size: .6rem; line-height: 1; }
 
 .back { width: fit-content; min-height: 2.75rem; display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-muted); }
 .compactHero { padding-block: var(--space-sm) var(--space-lg); border-bottom: var(--rule-thin) solid var(--color-rule-2); }
@@ -234,7 +243,7 @@
 
 @media (max-width: 24rem) {
   .issue { grid-template-columns: 1fr; }
-  .issue > .avatar { display: none; }
+  .issue > .userMark { display: none; }
   .issue > .counts { grid-column: 1; }
   .issueTitle { flex-direction: column-reverse; gap: var(--space-xs); }
   .pagination { justify-content: space-between; }

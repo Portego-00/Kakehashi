@@ -1064,7 +1064,7 @@ export default function LessonPicker({
               (lesson.subject.object === "vocabulary" ||
                 lesson.subject.object === "kana_vocabulary") &&
                 characters.length > 1 && {
-                  width: 48 + (characters.length - 2) * 24 + 16,
+                  minWidth: 48 + (characters.length - 2) * 24 + 16,
                 },
             ]}
           >
@@ -1172,7 +1172,6 @@ export default function LessonPicker({
             >
               <Text
                 style={[styles.globalSelectAllText, { color: theme.headerText }]}
-                numberOfLines={1}
               >
                 {filteredLessons.length > 0 &&
                 filteredLessons.every((lesson) => selectedItems.has(lesson.id))
@@ -1568,9 +1567,10 @@ const styles = StyleSheet.create({
     top: -5,
     right: -5,
     minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    minHeight: 16,
+    borderRadius: 999,
     paddingHorizontal: 4,
+    paddingVertical: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ffffff",
@@ -1583,7 +1583,7 @@ const styles = StyleSheet.create({
   globalSelectAllButton: {
     paddingHorizontal: 8,
     paddingVertical: 6,
-    width: 74,
+    minWidth: 74,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 6,
@@ -1596,6 +1596,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
     textAlign: "center",
+    flexShrink: 1,
   },
   listContainer: {
     flex: 1,
@@ -1892,12 +1893,15 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   listLessonCharacterBox: {
-    width: 48,
-    height: 48,
+    minWidth: 48,
+    minHeight: 48,
     borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     marginRight: 12,
+    flexShrink: 0,
   },
   listLessonDetails: {
     flex: 1,

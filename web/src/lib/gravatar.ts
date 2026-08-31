@@ -1,4 +1,5 @@
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const GRAVATAR_HASH_PATTERN = /^[a-f\d]{32}$/;
 
 const MD5_SHIFTS = [
   7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
@@ -83,9 +84,19 @@ export function normalizeGravatarEmail(value: unknown) {
   return normalized.length <= 254 && EMAIL_PATTERN.test(normalized) ? normalized : "";
 }
 
-export function gravatarUrl(email: unknown, size: number, cacheToken?: string) {
+export function gravatarHash(email: unknown) {
   const normalizedEmail = normalizeGravatarEmail(email);
   if (!normalizedEmail) return null;
-  const baseUrl = `https://www.gravatar.com/avatar/${md5(normalizedEmail)}?d=404&s=${Math.ceil(size * 2)}`;
+  return md5(normalizedEmail);
+}
+
+export function gravatarUrlFromHash(hash: unknown, size: number, cacheToken?: string) {
+  const normalizedHash = typeof hash === "string" ? hash.trim().toLowerCase() : "";
+  if (!GRAVATAR_HASH_PATTERN.test(normalizedHash)) return null;
+  const baseUrl = `https://www.gravatar.com/avatar/${normalizedHash}?d=404&s=${Math.ceil(size * 2)}`;
   return cacheToken ? `${baseUrl}&v=${encodeURIComponent(cacheToken)}` : baseUrl;
+}
+
+export function gravatarUrl(email: unknown, size: number, cacheToken?: string) {
+  return gravatarUrlFromHash(gravatarHash(email), size, cacheToken);
 }

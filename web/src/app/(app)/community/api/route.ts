@@ -7,10 +7,12 @@ import {
   communityIdentity,
   communityIdentityOrNull,
   communityIssueCounts,
+  communitySupporterUsernames,
   communityWritable,
   deleteCommunityIssue,
   encodeFilter,
   supabaseRequest,
+  syncCommunityAuthorEmail,
   toggleCommunityLike,
 } from "@/features/community/server";
 import { readBoundedRequestJson } from "@/features/content/server-security";
@@ -18,12 +20,14 @@ import { clientAddress, isTrustedMutationOrigin } from "@/lib/server/request-sec
 import { opaqueRateLimitKey, takeRateLimit, type RateLimitResult } from "@/lib/server/rate-limit";
 import { boundedIdChunks, boundedPage } from "@/features/community/pagination";
 import { webIssueOriginLabels } from "@/features/community/issue-origin";
-import { COMMUNITY_ISSUE_READ_SELECT, publicCommunityIssue } from "@/features/community/public-issue";
+import { COMMUNITY_COMMENT_READ_SELECT, COMMUNITY_ISSUE_READ_SELECT, publicCommunityComment, publicCommunityIssue } from "@/features/community/public-issue";
+import { normalizeGravatarEmail } from "@/lib/gravatar";
 
 const requestId = z.string().uuid();
+const gravatarEmail = z.string().max(254).refine((value) => Boolean(normalizeGravatarEmail(value))).transform((value) => normalizeGravatarEmail(value)).optional();
 const actionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("createIssue"), title: z.string().trim().min(4).max(160), content: z.string().trim().min(8).max(12_000) }),
-  z.object({ action: z.literal("addComment"), issueId: z.string().uuid(), content: z.string().trim().min(1).max(6_000), replyToCommentId: z.string().uuid().nullable().optional(), requestId }),
+  z.object({ action: z.literal("createIssue"), title: z.string().trim().min(4).max(160), content: z.string().trim().min(8).max(12_000), gravatarEmail }),
+  z.object({ action: z.literal("addComment"), issueId: z.string().uuid(), content: z.string().trim().min(1).max(6_000), replyToCommentId: z.string().uuid().nullable().optional(), requestId, gravatarEmail }),
   z.object({ action: z.literal("toggleIssueLike"), issueId: z.string().uuid(), requestId }),
   z.object({ action: z.literal("toggleCommentLike"), commentId: z.string().uuid(), requestId }),
   z.object({ action: z.literal("updateStatus"), issueId: z.string().uuid(), status: z.enum(["open", "closed"]) }),
@@ -33,7 +37,7 @@ const actionSchema = z.discriminatedUnion("action", [
 
 function jsonError(message: string, status: number, headers?: HeadersInit) { return NextResponse.json({ error: message }, { status, headers }); }
 function rateLimited(result: RateLimitResult) { return jsonError(`Too many requests. Try again in ${result.retryAfterSeconds} seconds.`, 429, { "Retry-After": String(result.retryAfterSeconds) }); }
-async function identityOrError() { try { return { identity: await communityIdentity() }; } catch (error) { return { response: jsonError(error instanceof Error ? error.message : "Sign in to continue.", 401) }; } }
+async function identityOrError(savedGravatarEmail?: string) { try { return { identity: await communityIdentity(savedGravatarEmail) }; } catch (error) { return { response: jsonError(error instanceof Error ? error.message : "Sign in to continue.", 401) }; } }
 
 export async function GET(request: NextRequest) {
   const readLimit = takeRateLimit(opaqueRateLimitKey("community-read", clientAddress(request)), 240, 60_000);
@@ -52,12 +56,13 @@ export async function GET(request: NextRequest) {
       const filters = [`select=${COMMUNITY_ISSUE_READ_SELECT}`, "limit=21", `offset=${page * 20}`, `order=${sort}`];
       if (status === "open" || status === "closed") filters.push(`status=eq.${status}`);
       if (query) { const value = encodeFilter(query); filters.push(`or=(title.ilike.*${value}*,content.ilike.*${value}*,user_username.ilike.*${value}*)`); }
-      const [rows, counts, identity] = await Promise.all([
+      const [rows, counts, identity, supporterUsernames] = await Promise.all([
         supabaseRequest(`issues?${filters.join("&")}`),
         communityIssueCounts(query),
         communityIdentityOrNull(),
+        communitySupporterUsernames(),
       ]);
-      const items = Array.isArray(rows) ? rows.slice(0, 20).map(publicCommunityIssue).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+      const items = Array.isArray(rows) ? rows.slice(0, 20).map((row) => publicCommunityIssue(row, supporterUsernames)).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
       const likedIssueIds = new Set<string>();
       if (identity && items.length > 0) {
         const likePages = await Promise.all(boundedIdChunks(items.map((item) => (item as Record<string, unknown>).id), 20, 20).map((ids) => supabaseRequest(`issue_likes?select=issue_id&issue_id=in.(${ids.join(",")})&user_id=eq.${encodeURIComponent(identity.id)}&limit=${ids.length}`)));
@@ -69,15 +74,17 @@ export async function GET(request: NextRequest) {
       const id = request.nextUrl.searchParams.get("id") || "";
       if (!z.string().uuid().safeParse(id).success) return jsonError("Invalid issue.", 400);
       const commentPage = boundedPage(request.nextUrl.searchParams.get("commentPage"));
-      const identity = await communityIdentityOrNull();
-      const [issueRows, commentRows] = await Promise.all([
+      const [identity, issueRows, commentRows, supporterUsernames] = await Promise.all([
+        communityIdentityOrNull(),
         supabaseRequest(`issues?select=${COMMUNITY_ISSUE_READ_SELECT}&id=eq.${encodeURIComponent(id)}&limit=1`),
-        supabaseRequest(`issue_comments?select=*&issue_id=eq.${encodeURIComponent(id)}&order=created_at.asc&limit=51&offset=${commentPage * 50}`),
+        supabaseRequest(`issue_comments?select=${COMMUNITY_COMMENT_READ_SELECT}&issue_id=eq.${encodeURIComponent(id)}&order=created_at.asc&limit=51&offset=${commentPage * 50}`),
+        communitySupporterUsernames(),
       ]);
-      const issue = Array.isArray(issueRows) ? issueRows[0] as Record<string, unknown> : null;
+      const rawIssue = Array.isArray(issueRows) ? issueRows[0] as Record<string, unknown> : null;
       const allCommentRows = Array.isArray(commentRows) ? commentRows as Array<Record<string, unknown>> : [];
-      const comments = allCommentRows.slice(0, 50);
-      if (!issue) return jsonError("Issue not found.", 404);
+      const comments = allCommentRows.slice(0, 50).map((comment) => publicCommunityComment(comment, supporterUsernames)).filter((comment): comment is Record<string, unknown> => Boolean(comment));
+      const issue = publicCommunityIssue(rawIssue, supporterUsernames);
+      if (!rawIssue || !issue) return jsonError("Issue not found.", 404);
       let issueLiked = false; const likedCommentIds = new Set<string>();
       if (identity) {
         const commentLikeChunks = boundedIdChunks(comments.map((comment) => comment.id));
@@ -88,11 +95,11 @@ export async function GET(request: NextRequest) {
         issueLiked = Array.isArray(issueLikes) && issueLikes.length > 0;
         commentLikePages.forEach((page) => { if (Array.isArray(page)) page.forEach((like) => likedCommentIds.add(String((like as Record<string, unknown>).comment_id || ""))); });
       }
-      return NextResponse.json({ configured: true, writable: communityWritable(), issue: { ...publicCommunityIssue(issue), is_liked: issueLiked }, comments: comments.map((comment) => ({ ...comment, is_liked: likedCommentIds.has(String(comment.id)) })), commentPage, commentsHasMore: allCommentRows.length > 50, canManage: Boolean(communityWritable() && identity && canManageCommunityIssue(issue, identity)) });
+      return NextResponse.json({ configured: true, writable: communityWritable(), issue: { ...issue, is_liked: issueLiked }, comments: comments.map((comment) => ({ ...comment, is_liked: likedCommentIds.has(String(comment.id)) })), commentPage, commentsHasMore: allCommentRows.length > 50, canManage: Boolean(communityWritable() && identity && canManageCommunityIssue(rawIssue, identity)) });
     }
     if (action === "supporters") {
       const page = boundedPage(request.nextUrl.searchParams.get("page"));
-      const rows = await supabaseRequest(`patreon_supporters?select=id,wanikani_username,display_name,wanikani_level,avatar_url,profile_url,support_tier,sort_order&order=sort_order.asc.nullslast,display_name.asc&limit=61&offset=${page * 60}`);
+      const rows = await supabaseRequest(`patreon_supporters?select=id,wanikani_username,display_name,wanikani_level,avatar_url,profile_url,support_tier,sort_order&is_active=eq.true&order=sort_order.asc.nullslast,display_name.asc&limit=61&offset=${page * 60}`);
       const items = Array.isArray(rows) ? rows.slice(0, 60).map((entry) => {
         const row = entry as Record<string, unknown>;
         return {
@@ -132,17 +139,22 @@ export async function POST(request: NextRequest) {
     }
     if (!communityConfigured()) return jsonError("The shared community service is not configured.", 503);
     if (!communityWritable()) return jsonError("This deployment can read the community, but posting requires its server-side Supabase secret key.", 503);
-    const auth = await identityOrError(); if (auth.response) return auth.response; const identity = auth.identity!;
+    const savedGravatarEmail = parsed.data.action === "createIssue" || parsed.data.action === "addComment" ? parsed.data.gravatarEmail : undefined;
+    const auth = await identityOrError(savedGravatarEmail); if (auth.response) return auth.response; const identity = auth.identity!;
     const userLimit = takeRateLimit(opaqueRateLimitKey("community-user-mutation", identity.id), 30, 60_000);
     if (!userLimit.allowed) return rateLimited(userLimit);
 
     if (parsed.data.action === "createIssue") {
-      const items = await supabaseRequest(`issues?select=${COMMUNITY_ISSUE_READ_SELECT}`, { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: identity.id, user_email: identity.email, user_username: identity.username, user_level: identity.level, title: parsed.data.title, content: parsed.data.content, labels: webIssueOriginLabels(), status: "open" }) });
-      return NextResponse.json({ item: publicCommunityIssue(Array.isArray(items) ? items[0] : items) }, { status: 201 });
+      const [items, supporterUsernames] = await Promise.all([
+        supabaseRequest(`issues?select=${COMMUNITY_ISSUE_READ_SELECT}`, { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: identity.id, user_email: identity.email, user_username: identity.username, user_level: identity.level, title: parsed.data.title, content: parsed.data.content, labels: webIssueOriginLabels(), status: "open" }) }),
+        communitySupporterUsernames(),
+        syncCommunityAuthorEmail(identity),
+      ]);
+      return NextResponse.json({ item: publicCommunityIssue(Array.isArray(items) ? items[0] : items, supporterUsernames) }, { status: 201 });
     }
     if (parsed.data.action === "addComment") {
-      const item = await addCommunityComment(parsed.data, identity);
-      return NextResponse.json({ item }, { status: 201 });
+      const [item, supporterUsernames] = await Promise.all([addCommunityComment(parsed.data, identity), communitySupporterUsernames(), syncCommunityAuthorEmail(identity)]);
+      return NextResponse.json({ item: publicCommunityComment(item, supporterUsernames) }, { status: 201 });
     }
     if (parsed.data.action === "updateStatus" || parsed.data.action === "deleteIssue") {
       const owned = await supabaseRequest(`issues?select=id,user_id,user_username&id=eq.${parsed.data.issueId}&limit=1`) as Array<Record<string, unknown>>;
@@ -151,8 +163,11 @@ export async function POST(request: NextRequest) {
         await deleteCommunityIssue(parsed.data.issueId);
         return NextResponse.json({ ok: true });
       }
-      const items = await supabaseRequest(`issues?id=eq.${parsed.data.issueId}&select=${COMMUNITY_ISSUE_READ_SELECT}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ status: parsed.data.status }) });
-      return NextResponse.json({ item: publicCommunityIssue(Array.isArray(items) ? items[0] : items) });
+      const [items, supporterUsernames] = await Promise.all([
+        supabaseRequest(`issues?id=eq.${parsed.data.issueId}&select=${COMMUNITY_ISSUE_READ_SELECT}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ status: parsed.data.status }) }),
+        communitySupporterUsernames(),
+      ]);
+      return NextResponse.json({ item: publicCommunityIssue(Array.isArray(items) ? items[0] : items, supporterUsernames) });
     }
     const result = parsed.data.action === "toggleIssueLike"
       ? await toggleCommunityLike("issue", parsed.data.issueId, parsed.data.requestId, identity)

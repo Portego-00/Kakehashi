@@ -326,7 +326,7 @@
 .readerGrid[data-token-decoration="plain"] .token { padding: 0; text-decoration: none; }
 .tokenSelected { border-radius: var(--radius-sm); background: color-mix(in oklch, var(--reader-token-color) 18%, transparent); box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-ink) 34%, transparent); color: inherit; }
 
-.inspector { --reader-inspector-color: var(--color-vocabulary); display: grid; gap: 0; overflow: hidden; padding: 0; border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-floating); }
+.inspector { --reader-inspector-color: var(--color-vocabulary); container-type: inline-size; display: grid; gap: 0; overflow: hidden; padding: 0; border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-floating); }
 .inspector[data-kind="radical"] { --reader-inspector-color: var(--color-radical); }
 .inspector[data-kind="kanji"] { --reader-inspector-color: var(--color-kanji); }
 .inspector[data-kind="vocabulary"] { --reader-inspector-color: var(--color-vocabulary); }
@@ -334,9 +334,12 @@
 .inspector[data-kind="verb"] { --reader-inspector-color: var(--color-reader-verb); }
 .readerInspectorHeader { min-width: 0; min-height: 4.5rem; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); background: var(--reader-inspector-color); color: var(--color-subject-text); }
 .lookupTerm { min-width: 0; font-family: var(--font-display); font-size: var(--text-2xl); overflow-wrap: anywhere; }
-.readerInspectorHeader > span { padding: var(--space-2xs) var(--space-xs); border-radius: var(--radius-md); background: var(--color-subject-scrim); font-size: var(--text-xs); font-weight: 800; white-space: nowrap; }
-.readerInspectorMeta { display: inline-flex; align-items: center; gap: var(--space-2xs); }
+.readerInspectorBadges { min-width: 0; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2xs); }
+.readerInspectorMeta, .readerInspectorFrequencyChip { min-height: 1.75rem; display: inline-flex; align-items: center; justify-content: center; padding: var(--space-2xs) var(--space-xs); border-radius: var(--radius-md); background: var(--color-subject-scrim); font-size: var(--text-xs); font-weight: 800; line-height: 1; white-space: nowrap; }
+.readerInspectorMeta { gap: var(--space-2xs); }
 .readerInspectorMeta > svg { flex: 0 0 auto; }
+.readerInspectorFrequencyChip { font-variant-numeric: tabular-nums; }
+.readerInspectorFrequencyChip .readerInspectorFrequencyValue { color: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; }
 .readerInspectorSpeak { width: 2.25rem; height: 2.25rem; display: grid; place-items: center; padding: 0; border: var(--rule-thin) solid var(--color-subject-rule); border-radius: var(--radius-md); background: transparent; color: inherit; cursor: pointer; }
 .readerInspectorSpeak[data-state="loading"], .readerInspectorSpeak[data-state="synthesizing"] { cursor: progress; }
 .readerInspectorSpeak[data-state="playing"] { background: var(--color-subject-scrim); box-shadow: 0 0 0 2px color-mix(in oklch, currentColor 24%, transparent); }
@@ -363,6 +366,13 @@
 .readerFloatingLayer { z-index: calc(var(--z-tooltip) + 1); max-width: calc(100vw - var(--space-md) - var(--space-md)); pointer-events: none; }
 .readerFloatingInspector { position: static; top: auto; width: 100%; max-height: inherit; overflow-y: auto; color: var(--color-ink); pointer-events: auto; animation: readerInspectorEnter var(--dur-short) var(--ease-out) both; }
 @keyframes readerInspectorEnter { from { opacity: 0; transform: translateY(var(--space-xs)) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@container (max-width: 25rem) {
+  .readerInspectorHeader { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "term audio" "badges badges"; }
+  .lookupTerm { grid-area: term; }
+  .readerInspectorBadges { grid-area: badges; justify-content: flex-start; }
+  .readerInspectorSpeak { grid-area: audio; }
+}
 
 .newsToolbar { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-sm); }
 .newsSearchField { min-width: 0; }

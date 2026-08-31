@@ -11,7 +11,7 @@ const POSITIVE_AUTH_TTL_MS = 5 * 60_000;
 const INVALID_AUTH_TTL_MS = 60_000;
 const UPSTREAM_FAILURE_TTL_MS = 5_000;
 const AUTH_RATE_WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_TOKEN = 30;
+const MAX_REQUESTS_PER_TOKEN = 40;
 const MAX_AUTH_CACHE_ENTRIES = 500;
 const MAX_RATE_LIMIT_ENTRIES = 500;
 const MAX_CONCURRENT_WANIKANI_REQUESTS = 8;
@@ -41,7 +41,9 @@ const ACTIVITY_KEYS = new Set([
   "writing_freehand",
   "context_sentence",
   "listening_practice",
+  "jlpt",
   "crossword",
+  "word_search",
   "wordle",
   "news",
   "songs",
@@ -203,12 +205,12 @@ export function validateStudyTimeSyncPayload(
     return null;
   }
 
-  // A local calendar can be one day ahead of UTC. Allow that without allowing
-  // arbitrary future rows, while keeping the inclusive window at 430 days.
-  const latestDate = new Date(now.getTime() + 86_400_000);
-  const latestDay = dateKey(latestDate);
+  // A 430-local-day ledger spans a wider union at a single UTC instant: a
+  // UTC-12 device can retain UTC-today-430 while a UTC+14 device can already
+  // write UTC-tomorrow. Accept those timezone endpoints, but nothing beyond.
+  const latestDay = dateKey(new Date(now.getTime() + MAX_DAY_MS));
   const earliestDay = dateKey(
-    new Date(latestDate.getTime() - (HISTORY_DAYS - 1) * 86_400_000),
+    new Date(now.getTime() - HISTORY_DAYS * MAX_DAY_MS),
   );
   const seenDays = new Set<string>();
   const days: ValidatedSyncDay[] = [];

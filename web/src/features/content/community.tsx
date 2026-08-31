@@ -5,7 +5,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, Heart, MessageSquare, Monitor, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
+import { PatreonIcon } from "@/components/icons/BrandIcons";
+import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Badge } from "@/components/ui/Badge";
+import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useSession } from "@/lib/session";
 import { communityAccountScope, useDraftNavigationGuard, usePersistentCommunityDraft } from "@/features/community/drafts";
 import { CommunityMarkdown, safeCommunityMediaUrl } from "@/features/community/CommunityMarkdown";
@@ -16,9 +19,11 @@ import styles from "./community.module.css";
 export interface SharedIssue {
   id: string;
   user_id?: string | null;
-  user_email?: string | null;
   user_username: string;
   user_level?: number | null;
+  user_gravatar_hash?: string | null;
+  is_developer?: boolean;
+  is_patreon_supporter?: boolean;
   title: string;
   content: string;
   status: "open" | "closed";
@@ -34,9 +39,11 @@ export interface SharedComment {
   id: string;
   issue_id: string;
   user_id?: string | null;
-  user_email?: string | null;
   user_username: string | null;
   user_level?: number | null;
+  user_gravatar_hash?: string | null;
+  is_developer?: boolean;
+  is_patreon_supporter?: boolean;
   content: string;
   created_at: string;
   updated_at?: string;
@@ -88,8 +95,13 @@ function relativeTime(value: string) {
 
 function countLabel(value: number | undefined) { return Number(value || 0).toLocaleString(); }
 
-function UserMark({ name, level }: { name: string | null; level?: number | null }) {
-  return <span className={styles.avatar} aria-hidden="true"><span>{(name || "L").slice(0, 1).toUpperCase()}</span>{level ? <small>{level}</small> : null}</span>;
+function UserMark({ name, hash, level }: { name: string | null; hash?: string | null; level?: number | null }) {
+  const initial = name?.trim().charAt(0).toUpperCase() || "L";
+  return <span className={styles.userMark} aria-hidden="true"><UserAvatar className={styles.avatar} hash={hash} fallback={initial} />{typeof level === "number" ? <small>{level}</small> : null}</span>;
+}
+
+function AuthorName({ name, isDeveloper, isPatreonSupporter }: { name: string | null; isDeveloper?: boolean; isPatreonSupporter?: boolean }) {
+  return <span className={styles.authorName}><strong>{name || "Learner"}</strong>{isDeveloper ? <Badge className={styles.developerBadge}>DEV</Badge> : null}{isPatreonSupporter ? <Badge className={styles.supporterBadge}><PatreonIcon size={11} />Supporter</Badge> : null}</span>;
 }
 
 function IssueOriginBadge({ labels }: { labels?: string[] | null }) {
@@ -186,11 +198,11 @@ export function CommunityWorkspace() {
       {error ? <div className={styles.error} role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>Try again</button></div> : null}
       {loading ? <div className={styles.loading} role="status">Loading issues…</div> : issues.length ? <>
         <div className={styles.issueList}>{issues.map((issue) => <article className={styles.issue} key={issue.id}>
-          <UserMark name={issue.user_username} level={issue.user_level} />
+          <UserMark name={issue.user_username} hash={issue.user_gravatar_hash} level={issue.user_level} />
           <Link href={`/community/${issue.id}`} className={styles.issueMain}>
             <div className={styles.issueTitle}><h2>{issue.title}</h2><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div></div>
             <p>{issue.content}</p>
-            <span className={styles.meta}>{issue.user_username} · {relativeTime(issue.created_at)}</span>
+            <span className={`${styles.meta} ${styles.authorMeta}`}><AuthorName name={issue.user_username} isDeveloper={issue.is_developer} isPatreonSupporter={issue.is_patreon_supporter} /><span aria-hidden="true">·</span><span>{relativeTime(issue.created_at)}</span></span>
           </Link>
           <div className={styles.counts}>
             <span><MessageSquare size={15} aria-hidden="true" />{countLabel(issue.reply_count)}</span>
@@ -206,6 +218,7 @@ export function CommunityWorkspace() {
 export function NewIssueWorkspace() {
   const router = useRouter();
   const { user } = useSession();
+  const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const [draft, setDraft, discardDraft] = usePersistentCommunityDraft(communityAccountScope(user), "new-issue", { title: "", content: "" });
   const { title, content } = draft;
   const [preview, setPreview] = useState(false);
@@ -222,7 +235,8 @@ export function NewIssueWorkspace() {
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     try {
-      const payload = await postCommunity<{ item: SharedIssue }>({ action: "createIssue", title, content });
+      const gravatarEmail = webSettings.profile.gravatarEmail.trim();
+      const payload = await postCommunity<{ item: SharedIssue }>({ action: "createIssue", title, content, ...(gravatarEmail ? { gravatarEmail } : {}) });
       discardDraft();
       router.push(`/community/${payload.item.id}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "The issue could not be created."); setBusy(false); }
@@ -234,6 +248,7 @@ export function NewIssueWorkspace() {
 export function IssueDetailWorkspace({ id }: { id: string }) {
   const router = useRouter();
   const { user } = useSession();
+  const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const [issue, setIssue] = useState<SharedIssue | null>(null);
   const [comments, setComments] = useState<SharedComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -270,7 +285,8 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
     const operationId = replyDraft.requestId || crypto.randomUUID();
     if (!replyDraft.requestId) setReplyDraft((current) => ({ ...current, requestId: operationId }));
     try {
-      const payload = await postCommunity<{ item: SharedComment }>({ action: "addComment", issueId: id, content: reply, replyToCommentId: replyDraft.replyToCommentId || null, requestId: operationId });
+      const gravatarEmail = webSettings.profile.gravatarEmail.trim();
+      const payload = await postCommunity<{ item: SharedComment }>({ action: "addComment", issueId: id, content: reply, replyToCommentId: replyDraft.replyToCommentId || null, requestId: operationId, ...(gravatarEmail ? { gravatarEmail } : {}) });
       setComments((current) => [...current, payload.item]);
       setIssue((current) => current ? { ...current, reply_count: current.reply_count + 1 } : current);
       discardReplyDraft();
@@ -322,13 +338,13 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   return <main className={styles.page}>
     <Link className={styles.back} href="/community"><ArrowLeft size={17} aria-hidden="true" />Back to community</Link>
     <article className={styles.thread}>
-      <header><UserMark name={issue.user_username} level={issue.user_level} /><div className={styles.threadTitle}><div><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div><h1>{issue.title}</h1><p className={styles.meta}>{issue.user_username} · {relativeTime(issue.created_at)}</p></div><div className={styles.actions}>{writable ? <button className={styles.secondary} type="button" disabled={pendingLikes.has(`issue:${issue.id}`)} aria-pressed={Boolean(issue.is_liked)} aria-label={`${issue.is_liked ? "Unlike" : "Like"} issue, ${issue.likes_count || 0} likes`} onClick={() => void toggleLike("issue", issue.id)}><Heart size={17} fill={issue.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(issue.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={17} aria-hidden="true" />{countLabel(issue.likes_count)}</span>}{canManage ? <><button className={styles.secondary} type="button" disabled={busy} onClick={() => void updateStatus()}><CheckCircle2 size={17} aria-hidden="true" />{issue.status === "open" ? "Close" : "Reopen"}</button><button className={styles.dangerButton} type="button" disabled={busy} onClick={() => void deleteIssue()}><Trash2 size={17} aria-hidden="true" />Delete</button></> : null}</div></div></header>
+      <header><UserMark name={issue.user_username} hash={issue.user_gravatar_hash} level={issue.user_level} /><div className={styles.threadTitle}><div><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div><h1>{issue.title}</h1><p className={`${styles.meta} ${styles.authorMeta}`}><AuthorName name={issue.user_username} isDeveloper={issue.is_developer} isPatreonSupporter={issue.is_patreon_supporter} /><span aria-hidden="true">·</span><span>{relativeTime(issue.created_at)}</span></p></div><div className={styles.actions}>{writable ? <button className={styles.secondary} type="button" disabled={pendingLikes.has(`issue:${issue.id}`)} aria-pressed={Boolean(issue.is_liked)} aria-label={`${issue.is_liked ? "Unlike" : "Like"} issue, ${issue.likes_count || 0} likes`} onClick={() => void toggleLike("issue", issue.id)}><Heart size={17} fill={issue.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(issue.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={17} aria-hidden="true" />{countLabel(issue.likes_count)}</span>}{canManage ? <><button className={styles.secondary} type="button" disabled={busy} onClick={() => void updateStatus()}><CheckCircle2 size={17} aria-hidden="true" />{issue.status === "open" ? "Close" : "Reopen"}</button><button className={styles.dangerButton} type="button" disabled={busy} onClick={() => void deleteIssue()}><Trash2 size={17} aria-hidden="true" />Delete</button></> : null}</div></div></header>
       <CommunityMarkdown>{issue.content}</CommunityMarkdown>
     </article>
     {error ? <p className={styles.error} role="alert">{error}</p> : null}
     <section className={styles.replies}>
       <h2>{countLabel(issue.reply_count)} {issue.reply_count === 1 ? "reply" : "replies"}</h2>
-      {comments.map((comment) => { const parent = comments.find((candidate) => candidate.id === comment.reply_to_comment_id); return <article key={comment.id}><header><div className={styles.commentAuthor}><UserMark name={comment.user_username} level={comment.user_level} /><div><strong>{comment.user_username || "Learner"}</strong><span className={styles.meta}>{relativeTime(comment.created_at)}</span></div></div>{writable ? <button className={styles.textButton} type="button" disabled={pendingLikes.has(`comment:${comment.id}`)} aria-pressed={Boolean(comment.is_liked)} aria-label={`${comment.is_liked ? "Unlike" : "Like"} reply by ${comment.user_username || "learner"}, ${comment.likes_count || 0} likes`} onClick={() => void toggleLike("comment", comment.id)}><Heart size={15} fill={comment.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(comment.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={15} aria-hidden="true" />{countLabel(comment.likes_count)}</span>}</header>{comment.reply_to_comment_id ? <div className={styles.replyContext}><span>Replying to {parent?.user_username || "an earlier comment"}</span>{parent ? <p>{parent.content}</p> : null}</div> : null}<CommunityMarkdown>{comment.content}</CommunityMarkdown>{writable ? <button className={styles.replyAction} type="button" onClick={() => { setReplyDraft((current) => ({ ...current, replyToCommentId: comment.id, requestId: "" })); document.getElementById("community-reply")?.focus(); }}>Reply</button> : null}</article>; })}
+      {comments.map((comment) => { const parent = comments.find((candidate) => candidate.id === comment.reply_to_comment_id); return <article key={comment.id}><header><div className={styles.commentAuthor}><UserMark name={comment.user_username} hash={comment.user_gravatar_hash} level={comment.user_level} /><div><AuthorName name={comment.user_username} isDeveloper={comment.is_developer} isPatreonSupporter={comment.is_patreon_supporter} /><span className={styles.meta}>{relativeTime(comment.created_at)}</span></div></div>{writable ? <button className={styles.textButton} type="button" disabled={pendingLikes.has(`comment:${comment.id}`)} aria-pressed={Boolean(comment.is_liked)} aria-label={`${comment.is_liked ? "Unlike" : "Like"} reply by ${comment.user_username || "learner"}, ${comment.likes_count || 0} likes`} onClick={() => void toggleLike("comment", comment.id)}><Heart size={15} fill={comment.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(comment.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={15} aria-hidden="true" />{countLabel(comment.likes_count)}</span>}</header>{comment.reply_to_comment_id ? <div className={styles.replyContext}><span>Replying to {parent?.user_username || "an earlier comment"}</span>{parent ? <p>{parent.content}</p> : null}</div> : null}<CommunityMarkdown>{comment.content}</CommunityMarkdown>{writable ? <button className={styles.replyAction} type="button" onClick={() => { setReplyDraft((current) => ({ ...current, replyToCommentId: comment.id, requestId: "" })); document.getElementById("community-reply")?.focus(); }}>Reply</button> : null}</article>; })}
       <nav className={styles.pagination} aria-label="Reply pages"><button type="button" disabled={commentPage === 0 || busy} onClick={() => setCommentPage((value) => Math.max(0, value - 1))}>Previous</button><span>Page {commentPage + 1}</span><button type="button" disabled={!commentsHasMore || busy} onClick={() => setCommentPage((value) => value + 1)}>Next</button></nav>
       {writable ? <form className={styles.replyBox} onSubmit={(event) => void addReply(event)}>{replyTarget ? <div className={styles.replyingTo}><span>Replying to {replyTarget.user_username || "Learner"}</span><button type="button" aria-label="Cancel reply to comment" onClick={() => setReplyDraft((current) => ({ ...current, replyToCommentId: "", requestId: "" }))}><X size={16} aria-hidden="true" /></button></div> : null}<label htmlFor="community-reply">Reply as {user?.data.username || "learner"}</label><textarea id="community-reply" value={reply} onChange={(event) => setReplyDraft((current) => ({ ...current, content: event.target.value, requestId: "" }))} placeholder="Add a useful reply" maxLength={6_000} /><div className={styles.actions}><button className={styles.secondary} type="button" disabled={!replyDirty || busy} onClick={discardReplyDraft}>Discard draft</button><button className={styles.primary} type="submit" disabled={busy || !reply.trim()}><MessageSquare size={17} aria-hidden="true" />{busy ? "Posting…" : "Reply"}</button></div></form> : <div className={styles.notice}><strong>Read-only community</strong><span>This deployment needs a server-side Supabase secret key before it can post replies or likes.</span></div>}
     </section>

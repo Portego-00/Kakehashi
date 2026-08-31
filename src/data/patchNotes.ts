@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.8",
+    date: "2026-08-31",
+    changes: [
+      {
+        type: "feature",
+        title: "JLPT Quizzes",
+        description:
+          "Practice N5 through N1 with quick mixed-skill quizzes or timed mock exams, including listening, detailed results, and weak-area review.",
+        link: {
+          route: "/jlpt",
+          label: "Open JLPT Quizzes",
+        },
+      },
+    ],
+  },
+  {
     version: "1.4.7",
     date: "2026-08-30",
     changes: [

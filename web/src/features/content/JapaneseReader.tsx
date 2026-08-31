@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { autoUpdate, flip, offset, shift, size, useFloating } from "@floating-ui/react-dom";
 import { ArrowRight, Download, ExternalLink, Languages, LoaderCircle, LockKeyhole, Square, Volume2 } from "lucide-react";
 import { SrsStageIcon } from "@/components/SrsStageIcon";
+import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
+import { vocabularyFrequencyRequestForSubject, type VocabularyFrequencyRequest } from "@/features/core-study/vocabulary-frequency";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -313,6 +315,19 @@ function isInteractiveAnnotation(annotation: ReaderAnnotation) {
   return annotation.source !== "wanikani" || Boolean(annotation.subject);
 }
 
+function vocabularyFrequencyRequestForAnnotation(annotation: ReaderAnnotation): VocabularyFrequencyRequest | null {
+  const subjectRequest = annotation.subject
+    ? vocabularyFrequencyRequestForSubject(annotation.subject)
+    : null;
+  if (subjectRequest) return subjectRequest;
+  if (annotation.source !== "jpdb" || annotation.tokenType === "grammar") return null;
+
+  const expression = (annotation.spelling || annotation.text).trim();
+  if (!expression) return null;
+  const reading = annotation.reading.trim();
+  return { expression, readings: reading ? [reading] : [] };
+}
+
 function waniKaniPronunciationAudio(annotation: ReaderAnnotation, preferredVoiceActorId?: number) {
   const subject = annotation.subject;
   if (!subject || (subject.object !== "vocabulary" && subject.object !== "kana_vocabulary")) return undefined;
@@ -356,6 +371,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   const detailsInteraction = settings.reader.detailsInteraction;
   const jpdbRecognitionEnabled = settings.reader.recognitionMode === "wk-jpdb";
   const jpdbAnalysisEnabled = jpdbRecognitionEnabled && Boolean(jpdbApiKey);
+  const showVocabularyFrequency = settings.study?.showVocabularyFrequency ?? false;
   const [localAnalysis, setLocalAnalysis] = useState<JapaneseReaderAnalysis>(EMPTY_ANALYSIS);
   const [selectedToken, setSelectedToken] = useState<ReaderAnnotation | null>(null);
   const [voicePromptTokenId, setVoicePromptTokenId] = useState<string | null>(null);
@@ -494,6 +510,10 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     ));
     return replacements.length === 1 ? replacements[0] : null;
   }, [inspectorActive, renderedAnnotations, requestedAnnotation, selectedToken, selectionRequest]);
+  const selectedFrequencyRequest = useMemo(
+    () => selected ? vocabularyFrequencyRequestForAnnotation(selected) : null,
+    [selected],
+  );
   const pieceCount = renderedBlocks.reduce((total, block) => total + (block.type === "text" ? block.pieces.length : 0), 0);
 
   useEffect(() => {
@@ -712,13 +732,19 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
       <>
         <div className={styles.readerInspectorHeader}>
           <strong className={styles.lookupTerm} lang="ja">{selected.text}</strong>
-          <span className={styles.readerInspectorMeta}>
-            <span>{selected.subject ? `Lv ${selected.subject.data.level}` : selected.source === "jpdb" ? "JPDB" : "Lookup"}</span>
-            {selected.subject ? typeof selected.srsStage === "number" && selected.srsStage > 0
-              ? <SrsStageIcon stage={selected.srsStage} size={18} title={srsStageLabel(selected.srsStage)} />
-              : <LockKeyhole size={16} role="img" aria-label={srsStageLabel(selected.srsStage)} />
-            : null}
-          </span>
+          <div className={styles.readerInspectorBadges}>
+            <span className={styles.readerInspectorMeta}>
+              <span>{selected.subject ? `Lv ${selected.subject.data.level}` : selected.source === "jpdb" ? "JPDB" : "Lookup"}</span>
+              {selected.subject ? typeof selected.srsStage === "number" && selected.srsStage > 0
+                ? <SrsStageIcon stage={selected.srsStage} size={18} title={srsStageLabel(selected.srsStage)} />
+                : <LockKeyhole size={16} role="img" aria-label={srsStageLabel(selected.srsStage)} />
+              : null}
+            </span>
+            {showVocabularyFrequency && selectedFrequencyRequest ? <span
+              className={styles.readerInspectorFrequencyChip}
+              title="Jiten frequency rank; lower is more common"
+            ><VocabularyFrequencyBadge className={styles.readerInspectorFrequencyValue} request={selectedFrequencyRequest} enabled variant="details" /></span> : null}
+          </div>
           {selectedWaniKaniAudio || voice.downloaded ? <button
             type="button"
             className={styles.readerInspectorSpeak}

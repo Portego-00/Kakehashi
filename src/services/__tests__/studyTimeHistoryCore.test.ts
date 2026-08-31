@@ -76,14 +76,16 @@ describe("study time history validation", () => {
     ).toBe(twoDaysMs);
   });
 
-  it("rejects a response larger than the retained history window", () => {
+  it("accepts the timezone-safe history union and rejects anything larger", () => {
     const start = new Date("2025-01-01T00:00:00.000Z");
-    const days = Array.from({ length: 431 }, (_, index) => {
+    const days = Array.from({ length: 433 }, (_, index) => {
       const date = new Date(start);
       date.setUTCDate(date.getUTCDate() + index);
       return otherDay(date.toISOString().slice(0, 10), {}, 0);
     });
 
+    expect(parseStudyTimeHistoryResponse({ days: days.slice(0, 432) }).days)
+      .toHaveLength(432);
     expect(() => parseStudyTimeHistoryResponse({ days })).toThrow();
   });
 });

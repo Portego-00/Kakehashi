@@ -1241,6 +1241,11 @@ export default function KanjiDetails({
               >
                 {activeTab === "meaning" ? (
                   <TouchableOpacity
+                    accessible={!kanji.meaningNote}
+                    accessibilityLabel={
+                      kanji.meaningNote ? undefined : "Add meaning note"
+                    }
+                    accessibilityRole={kanji.meaningNote ? undefined : "button"}
                     style={styles.noteContainer}
                     onPress={() => kanji.onEditNote?.("meaning")}
                   >
@@ -1248,14 +1253,24 @@ export default function KanjiDetails({
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                         Meaning Note
                       </Text>
-                      <View style={styles.editButton}>
+                      <TouchableOpacity
+                        accessible={Boolean(kanji.meaningNote)}
+                        accessibilityLabel="Edit meaning note"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          kanji.onEditNote?.("meaning");
+                        }}
+                        style={styles.editButton}
+                      >
                         <Ionicons
                           name="pencil"
                           size={16}
                           color={theme.textSecondary}
                           style={{ fontWeight: "bold" }}
                         />
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     {kanji.meaningNote ? (
                       <FormattedNoteText
@@ -1270,6 +1285,11 @@ export default function KanjiDetails({
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
+                    accessible={!kanji.readingNote}
+                    accessibilityLabel={
+                      kanji.readingNote ? undefined : "Add reading note"
+                    }
+                    accessibilityRole={kanji.readingNote ? undefined : "button"}
                     style={styles.noteContainer}
                     onPress={() => kanji.onEditNote?.("reading")}
                   >
@@ -1277,14 +1297,24 @@ export default function KanjiDetails({
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                         Reading Note
                       </Text>
-                      <View style={styles.editButton}>
+                      <TouchableOpacity
+                        accessible={Boolean(kanji.readingNote)}
+                        accessibilityLabel="Edit reading note"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          kanji.onEditNote?.("reading");
+                        }}
+                        style={styles.editButton}
+                      >
                         <Ionicons
                           name="pencil"
                           size={16}
                           color={theme.textSecondary}
                           style={{ fontWeight: "bold" }}
                         />
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     {kanji.readingNote ? (
                       <FormattedNoteText
@@ -1928,23 +1958,29 @@ export default function KanjiDetails({
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          {onAddToList && (
-            <TouchableOpacity
-              onPress={onAddToList}
-              style={styles.addToListButton}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isBookmarked ? "Edit saved lists" : "Add to saved lists"
-              }
-              accessibilityState={{ selected: isBookmarked }}
-            >
-              <Ionicons
-                name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                size={20}
-                color="#fff"
-              />
-            </TouchableOpacity>
-          )}
+          <View style={styles.headerActions}>
+            {onAddToList && (
+              <TouchableOpacity
+                onPress={onAddToList}
+                style={styles.addToListButton}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isBookmarked ? "Edit saved lists" : "Add to saved lists"
+                }
+                accessibilityState={{ selected: isBookmarked }}
+              >
+                <Ionicons
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  size={20}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{kanji.level}</Text>
+            </View>
+          </View>
 
           {onOpenConstellation && (
             <TouchableOpacity
@@ -1954,10 +1990,6 @@ export default function KanjiDetails({
               <Ionicons name="planet-outline" size={24} color="#fff" />
             </TouchableOpacity>
           )}
-
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{kanji.level}</Text>
-          </View>
 
           <TouchableOpacity
             ref={mainCharacterRef}
@@ -2176,9 +2208,12 @@ const createStyles = (subjectColors: SubjectColors) =>
   },
   stickyLevelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
@@ -2214,11 +2249,16 @@ const createStyles = (subjectColors: SubjectColors) =>
     alignItems: "center",
     zIndex: 10,
   },
-  addToListButton: {
+  headerActions: {
     position: "absolute",
     top: HEADER_TOP_OFFSET,
-    right: 56,
+    right: 16,
     zIndex: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  addToListButton: {
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -2228,14 +2268,14 @@ const createStyles = (subjectColors: SubjectColors) =>
   },
   levelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
-    position: "absolute",
-    top: HEADER_TOP_OFFSET,
-    right: 16,
   },
   levelText: {
     color: "white",
@@ -2876,9 +2916,12 @@ const createStyles = (subjectColors: SubjectColors) =>
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.kanji,
     justifyContent: "center",
     alignItems: "center",
@@ -2894,9 +2937,12 @@ const createStyles = (subjectColors: SubjectColors) =>
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.radical,
     justifyContent: "center",
     alignItems: "center",

@@ -56,7 +56,7 @@ export default function CustomLessonSelectionScreen() {
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [allSubjects, setAllSubjects] = useState<Subject[] | null>(null);
   const [filteredSubjects, setFilteredSubjects] = useState<Subject[]>([]);
@@ -74,11 +74,10 @@ export default function CustomLessonSelectionScreen() {
   const [showListFilterModal, setShowListFilterModal] = useState(false);
   const [availableLists, setAvailableLists] = useState<SubjectList[]>([]);
   const [isLoadingLists, setIsLoadingLists] = useState(false);
-  const [subjectIdsFromSelectedLists, setSubjectIdsFromSelectedLists] = useState<
-    Set<number>
-  >(new Set());
+  const [subjectIdsFromSelectedLists, setSubjectIdsFromSelectedLists] =
+    useState<Set<number>>(new Set());
   const [filters, setFilters] = useState<SearchFilters>(() =>
-    createDefaultSearchFilters()
+    createDefaultSearchFilters(),
   );
 
   const loadSubjectSrsStages = useCallback(async () => {
@@ -91,7 +90,7 @@ export default function CustomLessonSelectionScreen() {
       assignments.data.forEach((assignment) => {
         nextSrsStageMap.set(
           assignment.data.subject_id,
-          assignment.data.srs_stage ?? 0
+          assignment.data.srs_stage ?? 0,
         );
       });
 
@@ -99,7 +98,7 @@ export default function CustomLessonSelectionScreen() {
     } catch (err) {
       console.warn(
         "Failed to load assignment SRS stages for custom lesson selection:",
-        err
+        err,
       );
       setSubjectSrsStageMap(new Map());
     }
@@ -151,7 +150,7 @@ export default function CustomLessonSelectionScreen() {
         } catch (syncError) {
           console.warn(
             "Failed to refresh subject lists for custom lessons after sync:",
-            syncError
+            syncError,
           );
         }
       })();
@@ -196,7 +195,7 @@ export default function CustomLessonSelectionScreen() {
       setAllSubjects(sortSubjectsByLevelAndType(subjects));
 
       console.log(
-        `Loaded ${subjects.length} subjects for custom lesson selection`
+        `Loaded ${subjects.length} subjects for custom lesson selection`,
       );
     } catch (err) {
       console.error("Error loading subjects:", err);
@@ -228,7 +227,7 @@ export default function CustomLessonSelectionScreen() {
       const response = await getSubjects(
         apiToken,
         {},
-        { skipCollectionCache: true }
+        { skipCollectionCache: true },
       );
 
       setCacheRebuildProgress(30);
@@ -242,7 +241,7 @@ export default function CustomLessonSelectionScreen() {
       await saveToCache(
         ALL_SUBJECTS_CACHE_KEY,
         allSubjectsData.data,
-        allSubjectsData.data_updated_at
+        allSubjectsData.data_updated_at,
       );
 
       setCacheRebuildProgress(90);
@@ -254,7 +253,7 @@ export default function CustomLessonSelectionScreen() {
       setCacheRebuildProgress(100);
 
       console.log(
-        `Successfully rebuilt cache with ${allSubjectsData.data.length} subjects`
+        `Successfully rebuilt cache with ${allSubjectsData.data.length} subjects`,
       );
 
       // Small delay before hiding progress
@@ -265,7 +264,7 @@ export default function CustomLessonSelectionScreen() {
     } catch (err) {
       console.error("Error rebuilding cache:", err);
       setError(
-        "Failed to rebuild cache. Please check your internet connection and try again."
+        "Failed to rebuild cache. Please check your internet connection and try again.",
       );
       setIsRebuildingCache(false);
       setCacheRebuildProgress(0);
@@ -284,23 +283,25 @@ export default function CustomLessonSelectionScreen() {
       .filter((subject) =>
         selectedListIds.length === 0
           ? true
-          : subjectIdsFromSelectedLists.has(subject.id)
+          : subjectIdsFromSelectedLists.has(subject.id),
       )
       .filter((subject) =>
-        filters.types.has(subject.object as WaniKaniItemType)
+        filters.types.has(subject.object as WaniKaniItemType),
       )
       .filter(
         (subject) =>
           subject.data.level >= filters.minLevel &&
-          subject.data.level <= filters.maxLevel
+          subject.data.level <= filters.maxLevel,
       )
       .filter((subject) =>
-        filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
+        filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0),
       );
 
     const query = searchQuery.trim();
     let filtered = query
-      ? rankSubjectsByQuery(filteredByFacets, query).map(({ subject }) => subject)
+      ? rankSubjectsByQuery(filteredByFacets, query).map(
+          ({ subject }) => subject,
+        )
       : sortSubjectsByLevelAndType(filteredByFacets);
 
     // Keep track of all matching subjects (before display limit) for bulk selection.
@@ -432,7 +433,7 @@ export default function CustomLessonSelectionScreen() {
     const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
     const svgXml = useRemoteSvg(svgUrl, "#ffffff");
     const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(
-      null
+      null,
     );
 
     useEffect(() => {
@@ -449,10 +450,7 @@ export default function CustomLessonSelectionScreen() {
 
     if (item.data.characters && item.data.characters.trim()) {
       return (
-        <Text
-          style={[styles.itemCharacter, fontStyles.japaneseText]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
           {item.data.characters}
         </Text>
       );
@@ -494,16 +492,7 @@ export default function CustomLessonSelectionScreen() {
         activeOpacity={0.7}
       >
         <TouchableOpacity
-          style={[
-            styles.itemBox,
-            { backgroundColor: typeColor },
-            (item.object === "vocabulary" ||
-              item.object === "kana_vocabulary") &&
-              item.data.characters &&
-              item.data.characters.length > 1 && {
-                width: 48 + (item.data.characters.length - 2) * 24 + 16,
-              },
-          ]}
+          style={[styles.itemBox, { backgroundColor: typeColor }]}
           onPress={(event) => {
             event.stopPropagation();
             handleSubjectTilePress(item);
@@ -513,10 +502,7 @@ export default function CustomLessonSelectionScreen() {
           {item.object === "radical" ? (
             <SubjectRadicalCharacter item={item} />
           ) : (
-            <Text
-              style={[styles.itemCharacter, fontStyles.japaneseText]}
-              numberOfLines={1}
-            >
+            <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
               {item.data.characters || item.data.meanings[0].meaning}
             </Text>
           )}
@@ -546,7 +532,9 @@ export default function CustomLessonSelectionScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.backgroundColor }]}>
         <TouchableOpacity
@@ -588,8 +576,8 @@ export default function CustomLessonSelectionScreen() {
                 color={theme.textSecondary}
               />
             </TouchableOpacity>
-            )}
-          </View>
+          )}
+        </View>
         <TouchableOpacity
           style={[
             styles.filterButton,
@@ -600,8 +588,12 @@ export default function CustomLessonSelectionScreen() {
         >
           <Ionicons name="list" size={21} color={theme.textSecondary} />
           {selectedListIds.length > 0 ? (
-            <View style={[styles.filterBadge, { backgroundColor: theme.primary }]}>
-              <Text style={styles.filterBadgeText}>{selectedListIds.length}</Text>
+            <View
+              style={[styles.filterBadge, { backgroundColor: theme.primary }]}
+            >
+              <Text style={styles.filterBadgeText}>
+                {selectedListIds.length}
+              </Text>
             </View>
           ) : null}
         </TouchableOpacity>
@@ -628,7 +620,11 @@ export default function CustomLessonSelectionScreen() {
           activeOpacity={0.7}
         >
           <Ionicons
-            name={allMatchingSelected ? "remove-circle-outline" : "checkmark-done-outline"}
+            name={
+              allMatchingSelected
+                ? "remove-circle-outline"
+                : "checkmark-done-outline"
+            }
             size={18}
             color={theme.textSecondary}
           />
@@ -653,7 +649,11 @@ export default function CustomLessonSelectionScreen() {
           disabled={selectedSubjectIds.size === 0}
           activeOpacity={0.7}
         >
-          <Ionicons name="close-circle-outline" size={18} color={theme.textSecondary} />
+          <Ionicons
+            name="close-circle-outline"
+            size={18}
+            color={theme.textSecondary}
+          />
           <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
             Clear Selection
           </Text>
@@ -780,7 +780,10 @@ export default function CustomLessonSelectionScreen() {
           <View
             style={[
               styles.modalCard,
-              { backgroundColor: theme.cardBackground, borderColor: theme.border },
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
             ]}
           >
             <View style={styles.modalHeader}>
@@ -792,16 +795,26 @@ export default function CustomLessonSelectionScreen() {
               </TouchableOpacity>
             </View>
             {isLoadingLists ? (
-              <Text style={[styles.modalStateText, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.modalStateText, { color: theme.textSecondary }]}
+              >
                 Loading lists...
               </Text>
             ) : availableLists.length === 0 ? (
               <View style={styles.modalEmptyState}>
-                <Text style={[styles.modalStateText, { color: theme.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.modalStateText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
                   No lists yet. Create one from Manage.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.manageListsButton, { borderColor: theme.border }]}
+                  style={[
+                    styles.manageListsButton,
+                    { borderColor: theme.border },
+                  ]}
                   onPress={() => {
                     setShowListFilterModal(false);
                     router.push("/subject-lists");
@@ -809,7 +822,10 @@ export default function CustomLessonSelectionScreen() {
                 >
                   <Ionicons name="list" size={16} color={theme.textSecondary} />
                   <Text
-                    style={[styles.manageListsButtonText, { color: theme.textSecondary }]}
+                    style={[
+                      styles.manageListsButtonText,
+                      { color: theme.textSecondary },
+                    ]}
                   >
                     Manage Lists
                   </Text>
@@ -826,7 +842,9 @@ export default function CustomLessonSelectionScreen() {
                         style={[
                           styles.modalListItem,
                           {
-                            borderColor: isSelected ? theme.primary : theme.border,
+                            borderColor: isSelected
+                              ? theme.primary
+                              : theme.border,
                             backgroundColor: isSelected
                               ? `${theme.primary}15`
                               : theme.backgroundColor,
@@ -837,20 +855,29 @@ export default function CustomLessonSelectionScreen() {
                         <Ionicons
                           name={isSelected ? "checkbox" : "square-outline"}
                           size={20}
-                          color={isSelected ? theme.primary : theme.textSecondary}
+                          color={
+                            isSelected ? theme.primary : theme.textSecondary
+                          }
                         />
                         <View style={styles.modalListItemText}>
                           <Text
                             style={[
                               styles.modalListItemTitle,
-                              { color: isSelected ? theme.primary : theme.textColor },
+                              {
+                                color: isSelected
+                                  ? theme.primary
+                                  : theme.textColor,
+                              },
                             ]}
                             numberOfLines={1}
                           >
                             {list.name}
                           </Text>
                           <Text
-                            style={[styles.modalListItemMeta, { color: theme.textSecondary }]}
+                            style={[
+                              styles.modalListItemMeta,
+                              { color: theme.textSecondary },
+                            ]}
                           >
                             {list.subjectIds.length} subjects
                           </Text>
@@ -860,7 +887,12 @@ export default function CustomLessonSelectionScreen() {
                   })}
                 </ScrollView>
                 <View style={styles.modalFooter}>
-                  <Text style={[styles.modalFooterText, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.modalFooterText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     {selectedListIds.length === 0
                       ? "Using all matching subjects."
                       : `${selectedListIds.length} list${
@@ -869,14 +901,20 @@ export default function CustomLessonSelectionScreen() {
                   </Text>
                   <View style={styles.modalFooterButtons}>
                     <TouchableOpacity
-                      style={[styles.modalFooterButton, { borderColor: theme.border }]}
+                      style={[
+                        styles.modalFooterButton,
+                        { borderColor: theme.border },
+                      ]}
                       onPress={() => {
                         setShowListFilterModal(false);
                         router.push("/subject-lists");
                       }}
                     >
                       <Text
-                        style={[styles.modalFooterButtonText, { color: theme.textSecondary }]}
+                        style={[
+                          styles.modalFooterButtonText,
+                          { color: theme.textSecondary },
+                        ]}
                       >
                         Manage
                       </Text>
@@ -889,7 +927,9 @@ export default function CustomLessonSelectionScreen() {
                       ]}
                       onPress={() => setShowListFilterModal(false)}
                     >
-                      <Text style={styles.modalFooterPrimaryButtonText}>Done</Text>
+                      <Text style={styles.modalFooterPrimaryButtonText}>
+                        Done
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1021,9 +1061,10 @@ const styles = StyleSheet.create({
     top: 6,
     right: 6,
     minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    minHeight: 18,
+    borderRadius: 999,
     paddingHorizontal: 4,
+    paddingVertical: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1031,6 +1072,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 11,
     fontWeight: "700",
+    textAlign: "center",
   },
   searchInput: {
     flex: 1,
@@ -1067,21 +1109,27 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.06)",
   },
   itemBox: {
-    width: 48,
-    height: 48,
+    minWidth: 48,
+    minHeight: 48,
     borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    maxWidth: "45%",
+    flexShrink: 1,
   },
   itemCharacter: {
     fontSize: 20,
     fontWeight: "bold",
     color: "white",
     textAlign: "center",
+    maxWidth: "100%",
   },
   itemDetails: {
     flex: 1,
+    minWidth: 0,
   },
   itemMeaning: {
     fontSize: 16,

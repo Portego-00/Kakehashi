@@ -64,11 +64,14 @@ import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import {
   FormattedNoteEditor,
   FormattedNoteText,
+  type FormattedNoteEditorHandle,
 } from "./formatted-note";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
+import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
+import { useIsNoteSubjectPreviewOpen } from "../utils/note-subject-preview-state";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
 import {
@@ -93,6 +96,7 @@ import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import KanjiLessonEtymologySection from "./KanjiLessonEtymologySection";
 import KanjiReadingExamples from "./KanjiReadingExamples";
+import LessonMeaningPill from "./LessonMeaningPill";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
@@ -138,6 +142,7 @@ const MAX_INITIAL_SIMILAR_VOCAB_ITEMS = 12;
 const CLOSE_BUTTON_HIT_SLOP = { top: 10, right: 10, bottom: 10, left: 10 };
 const HEADER_TOP_OFFSET = 64;
 const CLOSE_BUTTON_SIZE = 40;
+const SUBJECT_DISPLAY_VERTICAL_PADDING = 24;
 const EMPTY_BOOKMARKED_SUBJECT_IDS: ReadonlySet<number> = new Set<number>();
 // iOS keyCode values use UIKeyboardHIDUsage; Android/Web use platform key codes.
 const IOS_LEFT_ARROW_KEY_CODE = 80;
@@ -507,6 +512,7 @@ const SubjectContent = ({
     useState(0);
   const { apiToken } = useAuthStore();
   const mountedRef = useRef(true);
+  const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
 
   // Visually similar kanji state (for Niai source)
   const [niaiSimilarKanji, setNiaiSimilarKanji] = useState<any[]>([]);
@@ -2086,13 +2092,27 @@ const SubjectContent = ({
     const noteLabel = type === "meaning" ? "Meaning Note" : "Reading Note";
     return (
       <TouchableOpacity
+        accessible={!noteValue}
+        accessibilityLabel={noteValue ? undefined : `Add ${type} note`}
+        accessibilityRole={noteValue ? undefined : "button"}
         style={styles.infoSection}
         onPress={() => handleEditNote(type)}
         activeOpacity={0.85}
       >
         <View style={styles.noteCardHeader}>
           <Text style={styles.noteCardTitle}>{noteLabel}</Text>
-          <Ionicons name="pencil" size={16} color={theme.textSecondary} />
+          <TouchableOpacity
+            accessible={Boolean(noteValue)}
+            accessibilityLabel={`Edit ${type} note`}
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={(event) => {
+              event.stopPropagation();
+              handleEditNote(type);
+            }}
+          >
+            <Ionicons name="pencil" size={16} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
         {noteValue ? (
           <FormattedNoteText text={noteValue} style={styles.noteCardBody} />
@@ -4388,7 +4408,10 @@ const SubjectContent = ({
         visible={noteModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setNoteModalVisible(false)}
+        onRequestClose={() => {
+          if (noteEditorRef.current?.closeLinkPicker()) return;
+          setNoteModalVisible(false);
+        }}
       >
         <KeyboardAvoidingView
           style={styles.noteModalOverlay}
@@ -4409,6 +4432,7 @@ const SubjectContent = ({
               {editingNoteType === "meaning" ? "Meaning Note" : "Reading Note"}
             </Text>
             <FormattedNoteEditor
+              ref={noteEditorRef}
               key={`${editingNoteType}:${noteModalVisible}`}
               style={styles.noteInput}
               value={editingNoteText}
@@ -4481,9 +4505,12 @@ export default function LessonDetailScreen({
   bookmarkedSubjectIds = EMPTY_BOOKMARKED_SUBJECT_IDS,
 }: LessonDetailScreenProps) {
   const { theme } = useTheme();
+  const isScreenFocused = useOptionalScreenIsFocused();
+  const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const insets = useSafeAreaInsets();
   const subjectColors = useSubjectColors();
   const {
+    appTextSizeScale,
     singlePageLessonView,
     autoplayLessonReadingAudio,
     vocabularyAudioVoice,
@@ -4501,6 +4528,11 @@ export default function LessonDetailScreen({
   // Ref for PagerView to enable programmatic page changes
   const pagerRef = useRef<PagerView>(null);
   const layout = useWindowDimensions();
+  const usesLargeText = appTextSizeScale > 1 || layout.fontScale > 1;
+  const subjectDisplayMaxHeight = Math.max(
+    160,
+    Math.floor(layout.height * 0.46)
+  );
   const navigationBottomPadding =
     Platform.OS === "android" ? Math.max(insets.bottom, 16) : 16;
 
@@ -4765,6 +4797,28 @@ export default function LessonDetailScreen({
 
   // Setup state for TabView (tab index within current subject)
   const [index, setIndex] = useState(0);
+  const [subjectDisplayContentHeights, setSubjectDisplayContentHeights] =
+    useState<Record<number, number>>({});
+  const recordSubjectDisplayContentHeight = useCallback(
+    (subjectId: number, event: LayoutChangeEvent) => {
+      const { y, height: markerHeight } = event.nativeEvent.layout;
+      const requiredHeight = Math.ceil(
+        y + markerHeight + SUBJECT_DISPLAY_VERTICAL_PADDING
+      );
+
+      setSubjectDisplayContentHeights((currentHeights) => {
+        if (currentHeights[subjectId] === requiredHeight) {
+          return currentHeights;
+        }
+
+        return {
+          ...currentHeights,
+          [subjectId]: requiredHeight,
+        };
+      });
+    },
+    []
+  );
   const keyboardNavigationRef = useRef<KeyboardExtendedViewType | null>(null);
   const tabIndexRef = useRef(0);
   const activePageIndexRef = useRef(currentBatchIndex ?? 0);
@@ -4945,6 +4999,10 @@ export default function LessonDetailScreen({
   };
 
   const handleLessonShortcutKeyDown = (event: OnKeyPress) => {
+    if (!isScreenFocused || noteSubjectPreviewOpen) {
+      return;
+    }
+
     const keyCode = event.nativeEvent?.keyCode;
     if (typeof keyCode !== "number") {
       return;
@@ -5022,6 +5080,10 @@ export default function LessonDetailScreen({
   }, [currentBatchIndex]);
 
   useEffect(() => {
+    if (!isScreenFocused || noteSubjectPreviewOpen) {
+      return;
+    }
+
     const focusTimer = setTimeout(() => {
       keyboardNavigationRef.current?.focus();
     }, 90);
@@ -5032,6 +5094,8 @@ export default function LessonDetailScreen({
   }, [
     currentBatchIndex,
     index,
+    isScreenFocused,
+    noteSubjectPreviewOpen,
     singlePageLessonView,
   ]);
 
@@ -5050,8 +5114,9 @@ export default function LessonDetailScreen({
         ref={keyboardNavigationRef}
         style={styles.container}
         onKeyDownPress={handleLessonShortcutKeyDown}
-        autoFocus
-        focusable
+        autoFocus={isScreenFocused && !noteSubjectPreviewOpen}
+        canBeFocused={isScreenFocused && !noteSubjectPreviewOpen}
+        focusable={isScreenFocused && !noteSubjectPreviewOpen}
       >
       <View style={styles.container} ref={containerRef}>
         <StatusBar style="light" />
@@ -5113,11 +5178,28 @@ export default function LessonDetailScreen({
           return (
             <View key={batchItem.id} style={styles.pageContainer}>
               {/* Character/Subject Display Section */}
-              <View
+              <ScrollView
                 style={[
-                  styles.subjectDisplaySection,
+                  styles.subjectDisplayScroll,
                   { backgroundColor: pageBackgroundColor },
+                  usesLargeText
+                    ? { maxHeight: subjectDisplayMaxHeight }
+                    : null,
                 ]}
+                contentContainerStyle={[
+                  styles.subjectDisplaySection,
+                  subjectDisplayContentHeights[batchItem.id]
+                    ? {
+                        minHeight:
+                          subjectDisplayContentHeights[batchItem.id],
+                      }
+                    : null,
+                ]}
+                contentInsetAdjustmentBehavior="never"
+                nestedScrollEnabled
+                alwaysBounceVertical={false}
+                showsVerticalScrollIndicator
+                testID="lesson-subject-summary"
               >
                 {onAddSubjectToList && (
                   <TouchableOpacity
@@ -5191,14 +5273,14 @@ export default function LessonDetailScreen({
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.subjectMeaningContainer}>
-                  <Text style={styles.subjectMeaningText}>
-                    {pageSubject.data.meanings.find((m: any) => m.primary)
+                <LessonMeaningPill
+                  meaning={
+                    pageSubject.data.meanings.find((m: any) => m.primary)
                       ?.meaning ||
-                      pageSubject.data.meanings[0]?.meaning ||
-                      "No meaning available"}
-                  </Text>
-                </View>
+                    pageSubject.data.meanings[0]?.meaning ||
+                    "No meaning available"
+                  }
+                />
                 {(pageSubject.object === "vocabulary" ||
                   pageSubject.object === "kana_vocabulary") && (
                   <VocabularyFrequencyBadge subject={pageSubject} />
@@ -5219,7 +5301,13 @@ export default function LessonDetailScreen({
                         ?.reading || pageSubject.data.readings[0]?.reading}
                     </Text>
                   )}
-              </View>
+                <View
+                  onLayout={(event) =>
+                    recordSubjectDisplayContentHeight(batchItem.id, event)
+                  }
+                  style={styles.subjectDisplayEndMarker}
+                />
+              </ScrollView>
 
               {/* Content area - either TabView or scrollable single page */}
               <View style={styles.contentContainer}>
@@ -5277,8 +5365,26 @@ export default function LessonDetailScreen({
                         {...props}
                         indicatorStyle={{ backgroundColor: pageBackgroundColor }}
                         style={{ backgroundColor: theme.cardBackground }}
-                        tabStyle={{ flex: 1 }}
-                        contentContainerStyle={{ width: "100%" }}
+                        scrollEnabled={usesLargeText}
+                        tabStyle={
+                          usesLargeText
+                            ? styles.scrollableLessonTab
+                            : styles.equalLessonTab
+                        }
+                        contentContainerStyle={
+                          usesLargeText
+                            ? styles.scrollableLessonTabs
+                            : styles.equalLessonTabs
+                        }
+                        options={Object.fromEntries(
+                          pageRoutes.map((route) => [
+                            route.key,
+                            {
+                              labelText: route.title,
+                              labelStyle: styles.lessonTabLabel,
+                            },
+                          ])
+                        )}
                         activeColor={pageBackgroundColor}
                         inactiveColor={theme.textLight}
                         pressColor={
@@ -5490,12 +5596,22 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       alignItems: "center",
       justifyContent: "space-between",
     },
-    subjectDisplaySection: {
-      paddingHorizontal: 20,
-      paddingVertical: 24,
-      alignItems: "center",
+    subjectDisplayScroll: {
+      flexGrow: 0,
+      flexShrink: 1,
       borderBottomLeftRadius: 20,
       borderBottomRightRadius: 20,
+      overflow: "hidden",
+    },
+    subjectDisplaySection: {
+      minWidth: "100%",
+      paddingHorizontal: 20,
+      paddingVertical: SUBJECT_DISPLAY_VERTICAL_PADDING,
+      alignItems: "center",
+    },
+    subjectDisplayEndMarker: {
+      width: 1,
+      height: 1,
     },
     addToListButton: {
       position: "absolute",
@@ -5557,23 +5673,6 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       color: "rgba(255, 255, 255, 0.7)",
       textAlign: "center",
     },
-    subjectMeaningContainer: {
-      backgroundColor: "rgba(255, 255, 255, 0.15)",
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.2)",
-    },
-    subjectMeaningText: {
-      color: "white",
-      fontSize: 16,
-      fontWeight: "600",
-      textAlign: "center",
-      textShadowColor: "rgba(0, 0, 0, 0.2)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
     subjectReadingText: {
       color: "rgba(255, 255, 255, 0.85)",
       fontSize: 16,
@@ -5602,14 +5701,18 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     },
     lessonTypeCountsContainer: {
       flexDirection: "row",
+      flexWrap: "wrap",
       alignItems: "center",
       justifyContent: "flex-end",
+      columnGap: 16,
+      rowGap: 4,
+      flexShrink: 1,
       marginLeft: "auto",
     },
     typeCountItem: {
       flexDirection: "row",
       alignItems: "center",
-      marginLeft: 16,
+      flexShrink: 0,
     },
     typeCountLetter: {
       color: "white",
@@ -5626,6 +5729,23 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     contentContainer: {
       flex: 1,
       backgroundColor: theme.backgroundColor,
+    },
+    equalLessonTabs: {
+      width: "100%",
+    },
+    equalLessonTab: {
+      flex: 1,
+    },
+    scrollableLessonTabs: {
+      paddingHorizontal: 4,
+    },
+    scrollableLessonTab: {
+      width: "auto",
+      minWidth: 96,
+      paddingHorizontal: 12,
+    },
+    lessonTabLabel: {
+      textAlign: "center",
     },
     tabContentContainer: {
       flex: 1,
@@ -5830,6 +5950,8 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     noteModalContent: {
       width: "100%",
       maxWidth: 460,
+      maxHeight: "90%",
+      flexShrink: 1,
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
       padding: 16,
@@ -5952,10 +6074,13 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       paddingHorizontal: 12,
       paddingVertical: 6,
       margin: 4,
+      maxWidth: "100%",
+      flexShrink: 1,
     },
     readingBadgeContent: {
       alignItems: "center",
       flexDirection: "row",
+      flexShrink: 1,
     },
     readingBadgeAudioIcon: {
       marginLeft: 6,
@@ -5966,6 +6091,7 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       fontFamily: "SourceHanSansJP-Regular",
       includeFontPadding: false,
       textAlignVertical: "center",
+      flexShrink: 1,
     },
     primaryReadingBadgeText: {
       color: "white",
@@ -6067,6 +6193,8 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       paddingHorizontal: 12,
       paddingVertical: 7,
       backgroundColor: theme.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+      maxWidth: "100%",
+      flexShrink: 1,
     },
     patternPillActive: {
       borderColor: subjectColors.vocabulary,
@@ -6076,6 +6204,8 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       fontSize: 13,
       fontWeight: "600",
       color: theme.textSecondary,
+      maxWidth: "100%",
+      minWidth: 0,
     },
     patternPillTextActive: {
       color: subjectColors.vocabulary,

@@ -4,6 +4,7 @@ import SegmentedControl from "@react-native-segmented-control/segmented-control"
 import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,7 @@ import { STUDY_TIME_CATEGORY_META } from "../../src/constants/studyTimeCategorie
 import {
   ACTIVITY_CATEGORIES,
 } from "../../src/services/timeTrackingCore";
+import { timeTrackingService } from "../../src/services/timeTrackingService";
 import {
   maybeRefreshStudyTimeHistory,
 } from "../../src/services/studyTimeHistoryService";
@@ -97,6 +99,7 @@ export default function StudyTimeScreen() {
     useAuthStore((state) => state.userData?.id ?? null),
   );
   const apiToken = useAuthStore((state) => state.apiToken);
+  const username = useAuthStore((state) => state.userData?.username ?? null);
   const [rangeIndex, setRangeIndex] = useState(0);
   const range = STUDY_TIME_RANGE_IDS[rangeIndex];
   const [data, setData] = useState<ScreenData>(() => readScreenData("today"));
@@ -129,6 +132,61 @@ export default function StudyTimeScreen() {
   );
 
   const { summary, elapsedDays, series, syncStatus, chartTitle, chartUnit } = data;
+  const deviceId = userId ? getDeviceId() : null;
+  const legacyRecoveryStatus =
+    apiToken && userId && deviceId
+      ? timeTrackingService.getLegacyHistoryRecoveryStatus(userId, deviceId)
+      : { state: "none" as const, dayCount: 0 };
+
+  const confirmLegacyHistoryRecovery = useCallback(() => {
+    if (!apiToken || !userId || !deviceId) {
+      return;
+    }
+
+    const accountLabel = username ? `@${username}` : `account ${userId}`;
+    Alert.alert(
+      "Add saved study history?",
+      `Kakehashi found ${legacyRecoveryStatus.dayCount} saved ${
+        legacyRecoveryStatus.dayCount === 1 ? "day" : "days"
+      } from before study-time sync was account-scoped. The saved data has no account name. Only add it if it belongs to ${accountLabel}. The original on-device copy will be kept.`,
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Add to this account",
+          onPress: () => {
+            const accepted =
+              timeTrackingService.acceptLegacyHistoryForCurrentUser(
+                userId,
+                deviceId,
+              );
+            if (!accepted) {
+              Alert.alert(
+                "History wasn't added",
+                "The saved history is no longer available for this account.",
+              );
+              return;
+            }
+
+            Alert.alert(
+              "Saved history added",
+              "It is now included in this account's totals. The original on-device copy is still preserved, and cloud sync will continue in the background.",
+            );
+            setData(readScreenData(range));
+            void maybeSyncStudyTime({ force: true }).finally(() => {
+              setData(readScreenData(range));
+            });
+          },
+        },
+      ],
+    );
+  }, [
+    apiToken,
+    deviceId,
+    legacyRecoveryStatus.dayCount,
+    range,
+    userId,
+    username,
+  ]);
 
   const activeCategories = useMemo(
     () =>
@@ -179,6 +237,49 @@ export default function StudyTimeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {legacyRecoveryStatus.state === "available" && (
+          <Animated.View style={cardStyle} layout={cardLayout}>
+            <View style={styles.appTotalRow}>
+              <View style={styles.categoryLabelGroup}>
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={theme.primary}
+                />
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    styles.recoveryTitle,
+                    { color: theme.textColor },
+                  ]}
+                >
+                  Saved study history found
+                </Text>
+              </View>
+            </View>
+            <Text
+              style={[
+                styles.footnote,
+                styles.recoveryDescription,
+                { color: theme.textSecondary },
+              ]}
+            >
+              {legacyRecoveryStatus.dayCount} saved{" "}
+              {legacyRecoveryStatus.dayCount === 1 ? "day is" : "days are"}{" "}
+              waiting for you to confirm which account owns them.
+            </Text>
+            <TouchableOpacity
+              style={[styles.recoveryButton, { backgroundColor: theme.primary }]}
+              onPress={confirmLegacyHistoryRecovery}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Add saved study history to this account"
+            >
+              <Text style={styles.syncNowButtonText}>Review and add history</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+
         <SegmentedControl
           values={STUDY_TIME_RANGE_LABELS}
           selectedIndex={rangeIndex}
@@ -699,5 +800,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     marginTop: 12,
+  },
+  recoveryTitle: {
+    marginBottom: 0,
+  },
+  recoveryDescription: {
+    marginTop: 10,
+  },
+  recoveryButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginTop: 14,
   },
 });

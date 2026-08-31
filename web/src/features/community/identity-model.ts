@@ -1,3 +1,5 @@
+import { normalizeGravatarEmail } from "@/lib/gravatar";
+
 export interface CommunityUserPayload {
   data?: {
     id?: unknown;
@@ -13,16 +15,17 @@ export interface ParsedCommunityIdentity {
   email: string;
 }
 
-export function identityFromUserPayload(payload: CommunityUserPayload | null): ParsedCommunityIdentity | null {
+export function identityFromUserPayload(payload: CommunityUserPayload | null, gravatarEmail?: unknown): ParsedCommunityIdentity | null {
   const username = typeof payload?.data?.username === "string" ? payload.data.username.trim() : "";
   if (!username) return null;
 
   const stableId = typeof payload?.data?.id === "string" ? payload.data.id.trim() : "";
   const level = Number(payload?.data?.level);
+  const normalizedGravatarEmail = normalizeGravatarEmail(gravatarEmail);
   return {
     id: stableId || username.toLocaleLowerCase(),
     username,
     level: Number.isFinite(level) ? Math.max(0, Math.floor(level)) : 0,
-    email: `${username}@users.noreply.local`,
+    email: normalizedGravatarEmail || `${username}@users.noreply.local`,
   };
 }

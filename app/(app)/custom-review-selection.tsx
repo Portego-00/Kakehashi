@@ -2,7 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -102,7 +108,7 @@ export default function CustomReviewSelectionScreen() {
   const params = useLocalSearchParams<{ listId?: string | string[] }>();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [allSubjects, setAllSubjects] = useState<Subject[] | null>(null);
   const [subjectSrsStageMap, setSubjectSrsStageMap] = useState<
@@ -124,11 +130,10 @@ export default function CustomReviewSelectionScreen() {
   const [showListFilterModal, setShowListFilterModal] = useState(false);
   const [availableLists, setAvailableLists] = useState<SubjectList[]>([]);
   const [isLoadingLists, setIsLoadingLists] = useState(false);
-  const [subjectIdsFromSelectedLists, setSubjectIdsFromSelectedLists] = useState<
-    Set<number>
-  >(new Set());
+  const [subjectIdsFromSelectedLists, setSubjectIdsFromSelectedLists] =
+    useState<Set<number>>(new Set());
   const [filters, setFilters] = useState<SearchFilters>(() =>
-    createDefaultSearchFilters()
+    createDefaultSearchFilters(),
   );
   const hasAppliedUserLevelDefaultRef = useRef(false);
   const hasAppliedInitialListRef = useRef(false);
@@ -260,7 +265,7 @@ export default function CustomReviewSelectionScreen() {
       assignments.data.forEach((assignment) => {
         nextSrsStageMap.set(
           assignment.data.subject_id,
-          assignment.data.srs_stage ?? 0
+          assignment.data.srs_stage ?? 0,
         );
       });
 
@@ -268,7 +273,7 @@ export default function CustomReviewSelectionScreen() {
     } catch (err) {
       console.warn(
         "Failed to load assignment SRS stages for custom review selection:",
-        err
+        err,
       );
       setSubjectSrsStageLoadError(
         "Your assignment stages could not be loaded. SRS filters, including Burned, are unavailable until this succeeds.",
@@ -296,7 +301,7 @@ export default function CustomReviewSelectionScreen() {
       }
       setAllSubjects(sortSubjectsByLevelAndType(subjects));
       console.log(
-        `Loaded ${subjects.length} subjects for custom review selection`
+        `Loaded ${subjects.length} subjects for custom review selection`,
       );
     } catch (err) {
       console.error("Error loading subjects:", err);
@@ -360,7 +365,7 @@ export default function CustomReviewSelectionScreen() {
         } catch (syncError) {
           console.warn(
             "Failed to refresh subject lists for custom review after sync:",
-            syncError
+            syncError,
           );
         }
       })();
@@ -388,7 +393,9 @@ export default function CustomReviewSelectionScreen() {
       return;
     }
 
-    const initialList = availableLists.find((list) => list.id === initialListId);
+    const initialList = availableLists.find(
+      (list) => list.id === initialListId,
+    );
     if (!initialList) {
       return;
     }
@@ -417,7 +424,7 @@ export default function CustomReviewSelectionScreen() {
       const response = await getSubjects(
         apiToken,
         {},
-        { skipCollectionCache: true }
+        { skipCollectionCache: true },
       );
 
       setCacheRebuildProgress(30);
@@ -431,7 +438,7 @@ export default function CustomReviewSelectionScreen() {
       await saveToCache(
         ALL_SUBJECTS_CACHE_KEY,
         allSubjectsData.data,
-        allSubjectsData.data_updated_at
+        allSubjectsData.data_updated_at,
       );
 
       setCacheRebuildProgress(90);
@@ -443,7 +450,7 @@ export default function CustomReviewSelectionScreen() {
       setCacheRebuildProgress(100);
 
       console.log(
-        `Successfully rebuilt cache with ${allSubjectsData.data.length} subjects`
+        `Successfully rebuilt cache with ${allSubjectsData.data.length} subjects`,
       );
 
       // Small delay before hiding progress
@@ -454,7 +461,7 @@ export default function CustomReviewSelectionScreen() {
     } catch (err) {
       console.error("Error rebuilding cache:", err);
       setError(
-        "Failed to rebuild cache. Please check your internet connection and try again."
+        "Failed to rebuild cache. Please check your internet connection and try again.",
       );
       setIsRebuildingCache(false);
       setCacheRebuildProgress(0);
@@ -485,10 +492,7 @@ export default function CustomReviewSelectionScreen() {
           : subjectIdsFromSelectedLists.has(subject.id),
       )
       .filter((subject) => {
-        if (
-          showVocabularyFrequency &&
-          filters.maxFrequencyRank !== null
-        ) {
+        if (showVocabularyFrequency && filters.maxFrequencyRank !== null) {
           return (
             subject.object === "vocabulary" ||
             subject.object === "kana_vocabulary"
@@ -537,8 +541,7 @@ export default function CustomReviewSelectionScreen() {
     !isLoadingSubjectSrsStages && !subjectSrsStageLoadError;
   const hasActiveSrsFilter =
     filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length;
-  const canApplyCurrentSrsFilter =
-    !hasActiveSrsFilter || isSubjectSrsDataReady;
+  const canApplyCurrentSrsFilter = !hasActiveSrsFilter || isSubjectSrsDataReady;
   const shouldResolveFrequencyFilter =
     hasActiveFrequencyFilter && canApplyCurrentSrsFilter;
   const frequencyCandidates = useMemo(
@@ -550,10 +553,7 @@ export default function CustomReviewSelectionScreen() {
               subject.object === "kana_vocabulary",
           )
         : [],
-    [
-      shouldResolveFrequencyFilter,
-      subjectsMatchingSearchAndNonFrequencyFacets,
-    ],
+    [shouldResolveFrequencyFilter, subjectsMatchingSearchAndNonFrequencyFacets],
   );
   const {
     ranks: frequencyRanks,
@@ -662,10 +662,7 @@ export default function CustomReviewSelectionScreen() {
   );
 
   const startCustomReview = async () => {
-    if (
-      !canApplyCurrentSrsFilter ||
-      readySelectedSubjectIds.length === 0
-    ) {
+    if (!canApplyCurrentSrsFilter || readySelectedSubjectIds.length === 0) {
       return;
     }
     await clearExtraStudySessionState(
@@ -738,10 +735,7 @@ export default function CustomReviewSelectionScreen() {
   };
 
   const startCustomLessons = () => {
-    if (
-      !canApplyCurrentSrsFilter ||
-      readySelectedSubjectIds.length === 0
-    ) {
+    if (!canApplyCurrentSrsFilter || readySelectedSubjectIds.length === 0) {
       return;
     }
 
@@ -755,9 +749,7 @@ export default function CustomReviewSelectionScreen() {
 
   const openListStudyConfig = (
     pathname:
-      | "/test-config"
-      | "/similar-kanji-config"
-      | "/writing-practice-config",
+      "/test-config" | "/similar-kanji-config" | "/writing-practice-config",
   ) => {
     if (selectedListIds.length === 0) {
       Alert.alert(
@@ -808,9 +800,10 @@ export default function CustomReviewSelectionScreen() {
     filters.jlptLevels.size > 0,
     filters.maxFrequencyRank !== null,
   ].filter(Boolean).length;
-  const filterAccessibilityHint = filters.maxFrequencyRank !== null
-    ? `Maximum frequency rank ${filters.maxFrequencyRank.toLocaleString()}`
-    : undefined;
+  const filterAccessibilityHint =
+    filters.maxFrequencyRank !== null
+      ? `Maximum frequency rank ${filters.maxFrequencyRank.toLocaleString()}`
+      : undefined;
 
   const allMatchingSelected =
     matchingSubjectIds.length > 0 &&
@@ -853,7 +846,7 @@ export default function CustomReviewSelectionScreen() {
 
       return subjectIds;
     },
-    [availableLists]
+    [availableLists],
   );
 
   const toggleListSelection = (listId: string) => {
@@ -868,7 +861,8 @@ export default function CustomReviewSelectionScreen() {
     }
 
     const nextListIds = Array.from(nextListIdSet.values());
-    const previouslyListSelectedSubjectIds = getSubjectIdsForLists(previousListIds);
+    const previouslyListSelectedSubjectIds =
+      getSubjectIdsForLists(previousListIds);
     const nextListSelectedSubjectIds = getSubjectIdsForLists(nextListIds);
 
     setSelectedListIds(nextListIds);
@@ -966,7 +960,7 @@ export default function CustomReviewSelectionScreen() {
     const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
     const svgXml = useRemoteSvg(svgUrl, "#ffffff");
     const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(
-      null
+      null,
     );
 
     useEffect(() => {
@@ -1056,24 +1050,13 @@ export default function CustomReviewSelectionScreen() {
           },
         ]}
         onAccessibilityAction={(event) => {
-          if (
-            event.nativeEvent.actionName === openDetailsAccessibilityAction
-          ) {
+          if (event.nativeEvent.actionName === openDetailsAccessibilityAction) {
             handleSubjectTilePress(item);
           }
         }}
       >
         <TouchableOpacity
-          style={[
-            styles.itemBox,
-            { backgroundColor: typeColor },
-            (item.object === "vocabulary" ||
-              item.object === "kana_vocabulary") &&
-              item.data.characters &&
-              item.data.characters.length > 1 && {
-                width: 48 + (item.data.characters.length - 2) * 24 + 16,
-              },
-          ]}
+          style={[styles.itemBox, { backgroundColor: typeColor }]}
           onPress={(event) => {
             event.stopPropagation();
             handleSubjectTilePress(item);
@@ -1086,10 +1069,7 @@ export default function CustomReviewSelectionScreen() {
           {item.object === "radical" ? (
             <SubjectRadicalCharacter item={item} />
           ) : (
-            <Text
-              style={[styles.itemCharacter, fontStyles.japaneseText]}
-              numberOfLines={1}
-            >
+            <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
               {item.data.characters || item.data.meanings[0].meaning}
             </Text>
           )}
@@ -1115,9 +1095,7 @@ export default function CustomReviewSelectionScreen() {
                 #{frequencyRank.toLocaleString()}
               </Text>
             ) : null}
-            <Text
-              style={[styles.itemLevel, { color: theme.textLight }]}
-            >
+            <Text style={[styles.itemLevel, { color: theme.textLight }]}>
               {levelAndSrsLabel}
             </Text>
           </View>
@@ -1134,9 +1112,7 @@ export default function CustomReviewSelectionScreen() {
   };
 
   const hasPartialFrequencyResults =
-    hasActiveFrequencyFilter &&
-    canUseFrequencyResults &&
-    !frequencyDataReady;
+    hasActiveFrequencyFilter && canUseFrequencyResults && !frequencyDataReady;
   const hasScheduledFrequencyRetry =
     frequencyLookupError?.phase === "network" &&
     frequencyLookupError.reason === "automatic_retry";
@@ -1220,7 +1196,9 @@ export default function CustomReviewSelectionScreen() {
   }, [frequencyAnnouncementKey, frequencyAnnouncementMessage]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.backgroundColor }]}>
         <TouchableOpacity
@@ -1248,26 +1226,18 @@ export default function CustomReviewSelectionScreen() {
         </View>
         <SubjectListStudyMenu
           selectedItemCount={
-            canApplyCurrentSrsFilter
-              ? readySelectedSubjectIds.length
-              : 0
+            canApplyCurrentSrsFilter ? readySelectedSubjectIds.length : 0
           }
           selectedKanjiCount={
-            canApplyCurrentSrsFilter
-              ? selectedKanjiIds.length
-              : 0
+            canApplyCurrentSrsFilter ? selectedKanjiIds.length : 0
           }
           hasSelectedLists={selectedListIds.length > 0}
           onStandardReview={startCustomReview}
           onKanjiMatch={startKanjiMatch}
           onCustomLessons={startCustomLessons}
           onRandomTest={() => openListStudyConfig("/test-config")}
-          onSimilarKanji={() =>
-            openListStudyConfig("/similar-kanji-config")
-          }
-          onKanjiWriting={() =>
-            openListStudyConfig("/writing-practice-config")
-          }
+          onSimilarKanji={() => openListStudyConfig("/similar-kanji-config")}
+          onKanjiWriting={() => openListStudyConfig("/writing-practice-config")}
         />
       </View>
 
@@ -1318,12 +1288,11 @@ export default function CustomReviewSelectionScreen() {
           <Ionicons name="list" size={21} color={theme.textSecondary} />
           {selectedListIds.length > 0 ? (
             <View
-              style={[
-                styles.filterBadge,
-                { backgroundColor: theme.primary },
-              ]}
+              style={[styles.filterBadge, { backgroundColor: theme.primary }]}
             >
-              <Text style={styles.filterBadgeText}>{selectedListIds.length}</Text>
+              <Text style={styles.filterBadgeText}>
+                {selectedListIds.length}
+              </Text>
             </View>
           ) : null}
         </TouchableOpacity>
@@ -1345,10 +1314,7 @@ export default function CustomReviewSelectionScreen() {
           <Ionicons name="options" size={22} color={theme.textSecondary} />
           {activeFilterOptionCount > 0 ? (
             <View
-              style={[
-                styles.filterBadge,
-                { backgroundColor: theme.primary },
-              ]}
+              style={[styles.filterBadge, { backgroundColor: theme.primary }]}
             >
               <Text style={styles.filterBadgeText}>
                 {activeFilterOptionCount}
@@ -1377,7 +1343,11 @@ export default function CustomReviewSelectionScreen() {
           }
         >
           <Ionicons
-            name={allMatchingSelected ? "remove-circle-outline" : "checkmark-done-outline"}
+            name={
+              allMatchingSelected
+                ? "remove-circle-outline"
+                : "checkmark-done-outline"
+            }
             size={18}
             color={theme.textSecondary}
           />
@@ -1409,7 +1379,11 @@ export default function CustomReviewSelectionScreen() {
           accessibilityState={{ disabled: selectedSubjectIds.size === 0 }}
           accessibilityLabel="Clear subject selection"
         >
-          <Ionicons name="close-circle-outline" size={18} color={theme.textSecondary} />
+          <Ionicons
+            name="close-circle-outline"
+            size={18}
+            color={theme.textSecondary}
+          />
           <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>
             Clear Selection
           </Text>
@@ -1487,9 +1461,7 @@ export default function CustomReviewSelectionScreen() {
       ) : hasActiveSrsFilter && isLoadingSubjectSrsStages ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text
-            style={[styles.loadingText, { color: theme.textSecondary }]}
-          >
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
             Loading study progress...
           </Text>
         </View>
@@ -1553,9 +1525,7 @@ export default function CustomReviewSelectionScreen() {
           }}
         >
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text
-            style={[styles.loadingText, { color: theme.textColor }]}
-          >
+          <Text style={[styles.loadingText, { color: theme.textColor }]}>
             Checking saved frequencies...
           </Text>
           <Text
@@ -1570,11 +1540,7 @@ export default function CustomReviewSelectionScreen() {
         </View>
       ) : needsFrequencyLookupApproval && !canUseFrequencyResults ? (
         <View style={styles.frequencyLookupNotice}>
-          <Ionicons
-            name="cloud-outline"
-            size={36}
-            color={theme.primary}
-          />
+          <Ionicons name="cloud-outline" size={36} color={theme.primary} />
           <Text
             style={[styles.frequencyLookupTitle, { color: theme.textColor }]}
           >
@@ -1647,8 +1613,8 @@ export default function CustomReviewSelectionScreen() {
               ? "The saved frequency cache could not be read. No new words were sent to Jiten. Retry the local check."
               : hasScheduledFrequencyRetry
                 ? `${scheduledRetryReason} We'll retry the remaining ${unresolvedFrequencyCount.toLocaleString()} words automatically when the pause ends. Normally, completed results are cached and ready next time.`
-                : exhaustedFrequencyRetryMessage ??
-                  "The frequency check could not continue. Check your connection, then retry the remaining words."}
+                : (exhaustedFrequencyRetryMessage ??
+                  "The frequency check could not continue. Check your connection, then retry the remaining words.")}
           </Text>
           <View style={styles.frequencyLookupActions}>
             {!hasScheduledFrequencyRetry ? (
@@ -1702,9 +1668,7 @@ export default function CustomReviewSelectionScreen() {
           accessibilityLiveRegion="polite"
         >
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text
-            style={[styles.loadingText, { color: theme.textColor }]}
-          >
+          <Text style={[styles.loadingText, { color: theme.textColor }]}>
             Checking word frequencies...
           </Text>
           <Text
@@ -1839,12 +1803,12 @@ export default function CustomReviewSelectionScreen() {
                 {hasPartialFrequencyResults
                   ? `No checked words match yet; ${unresolvedFrequencyCount.toLocaleString()} remain unchecked.`
                   : searchQuery ||
-                    filters.minLevel > 1 ||
-                    filters.maxLevel < 60 ||
-                    filters.types.size < 4 ||
-                    filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
-                    filters.jlptLevels.size > 0 ||
-                    filters.maxFrequencyRank !== null
+                      filters.minLevel > 1 ||
+                      filters.maxLevel < 60 ||
+                      filters.types.size < 4 ||
+                      filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
+                      filters.jlptLevels.size > 0 ||
+                      filters.maxFrequencyRank !== null
                     ? "No subjects found matching your search and filters"
                     : "No subjects available"}
               </Text>
@@ -1863,7 +1827,10 @@ export default function CustomReviewSelectionScreen() {
           <View
             style={[
               styles.modalCard,
-              { backgroundColor: theme.cardBackground, borderColor: theme.border },
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
             ]}
           >
             <View style={styles.modalHeader}>
@@ -1875,16 +1842,26 @@ export default function CustomReviewSelectionScreen() {
               </TouchableOpacity>
             </View>
             {isLoadingLists ? (
-              <Text style={[styles.modalStateText, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.modalStateText, { color: theme.textSecondary }]}
+              >
                 Loading lists...
               </Text>
             ) : availableLists.length === 0 ? (
               <View style={styles.modalEmptyState}>
-                <Text style={[styles.modalStateText, { color: theme.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.modalStateText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
                   No lists yet. Create one from Manage.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.manageListsButton, { borderColor: theme.border }]}
+                  style={[
+                    styles.manageListsButton,
+                    { borderColor: theme.border },
+                  ]}
                   onPress={() => {
                     setShowListFilterModal(false);
                     router.push("/subject-lists");
@@ -1892,7 +1869,10 @@ export default function CustomReviewSelectionScreen() {
                 >
                   <Ionicons name="list" size={16} color={theme.textSecondary} />
                   <Text
-                    style={[styles.manageListsButtonText, { color: theme.textSecondary }]}
+                    style={[
+                      styles.manageListsButtonText,
+                      { color: theme.textSecondary },
+                    ]}
                   >
                     Manage Lists
                   </Text>
@@ -1909,7 +1889,9 @@ export default function CustomReviewSelectionScreen() {
                         style={[
                           styles.modalListItem,
                           {
-                            borderColor: isSelected ? theme.primary : theme.border,
+                            borderColor: isSelected
+                              ? theme.primary
+                              : theme.border,
                             backgroundColor: isSelected
                               ? `${theme.primary}15`
                               : theme.backgroundColor,
@@ -1920,20 +1902,29 @@ export default function CustomReviewSelectionScreen() {
                         <Ionicons
                           name={isSelected ? "checkbox" : "square-outline"}
                           size={20}
-                          color={isSelected ? theme.primary : theme.textSecondary}
+                          color={
+                            isSelected ? theme.primary : theme.textSecondary
+                          }
                         />
                         <View style={styles.modalListItemText}>
                           <Text
                             style={[
                               styles.modalListItemTitle,
-                              { color: isSelected ? theme.primary : theme.textColor },
+                              {
+                                color: isSelected
+                                  ? theme.primary
+                                  : theme.textColor,
+                              },
                             ]}
                             numberOfLines={1}
                           >
                             {list.name}
                           </Text>
                           <Text
-                            style={[styles.modalListItemMeta, { color: theme.textSecondary }]}
+                            style={[
+                              styles.modalListItemMeta,
+                              { color: theme.textSecondary },
+                            ]}
                           >
                             {list.subjectIds.length} subjects
                           </Text>
@@ -1943,7 +1934,12 @@ export default function CustomReviewSelectionScreen() {
                   })}
                 </ScrollView>
                 <View style={styles.modalFooter}>
-                  <Text style={[styles.modalFooterText, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.modalFooterText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     {selectedListIds.length === 0
                       ? "No subject list selected."
                       : `${selectedListIds.length} list${
@@ -1952,14 +1948,20 @@ export default function CustomReviewSelectionScreen() {
                   </Text>
                   <View style={styles.modalFooterButtons}>
                     <TouchableOpacity
-                      style={[styles.modalFooterButton, { borderColor: theme.border }]}
+                      style={[
+                        styles.modalFooterButton,
+                        { borderColor: theme.border },
+                      ]}
                       onPress={() => {
                         setShowListFilterModal(false);
                         router.push("/subject-lists");
                       }}
                     >
                       <Text
-                        style={[styles.modalFooterButtonText, { color: theme.textSecondary }]}
+                        style={[
+                          styles.modalFooterButtonText,
+                          { color: theme.textSecondary },
+                        ]}
                       >
                         Manage
                       </Text>
@@ -1972,7 +1974,9 @@ export default function CustomReviewSelectionScreen() {
                       ]}
                       onPress={() => setShowListFilterModal(false)}
                     >
-                      <Text style={styles.modalFooterPrimaryButtonText}>Done</Text>
+                      <Text style={styles.modalFooterPrimaryButtonText}>
+                        Done
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -2096,9 +2100,10 @@ const styles = StyleSheet.create({
     top: 6,
     right: 6,
     minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    minHeight: 18,
+    borderRadius: 999,
     paddingHorizontal: 4,
+    paddingVertical: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2106,6 +2111,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 11,
     fontWeight: "700",
+    textAlign: "center",
   },
   searchInput: {
     flex: 1,
@@ -2223,21 +2229,27 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.06)",
   },
   itemBox: {
-    width: 48,
-    height: 48,
+    minWidth: 48,
+    minHeight: 48,
     borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    maxWidth: "45%",
+    flexShrink: 1,
   },
   itemCharacter: {
     fontSize: 20,
     fontWeight: "bold",
     color: "white",
     textAlign: "center",
+    maxWidth: "100%",
   },
   itemDetails: {
     flex: 1,
+    minWidth: 0,
   },
   itemMeaning: {
     fontSize: 16,

@@ -1,6 +1,7 @@
 const WANIKANI_USER_URL = "https://api.wanikani.com/v2/user";
 const WANIKANI_REVISION = "20170710";
 const HISTORY_DAYS = 430;
+const DAY_MS = 86_400_000;
 const DEFAULT_PAGE_SIZE = 1_000;
 const MAX_HISTORY_ROWS = 30_000;
 const MAX_REQUEST_BYTES = 4_096;
@@ -97,7 +98,9 @@ const ACTIVITY_CATEGORY: Readonly<Record<string, StudyTimeCategory>> = {
   writing_freehand: "extra_study",
   context_sentence: "extra_study",
   listening_practice: "extra_study",
+  jlpt: "extra_study",
   crossword: "extra_study",
+  word_search: "extra_study",
   wordle: "extra_study",
   extra_study: "extra_study",
   "extra-study": "extra_study",
@@ -407,14 +410,12 @@ function dateKey(date: Date): string {
 }
 
 function historyBounds(now: Date): { earliest: string; latest: string } {
-  // A device in a positive UTC offset can already be on tomorrow's local
-  // calendar day. Keep that grace day inside (rather than in addition to) the
-  // fixed-size history window, and reject arbitrary future legacy rows.
-  const latestDate = new Date(now.getTime() + 86_400_000);
+  // Query the full UTC union of a 430-local-day ledger. UTC-12 can retain a
+  // date at UTC-today-430, while UTC+14 can already be on UTC-tomorrow.
   return {
-    latest: dateKey(latestDate),
+    latest: dateKey(new Date(now.getTime() + DAY_MS)),
     earliest: dateKey(
-      new Date(latestDate.getTime() - (HISTORY_DAYS - 1) * 86_400_000),
+      new Date(now.getTime() - HISTORY_DAYS * DAY_MS),
     ),
   };
 }

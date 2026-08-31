@@ -72,6 +72,8 @@ import {
   type DownloadedJitaiFont,
 } from "../utils/jitaiFonts";
 import { pickPreferredPronunciationAudios } from "../utils/pronunciationAudio";
+import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
+import { useIsNoteSubjectPreviewOpen } from "../utils/note-subject-preview-state";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
 import {
@@ -107,7 +109,10 @@ import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
-import { FormattedNoteEditor } from "./formatted-note";
+import {
+  FormattedNoteEditor,
+  type FormattedNoteEditorHandle,
+} from "./formatted-note";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -1214,6 +1219,10 @@ export default function ReviewQuestionScreen({
     useState("");
   const [studyMaterialNoteModalVisible, setStudyMaterialNoteModalVisible] =
     useState(false);
+  const studyMaterialNoteEditorRef =
+    useRef<FormattedNoteEditorHandle>(null);
+  const isScreenFocused = useOptionalScreenIsFocused();
+  const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
   const [localStudyMaterials, setLocalStudyMaterials] = useState<
@@ -2312,13 +2321,14 @@ export default function ReviewQuestionScreen({
   );
 
   useEffect(() => {
-    if (navigatingToDetail) {
+    if (!isScreenFocused || navigatingToDetail) {
       pausedShortcutInputRef.current?.blur();
       return;
     }
 
     if (
       studyMaterialNoteModalVisible ||
+      noteSubjectPreviewOpen ||
       (!isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect)
     ) {
       pausedShortcutInputRef.current?.blur();
@@ -2340,14 +2350,18 @@ export default function ReviewQuestionScreen({
     isPausedOnWrong,
     isPausedOnCloseAnswer,
     isPausedOnCorrect,
+    isScreenFocused,
     navigatingToDetail,
+    noteSubjectPreviewOpen,
     studyMaterialNoteModalVisible,
   ]);
 
   useEffect(() => {
     if (
       !effectiveAnkiCardMode ||
+      !isScreenFocused ||
       navigatingToDetail ||
+      noteSubjectPreviewOpen ||
       studyMaterialNoteModalVisible
     ) {
       ankiShortcutInputRef.current?.blur();
@@ -2367,7 +2381,9 @@ export default function ReviewQuestionScreen({
   }, [
     currentQuestionKey,
     effectiveAnkiCardMode,
+    isScreenFocused,
     navigatingToDetail,
+    noteSubjectPreviewOpen,
     studyMaterialNoteModalVisible,
   ]);
 
@@ -3405,6 +3421,11 @@ export default function ReviewQuestionScreen({
     setStudyMaterialNoteModalVisible(false);
   }, [isSavingStudyMaterialNote]);
 
+  const handleStudyMaterialNoteModalRequestClose = useCallback(() => {
+    if (studyMaterialNoteEditorRef.current?.closeLinkPicker()) return;
+    closeStudyMaterialNoteModal();
+  }, [closeStudyMaterialNoteModal]);
+
   const handleSaveStudyMaterialNote = useCallback(async () => {
     if (!apiToken || isSavingStudyMaterialNote) {
       return;
@@ -3837,7 +3858,7 @@ export default function ReviewQuestionScreen({
       visible={studyMaterialNoteModalVisible}
       transparent
       animationType="fade"
-      onRequestClose={closeStudyMaterialNoteModal}
+      onRequestClose={handleStudyMaterialNoteModalRequestClose}
     >
       <KeyboardAvoidingView
         style={styles.studyMaterialNoteModalOverlay}
@@ -3880,6 +3901,7 @@ export default function ReviewQuestionScreen({
           </View>
 
           <FormattedNoteEditor
+            ref={studyMaterialNoteEditorRef}
             key={`${editingStudyMaterialNoteType}:${studyMaterialNoteModalVisible}`}
             style={[
               styles.studyMaterialNoteInput,
@@ -4128,6 +4150,9 @@ export default function ReviewQuestionScreen({
 
   const tryHandlePausedShortcutKey = (pressedKey: string): boolean => {
     if (
+      !isScreenFocused ||
+      noteSubjectPreviewOpen ||
+      studyMaterialNoteModalVisible ||
       (!isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect) ||
       navigatingToDetail
     ) {
@@ -4450,7 +4475,9 @@ export default function ReviewQuestionScreen({
   const tryHandleAnkiShortcutKey = (pressedKey: string): boolean => {
     if (
       !effectiveAnkiCardMode ||
+      !isScreenFocused ||
       navigatingToDetail ||
+      noteSubjectPreviewOpen ||
       studyMaterialNoteModalVisible ||
       pendingAnkiSubmitCallbackRef.current
     ) {
@@ -6681,21 +6708,24 @@ export default function ReviewQuestionScreen({
 
               {shouldShowPausedSubjectDetails && renderPausedDetailsActions()}
 
-              {isPausedOnAnswer && !studyMaterialNoteModalVisible && (
-                <TextInput
-                  ref={pausedShortcutInputRef}
-                  value=""
-                  onChangeText={() => {}}
-                  onKeyPress={handlePausedShortcutKeyPress}
-                  onSubmitEditing={handleInputSubmitEditing}
-                  style={styles.hiddenPausedShortcutInput}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  blurOnSubmit={false}
-                  showSoftInputOnFocus={false}
-                  caretHidden
-                />
-              )}
+              {isPausedOnAnswer &&
+                isScreenFocused &&
+                !noteSubjectPreviewOpen &&
+                !studyMaterialNoteModalVisible && (
+                  <TextInput
+                    ref={pausedShortcutInputRef}
+                    value=""
+                    onChangeText={() => {}}
+                    onKeyPress={handlePausedShortcutKeyPress}
+                    onSubmitEditing={handleInputSubmitEditing}
+                    style={styles.hiddenPausedShortcutInput}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    blurOnSubmit={false}
+                    showSoftInputOnFocus={false}
+                    caretHidden
+                  />
+                )}
 
               {isVoiceReviewEnabled &&
                 (isVoiceRecognizing || voiceError || voiceInterimTranscript) && (
@@ -6782,24 +6812,26 @@ export default function ReviewQuestionScreen({
             />
           )}
 
-        {effectiveAnkiCardMode && (
-          <TextInput
-            ref={ankiShortcutInputRef}
-            value=""
-            onChangeText={() => {}}
-            onKeyPress={handleAnkiShortcutKeyPress}
-            onSubmitEditing={handleAnkiShortcutSubmitEditing}
-            style={styles.hiddenPausedShortcutInput}
-            autoCorrect={false}
-            autoCapitalize="none"
-            blurOnSubmit={false}
-            showSoftInputOnFocus={false}
-            caretHidden
-            accessible={false}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-        )}
+        {effectiveAnkiCardMode &&
+          isScreenFocused &&
+          !noteSubjectPreviewOpen && (
+            <TextInput
+              ref={ankiShortcutInputRef}
+              value=""
+              onChangeText={() => {}}
+              onKeyPress={handleAnkiShortcutKeyPress}
+              onSubmitEditing={handleAnkiShortcutSubmitEditing}
+              style={styles.hiddenPausedShortcutInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              blurOnSubmit={false}
+              showSoftInputOnFocus={false}
+              caretHidden
+              accessible={false}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+          )}
       </KeyboardAvoidingView>
       {renderStudyMaterialNoteModal()}
     </SafeAreaView>
@@ -7276,6 +7308,8 @@ const styles = StyleSheet.create({
   studyMaterialNoteModalContent: {
     width: "100%",
     maxWidth: 460,
+    maxHeight: "90%",
+    flexShrink: 1,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,

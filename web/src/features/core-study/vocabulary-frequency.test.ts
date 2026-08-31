@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchVocabularyFrequency,
+  fetchVocabularyFrequencyForRequest,
+  normalizeVocabularyFrequencyRequest,
   vocabularyFrequencyQueryKey,
+  vocabularyFrequencyQueryKeyForRequest,
   vocabularyFrequencyRequestForSubject,
   type VocabularyFrequencySubject,
 } from "./vocabulary-frequency";
@@ -30,9 +33,25 @@ describe("vocabulary frequency client", () => {
     });
     expect(vocabularyFrequencyQueryKey(subject)).toEqual([
       "vocabulary-frequency",
-      42,
       "開く",
-      "ひらく",
+      ["ひらく"],
+    ]);
+  });
+
+  it("normalizes direct requests for a stable query identity", () => {
+    const request = {
+      expression: " ～ 開く ",
+      readings: ["ヒラク", " ひらく ", "アク"],
+    };
+
+    expect(normalizeVocabularyFrequencyRequest(request)).toEqual({
+      expression: "開く",
+      readings: ["あく", "ひらく"],
+    });
+    expect(vocabularyFrequencyQueryKeyForRequest(request)).toEqual([
+      "vocabulary-frequency",
+      "開く",
+      ["あく", "ひらく"],
     ]);
   });
 
@@ -93,5 +112,28 @@ describe("vocabulary frequency client", () => {
     await expect(fetchVocabularyFrequency(subject)).resolves.toBeNull();
     await expect(fetchVocabularyFrequency(subject)).resolves.toBeNull();
     expect(notFoundRemote).toHaveBeenCalledOnce();
+  });
+
+  it("shares browser cache across subjects and normalized direct requests", async () => {
+    const result = {
+      provider: "jiten" as const,
+      frequencyRank: 1_200,
+      wordId: 2,
+      readingIndex: 0,
+      matchedText: "開く",
+      matchedReading: "ひらく",
+      sourceUrl: "https://jiten.moe/search?query=%E9%96%8B%E3%81%8F",
+    };
+    const remote = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ result }), { status: 200 }));
+    vi.stubGlobal("fetch", remote);
+    const directRequest = { expression: "～ 開く", readings: ["ヒラク", "ひらく"] };
+
+    expect(vocabularyFrequencyQueryKeyForRequest(directRequest)).toEqual(vocabularyFrequencyQueryKey(subject));
+    await expect(fetchVocabularyFrequency(subject)).resolves.toEqual(result);
+    await expect(fetchVocabularyFrequency({ ...subject, id: 777 })).resolves.toEqual(result);
+    await expect(fetchVocabularyFrequencyForRequest(directRequest)).resolves.toEqual(result);
+
+    expect(remote).toHaveBeenCalledOnce();
+    expect(window.localStorage).toHaveLength(1);
   });
 });

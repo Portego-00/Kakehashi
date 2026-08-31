@@ -37,6 +37,7 @@ const MAX_DAYS_PER_SYNC = 14;
 
 let lastAttemptAtMs = 0;
 let isSyncing = false;
+let activeSync: Promise<void> | null = null;
 let resolvedDeviceId: string | null = null;
 
 export type StudyTimeSyncStatus = {
@@ -175,69 +176,98 @@ async function syncNow(): Promise<void> {
   // Persist the running clocks so the rows below reflect everything.
   timeTrackingService.foldNow();
 
-  const recentDays = timeTrackingService.getRecentDayRecords(MAX_DAYS_PER_SYNC);
-  const pushedSums = readPushedSums(userId, deviceId);
+  const retainedDays = timeTrackingService.getAllRetainedDayRecords();
+  const storedPushedSums = readPushedSums(userId, deviceId);
+  const retainedKeys = new Set(retainedDays.map(({ dateKey }) => dateKey));
+  const pushedSums: Record<string, number> = {};
+  for (const [dateKey, sum] of Object.entries(storedPushedSums)) {
+    if (retainedKeys.has(dateKey)) {
+      pushedSums[dateKey] = sum;
+    }
+  }
+  const prunedStaleMarkers =
+    Object.keys(pushedSums).length !== Object.keys(storedPushedSums).length;
 
-  const dirtyDays = recentDays.filter(({ dateKey, record }) => {
-    const sum = recordSum(record);
-    return sum > 0 && sum > (pushedSums[dateKey] ?? 0);
-  });
+  const dirtyDays = retainedDays
+    .filter(({ dateKey, record }) => {
+      const sum = recordSum(record);
+      return sum > 0 && sum > (pushedSums[dateKey] ?? 0);
+    })
+    // Secure current/recent data first. A partial failure can then resume the
+    // older tail without making the user wait for recent totals to appear.
+    .reverse();
 
   if (dirtyDays.length === 0) {
+    if (prunedStaleMarkers) {
+      writePushedSums(userId, deviceId, pushedSums);
+    }
     setSyncStatus("success", "Up to date — nothing new to push");
     return;
   }
 
   const appVersion = Constants.expoConfig?.version ?? null;
 
-  const days = dirtyDays.map(({ dateKey, record }) => ({
-    day: dateKey,
-    activityMs: buildActivityMs(record),
-    studyTotalMs: Math.round(studyMsOfRecord(record)),
-    appTotalMs: Math.round(record[APP_TOTAL_KEY] ?? 0),
-    appVersion,
-    platform: Platform.OS,
-  }));
+  const nextPushedSums = { ...pushedSums };
+  let pushedDayCount = 0;
 
-  // The Edge Function verifies the WaniKani token and derives the user. Client
-  // payloads never get to choose which account owns a row.
-  await postStudyTimeEdge("study-time-sync", apiToken, { deviceId, days });
+  for (let offset = 0; offset < dirtyDays.length; offset += MAX_DAYS_PER_SYNC) {
+    const batch = dirtyDays.slice(offset, offset + MAX_DAYS_PER_SYNC);
+    const days = batch.map(({ dateKey, record }) => ({
+      day: dateKey,
+      activityMs: buildActivityMs(record),
+      studyTotalMs: Math.round(studyMsOfRecord(record)),
+      appTotalMs: Math.round(record[APP_TOTAL_KEY] ?? 0),
+      appVersion,
+      platform: Platform.OS,
+    }));
+
+    // Await each acknowledgement before advancing. If a later request fails,
+    // markers for every acknowledged batch remain durable and retries resume
+    // from the first unacknowledged day.
+    await postStudyTimeEdge("study-time-sync", apiToken, { deviceId, days });
+    for (const { dateKey, record } of batch) {
+      nextPushedSums[dateKey] = recordSum(record);
+    }
+    writePushedSums(userId, deviceId, nextPushedSums);
+
+    pushedDayCount += batch.length;
+    if (pushedDayCount < dirtyDays.length) {
+      setSyncStatus(
+        "syncing",
+        `Pushed ${pushedDayCount} of ${dirtyDays.length} days…`,
+      );
+    }
+  }
 
   setSyncStatus(
     "success",
-    `Pushed ${dirtyDays.length} day${dirtyDays.length === 1 ? "" : "s"}`
+    `Pushed ${dirtyDays.length} day${dirtyDays.length === 1 ? "" : "s"}`,
   );
-
-  const nextPushedSums = { ...pushedSums };
-  for (const { dateKey, record } of dirtyDays) {
-    nextPushedSums[dateKey] = recordSum(record);
-  }
-  // Drop markers for days outside the sync window to keep the blob tiny.
-  const windowKeys = new Set(recentDays.map(({ dateKey }) => dateKey));
-  for (const key of Object.keys(nextPushedSums)) {
-    if (!windowKeys.has(key)) {
-      delete nextPushedSums[key];
-    }
-  }
-  writePushedSums(userId, deviceId, nextPushedSums);
 }
 
-export function maybeSyncStudyTime(options: { force?: boolean } = {}): void {
+export function maybeSyncStudyTime(
+  options: { force?: boolean } = {},
+): Promise<void> {
   const now = Date.now();
-  if (isSyncing || (!options.force && now - lastAttemptAtMs < MIN_SYNC_INTERVAL_MS)) {
-    return;
+  if (isSyncing) {
+    return activeSync ?? Promise.resolve();
+  }
+  if (!options.force && now - lastAttemptAtMs < MIN_SYNC_INTERVAL_MS) {
+    return Promise.resolve();
   }
 
   lastAttemptAtMs = now;
   isSyncing = true;
-  syncNow()
+  activeSync = syncNow()
     .catch((error) => {
       console.log("📊 Study time sync failed:", error?.message ?? error);
       setSyncStatus("error", String(error?.message ?? error));
     })
     .finally(() => {
       isSyncing = false;
+      activeSync = null;
     });
+  return activeSync;
 }
 
 /** Wires the sync into the tracker's opportunity callback. Idempotent. */
