@@ -9,6 +9,7 @@ import type { DashboardSubjectRow, SrsStageSpreadRow } from "./dashboard-data";
 import { IncompleteLevelsWidget, ReviewStatsWidget, StudyTimeWidget } from "./DashboardDataWidgets";
 import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, TodayStudyWidget } from "./DashboardNativeWidgets";
 import { RecentMistakesWidget } from "./RecentMistakesWidget";
+import { CustomVocabularyWidgetView } from "./CustomVocabularyWidgetView";
 import type { UsageStreakDay } from "./usage-streak";
 import { StudyQueueCard } from "./StudyQueueCard";
 import styles from "./dashboard.module.css";
@@ -61,6 +62,8 @@ function DashboardWidgetPreviewComponent({ id, density = "canvas" }: { id: Dashb
 
   if (id === "daily-study") {
     preview = <section className={`${styles.section} ${styles.queueSection}`}><PreviewHeader title="Today" detail="Your live WaniKani queues" /><div className={styles.queue}><StudyQueueCard type="lesson" preview /><StudyQueueCard type="review" preview /></div></section>;
+  } else if (id === "custom-vocabulary") {
+    preview = <CustomVocabularyWidgetView lessons={null} reviews={null} enrolledPacks={null} totalPacks={null} preview />;
   } else if (id === "srs") {
     preview = <SrsSpreadWidget rows={SRS_PREVIEW_ROWS} preview />;
   } else if (id === "level") {

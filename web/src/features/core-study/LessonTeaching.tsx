@@ -98,9 +98,8 @@ export function LessonTeaching({
   useEffect(() => {
     if (!subject || previousSubjectIdRef.current === subject.id) return;
     previousSubjectIdRef.current = subject.id;
-    heroRef.current?.scrollIntoView({ block: "start" });
     if (!focusTabAfterSubjectChange) return;
-    const frame = window.requestAnimationFrame(() => document.getElementById(`lesson-subject-${subject.id}-tab-meaning`)?.focus());
+    const frame = window.requestAnimationFrame(() => document.getElementById(`lesson-subject-${subject.id}-tab-meaning`)?.focus({ preventScroll: true }));
     return () => window.cancelAnimationFrame(frame);
   }, [focusTabAfterSubjectChange, subject]);
 

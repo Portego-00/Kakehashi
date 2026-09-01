@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MangaPageSelector } from "../MangaPageSelector";
 
@@ -144,5 +144,50 @@ describe("MangaPageSelector", () => {
     onDismiss.mockClear();
     fireEvent.keyDown(selector, { key: "Escape" });
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves keyboard activation inside a completed OCR result to its controls", () => {
+    const onInspect = vi.fn();
+    const onSelectionComplete = vi.fn();
+    const { container } = render(<MangaPageSelector
+      {...selectorProps(onSelectionComplete)}
+      tooltip={{
+        content: <button type="button" onClick={onInspect}>Inspect 猫</button>,
+        onDismiss: vi.fn(),
+        selection: { x: 0.2, y: 0.2, width: 0.4, height: 0.2 },
+      }}
+    />);
+    const inspect = screen.getByRole("button", { name: "Inspect 猫" });
+
+    for (const key of ["Enter", " "]) {
+      const event = createEvent.keyDown(inspect, { key });
+      fireEvent(inspect, event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    fireEvent.click(inspect);
+
+    expect(onInspect).toHaveBeenCalledOnce();
+    expect(onSelectionComplete).not.toHaveBeenCalled();
+    expect(container.querySelector('span[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it("focuses a completed OCR result and restores the page surface when it closes", () => {
+    const onDismiss = vi.fn();
+    const { rerender } = render(<MangaPageSelector
+      {...selectorProps()}
+      tooltip={{
+        content: <span lang="ja">猫です</span>,
+        onDismiss,
+        selection: { x: 0.2, y: 0.2, width: 0.4, height: 0.2 },
+      }}
+    />);
+    const selector = screen.getByRole("group", { name: "Select text on Page 1" });
+
+    expect(screen.getByRole("dialog", { name: "OCR result" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Close OCR result" }));
+    rerender(<MangaPageSelector {...selectorProps()} tooltip={null} />);
+
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(selector).toHaveFocus();
   });
 });

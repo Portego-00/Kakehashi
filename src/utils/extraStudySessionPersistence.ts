@@ -16,6 +16,18 @@ export const EXTRA_STUDY_SESSION_STORAGE_KEYS = {
   WORD_SEARCH: "extra_study_session:word_search",
 } as const;
 
+export function getAccountScopedExtraStudySessionStorageKey(
+  key: string,
+  userId: string,
+): string {
+  const normalizedUserId = userId.trim();
+  if (!normalizedUserId) {
+    throw new TypeError("A user ID is required for account-scoped study data.");
+  }
+
+  return `${key}:user:${encodeURIComponent(normalizedUserId)}`;
+}
+
 export async function loadExtraStudySessionState<T extends object>(
   key: string,
 ): Promise<T | null> {

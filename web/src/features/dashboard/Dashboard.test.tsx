@@ -48,6 +48,10 @@ vi.mock("@/features/dashboard/useFirstDashboardReveal", () => ({
   useFirstDashboardReveal: () => ({}),
 }));
 
+vi.mock("./CustomVocabularyWidget", () => ({
+  CustomVocabularyWidget: ({ scope }: { scope: string | number }) => <section data-testid="custom-vocabulary-widget" data-scope={scope}><h2>Custom vocabulary</h2></section>,
+}));
+
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
@@ -91,6 +95,15 @@ describe("dashboard", () => {
     expect(screen.getByTestId("dashboard-level-timings")).toHaveTextContent(
       "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",
     );
+  });
+
+  it("mounts the custom vocabulary widget with the signed-in user scope", () => {
+    dashboardTestState.dashboardOrder = ["custom-vocabulary"];
+
+    render(<Dashboard />);
+
+    expect(screen.getByRole("heading", { name: "Custom vocabulary" })).toBeInTheDocument();
+    expect(screen.getByTestId("custom-vocabulary-widget")).toHaveAttribute("data-scope", "1");
   });
 
   it("renders Recent Mistakes as empty during Vacation Mode", () => {

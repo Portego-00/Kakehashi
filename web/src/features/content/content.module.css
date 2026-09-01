@@ -353,6 +353,8 @@
 .readerPrimaryFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block-end: var(--rule-thin) solid var(--color-rule-2); }
 .readerPrimaryFacts > div { min-width: 0; display: grid; align-content: start; gap: var(--space-2xs); padding-block: var(--space-xs); }
 .readerPrimaryFacts > div + div { margin-inline-start: var(--space-md); padding-inline-start: var(--space-md); border-inline-start: var(--rule-thin) solid var(--color-rule-2); }
+.readerPrimaryFacts[data-layout="stacked"] { grid-template-columns: minmax(0, 1fr); }
+.readerPrimaryFacts[data-layout="stacked"] > div + div { margin-inline-start: 0; padding-inline-start: 0; border-block-start: var(--rule-thin) solid var(--color-rule-2); border-inline-start: 0; }
 .readerSecondaryFacts { display: grid; }
 .readerSecondaryFacts > div { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: baseline; gap: var(--space-sm); padding-block: var(--space-xs); }
 .readerSecondaryFacts > div + div { border-block-start: var(--rule-thin) solid var(--color-rule-2); }
@@ -606,7 +608,18 @@
 .mangaRecognitionGlyph::before { inset-block-start: 34%; }
 .mangaRecognitionGlyph::after { inset-block-start: 65%; }
 .mangaRecognitionGlyph > span { position: absolute; z-index: var(--z-base); inset-inline: 0; height: 2px; background: var(--color-accent); box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-accent) 24%, transparent); animation: mangaRecognitionScan 1.25s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
-.mangaRecognitionResult { display: grid; gap: var(--space-md); animation: mangaRecognitionResultIn 180ms var(--ease-out) both; }
+.mangaRecognitionResult { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--space-md) var(--space-sm); animation: mangaRecognitionResultIn 180ms var(--ease-out) both; }
+.mangaRecognitionResult > .readerGrid { grid-column: 1; grid-row: 1; }
+.mangaVoiceButton { grid-column: 2; grid-row: 1; width: 2.5rem; height: 2.5rem; display: grid; place-items: center; padding: 0; border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); cursor: pointer; transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), opacity var(--dur-micro) var(--ease-out); }
+.mangaVoiceButton[data-state="synthesizing"], .mangaVoiceButton[data-state="downloading"] { cursor: progress; }
+.mangaVoiceButton[data-state="playing"] { border-color: var(--color-accent); background: color-mix(in oklch, var(--color-accent) 10%, var(--color-surface)); color: var(--color-accent); }
+.mangaVoiceButton:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.mangaVoiceButton:disabled { background: var(--color-paper-3); color: var(--color-muted); cursor: not-allowed; opacity: 0.64; }
+.mangaVoicePrompt { grid-column: 1 / -1; grid-row: 2; min-width: 0; display: grid; gap: var(--space-xs); padding-block: var(--space-sm); border-block: var(--rule-thin) solid var(--color-rule-2); }
+.mangaVoicePrompt > p { margin: 0; color: var(--color-muted); font-size: var(--text-xs); line-height: 1.5; }
+.mangaVoicePrompt > .error { color: var(--color-danger); }
+.mangaVoicePrompt > .secondaryButton { justify-self: start; margin-block-start: var(--space-xs); }
+.mangaVoiceError { grid-column: 1 / -1; grid-row: 2; margin: 0; }
 .mangaTranslation { min-width: 0; display: grid; gap: var(--space-xs); padding-block-start: var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule-2); color: var(--color-ink-2); font-size: var(--text-sm); line-height: 1.55; }
 .mangaTranslationLabel { display: flex; align-items: center; gap: var(--space-xs); color: var(--color-muted); font-size: var(--text-xs); }
 .mangaTranslationLabel svg { flex: 0 0 auto; color: var(--color-accent); }

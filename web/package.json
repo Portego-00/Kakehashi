@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "sync:anime-catalog": "node scripts/sync-anime-catalog.mjs",
+    "audit:custom-vocabulary-composition": "node ../research/audit-kanji-composition-mnemonics.mjs",
+    "audit:custom-vocabulary-live": "node scripts/audit-custom-vocabulary-live.mjs",
+    "refresh:custom-vocabulary-wanikani": "node ../research/refresh-wanikani-custom-vocabulary-snapshots.mjs",
+    "sync:custom-vocabulary": "node scripts/sync-custom-vocabulary.mjs",
     "sync:srs-icons": "node scripts/sync-srs-icons.mjs",
     "dev": "next dev --webpack",
     "dev:expo-env": "cd .. && eas env:exec production \"npm --prefix web run dev\"",
@@ -34,6 +38,7 @@
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "ts-fsrs": "5.4.1",
     "wanakana": "^5.3.1",
     "zod": "^4.3.6",
     "zustand": "^5.0.11"

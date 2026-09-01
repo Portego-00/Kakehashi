@@ -192,7 +192,6 @@
   --lesson-item-color: var(--color-accent);
   width: max-content;
   min-width: 2.5rem;
-  max-width: 5rem;
   height: 2.5rem;
   display: grid;
   place-items: center;
@@ -238,6 +237,10 @@
 
 .sessionProgress > span { opacity: .82; }
 .sessionProgress > strong { font-variant-numeric: tabular-nums; }
+
+.fullSubjectContrast .lessonHeroCopy > p,
+.fullSubjectContrast .lessonHeroMeta { color: var(--color-subject-text); }
+.fullSubjectContrast .sessionProgress > span { opacity: 1; }
 
 .bandActions {
   min-width: 0;
@@ -721,7 +724,7 @@
   .lessonFooterArrow { width: var(--control-height); padding: 0; }
   .lessonFooterArrow > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .lessonBatchItems { gap: var(--space-2xs); }
-  .lessonBatchItem { min-width: 2.35rem; max-width: 3.5rem; height: 2.35rem; }
+  .lessonBatchItem { min-width: 2.35rem; height: 2.35rem; }
   .lessonNav { position: static; }
   .lessonNav > * { flex: 1; }
 }

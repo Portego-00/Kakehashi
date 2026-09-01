@@ -310,6 +310,7 @@ describe("JapaneseReader inspector", () => {
     const primaryFacts = inspector.querySelector("[data-reader-primary-facts]");
     expect(primaryFacts).not.toBeNull();
     expect(primaryFacts?.tagName).toBe("DL");
+    expect(primaryFacts).toHaveAttribute("data-layout", "columns");
     expect(inspector.querySelectorAll("dl")).toHaveLength(2);
     expect(within(primaryFacts as HTMLElement).getByText("Reading")).toBeInTheDocument();
     expect(within(primaryFacts as HTMLElement).getByText("Meaning")).toBeInTheDocument();
@@ -328,6 +329,42 @@ describe("JapaneseReader inspector", () => {
     fireEvent.click(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
     fireEvent.pointerDown(screen.getByRole("button", { name: "Outside reader" }));
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+  });
+
+  it("gives a long meaning its own full-width row", async () => {
+    const meaning = "indicates possessive · nominalizes verbs and adjectives · substitutes for ga in subordinate phrases · at sentence-end, falling tone indicates a confident conclusion";
+    render(<JapaneseReader
+      text="の"
+      appearance="compact"
+      inspectorMode="floating"
+      analysisContext={{
+        text: "の",
+        start: 0,
+        analysis: {
+          status: "ready",
+          sourceText: "の",
+          tokens: [{
+            start: 0,
+            end: 1,
+            surface: "の",
+            spelling: "の",
+            reading: "の",
+            meaning,
+            meanings: [meaning],
+            alternativeSpellings: [],
+            partsOfSpeech: ["prt"],
+            tokenType: "grammar",
+          }],
+          message: "JPDB parsing mapped against your WaniKani library.",
+        },
+      }}
+    />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /の, JPDB term/ }));
+
+    const primaryFacts = screen.getByRole("complementary").querySelector("[data-reader-primary-facts]");
+    expect(primaryFacts).toHaveAttribute("data-layout", "stacked");
+    expect(primaryFacts).toHaveTextContent(meaning);
   });
 
   it("treats focus entering an embedded player as an outside interaction", async () => {
@@ -439,6 +476,50 @@ describe("JapaneseReader inspector", () => {
     expect(pause).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("data-state", "idle");
     expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("title", "Play WaniKani pronunciation");
+  });
+
+  it("stops WaniKani pronunciation when shared Japanese TTS starts", async () => {
+    const pause = vi.fn();
+    const audioConstructor = vi.fn().mockImplementation(function AudioMock() {
+      const audio = { play: vi.fn().mockResolvedValue(undefined), pause, onended: null, onerror: null, onpause: null as (() => void) | null };
+      pause.mockImplementation(() => queueMicrotask(() => audio.onpause?.()));
+      return audio;
+    });
+    vi.stubGlobal("Audio", audioConstructor);
+    const view = render(<JapaneseReader text="学校" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped"));
+    fireEvent.click(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Speak 学校" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop speaking 学校" })).toBeInTheDocument());
+
+    Object.assign(fixtures.voice, { activity: "synthesizing", activeSentence: "猫です" });
+    view.rerender(<JapaneseReader text="学校" />);
+
+    await waitFor(() => expect(pause).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("data-state", "idle");
+  });
+
+  it("does not replace shared Japanese TTS when it interrupts WaniKani audio startup", async () => {
+    fixtures.voice.downloaded = true;
+    let rejectPlay: ((reason?: unknown) => void) | undefined;
+    const playPromise = new Promise<void>((_resolve, reject) => { rejectPlay = reject; });
+    const pause = vi.fn(() => rejectPlay?.(new DOMException("Playback interrupted.", "AbortError")));
+    const audioConstructor = vi.fn().mockImplementation(function AudioMock() {
+      return { play: vi.fn(() => playPromise), pause, onended: null, onerror: null, onpause: null };
+    });
+    vi.stubGlobal("Audio", audioConstructor);
+    const view = render(<JapaneseReader text="学校" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped"));
+    fireEvent.click(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Speak 学校" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel speaking 学校" })).toHaveAttribute("data-state", "loading"));
+
+    Object.assign(fixtures.voice, { activity: "synthesizing", activeSentence: "猫です" });
+    view.rerender(<JapaneseReader text="学校" />);
+
+    await waitFor(() => expect(pause).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("data-state", "idle"));
+    expect(fixtures.voice.play).not.toHaveBeenCalled();
   });
 
   it("shows and stops downloaded TTS after WaniKani audio fails", async () => {

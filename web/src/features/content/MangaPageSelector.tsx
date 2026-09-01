@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { X } from "lucide-react";
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { normalizeMangaOcrSelection, type MangaOcrSelection } from "./manga-ocr";
 import styles from "./content.module.css";
@@ -99,6 +99,7 @@ export function MangaPageSelector({
   const instructionsId = useId();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const hadDismissibleTooltip = useRef(false);
   const drag = useRef<{ pointerId: number; origin: Point; src: string } | null>(null);
   const [draft, setDraft] = useState<DraftSelection | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
@@ -107,6 +108,7 @@ export function MangaPageSelector({
   const tooltipY = tooltip?.selection.y;
   const tooltipWidth = tooltip?.selection.width;
   const tooltipHeight = tooltip?.selection.height;
+  const tooltipDismissible = Boolean(tooltip?.onDismiss);
   const tooltipSelection = useMemo(() => (
     tooltipX === undefined || tooltipY === undefined || tooltipWidth === undefined || tooltipHeight === undefined
       ? null
@@ -141,6 +143,13 @@ export function MangaPageSelector({
       observer?.disconnect();
     };
   }, [selection, tooltip?.content, tooltipSelection]);
+
+  useEffect(() => {
+    const wasDismissible = hadDismissibleTooltip.current;
+    hadDismissibleTooltip.current = tooltipDismissible;
+    if (tooltipDismissible && !wasDismissible) tooltipRef.current?.focus({ preventScroll: true });
+    else if (!tooltipDismissible && wasDismissible) surfaceRef.current?.focus({ preventScroll: true });
+  }, [tooltipDismissible]);
 
   function commitSelection(selectionToCommit: MangaOcrSelection) {
     if (disabled) return;
@@ -181,6 +190,7 @@ export function MangaPageSelector({
 
   function handleKeyboardSelection(event: KeyboardEvent<HTMLDivElement>) {
     if (disabled) return;
+    if (event.target !== event.currentTarget && event.key !== "Escape") return;
     if (event.key === "Escape" && selection) {
       event.preventDefault();
       event.stopPropagation();
@@ -272,6 +282,7 @@ export function MangaPageSelector({
         aria-live={tooltip.onDismiss ? undefined : "polite"}
         aria-atomic="true"
         aria-busy={tooltip.busy || undefined}
+        tabIndex={tooltip.onDismiss ? -1 : undefined}
         onPointerDown={(event) => event.stopPropagation()}
       >
         {tooltip.onDismiss ? <button

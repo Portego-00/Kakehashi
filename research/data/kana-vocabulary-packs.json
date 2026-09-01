@@ -1,0 +1,992 @@
+[
+  {
+    "id": "conversation-glue",
+    "title": "Conversation Glue",
+    "description": "Sixteen high-utility hiragana words and expressions for reacting, clarifying, and keeping an everyday conversation moving.",
+    "script": "hiragana",
+    "words": [
+      {
+        "id": "conversation-douzo",
+        "characters": "どうぞ",
+        "reading": "どうぞ",
+        "meanings": [
+          "Please",
+          "Here You Go",
+          "Go Ahead"
+        ],
+        "partsOfSpeech": [
+          "adverb",
+          "expression"
+        ],
+        "meaningMnemonic": "Zo runs a bakery whose front door is made of dough. When a guest hesitates, Zo swings it open and offers a bun with a cheerful <reading>DOUGH—ZO!</reading>: <vocabulary>please</vocabulary>, <vocabulary>go ahead</vocabulary>, and <vocabulary>here you go</vocabulary> all happen in one gesture. どうぞ offers or encourages an object or action; in どうぞ〜てください, ください carries the request while どうぞ adds polite encouragement.",
+        "contextSentences": [
+          {
+            "ja": "こちらの席へどうぞ。",
+            "en": "Please take this seat."
+          }
+        ],
+        "readingMap": "ど・う・ぞ"
+      },
+      {
+        "id": "conversation-yappari",
+        "characters": "やっぱり",
+        "reading": "やっぱり",
+        "meanings": [
+          "As Expected",
+          "After All"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "Picture a puppy that can parry anything you throw. You try one more newspaper: <reading>YAP—PARRY!</reading> Of course it blocks it again—<vocabulary>as expected</vocabulary>, <vocabulary>after all</vocabulary>, your first hunch was right. Use やっぱり when reality confirms your suspicion or when you return to an earlier conclusion.",
+        "contextSentences": [
+          {
+            "ja": "やっぱりこの店のカレーはおいしい。",
+            "en": "As expected, this restaurant's curry is delicious."
+          }
+        ],
+        "readingMap": "や・っ・ぱ・り"
+      },
+      {
+        "id": "conversation-yukkuri",
+        "characters": "ゆっくり",
+        "reading": "ゆっくり",
+        "meanings": [
+          "Slowly",
+          "At Leisure"
+        ],
+        "partsOfSpeech": [
+          "adverb",
+          "する verb"
+        ],
+        "meaningMnemonic": "A fussy turtle tastes the curry and groans, <reading>YUCK—CURRY!</reading> It pushes the bowl away so <vocabulary>slowly</vocabulary> that lunch lasts all afternoon, completely <vocabulary>at leisure</vocabulary>. ゆっくり describes doing something unhurriedly and can also mean relaxing or taking one's time.",
+        "contextSentences": [
+          {
+            "ja": "今日は家でゆっくり休みます。",
+            "en": "I'm going to relax at home today."
+          }
+        ],
+        "readingMap": "ゆ・っ・く・り"
+      },
+      {
+        "id": "conversation-jaa",
+        "characters": "じゃあ",
+        "reading": "じゃあ",
+        "meanings": [
+          "Well Then",
+          "In That Case"
+        ],
+        "partsOfSpeech": [
+          "conjunction"
+        ],
+        "meaningMnemonic": "A giant <reading>JAW</reading> blocks the hallway while everyone debates where to go. The jaw finally points left, snaps once, and the group says, <vocabulary>well then</vocabulary>—<vocabulary>in that case</vocabulary>—we go left. じゃあ is a casual transition to a decision or next step; では is more formal.",
+        "contextSentences": [
+          {
+            "ja": "じゃあ、駅で七時に会おう。",
+            "en": "Well then, let's meet at the station at seven."
+          }
+        ],
+        "readingMap": "じゃ・あ"
+      },
+      {
+        "id": "conversation-doumo",
+        "characters": "どうも",
+        "reading": "どうも",
+        "meanings": [
+          "Thanks",
+          "Somehow"
+        ],
+        "partsOfSpeech": [
+          "interjection",
+          "adverb"
+        ],
+        "meaningMnemonic": "Moe opens a box and a living lump of dough leaps out to fix her broken chair. <reading>DOUGH, MOE!</reading> she cries, giving it a quick <vocabulary>thanks</vocabulary>, though <vocabulary>somehow</vocabulary> she has no idea why the dough can use tools. どうも alone is a casual, abbreviated thank-you; as an adverb it can express an uncertain ‘somehow’ or ‘for some reason.’",
+        "contextSentences": [
+          {
+            "ja": "手伝ってくれて、どうも。",
+            "en": "Thanks for helping me."
+          }
+        ],
+        "readingMap": "ど・う・も"
+      },
+      {
+        "id": "conversation-masaka",
+        "characters": "まさか",
+        "reading": "まさか",
+        "meanings": [
+          "No Way",
+          "Surely Not"
+        ],
+        "partsOfSpeech": [
+          "interjection",
+          "adverb"
+        ],
+        "meaningMnemonic": "At a children's magic show, the magician announces a <reading>MASSACRE</reading> and raises a sword over a cake. The audience screams <vocabulary>no way</vocabulary>—<vocabulary>surely not</vocabulary>—until he slices only the cake and showers everyone with sprinkles. まさか expresses strong disbelief and often appears with a negative expectation; do not use it for a calm factual ‘unlikely.’",
+        "contextSentences": [
+          {
+            "ja": "まさか彼が来るとは思わなかった。",
+            "en": "I never thought he would come."
+          }
+        ],
+        "readingMap": "ま・さ・か"
+      },
+      {
+        "id": "conversation-sorosoro",
+        "characters": "そろそろ",
+        "reading": "そろそろ",
+        "meanings": [
+          "Soon",
+          "About Time"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "Two singers named Solo stand frozen under the spotlight, each waiting for the other to begin. The crowd stomps and chants <reading>SOLO, SOLO!</reading>: it is <vocabulary>about time</vocabulary>, and the song needs to start <vocabulary>soon</vocabulary>. そろそろ signals that the appropriate time is approaching, often before leaving, starting, or changing activity.",
+        "contextSentences": [
+          {
+            "ja": "そろそろ出かける時間です。",
+            "en": "It's about time to leave."
+          }
+        ],
+        "readingMap": "そ・ろ・そ・ろ"
+      },
+      {
+        "id": "conversation-chanto",
+        "characters": "ちゃんと",
+        "reading": "ちゃんと",
+        "meanings": [
+          "Properly",
+          "Without Fail"
+        ],
+        "partsOfSpeech": [
+          "adverb",
+          "する verb"
+        ],
+        "meaningMnemonic": "A choir's sheet music says <reading>CHANT—OH!</reading>, but one singer keeps improvising ‘uh.’ The conductor makes everyone redo it <vocabulary>properly</vocabulary>, and this time every singer hits ‘oh’ <vocabulary>without fail</vocabulary>. ちゃんと stresses that something is done correctly, reliably, or as expected.",
+        "contextSentences": [
+          {
+            "ja": "宿題はちゃんと終わらせた？",
+            "en": "Did you finish your homework properly?"
+          }
+        ],
+        "readingMap": "ちゃ・ん・と"
+      },
+      {
+        "id": "conversation-narubeku",
+        "characters": "なるべく",
+        "reading": "なるべく",
+        "meanings": [
+          "As Much As Possible",
+          "If Possible"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "A tiny bird with a <reading>NARROW BEAK</reading> must empty a giant sack of seeds before sunset. It cannot grab many at once, but it carries <vocabulary>as much as possible</vocabulary> on every trip and promises to finish <vocabulary>if possible</vocabulary>. なるべく sets a practical best-effort limit rather than an absolute guarantee.",
+        "contextSentences": [
+          {
+            "ja": "なるべく早く返事してください。",
+            "en": "Please reply as soon as possible."
+          }
+        ],
+        "readingMap": "な・る・べ・く"
+      },
+      {
+        "id": "conversation-nande",
+        "characters": "なんで",
+        "reading": "なんで",
+        "meanings": [
+          "Why",
+          "How Come",
+          "What For"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "Nan finds that every square on her calendar has been renamed <reading>NAN DAY</reading>. She grabs the calendar and demands <vocabulary>why</vocabulary>—<vocabulary>how come</vocabulary> every day belongs to her, and <vocabulary>what for</vocabulary>? なんで is casual and conversational; どうして or なぜ can sound more neutral or formal depending on context.",
+        "contextSentences": [
+          {
+            "ja": "なんでそんなに急いでいるの？",
+            "en": "Why are you in such a hurry?"
+          }
+        ],
+        "readingMap": "な・ん・で"
+      },
+      {
+        "id": "conversation-doushite",
+        "characters": "どうして",
+        "reading": "どうして",
+        "meanings": [
+          "Why",
+          "For What Reason"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "A baker opens the oven and the dough she tests explodes into a balloon. She points at the <reading>DOUGH SHE TESTS</reading> and cries, <vocabulary>why</vocabulary>—<vocabulary>for what reason</vocabulary> did bread learn to fly? どうして asks for a reason; intonation can make it sound curious, surprised, or upset.",
+        "contextSentences": [
+          {
+            "ja": "どうして日本語を勉強しているんですか。",
+            "en": "Why are you studying Japanese?"
+          }
+        ],
+        "readingMap": "ど・う・し・て"
+      },
+      {
+        "id": "conversation-douyatte",
+        "characters": "どうやって",
+        "reading": "どうやって",
+        "meanings": [
+          "How",
+          "By What Means"
+        ],
+        "partsOfSpeech": [
+          "expression"
+        ],
+        "meaningMnemonic": "A sailor launches a yacht baked entirely from bread. When it floats, the dockworkers poke it and ask, <reading>DOUGH YACHT, EH?</reading>—<vocabulary>how</vocabulary> did you do that, and <vocabulary>by what means</vocabulary> is it still dry? どうやって asks about the method used to do something, not the reason it was done.",
+        "contextSentences": [
+          {
+            "ja": "空港までどうやって行きますか。",
+            "en": "How will you get to the airport?"
+          }
+        ],
+        "readingMap": "ど・う・や・っ・て"
+      },
+      {
+        "id": "conversation-nantonaku",
+        "characters": "なんとなく",
+        "reading": "なんとなく",
+        "meanings": [
+          "Somehow",
+          "For No Particular Reason"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "Nan straps a tuning dial to a pigeon's beak; the dial reads <reading>NAN—TONE A—COO</reading>. She turns it once and, <vocabulary>somehow</vocabulary>, the bird becomes an opera star even though she did it <vocabulary>for no particular reason</vocabulary>. なんとなく describes a vague cause, feeling, or impulse you cannot clearly explain.",
+        "contextSentences": [
+          {
+            "ja": "なんとなく今日は散歩したい。",
+            "en": "For some reason, I feel like taking a walk today."
+          }
+        ],
+        "readingMap": "な・ん・と・な・く"
+      },
+      {
+        "id": "conversation-chinamini",
+        "characters": "ちなみに",
+        "reading": "ちなみに",
+        "meanings": [
+          "By The Way",
+          "Incidentally"
+        ],
+        "partsOfSpeech": [
+          "conjunction"
+        ],
+        "meaningMnemonic": "A diplomat unveils a <reading>CHINA MINI</reading>, a teacup-sized model of the whole country, in the middle of an unrelated meeting. Everyone pauses for the tiny side exhibit—<vocabulary>by the way</vocabulary>, <vocabulary>incidentally</vocabulary>, it even has working trains—then returns to the main topic. ちなみに introduces relevant extra information, not a completely unrelated subject change.",
+        "contextSentences": [
+          {
+            "ja": "ちなみに、明日は店が休みです。",
+            "en": "By the way, the shop is closed tomorrow."
+          }
+        ],
+        "readingMap": "ち・な・み・に"
+      },
+      {
+        "id": "conversation-tsumari",
+        "characters": "つまり",
+        "reading": "つまり",
+        "meanings": [
+          "In Other Words",
+          "In Short"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "A clerk receives a hundred-page letter addressed <reading>TO MURRAY</reading>. He crushes it into one sticky note: <vocabulary>in short</vocabulary>, Murray owes a llama; <vocabulary>in other words</vocabulary>, that is the whole point. つまり introduces a summary or logical conclusion, not a random change of topic.",
+        "contextSentences": [
+          {
+            "ja": "つまり、予約が必要ということです。",
+            "en": "In other words, a reservation is required."
+          }
+        ],
+        "readingMap": "つ・ま・り"
+      },
+      {
+        "id": "conversation-moshi",
+        "characters": "もし",
+        "reading": "もし",
+        "meanings": [
+          "If",
+          "Supposing"
+        ],
+        "partsOfSpeech": [
+          "adverb"
+        ],
+        "meaningMnemonic": "At a rope bridge, Moe points to her nervous sheep and begins, <reading>MOE—SHE...</reading> The sheep pictures what happens <vocabulary>if</vocabulary> the bridge breaks, <vocabulary>supposing</vocabulary> she suddenly learns to fly. もし marks a hypothetical condition and commonly pairs with forms such as 〜たら; the sentence can often work without it.",
+        "contextSentences": [
+          {
+            "ja": "もし雨が降ったら、家にいます。",
+            "en": "If it rains, I'll stay home."
+          }
+        ],
+        "readingMap": "も・し"
+      }
+    ]
+  },
+  {
+    "id": "food-and-eating-out",
+    "title": "Food & Eating Out",
+    "description": "Sixteen kana staples for meals, menus, restaurant visits, and common foods, mixing native hiragana terms with everyday loanwords.",
+    "script": "mixed",
+    "words": [
+      {
+        "id": "food-okazu",
+        "characters": "おかず",
+        "reading": "おかず",
+        "meanings": [
+          "Side Dish"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "Your cousin bursts into dinner balancing tiny plates around a king-sized rice bowl. You shout <reading>OH, CUZ!</reading> as every plate becomes an おかず, a <vocabulary>side dish</vocabulary> supporting the rice. おかず normally means food eaten with rice, not simply any item located on the side.",
+        "contextSentences": [
+          {
+            "ja": "今日のおかずは焼き魚です。",
+            "en": "Today's side dish is grilled fish."
+          }
+        ],
+        "readingMap": "お・か・ず"
+      },
+      {
+        "id": "food-okawari",
+        "characters": "おかわり",
+        "reading": "おかわり",
+        "meanings": [
+          "Second Helping",
+          "Refill"
+        ],
+        "partsOfSpeech": [
+          "noun",
+          "する verb"
+        ],
+        "meaningMnemonic": "At dinner, Chef Oka keeps handing Wally a fresh bowl every time he empties one. <reading>OKA—WALLY</reading> becomes the call for a <vocabulary>second helping</vocabulary>, and then Wally holds up his glass for a <vocabulary>refill</vocabulary>. おかわり is another serving of the same food or drink; おかわりする means to have seconds.",
+        "contextSentences": [
+          {
+            "ja": "ご飯をおかわりしてもいいですか。",
+            "en": "May I have another serving of rice?"
+          }
+        ],
+        "readingMap": "お・か・わ・り"
+      },
+      {
+        "id": "food-gochisousama",
+        "characters": "ごちそうさま",
+        "reading": "ごちそうさま",
+        "meanings": [
+          "Thank You For The Meal",
+          "That Was Delicious"
+        ],
+        "partsOfSpeech": [
+          "interjection"
+        ],
+        "meaningMnemonic": "Chef Sah-Mah serves a mountain of goat cheese, and every guest devours it. You pat your full stomach and call, <reading>GOAT CHEESE—OH, SAH-MAH!</reading> before bowing: <vocabulary>thank you for the meal</vocabulary>—<vocabulary>that was delicious</vocabulary>. ごちそうさま is said after eating to acknowledge the meal and those who provided it; before eating, use いただきます.",
+        "contextSentences": [
+          {
+            "ja": "食べ終わったら「ごちそうさま」と言います。",
+            "en": "When you finish eating, you say, “Thank you for the meal.”"
+          }
+        ],
+        "readingMap": "ご・ち・そ・う・さ・ま"
+      },
+      {
+        "id": "food-karee",
+        "characters": "カレー",
+        "reading": "カレー",
+        "meanings": [
+          "Curry",
+          "Curry And Rice"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A river of <reading>CURRY</reading> bursts from a restaurant and floods a mountain of rice. Diners paddle through the spicy <vocabulary>curry</vocabulary> in naan-shaped boats until every plate is covered. In Japan, カレー often means Japanese-style curry served with rice; more specific dishes add a modifier such as カレーうどん.",
+        "contextSentences": [
+          {
+            "ja": "今夜は辛いカレーを作ります。",
+            "en": "I'm making spicy curry tonight."
+          }
+        ],
+        "readingMap": "カ・レ・ー"
+      },
+      {
+        "id": "food-sarada",
+        "characters": "サラダ",
+        "reading": "サラダ",
+        "meanings": [
+          "Salad"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A chef yells <reading>SALAD!</reading> and a tornado of lettuce, tomatoes, and cucumbers dives into one bowl. The vegetables land perfectly dressed as a <vocabulary>salad</vocabulary>. サラダ covers salads broadly, including potato or macaroni salad, not only leafy greens.",
+        "contextSentences": [
+          {
+            "ja": "サラダにドレッシングをかけます。",
+            "en": "I put dressing on the salad."
+          }
+        ],
+        "readingMap": "サ・ラ・ダ"
+      },
+      {
+        "id": "food-suupu",
+        "characters": "スープ",
+        "reading": "スープ",
+        "meanings": [
+          "Soup"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A magician drops a spoon into an empty bowl and shouts <reading>SOUP!</reading> Steam erupts and fills the room as warm <vocabulary>soup</vocabulary> pours over the rim. スープ usually refers to Western-style soup; 汁 is common in names of Japanese broths such as 味噌汁.",
+        "contextSentences": [
+          {
+            "ja": "このスープはまだ熱いです。",
+            "en": "This soup is still hot."
+          }
+        ],
+        "readingMap": "ス・ー・プ"
+      },
+      {
+        "id": "food-juusu",
+        "characters": "ジュース",
+        "reading": "ジュース",
+        "meanings": [
+          "Juice",
+          "Soft Drink"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A giant orange squeezes itself into a glass while shouting <reading>JUICE!</reading> The machine beside it also pours cola, because Japanese ジュース can label sweet <vocabulary>juice</vocabulary> or a <vocabulary>soft drink</vocabulary>. In everyday Japanese, ジュース is broader than English ‘juice,’ so check whether the drink is actually fruit-based.",
+        "contextSentences": [
+          {
+            "ja": "オレンジジュースを一つください。",
+            "en": "One orange juice, please."
+          }
+        ],
+        "readingMap": "ジュ・ー・ス"
+      },
+      {
+        "id": "food-keeki",
+        "characters": "ケーキ",
+        "reading": "ケーキ",
+        "meanings": [
+          "Cake"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A wedding <reading>CAKE</reading> grows legs and runs away with every candle still burning. The guests tackle the runaway <vocabulary>cake</vocabulary> before it reaches the door, saving dessert. ケーキ is the general loanword for cake; compounds such as チーズケーキ specify the kind.",
+        "contextSentences": [
+          {
+            "ja": "誕生日にチョコレートケーキを食べました。",
+            "en": "I ate chocolate cake on my birthday."
+          }
+        ],
+        "readingMap": "ケ・ー・キ"
+      },
+      {
+        "id": "food-aisu",
+        "characters": "アイス",
+        "reading": "アイス",
+        "meanings": [
+          "Ice Cream",
+          "Ice",
+          "Iced"
+        ],
+        "partsOfSpeech": [
+          "noun",
+          "prefix"
+        ],
+        "meaningMnemonic": "An ice-cream cone puts on a badge marked <reading>ICE</reading> and freezes everything it touches. At the dessert counter, that badge usually means <vocabulary>ice cream</vocabulary>, though before another word it can mean <vocabulary>ice</vocabulary> or <vocabulary>iced</vocabulary>. アイス by itself commonly means ice cream; use 氷 for a chunk of ordinary ice.",
+        "contextSentences": [
+          {
+            "ja": "暑いから、アイスを買おう。",
+            "en": "It's hot, so let's buy ice cream."
+          }
+        ],
+        "readingMap": "ア・イ・ス"
+      },
+      {
+        "id": "food-resutoran",
+        "characters": "レストラン",
+        "reading": "レストラン",
+        "meanings": [
+          "Restaurant"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A tiny <reading>RESTAURANT</reading> unfolds from a menu and expands around you, trapping you at a table with a waiter. Since the whole building appeared to serve meals, it can only be a <vocabulary>restaurant</vocabulary>. レストラン generally suggests a Western-style or general restaurant, while specialized eateries may use 店 or 屋 names.",
+        "contextSentences": [
+          {
+            "ja": "駅の近くに新しいレストランができました。",
+            "en": "A new restaurant opened near the station."
+          }
+        ],
+        "readingMap": "レ・ス・ト・ラ・ン"
+      },
+      {
+        "id": "food-menyuu",
+        "characters": "メニュー",
+        "reading": "メニュー",
+        "meanings": [
+          "Menu"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A waiter unrolls a <reading>MENUUU!</reading> so long that its final sound and the paper both stretch across the room. Every table it passes adds another dish to the <vocabulary>menu</vocabulary>. メニュー means a list of dishes or options; it does not by itself mean a fixed set meal.",
+        "contextSentences": [
+          {
+            "ja": "メニューを見せてください。",
+            "en": "Please show me the menu."
+          }
+        ],
+        "readingMap": "メ・ニュ・ー"
+      },
+      {
+        "id": "food-dezaato",
+        "characters": "デザート",
+        "reading": "デザート",
+        "meanings": [
+          "Dessert"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A dragon ignores dinner and guards a glittering <reading>DESSERT</reading> cart instead. When anyone reaches for the sweet final course, it breathes caramel to protect the <vocabulary>dessert</vocabulary>. デザート is the after-meal sweet course; お菓子 is broader for sweets and snacks.",
+        "contextSentences": [
+          {
+            "ja": "デザートは別腹です。",
+            "en": "There's always room for dessert."
+          }
+        ],
+        "readingMap": "デ・ザ・ー・ト"
+      },
+      {
+        "id": "food-pasuta",
+        "characters": "パスタ",
+        "reading": "パスタ",
+        "meanings": [
+          "Pasta"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A chef lassos a runaway tomato with one strand of <reading>PASTA</reading>. He reels it into a bowl where spaghetti and penne cheer for their fellow <vocabulary>pasta</vocabulary>. パスタ is the broad category; スパゲッティ names spaghetti specifically.",
+        "contextSentences": [
+          {
+            "ja": "ランチにトマトパスタを注文しました。",
+            "en": "I ordered tomato pasta for lunch."
+          }
+        ],
+        "readingMap": "パ・ス・タ"
+      },
+      {
+        "id": "food-piza",
+        "characters": "ピザ",
+        "reading": "ピザ",
+        "meanings": [
+          "Pizza"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A <reading>PIZZA</reading> spins like a flying saucer and splatters cheese across the ceiling. Everyone slices the landed <vocabulary>pizza</vocabulary> before it can take off again. ピザ is the standard word for pizza; ピッツァ sometimes appears for a more Italian-style pronunciation or product.",
+        "contextSentences": [
+          {
+            "ja": "このピザを三人で分けよう。",
+            "en": "Let's split this pizza among the three of us."
+          }
+        ],
+        "readingMap": "ピ・ザ"
+      },
+      {
+        "id": "food-sandoicchi",
+        "characters": "サンドイッチ",
+        "reading": "サンドイッチ",
+        "meanings": [
+          "Sandwich"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A giant <reading>SANDWICH</reading> snaps shut like a book, trapping the chef between two slices of bread. The filling—and the chef—make it unmistakably a <vocabulary>sandwich</vocabulary>. サンドイッチ is the full word; サンド is a common shorter form in food names.",
+        "contextSentences": [
+          {
+            "ja": "朝ご飯に卵サンドイッチを作りました。",
+            "en": "I made an egg sandwich for breakfast."
+          }
+        ],
+        "readingMap": "サ・ン・ド・イ・ッ・チ"
+      },
+      {
+        "id": "food-biiru",
+        "characters": "ビール",
+        "reading": "ビール",
+        "meanings": [
+          "Beer"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A bartender pulls a tap labeled <reading>BEEEER!</reading>, and the long stream fills a glass until foam buries the counter. The overflowing drink is unmistakably <vocabulary>beer</vocabulary>. ビール means beer; 生ビール specifies draft beer, and ビア also appears in compounds.",
+        "contextSentences": [
+          {
+            "ja": "仕事の後で冷たいビールを飲みました。",
+            "en": "I drank a cold beer after work."
+          }
+        ],
+        "readingMap": "ビ・ー・ル"
+      }
+    ]
+  },
+  {
+    "id": "daily-tech-and-errands",
+    "title": "Daily Tech & Errands",
+    "description": "Sixteen katakana words heard constantly around devices, transport, shopping, work, and the home.",
+    "script": "katakana",
+    "words": [
+      {
+        "id": "daily-sumaho",
+        "characters": "スマホ",
+        "reading": "スマホ",
+        "meanings": [
+          "Smartphone",
+          "Smart Phone"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A smartphone climbs into a paper cutter with its long name, スマートフォン, printed down its back. The blades keep <reading>スマ＋ホ</reading> and fling the rest away, leaving a pocket-sized <vocabulary>smartphone</vocabulary> called スマホ. スマホ is the ordinary casual abbreviation; スマートフォン is the full form.",
+        "contextSentences": [
+          {
+            "ja": "スマホの充電が切れました。",
+            "en": "My smartphone ran out of charge."
+          }
+        ],
+        "readingMap": "ス・マ・ホ"
+      },
+      {
+        "id": "daily-pasokon",
+        "characters": "パソコン",
+        "reading": "パソコン",
+        "meanings": [
+          "Personal Computer",
+          "PC",
+          "Computer"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A personal computer tries to carry its enormous name, パーソナルコンピューター, through a narrow office door. The door shears it down to <reading>パソ＋コン</reading>, and the shortened machine rolls to a desk as a <vocabulary>PC</vocabulary>. パソコン is the everyday Japanese word for a personal computer, especially a laptop or desktop rather than a phone.",
+        "contextSentences": [
+          {
+            "ja": "パソコンで資料を作っています。",
+            "en": "I'm making the document on my computer."
+          }
+        ],
+        "readingMap": "パ・ソ・コ・ン"
+      },
+      {
+        "id": "daily-apuri",
+        "characters": "アプリ",
+        "reading": "アプリ",
+        "meanings": [
+          "App",
+          "Application"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "An application icon sees the huge word アプリケーション and attacks it with scissors. It saves only <reading>アプリケーション → アプリ</reading>, then hops onto your phone as an <vocabulary>app</vocabulary>. アプリ is the normal abbreviation for a software application, especially on a phone or computer.",
+        "contextSentences": [
+          {
+            "ja": "このアプリは無料で使えます。",
+            "en": "You can use this app for free."
+          }
+        ],
+        "readingMap": "ア・プ・リ"
+      },
+      {
+        "id": "daily-netto",
+        "characters": "ネット",
+        "reading": "ネット",
+        "meanings": [
+          "Internet",
+          "Net",
+          "Network"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A fisher casts a glowing <reading>NET</reading> over the city and catches every computer in it. The connected machines begin searching and streaming through the <vocabulary>Internet</vocabulary>, the <vocabulary>net</vocabulary>. ネット commonly abbreviates インターネット; in compounds it can also refer to a physical net or network.",
+        "contextSentences": [
+          {
+            "ja": "ネットで電車の時間を調べました。",
+            "en": "I checked the train times online."
+          }
+        ],
+        "readingMap": "ネ・ッ・ト"
+      },
+      {
+        "id": "daily-meeru",
+        "characters": "メール",
+        "reading": "メール",
+        "meanings": [
+          "Email",
+          "Message",
+          "Mail"
+        ],
+        "partsOfSpeech": [
+          "noun",
+          "する verb"
+        ],
+        "meaningMnemonic": "A tiny envelope yells <reading>MAIL!</reading>, grows propellers, and flies from your phone into a friend's screen. It lands as an <vocabulary>email</vocabulary> or digital <vocabulary>message</vocabulary>, not a paper letter. メール usually means email or electronic messaging; 郵便 is used for postal mail.",
+        "contextSentences": [
+          {
+            "ja": "あとでメールを送ります。",
+            "en": "I'll send you an email later."
+          }
+        ],
+        "readingMap": "メ・ー・ル"
+      },
+      {
+        "id": "daily-kamera",
+        "characters": "カメラ",
+        "reading": "カメラ",
+        "meanings": [
+          "Camera"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A <reading>CAMERA</reading> sprouts one huge eye and chases you through a market. Each blink traps another scene as a photograph, proving the monster is a <vocabulary>camera</vocabulary>. カメラ is used for still or video cameras; the context tells which.",
+        "contextSentences": [
+          {
+            "ja": "旅行にカメラを持って行きます。",
+            "en": "I'm taking a camera on the trip."
+          }
+        ],
+        "readingMap": "カ・メ・ラ"
+      },
+      {
+        "id": "daily-iyahon",
+        "characters": "イヤホン",
+        "reading": "イヤホン",
+        "meanings": [
+          "Earphones",
+          "Earbuds"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A giant <reading>EARPHONE</reading> grows a pair of ears and tries to stuff itself into them. It splits into two tiny <vocabulary>earbuds</vocabulary>, one for each ear, so the music finally plays. イヤホン generally means in-ear earphones or earbuds; over-ear headphones are ヘッドホン.",
+        "contextSentences": [
+          {
+            "ja": "電車の中ではイヤホンを使ってください。",
+            "en": "Please use earphones on the train."
+          }
+        ],
+        "readingMap": "イ・ヤ・ホ・ン"
+      },
+      {
+        "id": "daily-eakon",
+        "characters": "エアコン",
+        "reading": "エアコン",
+        "meanings": [
+          "Air Conditioner",
+          "Air Conditioning",
+          "AC"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A superhero named <reading>AIR-CON</reading> punches a hole in a heat wave and blows cold air into the room. Everyone crowds around the victorious <vocabulary>air conditioner</vocabulary> as the temperature falls. エアコン refers to an air-conditioning unit and often includes both cooling and heating functions.",
+        "contextSentences": [
+          {
+            "ja": "暑いので、エアコンをつけてもいいですか。",
+            "en": "It's hot, so may I turn on the air conditioner?"
+          }
+        ],
+        "readingMap": "エ・ア・コ・ン"
+      },
+      {
+        "id": "daily-rimokon",
+        "characters": "リモコン",
+        "reading": "リモコン",
+        "meanings": [
+          "Remote Control",
+          "Remote"
+        ],
+        "partsOfSpeech": [
+          "noun",
+          "の adjective"
+        ],
+        "meaningMnemonic": "A long REMOTE CONTROL walks into a shrink ray and emerges with only <reading>REMO-CON</reading> on its cape. From the sofa, the tiny hero points at the TV and acts as the <vocabulary>remote control</vocabulary>. リモコン is a Japanese clipping of リモートコントロール and can control appliances beyond televisions.",
+        "contextSentences": [
+          {
+            "ja": "テレビのリモコンはどこですか。",
+            "en": "Where is the TV remote?"
+          }
+        ],
+        "readingMap": "リ・モ・コ・ン"
+      },
+      {
+        "id": "daily-geemu",
+        "characters": "ゲーム",
+        "reading": "ゲーム",
+        "meanings": [
+          "Game"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A board marked <reading>GAME</reading> sucks everyone nearby onto its squares. They cannot escape until somebody wins the <vocabulary>game</vocabulary> by reaching the final space. ゲーム covers video, board, and other games; 試合 is more natural for many organized sports matches.",
+        "contextSentences": [
+          {
+            "ja": "友だちとオンラインゲームをしました。",
+            "en": "I played an online game with a friend."
+          }
+        ],
+        "readingMap": "ゲ・ー・ム"
+      },
+      {
+        "id": "daily-chiketto",
+        "characters": "チケット",
+        "reading": "チケット",
+        "meanings": [
+          "Ticket"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A <reading>TICKET</reading> sprouts teeth and bites anyone trying to enter without it. Once you show the pass, the little <vocabulary>ticket</vocabulary> unlocks the cinema door and lets you through. チケット is used for admission and travel tickets; 切符 is especially common for train or bus fares.",
+        "contextSentences": [
+          {
+            "ja": "映画のチケットを二枚買いました。",
+            "en": "I bought two movie tickets."
+          }
+        ],
+        "readingMap": "チ・ケ・ッ・ト"
+      },
+      {
+        "id": "daily-suupaa",
+        "characters": "スーパー",
+        "reading": "スーパー",
+        "meanings": [
+          "Supermarket",
+          "Super"
+        ],
+        "partsOfSpeech": [
+          "noun",
+          "prefix"
+        ],
+        "meaningMnemonic": "A grocery store ties on a cape marked <reading>SUPER</reading> and grows until it covers an entire block. Shoppers race into the giant <vocabulary>supermarket</vocabulary> before the milk aisle stretches out of town. スーパー by itself usually means supermarket; before another word it can retain the sense ‘super.’",
+        "contextSentences": [
+          {
+            "ja": "帰りにスーパーで牛乳を買います。",
+            "en": "I'll buy milk at the supermarket on the way home."
+          }
+        ],
+        "readingMap": "ス・ー・パ・ー"
+      },
+      {
+        "id": "daily-reji",
+        "characters": "レジ",
+        "reading": "レジ",
+        "meanings": [
+          "Cash Register",
+          "Checkout",
+          "Cashier"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A cash register tries to print its full name, レジスター, but the receipt tears after the opening sound of <reading>REGISTER</reading>. The surviving レジ stamps a coin and becomes the shop's <vocabulary>cash register</vocabulary> and <vocabulary>checkout</vocabulary>. レジ can refer to the register, checkout area, or the worker at it depending on context.",
+        "contextSentences": [
+          {
+            "ja": "レジに長い列ができています。",
+            "en": "A long line has formed at the checkout."
+          }
+        ],
+        "readingMap": "レ・ジ"
+      },
+      {
+        "id": "daily-toire",
+        "characters": "トイレ",
+        "reading": "トイレ",
+        "meanings": [
+          "Toilet",
+          "Restroom",
+          "Bathroom"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A walking <reading>TOILET</reading> squeezes through a doorway and loses the end of its name in the frame. Now labeled トイレ, it points desperate travelers toward the <vocabulary>restroom</vocabulary> or <vocabulary>bathroom</vocabulary>. トイレ is the everyday word for the toilet or restroom; it does not normally mean a room for bathing.",
+        "contextSentences": [
+          {
+            "ja": "すみません、トイレはどこですか。",
+            "en": "Excuse me, where is the restroom?"
+          }
+        ],
+        "readingMap": "ト・イ・レ"
+      },
+      {
+        "id": "daily-basu",
+        "characters": "バス",
+        "reading": "バス",
+        "meanings": [
+          "Bus"
+        ],
+        "partsOfSpeech": [
+          "noun"
+        ],
+        "meaningMnemonic": "A giant <reading>BUS</reading> unfolds like an accordion and swallows a whole queue of passengers. It carries everyone along the route, so there is no mistaking the vehicle for anything but a <vocabulary>bus</vocabulary>. バス is the road vehicle in ordinary travel contexts; バス停 means bus stop.",
+        "contextSentences": [
+          {
+            "ja": "毎朝バスで学校に通っています。",
+            "en": "I commute to school by bus every morning."
+          }
+        ],
+        "readingMap": "バ・ス"
+      },
+      {
+        "id": "daily-arubaito",
+        "characters": "アルバイト",
+        "reading": "アルバイト",
+        "meanings": [
+          "Part-Time Job",
+          "Part-Time Worker",
+          "Side Job"
+        ],
+        "partsOfSpeech": [
+          "noun",
+          "する verb"
+        ],
+          "meaningMnemonic": "At a café, three workers wear name tags reading <reading>AL—BUY—TOE</reading>. Al stocks shelves, Buy runs the register, and Toe mops the floor during a short shift—the strangest <vocabulary>part-time job</vocabulary> Al has ever taken. アルバイト usually means a part-time job or worker; it comes from German Arbeit, not the English phrase in the memory hook.",
+        "contextSentences": [
+          {
+            "ja": "週末はカフェでアルバイトをしています。",
+            "en": "I work part-time at a café on weekends."
+          }
+        ],
+        "readingMap": "ア・ル・バ・イ・ト"
+      }
+    ]
+  }
+]

@@ -131,6 +131,7 @@ export const DEFAULT_NAVBAR_TABS = ["home", "level", "news", "video", "manga", "
 export const OPTIONAL_NAV_ITEMS = ["analytics", "items", "search", "lists", "news", "reader", "epubs", "music", "video", "manga", "translator", "community"] as const;
 export const DASHBOARD_SECTIONS = [
   "daily-study",
+  "custom-vocabulary",
   "srs",
   "level",
   "extra-study",
@@ -161,6 +162,7 @@ export type DashboardSectionDefinition = {
 };
 export const DASHBOARD_SECTION_DEFINITIONS: DashboardSectionDefinition[] = [
   { id: "daily-study", label: "Lessons & Reviews", description: "Your live study queues and vacation status.", source: "Home", defaultWidth: 12, allowedWidths: [8, 12] },
+  { id: "custom-vocabulary", label: "Custom Vocabulary", description: "Custom lessons, due reviews, and vocabulary packs.", source: "Home", defaultWidth: 12, allowedWidths: [6, 8, 12] },
   { id: "srs", label: "Active Item Spread", description: "Stacked subject distribution across all nine SRS stages.", source: "Analytics", defaultWidth: 8, allowedWidths: [6, 8, 12] },
   { id: "level", label: "Level Progress", description: "Current-level Guru target, timing, radicals, and kanji.", source: "Level", defaultWidth: 12, allowedWidths: [6, 8, 12] },
   { id: "extra-study", label: "Extra Study", description: "Practice modes that do not affect SRS.", source: "Home", defaultWidth: 12, allowedWidths: [8, 12] },
@@ -193,6 +195,7 @@ export const DEFAULT_DASHBOARD_SECTION_ORDER: DashboardSectionId[] = [
   "level-timing",
   "today-study",
   "subject-lists",
+  "custom-vocabulary",
   "incomplete-levels",
   "recent-unlocks",
   "critical-items",
@@ -201,31 +204,59 @@ export const DEFAULT_DASHBOARD_SECTION_ORDER: DashboardSectionId[] = [
 ];
 export const DEFAULT_VISIBLE_DASHBOARD_SECTIONS: DashboardSectionId[] = [...DEFAULT_DASHBOARD_SECTION_ORDER];
 export const DEFAULT_HIDDEN_DASHBOARD_SECTIONS: DashboardSectionId[] = DASHBOARD_SECTIONS.filter((id) => !DEFAULT_VISIBLE_DASHBOARD_SECTIONS.includes(id));
-const PREVIOUS_DEFAULT_DASHBOARD_SECTION_ORDER: DashboardSectionId[] = [
-  "daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time",
-];
-const PREVIOUS_DEFAULT_HIDDEN_DASHBOARD_SECTIONS: DashboardSectionId[] = [
-  "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time",
-];
-const PREVIOUS_DEFAULT_DASHBOARD_SECTION_WIDTHS: Record<DashboardSectionId, DashboardSectionWidth> = {
-  "daily-study": 12,
-  srs: 8,
-  level: 8,
-  "extra-study": 12,
-  forecast: 8,
-  "study-pulse": 4,
-  "recent-mistakes": 6,
-  "study-streak": 4,
-  "subject-lists": 4,
-  "incomplete-levels": 6,
-  "recent-unlocks": 6,
-  "critical-items": 6,
-  "burned-items": 6,
-  "review-heatmap": 12,
-  "level-timing": 8,
-  "today-study": 4,
-  "study-time": 4,
+type PreviousDashboardDefault = {
+  order: readonly DashboardSectionId[];
+  hidden: readonly DashboardSectionId[];
+  widths: Partial<Record<DashboardSectionId, DashboardSectionWidth>>;
 };
+const PREVIOUS_DASHBOARD_DEFAULTS: readonly PreviousDashboardDefault[] = [
+  {
+    order: ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"],
+    hidden: ["recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"],
+    widths: {
+      "daily-study": 12,
+      srs: 8,
+      level: 8,
+      "extra-study": 12,
+      forecast: 8,
+      "study-pulse": 4,
+      "recent-mistakes": 6,
+      "study-streak": 4,
+      "subject-lists": 4,
+      "incomplete-levels": 6,
+      "recent-unlocks": 6,
+      "critical-items": 6,
+      "burned-items": 6,
+      "review-heatmap": 12,
+      "level-timing": 8,
+      "today-study": 4,
+      "study-time": 4,
+    },
+  },
+  {
+    order: ["daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time"],
+    hidden: [],
+    widths: {
+      "daily-study": 12,
+      level: 12,
+      "extra-study": 12,
+      forecast: 12,
+      "recent-mistakes": 6,
+      "study-pulse": 6,
+      "review-heatmap": 12,
+      srs: 8,
+      "study-streak": 4,
+      "level-timing": 8,
+      "today-study": 4,
+      "subject-lists": 4,
+      "incomplete-levels": 8,
+      "recent-unlocks": 6,
+      "critical-items": 6,
+      "burned-items": 6,
+      "study-time": 6,
+    },
+  },
+];
 export const WEB_SETTINGS_EVENT = "kakehashi-web-settings-change";
 
 export const DEFAULT_WEB_SETTINGS: WebSettings = {
@@ -349,17 +380,21 @@ function normalizeReviewTypeOrder(value: unknown): ReviewTypeOrderSetting[] {
 
 function isPreviousDefaultDashboard(workspace: Partial<WebSettings["workspace"]> | undefined) {
   if (!workspace) return false;
-  const widths = workspace.dashboardWidths;
-  const sameOrder = Array.isArray(workspace.dashboardOrder)
-    && workspace.dashboardOrder.length === PREVIOUS_DEFAULT_DASHBOARD_SECTION_ORDER.length
-    && workspace.dashboardOrder.every((id, index) => id === PREVIOUS_DEFAULT_DASHBOARD_SECTION_ORDER[index]);
-  const sameHidden = Array.isArray(workspace.hiddenDashboard)
-    && workspace.hiddenDashboard.length === PREVIOUS_DEFAULT_HIDDEN_DASHBOARD_SECTIONS.length
-    && workspace.hiddenDashboard.every((id, index) => id === PREVIOUS_DEFAULT_HIDDEN_DASHBOARD_SECTIONS[index]);
-  const sameWidths = !widths || (typeof widths === "object"
-    && DASHBOARD_SECTIONS.every((id) => widths[id] === undefined || widths[id] === PREVIOUS_DEFAULT_DASHBOARD_SECTION_WIDTHS[id]));
   const sameRowStarts = !workspace.dashboardRowStarts || (Array.isArray(workspace.dashboardRowStarts) && workspace.dashboardRowStarts.length === 0);
-  return sameOrder && sameHidden && sameWidths && sameRowStarts;
+  if (!sameRowStarts) return false;
+
+  return PREVIOUS_DASHBOARD_DEFAULTS.some((previousDefault) => {
+    const widths = workspace.dashboardWidths;
+    const sameOrder = Array.isArray(workspace.dashboardOrder)
+      && workspace.dashboardOrder.length === previousDefault.order.length
+      && workspace.dashboardOrder.every((id, index) => id === previousDefault.order[index]);
+    const sameHidden = Array.isArray(workspace.hiddenDashboard)
+      && workspace.hiddenDashboard.length === previousDefault.hidden.length
+      && workspace.hiddenDashboard.every((id, index) => id === previousDefault.hidden[index]);
+    const sameWidths = !widths || (typeof widths === "object"
+      && DASHBOARD_SECTIONS.every((id) => widths[id] === undefined || widths[id] === previousDefault.widths[id]));
+    return sameOrder && sameHidden && sameWidths;
+  });
 }
 
 export function dashboardSectionWidth(id: DashboardSectionId, value: unknown): DashboardSectionWidth {

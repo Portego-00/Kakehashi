@@ -30,6 +30,7 @@ const EMPTY_ANALYSIS: JapaneseReaderAnalysis = { status: "idle", sourceText: "",
 const JPDB_ANALYSIS_CHUNK_MAX_CHARACTERS = 30_000;
 const JPDB_ANALYSIS_CONCURRENCY = 2;
 const JPDB_ANALYSIS_CACHE_CHUNKS = 6;
+const READER_INLINE_MEANING_MAX_CHARACTERS = 56;
 
 export type JapaneseReaderBlock =
   | { type: "text"; text: string; furigana?: readonly FuriganaRange[] }
@@ -378,6 +379,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   const [waniKaniAudioState, setWaniKaniAudioState] = useState<{ url: string; text: string; status: "loading" | "playing" } | null>(null);
   const voicePromptId = useId();
   const waniKaniAudioRef = useRef<HTMLAudioElement | null>(null);
+  const cancelledWaniKaniAudioRef = useRef(new WeakSet<HTMLAudioElement>());
   const tokenRefs = useRef(new Map<string, HTMLButtonElement>());
   const inspectorRef = useRef<HTMLElement | null>(null);
   const resolvedSelectionRef = useRef("");
@@ -449,6 +451,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
 
   useEffect(() => () => {
     if (waniKaniAudioRef.current) {
+      cancelledWaniKaniAudioRef.current.add(waniKaniAudioRef.current);
       waniKaniAudioRef.current.onended = null;
       waniKaniAudioRef.current.onerror = null;
       waniKaniAudioRef.current.onpause = null;
@@ -514,6 +517,11 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     () => selected ? vocabularyFrequencyRequestForAnnotation(selected) : null,
     [selected],
   );
+  const selectedReading = selected ? annotationReading(selected) : "";
+  const selectedMeaning = selected ? annotationMeanings(selected).slice(0, 4).join(" · ") : "";
+  const primaryFactsLayout = selectedReading && selectedMeaning.length <= READER_INLINE_MEANING_MAX_CHARACTERS
+    ? "columns"
+    : "stacked";
   const pieceCount = renderedBlocks.reduce((total, block) => total + (block.type === "text" ? block.pieces.length : 0), 0);
 
   useEffect(() => {
@@ -603,6 +611,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     const audio = waniKaniAudioRef.current;
     waniKaniAudioRef.current = null;
     if (audio) {
+      cancelledWaniKaniAudioRef.current.add(audio);
       audio.onended = null;
       audio.onerror = null;
       audio.onpause = null;
@@ -610,6 +619,14 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     }
     setWaniKaniAudioState(null);
   }, []);
+
+  useEffect(() => {
+    if (voice.activity !== "synthesizing" && voice.activity !== "playing") return;
+    const audio = waniKaniAudioRef.current;
+    if (!audio) return;
+    cancelledWaniKaniAudioRef.current.add(audio);
+    audio.pause();
+  }, [voice.activity]);
 
   async function speak() {
     if (!selected) return;
@@ -637,7 +654,10 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
       };
       audio.onended = resetAudio;
       audio.onerror = resetAudio;
-      audio.onpause = resetAudio;
+      audio.onpause = () => {
+        cancelledWaniKaniAudioRef.current.add(audio);
+        resetAudio();
+      };
       setWaniKaniAudioState({ url: waniKaniAudio.url, text: selectedText, status: "loading" });
       try {
         await audio.play();
@@ -645,8 +665,9 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
           setWaniKaniAudioState({ url: waniKaniAudio.url, text: selectedText, status: "playing" });
         }
       } catch {
+        const canFallbackToTts = !cancelledWaniKaniAudioRef.current.has(audio);
         resetAudio();
-        if (voice.downloaded) await voice.play(selectedText);
+        if (canFallbackToTts && voice.downloaded) await voice.play(selectedText);
       }
       return;
     }
@@ -799,9 +820,9 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
             </button>
           </div> : null}
           <div className={styles.readerFacts}>
-            <dl className={styles.readerPrimaryFacts} data-reader-primary-facts aria-label="Reading and meaning">
-              {annotationReading(selected) ? <div><dt>Reading</dt><dd lang="ja">{annotationReading(selected)}</dd></div> : null}
-              <div><dt>Meaning</dt><dd>{annotationMeanings(selected).slice(0, 4).join(" · ")}</dd></div>
+            <dl className={styles.readerPrimaryFacts} data-reader-primary-facts data-layout={primaryFactsLayout} aria-label="Reading and meaning">
+              {selectedReading ? <div><dt>Reading</dt><dd lang="ja">{selectedReading}</dd></div> : null}
+              <div><dt>Meaning</dt><dd>{selectedMeaning}</dd></div>
             </dl>
             <dl className={styles.readerSecondaryFacts}>
               {(selected.spelling || selected.subject?.data.characters) && (selected.spelling || selected.subject?.data.characters) !== selected.text ? <div><dt>Dictionary</dt><dd lang="ja">{selected.spelling || selected.subject?.data.characters}</dd></div> : null}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dashboardSectionWidth, DASHBOARD_SECTIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, NAVBAR_TAB_IDS, reorderDashboardSections, saveWebSettings, settingsStorageKey, type ReviewOrderSetting, type ReviewTypeOrderSetting } from "./settings";
+import { dashboardSectionWidth, DASHBOARD_SECTION_DEFINITION_BY_ID, DASHBOARD_SECTIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, NAVBAR_TAB_IDS, reorderDashboardSections, saveWebSettings, settingsStorageKey, type ReviewOrderSetting, type ReviewTypeOrderSetting } from "./settings";
 import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 
 function storage(value: unknown) {
@@ -435,6 +435,7 @@ describe("web settings persistence", () => {
       "level-timing",
       "today-study",
       "subject-lists",
+      "custom-vocabulary",
       "incomplete-levels",
       "recent-unlocks",
       "critical-items",
@@ -444,11 +445,17 @@ describe("web settings persistence", () => {
     expect(DEFAULT_DASHBOARD_SECTION_ORDER).toHaveLength(DASHBOARD_SECTIONS.length);
     expect(new Set(DEFAULT_DASHBOARD_SECTION_ORDER)).toEqual(new Set(DASHBOARD_SECTIONS));
     expect(DEFAULT_HIDDEN_DASHBOARD_SECTIONS).toEqual([]);
+    expect(DASHBOARD_SECTION_DEFINITION_BY_ID["custom-vocabulary"]).toMatchObject({
+      source: "Home",
+      defaultWidth: 12,
+      allowedWidths: [6, 8, 12],
+    });
     expect(DEFAULT_WEB_SETTINGS.workspace).toMatchObject({
       dashboardOrder: DEFAULT_DASHBOARD_SECTION_ORDER,
       hiddenDashboard: [],
       dashboardWidths: {
         "daily-study": 12,
+        "custom-vocabulary": 12,
         level: 12,
         "extra-study": 12,
         forecast: 12,
@@ -471,10 +478,11 @@ describe("web settings persistence", () => {
     expect(loadWebSettings({ getItem: () => null }, "new-user").workspace).toEqual(DEFAULT_WEB_SETTINGS.workspace);
   });
 
-  it("migrates only the previous untouched dashboard default", () => {
-    const previousDefaultWorkspace = {
+  it("migrates both untouched earlier dashboard defaults", () => {
+    const historicalOrder = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"];
+    const historicalDefaultWorkspace = {
       ...DEFAULT_WEB_SETTINGS.workspace,
-      dashboardOrder: [...DASHBOARD_SECTIONS],
+      dashboardOrder: historicalOrder,
       hiddenDashboard: ["recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"],
       dashboardWidths: {
         "daily-study": 12,
@@ -498,20 +506,81 @@ describe("web settings persistence", () => {
       dashboardRowStarts: [],
     };
 
-    const migrated = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, workspace: previousDefaultWorkspace }), "tester");
-    expect(migrated.workspace).toMatchObject({
-      dashboardOrder: DEFAULT_DASHBOARD_SECTION_ORDER,
+    const currentSeventeenWidgetDefaultWorkspace = {
+      ...DEFAULT_WEB_SETTINGS.workspace,
+      dashboardOrder: ["daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time"],
       hiddenDashboard: [],
-      dashboardWidths: DEFAULT_DASHBOARD_SECTION_WIDTHS,
+      dashboardWidths: {
+        "daily-study": 12,
+        level: 12,
+        "extra-study": 12,
+        forecast: 12,
+        "recent-mistakes": 6,
+        "study-pulse": 6,
+        "review-heatmap": 12,
+        srs: 8,
+        "study-streak": 4,
+        "level-timing": 8,
+        "today-study": 4,
+        "subject-lists": 4,
+        "incomplete-levels": 8,
+        "recent-unlocks": 6,
+        "critical-items": 6,
+        "burned-items": 6,
+        "study-time": 6,
+      },
       dashboardRowStarts: [],
-    });
+    };
 
+    for (const workspace of [historicalDefaultWorkspace, currentSeventeenWidgetDefaultWorkspace]) {
+      const migrated = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, workspace }), "tester");
+      expect(migrated.workspace).toMatchObject({
+        dashboardOrder: DEFAULT_DASHBOARD_SECTION_ORDER,
+        hiddenDashboard: [],
+        dashboardWidths: DEFAULT_DASHBOARD_SECTION_WIDTHS,
+        dashboardRowStarts: [],
+      });
+    }
+  });
+
+  it("preserves a customized dashboard while merging in custom vocabulary as visible", () => {
+    const historicalOrder = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"];
+    const hiddenDashboard = ["recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"];
     const customized = loadWebSettings(storage({
       ...DEFAULT_WEB_SETTINGS,
-      workspace: { ...previousDefaultWorkspace, dashboardWidths: { ...previousDefaultWorkspace.dashboardWidths, level: 6 } },
+      workspace: {
+        ...DEFAULT_WEB_SETTINGS.workspace,
+        dashboardOrder: historicalOrder,
+        hiddenDashboard,
+        dashboardWidths: { level: 6 },
+      },
     }), "tester");
-    expect(customized.workspace.dashboardOrder).toEqual(DASHBOARD_SECTIONS);
-    expect(customized.workspace.hiddenDashboard).toEqual(previousDefaultWorkspace.hiddenDashboard);
+
+    expect(customized.workspace).toMatchObject({
+      dashboardOrder: [...historicalOrder, "custom-vocabulary"],
+      hiddenDashboard,
+      dashboardWidths: { level: 6, "custom-vocabulary": 12 },
+    });
+    expect(customized.workspace.hiddenDashboard).not.toContain("custom-vocabulary");
+  });
+
+  it("does not treat a customized historical width as an untouched default", () => {
+    const historicalOrder = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"];
+    const hiddenDashboard = ["recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"];
+    const customized = loadWebSettings(storage({
+      ...DEFAULT_WEB_SETTINGS,
+      workspace: {
+        ...DEFAULT_WEB_SETTINGS.workspace,
+        dashboardOrder: historicalOrder,
+        hiddenDashboard,
+        dashboardWidths: { level: 6 },
+      },
+    }), "tester");
+
+    expect(customized.workspace).not.toMatchObject({
+      dashboardOrder: DEFAULT_DASHBOARD_SECTION_ORDER,
+      hiddenDashboard: [],
+    });
     expect(customized.workspace.dashboardWidths.level).toBe(6);
   });
 
@@ -550,6 +619,8 @@ describe("web settings persistence", () => {
 
   it("falls back to the intended widget width for legacy settings", () => {
     expect(dashboardSectionWidth("daily-study", undefined)).toBe(12);
+    expect(dashboardSectionWidth("custom-vocabulary", 6)).toBe(6);
+    expect(dashboardSectionWidth("custom-vocabulary", 4)).toBe(12);
     expect(dashboardSectionWidth("study-pulse", "wide")).toBe(6);
   });
 

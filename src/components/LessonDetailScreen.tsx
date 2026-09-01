@@ -61,6 +61,7 @@ import { getAllSubjects } from "../utils/cache";
 import { azureSpeechService } from "../utils/azureSpeech";
 import { SynonymsModal } from "./SynonymsModal";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import { CustomContextSentencesSection } from "./CustomContextSentencesSection";
 import {
   FormattedNoteEditor,
   FormattedNoteText,
@@ -2224,6 +2225,19 @@ const SubjectContent = ({
     );
   };
 
+  const renderCustomContextSentences = () => (
+    <CustomContextSentencesSection
+      subjectId={subject.id}
+      subjectCharacters={
+        typeof subject.data.characters === "string"
+          ? subject.data.characters
+          : ""
+      }
+      subjectReadings={Array.from(subjectReadingSet)}
+      accentColor={subjectColors.vocabulary}
+    />
+  );
+
   // Render all sections in a single scrollable page (when showAllSections is true)
   const renderAllSections = () => {
     const subjectType = subject.object;
@@ -2254,72 +2268,75 @@ const SubjectContent = ({
 
     // Helper to render context sentences (for vocabulary)
     const renderContextSentences = () => (
-      <View style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>Context Sentences</Text>
-        {subject.data.context_sentences &&
-        subject.data.context_sentences.length > 0 ? (
-          <View style={styles.sentencesContainer}>
-            {subject.data.context_sentences.map(
-              (sentence: any, idx: number) => {
-                const sentenceId = `sentence-${subject.id}-${idx}`;
-                return (
-                  <View key={sentenceId} style={styles.sentenceItem}>
-                    <View style={styles.japaneseSentenceContainer}>
-                      <Text
-                        selectable
-                        style={[
-                          styles.japaneseSentence,
-                          styles.japaneseSentenceWithButton,
-                        ]}
-                      >
-                        {sentence.ja}
-                      </Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.speakButtonFixed,
-                          speakingSentenceId === sentenceId &&
-                            styles.speakingButtonFixed,
-                        ]}
-                        onPress={() =>
-                          speakJapanese(
-                            sentence.ja,
-                            sentenceId,
-                            getSentenceSpeed(sentenceId)
-                          )
-                        }
-                      >
-                        <Ionicons
-                          name={
-                            speakingSentenceId === sentenceId
-                              ? "stop-circle"
-                              : "volume-high"
+      <>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>Context Sentences</Text>
+          {subject.data.context_sentences &&
+          subject.data.context_sentences.length > 0 ? (
+            <View style={styles.sentencesContainer}>
+              {subject.data.context_sentences.map(
+                (sentence: any, idx: number) => {
+                  const sentenceId = `sentence-${subject.id}-${idx}`;
+                  return (
+                    <View key={sentenceId} style={styles.sentenceItem}>
+                      <View style={styles.japaneseSentenceContainer}>
+                        <Text
+                          selectable
+                          style={[
+                            styles.japaneseSentence,
+                            styles.japaneseSentenceWithButton,
+                          ]}
+                        >
+                          {sentence.ja}
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.speakButtonFixed,
+                            speakingSentenceId === sentenceId &&
+                              styles.speakingButtonFixed,
+                          ]}
+                          onPress={() =>
+                            speakJapanese(
+                              sentence.ja,
+                              sentenceId,
+                              getSentenceSpeed(sentenceId)
+                            )
                           }
-                          size={20}
-                          color={
-                            speakingSentenceId === sentenceId
-                              ? "white"
-                              : subjectColors.vocabulary
-                          }
-                        />
-                      </TouchableOpacity>
+                        >
+                          <Ionicons
+                            name={
+                              speakingSentenceId === sentenceId
+                                ? "stop-circle"
+                                : "volume-high"
+                            }
+                            size={20}
+                            color={
+                              speakingSentenceId === sentenceId
+                                ? "white"
+                                : subjectColors.vocabulary
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      {renderTranslation(
+                        sentence.en,
+                        `wk-${subject.id}-${idx}`,
+                        styles.englishSentence
+                      )}
+                      {renderSentenceSpeedControl(sentenceId)}
                     </View>
-                    {renderTranslation(
-                      sentence.en,
-                      `wk-${subject.id}-${idx}`,
-                      styles.englishSentence
-                    )}
-                    {renderSentenceSpeedControl(sentenceId)}
-                  </View>
-                );
-              }
-            )}
-          </View>
-        ) : (
-          <Text style={styles.noteText}>
-            No context sentences available for this vocabulary.
-          </Text>
-        )}
-      </View>
+                  );
+                }
+              )}
+            </View>
+          ) : (
+            <Text style={styles.noteText}>
+              No context sentences available for this vocabulary.
+            </Text>
+          )}
+        </View>
+        {renderCustomContextSentences()}
+      </>
     );
 
     // Helper to render media context sentences
@@ -3762,6 +3779,8 @@ const SubjectContent = ({
                     </Text>
                   )}
 
+                  {renderCustomContextSentences()}
+
                   {/* Media Context Sentences */}
                   {showMediaContextSentences && (
                     <>
@@ -4156,6 +4175,8 @@ const SubjectContent = ({
                       No context sentences available for this vocabulary.
                     </Text>
                   )}
+
+                  {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
                   {showMediaContextSentences && (

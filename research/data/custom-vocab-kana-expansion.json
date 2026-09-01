@@ -1,0 +1,1559 @@
+{
+  "metadata": {
+    "schemaVersion": 1,
+    "status": "authoritative",
+    "generatedAt": "2026-09-01",
+    "wordCount": 120,
+    "packCount": 12,
+    "source": "EDRDG JMdict English XML daily distribution, 2026-09-01",
+    "sourceUrl": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
+    "prioritySummary": {
+      "jmdictPriority": 101,
+      "unmarkedCommonMimeticsOrModernTerms": 19
+    },
+    "wanikaniExclusionSnapshot": "wanikani-vocabulary-exclusions.snapshot.json",
+    "existingCustomCatalogs": [
+      "kana-vocabulary-packs.json",
+      "custom-vocab-kana-candidates.json",
+      "custom-vocab-kanji-candidates.json"
+    ]
+  },
+  "packs": [
+    {
+      "id": "kana-expansion-conversation-qualifiers",
+      "title": "Nuance in Conversation",
+      "description": "Common qualifiers for softening bad news, setting details aside, estimating, and drawing a tentative conclusion.",
+      "script": "hiragana",
+      "words": [
+        {
+          "id": "kana-expansion-ainiku",
+          "characters": "あいにく",
+          "reading": "あいにく",
+          "meanings": ["Unfortunately", "Sorry, But"],
+          "partsOfSpeech": ["adverb", "な adjective"],
+          "meaningMnemonic": "A cook balances one tart on an eye and another on a knee, but both crash as you arrive. The cook groans <reading>EYE—KNEE—COOK</reading>: <vocabulary>unfortunately</vocabulary>, dessert is gone. あいにく often politely introduces inconvenient news or an unavailable option.",
+          "contextSentences": [
+            {"ja": "あいにく、その日は予定があります。", "en": "Unfortunately, I already have plans that day."}
+          ],
+          "readingMap": "あ・い・に・く"
+        },
+        {
+          "id": "kana-expansion-tonikaku",
+          "characters": "とにかく",
+          "reading": "とにかく",
+          "meanings": ["Anyway", "In Any Case"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A frantic cook drops a pan on one toe, bumps one knee, then throws the meal into a car and cooks as it escapes. <reading>TOE—KNEE—CAR—COOK</reading> means the details can wait; <vocabulary>anyway</vocabulary>, get out of the smoky kitchen. とにかく sets side issues aside so the speaker can return to the main point.",
+          "contextSentences": [
+            {"ja": "とにかく、まず話を聞いてください。", "en": "Anyway, please hear me out first."}
+          ],
+          "readingMap": "と・に・か・く"
+        },
+        {
+          "id": "kana-expansion-tashika",
+          "characters": "たしか",
+          "reading": "たしか",
+          "meanings": ["If I Remember Correctly", "Certain"],
+          "partsOfSpeech": ["adverb", "な adjective"],
+          "meaningMnemonic": "A deer 鹿（しか）stands in a rice field 田（た）and stamps a witness statement CERTIFIED. That exact pair, <reading>田（た）—鹿（しか）</reading>, makes you <vocabulary>certain</vocabulary>—or at least say “if I remember correctly.” As an adverb, たしか often signals confident but fallible memory.",
+          "contextSentences": [
+            {"ja": "たしか、集合は九時だったと思います。", "en": "If I remember correctly, the meeting time was nine."}
+          ],
+          "readingMap": "た・し・か"
+        },
+        {
+          "id": "kana-expansion-semete",
+          "characters": "せめて",
+          "reading": "せめて",
+          "meanings": ["At Least", "Even Just"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A defeated knight raises one cardboard sword and begs to attack just once more: <reading>攻めて（せめて）</reading>! He cannot win, but asks for <vocabulary>at least</vocabulary> one final swing. せめて marks the minimum outcome the speaker still hopes for.",
+          "contextSentences": [
+            {"ja": "せめて名前だけでも教えてください。", "en": "Please tell me at least your name."}
+          ],
+          "readingMap": "せ・め・て"
+        },
+        {
+          "id": "kana-expansion-hitomazu",
+          "characters": "ひとまず",
+          "reading": "ひとまず",
+          "meanings": ["For Now", "For The Time Being"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "One person ひと plants a flag labeled FIRST まず halfway up a mountain, then calls a temporary halt. The two signs flash <reading>ひと—まず</reading>: this camp is good enough <vocabulary>for now</vocabulary>. ひとまず describes a provisional pause or solution, not a final conclusion.",
+          "contextSentences": [
+            {"ja": "ひとまずここで休憩しましょう。", "en": "For now, let's take a break here."}
+          ],
+          "readingMap": "ひ・と・ま・ず"
+        },
+        {
+          "id": "kana-expansion-douse",
+          "characters": "どうせ",
+          "reading": "どうせ",
+          "meanings": ["Anyway", "No Matter What"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A lump of dough predicts the oven will burn it no matter which tray it chooses. Its <reading>DOUGH—SAY</reading> prophecy declares the outcome fixed <vocabulary>anyway</vocabulary>, so it jumps onto the nearest tray. どうせ often carries resignation, though どうせなら can turn that into “if we're doing it anyway.”",
+          "contextSentences": [
+            {"ja": "どうせ行くなら、早く出よう。", "en": "If we're going anyway, let's leave early."}
+          ],
+          "readingMap": "ど・う・せ"
+        },
+        {
+          "id": "kana-expansion-nanishiro",
+          "characters": "なにしろ",
+          "reading": "なにしろ",
+          "meanings": ["At Any Rate", "After All"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Whatever 何（なに）happens, the white castle 白（しろ）must open before the festival. Its gates spell <reading>なに—白（しろ）</reading>: <vocabulary>at any rate</vocabulary>, the crowd is already waiting; <vocabulary>after all</vocabulary>, it is the only castle in town. なにしろ commonly introduces the overriding reason for what follows.",
+          "contextSentences": [
+            {"ja": "なにしろ初めてなので、少し緊張しています。", "en": "After all, it's my first time, so I'm a little nervous."}
+          ],
+          "readingMap": "な・に・し・ろ"
+        },
+        {
+          "id": "kana-expansion-moshikashite",
+          "characters": "もしかして",
+          "reading": "もしかして",
+          "meanings": ["Perhaps", "By Any Chance"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A friend eyes your umbrella and whispers, “もし…貸して（かして）?”—“If… lend it to me?” That tentative <reading>もし—貸して</reading> makes you wonder: <vocabulary>perhaps</vocabulary> she forgot hers, <vocabulary>by any chance</vocabulary>? もしかして introduces a guess, often in a question.",
+          "contextSentences": [
+            {"ja": "もしかして、道に迷いましたか。", "en": "Did you perhaps get lost?"}
+          ],
+          "readingMap": "も・し・か・し・て"
+        },
+        {
+          "id": "kana-expansion-douyara",
+          "characters": "どうやら",
+          "reading": "どうやら",
+          "meanings": ["Apparently", "It Seems"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A flour trail crosses the yard while cheerleaders point and shout <reading>DOUGH—YEAH—RAH!</reading> The detective studies the clues and says, “<vocabulary>It seems</vocabulary> the runaway dough escaped this way.” どうやら presents a conclusion based on signs rather than direct certainty.",
+          "contextSentences": [
+            {"ja": "どうやら電車が遅れているようです。", "en": "Apparently, the train is running late."}
+          ],
+          "readingMap": "ど・う・や・ら"
+        },
+        {
+          "id": "kana-expansion-hobo",
+          "characters": "ほぼ",
+          "reading": "ほぼ",
+          "meanings": ["Almost", "Approximately"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "An acrobat hears <reading>HO—BOW!</reading> and bends until her nose is one millimeter from her knees. The bow is <vocabulary>almost</vocabulary>, but not completely, finished. ほぼ can mean nearly all of something or approximately a number.",
+          "contextSentences": [
+            {"ja": "準備はほぼ終わりました。", "en": "The preparations are almost finished."}
+          ],
+          "readingMap": "ほ・ぼ"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-feelings-reactions",
+      "title": "Feelings You Can Hear",
+      "description": "Everyday mimetic words for excitement, nerves, irritation, disappointment, relief, and suspense.",
+      "script": "hiragana",
+      "words": [
+        {
+          "id": "kana-expansion-wakuwaku",
+          "characters": "わくわく",
+          "reading": "わくわく",
+          "meanings": ["Excited", "Thrilled"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "Two woks bounce toward each other before a cooking contest, clanging <reading>WOK—WOK!</reading> The cooks can hardly wait; everyone is <vocabulary>excited</vocabulary> to see what flies out. わくわく describes eager anticipation and can pair with する.",
+          "contextSentences": [
+            {"ja": "旅行の前日はいつもわくわくする。", "en": "I always feel excited the day before a trip."}
+          ],
+          "readingMap": "わ・く・わ・く"
+        },
+        {
+          "id": "kana-expansion-nikoniko",
+          "characters": "にこにこ",
+          "reading": "にこにこ",
+          "meanings": ["Smiling", "With A Cheerful Smile"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "Two knees paint cheerful faces on their caps and knock together: <reading>KNEE—CO, KNEE—CO!</reading> Both faces keep <vocabulary>smiling</vocabulary> warmly no matter how often they bump. にこにこ describes an openly friendly, happy smile and can pair with する.",
+          "contextSentences": [
+            {"ja": "子どもはプレゼントを見てにこにこしていた。", "en": "The child was smiling when they saw the present."}
+          ],
+          "readingMap": "に・こ・に・こ"
+        },
+        {
+          "id": "kana-expansion-iraira",
+          "characters": "いらいら",
+          "reading": "いらいら",
+          "meanings": ["Irritated", "Impatient"],
+          "partsOfSpeech": ["noun", "adverb", "する verb"],
+          "meaningMnemonic": "A broken arena sign flashes the letter E while its cheer squad answers RAH, then the loop starts again: <reading>E—RAH, E—RAH!</reading> The endless light and racket leave everyone visibly <vocabulary>irritated</vocabulary>. いらいらする is the common pattern for becoming or feeling annoyed.",
+          "contextSentences": [
+            {"ja": "渋滞でなかなか進まず、いらいらした。", "en": "I got irritated because the traffic barely moved."}
+          ],
+          "readingMap": "い・ら・い・ら"
+        },
+        {
+          "id": "kana-expansion-ukiuki",
+          "characters": "うきうき",
+          "reading": "うきうき",
+          "meanings": ["Cheerfully", "In High Spirits"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "A monkey discovers two keys and leaps from branch to branch shouting <reading>OOH—KEY! OOH—KEY!</reading> Its whole body bounces <vocabulary>cheerfully</vocabulary>, plainly <vocabulary>in high spirits</vocabulary>. うきうき suggests buoyant happiness about something pleasant.",
+          "contextSentences": [
+            {"ja": "新しい服を着て、うきうきしながら出かけた。", "en": "I went out in high spirits wearing my new clothes."}
+          ],
+          "readingMap": "う・き・う・き"
+        },
+        {
+          "id": "kana-expansion-gakkari",
+          "characters": "がっかり",
+          "reading": "がっかり",
+          "meanings": ["Disappointed", "Dejected"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "You gasp GACK, then carry home the huge gift box—only to find it empty. The clipped sounds collide in <reading>GACK—CARRY</reading>, and your shoulders drop because you are <vocabulary>disappointed</vocabulary>. がっかりする is used when hopes or expectations collapse.",
+          "contextSentences": [
+            {"ja": "試合が中止になって、みんながっかりした。", "en": "Everyone was disappointed when the game was canceled."}
+          ],
+          "readingMap": "が・っ・か・り"
+        },
+        {
+          "id": "kana-expansion-bikkuri",
+          "characters": "びっくり",
+          "reading": "びっくり",
+          "meanings": ["Surprised", "Startled"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "A BIC-pen courier bursts from a parcel and fires the pen into your hand: <reading>BIC—COURIER!</reading> The impossible delivery leaves you completely <vocabulary>startled</vocabulary>. びっくりする covers surprise from good, bad, or merely unexpected events.",
+          "contextSentences": [
+            {"ja": "後ろから名前を呼ばれてびっくりした。", "en": "I was startled when someone called my name from behind."}
+          ],
+          "readingMap": "び・っ・く・り"
+        },
+        {
+          "id": "kana-expansion-kusukusu",
+          "characters": "くすくす",
+          "reading": "くすくす",
+          "meanings": ["Giggle", "Chuckle"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two camphor trees 楠 hide birds in their leaves, and each tree begins to laugh: <reading>楠（くす）—楠（くす）</reading>. The secret little sounds turn into a suppressed <vocabulary>giggle</vocabulary>. くすくす describes quiet, repeated chuckling rather than loud laughter.",
+          "contextSentences": [
+            {"ja": "後ろの席からくすくす笑う声が聞こえた。", "en": "I heard quiet giggling from the back row."}
+          ],
+          "readingMap": "く・す・く・す"
+        },
+        {
+          "id": "kana-expansion-hotto",
+          "characters": "ほっと",
+          "reading": "ほっと",
+          "meanings": ["Relieved", "With Relief"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "A kettle spills onto your foot, but thick slippers protect it; you gasp <reading>HOT—TOE!</reading> and then laugh. Knowing your toe is safe leaves you deeply <vocabulary>relieved</vocabulary>. ほっとする means to feel relief after tension or worry ends.",
+          "contextSentences": [
+            {"ja": "無事だと聞いて、ほっとしました。", "en": "I was relieved to hear that they were safe."}
+          ],
+          "readingMap": "ほ・っ・と"
+        },
+        {
+          "id": "kana-expansion-odoodo",
+          "characters": "おどおど",
+          "reading": "おどおど",
+          "meanings": ["Nervously", "Timidly"],
+          "partsOfSpeech": ["adverb", "adverb taking と", "する verb"],
+          "meaningMnemonic": "A timid baker drops the same lump of dough twice whenever the head chef looks over: “Oh, dough! Oh, dough!” Each anxious <reading>OH—DOUGH, OH—DOUGH</reading> comes with another flinch, so the baker works <vocabulary>nervously</vocabulary> and <vocabulary>timidly</vocabulary>. おどおど describes visibly hesitant, fearful behavior, often in おどおどする or おどおどした.",
+          "contextSentences": [
+            {"ja": "彼は先生の前でおどおどしていた。", "en": "He acted nervously in front of the teacher."}
+          ],
+          "readingMap": "お・ど・お・ど"
+        },
+        {
+          "id": "kana-expansion-harahara",
+          "characters": "はらはら",
+          "reading": "はらはら",
+          "meanings": ["Anxiously", "In Suspense"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "Two giant stomachs 腹 bounce on a fraying tightrope above the crowd: <reading>腹（はら）—腹（はら）</reading>. Everyone watches <vocabulary>anxiously</vocabulary> as each belly wobbles over the drop. はらはら is the nervous feeling of watching an uncertain, risky outcome.",
+          "contextSentences": [
+            {"ja": "最後までどちらが勝つか分からず、はらはらした。", "en": "I was on edge because I couldn't tell who would win until the end."}
+          ],
+          "readingMap": "は・ら・は・ら"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-motion-manner",
+      "title": "How Things Move",
+      "description": "Mimetic adverbs for relaxed, smooth, rapid, gentle, unsteady, circular, and last-second movement.",
+      "script": "hiragana",
+      "words": [
+        {
+          "id": "kana-expansion-nonbiri",
+          "characters": "のんびり",
+          "reading": "のんびり",
+          "meanings": ["At Leisure", "Relaxed"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "The runner in last place ビリ stops mid-race, drinks 飲ん（のん）a whole pot of tea, and lies in the grass: <reading>飲ん（のん）—ビリ</reading>. With no interest in catching up, he spends the afternoon <vocabulary>at leisure</vocabulary>. のんびりする means to relax or take it easy without pressure.",
+          "contextSentences": [
+            {"ja": "休日は家でのんびり過ごしたい。", "en": "I want to spend my day off relaxing at home."}
+          ],
+          "readingMap": "の・ん・び・り"
+        },
+        {
+          "id": "kana-expansion-burabura",
+          "characters": "ぶらぶら",
+          "reading": "ぶらぶら",
+          "meanings": ["Stroll Aimlessly", "Dangle"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "Two bras sway from a wandering clothesline, chanting <reading>BRA—BRA</reading> as it begins to <vocabulary>stroll aimlessly</vocabulary> through town. Both the laundry and the line dangle wherever the wind leads. ぶらぶら can describe either loose swinging or an unhurried wander.",
+          "contextSentences": [
+            {"ja": "時間があったので、駅の周りをぶらぶらした。", "en": "I had time, so I wandered around the station."}
+          ],
+          "readingMap": "ぶ・ら・ぶ・ら"
+        },
+        {
+          "id": "kana-expansion-kotsukotsu",
+          "characters": "こつこつ",
+          "reading": "こつこつ",
+          "meanings": ["Steadily", "Diligently"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A skeleton adds one bone 骨 to a tower every morning and one more every night: <reading>骨（こつ）—骨（こつ）</reading>. The tower rises <vocabulary>steadily</vocabulary> through patient, diligent work. こつこつ describes sustained small efforts rather than one dramatic burst.",
+          "contextSentences": [
+            {"ja": "毎日こつこつ勉強を続けている。", "en": "I keep studying diligently every day."}
+          ],
+          "readingMap": "こ・つ・こ・つ"
+        },
+        {
+          "id": "kana-expansion-gungun",
+          "characters": "ぐんぐん",
+          "reading": "ぐんぐん",
+          "meanings": ["Rapidly", "By Leaps And Bounds"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two actual goons grab a rope and chant <reading>GOON—GOON</reading> as they haul a tiny plant upward like a rocket. It grows <vocabulary>rapidly</vocabulary>, gaining height by leaps and bounds. ぐんぐん emphasizes strong, steady progress rather than one sudden jump.",
+          "contextSentences": [
+            {"ja": "春になると、子どもたちは背がぐんぐん伸びる。", "en": "In spring, the children grow taller by leaps and bounds."}
+          ],
+          "readingMap": "ぐ・ん・ぐ・ん"
+        },
+        {
+          "id": "kana-expansion-sotto",
+          "characters": "そっと",
+          "reading": "そっと",
+          "meanings": ["Gently", "Quietly"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A noisy sot notices a sleeping mouse, balances a glass on one toe, and whispers <reading>SOT—TOE</reading> as the two t sounds meet. For once, he lowers the glass <vocabulary>gently</vocabulary> and quietly enough that the mouse never wakes. そっと describes careful, unobtrusive action and can also mean leaving something alone.",
+          "contextSentences": [
+            {"ja": "赤ちゃんを起こさないように、ドアをそっと閉めた。", "en": "I gently closed the door so I wouldn't wake the baby."}
+          ],
+          "readingMap": "そ・っ・と"
+        },
+        {
+          "id": "kana-expansion-jitto",
+          "characters": "じっと",
+          "reading": "じっと",
+          "meanings": ["Still", "Intently"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "A jittery toy hears <reading>JIT—TOE!</reading> and freezes while balancing on one toe. It stays perfectly <vocabulary>still</vocabulary>, staring intently ahead. じっと can describe motionless waiting, a fixed gaze, or patient endurance.",
+          "contextSentences": [
+            {"ja": "猫は窓の外をじっと見ていた。", "en": "The cat stared intently out the window."}
+          ],
+          "readingMap": "じ・っ・と"
+        },
+        {
+          "id": "kana-expansion-furafura",
+          "characters": "ふらふら",
+          "reading": "ふらふら",
+          "meanings": ["Unsteadily", "Dizzy And Wobbly"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "Two loose flags stagger down the street crying <reading>FLA—FLA</reading> as their poles bend from side to side. They can move only <vocabulary>unsteadily</vocabulary>. ふらふら often describes shaky walking from dizziness or exhaustion, and can also describe wavering decisions.",
+          "contextSentences": [
+            {"ja": "熱があって、立つとふらふらする。", "en": "I have a fever and feel unsteady when I stand."}
+          ],
+          "readingMap": "ふ・ら・ふ・ら"
+        },
+        {
+          "id": "kana-expansion-guruguru",
+          "characters": "ぐるぐる",
+          "reading": "ぐるぐる",
+          "meanings": ["Round And Round", "In Circles"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two gurus climb onto a teacup ride and chant <reading>GURU—GURU</reading> while it spins faster. Their robes wrap <vocabulary>round and round</vocabulary> the center pole. ぐるぐる describes repeated circular movement or something wound around another object.",
+          "contextSentences": [
+            {"ja": "子どもが同じ場所をぐるぐる回っている。", "en": "The child is going round and round in the same spot."}
+          ],
+          "readingMap": "ぐ・る・ぐ・る"
+        },
+        {
+          "id": "kana-expansion-pekopeko",
+          "characters": "ぺこぺこ",
+          "reading": "ぺこぺこ",
+          "meanings": ["Starving", "Very Hungry"],
+          "partsOfSpeech": ["な adjective", "adverb"],
+          "meaningMnemonic": "A hungry chicken attacks an empty bowl: <reading>PECK—OH, PECK—OH!</reading> Every peck finds nothing, so it grows more <vocabulary>starving</vocabulary>. お腹がぺこぺこ is a casual, vivid way to say your stomach is completely empty.",
+          "contextSentences": [
+            {"ja": "朝から何も食べていなくて、お腹がぺこぺこだ。", "en": "I haven't eaten since morning, so I'm starving."}
+          ],
+          "readingMap": "ぺ・こ・ぺ・こ"
+        },
+        {
+          "id": "kana-expansion-girigiri",
+          "characters": "ぎりぎり",
+          "reading": "ぎりぎり",
+          "meanings": ["Just Barely", "At The Last Moment"],
+          "partsOfSpeech": ["な adjective", "の adjective", "adverb"],
+          "meaningMnemonic": "Two rusty gears grind <reading>GEAR-Y—GEAR-Y</reading> and catch one final tooth before the clock stops. The machine finishes <vocabulary>just barely</vocabulary>, at the absolute limit. ぎりぎり is used for narrow margins in time, space, rules, or ability.",
+          "contextSentences": [
+            {"ja": "締め切りぎりぎりにレポートを出した。", "en": "I submitted the report right at the deadline."}
+          ],
+          "readingMap": "ぎ・り・ぎ・り"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-food-textures",
+      "title": "Food Texture in Every Bite",
+      "description": "Sound-symbolic texture words for chewy, crunchy, slick, flowing, sticky, rough, crisp, and melting foods.",
+      "script": "hiragana",
+      "words": [
+        {
+          "id": "kana-expansion-mochimochi",
+          "characters": "もちもち",
+          "reading": "もちもち",
+          "meanings": ["Chewy", "Springy"],
+          "partsOfSpeech": ["の adjective", "する verb"],
+          "meaningMnemonic": "Two pieces of mochi stretch across the room and bounce back together with a <reading>MOCHI—MOCHI</reading> snap. That elastic pull is unmistakably <vocabulary>chewy</vocabulary> and springy. もちもち is especially common for pleasantly elastic foods such as rice cakes, bread, and noodles.",
+          "contextSentences": [
+            {"ja": "このパンは中がもちもちしている。", "en": "The inside of this bread is pleasantly chewy."}
+          ],
+          "readingMap": "も・ち・も・ち"
+        },
+        {
+          "id": "kana-expansion-sakusaku",
+          "characters": "さくさく",
+          "reading": "さくさく",
+          "meanings": ["Crisp", "Crunchy"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two sacks of crackers tumble down the stairs, breaking open with <reading>SACK—SACK</reading> crunches. Every bite is dry, light, and <vocabulary>crisp</vocabulary>. さくさく often praises flaky pastries, fried coatings, or efficient progress through a task.",
+          "contextSentences": [
+            {"ja": "揚げたてのコロッケは衣がさくさくだ。", "en": "The coating on the freshly fried croquette is crisp."}
+          ],
+          "readingMap": "さ・く・さ・く"
+        },
+        {
+          "id": "kana-expansion-paripari",
+          "characters": "ぱりぱり",
+          "reading": "ぱりぱり",
+          "meanings": ["Crispy", "Crackling"],
+          "partsOfSpeech": ["な adjective", "adverb"],
+          "meaningMnemonic": "A knight uses two potato chips to parry arrows, shouting <reading>PARRY—PARRY!</reading> Each shield cracks because it is so thin and <vocabulary>crispy</vocabulary>. ぱりぱり suits brittle foods, tearing paper, and other sharp crackling sounds.",
+          "contextSentences": [
+            {"ja": "焼きのりがぱりぱりしていておいしい。", "en": "The toasted seaweed is crispy and delicious."}
+          ],
+          "readingMap": "ぱ・り・ぱ・り"
+        },
+        {
+          "id": "kana-expansion-karikari",
+          "characters": "かりかり",
+          "reading": "かりかり",
+          "meanings": ["Crunchy", "Irritably"],
+          "partsOfSpeech": ["な adjective", "adverb"],
+          "meaningMnemonic": "A squirrel orders two porters to <reading>CARRY—CARRY</reading> mountains of hard crackers into its tree. It crunches them noisily, then snaps <vocabulary>irritably</vocabulary> when one is missing. かりかり can describe a hard crunchy texture or an edgy, bad-tempered mood.",
+          "contextSentences": [
+            {"ja": "ベーコンをかりかりになるまで焼いた。", "en": "I cooked the bacon until it was crispy."}
+          ],
+          "readingMap": "か・り・か・り"
+        },
+        {
+          "id": "kana-expansion-tsurutsuru",
+          "characters": "つるつる",
+          "reading": "つるつる",
+          "meanings": ["Smooth", "Slippery"],
+          "partsOfSpeech": ["な adjective", "の adjective", "adverb"],
+          "meaningMnemonic": "Two polished tools slide from a workbench, ringing <reading>TOOL—TOOL</reading> as nobody can grip them. Their surfaces are perfectly <vocabulary>smooth</vocabulary> and slippery. つるつる also evokes noodles slipping easily into the mouth.",
+          "contextSentences": [
+            {"ja": "この石は水で磨かれてつるつるだ。", "en": "This stone has been polished smooth by the water."}
+          ],
+          "readingMap": "つ・る・つ・る"
+        },
+        {
+          "id": "kana-expansion-sarasara",
+          "characters": "さらさら",
+          "reading": "さらさら",
+          "meanings": ["Silky Smooth", "Flowing Freely"],
+          "partsOfSpeech": ["な adjective", "の adjective", "adverb"],
+          "meaningMnemonic": "Two plates 皿 tip together and release rivers of silky hair: <reading>皿（さら）—皿（さら）</reading>. Nothing clumps or catches; every strand becomes <vocabulary>silky smooth</vocabulary> and flows freely. さらさら commonly describes smooth dry hair, fine powder, or a gently flowing stream.",
+          "contextSentences": [
+            {"ja": "このシャンプーを使うと髪がさらさらになる。", "en": "This shampoo makes my hair silky smooth."}
+          ],
+          "readingMap": "さ・ら・さ・ら"
+        },
+        {
+          "id": "kana-expansion-betabeta",
+          "characters": "べたべた",
+          "reading": "べたべた",
+          "meanings": ["Sticky", "Clingy"],
+          "partsOfSpeech": ["な adjective", "adverb"],
+          "meaningMnemonic": "A wall covered in BETA labels grabs your sleeves whenever you pass: <reading>BETA—BETA</reading>. The labels are horribly <vocabulary>sticky</vocabulary> and cling to everything. べたべた can describe a tacky surface or people being excessively physically affectionate.",
+          "contextSentences": [
+            {"ja": "ジュースをこぼして、床がべたべたする。", "en": "I spilled juice, and the floor is sticky."}
+          ],
+          "readingMap": "べ・た・べ・た"
+        },
+        {
+          "id": "kana-expansion-zarazara",
+          "characters": "ざらざら",
+          "reading": "ざらざら",
+          "meanings": ["Rough", "Gritty"],
+          "partsOfSpeech": ["な adjective", "adverb"],
+          "meaningMnemonic": "A czar rubs two sheets of sandpaper together and commands, <reading>CZAR—A, CZAR—A!</reading> The scraping surface feels <vocabulary>rough</vocabulary> and gritty under every fingertip. ざらざら describes coarse textures and can also describe a rough voice.",
+          "contextSentences": [
+            {"ja": "砂が付いて、タオルがざらざらしている。", "en": "Sand is stuck to the towel, so it feels gritty."}
+          ],
+          "readingMap": "ざ・ら・ざ・ら"
+        },
+        {
+          "id": "kana-expansion-shakishaki",
+          "characters": "しゃきしゃき",
+          "reading": "しゃきしゃき",
+          "meanings": ["Crisp", "Crunchy"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A bundle of celery shakes across the cutting board chanting <reading>SHAKY—SHAKY</reading>. Every slice snaps cleanly because the vegetables are fresh and <vocabulary>crisp</vocabulary>. しゃきしゃき often describes the firm crunch of raw vegetables and can also suggest brisk, precise behavior.",
+          "contextSentences": [
+            {"ja": "このサラダのレタスはしゃきしゃきしている。", "en": "The lettuce in this salad is crisp."}
+          ],
+          "readingMap": "しゃ・き・しゃ・き"
+        },
+        {
+          "id": "kana-expansion-torotoro",
+          "characters": "とろとろ",
+          "reading": "とろとろ",
+          "meanings": ["Thick And Runny", "Meltingly Soft"],
+          "partsOfSpeech": ["な adjective", "adverb"],
+          "meaningMnemonic": "A cook tries to throw melted cheese, yelling <reading>THROW—THROW</reading>, but it oozes from the spoon in one slow ribbon. The cheese is <vocabulary>thick and runny</vocabulary>, almost meltingly soft. とろとろ also describes gentle simmering or someone beginning to doze.",
+          "contextSentences": [
+            {"ja": "卵を半熟にして、黄身をとろとろにした。", "en": "I soft-cooked the egg so the yolk was runny."}
+          ],
+          "readingMap": "と・ろ・と・ろ"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-weather-feel",
+      "title": "Weather You Can Feel",
+      "description": "Vivid everyday words for warmth, humidity, chill, clouds, rain, breeze, soaking, and clear dry weather.",
+      "script": "hiragana",
+      "words": [
+        {
+          "id": "kana-expansion-pokapoka",
+          "characters": "ぽかぽか",
+          "reading": "ぽかぽか",
+          "meanings": ["Pleasantly Warm", "Nice And Warm"],
+          "partsOfSpeech": ["の adjective", "adverb"],
+          "meaningMnemonic": "A cat pokes a heater twice—<reading>POKE-A—POKE-A</reading>—then curls up in the sunbeam it releases. The room becomes <vocabulary>pleasantly warm</vocabulary>, never scorching. ぽかぽか often describes sunshine, a room, or a comfortably warmed body.",
+          "contextSentences": [
+            {"ja": "今日は日差しがぽかぽかして暖かい。", "en": "The sunshine feels pleasantly warm today."}
+          ],
+          "readingMap": "ぽ・か・ぽ・か"
+        },
+        {
+          "id": "kana-expansion-jimejime",
+          "characters": "じめじめ",
+          "reading": "じめじめ",
+          "meanings": ["Damp", "Humid"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two crowded gyms drip condensation while their doors groan <reading>GYM—EH, GYM—EH</reading>. The air and towels stay unpleasantly <vocabulary>damp</vocabulary> and humid. じめじめ can describe clammy weather or, figuratively, a gloomy atmosphere.",
+          "contextSentences": [
+            {"ja": "梅雨は部屋の中までじめじめする。", "en": "During the rainy season, even the inside of the room feels damp."}
+          ],
+          "readingMap": "じ・め・じ・め"
+        },
+        {
+          "id": "kana-expansion-mushimushi",
+          "characters": "むしむし",
+          "reading": "むしむし",
+          "meanings": ["Hot And Humid", "Muggy"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "The summer air turns bread into mush, and each step squelches <reading>MUSHY—MUSHY</reading>. Heat and moisture combine into oppressively <vocabulary>muggy</vocabulary> weather. むしむし specifically emphasizes an uncomfortable mix of heat and humidity.",
+          "contextSentences": [
+            {"ja": "今夜はむしむしして寝苦しい。", "en": "It's muggy tonight and hard to sleep."}
+          ],
+          "readingMap": "む・し・む・し"
+        },
+        {
+          "id": "kana-expansion-hinyari",
+          "characters": "ひんやり",
+          "reading": "ひんやり",
+          "meanings": ["Cool", "Pleasantly Chilly"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A store product 品 turns out to be a spear 槍 pulled straight from a freezer: <reading>品（ひん）—槍（やり）</reading>. Its metal point feels suddenly <vocabulary>cool</vocabulary>, pleasantly chilly rather than painfully cold. ひんやり often describes the immediate sensation of a cool object, room, or breeze.",
+          "contextSentences": [
+            {"ja": "洞窟の中はひんやりしていた。", "en": "It was pleasantly cool inside the cave."}
+          ],
+          "readingMap": "ひ・ん・や・り"
+        },
+        {
+          "id": "kana-expansion-donyori",
+          "characters": "どんより",
+          "reading": "どんより",
+          "meanings": ["Overcast", "Gloomy"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "A giant rice bowl 丼 leans 寄り toward the window and blocks every ray of sun: <reading>丼（どん）—寄り（より）</reading>. The room turns <vocabulary>overcast</vocabulary> and gloomy before a drop even falls. どんより can describe a heavy gray sky or dull, lifeless eyes and mood.",
+          "contextSentences": [
+            {"ja": "朝から空がどんより曇っている。", "en": "The sky has been heavily overcast since morning."}
+          ],
+          "readingMap": "ど・ん・よ・り"
+        },
+        {
+          "id": "kana-expansion-zaazaa",
+          "characters": "ざあざあ",
+          "reading": "ざあざあ",
+          "meanings": ["Pouring", "Raining Heavily"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two czars overturn storm barrels above a metal roof, each title drawn out in the roar: <reading>CZAAAR—CZAAAR!</reading> The rain is <vocabulary>pouring</vocabulary> so hard that the street vanishes. ざあざあ evokes heavy rain or a large volume of rushing water, not a light shower.",
+          "contextSentences": [
+            {"ja": "外では雨がざあざあ降っている。", "en": "Rain is pouring down outside."}
+          ],
+          "readingMap": "ざ・あ・ざ・あ"
+        },
+        {
+          "id": "kana-expansion-shitoshito",
+          "characters": "しとしと",
+          "reading": "しとしと",
+          "meanings": ["Drizzling", "Raining Gently"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Tiny drops land on a bedsheet and quietly murmur <reading>SHEET—OH, SHEET—OH</reading>. It keeps <vocabulary>drizzling</vocabulary> in a soft, steady rhythm. しとしと suggests steady, quiet rain rather than a brief sprinkle or downpour.",
+          "contextSentences": [
+            {"ja": "午後から雨がしとしと降り続いた。", "en": "A gentle rain kept falling from the afternoon onward."}
+          ],
+          "readingMap": "し・と・し・と"
+        },
+        {
+          "id": "kana-expansion-bishobisho",
+          "characters": "びしょびしょ",
+          "reading": "びしょびしょ",
+          "meanings": ["Soaked", "Drenched"],
+          "partsOfSpeech": ["な adjective", "の adjective"],
+          "meaningMnemonic": "Two bees take turns showing their rain-heavy wings—<reading>BEE—SHOW, BEE—SHOW</reading>—and fling water across your coat. Streams run from every pocket; you are completely <vocabulary>soaked</vocabulary>. びしょびしょ describes something thoroughly wet, stronger than merely damp.",
+          "contextSentences": [
+            {"ja": "傘を忘れて、服がびしょびしょになった。", "en": "I forgot my umbrella, and my clothes got soaked."}
+          ],
+          "readingMap": "び・しょ・び・しょ"
+        },
+        {
+          "id": "kana-expansion-soyosoyo",
+          "characters": "そよそよ",
+          "reading": "そよそよ",
+          "meanings": ["Gently Blowing", "Softly"],
+          "partsOfSpeech": ["adverb"],
+          "meaningMnemonic": "Two yo-yos hang from a tree and sway <reading>SO—YO, SO—YO</reading> without completing a single spin. A pleasant breeze is <vocabulary>gently blowing</vocabulary> through their strings. そよそよ is used mainly for a light, pleasant wind.",
+          "contextSentences": [
+            {"ja": "窓から涼しい風がそよそよ入ってくる。", "en": "A cool breeze is gently coming through the window."}
+          ],
+          "readingMap": "そ・よ・そ・よ"
+        },
+        {
+          "id": "kana-expansion-karatto",
+          "characters": "からっと",
+          "reading": "からっと",
+          "meanings": ["Bright And Clear", "Nicely Dry"],
+          "partsOfSpeech": ["adverb", "する verb"],
+          "meaningMnemonic": "A rat hangs laundry across a car, tests the hot hood with one toe, and cries <reading>CAR—RAT—TOE!</reading> The sky has turned <vocabulary>bright and clear</vocabulary>, and every shirt dries cleanly. からっと can praise clear dry weather, nicely dried laundry, or crisp frying.",
+          "contextSentences": [
+            {"ja": "雨の翌日はからっと晴れた。", "en": "The day after the rain was bright and clear."}
+          ],
+          "readingMap": "か・ら・っ・と"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-body-health",
+      "title": "Body Signals",
+      "description": "Common kana spellings for sneezing, hiccups, dizziness, swelling, numbness, skin marks, and body parts.",
+      "script": "hiragana",
+      "words": [
+        {
+          "id": "kana-expansion-kushami",
+          "characters": "くしゃみ",
+          "reading": "くしゃみ",
+          "meanings": ["Sneeze", "Sneezing"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A pigeon coos into a chamois cloth, inhales its dust, and explodes: <reading>COO—SHAMMY!</reading> Feathers fly with one enormous <vocabulary>sneeze</vocabulary>. くしゃみ is the noun; くしゃみをする means to sneeze.",
+          "contextSentences": [
+            {"ja": "花粉のせいでくしゃみが止まらない。", "en": "I can't stop sneezing because of the pollen."}
+          ],
+          "readingMap": "く・しゃ・み"
+        },
+        {
+          "id": "kana-expansion-shakkuri",
+          "characters": "しゃっくり",
+          "reading": "しゃっくり",
+          "meanings": ["Hiccup", "Hiccups"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A tiny shack jerks upward at regular intervals and squeaks <reading>SHACK—REE!</reading> Each sudden jump is another stubborn <vocabulary>hiccup</vocabulary>. しゃっくりが出る means to get hiccups, while しゃっくりが止まる means they stop.",
+          "contextSentences": [
+            {"ja": "水を飲んだらしゃっくりが止まった。", "en": "My hiccups stopped after I drank water."}
+          ],
+          "readingMap": "しゃ・っ・く・り"
+        },
+        {
+          "id": "kana-expansion-memai",
+          "characters": "めまい",
+          "reading": "めまい",
+          "meanings": ["Dizziness", "Vertigo"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A funhouse mirror droops and mutters <reading>MEH—MY!</reading> as its own reflection spins off the wall. You cannot focus either because a wave of <vocabulary>dizziness</vocabulary> has hit. めまいがする is the usual way to say that you feel dizzy.",
+          "contextSentences": [
+            {"ja": "急に立ち上がったら、めまいがした。", "en": "I felt dizzy when I stood up suddenly."}
+          ],
+          "readingMap": "め・ま・い"
+        },
+        {
+          "id": "kana-expansion-mukumi",
+          "characters": "むくみ",
+          "reading": "むくみ",
+          "meanings": ["Swelling", "Puffiness"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A cow steps on your boots, then coos at you—<reading>MOO—COO—ME</reading>—while your feet balloon over the laces. The exaggerated puffiness makes <vocabulary>swelling</vocabulary> impossible to miss. むくみ commonly refers to fluid-related swelling in the face, hands, or legs.",
+          "contextSentences": [
+            {"ja": "長い飛行の後、足にむくみが出た。", "en": "My legs became swollen after the long flight."}
+          ],
+          "readingMap": "む・く・み"
+        },
+        {
+          "id": "kana-expansion-shibire",
+          "characters": "しびれ",
+          "reading": "しびれ",
+          "meanings": ["Numbness", "Pins And Needles"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A bee fires a pale ray at her arm: <reading>SHE—BEE—RAY!</reading> The arm goes dead and prickly with <vocabulary>numbness</vocabulary>. しびれ can be loss of sensation or pins and needles; しびれる means to become numb.",
+          "contextSentences": [
+            {"ja": "正座をしていたら、足にしびれがきた。", "en": "My legs went numb after I sat in seiza."}
+          ],
+          "readingMap": "し・び・れ"
+        },
+        {
+          "id": "kana-expansion-hokuro",
+          "characters": "ほくろ",
+          "reading": "ほくろ",
+          "meanings": ["Mole", "Beauty Mark"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A hawk rows a boat with one wing, chanting <reading>HAWK—ROW</reading>; under the other wing is one unmistakable dark dot. That little spot is a <vocabulary>mole</vocabulary> or beauty mark. ほくろ refers to a pigmented skin mark, not an animal mole.",
+          "contextSentences": [
+            {"ja": "彼は左の頬に小さなほくろがある。", "en": "He has a small mole on his left cheek."}
+          ],
+          "readingMap": "ほ・く・ろ"
+        },
+        {
+          "id": "kana-expansion-nikibi",
+          "characters": "にきび",
+          "reading": "にきび",
+          "meanings": ["Pimple", "Acne"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A bee steals the key tied to your knee, then leaves a bright red bump as it escapes: <reading>KNEE—KEY—BEE!</reading> The bump becomes one angry <vocabulary>pimple</vocabulary>. にきび can mean an individual pimple or acne collectively.",
+          "contextSentences": [
+            {"ja": "寝不足が続くと、にきびができやすい。", "en": "I tend to get pimples when I don't sleep enough."}
+          ],
+          "readingMap": "に・き・び"
+        },
+        {
+          "id": "kana-expansion-hiji",
+          "characters": "ひじ",
+          "reading": "ひじ",
+          "meanings": ["Elbow"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "He bangs his arm on the table and yelps <reading>HE—GEE!</reading> while clutching the sharp joint in the middle. The injured joint is his <vocabulary>elbow</vocabulary>. ひじ is the elbow; ひざ, with a different final sound, is the knee.",
+          "contextSentences": [
+            {"ja": "机にひじをぶつけてしまった。", "en": "I accidentally hit my elbow on the desk."}
+          ],
+          "readingMap": "ひ・じ"
+        },
+        {
+          "id": "kana-expansion-odeko",
+          "characters": "おでこ",
+          "reading": "おでこ",
+          "meanings": ["Forehead", "Brow"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "You stumble aboard a ship and strike the deck headfirst: <reading>OH—DECK—OH!</reading> A cartoon bump rises on your <vocabulary>forehead</vocabulary>. おでこ is a familiar everyday word; 額 is the more neutral lexical alternative.",
+          "contextSentences": [
+            {"ja": "子どものおでこに手を当てて熱を確かめた。", "en": "I put my hand on the child's forehead to check for a fever."}
+          ],
+          "readingMap": "お・で・こ"
+        },
+        {
+          "id": "kana-expansion-mabuta",
+          "characters": "まぶた",
+          "reading": "まぶた",
+          "meanings": ["Eyelid"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "Ma tries to balance a pig 豚（ぶた）above your eye, and the pig gently pulls the curtain shut. The exact pair <reading>MA—豚（ぶた）</reading> lands on your <vocabulary>eyelid</vocabulary>. まぶた is the movable fold that opens and closes over the eye.",
+          "contextSentences": [
+            {"ja": "眠くて、まぶたが重くなってきた。", "en": "I'm sleepy, and my eyelids are getting heavy."}
+          ],
+          "readingMap": "ま・ぶ・た"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-work-study",
+      "title": "Work & Study Desk",
+      "description": "Core office and school loanwords for meetings, plans, projects, tests, reports, copies, and written notes.",
+      "script": "katakana",
+      "words": [
+        {
+          "id": "kana-expansion-ofisu",
+          "characters": "オフィス",
+          "reading": "オフィス",
+          "meanings": ["Office"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "An entire <reading>OFFICE</reading> folds into a briefcase, desks and all, then unfolds wherever work begins. The portable room is still an <vocabulary>office</vocabulary>. オフィス usually evokes a modern workplace; 事務所 is another common word for an office or agency.",
+          "contextSentences": [
+            {"ja": "新しいオフィスは駅から近い。", "en": "The new office is close to the station."}
+          ],
+          "readingMap": "オ・フィ・ス"
+        },
+        {
+          "id": "kana-expansion-miitingu",
+          "characters": "ミーティング",
+          "reading": "ミーティング",
+          "meanings": ["Meeting"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "Every chair in the building races to the middle and announces a <reading>MEETING</reading>. Once the chairs form a circle, the <vocabulary>meeting</vocabulary> can begin. ミーティング often suggests a practical team discussion; 会議 can sound more formal or decision-oriented.",
+          "contextSentences": [
+            {"ja": "午後三時からチームのミーティングがあります。", "en": "We have a team meeting from three this afternoon."}
+          ],
+          "readingMap": "ミ・ー・ティ・ン・グ"
+        },
+        {
+          "id": "kana-expansion-sukejuuru",
+          "characters": "スケジュール",
+          "reading": "スケジュール",
+          "meanings": ["Schedule"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A giant <reading>SCHEDULE</reading> unrolls across the floor and traps anyone who misses an appointment. Every square records the <vocabulary>schedule</vocabulary> for the week. スケジュールを立てる means to make a schedule, while 調整する means to adjust one.",
+          "contextSentences": [
+            {"ja": "来週のスケジュールを確認してください。", "en": "Please check next week's schedule."}
+          ],
+          "readingMap": "ス・ケ・ジュ・ー・ル"
+        },
+        {
+          "id": "kana-expansion-purojekuto",
+          "characters": "プロジェクト",
+          "reading": "プロジェクト",
+          "meanings": ["Project"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A projector fires tasks, deadlines, and teammates onto one enormous board labeled <reading>PROJECT</reading>. All those coordinated pieces belong to a single <vocabulary>project</vocabulary>. プロジェクト usually means an organized undertaking with a defined goal, especially at work or in research.",
+          "contextSentences": [
+            {"ja": "新しいプロジェクトに参加することになった。", "en": "I've been assigned to join a new project."}
+          ],
+          "readingMap": "プ・ロ・ジェ・ク・ト"
+        },
+        {
+          "id": "kana-expansion-chiimu",
+          "characters": "チーム",
+          "reading": "チーム",
+          "meanings": ["Team"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>TEAM</reading> stitches all its jerseys into one bridge so nobody can cross alone. Cooperation turns the group into a real <vocabulary>team</vocabulary>. チーム applies to sports, work, games, and other groups acting toward a shared goal.",
+          "contextSentences": [
+            {"ja": "この仕事は五人のチームで進めます。", "en": "A five-person team will carry out this work."}
+          ],
+          "readingMap": "チ・ー・ム"
+        },
+        {
+          "id": "kana-expansion-pen",
+          "characters": "ペン",
+          "reading": "ペン",
+          "meanings": ["Pen"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A runaway <reading>PEN</reading> signs every blank page, then draws bars around itself when caught. Even inside its ink prison, the <vocabulary>pen</vocabulary> keeps writing. ペン is the general word for an ink pen; 鉛筆 is specifically a pencil.",
+          "contextSentences": [
+            {"ja": "この書類は黒いペンで書いてください。", "en": "Please fill out this document with a black pen."}
+          ],
+          "readingMap": "ペ・ン"
+        },
+        {
+          "id": "kana-expansion-tesuto",
+          "characters": "テスト",
+          "reading": "テスト",
+          "meanings": ["Test", "Exam"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A <reading>TEST</reading> paper grows eyes and starts examining the student who was meant to examine it. Passing its questions is the only way to finish the <vocabulary>test</vocabulary>. テスト can be a school exam or a trial of performance; 試験 often sounds more formal.",
+          "contextSentences": [
+            {"ja": "明日の数学のテストに向けて勉強している。", "en": "I'm studying for tomorrow's math test."}
+          ],
+          "readingMap": "テ・ス・ト"
+        },
+        {
+          "id": "kana-expansion-repooto",
+          "characters": "レポート",
+          "reading": "レポート",
+          "meanings": ["Report", "Paper"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A tiny reporter climbs onto your desk and types <reading>REPORT</reading> across forty pages before the deadline bell. The finished stack is your <vocabulary>report</vocabulary> or academic paper. レポートを書く and レポートを提出する are common school and workplace combinations.",
+          "contextSentences": [
+            {"ja": "金曜日までにレポートを提出しなければならない。", "en": "I have to submit the report by Friday."}
+          ],
+          "readingMap": "レ・ポ・ー・ト"
+        },
+        {
+          "id": "kana-expansion-kopii",
+          "characters": "コピー",
+          "reading": "コピー",
+          "meanings": ["Copy", "Photocopy"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A copier shouts <reading>COPY!</reading> and produces ten identical versions of your coffee cup along with the document. Each duplicate is a perfect <vocabulary>copy</vocabulary>. コピーする commonly means to photocopy or duplicate data; コピーを取る means to make a copy.",
+          "contextSentences": [
+            {"ja": "会議の資料を十部コピーしました。", "en": "I made ten copies of the meeting materials."}
+          ],
+          "readingMap": "コ・ピ・ー"
+        },
+        {
+          "id": "kana-expansion-memo",
+          "characters": "メモ",
+          "reading": "メモ",
+          "meanings": ["Note", "Memo"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A memory elephant stamps <reading>MEMO</reading> onto a tiny card before the idea can escape. The card becomes a quick written <vocabulary>note</vocabulary>. メモを取る means to take notes; メモする means to jot something down.",
+          "contextSentences": [
+            {"ja": "忘れないように電話番号をメモした。", "en": "I wrote down the phone number so I wouldn't forget it."}
+          ],
+          "readingMap": "メ・モ"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-home-care",
+      "title": "Laundry & Home Care",
+      "description": "Useful household loanwords for clothes care, hair care, washing, wrapping, floors, and everyday cleaning tools.",
+      "script": "katakana",
+      "words": [
+        {
+          "id": "kana-expansion-airon",
+          "characters": "アイロン",
+          "reading": "アイロン",
+          "meanings": ["Iron", "Clothes Iron"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "An <reading>IRON</reading> grows tank treads and flattens a mountain of wrinkled shirts. The steam-powered machine is still a clothes <vocabulary>iron</vocabulary>. アイロンをかける is the standard phrase for ironing clothes.",
+          "contextSentences": [
+            {"ja": "シャツにアイロンをかけてから着た。", "en": "I ironed the shirt before putting it on."}
+          ],
+          "readingMap": "ア・イ・ロ・ン"
+        },
+        {
+          "id": "kana-expansion-hangaa",
+          "characters": "ハンガー",
+          "reading": "ハンガー",
+          "meanings": ["Clothes Hanger", "Coat Hanger"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A coat <reading>HANGER</reading> sprouts arms and hangs every jacket—including the one you are wearing. The triangular helper is a <vocabulary>clothes hanger</vocabulary>, not an aircraft hangar. ハンガーにかける means to hang clothing on a hanger.",
+          "contextSentences": [
+            {"ja": "濡れたシャツをハンガーにかけた。", "en": "I put the wet shirt on a hanger."}
+          ],
+          "readingMap": "ハ・ン・ガ・ー"
+        },
+        {
+          "id": "kana-expansion-shanpuu",
+          "characters": "シャンプー",
+          "reading": "シャンプー",
+          "meanings": ["Shampoo"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A bottle of <reading>SHAMPOO</reading> erupts into a foam cloud and washes every head in the bathroom at once. The bubbles smell unmistakably of <vocabulary>shampoo</vocabulary>. シャンプーする means to shampoo one's hair; the word usually refers to hair washing rather than body soap.",
+          "contextSentences": [
+            {"ja": "旅行用の小さいシャンプーを買った。", "en": "I bought a small travel-size shampoo."}
+          ],
+          "readingMap": "シャ・ン・プ・ー"
+        },
+        {
+          "id": "kana-expansion-doraiyaa",
+          "characters": "ドライヤー",
+          "reading": "ドライヤー",
+          "meanings": ["Hair Dryer", "Dryer"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>DRYER</reading> blows with hurricane force until wet hair streams horizontally across the room. The roaring machine is a <vocabulary>hair dryer</vocabulary>. Without extra context, ドライヤー most often means a handheld hair dryer.",
+          "contextSentences": [
+            {"ja": "ドライヤーで髪を乾かした。", "en": "I dried my hair with a hair dryer."}
+          ],
+          "readingMap": "ド・ラ・イ・ヤ・ー"
+        },
+        {
+          "id": "kana-expansion-burashi",
+          "characters": "ブラシ",
+          "reading": "ブラシ",
+          "meanings": ["Brush"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A giant <reading>BRUSH</reading> marches through the house, scrubbing shoes, hair, and bottles with different bristles. Every attachment is still a kind of <vocabulary>brush</vocabulary>. ブラシ is a broad tool word; the object being cleaned usually makes the type clear.",
+          "contextSentences": [
+            {"ja": "柔らかいブラシで靴の汚れを落とした。", "en": "I removed the dirt from my shoes with a soft brush."}
+          ],
+          "readingMap": "ブ・ラ・シ"
+        },
+        {
+          "id": "kana-expansion-baketsu",
+          "characters": "バケツ",
+          "reading": "バケツ",
+          "meanings": ["Bucket", "Pail"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "One bucket tips over and becomes a whole marching line of <reading>BUCKETS</reading>. Each <vocabulary>bucket</vocabulary> carries water to the next until the floor is clean. バケツ is an ordinary handled pail used for water, cleaning, gardening, and similar tasks.",
+          "contextSentences": [
+            {"ja": "バケツに水を入れて庭まで運んだ。", "en": "I filled a bucket with water and carried it to the garden."}
+          ],
+          "readingMap": "バ・ケ・ツ"
+        },
+        {
+          "id": "kana-expansion-suponji",
+          "characters": "スポンジ",
+          "reading": "スポンジ",
+          "meanings": ["Sponge"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A kitchen <reading>SPONGE</reading> absorbs the whole sink, dishes and faucet included, then squeezes them back out sparkling. The thirsty yellow block is a <vocabulary>sponge</vocabulary>. スポンジ can be a cleaning sponge or sponge cake material, depending on context.",
+          "contextSentences": [
+            {"ja": "スポンジに洗剤をつけて皿を洗った。", "en": "I put detergent on a sponge and washed the dishes."}
+          ],
+          "readingMap": "ス・ポ・ン・ジ"
+        },
+        {
+          "id": "kana-expansion-rappu",
+          "characters": "ラップ",
+          "reading": "ラップ",
+          "meanings": ["Plastic Wrap", "Cling Film"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A roll shouts <reading>WRAP!</reading> and seals the entire refrigerator under one transparent sheet. The clinging film is kitchen <vocabulary>plastic wrap</vocabulary>. In food and household contexts, ラップ normally means cling film; rap music is a separate context-dependent sense.",
+          "contextSentences": [
+            {"ja": "残った料理にラップをして冷蔵庫に入れた。", "en": "I covered the leftover food with plastic wrap and put it in the refrigerator."}
+          ],
+          "readingMap": "ラ・ッ・プ"
+        },
+        {
+          "id": "kana-expansion-seroteepu",
+          "characters": "セロテープ",
+          "reading": "セロテープ",
+          "meanings": ["Clear Adhesive Tape", "Cellophane Tape"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A shopkeeper tries to sell a roll, but it sticks to the counter and he cries <reading>SELL—OH—TAPE!</reading> The l sound flows into OH as the transparent strip becomes <vocabulary>clear adhesive tape</vocabulary>. セロテープ is the ordinary clear stationery tape; ガムテープ is the heavier tape used for packing boxes.",
+          "contextSentences": [
+            {"ja": "破れた紙をセロテープで直した。", "en": "I repaired the torn paper with clear tape."}
+          ],
+          "readingMap": "セ・ロ・テ・ー・プ"
+        },
+        {
+          "id": "kana-expansion-moppu",
+          "characters": "モップ",
+          "reading": "モップ",
+          "meanings": ["Mop"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>MOP</reading> grows a hundred yarn legs and races across a spill before anyone slips. The many-legged cleaner is still a floor <vocabulary>mop</vocabulary>. モップをかける means to mop a surface.",
+          "contextSentences": [
+            {"ja": "閉店後にモップで床を掃除した。", "en": "After closing, I cleaned the floor with a mop."}
+          ],
+          "readingMap": "モ・ッ・プ"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-travel-city",
+      "title": "Around the City",
+      "description": "Travel and city loanwords for platforms, crowds, guided trips, rentals, facilities, lockers, and motorbikes.",
+      "script": "katakana",
+      "words": [
+        {
+          "id": "kana-expansion-hoomu",
+          "characters": "ホーム",
+          "reading": "ホーム",
+          "meanings": ["Train Platform", "Platform"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A tiny <reading>HOME</reading> with curtains and a chimney sits beside the tracks, but trains stop at its front door. Here the little home marks the <vocabulary>train platform</vocabulary>. ホーム is short for プラットホーム in station contexts; it does not normally mean your house there.",
+          "contextSentences": [
+            {"ja": "電車は三番ホームに到着します。", "en": "The train will arrive at platform three."}
+          ],
+          "readingMap": "ホ・ー・ム"
+        },
+        {
+          "id": "kana-expansion-rasshu",
+          "characters": "ラッシュ",
+          "reading": "ラッシュ",
+          "meanings": ["Rush Hour", "Rush"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "At eight sharp, an entire crowd yells <reading>RUSH!</reading> and squeezes through one train door like toothpaste. That surge is the morning <vocabulary>rush hour</vocabulary>. ラッシュ can mean any sudden rush, but commuting context usually points to peak crowding.",
+          "contextSentences": [
+            {"ja": "朝のラッシュを避けて早く家を出た。", "en": "I left home early to avoid the morning rush."}
+          ],
+          "readingMap": "ラ・ッ・シュ"
+        },
+        {
+          "id": "kana-expansion-gaido",
+          "characters": "ガイド",
+          "reading": "ガイド",
+          "meanings": ["Guide", "Tour Guide"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A glowing <reading>GUIDE</reading> arrow grows legs and leads the tour through every hidden alley. The walking sign is now the group's <vocabulary>tour guide</vocabulary>. ガイド can be a person, a guidebook, or the act of guiding, depending on the construction.",
+          "contextSentences": [
+            {"ja": "現地のガイドが町を案内してくれた。", "en": "A local guide showed us around the town."}
+          ],
+          "readingMap": "ガ・イ・ド"
+        },
+        {
+          "id": "kana-expansion-tsuaa",
+          "characters": "ツアー",
+          "reading": "ツアー",
+          "meanings": ["Tour"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>TOUR</reading> bus sprouts tiny feet and walks its passengers through five cities without using a road. Every stop belongs to the organized <vocabulary>tour</vocabulary>. ツアー often means a packaged or scheduled trip, including a concert tour.",
+          "contextSentences": [
+            {"ja": "週末のバスツアーに申し込みました。", "en": "I signed up for a weekend bus tour."}
+          ],
+          "readingMap": "ツ・ア・ー"
+        },
+        {
+          "id": "kana-expansion-kyanpu",
+          "characters": "キャンプ",
+          "reading": "キャンプ",
+          "meanings": ["Camping", "Camp"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A <reading>CAMP</reading> tent unfolds itself, lights a fire, and invites the trees to sleep inside. The forest has turned into a <vocabulary>camp</vocabulary>. キャンプする means to go camping; sports teams also use キャンプ for a training camp.",
+          "contextSentences": [
+            {"ja": "夏休みに湖の近くでキャンプした。", "en": "We camped near a lake during summer vacation."}
+          ],
+          "readingMap": "キャ・ン・プ"
+        },
+        {
+          "id": "kana-expansion-rentaru",
+          "characters": "レンタル",
+          "reading": "レンタル",
+          "meanings": ["Rental", "Rent"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A <reading>RENTAL</reading> bicycle carries a giant return clock that rings whenever your time is nearly up. Because it must go back, the bicycle is only a <vocabulary>rental</vocabulary>. レンタル emphasizes borrowing for a fee; レンタルする can mean to rent an item.",
+          "contextSentences": [
+            {"ja": "駅前で自転車をレンタルできます。", "en": "You can rent a bicycle in front of the station."}
+          ],
+          "readingMap": "レ・ン・タ・ル"
+        },
+        {
+          "id": "kana-expansion-sentaa",
+          "characters": "センター",
+          "reading": "センター",
+          "meanings": ["Center", "Facility"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A building marked <reading>CENTER</reading> rolls itself to the exact middle of town and opens a dozen public-service doors. The central facility is the community <vocabulary>center</vocabulary>. センター appears frequently in facility names such as スポーツセンター and サポートセンター.",
+          "contextSentences": [
+            {"ja": "市民センターで日本語の教室が開かれている。", "en": "Japanese classes are held at the community center."}
+          ],
+          "readingMap": "セ・ン・タ・ー"
+        },
+        {
+          "id": "kana-expansion-eria",
+          "characters": "エリア",
+          "reading": "エリア",
+          "meanings": ["Area", "Zone"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A glowing line draws an <reading>AREA</reading> around one part of the city and lifts it like a puzzle piece. Everything inside belongs to that <vocabulary>area</vocabulary> or zone. エリア often marks a service region, designated zone, or part of a larger venue.",
+          "contextSentences": [
+            {"ja": "このエリアでは無料のWi-Fiが使えます。", "en": "Free Wi-Fi is available in this area."}
+          ],
+          "readingMap": "エ・リ・ア"
+        },
+        {
+          "id": "kana-expansion-koinrokkaa",
+          "characters": "コインロッカー",
+          "reading": "コインロッカー",
+          "meanings": ["Coin Locker", "Coin-Operated Locker"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A giant <reading>COIN LOCKER</reading> swallows your suitcase only after a coin opens its metal mouth. The station monster is a <vocabulary>coin-operated locker</vocabulary>. Coin lockers are common at stations and other busy public facilities.",
+          "contextSentences": [
+            {"ja": "荷物を駅のコインロッカーに預けた。", "en": "I left my luggage in a coin locker at the station."}
+          ],
+          "readingMap": "コ・イ・ン・ロ・ッ・カ・ー"
+        },
+        {
+          "id": "kana-expansion-baiku",
+          "characters": "バイク",
+          "reading": "バイク",
+          "meanings": ["Motorcycle", "Motorbike"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>BIKE</reading> roars awake, grows an engine, and leaves every pedal bicycle behind. In this scene—and usually in Japanese—the vehicle is a <vocabulary>motorcycle</vocabulary>. バイク normally means a motorbike; 自転車 is the unambiguous everyday word for a bicycle.",
+          "contextSentences": [
+            {"ja": "兄はバイクで会社に通っている。", "en": "My older brother commutes to work by motorcycle."}
+          ],
+          "readingMap": "バ・イ・ク"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-people-media",
+      "title": "People on Screen & Stage",
+      "description": "Common social and entertainment words for couples, fans, members, leaders, guests, performers, characters, heroes, and events.",
+      "script": "katakana",
+      "words": [
+        {
+          "id": "kana-expansion-kappuru",
+          "characters": "カップル",
+          "reading": "カップル",
+          "meanings": ["Couple"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "Two cups click handles and refuse to be separated while a sign flashes <reading>COUPLE</reading>. The paired cups have become a romantic <vocabulary>couple</vocabulary>. カップル usually refers to two people in a romantic relationship, not merely any pair of objects.",
+          "contextSentences": [
+            {"ja": "公園で若いカップルが写真を撮っていた。", "en": "A young couple was taking photos in the park."}
+          ],
+          "readingMap": "カ・ッ・プ・ル"
+        },
+        {
+          "id": "kana-expansion-fan",
+          "characters": "ファン",
+          "reading": "ファン",
+          "meanings": ["Fan", "Enthusiast"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A paper <reading>FAN</reading> buys a concert ticket and waves itself wildly from the front row. It is not cooling anyone today; it is a devoted <vocabulary>fan</vocabulary> of the singer. ファン commonly means an admirer, though the same spelling can mean an electric fan when context points to the appliance.",
+          "contextSentences": [
+            {"ja": "彼女はそのバンドの長年のファンです。", "en": "She has been a fan of that band for many years."}
+          ],
+          "readingMap": "ファ・ン"
+        },
+        {
+          "id": "kana-expansion-menbaa",
+          "characters": "メンバー",
+          "reading": "メンバー",
+          "meanings": ["Member", "Participant"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "Each <reading>MEMBER</reading> holds one piece of a broken stage; only when everyone joins can the show continue. Every participant is a <vocabulary>member</vocabulary> of the group. メンバー is common for teams, bands, clubs, projects, and event participants.",
+          "contextSentences": [
+            {"ja": "新しいメンバーをみんなに紹介します。", "en": "I'll introduce the new member to everyone."}
+          ],
+          "readingMap": "メ・ン・バ・ー"
+        },
+        {
+          "id": "kana-expansion-riidaa",
+          "characters": "リーダー",
+          "reading": "リーダー",
+          "meanings": ["Leader"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A glowing arrow labeled <reading>LEADER</reading> walks at the front and pulls a lost team out of a maze. The person setting direction is the <vocabulary>leader</vocabulary>. リーダー is common for team or group leadership; 指導者 can sound more formal or institutional.",
+          "contextSentences": [
+            {"ja": "彼がこのプロジェクトのリーダーです。", "en": "He is the leader of this project."}
+          ],
+          "readingMap": "リ・ー・ダ・ー"
+        },
+        {
+          "id": "kana-expansion-gesuto",
+          "characters": "ゲスト",
+          "reading": "ゲスト",
+          "meanings": ["Guest"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A red carpet rolls itself toward the door and spells <reading>GUEST</reading> under one visitor's feet. The honored visitor is today's <vocabulary>guest</vocabulary>. ゲスト is especially common for invited performers, speakers, hotel users, and program guests.",
+          "contextSentences": [
+            {"ja": "今日の番組には特別なゲストが登場します。", "en": "A special guest will appear on today's program."}
+          ],
+          "readingMap": "ゲ・ス・ト"
+        },
+        {
+          "id": "kana-expansion-aidoru",
+          "characters": "アイドル",
+          "reading": "アイドル",
+          "meanings": ["Japanese Idol", "Pop Idol"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "An <reading>IDOL</reading> statue jumps off its pedestal, grabs a microphone, and performs for a sea of coordinated glow sticks. This admired performer is a Japanese <vocabulary>pop idol</vocabulary>. アイドル usually means a carefully promoted young entertainer, not only an object of worship.",
+          "contextSentences": [
+            {"ja": "妹は人気アイドルの歌を毎日聞いている。", "en": "My younger sister listens to songs by a popular idol every day."}
+          ],
+          "readingMap": "ア・イ・ド・ル"
+        },
+        {
+          "id": "kana-expansion-tarento",
+          "characters": "タレント",
+          "reading": "タレント",
+          "meanings": ["TV Personality", "Entertainer"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A suitcase marked <reading>TALENT</reading> opens on television, and a comedian, host, and singer all spring out. In Japanese media, each visible entertainer can be a <vocabulary>TV personality</vocabulary>. タレント usually labels a media performer rather than the abstract ability called “talent.”",
+          "contextSentences": [
+            {"ja": "そのタレントは料理番組でも活躍している。", "en": "That TV personality is also active on a cooking show."}
+          ],
+          "readingMap": "タ・レ・ン・ト"
+        },
+        {
+          "id": "kana-expansion-kyarakutaa",
+          "characters": "キャラクター",
+          "reading": "キャラクター",
+          "meanings": ["Character", "Fictional Character"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A storybook shouts <reading>CHARACTER</reading>, and its hero climbs off the page to rearrange the plot. The living drawing is a fictional <vocabulary>character</vocabulary>. キャラクター can also mean a person's distinctive personality or a designed mascot.",
+          "contextSentences": [
+            {"ja": "このアニメで一番好きなキャラクターは誰ですか。", "en": "Who is your favorite character in this anime?"}
+          ],
+          "readingMap": "キャ・ラ・ク・タ・ー"
+        },
+        {
+          "id": "kana-expansion-hiiroo",
+          "characters": "ヒーロー",
+          "reading": "ヒーロー",
+          "meanings": ["Hero"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>HERO</reading> tears open a cape, catches a falling train, and sets it gently back on the rails. The rescuer becomes everyone's <vocabulary>hero</vocabulary>. ヒーロー is common for fictional heroes and admired real people; 英雄 often has a more historical or grand tone.",
+          "contextSentences": [
+            {"ja": "子どもの頃、このヒーローに憧れていた。", "en": "I admired this hero when I was a child."}
+          ],
+          "readingMap": "ヒ・ー・ロ・ー"
+        },
+        {
+          "id": "kana-expansion-ibento",
+          "characters": "イベント",
+          "reading": "イベント",
+          "meanings": ["Event"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "An <reading>EVENT</reading> calendar bursts open and releases a stage, food stalls, and a cheering crowd into the square. The organized occasion is a public <vocabulary>event</vocabulary>. イベント usually suggests a planned activity, promotion, festival, or in-game occurrence rather than any incident whatsoever.",
+          "contextSentences": [
+            {"ja": "週末に駅前で音楽イベントが開かれる。", "en": "A music event will be held near the station this weekend."}
+          ],
+          "readingMap": "イ・ベ・ン・ト"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-fitness-wellness",
+      "title": "Fitness & Everyday Wellness",
+      "description": "Practical words for masks, contact lenses, glasses, jogging, hiking, yoga, gyms, pools, stretching, and training.",
+      "script": "katakana",
+      "words": [
+        {
+          "id": "kana-expansion-masuku",
+          "characters": "マスク",
+          "reading": "マスク",
+          "meanings": ["Face Mask", "Mask"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>MASK</reading> stretches across an entire train carriage and covers every nose at once. The protective covering is a <vocabulary>face mask</vocabulary>. In ordinary health contexts, マスク means a mask worn over the nose and mouth.",
+          "contextSentences": [
+            {"ja": "花粉が多い日はマスクをつけます。", "en": "I wear a face mask on days with a lot of pollen."}
+          ],
+          "readingMap": "マ・ス・ク"
+        },
+        {
+          "id": "kana-expansion-kontakuto",
+          "characters": "コンタクト",
+          "reading": "コンタクト",
+          "meanings": ["Contact Lens", "Contacts"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A tiny <reading>CONTACT</reading> lens makes contact with a giant eye, then snaps into place like a shield. The clear disc is a <vocabulary>contact lens</vocabulary>. In eye-care conversation, コンタクト is the ordinary abbreviation of コンタクトレンズ.",
+          "contextSentences": [
+            {"ja": "今日はコンタクトではなくメガネをかけています。", "en": "Today I'm wearing glasses instead of contact lenses."}
+          ],
+          "readingMap": "コ・ン・タ・ク・ト"
+        },
+        {
+          "id": "kana-expansion-bitamin",
+          "characters": "ビタミン",
+          "reading": "ビタミン",
+          "meanings": ["Vitamin"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A giant <reading>VITAMIN</reading> capsule cracks open and fills the kitchen with glowing fruit and vegetables. Every color carries a different <vocabulary>vitamin</vocabulary>. ビタミン appears in names such as ビタミンC and in compounds such as ビタミン不足, vitamin deficiency.",
+          "contextSentences": [
+            {"ja": "野菜からビタミンを摂るようにしています。", "en": "I try to get vitamins from vegetables."}
+          ],
+          "readingMap": "ビ・タ・ミ・ン"
+        },
+        {
+          "id": "kana-expansion-jogingu",
+          "characters": "ジョギング",
+          "reading": "ジョギング",
+          "meanings": ["Jogging"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A pair of shoes begins <reading>JOGGING</reading> around the park before its owner wakes up. Their steady easy run is <vocabulary>jogging</vocabulary>, not an all-out sprint. ジョギングする is the common verb phrase for going jogging.",
+          "contextSentences": [
+            {"ja": "健康のために毎朝ジョギングしています。", "en": "I go jogging every morning for my health."}
+          ],
+          "readingMap": "ジョ・ギ・ン・グ"
+        },
+        {
+          "id": "kana-expansion-haikingu",
+          "characters": "ハイキング",
+          "reading": "ハイキング",
+          "meanings": ["Hiking"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A trail sign marked <reading>HIKING</reading> grows legs and leads a line of backpacks up the mountain. The whole cheerful procession is <vocabulary>hiking</vocabulary>. ハイキング usually suggests a day walk for pleasure; more serious mountain climbing is 登山.",
+          "contextSentences": [
+            {"ja": "秋に家族と山へハイキングに行った。", "en": "I went hiking in the mountains with my family in autumn."}
+          ],
+          "readingMap": "ハ・イ・キ・ン・グ"
+        },
+        {
+          "id": "kana-expansion-yoga",
+          "characters": "ヨガ",
+          "reading": "ヨガ",
+          "meanings": ["Yoga"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>YOGA</reading> mat twists itself into a perfect tree pose and calmly waits for you to copy it. The balancing practice is <vocabulary>yoga</vocabulary>. ヨガをする is the everyday way to say that you do or practice yoga.",
+          "contextSentences": [
+            {"ja": "寝る前に二十分ヨガをしています。", "en": "I do twenty minutes of yoga before bed."}
+          ],
+          "readingMap": "ヨ・ガ"
+        },
+        {
+          "id": "kana-expansion-jimu",
+          "characters": "ジム",
+          "reading": "ジム",
+          "meanings": ["Gym"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>GYM</reading> folds its treadmills and weights into a vending machine, then unfolds when a member scans a card. The workout facility is a <vocabulary>gym</vocabulary>. ジム commonly means a fitness gym; 体育館 is a school-style gymnasium or sports hall.",
+          "contextSentences": [
+            {"ja": "仕事の後でジムに通っています。", "en": "I go to the gym after work."}
+          ],
+          "readingMap": "ジ・ム"
+        },
+        {
+          "id": "kana-expansion-puuru",
+          "characters": "プール",
+          "reading": "プール",
+          "meanings": ["Swimming Pool", "Pool"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>POOL</reading> rises from the ground and chases overheated swimmers until they jump in. The moving rectangle of water is a <vocabulary>swimming pool</vocabulary>. Without another cue, プール most often means a swimming pool.",
+          "contextSentences": [
+            {"ja": "夏は市民プールで泳ぎます。", "en": "I swim at the public pool in summer."}
+          ],
+          "readingMap": "プ・ー・ル"
+        },
+        {
+          "id": "kana-expansion-sutorecchi",
+          "characters": "ストレッチ",
+          "reading": "ストレッチ",
+          "meanings": ["Stretching", "Stretch"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A rubber band shouts <reading>STRETCH!</reading> and pulls every stiff arm and leg gently toward the ceiling. The warm-up movement is <vocabulary>stretching</vocabulary>. ストレッチする usually means to do flexibility exercises, especially before or after activity.",
+          "contextSentences": [
+            {"ja": "走る前に足をストレッチした。", "en": "I stretched my legs before running."}
+          ],
+          "readingMap": "ス・ト・レ・ッ・チ"
+        },
+        {
+          "id": "kana-expansion-toreeningu",
+          "characters": "トレーニング",
+          "reading": "トレーニング",
+          "meanings": ["Training", "Workout"],
+          "partsOfSpeech": ["noun", "する verb"],
+          "meaningMnemonic": "A tiny <reading>TRAINING</reading> train circles a gym, adding one weight to every carriage on each lap. The repeated practice becomes a serious <vocabulary>workout</vocabulary>. トレーニング can mean physical exercise or structured practice for a skill.",
+          "contextSentences": [
+            {"ja": "週に三回、筋力トレーニングをしている。", "en": "I do strength training three times a week."}
+          ],
+          "readingMap": "ト・レ・ー・ニ・ン・グ"
+        }
+      ]
+    },
+    {
+      "id": "kana-expansion-kitchen-tools",
+      "title": "Kitchen Tools & Flavors",
+      "description": "Everyday kitchen words for sauces, spices, recipes, pans, ovens, microwaves, grills, blenders, wine, and timers.",
+      "script": "katakana",
+      "words": [
+        {
+          "id": "kana-expansion-soosu",
+          "characters": "ソース",
+          "reading": "ソース",
+          "meanings": ["Sauce", "Worcestershire-Style Sauce"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A bottle of <reading>SAUCE</reading> paints a brown river across a plate and floats the fried food away. The river is unmistakably <vocabulary>sauce</vocabulary>. ソース can be sauce generally, but on a Japanese table it often points to thick Worcestershire-style sauce.",
+          "contextSentences": [
+            {"ja": "とんかつにソースをかけて食べた。", "en": "I ate the pork cutlet with sauce on it."}
+          ],
+          "readingMap": "ソ・ー・ス"
+        },
+        {
+          "id": "kana-expansion-supaisu",
+          "characters": "スパイス",
+          "reading": "スパイス",
+          "meanings": ["Spice"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A jar labeled <reading>SPICE</reading> sneezes a red cloud into the stew and wakes every flavor at once. One pinch of the <vocabulary>spice</vocabulary> changes the whole pot. スパイス can be a culinary spice or, figuratively, an exciting extra element.",
+          "contextSentences": [
+            {"ja": "このカレーにはいろいろなスパイスが入っている。", "en": "This curry contains many different spices."}
+          ],
+          "readingMap": "ス・パ・イ・ス"
+        },
+        {
+          "id": "kana-expansion-reshipi",
+          "characters": "レシピ",
+          "reading": "レシピ",
+          "meanings": ["Recipe"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>RECIPE</reading> card sprouts hands and measures every ingredient before the cook can make a mistake. Its ordered instructions form the <vocabulary>recipe</vocabulary>. レシピ is used for cooking instructions and can extend to a figurative formula or how-to guide.",
+          "contextSentences": [
+            {"ja": "ネットで簡単なパスタのレシピを探した。", "en": "I looked online for an easy pasta recipe."}
+          ],
+          "readingMap": "レ・シ・ピ"
+        },
+        {
+          "id": "kana-expansion-furaipan",
+          "characters": "フライパン",
+          "reading": "フライパン",
+          "meanings": ["Frying Pan", "Frypan"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>FRY PAN</reading> flaps its handle like a wing and flies breakfast from the stove to the table. The airborne cookware is a <vocabulary>frying pan</vocabulary>. フライパン is the ordinary shallow pan for frying or sautéing.",
+          "contextSentences": [
+            {"ja": "フライパンで野菜を炒めます。", "en": "I stir-fry vegetables in a frying pan."}
+          ],
+          "readingMap": "フ・ラ・イ・パ・ン"
+        },
+        {
+          "id": "kana-expansion-oobun",
+          "characters": "オーブン",
+          "reading": "オーブン",
+          "meanings": ["Oven"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "An <reading>OVEN</reading> opens its door and launches a perfectly baked loaf like a warm rocket. The enclosed baking appliance is an <vocabulary>oven</vocabulary>. オーブン usually means a baking or roasting oven, distinct from a microwave-only 電子レンジ.",
+          "contextSentences": [
+            {"ja": "オーブンを百八十度に温めてください。", "en": "Please preheat the oven to 180 degrees."}
+          ],
+          "readingMap": "オ・ー・ブ・ン"
+        },
+        {
+          "id": "kana-expansion-renji",
+          "characters": "レンジ",
+          "reading": "レンジ",
+          "meanings": ["Microwave Oven", "Cooking Range"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A cooking <reading>RANGE</reading> shrinks into a microwave and heats dinner in thirty seconds. In the kitchen, the compact appliance is often a <vocabulary>microwave oven</vocabulary>. 電子レンジ is fully explicit, while レンジ alone may also mean a stove or range.",
+          "contextSentences": [
+            {"ja": "冷めたスープをレンジで温めた。", "en": "I warmed the cold soup in the microwave."}
+          ],
+          "readingMap": "レ・ン・ジ"
+        },
+        {
+          "id": "kana-expansion-guriru",
+          "characters": "グリル",
+          "reading": "グリル",
+          "meanings": ["Grill", "Fish Grill"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>GRILL</reading> snaps shut like a metal jaw and returns a fish with perfect char marks. The hot rack is a <vocabulary>grill</vocabulary>. In Japanese kitchens, グリル often means the small built-in fish grill beneath the stovetop.",
+          "contextSentences": [
+            {"ja": "魚をグリルで十分ほど焼いた。", "en": "I grilled the fish for about ten minutes."}
+          ],
+          "readingMap": "グ・リ・ル"
+        },
+        {
+          "id": "kana-expansion-mikisaa",
+          "characters": "ミキサー",
+          "reading": "ミキサー",
+          "meanings": ["Blender", "Mixer"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A <reading>MIXER</reading> whirls fruit, ice, and the recipe card into one bright smoothie. The countertop machine is a <vocabulary>blender</vocabulary>. In everyday Japanese kitchens, ミキサー often means a jug blender rather than only an English-style stand or hand mixer.",
+          "contextSentences": [
+            {"ja": "ミキサーでバナナジュースを作った。", "en": "I made banana juice in a blender."}
+          ],
+          "readingMap": "ミ・キ・サ・ー"
+        },
+        {
+          "id": "kana-expansion-wain",
+          "characters": "ワイン",
+          "reading": "ワイン",
+          "meanings": ["Wine"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A bottle of <reading>WINE</reading> grows grapevine arms and pours itself carefully into every glass. The fermented grape drink is <vocabulary>wine</vocabulary>. 赤ワイン and 白ワイン distinguish red and white wine.",
+          "contextSentences": [
+            {"ja": "夕食に赤ワインを一杯飲みました。", "en": "I drank a glass of red wine with dinner."}
+          ],
+          "readingMap": "ワ・イ・ン"
+        },
+        {
+          "id": "kana-expansion-taimaa",
+          "characters": "タイマー",
+          "reading": "タイマー",
+          "meanings": ["Timer"],
+          "partsOfSpeech": ["noun"],
+          "meaningMnemonic": "A kitchen <reading>TIMER</reading> sprouts legs, chases the cook, and rings until the cake leaves the oven. The noisy countdown device is a <vocabulary>timer</vocabulary>. タイマーをセットする means to set a timer.",
+          "contextSentences": [
+            {"ja": "タイマーを五分にセットしてください。", "en": "Please set the timer for five minutes."}
+          ],
+          "readingMap": "タ・イ・マ・ー"
+        }
+      ]
+    }
+  ]
+}

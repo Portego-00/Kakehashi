@@ -4,6 +4,7 @@ import type { KanjiChoice, ListeningSolutionMode } from "./listening";
 export interface ContextSentencePracticeConfig {
   includeVocabulary: boolean;
   includeKanaVocabulary: boolean;
+  customSentencesOnly: boolean;
   solutionMode: ListeningSolutionMode;
   numberOfQuestions: number;
   enableSentenceAudio: boolean;

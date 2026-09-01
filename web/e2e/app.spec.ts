@@ -37,6 +37,23 @@ async function fulfillJson(route: Route, json: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(json) });
 }
 
+async function seriousAccessibilityViolations(page: Page) {
+  await page.evaluate(async () => {
+    const finiteAnimations = document.getAnimations().filter((animation) => {
+      const endTime = animation.effect?.getComputedTiming().endTime;
+      return typeof endTime === "number" && Number.isFinite(endTime);
+    });
+    await Promise.allSettled(finiteAnimations.map((animation) => animation.finished));
+  });
+  const hasAxe = await page.evaluate(() => Boolean((window as typeof window & { axe?: unknown }).axe));
+  if (!hasAxe) await page.addScriptTag({ path: resolve("node_modules/axe-core/axe.min.js") });
+  return page.evaluate(async () => {
+    const axe = (window as typeof window & { axe: { run: (root: Document, options: unknown) => Promise<{ violations: Array<{ id: string; impact: string | null; nodes: Array<{ target: string[]; failureSummary?: string }> }> }> } }).axe;
+    const result = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
+    return result.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").map((violation) => ({ id: violation.id, impact: violation.impact, nodes: violation.nodes.map((node) => ({ target: node.target, failureSummary: node.failureSummary })) }));
+  });
+}
+
 async function cardMetrics(card: Locator) {
   return card.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
@@ -173,6 +190,13 @@ async function mockApp(page: Page, initiallyAuthenticated = true, mockedUser: Mo
     if (method === "DELETE") { authenticated = false; return fulfillJson(route, { ok: true }); }
     return authenticated ? fulfillJson(route, { user: mockedUser }) : fulfillJson(route, { error: "No active session." }, 401);
   });
+  await page.route("**/api/custom-srs", (route) => fulfillJson(route, { available: false, state: null, revision: -1 }));
+  await page.route("**/api/analytics/session", (route) => fulfillJson(route, { recorded: true }));
+  await page.route(/\/api\/analytics\/study-time(?:\?.*)?$/, (route) => fulfillJson(route, route.request().method() === "GET" ? { available: true, days: [] } : { synced: true }));
+  await page.route(/\/api\/analytics\/streak(?:\?.*)?$/, (route) => fulfillJson(route, { activeDays: [], available: true }));
+  await page.route("**/api/subjects/lists", (route) => fulfillJson(route, route.request().method() === "GET" ? { lists: [] } : { synced: true }));
+  await page.route("**/api/subjects/enrichments", (route) => fulfillJson(route, { pitchAccents: [], patterns: [] }));
+  await page.route("**/music/discover", (route) => fulfillJson(route, { sections: [] }));
   await page.route("**/api/wanikani/**", async (route) => {
     const url = new URL(route.request().url());
     const resource = decodeURIComponent(url.pathname.replace(/^\/api\/wanikani\//, ""));
@@ -546,7 +570,7 @@ test("keeps the desktop login split layout", async ({ page }, testInfo) => {
 test("loads every supported study mode and principal feature route", async ({ page }) => {
   await mockApp(page);
   const studyModes = ["recent-lessons", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "text-analysis", "kanji-writing", "crossword", "kana-wordle", "custom-review", "custom-lessons", "subject-lists"];
-  const routes = ["/dashboard", "/lessons", "/reviews", "/study", ...studyModes.map((mode) => `/study/${mode}`), "/progress", "/progress/kanji", "/progress/wrapped/1", "/analytics", "/items", "/search", "/lists", "/subjects", "/subjects/2", "/subjects/2/constellation", "/settings", "/news", "/reader", "/epubs", "/manga", "/video", "/music", "/translator", "/community", "/community/new", "/feedback", "/feature-request", "/supporters"];
+  const routes = ["/dashboard", "/lessons", "/reviews", "/custom-vocabulary", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews", "/study", ...studyModes.map((mode) => `/study/${mode}`), "/progress", "/progress/kanji", "/progress/wrapped/1", "/analytics", "/items", "/search", "/lists", "/subjects", "/subjects/2", "/subjects/2/constellation", "/settings", "/news", "/reader", "/epubs", "/manga", "/video", "/music", "/translator", "/community", "/community/new", "/feedback", "/feature-request", "/supporters"];
   const consoleErrors: string[] = [];
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   for (const path of routes) {
@@ -556,6 +580,158 @@ test("loads every supported study mode and principal feature route", async ({ pa
     await expect(page.locator("body")).not.toContainText(/404|page not found/i);
   }
   expect(consoleErrors.filter((message) => !message.includes("favicon"))).toEqual([]);
+});
+
+test("keeps custom vocabulary low on the dashboard and opens a word's subject details", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await mockApp(page);
+  await page.goto("/dashboard");
+
+  const defaultSectionOrder = await page.locator("main [data-section]").evaluateAll((sections) => sections.map((section) => section.getAttribute("data-section")));
+  const subjectListsIndex = defaultSectionOrder.indexOf("subject-lists");
+  expect(subjectListsIndex).toBeGreaterThanOrEqual(0);
+  expect(defaultSectionOrder.indexOf("custom-vocabulary")).toBe(subjectListsIndex + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom vocabulary dashboard widget overflows at 320px").toBe(true);
+
+  await page.goto("/custom-vocabulary");
+  const wordLink = page.locator('a[href="/custom-vocabulary/words/conversation-douzo"]').first();
+  await expect(wordLink).toBeVisible();
+  await expect(wordLink).toContainText("どうぞ");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom vocabulary hub overflows at 320px").toBe(true);
+  await wordLink.click();
+
+  await expect(page).toHaveURL(/\/custom-vocabulary\/words\/conversation-douzo$/);
+  const subjectHero = page.locator('header[data-type="vocabulary"]');
+  await expect(subjectHero.getByRole("heading", { name: "Please", exact: true })).toBeVisible();
+  await expect(subjectHero.getByText("どうぞ", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("heading", { name: "Name", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mnemonic", exact: true })).toBeVisible();
+  await expect(page.getByText(/Zo runs a bakery whose front door is made of dough/)).toBeVisible();
+
+  await expect(page.getByRole("tab", { name: "Reading", exact: true })).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Context", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Context sentences", exact: true })).toBeVisible();
+  await expect(page.getByText("こちらの席へどうぞ。", { exact: true })).toBeVisible();
+  await expect(page.getByText("Please take this seat.", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom vocabulary subject details overflow at 320px").toBe(true);
+});
+
+test("gives long custom vocabulary meanings the full preview width", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "Desktop layout assertion");
+  await page.setViewportSize({ width: 1120, height: 800 });
+  await mockApp(page);
+  await page.goto("/custom-vocabulary");
+
+  const foodPack = page.getByRole("article", { name: "Food & Eating Out" });
+  await foodPack.getByRole("button", { name: "Add Food & Eating Out pack" }).click();
+  await expect(foodPack.getByText("Added", { exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const key = "kakehashi:custom-srs:v1:account:1";
+    const state = JSON.parse(localStorage.getItem(key) || "null");
+    const timestamp = new Date().toISOString();
+    state.assignments["food-gochisousama"] = {
+      ...state.assignments["food-gochisousama"],
+      stage: 3,
+      availableAt: timestamp,
+      startedAt: timestamp,
+      updatedAt: timestamp,
+      card: {
+        due: timestamp,
+        state: "Review",
+        stability: 1,
+        difficulty: 5,
+        elapsed_days: 0,
+        scheduled_days: 1,
+        learning_steps: 0,
+        reps: 2,
+        lapses: 0,
+        last_review: timestamp,
+      },
+    };
+    localStorage.setItem(key, JSON.stringify(state));
+  });
+  await page.reload();
+
+  const longWord = page.locator('a[href="/custom-vocabulary/words/food-gochisousama"]');
+  await expect(longWord).toBeVisible();
+  await expect(longWord).toContainText("Apprentice III");
+
+  const layout = await longWord.evaluate((link) => {
+    const [character, meaning, navigation] = Array.from(link.children) as HTMLElement[];
+    const linkRect = link.getBoundingClientRect();
+    const characterRect = character.getBoundingClientRect();
+    const meaningRect = meaning.getBoundingClientRect();
+    const navigationRect = navigation.getBoundingClientRect();
+    return {
+      characterRight: characterRect.right,
+      navigationLeft: navigationRect.left,
+      linkWidth: linkRect.width,
+      meaningWidth: meaningRect.width,
+    };
+  });
+
+  expect(layout.meaningWidth).toBeGreaterThanOrEqual(layout.linkWidth - 1);
+  expect(layout.characterRight).toBeLessThanOrEqual(layout.navigationLeft);
+});
+
+test("enrolls a kana pack and persists custom lessons and reviews without WaniKani mutations", async ({ page }) => {
+  const waniKaniMutations: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET" && new URL(request.url()).pathname.startsWith("/api/wanikani/")) waniKaniMutations.push(request.url());
+  });
+  await mockApp(page);
+  await page.goto("/custom-vocabulary");
+
+  await expect(page.getByRole("heading", { name: "Custom vocabulary" })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(49);
+  await expect(page.getByRole("region", { name: "Kana & everyday language" })).toContainText("25 packs · 288 words");
+  await expect(page.getByRole("region", { name: "Kanji by WaniKani level" })).toContainText("24 packs · 277 words");
+  await page.getByRole("button", { name: "Add Conversation Glue pack" }).click();
+  await expect(page.getByText("Added", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("link", { name: /Start lessons/i }).click();
+  for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson" }).click();
+  await page.getByRole("button", { name: "Start lesson quiz" }).click();
+
+  const answers = new Map([
+    ["どうぞ", "please"],
+    ["やっぱり", "as expected"],
+    ["ゆっくり", "slowly"],
+    ["じゃあ", "well then"],
+    ["どうも", "thanks"],
+  ]);
+  for (let index = 0; index < answers.size; index += 1) {
+    const prompt = await page.locator('header[aria-label="Custom lesson quiz prompt"]').textContent();
+    const answer = [...answers].find(([characters]) => prompt?.includes(characters))?.[1];
+    expect(answer, `unexpected shuffled lesson prompt: ${prompt}`).toBeTruthy();
+    await page.getByRole("textbox", { name: "Your answer" }).fill(answer!);
+    await page.getByRole("button", { name: "Check Answer" }).click();
+    await expect(page.getByText("Correct", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: index === answers.size - 1 ? "Finish" : "Next Question" }).click();
+  }
+  await expect(page.getByRole("heading", { name: "Custom lessons complete" })).toBeVisible();
+
+  const browserState = await page.evaluate(() => {
+    const key = "kakehashi:custom-srs:v1:account:1";
+    const state = JSON.parse(localStorage.getItem(key) || "null");
+    state.assignments["conversation-douzo"].availableAt = "2020-01-01T00:00:00.000Z";
+    state.assignments["conversation-douzo"].card.due = "2020-01-01T00:00:00.000Z";
+    localStorage.setItem(key, JSON.stringify(state));
+    return state;
+  });
+  expect(browserState.enrolledPackIds).toContain("conversation-glue");
+  expect(Object.values(browserState.assignments).filter((assignment) => (assignment as { stage: number }).stage === 1)).toHaveLength(5);
+
+  await page.goto("/custom-vocabulary/reviews");
+  await expect(page.getByText("どうぞ", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Your answer" }).fill("please");
+  await page.getByRole("button", { name: "Check Answer" }).click();
+  await page.getByRole("button", { name: "Finish" }).click();
+  await expect(page.getByRole("heading", { name: "Custom reviews complete" })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("kakehashi:custom-srs:v1:account:1") || "null").assignments["conversation-douzo"].stage)).toBe(2);
+  expect(waniKaniMutations).toEqual([]);
 });
 
 test("keeps an idle review question within the desktop viewport", async ({ page }, testInfo) => {
@@ -710,6 +886,86 @@ test("has no serious accessibility violations on representative workspaces", asy
   }
 });
 
+test("keeps a custom vocabulary lesson session labelled and keyboard operable", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/custom-vocabulary");
+  expect(await seriousAccessibilityViolations(page), "custom vocabulary hub has serious accessibility violations").toEqual([]);
+  await page.getByRole("button", { name: "Add Conversation Glue pack" }).click();
+  await page.getByRole("link", { name: /Start lessons/i }).click();
+
+  await expect(page.getByRole("heading", { name: "Please", exact: true })).toBeVisible();
+  const lessonColors = await page.getByRole("heading", { name: "Please", exact: true }).evaluate((heading) => {
+    const vocabularyProbe = document.createElement("i");
+    vocabularyProbe.style.backgroundColor = "var(--color-vocabulary)";
+    document.body.append(vocabularyProbe);
+    let lessonSurface: Element | null = heading;
+    while (lessonSurface && getComputedStyle(lessonSurface).backgroundColor === "rgba(0, 0, 0, 0)") lessonSurface = lessonSurface.parentElement;
+    const colors = {
+      lesson: lessonSurface ? getComputedStyle(lessonSurface).backgroundColor : "",
+      vocabulary: getComputedStyle(vocabularyProbe).backgroundColor,
+    };
+    vocabularyProbe.remove();
+    return colors;
+  });
+  expect(lessonColors.lesson, `Custom lesson color: ${JSON.stringify(lessonColors)}`).toBe(lessonColors.vocabulary);
+  expect(await seriousAccessibilityViolations(page), "custom lesson teaching has serious accessibility violations").toEqual([]);
+  const lessonNavigation = page.getByRole("navigation", { name: "Custom lesson navigation" });
+  const batchItemMetrics = await lessonNavigation.locator('button[aria-label^="Lesson "]').evaluateAll((buttons) => buttons.map((button) => {
+    const content = button.firstElementChild;
+    const buttonBounds = button.getBoundingClientRect();
+    const contentBounds = content?.getBoundingClientRect();
+    const style = getComputedStyle(button);
+    return {
+      label: button.getAttribute("aria-label"),
+      fits: button.scrollWidth <= button.clientWidth,
+      leftInset: contentBounds ? contentBounds.left - buttonBounds.left : 0,
+      rightInset: contentBounds ? buttonBounds.right - contentBounds.right : 0,
+      paddingLeft: Number.parseFloat(style.paddingLeft),
+      paddingRight: Number.parseFloat(style.paddingRight),
+    };
+  }));
+  for (const metric of batchItemMetrics) {
+    expect.soft(metric.fits, `${metric.label} content should not be clipped`).toBe(true);
+    expect.soft(metric.leftInset, `${metric.label} should retain its left padding`).toBeGreaterThanOrEqual(metric.paddingLeft - 1);
+    expect.soft(metric.rightInset, `${metric.label} should retain its right padding`).toBeGreaterThanOrEqual(metric.paddingRight - 1);
+  }
+  await expect(lessonNavigation.getByRole("button", { name: "Previous lesson" })).toBeDisabled();
+  await expect(lessonNavigation.getByRole("button", { name: "Next lesson" })).toBeVisible();
+
+  await lessonNavigation.evaluate((navigation) => navigation.scrollIntoView({ block: "center" }));
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const scrollPositionBeforeTabArrow = await page.evaluate(() => window.scrollY);
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Context", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: /Anime/i })).toBeVisible();
+  await expect(page.getByText("日本史をアニメで勉強します。", { exact: true })).toBeVisible();
+  await page.evaluate(() => new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))));
+  const scrollPositionAfterTabArrow = await page.evaluate(() => window.scrollY);
+  expect(Math.abs(scrollPositionAfterTabArrow - scrollPositionBeforeTabArrow), "lesson tab arrow should not scroll the page").toBeLessThanOrEqual(1);
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByRole("tab", { name: "Meaning", exact: true })).toHaveAttribute("aria-selected", "true");
+
+  for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson" }).click();
+  await page.getByRole("button", { name: "Start lesson quiz" }).click();
+  expect(await seriousAccessibilityViolations(page), "custom lesson quiz has serious accessibility violations").toEqual([]);
+  const answer = page.getByRole("textbox", { name: "Your answer" });
+  await expect(answer).toHaveAccessibleDescription(/Accepted English meanings are checked/);
+  const promptText = await page.locator('header[aria-label="Custom lesson quiz prompt"]').textContent();
+  const promptAnswer = [
+    ["どうぞ", "please"],
+    ["やっぱり", "as expected"],
+    ["ゆっくり", "slowly"],
+    ["じゃあ", "well then"],
+    ["ありがとう", "thanks"],
+  ].find(([characters]) => promptText?.includes(characters))?.[1];
+  expect(promptAnswer, `unexpected shuffled lesson prompt: ${promptText}`).toBeTruthy();
+  await answer.fill(promptAnswer!);
+  await answer.press("Enter");
+
+  await expect(page.getByRole("status")).toContainText("Correct");
+  await expect(page.getByRole("button", { name: "Next Question" })).toBeFocused();
+});
+
 test("applies live navigation preferences and keeps main study destinations disabled", async ({ page }, testInfo) => {
   await mockApp(page);
   await page.goto("/settings");
@@ -721,6 +977,7 @@ test("applies live navigation preferences and keeps main study destinations disa
   await expect(destinations.getByRole("link", { name: "Analytics" })).toHaveCount(0);
   await expect(destinations.getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
   await expect(destinations.getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
+  await expect(destinations.getByRole("link", { name: "Custom vocabulary" })).toHaveAttribute("href", "/custom-vocabulary");
   await expect(destinations.getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
   await page.getByRole("button", { name: "Close More menu" }).first().click({ position: { x: 4, y: 4 } });
   await expect(moreButton).toBeFocused();
@@ -889,7 +1146,7 @@ test("contains focus in More and lets the top backdrop close it", async ({ page 
 test("keeps key workspaces inside a narrow mobile viewport", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile-project assertion");
   await mockApp(page);
-  const routes = ["/dashboard", "/reviews", "/study", "/study/random-test", "/study/crossword", "/progress", "/subjects/2/constellation", "/reader", "/news", "/community", "/settings"];
+  const routes = ["/dashboard", "/reviews", "/custom-vocabulary", "/custom-vocabulary/reviews", "/study", "/study/random-test", "/study/crossword", "/progress", "/subjects/2/constellation", "/reader", "/news", "/community", "/settings"];
   for (const width of [320, 375, 414, 768]) {
     await page.setViewportSize({ width, height: 800 });
     for (const path of routes) {
@@ -897,6 +1154,12 @@ test("keeps key workspaces inside a narrow mobile viewport", async ({ page }, te
       if (path === "/reviews") {
         await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeHidden();
         await expect(page.getByRole("link", { name: "Pause" }).or(page.getByRole("button", { name: "Continue Session" })).first()).toBeVisible();
+      } else if (path === "/custom-vocabulary/reviews") {
+        await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeHidden();
+        await expect(page.getByRole("heading", { name: "No custom reviews waiting" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Vocabulary Packs" })).toBeVisible();
+      } else if (path === "/subjects/2/constellation") {
+        await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeHidden();
       } else {
         await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
       }
@@ -994,23 +1257,23 @@ test("reorders dashboard previews and keeps every optional section responsive", 
 
   const visibleSections = page.getByRole("list", { name: "Visible dashboard sections" });
   const visibleWidgets = visibleSections.locator(":scope > li");
-  await expect(visibleWidgets).toHaveCount(17);
+  await expect(visibleWidgets).toHaveCount(18);
   expect(await visibleWidgets.evaluateAll((widgets) => widgets.map((widget) => widget.getAttribute("data-editor-section")))).toEqual([
-    "daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time",
+    "daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "custom-vocabulary", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time",
   ]);
   expect(await visibleWidgets.evaluateAll((widgets) => widgets.map((widget) => Number(widget.getAttribute("data-editor-width"))))).toEqual([
-    12, 12, 12, 12, 6, 6, 12, 8, 4, 8, 4, 4, 8, 6, 6, 6, 6,
+    12, 12, 12, 12, 6, 6, 12, 8, 4, 8, 4, 4, 12, 8, 6, 6, 6, 6,
   ]);
   expect(await visibleWidgets.evaluateAll((widgets) => widgets.every((widget) => !widget.hasAttribute("data-editor-row-start")))).toBe(true);
-  await expect(page.locator("[data-widget-preview]")).toHaveCount(17);
+  await expect(page.locator("[data-widget-preview]")).toHaveCount(18);
   const longVocabularyPreviews = page.locator('[data-widget-preview] [data-subject-type="vocabulary"][data-long="true"]');
   await expect(longVocabularyPreviews).toHaveCount(3);
   expect(await longVocabularyPreviews.evaluateAll((glyphs) => glyphs.every((glyph) => glyph.scrollWidth <= glyph.clientWidth && glyph.scrollHeight <= glyph.clientHeight)), "long vocabulary should fit inside every subject preview tile").toBe(true);
 
   await visibleSections.locator('[data-editor-section="recent-mistakes"]').getByRole("button", { name: "Hide Recent Mistakes" }).click();
-  await expect(visibleWidgets).toHaveCount(16);
-  await page.locator('[data-available-section="recent-mistakes"]').getByRole("button", { name: "Add Recent Mistakes" }).click();
   await expect(visibleWidgets).toHaveCount(17);
+  await page.locator('[data-available-section="recent-mistakes"]').getByRole("button", { name: "Add Recent Mistakes" }).click();
+  await expect(visibleWidgets).toHaveCount(18);
   await expect(visibleWidgets.last()).toContainText("Recent Mistakes");
 
   const levelProgress = visibleSections.locator('[data-editor-section="level"]');
@@ -1025,8 +1288,11 @@ test("reorders dashboard previews and keeps every optional section responsive", 
     await expect(page.getByRole("button", { name: "Move Lessons & Reviews down" })).toBeVisible();
 
     await page.goto("/dashboard");
-    await expect(page.locator("main [data-section]")).toHaveCount(17);
+    await expect(page.locator("main [data-section]")).toHaveCount(18);
     await expect(page.locator('[data-section="srs"]')).toHaveAttribute("data-layout-width", "6");
+    const customVocabulary = page.locator('[data-section="custom-vocabulary"]');
+    await expect(customVocabulary.getByRole("heading", { name: "Custom vocabulary" })).toBeVisible();
+    await expect(customVocabulary.getByRole("link", { name: "Explore packs" })).toHaveAttribute("href", "/custom-vocabulary");
     await expect(page.getByRole("heading", { name: "Review heatmap" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Study time" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `expanded dashboard overflows at ${width}px`).toBe(true);

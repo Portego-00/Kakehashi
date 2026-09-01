@@ -93,6 +93,7 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
     links: [
       { href: "/lessons", label: "Lessons", icon: GraduationCap, comingSoon: true },
       { href: "/reviews", label: "Reviews", icon: Brain, comingSoon: true },
+      { href: "/custom-vocabulary", label: "Custom vocabulary", icon: BookOpen },
       { href: "/study", label: "Extra study", icon: Sparkles },
       { href: "/jlpt", label: "JLPT", icon: ClipboardCheck },
     ],
@@ -143,6 +144,7 @@ export function backTargetForPathname(pathname: string) {
   if (segments[0] === "subjects" && segments.length === 2) return "/search";
   if (["news", "manga", "epubs", "community"].includes(segments[0]) && segments.length === 2) return `/${segments[0]}`;
   if (segments[0] === "progress" && (segments[1] === "kanji" || segments[1] === "wrapped")) return "/progress";
+  if (segments[0] === "custom-vocabulary" && (segments.length === 2 || (segments[1] === "words" && segments.length === 3))) return "/custom-vocabulary";
   if (segments[0] === "study" && segments.length === 2) return "/study";
   if (["feature-request", "feedback", "supporters"].includes(segments[0]) && segments.length === 1) return "/community";
   return null;
@@ -169,7 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const previousPathRef = useRef(pathname);
   const pageBackRegistrationRef = useRef<symbol | null>(null);
-  const immersive = pathname === "/lessons" || pathname === "/reviews";
+  const immersive = ["/lessons", "/reviews", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
   const backTarget = backTargetForPathname(pathname);
   const hasBack = Boolean(pageBackAction || backTarget);
 

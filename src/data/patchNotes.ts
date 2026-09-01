@@ -69,6 +69,12 @@ export const PATCH_NOTES: PatchNote[] = [
           label: "Open JLPT Quizzes",
         },
       },
+      {
+        type: "feature",
+        title: "News Furigana Default",
+        description:
+          "News articles can now open with furigana hidden by default when using No Study Mode.",
+      },
     ],
   },
   {

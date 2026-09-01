@@ -26,6 +26,7 @@ describe("dashboard widget previews", () => {
     expect(container.querySelectorAll("[data-widget-preview]")).toHaveLength(DASHBOARD_SECTIONS.length);
     expect([...container.querySelectorAll("[data-widget-preview] h2")].map((heading) => heading.textContent)).toEqual([
       "Today",
+      "Custom vocabulary",
       "Active Item Spread",
       "Level — Progress",
       "Extra study",
@@ -59,6 +60,9 @@ describe("dashboard widget previews", () => {
     expect(container.querySelectorAll('[data-widget-preview="recent-mistakes"] [class*="recentMistakeTile"]')).toHaveLength(3);
     expect(container.querySelector('[data-widget-preview="daily-study"] img[src*="Lessons.png"]')).not.toBeNull();
     expect(container.querySelector('[data-widget-preview="daily-study"] img[src*="Reviews.png"]')).not.toBeNull();
+    expect(container.querySelector('[data-widget-preview="custom-vocabulary"] [data-subject-type="vocabulary"]')).toHaveTextContent("かな");
+    expect(container.querySelector('[data-widget-preview="custom-vocabulary"]')).toHaveTextContent(/Lessons.*Reviews due.*Packs/);
+    expect(container.querySelector('[data-widget-preview="custom-vocabulary"]')).toHaveTextContent("Curated lists available");
     expect(container.querySelector('[data-widget-preview="recent-unlocks"] [data-long="true"]')).toHaveTextContent("見当たる");
     expect(container.querySelectorAll('[data-widget-preview="incomplete-levels"] [class*="incompleteRingProgress"]')).toHaveLength(3);
     expect(container.querySelectorAll('[data-widget-preview="study-time"] [class*="studyChartColumn"]')).toHaveLength(14);

@@ -76,6 +76,16 @@ import {
   getReadySelectedSubjectIds,
   matchesMaximumFrequencyRank,
 } from "../../src/utils/customReviewFrequencyFilter";
+import {
+  restoreCustomReviewFilters,
+  serializeCustomReviewFilters,
+  type PersistedCustomReviewFilters,
+} from "../../src/utils/customReviewFilterPersistence";
+import {
+  EXTRA_STUDY_CONFIG_STORAGE_KEYS,
+  loadExtraStudyConfig,
+  saveExtraStudyConfig,
+} from "../../src/utils/extraStudyConfigPersistence";
 
 function setsAreEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>) {
   return (
@@ -135,16 +145,76 @@ export default function CustomReviewSelectionScreen() {
   const [filters, setFilters] = useState<SearchFilters>(() =>
     createDefaultSearchFilters(),
   );
-  const hasAppliedUserLevelDefaultRef = useRef(false);
+  const [isFilterConfigHydrated, setIsFilterConfigHydrated] = useState(false);
+  const hasResolvedInitialLevelRangeRef = useRef(false);
+  const hasCommittedFilterConfigRef = useRef(false);
   const hasAppliedInitialListRef = useRef(false);
   const hasCheckedForResumableSessionRef = useRef(false);
   const frequencyAnnouncementKeyRef = useRef<string | null>(null);
+  const latestUserLevelRef = useRef(userData?.level);
+  const latestShowVocabularyFrequencyRef = useRef(showVocabularyFrequency);
+  latestUserLevelRef.current = userData?.level;
+  latestShowVocabularyFrequencyRef.current = showVocabularyFrequency;
   const initialListId = Array.isArray(params.listId)
     ? params.listId[0]
     : params.listId;
 
   useEffect(() => {
-    if (hasAppliedUserLevelDefaultRef.current) return;
+    let isMounted = true;
+
+    const hydrateFilters = async () => {
+      const stored =
+        await loadExtraStudyConfig<PersistedCustomReviewFilters>(
+          EXTRA_STUDY_CONFIG_STORAGE_KEYS.CUSTOM_REVIEW,
+        );
+      if (!isMounted) {
+        return;
+      }
+
+      const defaults = createDefaultSearchFilters();
+      const userLevel = latestUserLevelRef.current;
+      const hasUserLevel =
+        typeof userLevel === "number" && Number.isFinite(userLevel);
+      if (hasUserLevel) {
+        defaults.maxLevel = Math.max(
+          1,
+          Math.min(60, Math.floor(userLevel)),
+        );
+      }
+
+      const restored = stored
+        ? restoreCustomReviewFilters(stored, defaults)
+        : null;
+
+      if (restored) {
+        hasResolvedInitialLevelRangeRef.current = true;
+        hasCommittedFilterConfigRef.current = true;
+        setFilters(
+          latestShowVocabularyFrequencyRef.current
+            ? restored
+            : { ...restored, maxFrequencyRank: null },
+        );
+      } else {
+        if (hasUserLevel) {
+          hasResolvedInitialLevelRangeRef.current = true;
+        }
+        setFilters(defaults);
+      }
+
+      setIsFilterConfigHydrated(true);
+    };
+
+    void hydrateFilters();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isFilterConfigHydrated || hasResolvedInitialLevelRangeRef.current) {
+      return;
+    }
 
     const userLevel = userData?.level;
     if (typeof userLevel !== "number" || !Number.isFinite(userLevel)) return;
@@ -160,8 +230,19 @@ export default function CustomReviewSelectionScreen() {
       return { ...prev, maxLevel: cappedLevel };
     });
 
-    hasAppliedUserLevelDefaultRef.current = true;
-  }, [userData?.level]);
+    hasResolvedInitialLevelRangeRef.current = true;
+  }, [isFilterConfigHydrated, userData?.level]);
+
+  useEffect(() => {
+    if (!isFilterConfigHydrated || !hasCommittedFilterConfigRef.current) {
+      return;
+    }
+
+    void saveExtraStudyConfig(
+      EXTRA_STUDY_CONFIG_STORAGE_KEYS.CUSTOM_REVIEW,
+      serializeCustomReviewFilters(filters),
+    );
+  }, [filters, isFilterConfigHydrated]);
 
   useEffect(() => {
     if (hasCheckedForResumableSessionRef.current) {
@@ -389,7 +470,11 @@ export default function CustomReviewSelectionScreen() {
   }, [loadAvailableLists]);
 
   useEffect(() => {
-    if (hasAppliedInitialListRef.current || !initialListId) {
+    if (
+      !isFilterConfigHydrated ||
+      hasAppliedInitialListRef.current ||
+      !initialListId
+    ) {
       return;
     }
 
@@ -407,7 +492,12 @@ export default function CustomReviewSelectionScreen() {
         ? new Set(initialList.subjectIds)
         : new Set(),
     );
-  }, [availableLists, filters.maxFrequencyRank, initialListId]);
+  }, [
+    availableLists,
+    filters.maxFrequencyRank,
+    initialListId,
+    isFilterConfigHydrated,
+  ]);
 
   const rebuildCache = useCallback(async () => {
     if (!apiToken) return;
@@ -628,6 +718,10 @@ export default function CustomReviewSelectionScreen() {
   ]);
 
   const toggleSubjectSelection = (subject: Subject) => {
+    if (!isFilterConfigHydrated) {
+      return;
+    }
+
     Keyboard.dismiss();
     setSelectedSubjectIds((prev) => {
       const next = new Set(prev);
@@ -770,6 +864,7 @@ export default function CustomReviewSelectionScreen() {
   };
 
   const clearFrequencyFilter = useCallback(() => {
+    hasCommittedFilterConfigRef.current = true;
     resetFrequencyLookupState();
     setFilters((currentFilters) => ({
       ...currentFilters,
@@ -778,6 +873,7 @@ export default function CustomReviewSelectionScreen() {
   }, [resetFrequencyLookupState]);
 
   const clearSrsFilter = useCallback(() => {
+    hasCommittedFilterConfigRef.current = true;
     setFilters((currentFilters) => ({
       ...currentFilters,
       srsStages: new Set(ALL_SEARCH_SRS_STAGES),
@@ -809,6 +905,7 @@ export default function CustomReviewSelectionScreen() {
     matchingSubjectIds.length > 0 &&
     matchingSubjectIds.every((id) => selectedSubjectIds.has(id));
   const canToggleMatchingSubjects =
+    isFilterConfigHydrated &&
     canApplyCurrentSrsFilter &&
     canUseFrequencyResults &&
     !isScanningFrequencyCache &&
@@ -930,6 +1027,9 @@ export default function CustomReviewSelectionScreen() {
 
   const handleApplyFilters = useCallback(
     (newFilters: typeof filters) => {
+      hasCommittedFilterConfigRef.current = true;
+      hasResolvedInitialLevelRangeRef.current = true;
+
       if (
         newFilters.maxFrequencyRank !== null &&
         !searchFiltersAreEqual(filters, newFilters)
@@ -1275,10 +1375,13 @@ export default function CustomReviewSelectionScreen() {
           style={[
             styles.filterButton,
             { backgroundColor: theme.cardBackground },
+            !isFilterConfigHydrated && styles.filterButtonDisabled,
           ]}
           onPress={() => setShowListFilterModal(true)}
+          disabled={!isFilterConfigHydrated}
           activeOpacity={0.7}
           accessibilityRole="button"
+          accessibilityState={{ disabled: !isFilterConfigHydrated }}
           accessibilityLabel={
             selectedListIds.length > 0
               ? `Subject lists, ${selectedListIds.length} selected`
@@ -1300,10 +1403,13 @@ export default function CustomReviewSelectionScreen() {
           style={[
             styles.filterButton,
             { backgroundColor: theme.cardBackground },
+            !isFilterConfigHydrated && styles.filterButtonDisabled,
           ]}
           onPress={() => setShowFilters(true)}
+          disabled={!isFilterConfigHydrated}
           activeOpacity={0.7}
           accessibilityRole="button"
+          accessibilityState={{ disabled: !isFilterConfigHydrated }}
           accessibilityLabel={
             activeFilterOptionCount > 0
               ? `Filters, ${activeFilterOptionCount} active`
@@ -1391,11 +1497,15 @@ export default function CustomReviewSelectionScreen() {
       </View>
 
       {/* Subject List */}
-      {isLoadingSubjects ? (
+      {!isFilterConfigHydrated || isLoadingSubjects ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-            Loading subjects...
+          <Text
+            style={[styles.loadingText, { color: theme.textSecondary }]}
+          >
+            {isFilterConfigHydrated
+              ? "Loading subjects..."
+              : "Loading saved filters..."}
           </Text>
         </View>
       ) : isCacheMissing && !isRebuildingCache ? (
@@ -1818,7 +1928,7 @@ export default function CustomReviewSelectionScreen() {
       )}
 
       <Modal
-        visible={showListFilterModal}
+        visible={isFilterConfigHydrated && showListFilterModal}
         transparent
         animationType="fade"
         onRequestClose={() => setShowListFilterModal(false)}
@@ -1987,7 +2097,7 @@ export default function CustomReviewSelectionScreen() {
       </Modal>
 
       <SearchFilterModal
-        visible={showFilters}
+        visible={isFilterConfigHydrated && showFilters}
         currentFilters={filters}
         onClose={handleCloseFilters}
         onApply={handleApplyFilters}
@@ -2094,6 +2204,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 8,
     elevation: 2,
+  },
+  filterButtonDisabled: {
+    opacity: 0.5,
   },
   filterBadge: {
     position: "absolute",

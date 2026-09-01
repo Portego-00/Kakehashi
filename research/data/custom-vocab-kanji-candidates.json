@@ -1,0 +1,4451 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-31",
+  "sourceSnapshots": {
+    "wanikaniVocabulary": "wanikani-vocabulary-exclusions.snapshot.json",
+    "wanikaniKanjiLevels": "wanikani-kanji-levels.snapshot.json",
+    "jmdictEdition": "2026-08-31"
+  },
+  "packs": [
+    {
+      "id": "kanji-everyday-01-05",
+      "title": "Everyday Kanji: Levels 1–5",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 1 and 5.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 1,
+        "max": 5
+      },
+      "words": [
+        {
+          "id": "kanji-01-10-hitokuchi",
+          "characters": "一口",
+          "reading": "ひとくち",
+          "meanings": [
+            "One Bite",
+            "Mouthful"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 1,
+          "kanjiLevels": {
+            "一": 1,
+            "口": 1
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf15"
+          ],
+          "meaningMnemonic": "Exactly <kanji>one</kanji> portion enters your <kanji>mouth</kanji>: <vocabulary>one bite</vocabulary>, or a <vocabulary>mouthful</vocabulary>.\n\n一口 can count a single bite of food or a single sip of a drink, as in 一口食べる and 一口飲む.",
+          "readingMnemonic": "One 一 carries its familiar ひと sound toward a gigantic mouth 口 carrying くち: <reading>ひと—くち</reading>. It drops in exactly one strawberry, and the jaws snap shut after that single <vocabulary>mouthful</vocabulary> or <vocabulary>one bite</vocabulary>. 一口 can also be one sip when the thing consumed is a drink.",
+          "contextSentences": [
+            {
+              "ja": "ケーキを一口食べた。",
+              "en": "I ate one bite of cake."
+            },
+            {
+              "ja": "一口飲めば、味が分かります。",
+              "en": "One sip will tell you how it tastes."
+            }
+          ],
+          "readingMap": "ひ・と・く・ち"
+        },
+        {
+          "id": "kanji-01-10-daiku",
+          "characters": "大工",
+          "reading": "だいく",
+          "meanings": [
+            "Carpenter"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 1,
+          "kanjiLevels": {
+            "大": 1,
+            "工": 1
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "Picture the craftsperson entrusted with <kanji>big</kanji> <kanji>construction</kanji>: the <vocabulary>carpenter</vocabulary> shaping the building's wood by hand.\n\n大工 usually means a carpenter who builds or repairs wooden structures, rather than a construction worker in general.",
+          "readingMnemonic": "A cuckoo clock collapses on its builder, and the bird shrieks <reading>DIE—COO!</reading> The <vocabulary>carpenter</vocabulary> ducks, then rebuilds the wooden clock even bigger. 大工 specifically means a carpenter, not every kind of construction worker.",
+          "contextSentences": [
+            {
+              "ja": "父は大工として働いている。",
+              "en": "My father works as a carpenter."
+            },
+            {
+              "ja": "大工が古い家を直した。",
+              "en": "A carpenter repaired the old house."
+            }
+          ],
+          "readingMap": "だ・い・く"
+        },
+        {
+          "id": "kanji-01-10-nyuushu",
+          "characters": "入手",
+          "reading": "にゅうしゅ",
+          "meanings": [
+            "Obtain",
+            "Acquire"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 2,
+          "kanjiLevels": {
+            "入": 1,
+            "手": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf12"
+          ],
+          "meaningMnemonic": "When something <kanji>enter</kanji>s your <kanji>hand</kanji>, you <vocabulary>obtain</vocabulary> or <vocabulary>acquire</vocabulary> it.\n\n入手 is a noun or する verb used for getting an item or information, especially something sought out or not immediately available.",
+          "readingMnemonic": "A sneaker collector tears open a locked crate and gasps, <reading>NEW SHOE!</reading> Getting that rare shoe into her hands means she can finally <vocabulary>obtain</vocabulary> or <vocabulary>acquire</vocabulary> it. 入手する is common for acquiring an item or information.",
+          "contextSentences": [
+            {
+              "ja": "限定の切符を入手した。",
+              "en": "I obtained a limited-edition ticket."
+            },
+            {
+              "ja": "必要な情報はネットで入手できます。",
+              "en": "You can obtain the necessary information online."
+            }
+          ],
+          "readingMap": "にゅ・う・しゅ"
+        },
+        {
+          "id": "kanji-01-10-yuuhi",
+          "characters": "夕日",
+          "reading": "ゆうひ",
+          "meanings": [
+            "Evening Sun",
+            "Setting Sun"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 2,
+          "kanjiLevels": {
+            "夕": 2,
+            "日": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf24"
+          ],
+          "meaningMnemonic": "The <kanji>evening</kanji> <kanji>sun</kanji> glowing low on the horizon is the <vocabulary>evening sun</vocabulary>, or <vocabulary>setting sun</vocabulary>.\n\n夕日 refers to the sun itself near sunset; 夕焼け instead describes the red evening sky or sunset glow.",
+          "readingMnemonic": "A photographer points at two friends and cries <reading>YOU—HE!</reading> They race up a hill before the <vocabulary>setting sun</vocabulary> slips below the sea. 夕日 is the evening sun itself, especially when seen near sunset.",
+          "contextSentences": [
+            {
+              "ja": "海に沈む夕日がきれいだ。",
+              "en": "The setting sun over the sea is beautiful."
+            },
+            {
+              "ja": "夕日を見ながら家に帰った。",
+              "en": "I went home while watching the evening sun."
+            }
+          ],
+          "readingMap": "ゆ・う・ひ"
+        },
+        {
+          "id": "kanji-01-10-honjitsu",
+          "characters": "本日",
+          "reading": "ほんじつ",
+          "meanings": [
+            "Today",
+            "This Day"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "adverb"
+          ],
+          "requiredLevel": 2,
+          "kanjiLevels": {
+            "本": 2,
+            "日": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf15"
+          ],
+          "meaningMnemonic": "The <kanji>main</kanji> <kanji>day</kanji> under discussion is <vocabulary>today</vocabulary>—in effect, <vocabulary>this day</vocabulary>.\n\n本日 is more formal than 今日 and is common in announcements, business speech, schedules, and customer-facing notices.",
+          "readingMnemonic": "A book 本 carrying ほん lands on a calendar day 日 carrying じつ: <reading>ほん—じつ</reading>. The calendar seals shut at midnight, so the event must happen <vocabulary>today</vocabulary>. 本日 is a formal or businesslike way to refer to today.",
+          "contextSentences": [
+            {
+              "ja": "本日は休業いたします。",
+              "en": "We are closed today."
+            },
+            {
+              "ja": "本日の会議は三時からです。",
+              "en": "Today's meeting starts at three."
+            }
+          ],
+          "readingMap": "ほ・ん・じ・つ"
+        },
+        {
+          "id": "kanji-01-10-hibi",
+          "characters": "日々",
+          "reading": "ひび",
+          "meanings": [
+            "Day By Day",
+            "Daily"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective",
+            "adverb"
+          ],
+          "requiredLevel": 2,
+          "kanjiLevels": {
+            "日": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "Repeat one <kanji>day</kanji> with the 々 mark and the days march on <vocabulary>day by day</vocabulary>, forming your <vocabulary>daily</vocabulary> life.\n\n日々 can be a noun, an adverb, or modify another noun with の, and it often emphasizes ongoing change or repeated everyday effort.",
+          "readingMnemonic": "Every calendar page develops a new ひび, a crack, as another day passes. Those exact-homophone <reading>ひび</reading> spread <vocabulary>day by day</vocabulary> until the whole <vocabulary>daily</vocabulary> calendar is cracked. 日々 describes repeated days or something happening continually over them.",
+          "contextSentences": [
+            {
+              "ja": "日々の練習が力になる。",
+              "en": "Daily practice makes you stronger."
+            },
+            {
+              "ja": "町は日々変わっている。",
+              "en": "The town is changing day by day."
+            }
+          ],
+          "readingMap": "ひ・び"
+        },
+        {
+          "id": "kanji-01-10-honnin",
+          "characters": "本人",
+          "reading": "ほんにん",
+          "meanings": [
+            "The Person Themself",
+            "Person In Question"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 2,
+          "kanjiLevels": {
+            "本": 2,
+            "人": 1
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "The <kanji>real</kanji> <kanji>person</kanji>—not a representative or a rumor—is <vocabulary>the person themself</vocabulary>, the <vocabulary>person in question</vocabulary>.\n\n本人 identifies the actual individual concerned and is useful when confirming something directly with them or contrasting them with someone acting on their behalf.",
+          "readingMnemonic": "A book 本 marked ほん opens, and a person 人 marked にん climbs out: <reading>ほん—にん</reading>. The masked stand-in is ejected because the clerk needs <vocabulary>the person themself</vocabulary>, the <vocabulary>person in question</vocabulary>. 本人 contrasts the actual person with a representative or what others report.",
+          "contextSentences": [
+            {
+              "ja": "本人に直接確認してください。",
+              "en": "Please confirm it directly with the person themself."
+            },
+            {
+              "ja": "その話は本人から聞きました。",
+              "en": "I heard that story from the person in question."
+            }
+          ],
+          "readingMap": "ほ・ん・に・ん"
+        },
+        {
+          "id": "kanji-01-10-tehon",
+          "characters": "手本",
+          "reading": "てほん",
+          "meanings": [
+            "Model",
+            "Example"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 2,
+          "kanjiLevels": {
+            "手": 2,
+            "本": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf13"
+          ],
+          "meaningMnemonic": "Your <kanji>hand</kanji> follows the pattern in a <kanji>book</kanji>, using it as a <vocabulary>model</vocabulary> or <vocabulary>example</vocabulary> to copy.\n\n手本 is a concrete demonstration or an exemplary person or work; 手本にする means to use something or someone as a model.",
+          "readingMnemonic": "A hand 手 carrying て reaches into a book 本 carrying ほん and pulls out a perfect demonstration: <reading>て—ほん</reading>. Every student copies the hand exactly because it is the official <vocabulary>model</vocabulary> or <vocabulary>example</vocabulary>. 手本 is something worth imitating or a demonstration to follow.",
+          "contextSentences": [
+            {
+              "ja": "先生が手本を見せた。",
+              "en": "The teacher showed us an example."
+            },
+            {
+              "ja": "姉を手本にして勉強している。",
+              "en": "I study with my older sister as my model."
+            }
+          ],
+          "readingMap": "て・ほ・ん"
+        },
+        {
+          "id": "kanji-01-10-issai",
+          "characters": "一切",
+          "reading": "いっさい",
+          "meanings": [
+            "Everything",
+            "Entirely",
+            "Not At All"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "adverb"
+          ],
+          "requiredLevel": 3,
+          "kanjiLevels": {
+            "一": 1,
+            "切": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "Imagine <kanji>one</kanji> sweeping <kanji>cut</kanji> taking the whole pile at once: it takes <vocabulary>everything</vocabulary>, entirely.\n\n一切 means the whole of something, but with a negative predicate it becomes emphatic <vocabulary>not at all</vocabulary>, as in 一切かかりません.",
+          "readingMnemonic": "A magician slices the H off HISS, leaving <reading>ISS—SIGH</reading>, then sighs as every prop disappears. The two s sounds meet in the cut, and <vocabulary>everything</vocabulary> vanishes; with a negative command, not one prop returns. 一切 often means “not at all” when paired with a negative verb.",
+          "contextSentences": [
+            {
+              "ja": "費用は一切かかりません。",
+              "en": "It will not cost anything at all."
+            },
+            {
+              "ja": "一切の責任は私が負います。",
+              "en": "I will take full responsibility."
+            }
+          ],
+          "readingMap": "い・っ・さ・い"
+        },
+        {
+          "id": "kanji-01-10-chuushin",
+          "characters": "中心",
+          "reading": "ちゅうしん",
+          "meanings": [
+            "Center",
+            "Core"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective"
+          ],
+          "requiredLevel": 3,
+          "kanjiLevels": {
+            "中": 2,
+            "心": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "The <kanji>middle</kanji> of the <kanji>heart</kanji> is the <vocabulary>center</vocabulary> or <vocabulary>core</vocabulary> around which everything else gathers.\n\n中心 works for physical centers and abstract focal points; Xを中心に means centered on or mainly around X.",
+          "readingMnemonic": "A dog finds an enormous shin bone and <reading>CHEW—SHIN</reading> marks the exact spot it gnaws. It drills straight into the <vocabulary>center</vocabulary> until only the <vocabulary>core</vocabulary> remains. 中心 can be a physical center or the central focus of an activity.",
+          "contextSentences": [
+            {
+              "ja": "駅を中心に店が増えた。",
+              "en": "More shops have opened around the station."
+            },
+            {
+              "ja": "町の中心に公園がある。",
+              "en": "There is a park in the center of town."
+            }
+          ],
+          "readingMap": "ちゅ・う・し・ん"
+        },
+        {
+          "id": "kanji-01-10-furuhon",
+          "characters": "古本",
+          "reading": "ふるほん",
+          "meanings": [
+            "Used Book",
+            "Secondhand Book"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 3,
+          "kanjiLevels": {
+            "古": 3,
+            "本": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf19"
+          ],
+          "meaningMnemonic": "An <kanji>old</kanji> <kanji>book</kanji> that has already had an owner is a <vocabulary>used book</vocabulary> or <vocabulary>secondhand book</vocabulary>.\n\n古本 refers specifically to previously owned books and appears in compounds such as 古本屋, a used-book shop.",
+          "readingMnemonic": "An old book opens and unfolds into a <reading>FULL HORN</reading> that blasts dust across the shop. Only a battered <vocabulary>used book</vocabulary> could hide an instrument that worn. 古本 means a secondhand book, whether or not it looks visibly old.",
+          "contextSentences": [
+            {
+              "ja": "古本を三冊買った。",
+              "en": "I bought three used books."
+            },
+            {
+              "ja": "この古本には前の持ち主のメモがある。",
+              "en": "This secondhand book has notes from its previous owner."
+            }
+          ],
+          "readingMap": "ふ・る・ほ・ん"
+        },
+        {
+          "id": "kanji-01-10-shitami",
+          "characters": "下見",
+          "reading": "したみ",
+          "meanings": [
+            "Preview",
+            "Advance Inspection"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 4,
+          "kanjiLevels": {
+            "下": 1,
+            "見": 4
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf26"
+          ],
+          "meaningMnemonic": "Before committing, go <kanji>below</kanji> the surface and <kanji>see</kanji> the place for yourself; that early visit is a <vocabulary>preview</vocabulary> or <vocabulary>advance inspection</vocabulary>.\n\n下見 is commonly used for checking a room, venue, route, or location ahead of the real event, often with 下見する or 下見に行く.",
+          "readingMnemonic": "Before surgery, she examines a giant model stomach while chanting <reading>SHE—TUMMY</reading>. That careful look beforehand is a <vocabulary>preview</vocabulary> or <vocabulary>advance inspection</vocabulary>. 下見 is commonly used for checking a home, venue, or location before deciding.",
+          "contextSentences": [
+            {
+              "ja": "引っ越す前に部屋を下見した。",
+              "en": "I inspected the room before moving."
+            },
+            {
+              "ja": "明日は会場の下見に行きます。",
+              "en": "Tomorrow I am going to preview the venue."
+            }
+          ],
+          "readingMap": "し・た・み"
+        },
+        {
+          "id": "kanji-01-10-hitokoto",
+          "characters": "一言",
+          "reading": "ひとこと",
+          "meanings": [
+            "A Word",
+            "Brief Comment"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 5,
+          "kanjiLevels": {
+            "一": 1,
+            "言": 5
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "<kanji>One</kanji> compact thing you <kanji>say</kanji> is <vocabulary>a word</vocabulary> or a <vocabulary>brief comment</vocabulary>.\n\n一言 usually means a short remark rather than one dictionary word; 一言お願いします invites someone to say a few words.",
+          "readingMnemonic": "The number one 一 carries its ひと sound to a word 言 carrying こと: <reading>ひと—こと</reading>. The conductor permits one <vocabulary>brief comment</vocabulary>, then drops the curtain before a second can escape. 一言 often means a brief remark rather than literally one lexical word.",
+          "contextSentences": [
+            {
+              "ja": "最後に一言お願いします。",
+              "en": "Please say a few words at the end."
+            },
+            {
+              "ja": "彼の一言で安心した。",
+              "en": "A single comment from him reassured me."
+            }
+          ],
+          "readingMap": "ひ・と・こ・と"
+        },
+        {
+          "id": "kanji-01-10-sedai",
+          "characters": "世代",
+          "reading": "せだい",
+          "meanings": [
+            "Generation"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 5,
+          "kanjiLevels": {
+            "世": 4,
+            "代": 5
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "One <kanji>generation</kanji> gives way to the next <kanji>era</kanji>; each group shaped by its time is a <vocabulary>generation</vocabulary>.\n\n世代 groups people by age or historical period and often appears in expressions such as 若い世代 and 世代によって.",
+          "readingMnemonic": "The world 世 carries せ on a relay baton and hands it to an era 代 carrying だい: <reading>せ—だい</reading>. Each handoff replaces grandparents with children and reveals the next <vocabulary>generation</vocabulary>. 世代 groups people by the era or stage of life they share.",
+          "contextSentences": [
+            {
+              "ja": "若い世代にも人気がある。",
+              "en": "It is also popular with the younger generation."
+            },
+            {
+              "ja": "世代によって考え方が違う。",
+              "en": "Ways of thinking differ by generation."
+            }
+          ],
+          "readingMap": "せ・だ・い"
+        },
+        {
+          "id": "kanji-01-10-nanika",
+          "characters": "何か",
+          "reading": "なにか",
+          "meanings": [
+            "Something",
+            "Anything"
+          ],
+          "partsOfSpeech": [
+            "pronoun"
+          ],
+          "requiredLevel": 5,
+          "kanjiLevels": {
+            "何": 5
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf03",
+            "spec1"
+          ],
+          "meaningMnemonic": "Take <kanji>what</kanji> and add the uncertain か: the unknown answer becomes <vocabulary>something</vocabulary>, or in a question, <vocabulary>anything</vocabulary>.\n\n何か is an indefinite pronoun. In 何か飲みますか it means something, while an English translation may naturally use anything.",
+          "readingMnemonic": "What 何 carries なに into a mystery box, and the question marker か springs out behind it: <reading>なに—か?</reading> The spring launches <vocabulary>something</vocabulary> unknown into the air, but nobody can tell what. 何か usually refers to an unspecified something; in questions, English may render it as ‘anything.’",
+          "contextSentences": [
+            {
+              "ja": "何か飲みますか。",
+              "en": "Would you like something to drink?"
+            },
+            {
+              "ja": "机の下に何か落ちている。",
+              "en": "Something has fallen under the desk."
+            }
+          ],
+          "readingMap": "な・に・か"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-06-10",
+      "title": "Everyday Kanji: Levels 6–10",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 6 and 10.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 6,
+        "max": 10
+      },
+      "words": [
+        {
+          "id": "kanji-01-10-totte",
+          "characters": "取っ手",
+          "reading": "とって",
+          "meanings": [
+            "Handle",
+            "Grip",
+            "Knob"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 6,
+          "kanjiLevels": {
+            "取": 6,
+            "手": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "You <kanji>take</kanji> hold of a door with your <kanji>hand</kanji> by grabbing its <vocabulary>handle</vocabulary>.\n\n取っ手 is the part you grip on a door, drawer, pot, or container; depending on its shape, English may call it a handle, grip, or knob.",
+          "readingMnemonic": "The 取 hand reaches for 手, but the handle catches the two t sounds together: <reading>TO—TTE!</reading> It will not let go until you grab the <vocabulary>handle</vocabulary> yourself. 取っ手 is the part you grip on a door, drawer, pot, or container.",
+          "contextSentences": [
+            {
+              "ja": "ドアの取っ手を回した。",
+              "en": "I turned the door handle."
+            },
+            {
+              "ja": "鍋の取っ手が熱くなっている。",
+              "en": "The handle of the pot is hot."
+            }
+          ],
+          "readingMap": "と・っ・て"
+        },
+        {
+          "id": "kanji-01-10-shushoku",
+          "characters": "主食",
+          "reading": "しゅしょく",
+          "meanings": [
+            "Staple Food"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 6,
+          "kanjiLevels": {
+            "主": 4,
+            "食": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf14"
+          ],
+          "meaningMnemonic": "The <kanji>main</kanji> thing you <kanji>eat</kanji> at meal after meal is your <vocabulary>staple food</vocabulary>.\n\n主食 means the central carbohydrate or food a diet is built around, such as rice, bread, or noodles, not simply a favorite dish.",
+          "readingMnemonic": "A chef lifts the rice lid and finds a boot inside: <reading>SHOE—SHOCK!</reading> The shoe has replaced rice as the meal's <vocabulary>staple food</vocabulary>, shocking every diner. 主食 is the main starch or food regularly supporting meals.",
+          "contextSentences": [
+            {
+              "ja": "日本では米が主食だ。",
+              "en": "Rice is a staple food in Japan."
+            },
+            {
+              "ja": "私の主食はパンです。",
+              "en": "Bread is my staple food."
+            }
+          ],
+          "readingMap": "しゅ・しょ・く"
+        },
+        {
+          "id": "kanji-01-10-kongo",
+          "characters": "今後",
+          "reading": "こんご",
+          "meanings": [
+            "From Now On",
+            "Hereafter"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "adverb"
+          ],
+          "requiredLevel": 6,
+          "kanjiLevels": {
+            "今": 3,
+            "後": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "Stand on a calendar square marked <kanji>now</kanji> and point down the row to every date <kanji>later</kanji>: that future is <vocabulary>from now on</vocabulary> or <vocabulary>hereafter</vocabulary>.\n\n今後 points to the future from the present and is common in plans, forecasts, and the polite expression 今後もよろしくお願いします.",
+          "readingMnemonic": "A time traveler lands in <reading>CONGO</reading> and plants a sign that points only forward. Everything beyond the sign happens <vocabulary>from now on</vocabulary> or <vocabulary>hereafter</vocabulary>. 今後 refers to the future from the present point, often in plans or polite promises.",
+          "contextSentences": [
+            {
+              "ja": "今後の予定を確認しましょう。",
+              "en": "Let's review our plans going forward."
+            },
+            {
+              "ja": "今後もよろしくお願いします。",
+              "en": "I look forward to continuing to work with you."
+            }
+          ],
+          "readingMap": "こ・ん・ご"
+        },
+        {
+          "id": "kanji-01-10-demae",
+          "characters": "出前",
+          "reading": "でまえ",
+          "meanings": [
+            "Food Delivery",
+            "Catering"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 6,
+          "kanjiLevels": {
+            "出": 2,
+            "前": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf20"
+          ],
+          "meaningMnemonic": "A meal makes an <kanji>exit</kanji> from the restaurant and arrives at your <kanji>front</kanji> door: <vocabulary>food delivery</vocabulary>.\n\n出前 traditionally refers to a restaurant delivering prepared food; 出前を取る means to order delivery.",
+          "readingMnemonic": "Food bursts out of 出 carrying で and lands in front 前 carrying まえ: <reading>で—まえ</reading>. A customer opens the door to find the restaurant's <vocabulary>food delivery</vocabulary> steaming on the mat. 出前 traditionally refers to prepared food delivered by a restaurant.",
+          "contextSentences": [
+            {
+              "ja": "昼は寿司の出前を取った。",
+              "en": "We ordered sushi delivery for lunch."
+            },
+            {
+              "ja": "この店は出前もしています。",
+              "en": "This restaurant also makes deliveries."
+            }
+          ],
+          "readingMap": "で・ま・え"
+        },
+        {
+          "id": "kanji-01-10-naika",
+          "characters": "内科",
+          "reading": "ないか",
+          "meanings": [
+            "Internal Medicine",
+            "Internal Medicine Department"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 6,
+          "kanjiLevels": {
+            "内": 4,
+            "科": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf11"
+          ],
+          "meaningMnemonic": "The <kanji>inside</kanji> of the body has its own medical <kanji>department</kanji>: <vocabulary>internal medicine</vocabulary>.\n\n内科 can mean the field, an internal-medicine department, or a clinic; it contrasts with surgery-oriented 外科.",
+          "readingMnemonic": "The inside kanji 内 carries ない into a clinic department 科 carrying か: <reading>ない—か</reading>. Doctors inside a giant model stomach treat fevers and internal illness in the <vocabulary>internal medicine</vocabulary> department. 内科 is the hospital department or clinic for non-surgical internal conditions.",
+          "contextSentences": [
+            {
+              "ja": "熱が続くので内科に行った。",
+              "en": "I went to an internal medicine clinic because my fever wouldn't go away."
+            },
+            {
+              "ja": "内科は二階にあります。",
+              "en": "The internal medicine department is on the second floor."
+            }
+          ],
+          "readingMap": "な・い・か"
+        },
+        {
+          "id": "kanji-01-10-jouei",
+          "characters": "上映",
+          "reading": "じょうえい",
+          "meanings": [
+            "Screening",
+            "Showing"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 7,
+          "kanjiLevels": {
+            "上": 1,
+            "映": 7
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "A screen hangs <kanji>above</kanji> the audience and begins to <kanji>reflect</kanji> a film across its full width: a <vocabulary>screening</vocabulary> or <vocabulary>showing</vocabulary>.\n\n上映 refers to publicly showing a film or video on a screen; 上映する is to screen it, and 上映時間 is its showing time.",
+          "readingMnemonic": "Movie star Joe A. pedals a projector while the crowd chants <reading>JOE—A!</reading> The film appears only while he pedals, turning his workout into a public <vocabulary>screening</vocabulary>. 上映 refers to showing a film or video on a screen.",
+          "contextSentences": [
+            {
+              "ja": "その映画は来週上映される。",
+              "en": "That movie will be screened next week."
+            },
+            {
+              "ja": "上映の時間を確認した。",
+              "en": "I checked the screening time."
+            }
+          ],
+          "readingMap": "じょ・う・え・い"
+        },
+        {
+          "id": "kanji-01-10-irai",
+          "characters": "以来",
+          "reading": "いらい",
+          "meanings": [
+            "Since",
+            "Ever Since"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "suffix"
+          ],
+          "requiredLevel": 7,
+          "kanjiLevels": {
+            "以": 7,
+            "来": 5
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "Draw a timeline <kanji>from</kanji> a past event to every day that has <kanji>come</kanji> after it; the whole stretch is <vocabulary>since</vocabulary> or <vocabulary>ever since</vocabulary> that event.\n\n以来 follows a time or event and continues through the present, as in 卒業以来 for ever since graduation.",
+          "readingMnemonic": "Eli tells one enormous lie, and the town clock freezes at that instant: <reading>E—LIE</reading>. <vocabulary>Ever since</vocabulary> that lie, every later event is measured from the frozen clock. 以来 follows the event or time that serves as the starting point.",
+          "contextSentences": [
+            {
+              "ja": "卒業以来、彼に会っていない。",
+              "en": "I have not seen him since graduation."
+            },
+            {
+              "ja": "先月以来、雨が少ない。",
+              "en": "There has been little rain since last month."
+            }
+          ],
+          "readingMap": "い・ら・い"
+        },
+        {
+          "id": "kanji-01-10-inai",
+          "characters": "以内",
+          "reading": "いない",
+          "meanings": [
+            "Within",
+            "No More Than"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "suffix"
+          ],
+          "requiredLevel": 7,
+          "kanjiLevels": {
+            "以": 7,
+            "内": 4
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "Measure <kanji>from</kanji> the boundary toward the <kanji>inside</kanji> and stay <vocabulary>within</vocabulary> it, using <vocabulary>no more than</vocabulary> the stated limit.\n\n以内 includes the endpoint: 三日以内 means within three days, including the third day.",
+          "readingMnemonic": "A guard paints a boundary around the playground; anyone beyond it becomes <reading>いない</reading>—“not there.” To remain <vocabulary>within</vocabulary> the limit, every child must stay inside the line. 以内 includes the stated maximum, as in “within three days.”",
+          "contextSentences": [
+            {
+              "ja": "三日以内に返事をください。",
+              "en": "Please reply within three days."
+            },
+            {
+              "ja": "駅から十分以内で行けます。",
+              "en": "You can get there from the station within ten minutes."
+            }
+          ],
+          "readingMap": "い・な・い"
+        },
+        {
+          "id": "kanji-01-10-seken",
+          "characters": "世間",
+          "reading": "せけん",
+          "meanings": [
+            "Society",
+            "The Public"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 8,
+          "kanjiLevels": {
+            "世": 4,
+            "間": 8
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf06"
+          ],
+          "meaningMnemonic": "Picture the <kanji>world</kanji> packed into the shared <kanji>interval</kanji> between private lives; there <vocabulary>society</vocabulary> and <vocabulary>the public</vocabulary> watch and talk.\n\n世間 often means the surrounding public and its social expectations, as in 世間の目 or 世間の反応, rather than society as an institution.",
+          "readingMnemonic": "The world 世 carries せ into the space 間 carrying けん: <reading>せ—けん</reading>. The entire public crowds into that tiny space to judge one hat, turning it into all of <vocabulary>society</vocabulary>'s business. 世間 often means the public and its shared opinions.",
+          "contextSentences": [
+            {
+              "ja": "世間の反応は厳しかった。",
+              "en": "The public reaction was harsh."
+            },
+            {
+              "ja": "そのニュースは世間で話題になった。",
+              "en": "That news became a topic of public conversation."
+            }
+          ],
+          "readingMap": "せ・け・ん"
+        },
+        {
+          "id": "kanji-01-10-nakami",
+          "characters": "中身",
+          "reading": "なかみ",
+          "meanings": [
+            "Contents",
+            "Inside"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 8,
+          "kanjiLevels": {
+            "中": 2,
+            "身": 8
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "The <kanji>middle</kanji> conceals the real <kanji>body</kanji> of the thing: its <vocabulary>contents</vocabulary>, or what is <vocabulary>inside</vocabulary>.\n\n中身 can describe what is inside a container and, figuratively, a person's or proposal's substance rather than outward appearance.",
+          "readingMnemonic": "The middle 中 carries なか as a plain box splits open, and a body 身 carrying み leaps out: <reading>なか—み</reading>. That tiny body is the surprising <vocabulary>contents</vocabulary> hidden <vocabulary>inside</vocabulary>. 中身 can also mean substance or character beneath outward appearance.",
+          "contextSentences": [
+            {
+              "ja": "箱の中身を確認した。",
+              "en": "I checked the contents of the box."
+            },
+            {
+              "ja": "見た目より中身が大切だ。",
+              "en": "What is inside matters more than appearance."
+            }
+          ],
+          "readingMap": "な・か・み"
+        },
+        {
+          "id": "kanji-01-10-shuyaku",
+          "characters": "主役",
+          "reading": "しゅやく",
+          "meanings": [
+            "Leading Role",
+            "Main Character"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective"
+          ],
+          "requiredLevel": 8,
+          "kanjiLevels": {
+            "主": 4,
+            "役": 8
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf05"
+          ],
+          "meaningMnemonic": "The <kanji>main</kanji> <kanji>duty</kanji> in the story belongs to its <vocabulary>leading role</vocabulary> or <vocabulary>main character</vocabulary>.\n\n主役 applies to a lead performer or central figure, and it can figuratively name the person or thing receiving the spotlight.",
+          "readingMnemonic": "A yak in sparkling shoes barges onto the stage: <reading>SHOE—YAK</reading>. It steals the spotlight and becomes the show's <vocabulary>main character</vocabulary> in the <vocabulary>leading role</vocabulary>. 主役 can also be the central person at a real event.",
+          "contextSentences": [
+            {
+              "ja": "彼女が映画の主役を演じる。",
+              "en": "She plays the leading role in the movie."
+            },
+            {
+              "ja": "今日の主役は新郎と新婦です。",
+              "en": "Today's main characters are the bride and groom."
+            }
+          ],
+          "readingMap": "しゅ・や・く"
+        },
+        {
+          "id": "kanji-01-10-taichou",
+          "characters": "体調",
+          "reading": "たいちょう",
+          "meanings": [
+            "Physical Condition",
+            "State Of Health"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 10,
+          "kanjiLevels": {
+            "体": 5,
+            "調": 10
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf06"
+          ],
+          "meaningMnemonic": "Your <kanji>body</kanji> is what you <kanji>investigate</kanji> when checking your <vocabulary>physical condition</vocabulary> or <vocabulary>state of health</vocabulary>.\n\n体調 describes how well or unwell someone feels overall; 体調が悪い and 体調を整える are common patterns.",
+          "readingMnemonic": "The BODY 体 walks into CONDITION 調's clinic, and the two kanji snap their familiar sounds together: <reading>たい—ちょう</reading>. The clinic's scanner turns green only when the patient's <vocabulary>physical condition</vocabulary> is healthy. 体調 usually describes how someone is feeling physically.",
+          "contextSentences": [
+            {
+              "ja": "今日は体調がよくない。",
+              "en": "I am not feeling well today."
+            },
+            {
+              "ja": "体調を整えて試合に備える。",
+              "en": "I will get into good physical condition for the match."
+            }
+          ],
+          "readingMap": "た・い・ちょ・う"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-11-15",
+      "title": "Everyday Kanji: Levels 11–15",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 11 and 15.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 11,
+        "max": 15
+      },
+      "words": [
+        {
+          "id": "kanji-11-20-dengon",
+          "characters": "伝言",
+          "reading": "でんごん",
+          "meanings": [
+            "Message",
+            "Verbal Message"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "伝": 11,
+            "言": 5
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf17"
+          ],
+          "meaningMnemonic": "<kanji>Transmit</kanji> what someone wants to <kanji>say</kanji> and it becomes a <vocabulary>message</vocabulary> or <vocabulary>verbal message</vocabulary>.\n\n伝言 is especially a message entrusted to another person to pass along; 伝言をお願いする is a common way to leave one.",
+          "readingMnemonic": "A spy hides a note in a den, then disappears: <reading>DEN—GONE</reading>. The next agent finds the <vocabulary>message</vocabulary> after its sender is gone. 伝言 is information passed through another person, often a verbal message.",
+          "contextSentences": [
+            {
+              "ja": "田中さんに伝言をお願いできますか。",
+              "en": "Could I leave a message for Mr. Tanaka?"
+            },
+            {
+              "ja": "田中さんが帰ったら、この伝言を伝えます。",
+              "en": "I'll pass on this message when Mr. Tanaka returns."
+            }
+          ],
+          "readingMap": "で・ん・ご・ん"
+        },
+        {
+          "id": "kanji-11-20-tayori",
+          "characters": "便り",
+          "reading": "たより",
+          "meanings": [
+            "News",
+            "Letter",
+            "Tidings"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "便": 11
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf13"
+          ],
+          "meaningMnemonic": "A carrier pigeon offers the <kanji>convenience</kanji> of crossing the distance with <vocabulary>news</vocabulary>, <vocabulary>tidings</vocabulary>, or a personal <vocabulary>letter</vocabulary> tied to its leg.\n\n便り refers to news or correspondence from someone, often when the sender is elsewhere, as in 母からの便り.",
+          "readingMnemonic": "A carrier pigeon is the one creature you can rely on—your 頼り—and it arrives carrying a 便り. The two words share the exact sound <reading>たより</reading>, so that trusted bird brings <vocabulary>news</vocabulary> or a <vocabulary>letter</vocabulary>. 便り can be correspondence or word about how someone is doing.",
+          "contextSentences": [
+            {
+              "ja": "母から元気だという便りが届いた。",
+              "en": "News arrived from my mother saying that she is well."
+            },
+            {
+              "ja": "旅先から便りを送ります。",
+              "en": "I will send a letter from my travels."
+            }
+          ],
+          "readingMap": "た・よ・り"
+        },
+        {
+          "id": "kanji-11-20-kyoutsuu",
+          "characters": "共通",
+          "reading": "きょうつう",
+          "meanings": [
+            "Common",
+            "Shared"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "な adjective",
+            "の adjective",
+            "する verb"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "共": 11,
+            "通": 7
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "A thread pulls several objects <kanji>together</kanji>, then must <kanji>pass through</kanji> every one; the thread is what they have in <vocabulary>common</vocabulary>, a <vocabulary>shared</vocabulary> feature.\n\n共通 can be a noun or modifier, while 共通する describes a feature shared by multiple people or things.",
+          "readingMnemonic": "On a calendar marked 今日（きょう）, TWO actors receive one shared ticket: <reading>今日—TWO</reading>. Because both enter with the same pass, it is <vocabulary>common</vocabulary> to them and visibly <vocabulary>shared</vocabulary>. 共通 describes a feature, interest, or element held in common.",
+          "contextSentences": [
+            {
+              "ja": "共通の趣味がきっかけで友達になった。",
+              "en": "We became friends through a shared hobby."
+            },
+            {
+              "ja": "二つの案には共通する点がある。",
+              "en": "The two proposals have something in common."
+            }
+          ],
+          "readingMap": "きょ・う・つ・う"
+        },
+        {
+          "id": "kanji-11-20-riyou",
+          "characters": "利用",
+          "reading": "りよう",
+          "meanings": [
+            "Use",
+            "Utilize"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "利": 11,
+            "用": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "Gain a <kanji>benefit</kanji> by putting something to <kanji>use</kanji>: you <vocabulary>use</vocabulary> or <vocabulary>utilize</vocabulary> it.\n\n利用する often means making practical use of a service, facility, system, opportunity, or information.",
+          "readingMnemonic": "Lee grabs a giant yo-yo and cries <reading>LEE—YO!</reading> She turns the toy into a crane, proving she can <vocabulary>use</vocabulary> or <vocabulary>utilize</vocabulary> anything. 利用する is used for making practical use of a service, facility, or thing.",
+          "contextSentences": [
+            {
+              "ja": "この券は何度でも利用できます。",
+              "en": "You can use this pass any number of times."
+            },
+            {
+              "ja": "仕事の帰りに図書館を利用する。",
+              "en": "I use the library on my way home from work."
+            }
+          ],
+          "readingMap": "り・よ・う"
+        },
+        {
+          "id": "kanji-11-20-jimi",
+          "characters": "地味",
+          "reading": "じみ",
+          "meanings": [
+            "Plain",
+            "Subdued",
+            "Unflashy"
+          ],
+          "partsOfSpeech": [
+            "な adjective",
+            "noun"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "地": 6,
+            "味": 11
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf09"
+          ],
+          "meaningMnemonic": "Give an outfit the muted <kanji>earth</kanji> <kanji>flavor</kanji> of soil and clay and it looks <vocabulary>plain</vocabulary>, <vocabulary>subdued</vocabulary>, and unflashy.\n\n地味 describes appearance or activity that does not stand out; it can be neutral, approvingly modest, or mildly critical depending on context.",
+          "readingMnemonic": "Jimmy arrives at a glitter party in a gray sweater and whispers <reading>JIMMY</reading>. His completely <vocabulary>plain</vocabulary>, <vocabulary>subdued</vocabulary> outfit makes him disappear against the wall. 地味 can describe appearance, work, or behavior that is unflashy.",
+          "contextSentences": [
+            {
+              "ja": "彼は地味な服を好む。",
+              "en": "He prefers plain clothes."
+            },
+            {
+              "ja": "地味な作業だが、とても大切だ。",
+              "en": "It is unglamorous work, but it is very important."
+            }
+          ],
+          "readingMap": "じ・み"
+        },
+        {
+          "id": "kanji-11-20-seibun",
+          "characters": "成分",
+          "reading": "せいぶん",
+          "meanings": [
+            "Ingredient",
+            "Component"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "成": 11,
+            "分": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "As something <kanji>become</kanji>s a whole, every <kanji>part</kanji> that forms it is a <vocabulary>component</vocabulary> or <vocabulary>ingredient</vocabulary>.\n\n成分 is used for the constituent substances in food, medicine, cosmetics, materials, and living bodies.",
+          "readingMnemonic": "A talking bun demands that the baker name every item inside it: <reading>SAY—BUN!</reading> Flour, yeast, and salt each leap out as an <vocabulary>ingredient</vocabulary> or <vocabulary>component</vocabulary>. 成分 is common on labels for chemical or nutritional contents.",
+          "contextSentences": [
+            {
+              "ja": "買う前に食品の成分を確認した。",
+              "en": "I checked the food's ingredients before buying it."
+            },
+            {
+              "ja": "水は体の大切な成分です。",
+              "en": "Water is an important component of the body."
+            }
+          ],
+          "readingMap": "せ・い・ぶ・ん"
+        },
+        {
+          "id": "kanji-11-20-seichou",
+          "characters": "成長",
+          "reading": "せいちょう",
+          "meanings": [
+            "Growth",
+            "Development"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 11,
+          "kanjiLevels": {
+            "成": 11,
+            "長": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "As something <kanji>become</kanji>s <kanji>long</kanji>er, you can see its <vocabulary>growth</vocabulary> and <vocabulary>development</vocabulary>.\n\n成長 applies to physical growth and to the development of people, skills, organizations, or economies; 成長する is the usual verb.",
+          "readingMnemonic": "BECOME 成 plants itself beside LONG 長, and their familiar sounds lock together: <reading>せい—ちょう</reading>. A seedling instantly stretches past the roof, making its <vocabulary>growth</vocabulary> impossible to miss. 成長 covers physical growth and personal or organizational development.",
+          "contextSentences": [
+            {
+              "ja": "子どもの成長は早い。",
+              "en": "Children grow quickly."
+            },
+            {
+              "ja": "失敗も成長につながります。",
+              "en": "Failure also leads to growth."
+            }
+          ],
+          "readingMap": "せ・い・ちょ・う"
+        },
+        {
+          "id": "kanji-11-20-uwagi",
+          "characters": "上着",
+          "reading": "うわぎ",
+          "meanings": [
+            "Jacket",
+            "Outerwear"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 12,
+          "kanjiLevels": {
+            "上": 1,
+            "着": 12
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf17"
+          ],
+          "meaningMnemonic": "<kanji>Above</kanji> all your other clothes, you <kanji>wear</kanji> a <vocabulary>jacket</vocabulary> or other <vocabulary>outerwear</vocabulary>.\n\n上着 is a general outer layer such as a jacket or coat, especially one you can put on or take off over an outfit.",
+          "readingMnemonic": "A puppy trots in wearing an oversized jacket, and the crowd squeals <reading>OOH—WAGGY!</reading> Its wagging tail spins the <vocabulary>jacket</vocabulary> and all its <vocabulary>outerwear</vocabulary> around like a propeller. 上着 means an outer garment worn over other clothes.",
+          "contextSentences": [
+            {
+              "ja": "寒いので上着を着てください。",
+              "en": "It is cold, so please put on a jacket."
+            },
+            {
+              "ja": "上着を椅子に掛けた。",
+              "en": "I hung my jacket on the chair."
+            }
+          ],
+          "readingMap": "う・わ・ぎ"
+        },
+        {
+          "id": "kanji-11-20-nakaniwa",
+          "characters": "中庭",
+          "reading": "なかにわ",
+          "meanings": [
+            "Courtyard"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 12,
+          "kanjiLevels": {
+            "中": 2,
+            "庭": 12
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf17"
+          ],
+          "meaningMnemonic": "In the <kanji>middle</kanji> of the building sits a sheltered <kanji>garden</kanji>: the <vocabulary>courtyard</vocabulary>.\n\n中庭 is an open or garden space surrounded partly or completely by a building.",
+          "readingMnemonic": "The middle 中 carries なか into a mansion, where a garden 庭 carrying にわ is trapped between four walls: <reading>なか—にわ</reading>. The hidden <vocabulary>courtyard</vocabulary> is enclosed by the building and cannot spill into the street. 中庭 is an inner courtyard rather than an ordinary yard.",
+          "contextSentences": [
+            {
+              "ja": "ホテルの中庭で朝食を食べた。",
+              "en": "We ate breakfast in the hotel's courtyard."
+            },
+            {
+              "ja": "中庭には小さな池がある。",
+              "en": "There is a small pond in the courtyard."
+            }
+          ],
+          "readingMap": "な・か・に・わ"
+        },
+        {
+          "id": "kanji-11-20-kouryuu",
+          "characters": "交流",
+          "reading": "こうりゅう",
+          "meanings": [
+            "Exchange",
+            "Interaction"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 12,
+          "kanjiLevels": {
+            "交": 5,
+            "流": 12
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "People <kanji>mix</kanji> while ideas <kanji>stream</kanji> between them; that two-way movement is <vocabulary>exchange</vocabulary> or <vocabulary>interaction</vocabulary>.\n\n交流 is reciprocal contact among people, groups, regions, or cultures, often with 交流する or 交流を深める.",
+          "readingMnemonic": "Exchange 交 carries こう into a river, while flow 流 carries りゅう back upstream: <reading>こう—りゅう</reading>. Letters, people, and ideas ride both currents, creating constant <vocabulary>exchange</vocabulary> and <vocabulary>interaction</vocabulary> between two towns. 交流 often involves people, cultures, ideas, or electrical currents flowing both ways.",
+          "contextSentences": [
+            {
+              "ja": "留学生との交流を楽しんだ。",
+              "en": "I enjoyed interacting with international students."
+            },
+            {
+              "ja": "地域の交流を深める行事です。",
+              "en": "This event strengthens exchange within the community."
+            }
+          ],
+          "readingMap": "こ・う・りゅ・う"
+        },
+        {
+          "id": "kanji-11-20-taion",
+          "characters": "体温",
+          "reading": "たいおん",
+          "meanings": [
+            "Body Temperature"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 12,
+          "kanjiLevels": {
+            "体": 5,
+            "温": 12
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf14"
+          ],
+          "meaningMnemonic": "Your <kanji>body</kanji>'s <kanji>warm</kanji>th is its <vocabulary>body temperature</vocabulary>.\n\n体温 is the measured temperature of a person or animal; 体温を測る means to take someone's temperature.",
+          "readingMnemonic": "A nurse makes you <reading>TIE—ON</reading> a thermometer like a necktie. Its glowing number reveals your <vocabulary>body temperature</vocabulary>. 体温を測る means to measure someone's body temperature.",
+          "contextSentences": [
+            {
+              "ja": "朝起きて体温を測った。",
+              "en": "I measured my body temperature after waking up."
+            },
+            {
+              "ja": "運動すると体温が上がる。",
+              "en": "Exercise raises your body temperature."
+            }
+          ],
+          "readingMap": "た・い・お・ん"
+        },
+        {
+          "id": "kanji-11-20-kyoukan",
+          "characters": "共感",
+          "reading": "きょうかん",
+          "meanings": [
+            "Empathy",
+            "Sympathy"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 13,
+          "kanjiLevels": {
+            "共": 11,
+            "感": 13
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf10"
+          ],
+          "meaningMnemonic": "Come <kanji>together</kanji> inside the same <kanji>feeling</kanji> and you experience <vocabulary>empathy</vocabulary> or <vocabulary>sympathy</vocabulary>.\n\n共感 is an understood or shared emotional response, commonly expressed as Xに共感する.",
+          "readingMnemonic": "Together 共 carries きょう as it ties two hearts together, then feeling 感 carries かん into both chests: <reading>きょう—かん</reading>. One friend's sadness now pulses inside the other as literal <vocabulary>empathy</vocabulary>. 共感 is sharing or relating to another person's feeling or viewpoint.",
+          "contextSentences": [
+            {
+              "ja": "彼女の意見に強く共感した。",
+              "en": "I strongly empathized with her opinion."
+            },
+            {
+              "ja": "この物語は多くの共感を集めた。",
+              "en": "This story drew a great deal of sympathy."
+            }
+          ],
+          "readingMap": "きょ・う・か・ん"
+        },
+        {
+          "id": "kanji-11-20-yuujou",
+          "characters": "友情",
+          "reading": "ゆうじょう",
+          "meanings": [
+            "Friendship"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 13,
+          "kanjiLevels": {
+            "友": 3,
+            "情": 13
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf10"
+          ],
+          "meaningMnemonic": "One <kanji>friend</kanji> ties a ribbon carrying their deepest <kanji>feeling</kanji> to another friend's wrist; that bond is <vocabulary>friendship</vocabulary>.\n\n友情 emphasizes the bond or affection between friends and often appears in expressions such as 友情を深める and 友情が続く.",
+          "readingMnemonic": "You and Joe clasp hands over a canyon while everyone chants <reading>YOU—JOE</reading>. Trust keeps the bridge beneath you intact, turning your bond into visible <vocabulary>friendship</vocabulary>. 友情 refers to friendship as a bond or feeling.",
+          "contextSentences": [
+            {
+              "ja": "二人の友情は長く続いた。",
+              "en": "Their friendship lasted a long time."
+            },
+            {
+              "ja": "試合の後で友情が深まった。",
+              "en": "Their friendship deepened after the match."
+            }
+          ],
+          "readingMap": "ゆ・う・じょ・う"
+        },
+        {
+          "id": "kanji-11-20-gasshuku",
+          "characters": "合宿",
+          "reading": "がっしゅく",
+          "meanings": [
+            "Training Camp",
+            "Group Camp"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 13,
+          "kanjiLevels": {
+            "合": 12,
+            "宿": 13
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "Club members <kanji>join</kanji> one training plan and <kanji>lodge</kanji> under one roof, turning every waking hour into a <vocabulary>training camp</vocabulary>.\n\n合宿 is an overnight group camp organized around a shared purpose, commonly sports, club practice, study, or work training.",
+          "readingMnemonic": "At training camp, a leaking stove explodes and everyone yells <reading>GAS—SHOOK!</reading> The blast shakes the shared lodge, but the team stays to finish its <vocabulary>training camp</vocabulary>. 合宿 is a group stay for concentrated training or practice.",
+          "contextSentences": [
+            {
+              "ja": "夏休みに部活の合宿がある。",
+              "en": "Our club has a training camp during summer vacation."
+            },
+            {
+              "ja": "合宿で毎日六時間練習した。",
+              "en": "We practiced six hours every day at camp."
+            }
+          ],
+          "readingMap": "が・っ・しゅ・く"
+        },
+        {
+          "id": "kanji-11-20-sankou",
+          "characters": "参考",
+          "reading": "さんこう",
+          "meanings": [
+            "Reference",
+            "Consultation"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 14,
+          "kanjiLevels": {
+            "参": 14,
+            "考": 5
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf03"
+          ],
+          "meaningMnemonic": "Let another source <kanji>participate</kanji> while you <kanji>think</kanji>; it becomes a <vocabulary>reference</vocabulary> for your decision.\n\n参考 is information consulted for help rather than a command to follow; 参考にする means to use something as a reference.",
+          "readingMnemonic": "Sun Co. keeps a library where every book glows like daylight: <reading>SUN—CO.</reading> A designer consults those volumes as a <vocabulary>reference</vocabulary> before making a decision. 参考にする means to use something for reference or guidance.",
+          "contextSentences": [
+            {
+              "ja": "この例を参考にしてください。",
+              "en": "Please use this example as a reference."
+            },
+            {
+              "ja": "みんなの意見を参考にして決めた。",
+              "en": "I decided after consulting everyone's opinions."
+            }
+          ],
+          "readingMap": "さ・ん・こ・う"
+        },
+        {
+          "id": "kanji-11-20-hanataba",
+          "characters": "花束",
+          "reading": "はなたば",
+          "meanings": [
+            "Bouquet",
+            "Bunch Of Flowers"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 14,
+          "kanjiLevels": {
+            "花": 4,
+            "束": 14
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf13"
+          ],
+          "meaningMnemonic": "Tie each <kanji>flower</kanji> into one <kanji>bundle</kanji> and you have a <vocabulary>bouquet</vocabulary>, or <vocabulary>bunch of flowers</vocabulary>.\n\n花束 is a gathered arrangement intended to be carried or presented, especially as a gift or at a ceremony.",
+          "readingMnemonic": "A flower 花 carries はな into a bundle 束 carrying たば: <reading>はな—たば</reading>. Every stem in the shop ties itself into one enormous <vocabulary>bouquet</vocabulary>. 花束 is a bound bunch of flowers, especially one given as a gift.",
+          "contextSentences": [
+            {
+              "ja": "誕生日に花束をもらった。",
+              "en": "I received a bouquet for my birthday."
+            },
+            {
+              "ja": "駅で花束を持って彼女を待った。",
+              "en": "I waited for her at the station holding a bunch of flowers."
+            }
+          ],
+          "readingMap": "は・な・た・ば"
+        },
+        {
+          "id": "kanji-11-20-kaikei",
+          "characters": "会計",
+          "reading": "かいけい",
+          "meanings": [
+            "Bill",
+            "Checkout",
+            "Accounting"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 15,
+          "kanjiLevels": {
+            "会": 5,
+            "計": 15
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf05"
+          ],
+          "meaningMnemonic": "After everyone <kanji>meet</kanji>s for a meal, <kanji>measure</kanji> what is owed: that total is the <vocabulary>bill</vocabulary>, and tracking such totals is <vocabulary>accounting</vocabulary>.\n\n会計 means checkout or the bill in shops and restaurants, while in organizational settings it refers to accounts or accounting.",
+          "readingMnemonic": "Kai and Kay stare at a restaurant receipt while the cashier calls <reading>KAI—KAY</reading>. They split the <vocabulary>bill</vocabulary>, then Kay runs the <vocabulary>checkout</vocabulary> twice to verify it. 会計 can mean payment at a shop or accounting more broadly.",
+          "contextSentences": [
+            {
+              "ja": "会計を別々にできますか。",
+              "en": "Can we pay the bill separately?"
+            },
+            {
+              "ja": "姉は会社で会計を担当している。",
+              "en": "My sister handles accounting at her company."
+            }
+          ],
+          "readingMap": "か・い・け・い"
+        },
+        {
+          "id": "kanji-11-20-kubetsu",
+          "characters": "区別",
+          "reading": "くべつ",
+          "meanings": [
+            "Distinction",
+            "Differentiate"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 15,
+          "kanjiLevels": {
+            "区": 15,
+            "別": 11
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf10"
+          ],
+          "meaningMnemonic": "Draw a line around each <kanji>district</kanji> to keep it <kanji>separate</kanji>; the boundary creates a <vocabulary>distinction</vocabulary> and lets you <vocabulary>differentiate</vocabulary> them.\n\n区別 focuses on telling categories or things apart; 区別する is to distinguish, classify, or discriminate between them.",
+          "readingMnemonic": "A pigeon cries COO over a mountain of betting slips: <reading>COO—BETS!</reading> It pecks red bets left and blue bets right, creating a strict <vocabulary>distinction</vocabulary> between them. 区別する means to distinguish or tell things apart.",
+          "contextSentences": [
+            {
+              "ja": "赤と緑を区別しにくい。",
+              "en": "It is hard to distinguish red from green."
+            },
+            {
+              "ja": "大人用と子ども用を色で区別しています。",
+              "en": "The adult and child versions are distinguished by color."
+            }
+          ],
+          "readingMap": "く・べ・つ"
+        },
+        {
+          "id": "kanji-11-20-tani",
+          "characters": "単位",
+          "reading": "たんい",
+          "meanings": [
+            "Unit",
+            "Academic Credit"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 15,
+          "kanjiLevels": {
+            "単": 15,
+            "位": 11
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf03"
+          ],
+          "meaningMnemonic": "Give every <kanji>simple</kanji> step on a scale its own <kanji>rank</kanji>; each counted step is a <vocabulary>unit</vocabulary> or, at school, an <vocabulary>academic credit</vocabulary>.\n\n単位 is a unit of measurement or a credit earned in a course; the surrounding noun tells you which system is being counted.",
+          "readingMnemonic": "Professor Tan holds up a glowing letter E: <reading>TAN—E</reading>. That one E becomes both a measuring <vocabulary>unit</vocabulary> and the single <vocabulary>academic credit</vocabulary> every student needs. 単位 can mean a measurement unit or a university course credit.",
+          "contextSentences": [
+            {
+              "ja": "長さの単位をメートルにそろえた。",
+              "en": "We standardized the unit of length to meters."
+            },
+            {
+              "ja": "卒業には百二十単位が必要です。",
+              "en": "One hundred twenty credits are required to graduate."
+            }
+          ],
+          "readingMap": "た・ん・い"
+        },
+        {
+          "id": "kanji-11-20-jushin",
+          "characters": "受信",
+          "reading": "じゅしん",
+          "meanings": [
+            "Reception",
+            "Receive A Message"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 15,
+          "kanjiLevels": {
+            "受": 9,
+            "信": 15
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf08"
+          ],
+          "meaningMnemonic": "A radio receiver must <kanji>accept</kanji> the signal, then light a green <kanji>trust</kanji> seal to confirm it arrived intact; this is how you <vocabulary>receive a message</vocabulary>, the process of <vocabulary>reception</vocabulary>.\n\n受信 is used for receiving electronic signals, broadcasts, email, or data and contrasts with 送信, transmission.",
+          "readingMnemonic": "Receive 受 carries じゅ into a radio, and trust 信 carries しん into its antenna: <reading>じゅ—しん</reading>. The radio flashes when it completes <vocabulary>reception</vocabulary> of a message or signal. 受信する is used for receiving broadcasts, data, email, or other signals.",
+          "contextSentences": [
+            {
+              "ja": "先ほどメールを受信しました。",
+              "en": "I received the email a moment ago."
+            },
+            {
+              "ja": "山の中では電波を受信できない。",
+              "en": "You cannot receive a signal in the mountains."
+            }
+          ],
+          "readingMap": "じゅ・し・ん"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-16-20",
+      "title": "Everyday Kanji: Levels 16–20",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 16 and 20.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 16,
+        "max": 20
+      },
+      "words": [
+        {
+          "id": "kanji-11-20-nyuuyoku",
+          "characters": "入浴",
+          "reading": "にゅうよく",
+          "meanings": [
+            "Bathing",
+            "Take A Bath"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 16,
+          "kanjiLevels": {
+            "入": 1,
+            "浴": 16
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf12"
+          ],
+          "meaningMnemonic": "<kanji>Enter</kanji> the tub and <kanji>bathe</kanji>: that is <vocabulary>bathing</vocabulary>, or to <vocabulary>take a bath</vocabulary>.\n\n入浴 is a somewhat formal noun or する verb for getting into a bath, common in instructions, schedules, health guidance, and facility notices.",
+          "readingMnemonic": "Enter 入 carries にゅう as it dives through the door of a bath 浴 carrying よく: <reading>にゅう—よく</reading>. The bather splashes down fully clothed and has to <vocabulary>take a bath</vocabulary>. 入浴する is a formal-neutral way to describe bathing or taking a bath.",
+          "contextSentences": [
+            {
+              "ja": "寝る前に入浴する。",
+              "en": "I take a bath before bed."
+            },
+            {
+              "ja": "食後すぐの入浴は避けてください。",
+              "en": "Please avoid bathing immediately after eating."
+            }
+          ],
+          "readingMap": "にゅ・う・よ・く"
+        },
+        {
+          "id": "kanji-11-20-mikaku",
+          "characters": "味覚",
+          "reading": "みかく",
+          "meanings": [
+            "Sense Of Taste",
+            "Palate"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 17,
+          "kanjiLevels": {
+            "味": 11,
+            "覚": 17
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf16"
+          ],
+          "meaningMnemonic": "Your <kanji>flavor</kanji> <kanji>awareness</kanji> is your <vocabulary>sense of taste</vocabulary>, or <vocabulary>palate</vocabulary>.\n\n味覚 is the sensory faculty itself, not an opinion about whether one particular food tastes good.",
+          "readingMnemonic": "Taste 味 carries み onto the tongue, and awareness 覚 carries かく into a flashing flavor alarm: <reading>み—かく</reading>. The alarm identifies every ingredient through the tongue's <vocabulary>sense of taste</vocabulary>. 味覚 refers to the faculty of taste rather than one particular flavor.",
+          "contextSentences": [
+            {
+              "ja": "風邪を引いて味覚が鈍くなった。",
+              "en": "My sense of taste became dull after I caught a cold."
+            },
+            {
+              "ja": "子どもの味覚は少しずつ変わる。",
+              "en": "A child's palate changes little by little."
+            }
+          ],
+          "readingMap": "み・か・く"
+        },
+        {
+          "id": "kanji-11-20-kosei",
+          "characters": "個性",
+          "reading": "こせい",
+          "meanings": [
+            "Individuality",
+            "Personality"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 20,
+          "kanjiLevels": {
+            "個": 20,
+            "性": 14
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "Picture an <kanji>individual</kanji> whose <kanji>gender</kanji> is only one tile in a much larger mosaic; the whole distinctive pattern is their <vocabulary>individuality</vocabulary> or <vocabulary>personality</vocabulary>.\n\n個性 is the set of traits that makes a person, work, or place distinctive, often positively as character or uniqueness.",
+          "readingMnemonic": "One individual 個 carries こ into a factory, while character 性 carries せい onto every worker's badge: <reading>こ—せい</reading>. No two badges match, so each person's <vocabulary>individuality</vocabulary> is impossible to miss. 個性 is the distinctive personality or character of a person or thing.",
+          "contextSentences": [
+            {
+              "ja": "この店には強い個性がある。",
+              "en": "This shop has a strong personality."
+            },
+            {
+              "ja": "子どもの個性を大切にしたい。",
+              "en": "I want to value each child's individuality."
+            }
+          ],
+          "readingMap": "こ・せ・い"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-21-25",
+      "title": "Everyday Kanji: Levels 21–25",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 21 and 25.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 21,
+        "max": 25
+      },
+      "words": [
+        {
+          "id": "kanji-21-30-jimu",
+          "characters": "事務",
+          "reading": "じむ",
+          "meanings": [
+            "Office Work",
+            "Administration"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 21,
+          "kanjiLevels": {
+            "事": 9,
+            "務": 21
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "Every <kanji>occurrence</kanji> generates another organizing <kanji>task</kanji>; handling that paperwork is <vocabulary>office work</vocabulary> or <vocabulary>administration</vocabulary>.\n\n事務 covers clerical and administrative work such as records, forms, scheduling, and correspondence, not the physical office itself.",
+          "readingMnemonic": "An accountant wheels a filing cabinet into a <reading>GYM</reading> and starts doing paperwork between squats. The weights vanish under forms as the gym becomes an <vocabulary>office work</vocabulary> department. 事務 refers to clerical or administrative work.",
+          "contextSentences": [
+            {
+              "ja": "午前中は事務の仕事をします。",
+              "en": "I do office work in the morning."
+            },
+            {
+              "ja": "事務を担当する人に聞いてください。",
+              "en": "Please ask the person in charge of administration."
+            }
+          ],
+          "readingMap": "じ・む"
+        },
+        {
+          "id": "kanji-21-30-kisei",
+          "characters": "帰省",
+          "reading": "きせい",
+          "meanings": [
+            "Return To One's Hometown",
+            "Homecoming"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 21,
+          "kanjiLevels": {
+            "帰": 15,
+            "省": 21
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf18"
+          ],
+          "meaningMnemonic": "<kanji>Return home</kanji> to <kanji>conserve</kanji> your family ties; the trip is a <vocabulary>return to one's hometown</vocabulary>, or <vocabulary>homecoming</vocabulary>.\n\n帰省 means temporarily going back to one's home region to visit family, especially during holidays such as New Year or Obon.",
+          "readingMnemonic": "Your childhood house key begins to <reading>KEY—SAY</reading>, “Come home!” every holiday. Its command is clear: <vocabulary>return to one's hometown</vocabulary>. 帰省 is specifically a homecoming to one's family home or hometown.",
+          "contextSentences": [
+            {
+              "ja": "年末に家族で故郷へ帰省します。",
+              "en": "My family and I will return to our hometown at the end of the year."
+            },
+            {
+              "ja": "夏休みの帰省で友達に会った。",
+              "en": "I met friends while home for summer vacation."
+            }
+          ],
+          "readingMap": "き・せ・い"
+        },
+        {
+          "id": "kanji-21-30-dansui",
+          "characters": "断水",
+          "reading": "だんすい",
+          "meanings": [
+            "Water Outage",
+            "Water Shutoff"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 21,
+          "kanjiLevels": {
+            "断": 21,
+            "水": 2
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf22"
+          ],
+          "meaningMnemonic": "When workers <kanji>cut off</kanji> the <kanji>water</kanji>, the empty pipes announce a <vocabulary>water outage</vocabulary> or <vocabulary>water shutoff</vocabulary>.\n\n断水 can be planned for maintenance or caused by damage; 断水する describes the supply being interrupted.",
+          "readingMnemonic": "Sever 断 carries だん as it swings an axe through water 水 carrying すい: <reading>だん—すい</reading>. The cut main leaves every pipe empty in a complete <vocabulary>water outage</vocabulary>. 断水 can be a planned shutoff or an unexpected loss of water service.",
+          "contextSentences": [
+            {
+              "ja": "工事のため午後は断水します。",
+              "en": "The water will be shut off this afternoon for construction."
+            },
+            {
+              "ja": "断水に備えて水をためた。",
+              "en": "I stored water in preparation for the outage."
+            }
+          ],
+          "readingMap": "だ・ん・す・い"
+        },
+        {
+          "id": "kanji-21-30-tenken",
+          "characters": "点検",
+          "reading": "てんけん",
+          "meanings": [
+            "Inspection",
+            "Check"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 21,
+          "kanjiLevels": {
+            "点": 6,
+            "検": 21
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "Take every <kanji>point</kanji> in turn and <kanji>examine</kanji> it; you perform an <vocabulary>inspection</vocabulary> or thorough <vocabulary>check</vocabulary>.\n\n点検 is a systematic safety or maintenance check of equipment, vehicles, buildings, or systems.",
+          "readingMnemonic": "Ken lines up ten machines and checks each with a magnifying glass: <reading>TEN—KEN</reading>. One loose bolt fails the <vocabulary>inspection</vocabulary> and sets off every alarm. 点検 is a systematic check of equipment, facilities, or condition.",
+          "contextSentences": [
+            {
+              "ja": "旅行の前に車を点検した。",
+              "en": "I inspected the car before the trip."
+            },
+            {
+              "ja": "設備の定期点検を行います。",
+              "en": "We will perform a regular inspection of the equipment."
+            }
+          ],
+          "readingMap": "て・ん・け・ん"
+        },
+        {
+          "id": "kanji-21-30-chousa",
+          "characters": "調査",
+          "reading": "ちょうさ",
+          "meanings": [
+            "Investigation",
+            "Survey"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb",
+            "transitive verb"
+          ],
+          "requiredLevel": 21,
+          "kanjiLevels": {
+            "調": 10,
+            "査": 21
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf01"
+          ],
+          "meaningMnemonic": "<kanji>Investigate</kanji> a matter, then <kanji>inspect</kanji> the evidence; together those actions form an <vocabulary>investigation</vocabulary> or <vocabulary>survey</vocabulary>.\n\n調査 covers deliberate fact-finding through research, questioning, measurement, or surveys, and is commonly used with 調査する.",
+          "readingMnemonic": "INVESTIGATE 調 unlocks a case file while INSPECT 査 searches every drawer; their familiar sounds join as <reading>ちょう—さ</reading>. Hidden evidence spills across the desk and launches a full <vocabulary>investigation</vocabulary>. 調査する covers investigating facts or conducting research.",
+          "contextSentences": [
+            {
+              "ja": "市は住民の意見を調査した。",
+              "en": "The city surveyed its residents' opinions."
+            },
+            {
+              "ja": "事故の原因を詳しく調査している。",
+              "en": "They are investigating the cause of the accident in detail."
+            }
+          ],
+          "readingMap": "ちょ・う・さ"
+        },
+        {
+          "id": "kanji-21-30-shinshitsu",
+          "characters": "寝室",
+          "reading": "しんしつ",
+          "meanings": [
+            "Bedroom"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 22,
+          "kanjiLevels": {
+            "寝": 22,
+            "室": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf14"
+          ],
+          "meaningMnemonic": "The place where you <kanji>lie down</kanji> is its own <kanji>room</kanji>: the <vocabulary>bedroom</vocabulary>.\n\n寝室 specifically names a sleeping room and sounds more descriptive or formal than casually saying the room where someone sleeps.",
+          "readingMnemonic": "Sleep 寝 carries しん into a room 室 carrying しつ: <reading>しん—しつ</reading>. A mountain of sheets bursts through the door, and the giant bed beneath leaves no doubt this is the <vocabulary>bedroom</vocabulary>. 寝室 is specifically a room used for sleeping.",
+          "contextSentences": [
+            {
+              "ja": "寝室の窓を少し開けた。",
+              "en": "I opened the bedroom window a little."
+            },
+            {
+              "ja": "寝室にはベッドが二つある。",
+              "en": "There are two beds in the bedroom."
+            }
+          ],
+          "readingMap": "し・ん・し・つ"
+        },
+        {
+          "id": "kanji-21-30-outai",
+          "characters": "応対",
+          "reading": "おうたい",
+          "meanings": [
+            "Attend To",
+            "Deal With Customers"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 22,
+          "kanjiLevels": {
+            "応": 22,
+            "対": 8
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf14"
+          ],
+          "meaningMnemonic": "At the service counter, <kanji>respond</kanji> to the person <kanji>opposite</kanji> you and <vocabulary>attend to</vocabulary> them, especially when you <vocabulary>deal with customers</vocabulary>.\n\n応対 describes how someone receives and handles another person, particularly a visitor, caller, or customer; it often carries an evaluation such as polite or poor.",
+          "readingMnemonic": "A customer arrives tangled in a necktie, and the clerk cries <reading>OH—TIE!</reading> She patiently untangles him to show how to <vocabulary>deal with customers</vocabulary>. 応対 focuses on attending and responding to people, often in service work.",
+          "contextSentences": [
+            {
+              "ja": "あの店員の応対は丁寧だった。",
+              "en": "That clerk's customer service was polite."
+            },
+            {
+              "ja": "今日は私が電話の応対をします。",
+              "en": "I will handle the phone calls today."
+            }
+          ],
+          "readingMap": "お・う・た・い"
+        },
+        {
+          "id": "kanji-21-30-shuchou",
+          "characters": "主張",
+          "reading": "しゅちょう",
+          "meanings": [
+            "Claim",
+            "Assert"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 23,
+          "kanjiLevels": {
+            "主": 4,
+            "張": 23
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "Take your <kanji>main</kanji> point and <kanji>stretch</kanji> it out where everyone can see it: you <vocabulary>assert</vocabulary> a <vocabulary>claim</vocabulary>.\n\n主張 can be the position itself or the act of stating it firmly; it does not necessarily imply that the claim is correct.",
+          "readingMnemonic": "MASTER 主 grabs STRETCH 張 and pulls a banner across the debate hall; their familiar sounds join as <reading>しゅ—ちょう</reading>. The banner displays one enormous <vocabulary>claim</vocabulary> that the speaker loudly asserts. 主張 is a stated position or assertion, not merely casual conversation.",
+          "contextSentences": [
+            {
+              "ja": "会議で自分の意見を主張した。",
+              "en": "I asserted my opinion at the meeting."
+            },
+            {
+              "ja": "会社は製品の安全性を主張している。",
+              "en": "The company claims that its product is safe."
+            }
+          ],
+          "readingMap": "しゅ・ちょ・う"
+        },
+        {
+          "id": "kanji-21-30-kokyuu",
+          "characters": "呼吸",
+          "reading": "こきゅう",
+          "meanings": [
+            "Breathing",
+            "Respiration"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 23,
+          "kanjiLevels": {
+            "呼": 23,
+            "吸": 22
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf05"
+          ],
+          "meaningMnemonic": "<kanji>Call</kanji> air toward you, then <kanji>suck</kanji> it in and release it; that cycle is <vocabulary>breathing</vocabulary> or <vocabulary>respiration</vocabulary>.\n\n呼吸 is the biological process or a breath rhythm, and 呼吸する means to breathe.",
+          "readingMnemonic": "Call 呼 carries こ into a rooster's beak, while inhale 吸 carries きゅう into its chest: <reading>こ—きゅう</reading>. The rooster inhales, crows, and makes its whole body demonstrate <vocabulary>breathing</vocabulary>. 呼吸 covers both a breath and the ongoing act of respiration.",
+          "contextSentences": [
+            {
+              "ja": "ゆっくり深い呼吸をしてください。",
+              "en": "Please breathe slowly and deeply."
+            },
+            {
+              "ja": "走った後は呼吸が速くなる。",
+              "en": "Your breathing becomes faster after running."
+            }
+          ],
+          "readingMap": "こ・きゅ・う"
+        },
+        {
+          "id": "kanji-21-30-kitaku",
+          "characters": "帰宅",
+          "reading": "きたく",
+          "meanings": [
+            "Return Home",
+            "Go Home"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 23,
+          "kanjiLevels": {
+            "帰": 15,
+            "宅": 23
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf10"
+          ],
+          "meaningMnemonic": "<kanji>Return home</kanji> to your <kanji>house</kanji> and you <vocabulary>go home</vocabulary>; the arrival is your <vocabulary>return home</vocabulary>.\n\n帰宅 focuses on returning to one's residence and is common in schedules and reports, as in 七時ごろ帰宅する.",
+          "readingMnemonic": "A commuter finds her house <reading>KEY—TACK</reading> pinned to the station board. She grabs it and races to <vocabulary>return home</vocabulary> before the door locks. 帰宅する means to go or come back to one's home.",
+          "contextSentences": [
+            {
+              "ja": "今日は七時ごろ帰宅します。",
+              "en": "I will get home around seven today."
+            },
+            {
+              "ja": "帰宅したら連絡してください。",
+              "en": "Please contact me when you get home."
+            }
+          ],
+          "readingMap": "き・た・く"
+        },
+        {
+          "id": "kanji-21-30-jougi",
+          "characters": "定規",
+          "reading": "じょうぎ",
+          "meanings": [
+            "Ruler",
+            "Straightedge"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 24,
+          "kanjiLevels": {
+            "定": 9,
+            "規": 24
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf36"
+          ],
+          "meaningMnemonic": "<kanji>Determine</kanji> a straight <kanji>standard</kanji> for every line with a <vocabulary>ruler</vocabulary> or <vocabulary>straightedge</vocabulary>.\n\n定規 is the physical measuring or drawing tool; use it with 線を引く for drawing a line.",
+          "readingMnemonic": "Joe drags a perfectly straight ruler through a tub of ghee: <reading>JOE—GHEE</reading>. Every golden stripe remains straight because the <vocabulary>ruler</vocabulary> refuses to bend. 定規 is a measuring ruler or straightedge; 規 is voiced to ぎ in this established word.",
+          "contextSentences": [
+            {
+              "ja": "定規で線を引いてください。",
+              "en": "Please draw a line with a ruler."
+            },
+            {
+              "ja": "三十センチの定規を買った。",
+              "en": "I bought a thirty-centimeter ruler."
+            }
+          ],
+          "readingMap": "じょ・う・ぎ"
+        },
+        {
+          "id": "kanji-21-30-tenji",
+          "characters": "展示",
+          "reading": "てんじ",
+          "meanings": [
+            "Exhibition",
+            "Display"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 24,
+          "kanjiLevels": {
+            "展": 24,
+            "示": 22
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf05"
+          ],
+          "meaningMnemonic": "<kanji>Expand</kanji> the collection across a hall and <kanji>indicate</kanji> what visitors should notice: it becomes an <vocabulary>exhibition</vocabulary> or <vocabulary>display</vocabulary>.\n\n展示 is the public presentation of objects or information; 展示する is to put something on display.",
+          "readingMnemonic": "Exhibit 展 carries てん as it opens ten glass cases, and show 示 carries じ as it points a spotlight at each one: <reading>てん—じ</reading>. The objects become the museum's strangest <vocabulary>exhibition</vocabulary> and public display. 展示する means to exhibit objects or information.",
+          "contextSentences": [
+            {
+              "ja": "博物館で古い道具を展示している。",
+              "en": "The museum is displaying old tools."
+            },
+            {
+              "ja": "写真の展示は日曜日までです。",
+              "en": "The photography exhibition runs through Sunday."
+            }
+          ],
+          "readingMap": "て・ん・じ"
+        },
+        {
+          "id": "kanji-21-30-nenpi",
+          "characters": "燃費",
+          "reading": "ねんぴ",
+          "meanings": [
+            "Fuel Economy",
+            "Gas Mileage"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 24,
+          "kanjiLevels": {
+            "燃": 24,
+            "費": 22
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf15"
+          ],
+          "meaningMnemonic": "Compare what the engine <kanji>burn</kanji>s with the resulting <kanji>expense</kanji> and you get its <vocabulary>fuel economy</vocabulary> or <vocabulary>gas mileage</vocabulary>.\n\n燃費 describes distance or performance per amount of fuel; 燃費がいい means fuel-efficient, not expensive.",
+          "readingMnemonic": "Fuel-burning 燃 carries ねん into a tiny PEA that powers a car: <reading>ねん—PEA</reading>. One pea carries the car a hundred kilometers, giving it miraculous <vocabulary>fuel economy</vocabulary>. 燃費がいい means fuel-efficient; 燃費が悪い means poor fuel economy.",
+          "contextSentences": [
+            {
+              "ja": "この車は燃費がいい。",
+              "en": "This car gets good gas mileage."
+            },
+            {
+              "ja": "燃費を比べて車を選んだ。",
+              "en": "I chose a car after comparing fuel economy."
+            }
+          ],
+          "readingMap": "ね・ん・ぴ"
+        },
+        {
+          "id": "kanji-21-30-jikyuu",
+          "characters": "時給",
+          "reading": "じきゅう",
+          "meanings": [
+            "Hourly Wage",
+            "Hourly Pay"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 25,
+          "kanjiLevels": {
+            "時": 7,
+            "給": 25
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf16"
+          ],
+          "meaningMnemonic": "For each unit of <kanji>time</kanji>, your employer supplies a <kanji>salary</kanji>: an <vocabulary>hourly wage</vocabulary> or <vocabulary>hourly pay</vocabulary>.\n\n時給 states pay per hour and commonly appears with an amount, such as 時給千二百円.",
+          "readingMnemonic": "A giant letter G waits for the factory clock's cue: <reading>G—CUE</reading>. Each hourly cue drops another coin into the worker's <vocabulary>hourly pay</vocabulary> bucket. 時給 is the wage amount earned per hour.",
+          "contextSentences": [
+            {
+              "ja": "この仕事の時給は千二百円です。",
+              "en": "This job pays 1,200 yen per hour."
+            },
+            {
+              "ja": "来月から時給が上がる。",
+              "en": "My hourly wage will go up next month."
+            }
+          ],
+          "readingMap": "じ・きゅ・う"
+        },
+        {
+          "id": "kanji-21-30-eiyou",
+          "characters": "栄養",
+          "reading": "えいよう",
+          "meanings": [
+            "Nutrition",
+            "Nourishment"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 25,
+          "kanjiLevels": {
+            "栄": 25,
+            "養": 13
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf06"
+          ],
+          "meaningMnemonic": "To <kanji>prosper</kanji>, the body must <kanji>foster</kanji> itself with <vocabulary>nutrition</vocabulary> and <vocabulary>nourishment</vocabulary>.\n\n栄養 refers to nutrients collectively or the nourishment food provides; 栄養がある describes something nutritious.",
+          "readingMnemonic": "A nutritionist fires vitamins at a giant letter A and yells <reading>A—YO!</reading> Every colorful capsule lands in a meal and supplies its <vocabulary>nutrition</vocabulary>. 栄養 refers to nourishment or nutrients that support health and growth.",
+          "contextSentences": [
+            {
+              "ja": "野菜には栄養がたくさんある。",
+              "en": "Vegetables contain plenty of nutrition."
+            },
+            {
+              "ja": "栄養のバランスを考えて食べる。",
+              "en": "I eat with nutritional balance in mind."
+            }
+          ],
+          "readingMap": "え・い・よ・う"
+        },
+        {
+          "id": "kanji-21-30-kyuushoku",
+          "characters": "給食",
+          "reading": "きゅうしょく",
+          "meanings": [
+            "School Lunch",
+            "Meal Service"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 25,
+          "kanjiLevels": {
+            "給": 25,
+            "食": 6
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf06"
+          ],
+          "meaningMnemonic": "The school pays a daily <kanji>salary</kanji> in things to <kanji>eat</kanji>: its <vocabulary>school lunch</vocabulary> or <vocabulary>meal service</vocabulary>.\n\n給食 is an institutionally provided meal, especially at school, but it can also refer to meal service at a workplace, hospital, or other facility.",
+          "readingMnemonic": "The school bell gives a cue, then the lunch cart crashes through the wall: <reading>CUE—SHOCK!</reading> The spectacular entrance delivers today's <vocabulary>school lunch</vocabulary>. 給食 is an organized meal service, especially at schools and institutions.",
+          "contextSentences": [
+            {
+              "ja": "今日の給食はカレーです。",
+              "en": "Today's school lunch is curry."
+            },
+            {
+              "ja": "この学校では無料の給食を出している。",
+              "en": "This school provides free meals."
+            }
+          ],
+          "readingMap": "きゅ・う・しょ・く"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-26-30",
+      "title": "Everyday Kanji: Levels 26–30",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 26 and 30.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 26,
+        "max": 30
+      },
+      "words": [
+        {
+          "id": "kanji-21-30-inshou",
+          "characters": "印象",
+          "reading": "いんしょう",
+          "meanings": [
+            "Impression"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 26,
+          "kanjiLevels": {
+            "印": 26,
+            "象": 7
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf03"
+          ],
+          "meaningMnemonic": "A <kanji>seal</kanji> shaped like an <kanji>elephant</kanji> stamps an unforgettable image into your mind, leaving an <vocabulary>impression</vocabulary>.\n\n印象 is the mental effect a person, place, or experience gives you, as in 明るい印象 or 印象に残る.",
+          "readingMnemonic": "An actor steps <reading>IN—SHOW</reading> wearing a hat made of fireworks. That first image burns a lasting <vocabulary>impression</vocabulary> into the audience's memory. 印象 is the impression a person, thing, or experience leaves.",
+          "contextSentences": [
+            {
+              "ja": "彼は明るい印象を与えた。",
+              "en": "He gave a cheerful impression."
+            },
+            {
+              "ja": "最初の印象と今の印象は全く違う。",
+              "en": "My impression now is completely different from my first impression."
+            }
+          ],
+          "readingMap": "い・ん・しょ・う"
+        },
+        {
+          "id": "kanji-21-30-shudan",
+          "characters": "手段",
+          "reading": "しゅだん",
+          "meanings": [
+            "Means",
+            "Method"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 27,
+          "kanjiLevels": {
+            "手": 2,
+            "段": 27
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf03"
+          ],
+          "meaningMnemonic": "Your <kanji>hand</kanji> follows the <kanji>steps</kanji> toward a goal; that chosen route is a <vocabulary>means</vocabulary> or <vocabulary>method</vocabulary>.\n\n手段 emphasizes the practical way or instrument used to achieve an end, as in 交通手段 or 目的のための手段.",
+          "readingMnemonic": "Dan crosses a river using only a giant shoe: <reading>SHOE—DAN</reading>. The shoe is his ridiculous <vocabulary>means</vocabulary> or <vocabulary>method</vocabulary> of reaching the other bank. 手段 is a practical means for achieving an end.",
+          "contextSentences": [
+            {
+              "ja": "電車は最も便利な移動手段です。",
+              "en": "The train is the most convenient means of transportation."
+            },
+            {
+              "ja": "目的を達成するための手段を考えた。",
+              "en": "I thought of a method for achieving the goal."
+            }
+          ],
+          "readingMap": "しゅ・だ・ん"
+        },
+        {
+          "id": "kanji-21-30-reitou",
+          "characters": "冷凍",
+          "reading": "れいとう",
+          "meanings": [
+            "Freezing",
+            "Frozen"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb",
+            "の adjective"
+          ],
+          "requiredLevel": 28,
+          "kanjiLevels": {
+            "冷": 28,
+            "凍": 28
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf10"
+          ],
+          "meaningMnemonic": "<kanji>Cool</kanji> something until it is completely <kanji>frozen</kanji>; that process is <vocabulary>freezing</vocabulary>, and the result is <vocabulary>frozen</vocabulary>.\n\n冷凍 refers to freezing for preservation and appears in 冷凍する, 冷凍食品, and 冷凍庫.",
+          "readingMnemonic": "A freezing ray hits your toe while a villain cackles <reading>RAY—TOE!</reading> Your boot turns solid, perfectly <vocabulary>frozen</vocabulary> to the ground. 冷凍 is freezing for preservation or something kept frozen.",
+          "contextSentences": [
+            {
+              "ja": "残ったご飯を冷凍した。",
+              "en": "I froze the leftover rice."
+            },
+            {
+              "ja": "冷凍の野菜は長く保存できる。",
+              "en": "Frozen vegetables can be stored for a long time."
+            }
+          ],
+          "readingMap": "れ・い・と・う"
+        },
+        {
+          "id": "kanji-21-30-yorimichi",
+          "characters": "寄り道",
+          "reading": "よりみち",
+          "meanings": [
+            "Detour",
+            "Stop On The Way"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 29,
+          "kanjiLevels": {
+            "寄": 29,
+            "道": 8
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf47"
+          ],
+          "meaningMnemonic": "<kanji>Draw near</kanji> an interesting shop by stepping off your usual <kanji>road</kanji>; that <vocabulary>detour</vocabulary> is a <vocabulary>stop on the way</vocabulary>.\n\n寄り道 is a small diversion while traveling somewhere, often an unplanned stop before going home or reaching the main destination.",
+          "readingMnemonic": "Draw near 寄り carries より off the main road, while road 道 carries みち down a side street: <reading>より—みち</reading>. A traveler follows them and turns one stop into a delicious <vocabulary>detour</vocabulary>. 寄り道 is a side trip or stop made on the way somewhere.",
+          "contextSentences": [
+            {
+              "ja": "帰りに本屋へ寄り道した。",
+              "en": "I stopped at a bookstore on the way home."
+            },
+            {
+              "ja": "寄り道しないで早く帰ってきて。",
+              "en": "Come straight home without making any detours."
+            }
+          ],
+          "readingMap": "よ・り・み・ち"
+        },
+        {
+          "id": "kanji-21-30-tekisetsu",
+          "characters": "適切",
+          "reading": "てきせつ",
+          "meanings": [
+            "Appropriate",
+            "Suitable"
+          ],
+          "partsOfSpeech": [
+            "な adjective",
+            "noun"
+          ],
+          "requiredLevel": 30,
+          "kanjiLevels": {
+            "適": 30,
+            "切": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "Make a <kanji>suitable</kanji> <kanji>cut</kanji> so the choice fits the situation exactly; it is <vocabulary>appropriate</vocabulary> or <vocabulary>suitable</vocabulary>.\n\n適切 is a fairly neutral-to-formal evaluation that a method, response, amount, or expression properly fits the circumstances.",
+          "readingMnemonic": "A techie adjusts a control room while the supervisor chants <reading>TECHIE SETS</reading>. Each dial clicks into the most <vocabulary>appropriate</vocabulary> and <vocabulary>suitable</vocabulary> position. 適切 describes something fitting the situation or purpose.",
+          "contextSentences": [
+            {
+              "ja": "状況に応じて適切な方法を選んでください。",
+              "en": "Please choose an appropriate method for the situation."
+            },
+            {
+              "ja": "先生は質問に適切に答えた。",
+              "en": "The teacher answered the question appropriately."
+            }
+          ],
+          "readingMap": "て・き・せ・つ"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-31-35",
+      "title": "Everyday Kanji: Levels 31–35",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 31 and 35.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 31,
+        "max": 35
+      },
+      "words": [
+        {
+          "id": "kanji-31-40-bunmyaku",
+          "characters": "文脈",
+          "reading": "ぶんみゃく",
+          "meanings": [
+            "Context",
+            "Line Of Thought"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 31,
+          "kanjiLevels": {
+            "文": 2,
+            "脈": 31
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf20"
+          ],
+          "meaningMnemonic": "A piece of <kanji>writing</kanji> has a <kanji>vein</kanji> running through it; follow that vein to understand its <vocabulary>context</vocabulary> and <vocabulary>line of thought</vocabulary>.\n\n文脈 is the surrounding linguistic or situational context that makes an expression intelligible, as in 文脈から意味を判断する.",
+          "readingMnemonic": "A bun rolls into a sentence, a cat meows, and a cuckoo answers: <reading>BUN—MEOW—COO</reading>. Only the surrounding words explain why this nonsense belongs there, revealing the <vocabulary>context</vocabulary>. 文脈 is the linguistic or logical thread around an expression.",
+          "contextSentences": [
+            {
+              "ja": "文脈から言葉の意味を考えた。",
+              "en": "I inferred the word's meaning from the context."
+            },
+            {
+              "ja": "その一文だけでは文脈が分からない。",
+              "en": "You cannot understand the context from that one sentence alone."
+            }
+          ],
+          "readingMap": "ぶ・ん・みゃ・く"
+        },
+        {
+          "id": "kanji-31-40-seisou",
+          "characters": "清掃",
+          "reading": "せいそう",
+          "meanings": [
+            "Cleaning",
+            "Cleanup"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 31,
+          "kanjiLevels": {
+            "清": 28,
+            "掃": 31
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf09"
+          ],
+          "meaningMnemonic": "Make the space <kanji>pure</kanji>: <kanji>sweep</kanji> every surface until the <vocabulary>cleaning</vocabulary> or <vocabulary>cleanup</vocabulary> is complete.\n\n清掃 is systematic cleaning of a place or facility and sounds more formal or work-oriented than everyday 掃除.",
+          "readingMnemonic": "A cleaner orders a mountain of dirty curtains, <reading>SAY—SEW!</reading> Each repaired curtain sweeps the floor behind it, completing the <vocabulary>cleanup</vocabulary>. 清掃 is organized cleaning of a place or facility.",
+          "contextSentences": [
+            {
+              "ja": "毎朝、駅の清掃をしています。",
+              "en": "We clean the station every morning."
+            },
+            {
+              "ja": "海岸の清掃に参加した。",
+              "en": "I took part in a beach cleanup."
+            }
+          ],
+          "readingMap": "せ・い・そ・う"
+        },
+        {
+          "id": "kanji-31-40-amimono",
+          "characters": "編み物",
+          "reading": "あみもの",
+          "meanings": [
+            "Knitting",
+            "Knitted Item"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective"
+          ],
+          "requiredLevel": 31,
+          "kanjiLevels": {
+            "編": 31,
+            "物": 9
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf27"
+          ],
+          "meaningMnemonic": "Take the action to <kanji>knit</kanji> and produce a warm <kanji>thing</kanji>: <vocabulary>knitting</vocabulary> or a <vocabulary>knitted item</vocabulary>.\n\n編み物 can name the craft itself or an object made by knitting, with context distinguishing the activity from the finished piece.",
+          "readingMnemonic": "Knit 編み carries あみ into a box, and thing 物 carries もの out wearing a half-finished scarf: <reading>あみ—もの</reading>. The scarf keeps growing until the <vocabulary>knitting</vocabulary> buries the room. 編み物 can mean the activity or the thing being knitted.",
+          "contextSentences": [
+            {
+              "ja": "祖母は編み物が得意です。",
+              "en": "My grandmother is good at knitting."
+            },
+            {
+              "ja": "冬の間に編み物を始めた。",
+              "en": "I took up knitting during the winter."
+            }
+          ],
+          "readingMap": "あ・み・も・の"
+        },
+        {
+          "id": "kanji-31-40-konzatsu",
+          "characters": "混雑",
+          "reading": "こんざつ",
+          "meanings": [
+            "Crowding",
+            "Congestion"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 32,
+          "kanjiLevels": {
+            "混": 19,
+            "雑": 32
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf11"
+          ],
+          "meaningMnemonic": "<kanji>Mix</kanji> people together in a <kanji>random</kanji> tangle; the result is <vocabulary>crowding</vocabulary> or <vocabulary>congestion</vocabulary>.\n\n混雑 describes a place or transport system being crowded; 混雑する means to become or be congested.",
+          "readingMnemonic": "Mix 混 carries こん into a station, while clutter 雑 carries ざつ through every gate: <reading>こん—ざつ</reading>. Commuters and luggage tangle together in instant <vocabulary>crowding</vocabulary> and congestion. 混雑 describes a place or traffic being crowded.",
+          "contextSentences": [
+            {
+              "ja": "朝の電車はとても混雑する。",
+              "en": "Morning trains get very crowded."
+            },
+            {
+              "ja": "混雑を避けて早く出発した。",
+              "en": "We left early to avoid congestion."
+            }
+          ],
+          "readingMap": "こ・ん・ざ・つ"
+        },
+        {
+          "id": "kanji-31-40-moushikomi",
+          "characters": "申し込み",
+          "reading": "もうしこみ",
+          "meanings": [
+            "Application",
+            "Registration",
+            "Request"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 32,
+          "kanjiLevels": {
+            "申": 4,
+            "込": 32
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "<kanji>Say humbly</kanji> what you want and send it <kanji>into</kanji> the office; the result is an <vocabulary>application</vocabulary>, <vocabulary>registration</vocabulary>, or <vocabulary>request</vocabulary>.\n\n申し込み is the submitted request or act of signing up; 申し込む is the corresponding verb, and Xの申し込み is an application for X.",
+          "readingMnemonic": "State humbly 申し carries もうし onto a form, and enter 込み carries こみ through the registration slot: <reading>もうし—こみ</reading>. A giant stamp lands on the <vocabulary>application</vocabulary> and registers its owner. 申し込み is an application, registration, or formal request to participate or receive something.",
+          "contextSentences": [
+            {
+              "ja": "講座の申し込みは明日までです。",
+              "en": "Applications for the course close tomorrow."
+            },
+            {
+              "ja": "オンラインで申し込みを済ませた。",
+              "en": "I completed the registration online."
+            }
+          ],
+          "readingMap": "も・う・し・こ・み"
+        },
+        {
+          "id": "kanji-31-40-oomori",
+          "characters": "大盛り",
+          "reading": "おおもり",
+          "meanings": [
+            "Large Serving",
+            "Large Portion"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 33,
+          "kanjiLevels": {
+            "大": 1,
+            "盛": 33
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf46"
+          ],
+          "meaningMnemonic": "Make the rice <kanji>big</kanji> by adding another <kanji>pile</kanji> on top and you get a <vocabulary>large serving</vocabulary> or <vocabulary>large portion</vocabulary>.\n\n大盛り is a larger-than-standard serving, especially of rice, noodles, or a restaurant dish; 大盛りにする asks to upsize it.",
+          "readingMnemonic": "Big 大 carries おお into a rice bowl, and heap 盛り carries もり onto the top: <reading>おお—もり</reading>. The rice rises into a mountain-sized <vocabulary>large serving</vocabulary>. 大盛り is a larger-than-standard serving, especially at a restaurant.",
+          "contextSentences": [
+            {
+              "ja": "ご飯を大盛りでお願いします。",
+              "en": "A large serving of rice, please."
+            },
+            {
+              "ja": "大盛りのカレーを全部食べた。",
+              "en": "I ate the entire large portion of curry."
+            }
+          ],
+          "readingMap": "お・お・も・り"
+        },
+        {
+          "id": "kanji-31-40-sunahama",
+          "characters": "砂浜",
+          "reading": "すなはま",
+          "meanings": [
+            "Sandy Beach"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 33,
+          "kanjiLevels": {
+            "砂": 33,
+            "浜": 28
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf15"
+          ],
+          "meaningMnemonic": "A field of <kanji>sand</kanji> running along the <kanji>beach</kanji> is a <vocabulary>sandy beach</vocabulary>.\n\n砂浜 specifically means a stretch of sandy shore, in contrast with a rocky or concrete waterfront.",
+          "readingMnemonic": "Sue finds someone hammering the shore and protests, <reading>SUE—NAH—HAMMER!</reading> She buries the hammer in the <vocabulary>sandy beach</vocabulary> before it can crack another shell. 砂浜 is a beach or shore covered in sand.",
+          "contextSentences": [
+            {
+              "ja": "子どもたちが砂浜で遊んでいる。",
+              "en": "The children are playing on the sandy beach."
+            },
+            {
+              "ja": "朝早く砂浜を散歩した。",
+              "en": "I walked along the beach early in the morning."
+            }
+          ],
+          "readingMap": "す・な・は・ま"
+        },
+        {
+          "id": "kanji-31-40-musu",
+          "characters": "蒸す",
+          "reading": "むす",
+          "meanings": [
+            "Steam"
+          ],
+          "partsOfSpeech": [
+            "transitive verb",
+            "Godan verb"
+          ],
+          "requiredLevel": 33,
+          "kanjiLevels": {
+            "蒸": 33
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf22"
+          ],
+          "meaningMnemonic": "Add す to <kanji>steam</kanji> and turn the rising vapor into an action: to <vocabulary>steam</vocabulary> food.\n\n蒸す is a transitive verb for cooking or heating something with steam, as in 野菜を蒸す.",
+          "readingMnemonic": "A giant <reading>MOOSE</reading> sits on a pot lid until clouds billow from every edge. Its weight traps the heat to <vocabulary>steam</vocabulary> the dumplings inside. 蒸す is the transitive verb for steaming food; it can also describe muggy weather in intransitive use.",
+          "contextSentences": [
+            {
+              "ja": "野菜を蒸すと甘くなる。",
+              "en": "Steaming vegetables makes them sweeter."
+            },
+            {
+              "ja": "魚を蒸すと、身が柔らかくなる。",
+              "en": "Steaming fish makes the flesh tender."
+            }
+          ],
+          "readingMap": "む・す"
+        },
+        {
+          "id": "kanji-31-40-shukkin",
+          "characters": "出勤",
+          "reading": "しゅっきん",
+          "meanings": [
+            "Go To Work",
+            "Attendance At Work"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 34,
+          "kanjiLevels": {
+            "出": 2,
+            "勤": 34
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf12"
+          ],
+          "meaningMnemonic": "Make your <kanji>exit</kanji> from home to perform your <kanji>work</kanji> duty and you <vocabulary>go to work</vocabulary>; your presence is <vocabulary>attendance at work</vocabulary>.\n\n出勤 focuses on reporting for work and contrasts with 退勤, leaving work, and 欠勤, absence.",
+          "readingMnemonic": "A work alarm <reading>SHOOK—KIN</reading> out of bed and straight through the office door. Every relative tumbles in to <vocabulary>go to work</vocabulary>. 出勤する means to go in or be present at work, not the generic act of working.",
+          "contextSentences": [
+            {
+              "ja": "毎朝八時に出勤する。",
+              "en": "I go to work at eight every morning."
+            },
+            {
+              "ja": "今日は自転車で出勤した。",
+              "en": "I went to work by bicycle today."
+            }
+          ],
+          "readingMap": "しゅ・っ・き・ん"
+        },
+        {
+          "id": "kanji-31-40-jikoku",
+          "characters": "時刻",
+          "reading": "じこく",
+          "meanings": [
+            "Time",
+            "Hour"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 34,
+          "kanjiLevels": {
+            "時": 7,
+            "刻": 34
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf09"
+          ],
+          "meaningMnemonic": "A precise <kanji>time</kanji> <kanji>carve</kanji>d into the timetable gives the exact <vocabulary>time</vocabulary> or <vocabulary>hour</vocabulary>.\n\n時刻 refers to a specific clock time, especially in schedules and announcements, rather than time as an abstract concept.",
+          "readingMnemonic": "Time 時 carries じ onto a clock, while carve 刻 carries こく into its face: <reading>じ—こく</reading>. The carving glows to announce one exact <vocabulary>time</vocabulary>. 時刻 is a specific clock time, often scheduled or recorded.",
+          "contextSentences": [
+            {
+              "ja": "電車の出発時刻を調べた。",
+              "en": "I checked the train's departure time."
+            },
+            {
+              "ja": "約束の時刻に間に合った。",
+              "en": "I made it in time for our appointment."
+            }
+          ],
+          "readingMap": "じ・こ・く"
+        },
+        {
+          "id": "kanji-31-40-kyuukou",
+          "characters": "休講",
+          "reading": "きゅうこう",
+          "meanings": [
+            "Class Cancellation",
+            "Cancelled Lecture"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 35,
+          "kanjiLevels": {
+            "休": 4,
+            "講": 35
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf40"
+          ],
+          "meaningMnemonic": "Give the class a <kanji>rest</kanji> instead of a <kanji>lecture</kanji> and the result is a <vocabulary>class cancellation</vocabulary> or <vocabulary>cancelled lecture</vocabulary>.\n\n休講 means a scheduled class or lecture will not be held, typically because of the instructor or institution; 休講になる means it gets cancelled.",
+          "readingMnemonic": "The professor sees a glowing cue from headquarters, Co.: <reading>CUE—CO.</reading> He pulls a curtain across the classroom and declares a <vocabulary>class cancellation</vocabulary>. 休講 means that a scheduled class or lecture will not be held.",
+          "contextSentences": [
+            {
+              "ja": "先生が病気で今日は休講です。",
+              "en": "Today's class is cancelled because the teacher is ill."
+            },
+            {
+              "ja": "休講のお知らせを学生に送った。",
+              "en": "We sent the students a class-cancellation notice."
+            }
+          ],
+          "readingMap": "きゅ・う・こ・う"
+        },
+        {
+          "id": "kanji-31-40-taizai",
+          "characters": "滞在",
+          "reading": "たいざい",
+          "meanings": [
+            "Stay",
+            "Sojourn"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 35,
+          "kanjiLevels": {
+            "滞": 35,
+            "在": 20
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf04"
+          ],
+          "meaningMnemonic": "Let your movement <kanji>stagnate</kanji> while you <kanji>exist</kanji> in one place; that period is a <vocabulary>stay</vocabulary> or <vocabulary>sojourn</vocabulary>.\n\n滞在 is a temporary stay away from one's usual home, often stated with a place and duration and used as 滞在する.",
+          "readingMnemonic": "Stay 滞 carries たい into a hotel, while exist 在 carries ざい into a suitcase: <reading>たい—ざい</reading>. The luggage unpacks furniture because this will be a long <vocabulary>stay</vocabulary>. 滞在 is staying temporarily in a place away from home.",
+          "contextSentences": [
+            {
+              "ja": "京都に三日間滞在した。",
+              "en": "I stayed in Kyoto for three days."
+            },
+            {
+              "ja": "滞在中はこのホテルを利用します。",
+              "en": "I will use this hotel during my stay."
+            }
+          ],
+          "readingMap": "た・い・ざ・い"
+        },
+        {
+          "id": "kanji-31-40-unchin",
+          "characters": "運賃",
+          "reading": "うんちん",
+          "meanings": [
+            "Fare",
+            "Passenger Fare"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 33,
+          "kanjiLevels": {
+            "運": 10,
+            "賃": 33
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf06"
+          ],
+          "meaningMnemonic": "Let the vehicle <kanji>carry</kanji> you, then pay it <kanji>rent</kanji> for the ride: the <vocabulary>fare</vocabulary> or <vocabulary>passenger fare</vocabulary>.\n\n運賃 is the charge for passenger transportation by train, bus, taxi, and similar services; it does not mean a general fee.",
+          "readingMnemonic": "Carry 運 brings うん onto a bus, while fare 賃 brings ちん into the fare box: <reading>うん—ちん</reading>. The doors open only when the full <vocabulary>fare</vocabulary> drops inside. 運賃 is the passenger fare for transportation.",
+          "contextSentences": [
+            {
+              "ja": "バスの運賃を現金で払った。",
+              "en": "I paid the bus fare in cash."
+            },
+            {
+              "ja": "子どもの運賃は大人の半額です。",
+              "en": "The child fare is half the adult fare."
+            }
+          ],
+          "readingMap": "う・ん・ち・ん"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-36-40",
+      "title": "Everyday Kanji: Levels 36–40",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 36 and 40.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 36,
+        "max": 40
+      },
+      "words": [
+        {
+          "id": "kanji-31-40-norikae",
+          "characters": "乗り換え",
+          "reading": "のりかえ",
+          "meanings": [
+            "Transfer",
+            "Change Trains"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 36,
+          "kanjiLevels": {
+            "乗": 9,
+            "換": 36
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf20",
+            "spec1"
+          ],
+          "meaningMnemonic": "Stop your <kanji>ride</kanji> and <kanji>exchange</kanji> one vehicle for another; you <vocabulary>change trains</vocabulary>, and the connection is a <vocabulary>transfer</vocabulary>.\n\n乗り換え is the transfer itself or transfer point between trains, buses, or other transport; 乗り換える is the verb.",
+          "readingMnemonic": "Ride 乗り carries のり onto a train, while switch 換え carries かえ to the next platform: <reading>のり—かえ</reading>. The first train vanishes, forcing a <vocabulary>transfer</vocabulary> to another line. 乗り換え can also be a transfer between buses or other transport.",
+          "contextSentences": [
+            {
+              "ja": "新宿で地下鉄に乗り換えます。",
+              "en": "I will transfer to the subway at Shinjuku."
+            },
+            {
+              "ja": "この乗り換えには五分かかる。",
+              "en": "This transfer takes five minutes."
+            }
+          ],
+          "readingMap": "の・り・か・え"
+        },
+        {
+          "id": "kanji-31-40-koukan",
+          "characters": "交換",
+          "reading": "こうかん",
+          "meanings": [
+            "Exchange",
+            "Swap"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb",
+            "transitive verb"
+          ],
+          "requiredLevel": 36,
+          "kanjiLevels": {
+            "交": 5,
+            "換": 36
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf02"
+          ],
+          "meaningMnemonic": "Two sides <kanji>mix</kanji> at the table and <kanji>exchange</kanji> what they brought; that is an <vocabulary>exchange</vocabulary> or <vocabulary>swap</vocabulary>.\n\n交換 is a mutual replacement or trade of objects, information, parts, or opinions and commonly forms 交換する.",
+          "readingMnemonic": "A company called Co. trades its empty can for a full one: <reading>CO.—CAN</reading>. The cans swap places and complete the <vocabulary>exchange</vocabulary>. 交換する means to exchange things, information, or parts for one another.",
+          "contextSentences": [
+            {
+              "ja": "友達と連絡先を交換した。",
+              "en": "I exchanged contact information with a friend."
+            },
+            {
+              "ja": "壊れた商品を新しいものに交換してもらった。",
+              "en": "I had the defective product exchanged for a new one."
+            }
+          ],
+          "readingMap": "こ・う・か・ん"
+        },
+        {
+          "id": "kanji-31-40-fumikiri",
+          "characters": "踏切",
+          "reading": "ふみきり",
+          "meanings": [
+            "Railway Crossing"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 36,
+          "kanjiLevels": {
+            "踏": 36,
+            "切": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf13"
+          ],
+          "meaningMnemonic": "<kanji>Step</kanji> across the <kanji>cut</kanji> where tracks slice through the road and you are at a <vocabulary>railway crossing</vocabulary>.\n\n踏切 is a level crossing where a road or path meets railway tracks, usually with gates, lights, or warning bells.",
+          "readingMnemonic": "Tread 踏み carries ふみ toward the tracks, while cut 切り carries きり across the road: <reading>ふみ—きり</reading>. A striped gate slices traffic in two at the <vocabulary>railway crossing</vocabulary>. 踏切 is the crossing itself, not the act of stepping and cutting.",
+          "contextSentences": [
+            {
+              "ja": "踏切で電車が通るのを待った。",
+              "en": "I waited at the railway crossing for the train to pass."
+            },
+            {
+              "ja": "この踏切は朝とても混む。",
+              "en": "This railway crossing gets very crowded in the morning."
+            }
+          ],
+          "readingMap": "ふ・み・き・り"
+        },
+        {
+          "id": "kanji-31-40-atesaki",
+          "characters": "宛先",
+          "reading": "あてさき",
+          "meanings": [
+            "Address",
+            "Destination"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 39,
+          "kanjiLevels": {
+            "宛": 39,
+            "先": 4
+          },
+          "jmdictPriorityTags": [
+            "ichi1"
+          ],
+          "meaningMnemonic": "Write the <kanji>address</kanji> that sends the message <kanji>ahead</kanji> to its <vocabulary>destination</vocabulary>.\n\n宛先 is the recipient address or destination field on an envelope, parcel, email, or electronic message.",
+          "readingMnemonic": "Destination 宛 carries あて onto an envelope, while ahead 先 carries さき toward the recipient: <reading>あて—さき</reading>. Without those details, the <vocabulary>address</vocabulary> spins in circles and never arrives. 宛先 is the recipient or destination information written on mail or a message.",
+          "contextSentences": [
+            {
+              "ja": "封筒に宛先を書いてください。",
+              "en": "Please write the address on the envelope."
+            },
+            {
+              "ja": "メールの宛先を間違えた。",
+              "en": "I entered the wrong email address."
+            }
+          ],
+          "readingMap": "あ・て・さ・き"
+        },
+        {
+          "id": "kanji-31-40-katazukeru",
+          "characters": "片付ける",
+          "reading": "かたづける",
+          "meanings": [
+            "Tidy Up",
+            "Put Away"
+          ],
+          "partsOfSpeech": [
+            "transitive verb",
+            "Ichidan verb"
+          ],
+          "requiredLevel": 39,
+          "kanjiLevels": {
+            "片": 39,
+            "付": 7
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf37"
+          ],
+          "meaningMnemonic": "Gather every loose <kanji>fragment</kanji> and <kanji>attach</kanji> it to its proper place; you <vocabulary>tidy up</vocabulary> or <vocabulary>put away</vocabulary> the mess.\n\n片付ける is a transitive verb for putting objects away, clearing a space, or finishing off a task or problem.",
+          "readingMnemonic": "One loose piece 片 carries かた across a messy room, then attach 付ける carries つける toward its proper place. The pieces collide and voice つ to づ in <reading>かた—づける</reading>, clicking every object home as they <vocabulary>tidy up</vocabulary> the room. 片付ける can mean putting things away or finishing a matter.",
+          "contextSentences": [
+            {
+              "ja": "食事の後で台所を片付ける。",
+              "en": "I tidy the kitchen after the meal."
+            },
+            {
+              "ja": "机の上の本を片付ける。",
+              "en": "I put away the books on the desk."
+            }
+          ],
+          "readingMap": "か・た・づ・け・る"
+        },
+        {
+          "id": "kanji-31-40-chuusha",
+          "characters": "駐車",
+          "reading": "ちゅうしゃ",
+          "meanings": [
+            "Parking",
+            "Park A Vehicle"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 40,
+          "kanjiLevels": {
+            "駐": 40,
+            "車": 4
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf12"
+          ],
+          "meaningMnemonic": "Make a temporary <kanji>resident</kanji> of your <kanji>car</kanji> and you <vocabulary>park a vehicle</vocabulary>; the act is <vocabulary>parking</vocabulary>.\n\n駐車 refers specifically to parking a vehicle; 駐車する is to park, and 駐車場 is a parking lot.",
+          "readingMnemonic": "At a car park, an attendant gives every vehicle a giant 注射, an injection. That exact homophone <reading>ちゅうしゃ</reading> pins each car in place, forcing every driver to <vocabulary>park a vehicle</vocabulary>. 駐車 means parking a vehicle; 注射 is the medical injection with the same reading.",
+          "contextSentences": [
+            {
+              "ja": "ここに車を駐車しないでください。",
+              "en": "Please do not park a car here."
+            },
+            {
+              "ja": "駅の近くに駐車する場所がない。",
+              "en": "There is nowhere to park near the station."
+            }
+          ],
+          "readingMap": "ちゅ・う・しゃ"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-41-45",
+      "title": "Everyday Kanji: Levels 41–45",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 41 and 45.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 41,
+        "max": 45
+      },
+      "words": [
+        {
+          "id": "kanji-41-50-houtai",
+          "characters": "包帯",
+          "reading": "ほうたい",
+          "meanings": [
+            "Bandage",
+            "Dressing"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 41,
+          "kanjiLevels": {
+            "包": 41,
+            "帯": 31
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf26"
+          ],
+          "meaningMnemonic": "<kanji>Wrap</kanji> a soft <kanji>belt</kanji> around an injury and it becomes a <vocabulary>bandage</vocabulary> or <vocabulary>dressing</vocabulary>.\n\n包帯 is the strip or dressing wrapped around a wound or injured area; 包帯を巻く means to apply one.",
+          "readingMnemonic": "A gardener wraps a bleeding hoe in a necktie: <reading>HOE—TIE</reading>. The ridiculous cloth becomes a makeshift <vocabulary>bandage</vocabulary> around the blade. 包帯 is a medical bandage or dressing.",
+          "contextSentences": [
+            {
+              "ja": "傷に包帯を巻いた。",
+              "en": "I wrapped a bandage around the wound."
+            },
+            {
+              "ja": "濡れた包帯を新しいものに替えた。",
+              "en": "I replaced the wet dressing with a new one."
+            }
+          ],
+          "readingMap": "ほ・う・た・い"
+        },
+        {
+          "id": "kanji-41-50-shikyuu",
+          "characters": "至急",
+          "reading": "しきゅう",
+          "meanings": [
+            "Urgent",
+            "Immediately"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective",
+            "adverb"
+          ],
+          "requiredLevel": 41,
+          "kanjiLevels": {
+            "至": 41,
+            "急": 16
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf25"
+          ],
+          "meaningMnemonic": "<kanji>Attain</kanji> the point where everyone must <kanji>hurry</kanji>: the matter is <vocabulary>urgent</vocabulary> and must be handled <vocabulary>immediately</vocabulary>.\n\n至急 is forceful and businesslike, common in messages and instructions that require prompt action, such as 至急ご連絡ください.",
+          "readingMnemonic": "A stage manager points at an actor and yells <reading>SHE—CUE!</reading> The emergency curtain is falling, so she must move <vocabulary>immediately</vocabulary>. 至急 marks something as urgent or needing prompt action.",
+          "contextSentences": [
+            {
+              "ja": "至急、折り返し電話してください。",
+              "en": "Please call me back immediately."
+            },
+            {
+              "ja": "至急の用件があるそうです。",
+              "en": "Apparently there is an urgent matter."
+            }
+          ],
+          "readingMap": "し・きゅ・う"
+        },
+        {
+          "id": "kanji-41-50-gyougi",
+          "characters": "行儀",
+          "reading": "ぎょうぎ",
+          "meanings": [
+            "Manners",
+            "Behavior"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 41,
+          "kanjiLevels": {
+            "行": 5,
+            "儀": 41
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf26"
+          ],
+          "meaningMnemonic": "The way you <kanji>go</kanji> through a formal <kanji>ceremony</kanji> reveals your <vocabulary>manners</vocabulary> and <vocabulary>behavior</vocabulary>.\n\n行儀 evaluates socially proper conduct, especially at meals or for children and animals; 行儀がいい means well-behaved.",
+          "readingMnemonic": "Go 行 carries ぎょう to the dinner table, while ceremony 儀 carries ぎ into a perfect bow: <reading>ぎょう—ぎ</reading>. Even a gyoza bows before every bite, and its flawless table <vocabulary>manners</vocabulary> shame the rude diners. 行儀 usually refers to socially proper behavior, especially posture or manners.",
+          "contextSentences": [
+            {
+              "ja": "食事中の行儀に気をつけなさい。",
+              "en": "Mind your manners while eating."
+            },
+            {
+              "ja": "犬が行儀よく座って待っている。",
+              "en": "The dog is sitting and waiting obediently."
+            }
+          ],
+          "readingMap": "ぎょ・う・ぎ"
+        },
+        {
+          "id": "kanji-41-50-kanjin",
+          "characters": "肝心",
+          "reading": "かんじん",
+          "meanings": [
+            "Essential",
+            "Crucial"
+          ],
+          "partsOfSpeech": [
+            "な adjective",
+            "の adjective",
+            "noun"
+          ],
+          "requiredLevel": 42,
+          "kanjiLevels": {
+            "肝": 42,
+            "心": 3
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "Your <kanji>liver</kanji> and <kanji>heart</kanji> are both vital, so whatever is compared to them must be <vocabulary>essential</vocabulary> or <vocabulary>crucial</vocabulary>.\n\n肝心 singles out the most important point or thing in a situation, often in 肝心なのは, the essential thing is.",
+          "readingMnemonic": "A scientist opens a tin marked <reading>CAN—GENE</reading> and finds the only gene that can save the crop. Losing that can would destroy the experiment, so it is absolutely <vocabulary>crucial</vocabulary>. 肝心 describes the essential or most important point.",
+          "contextSentences": [
+            {
+              "ja": "肝心な鍵を家に忘れた。",
+              "en": "I left the crucial key at home."
+            },
+            {
+              "ja": "肝心なのは毎日続けることです。",
+              "en": "The essential thing is to continue every day."
+            }
+          ],
+          "readingMap": "か・ん・じ・ん"
+        },
+        {
+          "id": "kanji-41-50-nameraka",
+          "characters": "滑らか",
+          "reading": "なめらか",
+          "meanings": [
+            "Smooth",
+            "Fluent"
+          ],
+          "partsOfSpeech": [
+            "な adjective"
+          ],
+          "requiredLevel": 42,
+          "kanjiLevels": {
+            "滑": 42
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf20"
+          ],
+          "meaningMnemonic": "If your hand or your words can <kanji>slide</kanji> without catching, they are <vocabulary>smooth</vocabulary> or <vocabulary>fluent</vocabulary>.\n\n滑らか describes an even physical texture or movement and, figuratively, speech or transitions that flow naturally.",
+          "readingMnemonic": "Four polishers attack a jagged stone: one objects ‘NAH!’, a sheep bleats ‘MEH!’, a cheerleader shouts ‘RAH!’, and a crow adds ‘CAW!’ Their chant <reading>NAH—MEH—RAH—CAW</reading> continues until the surface becomes perfectly <vocabulary>smooth</vocabulary>. 滑らか can describe a smooth surface, motion, or fluent speech.",
+          "contextSentences": [
+            {
+              "ja": "この布は滑らかな手触りだ。",
+              "en": "This fabric feels smooth."
+            },
+            {
+              "ja": "練習して、会話が滑らかになった。",
+              "en": "Practice made my conversation more fluent."
+            }
+          ],
+          "readingMap": "な・め・ら・か"
+        },
+        {
+          "id": "kanji-41-50-sokuseki",
+          "characters": "即席",
+          "reading": "そくせき",
+          "meanings": [
+            "Instant",
+            "Improvised"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective"
+          ],
+          "requiredLevel": 43,
+          "kanjiLevels": {
+            "即": 43,
+            "席": 17
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf23"
+          ],
+          "meaningMnemonic": "Build it in an <kanji>instant</kanji> beside your <kanji>seat</kanji> and it is <vocabulary>instant</vocabulary> or <vocabulary>improvised</vocabulary>.\n\n即席 can describe quickly prepared food or something created on the spot with available materials, as in 即席のスープ or 即席の棚.",
+          "readingMnemonic": "Immediate 即 carries そく onto a theater seat 席 carrying せき: <reading>そく—せき</reading>. The seat becomes a cooking stove and produces an <vocabulary>instant</vocabulary>, improvised meal before the audience sits down. 即席 means made on the spot or ready very quickly.",
+          "contextSentences": [
+            {
+              "ja": "昼に即席のスープを飲んだ。",
+              "en": "I had instant soup at lunch."
+            },
+            {
+              "ja": "箱で即席の棚を作った。",
+              "en": "I made an improvised shelf from boxes."
+            }
+          ],
+          "readingMap": "そ・く・せ・き"
+        },
+        {
+          "id": "kanji-41-50-suitou",
+          "characters": "水筒",
+          "reading": "すいとう",
+          "meanings": [
+            "Water Bottle",
+            "Flask"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 43,
+          "kanjiLevels": {
+            "水": 2,
+            "筒": 43
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf37"
+          ],
+          "meaningMnemonic": "Pour <kanji>water</kanji> into a portable <kanji>cylinder</kanji> and you have a <vocabulary>water bottle</vocabulary> or <vocabulary>flask</vocabulary>.\n\n水筒 is a reusable bottle or flask carried with a drink, not an ordinary disposable bottle of water.",
+          "readingMnemonic": "Sue's E-shaped bottle tumbles onto her toe: <reading>SUE—E—TOE</reading>. Water gushes from the <vocabulary>water bottle</vocabulary> and fills her shoe. 水筒 is a portable flask or bottle, commonly carried for drinks.",
+          "contextSentences": [
+            {
+              "ja": "水筒に冷たいお茶を入れた。",
+              "en": "I put cold tea in my water bottle."
+            },
+            {
+              "ja": "遠足には水筒を持ってきてください。",
+              "en": "Please bring a water bottle on the field trip."
+            }
+          ],
+          "readingMap": "す・い・と・う"
+        },
+        {
+          "id": "kanji-41-50-tenmetsu",
+          "characters": "点滅",
+          "reading": "てんめつ",
+          "meanings": [
+            "Blinking",
+            "Flashing"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 43,
+          "kanjiLevels": {
+            "点": 6,
+            "滅": 43
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf33"
+          ],
+          "meaningMnemonic": "A bright <kanji>point</kanji> is repeatedly <kanji>destroy</kanji>ed and reborn; the result is <vocabulary>blinking</vocabulary> or <vocabulary>flashing</vocabulary>.\n\n点滅 describes a light switching on and off repeatedly, such as a signal, warning lamp, or low-battery indicator.",
+          "readingMnemonic": "Ten warning lights meet Sue at the door: <reading>TEN—MET—SUE</reading>. They begin <vocabulary>blinking</vocabulary> in sequence until she turns around. 点滅 is repeated switching on and off, as with a light or signal.",
+          "contextSentences": [
+            {
+              "ja": "信号が黄色く点滅している。",
+              "en": "The traffic light is flashing yellow."
+            },
+            {
+              "ja": "電池が少ないとランプが点滅する。",
+              "en": "The lamp blinks when the battery is low."
+            }
+          ],
+          "readingMap": "て・ん・め・つ"
+        },
+        {
+          "id": "kanji-41-50-shiraga",
+          "characters": "白髪",
+          "reading": "しらが",
+          "meanings": [
+            "Gray Hair",
+            "White Hair"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "の adjective"
+          ],
+          "requiredLevel": 44,
+          "kanjiLevels": {
+            "白": 2,
+            "髪": 44
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf16"
+          ],
+          "meaningMnemonic": "<kanji>White</kanji> <kanji>hair</kanji> is <vocabulary>white hair</vocabulary>, commonly called <vocabulary>gray hair</vocabulary> in English.\n\n白髪 can refer collectively to graying hair or to an individual white strand; 白髪が増える means to get more gray hair.",
+          "readingMnemonic": "A barber begins to shear a ghost. At the first snip, the ghost screams <reading>SHEAR-A—GAH!</reading>, and every cut hair turns into <vocabulary>gray hair</vocabulary>. 白髪 is the ordinary word for gray or white hair, especially hair that has lost its pigment.",
+          "contextSentences": [
+            {
+              "ja": "父は最近、白髪が増えた。",
+              "en": "My father has gotten more gray hair recently."
+            },
+            {
+              "ja": "鏡を見て一本の白髪を見つけた。",
+              "en": "I looked in the mirror and found one white hair."
+            }
+          ],
+          "readingMap": "し・ら・が"
+        },
+        {
+          "id": "kanji-41-50-hikage",
+          "characters": "日陰",
+          "reading": "ひかげ",
+          "meanings": [
+            "Shade",
+            "Shadow"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 45,
+          "kanjiLevels": {
+            "日": 2,
+            "陰": 45
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf23"
+          ],
+          "meaningMnemonic": "Step away from the <kanji>sun</kanji> and into the cool <kanji>shade</kanji>: the <vocabulary>shade</vocabulary> or <vocabulary>shadow</vocabulary> of 日陰.\n\n日陰 is an area out of direct sunlight, while 影 more generally refers to a cast shadow or silhouette.",
+          "readingMnemonic": "Sun 日 carries ひ into the street, while shadow 陰 carries かげ beneath an umbrella: <reading>ひ—かげ</reading>. Wherever the umbrella moves, it creates cool <vocabulary>shade</vocabulary>. 日陰 is a shaded place or the shade itself.",
+          "contextSentences": [
+            {
+              "ja": "暑いので日陰で休みましょう。",
+              "en": "It is hot, so let's rest in the shade."
+            },
+            {
+              "ja": "日陰にはまだ雪が残っている。",
+              "en": "Snow still remains in the shaded areas."
+            }
+          ],
+          "readingMap": "ひ・か・げ"
+        },
+        {
+          "id": "kanji-41-50-shitsudo",
+          "characters": "湿度",
+          "reading": "しつど",
+          "meanings": [
+            "Humidity"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 45,
+          "kanjiLevels": {
+            "湿": 45,
+            "度": 9
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf15"
+          ],
+          "meaningMnemonic": "Measure how <kanji>damp</kanji> the air is by <kanji>degree</kanji> and you get its <vocabulary>humidity</vocabulary>.\n\n湿度 is the measured moisture level in the air and commonly appears with 高い, 低い, or a percentage.",
+          "readingMnemonic": "In a tropical bakery, <reading>SHEETS—DOUGH</reading> stick together in the air. The baker peels the damp sheets off the dough and blames the crushing <vocabulary>humidity</vocabulary>. 湿度 is the measured degree of humidity.",
+          "contextSentences": [
+            {
+              "ja": "今日は湿度が高くて蒸し暑い。",
+              "en": "It is humid and muggy today."
+            },
+            {
+              "ja": "部屋の湿度を五十パーセントに保つ。",
+              "en": "I keep the room's humidity at fifty percent."
+            }
+          ],
+          "readingMap": "し・つ・ど"
+        },
+        {
+          "id": "kanji-41-50-hamigaki",
+          "characters": "歯磨き",
+          "reading": "はみがき",
+          "meanings": [
+            "Toothbrushing",
+            "Brushing Teeth"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 45,
+          "kanjiLevels": {
+            "歯": 12,
+            "磨": 45
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf24"
+          ],
+          "meaningMnemonic": "Take each <kanji>tooth</kanji> and <kanji>polish</kanji> it: that is <vocabulary>toothbrushing</vocabulary> or <vocabulary>brushing teeth</vocabulary>.\n\n歯磨き names the routine or act of brushing; 歯磨きをする is to brush one's teeth, while 歯磨き粉 is toothpaste.",
+          "readingMnemonic": "Tooth 歯 carries は into a bathroom, while polish 磨き carries みがき onto a giant brush: <reading>は—みがき</reading>. The brush unlocks after every meal for heroic <vocabulary>toothbrushing</vocabulary>. 歯磨き can mean the act of brushing teeth or toothpaste in some contexts.",
+          "contextSentences": [
+            {
+              "ja": "朝晩の歯磨きを忘れないで。",
+              "en": "Do not forget to brush your teeth morning and night."
+            },
+            {
+              "ja": "食後に三分間、歯磨きをする。",
+              "en": "I brush my teeth for three minutes after meals."
+            }
+          ],
+          "readingMap": "は・み・が・き"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-46-50",
+      "title": "Everyday Kanji: Levels 46–50",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 46 and 50.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 46,
+        "max": 50
+      },
+      "words": [
+        {
+          "id": "kanji-41-50-hokori",
+          "characters": "誇り",
+          "reading": "ほこり",
+          "meanings": [
+            "Pride"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 46,
+          "kanjiLevels": {
+            "誇": 46
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "Add り to <kanji>pride</kanji> and turn the feeling into something you carry: <vocabulary>pride</vocabulary>.\n\n誇り is positive dignity or satisfaction in a person, place, achievement, or work; 誇りを持つ means to take pride in it.",
+          "readingMnemonic": "A proud champion displays a trophy, but it is buried under ほこり, dust. Brush off that exact-homophone <reading>ほこり</reading> and reveal the champion's shining <vocabulary>pride</vocabulary>. 誇り is pride in a person, place, ability, or achievement.",
+          "contextSentences": [
+            {
+              "ja": "自分の仕事に誇りを持っている。",
+              "en": "I take pride in my work."
+            },
+            {
+              "ja": "この町の歴史は住民の誇りです。",
+              "en": "This town's history is a source of pride for its residents."
+            }
+          ],
+          "readingMap": "ほ・こ・り"
+        },
+        {
+          "id": "kanji-41-50-tsuuchou",
+          "characters": "通帳",
+          "reading": "つうちょう",
+          "meanings": [
+            "Bankbook",
+            "Passbook"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 48,
+          "kanjiLevels": {
+            "通": 7,
+            "帳": 48
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf15"
+          ],
+          "meaningMnemonic": "Every transaction that can <kanji>pass through</kanji> your account is recorded in a <kanji>notebook</kanji>: a <vocabulary>bankbook</vocabulary> or <vocabulary>passbook</vocabulary>.\n\n通帳 is the bank-issued record book used to print deposits, withdrawals, and balances; 通帳に記帳する means to update it.",
+          "readingMnemonic": "PASS THROUGH 通 drills a tunnel through NOTEBOOK 帳; their familiar sounds join as <reading>つう—ちょう</reading>. Every deposit and withdrawal races through the pages of the glowing <vocabulary>bankbook</vocabulary>. 通帳 is a passbook recording bank account transactions.",
+          "contextSentences": [
+            {
+              "ja": "銀行で新しい通帳を受け取った。",
+              "en": "I received a new bankbook at the bank."
+            },
+            {
+              "ja": "通帳に記帳して残高を確認した。",
+              "en": "I updated my passbook and checked the balance."
+            }
+          ],
+          "readingMap": "つ・う・ちょ・う"
+        },
+        {
+          "id": "kanji-41-50-kankisen",
+          "characters": "換気扇",
+          "reading": "かんきせん",
+          "meanings": [
+            "Ventilation Fan",
+            "Extractor Fan"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 47,
+          "kanjiLevels": {
+            "換": 36,
+            "気": 4,
+            "扇": 47
+          },
+          "jmdictPriorityTags": [
+            "ichi1"
+          ],
+          "meaningMnemonic": "<kanji>Exchange</kanji> stale <kanji>energy</kanji> for fresh air with a spinning <kanji>folding fan</kanji>: a <vocabulary>ventilation fan</vocabulary> or <vocabulary>extractor fan</vocabulary>.\n\n換気扇 is the powered fan that vents air from a kitchen, bathroom, or room; 換気扇を回す means to turn it on.",
+          "readingMnemonic": "Exchange 換 carries かん into a smoky room, air 気 carries き to the window, and fan 扇 carries せん through the wall: <reading>かん—き—せん</reading>. The roaring <vocabulary>ventilation fan</vocabulary> throws smoke and smells outside. 換気扇 is an extractor or exhaust fan used to ventilate a room.",
+          "contextSentences": [
+            {
+              "ja": "料理をする前に換気扇を回した。",
+              "en": "I turned on the extractor fan before cooking."
+            },
+            {
+              "ja": "換気扇の音が少し大きい。",
+              "en": "The ventilation fan is a little noisy."
+            }
+          ],
+          "readingMap": "か・ん・き・せ・ん"
+        },
+        {
+          "id": "kanji-41-50-nikomu",
+          "characters": "煮込む",
+          "reading": "にこむ",
+          "meanings": [
+            "Simmer",
+            "Stew"
+          ],
+          "partsOfSpeech": [
+            "transitive verb",
+            "Godan verb"
+          ],
+          "requiredLevel": 49,
+          "kanjiLevels": {
+            "煮": 49,
+            "込": 32
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf33"
+          ],
+          "meaningMnemonic": "<kanji>Boil</kanji> flavor deep <kanji>into</kanji> the ingredients over time and you <vocabulary>simmer</vocabulary> or <vocabulary>stew</vocabulary> them.\n\n煮込む is a transitive verb for cooking ingredients thoroughly in liquid, usually for longer than a quick boil.",
+          "readingMnemonic": "Boil 煮 carries に into a pot, while pack in 込む carries こむ beneath the lid: <reading>に—こむ</reading>. The ingredients refuse to come out until they <vocabulary>simmer</vocabulary> in the sauce. 煮込む means to cook ingredients thoroughly in liquid, often for some time.",
+          "contextSentences": [
+            {
+              "ja": "肉を弱火で二時間煮込む。",
+              "en": "I simmer the meat over low heat for two hours."
+            },
+            {
+              "ja": "野菜を煮込むとスープが甘くなる。",
+              "en": "Stewing the vegetables makes the soup sweeter."
+            }
+          ],
+          "readingMap": "に・こ・む"
+        },
+        {
+          "id": "kanji-41-50-mudazukai",
+          "characters": "無駄遣い",
+          "reading": "むだづかい",
+          "meanings": [
+            "Wasteful Spending",
+            "Squandering"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb",
+            "transitive verb"
+          ],
+          "requiredLevel": 50,
+          "kanjiLevels": {
+            "無": 17,
+            "駄": 50,
+            "遣": 37
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf20"
+          ],
+          "meaningMnemonic": "A shopper buys <kanji>nothing</kanji> useful, drags a <kanji>burdensome</kanji> cart of junk to the door, then tells the clerk to <kanji>dispatch</kanji> every coin from their wallet: <vocabulary>wasteful spending</vocabulary> or <vocabulary>squandering</vocabulary>.\n\n無駄遣い can waste money, time, materials, or ability; Xを無駄遣いする means to squander X.",
+          "readingMnemonic": "Waste 無駄 carries むだ onto a credit card, while use 遣い carries つかい toward a luxury shop. The card's impact voices つ to づ in <reading>むだ—づかい</reading>, and diamond-studded hay empties the budget in one burst of <vocabulary>wasteful spending</vocabulary>. 無駄遣い can waste money, time, or resources.",
+          "contextSentences": [
+            {
+              "ja": "セールで必要のない物を買うのは無駄遣いだ。",
+              "en": "Buying things you do not need in a sale is wasteful spending."
+            },
+            {
+              "ja": "時間を無駄遣いしないように計画を立てた。",
+              "en": "I made a plan so that I would not squander my time."
+            }
+          ],
+          "readingMap": "む・だ・づ・か・い"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-51-55",
+      "title": "Everyday Kanji: Levels 51–55",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 51 and 55.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 51,
+        "max": 55
+      },
+      "words": [
+        {
+          "id": "kanji-51-60-kareha",
+          "characters": "枯れ葉",
+          "reading": "かれは",
+          "meanings": [
+            "Dead Leaf",
+            "Dry Leaves"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 51,
+          "kanjiLevels": {
+            "枯": 51,
+            "葉": 10
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf24"
+          ],
+          "meaningMnemonic": "When something begins to <kanji>wither</kanji>, each <kanji>leaf</kanji> becomes a <vocabulary>dead leaf</vocabulary>; together they are <vocabulary>dry leaves</vocabulary>.\n\n枯れ葉 refers to leaves that have dried and died, especially fallen autumn leaves, and is also commonly written 枯葉.",
+          "readingMnemonic": "Wither 枯れ carries かれ into a tree, and leaf 葉 carries は onto one brittle branch: <reading>かれ—は</reading>. The branch snaps and coughs up a <vocabulary>dead leaf</vocabulary>. 枯れ葉 means a withered or dead leaf; 落ち葉 instead focuses on a leaf that has fallen.",
+          "contextSentences": [
+            {
+              "ja": "秋になると庭に枯れ葉が積もる。",
+              "en": "Dead leaves pile up in the garden in autumn."
+            },
+            {
+              "ja": "道の枯れ葉をほうきで掃いた。",
+              "en": "I swept the dry leaves from the road with a broom."
+            }
+          ],
+          "readingMap": "か・れ・は"
+        },
+        {
+          "id": "kanji-51-60-choujou",
+          "characters": "頂上",
+          "reading": "ちょうじょう",
+          "meanings": [
+            "Summit",
+            "Peak",
+            "Top"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 51,
+          "kanjiLevels": {
+            "頂": 51,
+            "上": 1
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf13"
+          ],
+          "meaningMnemonic": "The <kanji>summit</kanji> sitting <kanji>above</kanji> everything else is the <vocabulary>summit</vocabulary>, <vocabulary>peak</vocabulary>, or <vocabulary>top</vocabulary>.\n\n頂上 most often means the top of a mountain, but it can also describe the highest point of another structure or ranking.",
+          "readingMnemonic": "SUMMIT 頂 climbs on top of ABOVE 上, and their familiar on'yomi lock together as <reading>ちょう—じょう</reading>. The stacked kanji balance on the mountain's final rock, marking the <vocabulary>summit</vocabulary>. 頂上 is the highest point or top, especially of a mountain.",
+          "contextSentences": [
+            {
+              "ja": "山の頂上から湖が見えた。",
+              "en": "We could see the lake from the summit of the mountain."
+            },
+            {
+              "ja": "昼前に頂上へ着いた。",
+              "en": "We reached the peak before noon."
+            }
+          ],
+          "readingMap": "ちょ・う・じょ・う"
+        },
+        {
+          "id": "kanji-51-60-kankonsousai",
+          "characters": "冠婚葬祭",
+          "reading": "かんこんそうさい",
+          "meanings": [
+            "Family Ceremonies",
+            "Ceremonial Occasions"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 54,
+          "kanjiLevels": {
+            "冠": 54,
+            "婚": 30,
+            "葬": 37,
+            "祭": 12
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf21"
+          ],
+          "meaningMnemonic": "Line up a <kanji>crown</kanji> ceremony, <kanji>marriage</kanji>, <kanji>burial</kanji>, and <kanji>festival</kanji>; together they represent major <vocabulary>family ceremonies</vocabulary> and <vocabulary>ceremonial occasions</vocabulary>.\n\n冠婚葬祭 is an umbrella term for life's formal rites and the etiquette, clothing, gifts, and obligations surrounding them.",
+          "readingMnemonic": "One family day goes completely wrong: a giant CAN wears the ceremonial crown, a CON artist crashes the wedding, the mourners SEW a funeral veil, and everyone lets out a SIGH when festival fireworks start before the burial ends. <reading>CAN—CON—SEW—SIGH</reading> carries the impossible parade through all the family's major <vocabulary>ceremonial occasions</vocabulary>. 冠婚葬祭 is an umbrella term for major family and life ceremonies and their etiquette, not one particular event.",
+          "contextSentences": [
+            {
+              "ja": "冠婚葬祭で着られる黒い服を買った。",
+              "en": "I bought black clothes suitable for family ceremonies."
+            },
+            {
+              "ja": "冠婚葬祭のマナーを本で学んだ。",
+              "en": "I learned the etiquette for ceremonial occasions from a book."
+            }
+          ],
+          "readingMap": "か・ん・こ・ん・そ・う・さ・い"
+        },
+        {
+          "id": "kanji-51-60-hensachi",
+          "characters": "偏差値",
+          "reading": "へんさち",
+          "meanings": [
+            "Deviation Score",
+            "Standardized Score"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 52,
+          "kanjiLevels": {
+            "偏": 52,
+            "差": 24,
+            "値": 22
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf07"
+          ],
+          "meaningMnemonic": "A <kanji>bias</kanji> tilts a test score away from the average; a printer measures the <kanji>difference</kanji> and stamps it as a <kanji>value</kanji>: a <vocabulary>deviation score</vocabulary> or <vocabulary>standardized score</vocabulary>.\n\n偏差値 is a Japanese standardized score used especially for exams and school selectivity, with 50 representing the reference average.",
+          "readingMnemonic": "Deviation 偏差 carries へんさ onto an exam sheet, while value 値 carries ち onto the score: <reading>へんさ—ち</reading>. A hen's result shifts against every other student's to produce a <vocabulary>standardized score</vocabulary>. 偏差値 is commonly used for academic test performance and school selectivity.",
+          "contextSentences": [
+            {
+              "ja": "志望校の偏差値を調べた。",
+              "en": "I looked up the standardized score for my preferred school."
+            },
+            {
+              "ja": "模試の偏差値が前回より上がった。",
+              "en": "My practice-test deviation score went up from last time."
+            }
+          ],
+          "readingMap": "へ・ん・さ・ち"
+        },
+        {
+          "id": "kanji-51-60-furoshiki",
+          "characters": "風呂敷",
+          "reading": "ふろしき",
+          "meanings": [
+            "Furoshiki",
+            "Wrapping Cloth"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 52,
+          "kanjiLevels": {
+            "風": 7,
+            "呂": 52,
+            "敷": 40
+          },
+          "jmdictPriorityTags": [
+            "ichi1"
+          ],
+          "meaningMnemonic": "Picture the <kanji>wind</kanji> entering a <kanji>bath</kanji> and lifting a cloth you had <kanji>spread</kanji> out: grab that <vocabulary>furoshiki</vocabulary>, the Japanese <vocabulary>wrapping cloth</vocabulary>.\n\n風呂敷 is a reusable square cloth folded and tied around gifts or belongings; the component scene is a memory aid, not a claim about the word's origin.",
+          "readingMnemonic": "A square wrapping cloth sprouts a giant 'fro, points to a woman, and swallows her key: <reading>FRO—SHE—KEY</reading>. She unfolds the <vocabulary>furoshiki</vocabulary> and turns it into a bag for carrying the key home. 風呂敷 is a reusable wrapping cloth, not a bath towel.",
+          "contextSentences": [
+            {
+              "ja": "贈り物を風呂敷で包んだ。",
+              "en": "I wrapped the gift in a furoshiki."
+            },
+            {
+              "ja": "この風呂敷は小さく畳める。",
+              "en": "This wrapping cloth folds up small."
+            }
+          ],
+          "readingMap": "ふ・ろ・し・き"
+        },
+        {
+          "id": "kanji-51-60-jojoni",
+          "characters": "徐々に",
+          "reading": "じょじょに",
+          "meanings": [
+            "Gradually",
+            "Steadily"
+          ],
+          "partsOfSpeech": [
+            "adverb"
+          ],
+          "requiredLevel": 53,
+          "kanjiLevels": {
+            "徐": 53
+          },
+          "jmdictPriorityTags": [
+            "news1",
+            "nf05"
+          ],
+          "meaningMnemonic": "Repeat <kanji>gently</kanji> with 々 and add に: change now unfolds <vocabulary>gradually</vocabulary> or <vocabulary>steadily</vocabulary>.\n\n徐々に is an adverb for progressive change by small degrees, often with verbs such as 増える, 減る, or 慣れる.",
+          "readingMnemonic": "Two men named Joe lower themselves onto one knee in tiny synchronized steps: <reading>JOE—JOE—KNEE</reading>. Their exaggerated slow motion moves them <vocabulary>gradually</vocabulary> toward the floor. 徐々に describes change happening little by little over time.",
+          "contextSentences": [
+            {
+              "ja": "空が徐々に明るくなった。",
+              "en": "The sky gradually grew brighter."
+            },
+            {
+              "ja": "痛みは徐々に弱くなっている。",
+              "en": "The pain is steadily becoming weaker."
+            }
+          ],
+          "readingMap": "じょ・じょ・に"
+        },
+        {
+          "id": "kanji-51-60-genkouyoushi",
+          "characters": "原稿用紙",
+          "reading": "げんこうようし",
+          "meanings": [
+            "Japanese Manuscript Paper",
+            "Manuscript Paper"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 53,
+          "kanjiLevels": {
+            "原": 17,
+            "稿": 53,
+            "用": 3,
+            "紙": 7
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf12"
+          ],
+          "meaningMnemonic": "For an <kanji>original</kanji> <kanji>draft</kanji>, <kanji>use</kanji> each square of <kanji>paper</kanji> for one character: <vocabulary>Japanese manuscript paper</vocabulary>, or <vocabulary>manuscript paper</vocabulary>.\n\n原稿用紙 is paper printed with squares for Japanese composition, traditionally with one character or punctuation mark per square.",
+          "readingMnemonic": "Manuscript 原稿 carries げんこう onto a gridded sheet, while writing paper 用紙 carries ようし into a paper dragon: <reading>げんこう—ようし</reading>. The dragon stamps every square, transforming the sheet into <vocabulary>Japanese manuscript paper</vocabulary>. 原稿用紙 is the ruled square paper used for handwritten Japanese manuscripts or school compositions.",
+          "contextSentences": [
+            {
+              "ja": "作文を原稿用紙に書いた。",
+              "en": "I wrote the composition on Japanese manuscript paper."
+            },
+            {
+              "ja": "原稿用紙を三枚使いました。",
+              "en": "I used three sheets of manuscript paper."
+            }
+          ],
+          "readingMap": "げ・ん・こ・う・よ・う・し"
+        },
+        {
+          "id": "kanji-51-60-sueoki",
+          "characters": "据え置き",
+          "reading": "すえおき",
+          "meanings": [
+            "Left Unchanged",
+            "Deferment"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb",
+            "transitive verb"
+          ],
+          "requiredLevel": 53,
+          "kanjiLevels": {
+            "据": 53,
+            "置": 22
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf11"
+          ],
+          "meaningMnemonic": "<kanji>Install</kanji> something, <kanji>put</kanji> it there, and refuse to move it: it is <vocabulary>left unchanged</vocabulary>, or the decision is a <vocabulary>deferment</vocabulary>.\n\n据え置き often means keeping a price, rate, policy, or status at its current level rather than raising, lowering, or acting on it.",
+          "readingMnemonic": "Clerk Sue hesitates, “Eh?”, then sets an old key beside the price tag: <reading>SUE—EH—OH—KEY</reading>. She leaves the number exactly where it was, so the price is <vocabulary>left unchanged</vocabulary>. 据え置き can mean keeping a price or rate unchanged, leaving equipment installed, or deferring action.",
+          "contextSentences": [
+            {
+              "ja": "来年も料金は据え置きです。",
+              "en": "The fee will be left unchanged next year."
+            },
+            {
+              "ja": "金利の据え置きが発表された。",
+              "en": "A decision to leave interest rates unchanged was announced."
+            }
+          ],
+          "readingMap": "す・え・お・き"
+        },
+        {
+          "id": "kanji-51-60-kenbikyou",
+          "characters": "顕微鏡",
+          "reading": "けんびきょう",
+          "meanings": [
+            "Microscope"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 54,
+          "kanjiLevels": {
+            "顕": 54,
+            "微": 28,
+            "鏡": 13
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf19"
+          ],
+          "meaningMnemonic": "Make a tiny object <kanji>appear</kanji>, reveal its <kanji>delicate</kanji> details, and reflect them through a <kanji>mirror</kanji>: you are using a <vocabulary>microscope</vocabulary>.\n\n顕微鏡 is the scientific instrument used to observe cells, microbes, and other objects too small to see unaided.",
+          "readingMnemonic": "Visible 顕 carries けん onto a bee, minute 微 carries び into its wing hairs, and mirror 鏡 carries きょう into a huge lens: <reading>けん—び—きょう</reading>. The invisible hairs fill the screen through the <vocabulary>microscope</vocabulary>. 顕微鏡 is an instrument for magnifying tiny objects.",
+          "contextSentences": [
+            {
+              "ja": "顕微鏡で細胞を観察した。",
+              "en": "I observed cells through a microscope."
+            },
+            {
+              "ja": "学校の顕微鏡を丁寧に運んだ。",
+              "en": "I carefully carried the school's microscope."
+            }
+          ],
+          "readingMap": "け・ん・び・きょ・う"
+        },
+        {
+          "id": "kanji-51-60-somatsu",
+          "characters": "粗末",
+          "reading": "そまつ",
+          "meanings": [
+            "Crude",
+            "Shabby",
+            "Meager"
+          ],
+          "partsOfSpeech": [
+            "な adjective",
+            "noun"
+          ],
+          "requiredLevel": 55,
+          "kanjiLevels": {
+            "粗": 55,
+            "末": 7
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf19"
+          ],
+          "meaningMnemonic": "A <kanji>coarse</kanji> job that stops before the proper <kanji>end</kanji> looks <vocabulary>crude</vocabulary> or <vocabulary>shabby</vocabulary>, and its offering may be <vocabulary>meager</vocabulary>.\n\n粗末 describes poor quality, scant provision, or careless treatment; 粗末にする means to treat something as unimportant or waste it.",
+          "readingMnemonic": "Sue sleeps on a splintered mat and groans, <reading>SO—MAT—SUE!</reading> The <vocabulary>shabby</vocabulary>, crude bedding collapses before morning. 粗末 can describe poor-quality things or careless treatment of something.",
+          "contextSentences": [
+            {
+              "ja": "昼食はパン一枚だけの粗末なものだった。",
+              "en": "Lunch was a meager meal of only one slice of bread."
+            },
+            {
+              "ja": "粗末な小屋で雨をしのいだ。",
+              "en": "We took shelter from the rain in a shabby hut."
+            }
+          ],
+          "readingMap": "そ・ま・つ"
+        },
+        {
+          "id": "kanji-51-60-tounyoubyou",
+          "characters": "糖尿病",
+          "reading": "とうにょうびょう",
+          "meanings": [
+            "Diabetes"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 55,
+          "kanjiLevels": {
+            "糖": 33,
+            "尿": 55,
+            "病": 10
+          },
+          "jmdictPriorityTags": [
+            "news1",
+            "nf09"
+          ],
+          "meaningMnemonic": "If <kanji>sugar</kanji> appears in <kanji>urine</kanji>, it can warn that someone is <kanji>sick</kanji> with <vocabulary>diabetes</vocabulary>.\n\n糖尿病 is the standard medical term for diabetes; diagnosis depends on clinical testing, not on this composition mnemonic.",
+          "readingMnemonic": "A doctor's model links a sugar cube, a urine sample, and a flashing illness alarm while the labels pulse <reading>TOU—NYOU—BYOU</reading>. Together they identify <vocabulary>diabetes</vocabulary>, and the model sends the patient to proper care. 糖尿病 is the medical term for diabetes; the three established on-reading chunks carry the whole sound.",
+          "contextSentences": [
+            {
+              "ja": "医師から糖尿病について説明を受けた。",
+              "en": "A doctor explained diabetes to me."
+            },
+            {
+              "ja": "運動は糖尿病の予防に役立つ。",
+              "en": "Exercise helps prevent diabetes."
+            }
+          ],
+          "readingMap": "と・う・にょ・う・びょ・う"
+        }
+      ]
+    },
+    {
+      "id": "kanji-everyday-56-60",
+      "title": "Everyday Kanji: Levels 56–60",
+      "description": "High-utility everyday vocabulary whose newest WaniKani kanji falls between levels 56 and 60.",
+      "script": "kanji",
+      "levelRange": {
+        "min": 56,
+        "max": 60
+      },
+      "words": [
+        {
+          "id": "kanji-51-60-shikousakugo",
+          "characters": "試行錯誤",
+          "reading": "しこうさくご",
+          "meanings": [
+            "Trial And Error"
+          ],
+          "partsOfSpeech": [
+            "noun",
+            "する verb"
+          ],
+          "requiredLevel": 56,
+          "kanjiLevels": {
+            "試": 9,
+            "行": 5,
+            "錯": 56,
+            "誤": 34
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news1",
+            "nf16"
+          ],
+          "meaningMnemonic": "<kanji>Try</kanji>, <kanji>go</kanji>, become <kanji>confused</kanji>, find the <kanji>mistake</kanji>, and try again; the cycle is <vocabulary>trial and error</vocabulary>.\n\n試行錯誤 emphasizes repeated experimentation and adjustment while searching for a workable method or solution.",
+          "readingMnemonic": "A mad inventor runs a trial, hits an error, and resets while four signs flash <reading>SHI—KOU—SAKU—GO</reading>. Each failed machine teaches her something, so she reaches the solution through <vocabulary>trial and error</vocabulary>. 試行錯誤 emphasizes repeated attempts and mistakes in finding a solution.",
+          "contextSentences": [
+            {
+              "ja": "試行錯誤を重ねて方法を見つけた。",
+              "en": "After repeated trial and error, I found a method."
+            },
+            {
+              "ja": "新しい料理を試行錯誤しながら作った。",
+              "en": "I developed the new dish through trial and error."
+            }
+          ],
+          "readingMap": "し・こ・う・さ・く・ご"
+        },
+        {
+          "id": "kanji-51-60-mogishiken",
+          "characters": "模擬試験",
+          "reading": "もぎしけん",
+          "meanings": [
+            "Mock Exam",
+            "Practice Test"
+          ],
+          "partsOfSpeech": [
+            "noun"
+          ],
+          "requiredLevel": 59,
+          "kanjiLevels": {
+            "模": 25,
+            "擬": 59,
+            "試": 9,
+            "験": 9
+          },
+          "jmdictPriorityTags": [
+            "ichi1"
+          ],
+          "meaningMnemonic": "Build an <kanji>imitation</kanji> exam room to <kanji>imitate</kanji> real conditions, then <kanji>try</kanji> every question before the real <kanji>test</kanji>: a <vocabulary>mock exam</vocabulary> or <vocabulary>practice test</vocabulary>.\n\n模擬試験 reproduces exam conditions for practice and assessment before the actual examination; 模試 is its common abbreviation.",
+          "readingMnemonic": "Imitation 模擬 carries もぎ into a fake exam hall, while test 試験 carries しけん onto every desk: <reading>もぎ—しけん</reading>. The room looks official, but everyone is taking only a <vocabulary>mock exam</vocabulary>. 模擬試験 is a practice test designed to imitate the real examination.",
+          "contextSentences": [
+            {
+              "ja": "日曜日に模擬試験を受ける。",
+              "en": "I'm taking a mock exam on Sunday."
+            },
+            {
+              "ja": "模擬試験の結果を先生と確認した。",
+              "en": "I reviewed the practice-test results with my teacher."
+            }
+          ],
+          "readingMap": "も・ぎ・し・け・ん"
+        },
+        {
+          "id": "kanji-51-60-wazurawashii",
+          "characters": "煩わしい",
+          "reading": "わずらわしい",
+          "meanings": [
+            "Troublesome",
+            "Annoying",
+            "Complicated"
+          ],
+          "partsOfSpeech": [
+            "い adjective"
+          ],
+          "requiredLevel": 60,
+          "kanjiLevels": {
+            "煩": 60
+          },
+          "jmdictPriorityTags": [
+            "ichi1",
+            "news2",
+            "nf43"
+          ],
+          "meaningMnemonic": "Add わしい to <kanji>annoy</kanji> and stretch the irritation into an adjective: <vocabulary>troublesome</vocabulary>, <vocabulary>annoying</vocabulary>, or <vocabulary>complicated</vocabulary>.\n\n煩わしい describes a procedure, task, relationship, or situation that causes persistent bother through effort or complexity.",
+          "readingMnemonic": "A witness begins, ‘It WAS—,’ but a cheerleader interrupts ‘RAH!’, a washer screams ‘WASH!’, and a giant letter E crashes through the roof. The nonstop <reading>WAS—RAH—WASH—E</reading> interruptions make completing one sentence unbearably <vocabulary>troublesome</vocabulary>. 煩わしい describes something annoyingly troublesome, complicated, or burdensome.",
+          "contextSentences": [
+            {
+              "ja": "毎回入力するのは煩わしい。",
+              "en": "Entering it every time is troublesome."
+            },
+            {
+              "ja": "煩わしい手続きをオンラインで済ませた。",
+              "en": "I completed the complicated procedure online."
+            }
+          ],
+          "readingMap": "わ・ず・ら・わ・し・い"
+        }
+      ]
+    }
+  ]
+}

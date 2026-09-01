@@ -2,6 +2,7 @@ import { generateContextSentenceQuestions } from "../contextSentencePracticeServ
 import { getAllAssignmentsCached } from "../../utils/api";
 import { getSubjectById } from "../../utils/cache";
 import { getSelectedListSubjectIdSet } from "../../utils/extraStudySubjectLists";
+import { getAllCustomContextSentences } from "../customContextSentenceService";
 
 jest.mock("../../utils/api", () => ({
   getAllAssignmentsCached: jest.fn(),
@@ -33,18 +34,24 @@ jest.mock("../../utils/extraStudySubjectLists", () => ({
   ),
 }));
 
+jest.mock("../customContextSentenceService", () => ({
+  getAllCustomContextSentences: jest.fn(async () => []),
+}));
+
 const makeSubject = ({
   id,
   characters,
   reading,
   partsOfSpeech,
   level = 1,
+  contextSentences,
 }: {
   id: number;
   characters: string;
   reading: string;
   partsOfSpeech: string[];
   level?: number;
+  contextSentences?: { ja: string; en: string }[];
 }) => ({
   id,
   object: "vocabulary",
@@ -69,18 +76,21 @@ const makeSubject = ({
     meaning_hint: null,
     reading_mnemonic: null,
     reading_hint: null,
-    context_sentences: [
-      {
-        ja: `${characters}です。`,
-        en: `It is ${characters}.`,
-      },
-    ],
+    context_sentences:
+      contextSentences ??
+      [
+        {
+          ja: `${characters}です。`,
+          en: `It is ${characters}.`,
+        },
+      ],
   },
 });
 
 const makeConfig = () => ({
   includeVocabulary: true,
   includeKanaVocabulary: false,
+  customSentencesOnly: false,
   solutionMode: "multiple_choice" as const,
   numberOfQuestions: 1,
   enableSentenceAudio: false,
@@ -120,6 +130,7 @@ const mockEligibleSubjects = (subjects: ReturnType<typeof makeSubject>[]) => {
 describe("generateContextSentenceQuestions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (getAllCustomContextSentences as jest.Mock).mockResolvedValue([]);
   });
 
   it("prefers distractors with the same part of speech as the correct answer", async () => {
@@ -254,5 +265,151 @@ describe("generateContextSentenceQuestions", () => {
 
     expect(questions).toHaveLength(1);
     expect(questions[0].vocab.id).toBe(selectedSubject.id);
+  });
+
+  it("builds custom-only questions even when the subject has no built-in sentence", async () => {
+    const subjects = [
+      makeSubject({
+        id: 1,
+        characters: "世界",
+        reading: "せかい",
+        partsOfSpeech: ["noun"],
+        contextSentences: [],
+      }),
+      makeSubject({
+        id: 2,
+        characters: "学生",
+        reading: "がくせい",
+        partsOfSpeech: ["noun"],
+        contextSentences: [],
+      }),
+      makeSubject({
+        id: 3,
+        characters: "道",
+        reading: "みち",
+        partsOfSpeech: ["noun"],
+        contextSentences: [],
+      }),
+      makeSubject({
+        id: 4,
+        characters: "本",
+        reading: "ほん",
+        partsOfSpeech: ["noun"],
+        contextSentences: [],
+      }),
+    ];
+    mockEligibleSubjects(subjects);
+    (getAllCustomContextSentences as jest.Mock).mockResolvedValue([
+      {
+        version: 1,
+        id: "mine-1",
+        subjectId: 1,
+        japanese: "世界は広いです。",
+        kana: "せかいはひろいです。",
+        english: "The world is wide.",
+        displayMode: "kana",
+        createdAt: "2026-08-31T00:00:00.000Z",
+        updatedAt: "2026-08-31T00:00:00.000Z",
+      },
+    ]);
+
+    const questions = await generateContextSentenceQuestions(
+      { ...makeConfig(), customSentencesOnly: true },
+      "token",
+      "user-1",
+    );
+
+    expect(getAllCustomContextSentences).toHaveBeenCalledWith("user-1");
+    expect(questions).toHaveLength(1);
+    expect(questions[0]).toMatchObject({
+      sentence: "せかいはひろいです。",
+      translation: "The world is wide.",
+      sentenceWithBlank: "＿＿＿はひろいです。",
+    });
+    expect(questions[0].kanjiChoices).toHaveLength(4);
+  });
+
+  it("skips a custom sentence that cannot blank its attached vocabulary", async () => {
+    const subject = makeSubject({
+      id: 1,
+      characters: "世界",
+      reading: "せかい",
+      partsOfSpeech: ["noun"],
+      contextSentences: [],
+    });
+    mockEligibleSubjects([subject]);
+    (getAllCustomContextSentences as jest.Mock).mockResolvedValue([
+      {
+        version: 1,
+        id: "invalid-1",
+        subjectId: 1,
+        japanese: "今日は晴れです。",
+        kana: "きょうははれです。",
+        english: "It is sunny today.",
+        displayMode: "kanji",
+        createdAt: "2026-08-31T00:00:00.000Z",
+        updatedAt: "2026-08-31T00:00:00.000Z",
+      },
+    ]);
+
+    const questions = await generateContextSentenceQuestions(
+      { ...makeConfig(), customSentencesOnly: true },
+      "token",
+      "user-1",
+    );
+
+    expect(questions).toEqual([]);
+  });
+
+  it("does not accept a short reading embedded in a different word", async () => {
+    const subject = makeSubject({
+      id: 1,
+      characters: "見る",
+      reading: "みる",
+      partsOfSpeech: ["ichidan verb"],
+      contextSentences: [],
+    });
+    mockEligibleSubjects([subject]);
+    (getAllCustomContextSentences as jest.Mock).mockResolvedValue([
+      {
+        version: 1,
+        id: "wrong-word-1",
+        subjectId: 1,
+        japanese: "本を読みました。",
+        kana: "ほんをよみました。",
+        english: "I read a book.",
+        displayMode: "kana",
+        createdAt: "2026-08-31T00:00:00.000Z",
+        updatedAt: "2026-08-31T00:00:00.000Z",
+      },
+    ]);
+
+    const questions = await generateContextSentenceQuestions(
+      { ...makeConfig(), customSentencesOnly: true },
+      "token",
+      "user-1",
+    );
+
+    expect(questions).toEqual([]);
+  });
+
+  it("keeps built-in sentence behavior when the custom-only option is off", async () => {
+    const subject = makeSubject({
+      id: 1,
+      characters: "世界",
+      reading: "せかい",
+      partsOfSpeech: ["noun"],
+    });
+    mockEligibleSubjects([subject]);
+
+    const questions = await generateContextSentenceQuestions(
+      makeConfig(),
+      "token",
+      "user-1",
+    );
+
+    expect(getAllCustomContextSentences).not.toHaveBeenCalled();
+    expect(questions).toHaveLength(1);
+    expect(questions[0].sentence).toBe("世界です。");
   });
 });

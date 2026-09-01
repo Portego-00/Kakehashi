@@ -1,9 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Slider from "@react-native-community/slider";
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   Animated,
@@ -26,10 +33,12 @@ import {
 import {
   EXTRA_STUDY_SESSION_STORAGE_KEYS,
   clearExtraStudySessionState,
+  getAccountScopedExtraStudySessionStorageKey,
   hasExtraStudySessionState,
 } from "../../src/utils/extraStudySessionPersistence";
 import SubjectListsFilterCard from "../../src/components/SubjectListsFilterCard";
 import SrsLevelIcon from "../../src/components/SrsLevelIcon";
+import { getCustomContextSentenceCount } from "../../src/services/customContextSentenceService";
 import KeyboardManager, {
   JAPANESE_KEYBOARD_SETUP_INSTRUCTIONS,
 } from "../../src/modules/KeyboardManager";
@@ -52,6 +61,7 @@ const DEFAULT_SRS_GROUPS = {
 const createDefaultConfig = (userLevel: number): Config => ({
   includeVocabulary: true,
   includeKanaVocabulary: false,
+  customSentencesOnly: false,
   solutionMode: "multiple_choice",
   numberOfQuestions: 15,
   enableSentenceAudio: false,
@@ -116,6 +126,10 @@ const sanitizeConfig = (rawConfig: Partial<Config>, userLevel: number): Config =
     includeKanaVocabulary: pickBoolean(
       rawConfig.includeKanaVocabulary,
       defaults.includeKanaVocabulary,
+    ),
+    customSentencesOnly: pickBoolean(
+      rawConfig.customSentencesOnly,
+      defaults.customSentencesOnly,
     ),
     solutionMode:
       rawConfig.solutionMode === "writing" ? "writing" : "multiple_choice",
@@ -186,8 +200,21 @@ export default function ContextSentencePracticeConfigScreen() {
   const [devSelectedSubjectIdsInput, setDevSelectedSubjectIdsInput] =
     useState("");
   const [isConfigHydrated, setIsConfigHydrated] = useState(false);
+  const [customSentenceCount, setCustomSentenceCount] = useState<number | null>(
+    null,
+  );
   const initialUserLevelRef = useRef(userLevel);
-  const hasCheckedForResumableSessionRef = useRef(false);
+  const promptedResumableSessionKeyRef = useRef<string | null>(null);
+  const contextSentencePracticeSessionKey = useMemo(
+    () =>
+      userData?.id
+        ? getAccountScopedExtraStudySessionStorageKey(
+            EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE,
+            userData.id,
+          )
+        : null,
+    [userData?.id],
+  );
 
   const devSelectedSubjectIdsPreview = useMemo(
     () => parseDevSelectedSubjectIds(devSelectedSubjectIdsInput),
@@ -208,7 +235,10 @@ export default function ContextSentencePracticeConfigScreen() {
       config.srsGroups.enlightened ||
       config.srsGroups.burned;
 
-    return hasSubjectTypes && hasAnySrs;
+    const hasRequestedSentences =
+      !config.customSentencesOnly || (customSentenceCount ?? 0) > 0;
+
+    return hasSubjectTypes && hasAnySrs && hasRequestedSentences;
   };
 
   const listCountTypes = useMemo(() => {
@@ -242,9 +272,10 @@ export default function ContextSentencePracticeConfigScreen() {
       return;
     }
 
-    await clearExtraStudySessionState(
-      EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE,
-    );
+    if (contextSentencePracticeSessionKey) {
+      await clearExtraStudySessionState(contextSentencePracticeSessionKey);
+      promptedResumableSessionKeyRef.current = null;
+    }
 
     try {
       const configToStart: Config = {
@@ -272,6 +303,7 @@ export default function ContextSentencePracticeConfigScreen() {
         params: {
           includeVocabulary: String(config.includeVocabulary),
           includeKanaVocabulary: String(config.includeKanaVocabulary),
+          customSentencesOnly: String(config.customSentencesOnly),
           solutionMode,
           numberOfQuestions: String(config.numberOfQuestions),
           srsApprentice: String(config.srsGroups.apprentice),
@@ -330,54 +362,104 @@ export default function ContextSentencePracticeConfigScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (hasCheckedForResumableSessionRef.current) {
-      return;
-    }
-    hasCheckedForResumableSessionRef.current = true;
+  useFocusEffect(
+    useCallback(() => {
+      let isFocused = true;
 
-    let isMounted = true;
-    const checkForSavedSession = async () => {
-      const hasSavedSession = await hasExtraStudySessionState(
-        EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE,
-      );
-      if (!hasSavedSession || !isMounted) {
+      if (!userData?.id) {
+        setCustomSentenceCount(0);
+        return () => {
+          isFocused = false;
+        };
+      }
+
+      setCustomSentenceCount(null);
+      void getCustomContextSentenceCount(userData.id)
+        .then((count) => {
+          if (isFocused) {
+            setCustomSentenceCount(count);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to count custom context sentences:", error);
+          if (isFocused) {
+            setCustomSentenceCount(0);
+          }
+        });
+
+      return () => {
+        isFocused = false;
+      };
+    }, [userData?.id]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!contextSentencePracticeSessionKey) {
         return;
       }
 
-      Alert.alert(
-        "Resume Context Sentence Practice?",
-        "You have a context sentence practice session in progress.",
-        [
-          { text: "Not Now", style: "cancel" },
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => {
-              void clearExtraStudySessionState(
-                EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE,
-              );
-            },
-          },
-          {
-            text: "Resume",
-            onPress: () => {
-              router.push({
-                pathname: "/context-sentence-practice-session",
-                params: { resume: "true" },
-              });
-            },
-          },
-        ],
-      );
-    };
+      let isFocused = true;
+      const checkForSavedSession = async () => {
+        const hasSavedSession = await hasExtraStudySessionState(
+          contextSentencePracticeSessionKey,
+        );
+        if (!isFocused) {
+          return;
+        }
+        if (!hasSavedSession) {
+          if (
+            promptedResumableSessionKeyRef.current ===
+            contextSentencePracticeSessionKey
+          ) {
+            promptedResumableSessionKeyRef.current = null;
+          }
+          return;
+        }
+        if (
+          promptedResumableSessionKeyRef.current ===
+          contextSentencePracticeSessionKey
+        ) {
+          return;
+        }
 
-    void checkForSavedSession();
+        promptedResumableSessionKeyRef.current =
+          contextSentencePracticeSessionKey;
+        Alert.alert(
+          "Resume Context Sentence Practice?",
+          "You have a context sentence practice session in progress.",
+          [
+            { text: "Not Now", style: "cancel" },
+            {
+              text: "Discard",
+              style: "destructive",
+              onPress: () => {
+                promptedResumableSessionKeyRef.current = null;
+                void clearExtraStudySessionState(
+                  contextSentencePracticeSessionKey,
+                );
+              },
+            },
+            {
+              text: "Resume",
+              onPress: () => {
+                router.push({
+                  pathname: "/context-sentence-practice-session",
+                  params: { resume: "true" },
+                });
+              },
+            },
+          ],
+        );
+      };
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+      void checkForSavedSession();
+
+      return () => {
+        isFocused = false;
+      };
+    }, [contextSentencePracticeSessionKey]),
+  );
 
   useEffect(() => {
     setConfig((prev) => sanitizeConfig(prev, userLevel));
@@ -522,6 +604,43 @@ export default function ContextSentencePracticeConfigScreen() {
                 Kana Vocab
               </Text>
             </TouchableOpacity>
+          </View>
+          <View
+            style={[
+              styles.personalSentenceToggle,
+              { borderTopColor: theme.border },
+            ]}
+          >
+            <View style={styles.personalSentenceToggleCopy}>
+              <Text
+                style={[
+                  styles.personalSentenceToggleTitle,
+                  { color: theme.textColor },
+                ]}
+              >
+                Only my sentences
+              </Text>
+              <Text
+                style={[
+                  styles.personalSentenceToggleDescription,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                {customSentenceCount === null
+                  ? "Checking sentences saved on this device…"
+                  : customSentenceCount === 0
+                    ? "Add one from a vocabulary’s Context tab first."
+                    : `Review ${customSentenceCount} sentence${customSentenceCount === 1 ? "" : "s"} saved on this device.`}
+              </Text>
+            </View>
+            <Switch
+              value={config.customSentencesOnly}
+              onValueChange={(value) =>
+                updateConfig("customSentencesOnly", value)
+              }
+              trackColor={{ false: "#767577", true: theme.primary }}
+              thumbColor="#f4f3f4"
+            />
           </View>
         </View>
 
@@ -1212,6 +1331,26 @@ const styles = StyleSheet.create({
   },
   overviewChipText: {
     fontSize: 12,
+  },
+  personalSentenceToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  personalSentenceToggleCopy: {
+    flex: 1,
+  },
+  personalSentenceToggleTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  personalSentenceToggleDescription: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 17,
   },
   modeSelectorRow: {
     flexDirection: "row",

@@ -2,14 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowLeft, ArrowRight, Check, Download, Expand, FileText, Images, KeyRound, Languages, Minimize2, Pencil, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { ArrowLeft, ArrowRight, Check, Download, Expand, FileText, Images, KeyRound, Languages, LoaderCircle, Minimize2, Pencil, Square, Trash2, Upload, Volume2, X } from "lucide-react";
 import { MotionConfig, Reorder, useDragControls, type Transition } from "motion/react";
 import { LoadingState } from "@/components/ui/States";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
+import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
+import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import { useSession } from "@/lib/session";
 import { FileDropOverlay } from "./FileDropOverlay";
-import { JapaneseReader } from "./JapaneseReader";
+import { JapaneseReader, useJapaneseReaderAnalysisContexts } from "./JapaneseReader";
 import { LocalFilePicker } from "./LocalFilePicker";
 import { MangaPageSelector } from "./MangaPageSelector";
 import { linkedFileIds, linkedMetadata, requestLinkedFilePermission, requestPersistentLocalStorage } from "./local-file-source";
@@ -559,6 +561,92 @@ function MangaTranslation({ state, compact = false }: { state: MangaTranslationS
   </section>;
 }
 
+type JapaneseVoiceController = ReturnType<typeof useJapaneseVoice>;
+
+function MangaOcrVoiceControl({ text, voice }: { text: string; voice: JapaneseVoiceController }) {
+  const promptId = useId();
+  const [promptOpen, setPromptOpen] = useState(false);
+  const sentence = text.trim();
+  const active = voice.activeSentence === sentence
+    && (voice.activity === "synthesizing" || voice.activity === "playing");
+  const canStop = active;
+  const busyElsewhere = voice.activity !== "idle" && !active && voice.activity !== "downloading";
+  const downloading = voice.activity === "downloading";
+  const showPrompt = promptOpen && voice.checked && voice.supported && !voice.downloaded;
+  const buttonLabel = !voice.checked
+    ? "Checking Japanese voice"
+    : !voice.supported
+      ? "Japanese voice unavailable"
+      : !voice.downloaded
+        ? downloading
+          ? "Japanese voice is downloading"
+          : "Set up Japanese voice to read recognized text aloud"
+        : active
+          ? voice.activity === "playing"
+            ? "Stop recognized Japanese audio"
+            : "Cancel recognized Japanese audio"
+          : busyElsewhere
+            ? "Japanese voice is busy"
+            : "Play recognized Japanese text aloud";
+  const buttonState = active ? voice.activity : downloading ? "downloading" : "idle";
+  const downloadLabel = downloading
+    ? "Cancel download"
+    : voice.error
+      ? "Retry download"
+      : `Download voice · ${JAPANESE_VOICE_DOWNLOAD_LABEL}`;
+
+  return <>
+    <button
+      className={styles.mangaVoiceButton}
+      type="button"
+      aria-label={buttonLabel}
+      aria-busy={!voice.checked || (active && voice.activity === "synthesizing") || undefined}
+      aria-expanded={voice.checked && !voice.downloaded && voice.supported ? showPrompt : undefined}
+      aria-controls={voice.checked && !voice.downloaded && voice.supported ? promptId : undefined}
+      data-state={buttonState}
+      disabled={!sentence || !voice.checked || !voice.supported || busyElsewhere}
+      title={buttonLabel}
+      onClick={() => {
+        if (canStop) {
+          voice.stop();
+          return;
+        }
+        if (!voice.downloaded) {
+          setPromptOpen((current) => !current);
+          return;
+        }
+        void voice.play(sentence);
+      }}
+    >
+      {!voice.checked || (active && voice.activity === "synthesizing") || downloading
+        ? <LoaderCircle className={styles.spin} size={18} aria-hidden="true" />
+        : active && voice.activity === "playing"
+          ? <Square size={16} aria-hidden="true" />
+          : <Volume2 size={18} aria-hidden="true" />}
+    </button>
+    {showPrompt ? <div
+      id={promptId}
+      className={styles.mangaVoicePrompt}
+      role="group"
+      aria-labelledby={`${promptId}-label`}
+    >
+      <strong id={`${promptId}-label`}>Download Japanese voice?</strong>
+      <p>Download {JAPANESE_VOICE_NAME} once and keep it in this browser ({JAPANESE_VOICE_DOWNLOAD_LABEL}).</p>
+      {downloading && voice.message ? <p className={styles.hint} role="status">{voice.message}</p> : null}
+      {voice.error ? <p className={styles.error} role="alert">{voice.error}</p> : null}
+      <button
+        className={styles.secondaryButton}
+        type="button"
+        onClick={() => downloading ? voice.cancelDownload() : void voice.download()}
+      >
+        {downloading ? <LoaderCircle className={styles.spin} size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
+        {downloadLabel}
+      </button>
+    </div> : null}
+    {!showPrompt && voice.error ? <p className={`${styles.error} ${styles.mangaVoiceError}`} role="alert">{voice.error}</p> : null}
+  </>;
+}
+
 function mangaTurnOrigin(navigation: "next" | "previous", direction: MangaReadingDirection) {
   if (navigation === "next") return direction === "rtl" ? "from-left" : "from-right";
   return direction === "rtl" ? "from-right" : "from-left";
@@ -1049,6 +1137,8 @@ export function MangaLibrary() {
 export function MangaReader({ mangaId }: { mangaId: string }) {
   const { user } = useSession();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
+  const voice = useJapaneseVoice();
+  const stopVoice = voice.stop;
   const jpdbApiKey = settings.integrations.jpdbApiKey;
   const initialRecord = loadLibrary("manga").find((candidate) => candidate.id === mangaId) ?? null;
   const initialPage = initialRecord?.currentPage ?? 1;
@@ -1069,6 +1159,15 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
   const [sourceAccess, setSourceAccess] = useState<MangaSourceAccess>(null);
   const [sourceRetryToken, setSourceRetryToken] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const ocrAnalysisSources = useMemo(
+    () => ocrText.trim() ? [{ id: "active-manga-ocr", text: ocrText }] : [],
+    [ocrText],
+  );
+  const ocrAnalysisContexts = useJapaneseReaderAnalysisContexts(ocrAnalysisSources, {
+    apiKey: jpdbApiKey,
+    enabled: Boolean(jpdbApiKey && settings.reader?.recognitionMode === "wk-jpdb"),
+  });
+  const ocrAnalysisContext = ocrAnalysisContexts.get("active-manga-ocr");
   const pdfDocument = useRef<MangaPdfDocument | null>(null);
   const ocrAbort = useRef<AbortController | null>(null);
   const spreadLoadGeneration = useRef(0);
@@ -1133,7 +1232,8 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     for (const url of pageUrls.current) URL.revokeObjectURL(url);
     pageUrls.current.clear();
     disposeMangaOcr();
-  }, [mangaId]);
+    stopVoice();
+  }, [mangaId, stopVoice]);
 
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === readerRoot.current);
@@ -1365,12 +1465,13 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     navigationPending.current = true;
     ocrAbort.current?.abort();
     ocrAbort.current = null;
+    stopVoice();
     setOcrState({ status: "idle" });
     setOcrText("");
     setTranslation(EMPTY_MANGA_TRANSLATION);
     setNavigationDirection(offset > 0 ? "next" : "previous");
     setPage(nextSpread.resumePage);
-  }, [currentSpreadIndex, spreads]);
+  }, [currentSpreadIndex, spreads, stopVoice]);
 
   useEffect(() => {
     const handleReaderKey = (event: globalThis.KeyboardEvent) => {
@@ -1393,6 +1494,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     ocrAbort.current?.abort();
     const controller = new AbortController();
     ocrAbort.current = controller;
+    stopVoice();
     setActiveOcrPage(loadedPage.pageNumber);
     setOcrText("");
     setTranslation(EMPTY_MANGA_TRANSLATION);
@@ -1633,10 +1735,15 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     return {
       selection: ocrState.selection,
       content: ocrState.status === "complete"
-        ? <span className={styles.mangaFullscreenOcrResult}>
-          <span lang="ja">{text}</span>
-          <MangaTranslation state={activeTranslation} compact />
-        </span>
+        ? <div className={styles.mangaFullscreenOcrResult}>
+          <JapaneseReader
+            text={text}
+            analysisContext={ocrAnalysisContext}
+            ariaLabel={`Recognized manga text from page ${pageNumber}`}
+            appearance="compact"
+            supplement={<MangaTranslation state={activeTranslation} compact />}
+          />
+        </div>
         : isOcrBusy(ocrState)
           ? <MangaRecognitionLoader state={ocrState} compact />
           : text,
@@ -1820,14 +1927,16 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
             role="status"
             aria-live="polite"
           >{ocrStatusText(ocrState)}</p> : null}
-          {!isOcrBusy(ocrState) && ocrText.trim() ? <div className={styles.mangaRecognitionResult} key={`${activeOcrPage}:${ocrText}`}>
+          {!isFullscreen && !isOcrBusy(ocrState) && ocrText.trim() ? <div className={styles.mangaRecognitionResult} key={`${activeOcrPage}:${ocrText}`}>
+            <MangaOcrVoiceControl text={ocrText} voice={voice} />
             <JapaneseReader
               text={ocrText}
+              analysisContext={ocrAnalysisContext}
               ariaLabel={`Recognized manga text from page ${activeOcrPage}`}
               appearance="compact"
               supplement={<MangaTranslation state={activeTranslation} />}
             />
-          </div> : !isOcrBusy(ocrState) ? <p className={styles.mangaOcrEmpty}>Drag across Japanese text on a page to recognize it.</p> : null}
+          </div> : !isFullscreen && !isOcrBusy(ocrState) ? <p className={styles.mangaOcrEmpty}>Drag across Japanese text on a page to recognize it.</p> : null}
         </aside>
       </div>
     </div>

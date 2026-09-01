@@ -281,6 +281,67 @@ describe("Japanese voice lifecycle", () => {
     });
   });
 
+  it("does not start stale synthesis when playback is stopped during the saved-voice check", async () => {
+    storage.cache.seedCompleteVoice();
+    const { result } = await renderVoice();
+    let releaseVoiceCheck: (() => void) | undefined;
+    const voiceCheckMayFinish = new Promise<void>((resolve) => { releaseVoiceCheck = resolve; });
+    storage.cache.match.mockClear();
+    storage.cache.match.mockImplementation(async (input) => {
+      await voiceCheckMayFinish;
+      return storage.cache.entries.get(cacheKey(input));
+    });
+    let playPromise: Promise<boolean> | undefined;
+
+    act(() => {
+      playPromise = result.current.play("もう表示していない文です。");
+    });
+    await waitFor(() => expect(storage.cache.match).toHaveBeenCalled());
+    act(() => result.current.stop());
+    releaseVoiceCheck?.();
+
+    await act(async () => expect(playPromise).resolves.toBe(false));
+    expect(workers).toHaveLength(0);
+    expect(result.current.activity).toBe("idle");
+    expect(result.current.activeSentence).toBeNull();
+  });
+
+  it("does not start stale audio when playback is stopped while the audio context resumes", async () => {
+    storage.cache.seedCompleteVoice();
+    let releaseResume: (() => void) | undefined;
+    const resumeMayFinish = new Promise<undefined>((resolve) => { releaseResume = () => resolve(undefined); });
+    class SuspendedAudioContext extends FakeAudioContext {
+      override readonly state = "suspended" as AudioContextState;
+      override readonly resume = vi.fn(() => resumeMayFinish);
+    }
+    vi.stubGlobal("AudioContext", SuspendedAudioContext as unknown as typeof AudioContext);
+    const { result } = await renderVoice();
+    let playPromise: Promise<boolean> | undefined;
+
+    act(() => {
+      playPromise = result.current.play("もう表示していない文です。");
+    });
+    await waitFor(() => expect(workers[0]?.postMessage).toHaveBeenCalledOnce());
+    const request = workers[0].postMessage.mock.calls[0][0] as JapaneseVoiceWorkerRequest;
+    act(() => {
+      workers[0].emit({
+        id: request.id,
+        type: "audio",
+        samples: new Float32Array([0, 0.25, -0.25]).buffer,
+        sampleRate: 22_050,
+      });
+    });
+    await waitFor(() => expect(audioContexts[0]?.resume).toHaveBeenCalledOnce());
+
+    act(() => result.current.stop());
+    releaseResume?.();
+
+    await act(async () => expect(playPromise).resolves.toBe(false));
+    expect(audioSources).toHaveLength(0);
+    expect(result.current.activity).toBe("idle");
+    expect(result.current.activeSentence).toBeNull();
+  });
+
   it("terminates in-flight synthesis and returns the UI state to idle when stopped", async () => {
     storage.cache.seedCompleteVoice();
     const { result } = await renderVoice();

@@ -243,14 +243,17 @@ export function stopJapaneseVoice() {
 export async function playJapaneseSentence(text: string, options: { speed?: number } = {}) {
   const context = getAudioContext();
   const resumePromise = context.state === "suspended" ? context.resume() : Promise.resolve();
+  stopJapaneseVoice();
+  const operation = playbackSequence;
   await checkJapaneseVoice();
-  if (!state.downloaded || !await hasSavedJapaneseVoice()) {
+  if (operation !== playbackSequence) return false;
+  const savedVoiceAvailable = state.downloaded && await hasSavedJapaneseVoice();
+  if (operation !== playbackSequence) return false;
+  if (!savedVoiceAvailable) {
     emit({ downloaded: false, error: "The saved Japanese voice is no longer available. Download it again." });
     return false;
   }
 
-  stopJapaneseVoice();
-  const operation = playbackSequence;
   emit({ activity: "synthesizing", activeSentence: text, progress: null, message: "Creating speech…", error: null });
   try {
     const requestedSpeed = options.speed ?? 1;
@@ -258,6 +261,7 @@ export async function playJapaneseSentence(text: string, options: { speed?: numb
     const response = await requestVoice({ type: "synthesize", text, speed });
     if (operation !== playbackSequence || response.type !== "audio") return false;
     await resumePromise;
+    if (operation !== playbackSequence) return false;
     const samples = new Float32Array(response.samples);
     const buffer = context.createBuffer(1, samples.length, response.sampleRate);
     buffer.copyToChannel(samples, 0);

@@ -268,6 +268,10 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
   const youtubeId = typeof activeSong?.metadata?.youtubeId === "string" ? activeSong.metadata.youtubeId : null;
   const visibleSearchResults = searchedQuery === searchQuery.trim() ? searchResults : [];
 
+  useEffect(() => {
+    setActiveId(initialSongId ?? null);
+  }, [initialSongId]);
+
   const showSong = useCallback((songId: string) => {
     setActiveId(songId);
     router.push(`/music?song=${encodeURIComponent(songId)}`, { scroll: false });

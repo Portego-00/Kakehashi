@@ -477,7 +477,7 @@ describe("dashboard layout drag targets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Restore dashboard" }));
 
-    await waitFor(() => expect(list.querySelectorAll(":scope > li")).toHaveLength(17));
+    await waitFor(() => expect(list.querySelectorAll(":scope > li")).toHaveLength(18));
     const savedWorkspace = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace;
     expect(savedWorkspace).toMatchObject(DEFAULT_WEB_SETTINGS.workspace);
   });

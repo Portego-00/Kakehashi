@@ -201,6 +201,7 @@ export default function NewsDetailScreen() {
   const subjectColors = useSubjectColors();
   const { userData } = useAuthStore();
   const {
+    hideNewsFuriganaByDefault,
     hideVocabularyTooltipMeanings,
     hideVocabularyTooltipReadings,
     newsDefaultStudyMode,
@@ -209,10 +210,12 @@ export default function NewsDetailScreen() {
   const soundRef = useRef<AudioSound | null>(null);
   const audioPlaybackRequestIdRef = useRef(0);
   const isScreenActiveRef = useRef(true);
+  const hasUserToggledFuriganaRef = useRef(false);
+  const showFuriganaRef = useRef(!hideNewsFuriganaByDefault);
   const hasUserSelectedStudyModeRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
-  const [showFurigana, setShowFurigana] = useState(true);
+  const [showFurigana, setShowFurigana] = useState(showFuriganaRef.current);
   const [studyMode, setStudyMode] =
     useState<StudyModePreference>(newsDefaultStudyMode);
   const [hasStoredJpdbApiKey, setHasStoredJpdbApiKey] = useState(false);
@@ -356,6 +359,15 @@ export default function NewsDetailScreen() {
       isActive = false;
     };
   }, [id, source]);
+
+  useEffect(() => {
+    if (hasUserToggledFuriganaRef.current) {
+      return;
+    }
+    const defaultVisibility = !hideNewsFuriganaByDefault;
+    showFuriganaRef.current = defaultVisibility;
+    setShowFurigana(defaultVisibility);
+  }, [hideNewsFuriganaByDefault]);
 
   useEffect(() => {
     if (hasUserSelectedStudyModeRef.current) {
@@ -978,15 +990,21 @@ export default function NewsDetailScreen() {
     await cleanupSound();
   };
 
-  const toggleFurigana = () => {
-    const newState = !showFurigana;
-    setShowFurigana(newState);
+  const applyFuriganaVisibilityToWebView = (visible: boolean) => {
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`
-            document.body.classList.toggle('hide-furigana', ${!newState});
+            document.body.classList.toggle('hide-furigana', ${!visible});
             true;
         `);
     }
+  };
+
+  const toggleFurigana = () => {
+    hasUserToggledFuriganaRef.current = true;
+    const nextVisibility = !showFuriganaRef.current;
+    showFuriganaRef.current = nextVisibility;
+    setShowFurigana(nextVisibility);
+    applyFuriganaVisibilityToWebView(nextVisibility);
   };
 
   const openJpdbApiKeySettings = useCallback(() => {
@@ -1941,7 +1959,7 @@ export default function NewsDetailScreen() {
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>${css}</style>
       </head>
-      <body>
+      <body class="${hideNewsFuriganaByDefault ? "hide-furigana" : ""}">
         <h1>${escapeHtml(item.title)}</h1>
         ${htmlContent}
       </body>
@@ -2214,7 +2232,10 @@ export default function NewsDetailScreen() {
           originWhitelist={["*"]}
           source={{ html }}
           style={{ flex: 1, backgroundColor: "transparent" }}
-          onLoadEnd={() => setIsWebViewLoaded(true)}
+          onLoadEnd={() => {
+            setIsWebViewLoaded(true);
+            applyFuriganaVisibilityToWebView(showFuriganaRef.current);
+          }}
         />
       )}
 

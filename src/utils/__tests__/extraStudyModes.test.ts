@@ -12,8 +12,10 @@ describe("extraStudyModes", () => {
     ).toMatchObject({
       title: "JLPT Quiz",
       route: "/jlpt",
-      requiresUsername: "Portego",
     });
+    expect(
+      EXTRA_STUDY_MODE_DEFINITIONS.find((mode) => mode.id === "jlpt-quiz"),
+    ).not.toHaveProperty("requiresUsername");
   });
 
   it("publishes Word Search as a resumable Extra Study mode", () => {
@@ -31,7 +33,7 @@ describe("extraStudyModes", () => {
     );
   });
 
-  it("exposes Word Search to everyone while keeping JLPT Quiz Portego-only", () => {
+  it("exposes Word Search and JLPT Quiz to every account", () => {
     const publicModeIds = getAvailableExtraStudyModes("another-user").map(
       (mode) => mode.id,
     );
@@ -40,7 +42,7 @@ describe("extraStudyModes", () => {
     );
 
     expect(publicModeIds).toContain("word-search");
-    expect(publicModeIds).not.toContain("jlpt-quiz");
+    expect(publicModeIds).toContain("jlpt-quiz");
     expect(portegoModeIds).toContain("word-search");
     expect(portegoModeIds).toContain("jlpt-quiz");
   });

@@ -50,6 +50,7 @@ import { getAllSubjects } from "../utils/cache";
 import type { Subject } from "../utils/api";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import { CustomContextSentencesSection } from "./CustomContextSentencesSection";
 import { FormattedNoteText } from "./formatted-note";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import SrsLevelIcon from "./SrsLevelIcon";
@@ -2352,6 +2353,15 @@ export default function VocabularyDetails({
 
             {/* Regular Context Sentences */}
             {renderContextSections()}
+
+            <CustomContextSentencesSection
+              subjectId={vocabulary.id}
+              subjectCharacters={vocabulary.characters}
+              subjectReadings={vocabulary.readings.map(
+                (reading) => reading.reading
+              )}
+              accentColor={subjectColors.vocabulary}
+            />
 
             {/* Media Context Sentences Section */}
             {showMediaContextSentences && (

@@ -1,9 +1,11 @@
 import type { Subject } from "../utils/api";
 import type { KanjiChoice } from "../types/listening";
+import type { CustomContextSentence } from "../types/customContextSentence";
 import type {
   ContextSentencePracticeConfig,
   ContextSentenceQuestion,
 } from "../types/contextSentencePractice";
+import { getAllCustomContextSentences } from "./customContextSentenceService";
 import { getAllAssignmentsCached } from "../utils/api";
 import { getSubjectById } from "../utils/cache";
 import {
@@ -12,6 +14,10 @@ import {
   subjectMatchesExtraStudySrsStage,
   subjectMatchesSelectedLists,
 } from "../utils/extraStudySubjectLists";
+import {
+  blankContextSentence,
+  tryBlankContextSentence,
+} from "../utils/contextSentenceCloze";
 
 type ContextSentenceRaw = {
   ja?: string;
@@ -19,15 +25,6 @@ type ContextSentenceRaw = {
   japanese?: string;
   english?: string;
 };
-
-const JAPANESE_TEXT_PATTERN = /[\u3040-\u309F\u30A0-\u30FF\u3400-\u9FFF]+/;
-const LEADING_OR_TRAILING_TILDE_PATTERN = /^[〜～~]+|[〜～~]+$/g;
-const ALL_TILDE_PATTERN = /[〜～~]/g;
-const KANA_ENDING_PATTERN = /[\u3040-\u30FF]$/;
-const VERB_CONJUGATION_SUFFIX_PATTERN =
-  "(?:ませんでした|ません|ました|ます|られない|られた|られる|れない|れた|れる|させない|させた|させる|せない|せた|せる|たくない|たかった|たい|らなかった|らない|なかった|ない|っていた|っている|ってる|ていた|ている|てる|でいた|でいる|でる|りました|ります|んで|んだ|った|って|いた|いて|いだ|した|して|たら|れば|よう|ろう|ろ|よ|ば|だ|で|た|て|る|う|く|ぐ|す|つ|ぬ|ぶ|む)";
-const I_ADJECTIVE_SUFFIX_PATTERN =
-  "(?:くなかった|くない|かった|くて|ければ|い)";
 
 function uniqueById(subjects: Subject[]): Subject[] {
   return Array.from(new Map(subjects.map((subject) => [subject.id, subject])).values());
@@ -91,86 +88,20 @@ function getRandomContextSentence(subject: Subject): {
   return valid[Math.floor(Math.random() * valid.length)];
 }
 
-function getVocabMatchCandidates(vocab: string): string[] {
-  const trimmed = vocab.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  const candidates = new Set<string>([trimmed]);
-  const withoutEdgeTildes = trimmed.replace(LEADING_OR_TRAILING_TILDE_PATTERN, "");
-  if (withoutEdgeTildes) {
-    candidates.add(withoutEdgeTildes);
-  }
-
-  const withoutAnyTildes = trimmed.replace(ALL_TILDE_PATTERN, "");
-  if (withoutAnyTildes) {
-    candidates.add(withoutAnyTildes);
-  }
-
-  return Array.from(candidates).sort((a, b) => b.length - a.length);
+function getVocabularyForms(subject: Subject): string[] {
+  return [subject.data.characters || "", ...getVocabularyReadings(subject)].filter(
+    Boolean,
+  );
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function getVocabularyReadings(subject: Subject): string[] {
+  return Array.isArray(subject.data.readings)
+    ? subject.data.readings.map((reading) => reading.reading).filter(Boolean)
+    : [];
 }
 
-function tryBlankUsingConjugationMatch(
-  sentence: string,
-  candidates: string[],
-): string | null {
-  for (const candidate of candidates) {
-    if (candidate.length < 2 || !KANA_ENDING_PATTERN.test(candidate)) {
-      continue;
-    }
-
-    const stem = candidate.slice(0, -1);
-    if (!stem) {
-      continue;
-    }
-
-    const escapedStem = escapeRegExp(stem);
-    const conjugationRegex = new RegExp(
-      `${escapedStem}${VERB_CONJUGATION_SUFFIX_PATTERN}`,
-      "g",
-    );
-    const conjugationBlanked = sentence.replace(conjugationRegex, "＿＿＿");
-    if (conjugationBlanked !== sentence) {
-      return conjugationBlanked;
-    }
-
-    if (candidate.endsWith("い")) {
-      const adjectiveRegex = new RegExp(
-        `${escapedStem}${I_ADJECTIVE_SUFFIX_PATTERN}`,
-        "g",
-      );
-      const adjectiveBlanked = sentence.replace(adjectiveRegex, "＿＿＿");
-      if (adjectiveBlanked !== sentence) {
-        return adjectiveBlanked;
-      }
-    }
-  }
-
-  return null;
-}
-
-function blankOutVocab(sentence: string, vocab: string): string {
-  const candidates = getVocabMatchCandidates(vocab);
-  for (const candidate of candidates) {
-    const escapedVocab = escapeRegExp(candidate);
-    const exactRegex = new RegExp(escapedVocab, "g");
-    const exactBlanked = sentence.replace(exactRegex, "＿＿＿");
-    if (exactBlanked !== sentence) {
-      return exactBlanked;
-    }
-  }
-
-  const conjugationBlanked = tryBlankUsingConjugationMatch(sentence, candidates);
-  if (conjugationBlanked) {
-    return conjugationBlanked;
-  }
-
-  return sentence.replace(JAPANESE_TEXT_PATTERN, "＿＿＿");
+function getCustomSentenceText(sentence: CustomContextSentence): string {
+  return sentence.displayMode === "kana" ? sentence.kana : sentence.japanese;
 }
 
 function createKanjiChoices(correct: Subject, distractors: Subject[]): KanjiChoice[] {
@@ -448,7 +379,6 @@ async function loadEligibleVocabulary(
     ) {
       continue;
     }
-    if (getContextSentences(subject).length === 0) continue;
     subjects.push(subject);
   }
 
@@ -457,7 +387,8 @@ async function loadEligibleVocabulary(
 
 export async function generateContextSentenceQuestions(
   config: ContextSentencePracticeConfig,
-  apiToken: string
+  apiToken: string,
+  userId?: string | null,
 ): Promise<ContextSentenceQuestion[]> {
   const eligibleVocabs = await loadEligibleVocabulary(apiToken, config);
   if (eligibleVocabs.length === 0) return [];
@@ -469,34 +400,103 @@ export async function generateContextSentenceQuestions(
     eligibleVocabs.map((subject) => [subject.id, subject] as const)
   );
 
-  const selectedVocabs =
-    devSelectedSubjectIds.length > 0
-      ? devSelectedSubjectIds
-          .map((subjectId) => eligibleById.get(subjectId))
-          .filter((subject): subject is Subject => Boolean(subject))
-      : [...eligibleVocabs]
-          .sort(() => Math.random() - 0.5)
-          .slice(0, config.numberOfQuestions);
+  type QuestionCandidate = {
+    vocab: Subject;
+    sentence: string;
+    translation: string;
+    sentenceWithBlank: string;
+  };
 
-  if (selectedVocabs.length === 0) {
+  let questionCandidates: QuestionCandidate[];
+  if (config.customSentencesOnly) {
+    if (!userId) {
+      return [];
+    }
+
+    const customSentences = await getAllCustomContextSentences(userId);
+    questionCandidates = customSentences.flatMap((customSentence) => {
+      const vocab = eligibleById.get(customSentence.subjectId);
+      if (!vocab) {
+        return [];
+      }
+
+      const japaneseSentenceWithBlank = tryBlankContextSentence(
+        customSentence.japanese,
+        [vocab.data.characters || ""],
+      );
+      if (!japaneseSentenceWithBlank) {
+        return [];
+      }
+
+      const sentence = getCustomSentenceText(customSentence);
+      const sentenceWithBlank =
+        customSentence.displayMode === "kana"
+          ? tryBlankContextSentence(sentence, getVocabularyReadings(vocab), {
+              allowShortKanaConjugation: true,
+            })
+          : japaneseSentenceWithBlank;
+      if (!sentenceWithBlank) {
+        return [];
+      }
+
+      return [
+        {
+          vocab,
+          sentence,
+          translation: customSentence.english,
+          sentenceWithBlank,
+        },
+      ];
+    });
+  } else {
+    questionCandidates = eligibleVocabs.flatMap((vocab) => {
+      const context = getRandomContextSentence(vocab);
+      if (!context) {
+        return [];
+      }
+
+      return [
+        {
+          vocab,
+          sentence: context.sentence,
+          translation: context.translation,
+          sentenceWithBlank: blankContextSentence(
+            context.sentence,
+            getVocabularyForms(vocab),
+          ),
+        },
+      ];
+    });
+  }
+
+  const selectedCandidates =
+    devSelectedSubjectIds.length > 0
+      ? devSelectedSubjectIds.flatMap((subjectId) =>
+          questionCandidates.filter(
+            (candidate) => candidate.vocab.id === subjectId,
+          ),
+        )
+      : shuffle(questionCandidates).slice(0, config.numberOfQuestions);
+
+  if (selectedCandidates.length === 0) {
     return [];
   }
 
   const questions: ContextSentenceQuestion[] = [];
-  for (const vocab of selectedVocabs) {
-    const context = getRandomContextSentence(vocab);
-    if (!context) continue;
-
-    const distractors = generateDistractors(vocab, eligibleVocabs, 3);
-    const sentenceWithBlank = blankOutVocab(context.sentence, vocab.data.characters || "");
+  for (const candidate of selectedCandidates) {
+    const distractors = generateDistractors(
+      candidate.vocab,
+      eligibleVocabs,
+      3,
+    );
 
     questions.push({
       id: questions.length,
-      vocab,
-      sentence: context.sentence,
-      translation: context.translation,
-      sentenceWithBlank,
-      kanjiChoices: createKanjiChoices(vocab, distractors),
+      vocab: candidate.vocab,
+      sentence: candidate.sentence,
+      translation: candidate.translation,
+      sentenceWithBlank: candidate.sentenceWithBlank,
+      kanjiChoices: createKanjiChoices(candidate.vocab, distractors),
     });
   }
 

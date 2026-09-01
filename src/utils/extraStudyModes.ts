@@ -96,7 +96,6 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     subtitle: "Quick quizzes and timed N5–N1 mock exams",
     icon: "school",
     route: "/jlpt",
-    requiresUsername: "Portego",
   },
   {
     id: "text-analysis",

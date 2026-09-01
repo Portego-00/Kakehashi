@@ -43,7 +43,10 @@ import {
 import {
   filterRecentLessonAssignments,
 } from "../../../src/utils/recentLessonsWindow";
-import { hasExtraStudySessionState } from "../../../src/utils/extraStudySessionPersistence";
+import {
+  getAccountScopedExtraStudySessionStorageKey,
+  hasExtraStudySessionState,
+} from "../../../src/utils/extraStudySessionPersistence";
 import { loadPersistedLessonSession } from "../../../src/utils/lessonSessionPersistence";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import {
@@ -711,8 +714,28 @@ export default function StudyTab() {
       const refreshExtraStudySessionIndicators = async () => {
         const regularSessionStates = await Promise.all(
           RESUMABLE_EXTRA_STUDY_MODE_SESSION_ENTRIES.map(
-            async ([modeId, storageKey]) =>
-              [modeId, await hasExtraStudySessionState(storageKey)] as const,
+            async ([modeId, storageKey]) => {
+              if (modeId === "context-sentence-practice") {
+                if (!userData?.id) {
+                  return [modeId, false] as const;
+                }
+
+                const accountScopedKey =
+                  getAccountScopedExtraStudySessionStorageKey(
+                    storageKey,
+                    userData.id,
+                  );
+                return [
+                  modeId,
+                  await hasExtraStudySessionState(accountScopedKey),
+                ] as const;
+              }
+
+              return [
+                modeId,
+                await hasExtraStudySessionState(storageKey),
+              ] as const;
+            },
           ),
         );
         const jlptSession = await loadNativeJlptSession(
