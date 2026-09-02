@@ -31,6 +31,7 @@ async function getNotificationSettings(): Promise<{
   badgeEnabled: boolean;
   alertsEnabled: boolean;
   soundsEnabled: boolean;
+  widgetBackgroundRefreshEnabled?: boolean;
 }> {
   try {
     const settings = await AsyncStorage.getItem(SETTINGS_KEY);
@@ -40,12 +41,15 @@ async function getNotificationSettings(): Promise<{
         badgeEnabled: parsedSettings.state?.showBadgeNotifications ?? true,
         alertsEnabled: parsedSettings.state?.enableReviewNotifications ?? false,
         soundsEnabled: parsedSettings.state?.notificationSounds ?? true,
+        widgetBackgroundRefreshEnabled:
+          parsedSettings.state?.widgetBackgroundRefreshEnabled ?? true,
       };
     }
     return {
       badgeEnabled: true,
       alertsEnabled: false,
       soundsEnabled: true,
+      widgetBackgroundRefreshEnabled: true,
     };
   } catch (error) {
     console.error('Error getting notification settings:', error);
@@ -53,6 +57,7 @@ async function getNotificationSettings(): Promise<{
       badgeEnabled: true,
       alertsEnabled: false,
       soundsEnabled: true,
+      widgetBackgroundRefreshEnabled: true,
     };
   }
 }

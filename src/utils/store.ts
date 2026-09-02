@@ -650,6 +650,7 @@ type SettingsState = {
   // Widget customization
   widgetContentMode: WidgetContentMode;
   widgetStreakGradient: WidgetStreakGradientPreset;
+  widgetBackgroundRefreshEnabled: boolean;
   widgetCardsFollowTheme: boolean;
   widgetLessonCardFollowTheme: boolean;
   widgetReviewCardFollowTheme: boolean;
@@ -823,6 +824,7 @@ type SettingsState = {
   ) => void;
   setWidgetContentMode: (mode: WidgetContentMode) => void;
   setWidgetStreakGradient: (preset: WidgetStreakGradientPreset) => void;
+  setWidgetBackgroundRefreshEnabled: (enabled: boolean) => void;
   setWidgetCardsFollowTheme: (follow: boolean) => void;
   setWidgetLessonCardFollowTheme: (follow: boolean) => void;
   setWidgetReviewCardFollowTheme: (follow: boolean) => void;
@@ -980,6 +982,7 @@ export const useSettingsStore = create<SettingsState>()(
       homeSrsBreakdownDisplayMode: "combined",
       widgetContentMode: "reviews",
       widgetStreakGradient: "sunset",
+      widgetBackgroundRefreshEnabled: true,
       widgetCardsFollowTheme: true,
       widgetLessonCardFollowTheme: true,
       widgetReviewCardFollowTheme: true,
@@ -1337,6 +1340,8 @@ export const useSettingsStore = create<SettingsState>()(
       setWidgetContentMode: (mode) => set({ widgetContentMode: mode }),
       setWidgetStreakGradient: (preset) =>
         set({ widgetStreakGradient: preset }),
+      setWidgetBackgroundRefreshEnabled: (enabled) =>
+        set({ widgetBackgroundRefreshEnabled: enabled }),
       setWidgetCardsFollowTheme: (follow) =>
         set({ widgetCardsFollowTheme: follow }),
       setWidgetLessonCardFollowTheme: (follow) =>
