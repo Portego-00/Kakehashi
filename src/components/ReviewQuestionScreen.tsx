@@ -3431,16 +3431,23 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    const subjectId = item.subject.id;
-    const updates =
-      editingStudyMaterialNoteType === "meaning"
-        ? { meaning_note: editingStudyMaterialNoteText }
-        : { reading_note: editingStudyMaterialNoteText };
-
     setIsSavingStudyMaterialNote(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
+      const currentNoteText =
+        (await studyMaterialNoteEditorRef.current?.flush()) ??
+        editingStudyMaterialNoteText;
+      if (currentNoteText !== editingStudyMaterialNoteText) {
+        setEditingStudyMaterialNoteText(currentNoteText);
+      }
+
+      const subjectId = item.subject.id;
+      const updates =
+        editingStudyMaterialNoteType === "meaning"
+          ? { meaning_note: currentNoteText }
+          : { reading_note: currentNoteText };
+
       const studyMaterialsResponse = await getStudyMaterials(
         apiToken,
         { subject_ids: [subjectId] },
@@ -3484,7 +3491,7 @@ export default function ReviewQuestionScreen({
       onStudyMaterialNoteUpdated?.(
         subjectId,
         editingStudyMaterialNoteType,
-        editingStudyMaterialNoteText,
+        currentNoteText,
       );
       setStudyMaterialNoteModalVisible(false);
     } catch (error) {

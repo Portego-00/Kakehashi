@@ -31,7 +31,7 @@ The JSON uses a research wrapper with `{ metadata, packs }`. Every object inside
   partsOfSpeech[],
   meaningMnemonic,
   readingMnemonic,
-  contextSentences[{ ja, en }, { ja, en }]
+  contextSentences[{ ja, en }, { ja, en }[, { ja, en }]]
 }
 ```
 
@@ -86,8 +86,8 @@ Automated validation passed all of the following:
 - Every word has at least one meaning and one part of speech.
 - Every meaning mnemonic contains balanced `<vocabulary>...</vocabulary>` markup.
 - Every reading mnemonic contains balanced `<reading>...</reading>` markup.
-- Every word has exactly two non-empty Japanese/English context pairs, for **240 context pairs total**.
-- Both Japanese sentences for every word include the exact target written form.
+- Every word has two or three non-empty Japanese/English context pairs: 118 have two and 2 have three, for **242 context pairs total**.
+- Every Japanese context for every word includes the exact target written form.
 - The live WaniKani and existing-custom overlap checks return zero issues.
 
 All mnemonics, concise English labels, and Japanese/English example sentences in the candidate file were written specifically for this project. No WaniKani mnemonic or context sentence was copied.

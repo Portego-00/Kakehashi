@@ -22,7 +22,7 @@ _Validated 2026-09-01 (Europe/Madrid)._
 | Kitchen Tools & Flavors | katakana | 10 |
 | **Total** |  | **120** |
 
-Every word has one combined learner-facing meaning mnemonic, exactly one `<reading>` sound hook, one or more `<vocabulary>` meaning payoffs, one Japanese/English context pair, and a hidden exact `readingMap`. Kana entries intentionally omit `readingMnemonic`.
+Every word has one combined learner-facing meaning mnemonic, exactly one `<reading>` sound hook, one or more `<vocabulary>` meaning payoffs, two or three Japanese/English context pairs, and a hidden exact `readingMap`. Kana entries intentionally omit `readingMnemonic`. Following the context expansion and independent review, 105 entries have two pairs and 15 have three, for 255 pairs total.
 
 ## Dictionary evidence
 
@@ -66,7 +66,7 @@ Automated checks confirmed:
 - one or more balanced `<vocabulary>...</vocabulary>` payoffs per mnemonic
 - at least two prose sentences per mnemonic, including a concrete scene and a usage distinction
 - no learner-facing reading map, beat-counting, or pronunciation-drill language
-- one non-empty Japanese/English context pair per word, with the exact target form in every Japanese sentence
+- two or three non-empty Japanese/English context pairs per word, with the exact target form in every Japanese sentence
 - exact mora coverage in every hidden `readingMap`, including small kana, `っ`, `ん`, and `ー`
 
 The stories are original to this project. Transparent loanwords use the source word as the sound hook but add a visual consequence and a Japanese-specific usage distinction; examples include `ホーム` “platform,” `バイク` “motorcycle,” `タレント` “TV personality,” `レンジ` “microwave,” and `ミキサー` “blender.”

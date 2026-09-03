@@ -107,6 +107,8 @@ describe("custom vocabulary catalog", () => {
     expect(new Set(CUSTOM_VOCABULARY_WORDS.map((word) => word.id)).size).toBe(CUSTOM_VOCABULARY_WORDS.length);
     expect(new Set(CUSTOM_VOCABULARY_WORDS.map((word) => normalized(word.characters))).size).toBe(CUSTOM_VOCABULARY_WORDS.length);
     expect(new Set(CUSTOM_VOCABULARY_WORDS.map((word) => customSubjectId(word.id))).size).toBe(CUSTOM_VOCABULARY_WORDS.length);
+    const contextJapanese = new Set<string>();
+    const contextEnglish = new Set<string>();
 
     const sourceWords = productionSourcePacks(true).flatMap((pack) => pack.words) as Array<Record<string, unknown>>;
     const mnemonicResults = validateWithProductionGate(sourceWords.map((sourceWord) => ({
@@ -135,8 +137,19 @@ describe("custom vocabulary catalog", () => {
       else expect(word.readingMnemonic).toBeUndefined();
       expect(word.meaningMnemonic).not.toContain("Reading map:");
       expect(word.readingMnemonic ?? "").not.toContain("Reading map:");
-      expect(word.contextSentences.length).toBeGreaterThan(0);
-      expect(word.contextSentences.some((sentence) => contextContainsTarget(sentence.ja, word)), word.characters).toBe(true);
+      expect(word.contextSentences.length, word.characters).toBeGreaterThanOrEqual(2);
+      expect(word.contextSentences.length, word.characters).toBeLessThanOrEqual(3);
+      expect(new Set(word.contextSentences.map((sentence) => normalized(sentence.ja))).size, word.characters).toBe(word.contextSentences.length);
+      expect(new Set(word.contextSentences.map((sentence) => normalized(sentence.en).toLocaleLowerCase("en"))).size, word.characters).toBe(word.contextSentences.length);
+      for (const sentence of word.contextSentences) {
+        expect(normalized(sentence.ja), `${word.characters}: blank Japanese context`).not.toBe("");
+        expect(normalized(sentence.en), `${word.characters}: blank English context`).not.toBe("");
+        expect(contextContainsTarget(sentence.ja, word), `${word.characters}: ${sentence.ja}`).toBe(true);
+        expect(contextJapanese.has(normalized(sentence.ja)), `duplicate Japanese context: ${sentence.ja}`).toBe(false);
+        expect(contextEnglish.has(normalized(sentence.en).toLocaleLowerCase("en")), `duplicate English context: ${sentence.en}`).toBe(false);
+        contextJapanese.add(normalized(sentence.ja));
+        contextEnglish.add(normalized(sentence.en).toLocaleLowerCase("en"));
+      }
     }
   });
 

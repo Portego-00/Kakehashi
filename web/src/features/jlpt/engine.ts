@@ -741,7 +741,7 @@ export function scoreJlptSession(
     .filter((slice) => slice.total > 0);
   const ranked = bySkill
     .filter((slice) => slice.total > 0)
-    .toSorted(
+    .sort(
       (left, right) => right.percent - left.percent || right.total - left.total,
     );
   const correct = questionIds.reduce(

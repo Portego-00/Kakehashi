@@ -23,6 +23,14 @@
           {
             "ja": "こちらの席へどうぞ。",
             "en": "Please take this seat."
+          },
+          {
+            "ja": "コーヒーを入れました。どうぞ。",
+            "en": "I made some coffee. Here you go."
+          },
+          {
+            "ja": "「このパソコン、先に使ってもいいですか？」「はい、どうぞ」",
+            "en": "“May I use this computer first?” “Yes, go ahead.”"
           }
         ]
       },
@@ -42,6 +50,10 @@
           {
             "ja": "やっぱりこの店のカレーはおいしい。",
             "en": "As expected, this restaurant's curry is delicious."
+          },
+          {
+            "ja": "電車で行こうと思ったけど、やっぱり歩いて行く。",
+            "en": "I thought I'd take the train, but after all, I'll walk."
           }
         ]
       },
@@ -62,6 +74,14 @@
           {
             "ja": "今日は家でゆっくり休みます。",
             "en": "I'm going to relax at home today."
+          },
+          {
+            "ja": "もう一度、ゆっくり話してください。",
+            "en": "Please say that again slowly."
+          },
+          {
+            "ja": "時間はあるので、ご飯をゆっくり食べましょう。",
+            "en": "We have time, so let's take our time eating."
           }
         ]
       },
@@ -81,6 +101,10 @@
           {
             "ja": "じゃあ、駅で七時に会おう。",
             "en": "Well then, let's meet at the station at seven."
+          },
+          {
+            "ja": "明日は雨なの？じゃあ、傘を持って行く。",
+            "en": "Is it going to rain tomorrow? In that case, I'll take an umbrella."
           }
         ]
       },
@@ -101,6 +125,14 @@
           {
             "ja": "手伝ってくれて、どうも。",
             "en": "Thanks for helping me."
+          },
+          {
+            "ja": "昨日はどうもありがとうございました。",
+            "en": "Thank you so much for yesterday."
+          },
+          {
+            "ja": "どうも、この時計は五分遅れているようです。",
+            "en": "It seems this clock is running five minutes slow."
           }
         ]
       },
@@ -121,6 +153,10 @@
           {
             "ja": "まさか彼が来るとは思わなかった。",
             "en": "I never thought he would come."
+          },
+          {
+            "ja": "「彼が優勝したよ。」「まさか！」",
+            "en": "“He won.” “No way!”"
           }
         ]
       },
@@ -140,6 +176,10 @@
           {
             "ja": "そろそろ出かける時間です。",
             "en": "It's about time to leave."
+          },
+          {
+            "ja": "そろそろ電車が来るころです。",
+            "en": "The train should be arriving soon."
           }
         ]
       },
@@ -160,6 +200,10 @@
           {
             "ja": "宿題はちゃんと終わらせた？",
             "en": "Did you finish your homework properly?"
+          },
+          {
+            "ja": "明日はちゃんと時間どおりに来てね。",
+            "en": "Make sure you arrive on time tomorrow."
           }
         ]
       },
@@ -179,6 +223,10 @@
           {
             "ja": "なるべく早く返事してください。",
             "en": "Please reply as soon as possible."
+          },
+          {
+            "ja": "野菜はなるべく毎日食べるようにしています。",
+            "en": "I try to eat vegetables every day whenever possible."
           }
         ]
       },
@@ -199,6 +247,10 @@
           {
             "ja": "なんでそんなに急いでいるの？",
             "en": "Why are you in such a hurry?"
+          },
+          {
+            "ja": "なんで昨日は電話に出なかったの？",
+            "en": "How come you didn't answer the phone yesterday?"
           }
         ]
       },
@@ -218,6 +270,10 @@
           {
             "ja": "どうして日本語を勉強しているんですか。",
             "en": "Why are you studying Japanese?"
+          },
+          {
+            "ja": "どうしてドアが開かないんだろう。",
+            "en": "I wonder why the door won't open."
           }
         ]
       },
@@ -237,6 +293,10 @@
           {
             "ja": "空港までどうやって行きますか。",
             "en": "How will you get to the airport?"
+          },
+          {
+            "ja": "この漢字はどうやって入力するの？",
+            "en": "How do you type this kanji?"
           }
         ]
       },
@@ -254,8 +314,12 @@
         "meaningMnemonic": "Nan straps a tuning dial to a pigeon's beak; the dial reads <reading>NAN—TONE A—COO</reading>. She turns it once and, <vocabulary>somehow</vocabulary>, the bird becomes an opera star even though she did it <vocabulary>for no particular reason</vocabulary>. なんとなく describes a vague cause, feeling, or impulse you cannot clearly explain.",
         "contextSentences": [
           {
-            "ja": "なんとなく今日は散歩したい。",
+            "ja": "今日はなんとなく散歩したい。",
             "en": "For some reason, I feel like taking a walk today."
+          },
+          {
+            "ja": "この曲を聞くと、なんとなく子どものころを思い出す。",
+            "en": "This song somehow reminds me of my childhood."
           }
         ]
       },
@@ -273,8 +337,12 @@
         "meaningMnemonic": "A diplomat unveils a <reading>CHINA MINI</reading>, a teacup-sized model of the whole country, in the middle of an unrelated meeting. Everyone pauses for the tiny side exhibit—<vocabulary>by the way</vocabulary>, <vocabulary>incidentally</vocabulary>, it even has working trains—then returns to the main topic. ちなみに introduces relevant extra information, not a completely unrelated subject change.",
         "contextSentences": [
           {
-            "ja": "ちなみに、明日は店が休みです。",
-            "en": "By the way, the shop is closed tomorrow."
+            "ja": "今日は通常どおり営業します。ちなみに、明日は店が休みです。",
+            "en": "The shop is open as usual today. By the way, it'll be closed tomorrow."
+          },
+          {
+            "ja": "私は辛い物が好きです。ちなみに、妹は甘い物が好きです。",
+            "en": "I like spicy food. Incidentally, my younger sister likes sweets."
           }
         ]
       },
@@ -292,8 +360,12 @@
         "meaningMnemonic": "A clerk receives a hundred-page letter addressed <reading>TO MURRAY</reading>. He crushes it into one sticky note: <vocabulary>in short</vocabulary>, Murray owes a llama; <vocabulary>in other words</vocabulary>, that is the whole point. つまり introduces a summary or logical conclusion, not a random change of topic.",
         "contextSentences": [
           {
-            "ja": "つまり、予約が必要ということです。",
-            "en": "In other words, a reservation is required."
+            "ja": "会員しか入れません。つまり、先に登録が必要です。",
+            "en": "Only members may enter. In other words, you need to register first."
+          },
+          {
+            "ja": "電車もバスも止まっています。つまり、今日は歩くしかありません。",
+            "en": "The trains and buses have stopped. In short, we have no choice but to walk today."
           }
         ]
       },
@@ -313,6 +385,10 @@
           {
             "ja": "もし雨が降ったら、家にいます。",
             "en": "If it rains, I'll stay home."
+          },
+          {
+            "ja": "もし時間があれば、一緒に昼ご飯を食べませんか。",
+            "en": "If you have time, would you like to have lunch together?"
           }
         ]
       }
@@ -339,6 +415,10 @@
           {
             "ja": "今日のおかずは焼き魚です。",
             "en": "Today's side dish is grilled fish."
+          },
+          {
+            "ja": "お弁当のおかずに卵焼きを入れました。",
+            "en": "I put rolled omelet in the bento as a side dish."
           }
         ]
       },
@@ -359,6 +439,10 @@
           {
             "ja": "ご飯をおかわりしてもいいですか。",
             "en": "May I have another serving of rice?"
+          },
+          {
+            "ja": "コーヒーのおかわりはいかがですか。",
+            "en": "Would you like a refill of coffee?"
           }
         ]
       },
@@ -376,8 +460,12 @@
         "meaningMnemonic": "Chef Sah-Mah serves a mountain of goat cheese, and every guest devours it. You pat your full stomach and call, <reading>GOAT CHEESE—OH, SAH-MAH!</reading> before bowing: <vocabulary>thank you for the meal</vocabulary>—<vocabulary>that was delicious</vocabulary>. ごちそうさま is said after eating to acknowledge the meal and those who provided it; before eating, use いただきます.",
         "contextSentences": [
           {
-            "ja": "食べ終わったら「ごちそうさま」と言います。",
-            "en": "When you finish eating, you say, “Thank you for the meal.”"
+            "ja": "ごちそうさま。とてもおいしかったです。",
+            "en": "Thank you for the meal. It was delicious."
+          },
+          {
+            "ja": "今日はごちそうさまでした。今度は私がおごるね。",
+            "en": "Thanks for treating me today. I'll treat you next time."
           }
         ]
       },
@@ -397,6 +485,10 @@
           {
             "ja": "今夜は辛いカレーを作ります。",
             "en": "I'm making spicy curry tonight."
+          },
+          {
+            "ja": "このカレーは子どもでも食べられる辛さです。",
+            "en": "This curry is mild enough for children to eat."
           }
         ]
       },
@@ -415,6 +507,10 @@
           {
             "ja": "サラダにドレッシングをかけます。",
             "en": "I put dressing on the salad."
+          },
+          {
+            "ja": "ランチにはサラダとスープが付きます。",
+            "en": "Lunch comes with a salad and soup."
           }
         ]
       },
@@ -433,6 +529,10 @@
           {
             "ja": "このスープはまだ熱いです。",
             "en": "This soup is still hot."
+          },
+          {
+            "ja": "パンをスープにつけて食べました。",
+            "en": "I dipped the bread in the soup before eating it."
           }
         ]
       },
@@ -452,6 +552,10 @@
           {
             "ja": "オレンジジュースを一つください。",
             "en": "One orange juice, please."
+          },
+          {
+            "ja": "子どもたちは自動販売機で炭酸ジュースを買いました。",
+            "en": "The children bought fizzy drinks from the vending machine."
           }
         ]
       },
@@ -470,6 +574,10 @@
           {
             "ja": "誕生日にチョコレートケーキを食べました。",
             "en": "I ate chocolate cake on my birthday."
+          },
+          {
+            "ja": "ケーキを六つに切り分けてください。",
+            "en": "Please cut the cake into six pieces."
           }
         ]
       },
@@ -491,6 +599,10 @@
           {
             "ja": "暑いから、アイスを買おう。",
             "en": "It's hot, so let's buy ice cream."
+          },
+          {
+            "ja": "コーヒーはアイスとホット、どちらにしますか。",
+            "en": "Would you like your coffee iced or hot?"
           }
         ]
       },
@@ -509,6 +621,10 @@
           {
             "ja": "駅の近くに新しいレストランができました。",
             "en": "A new restaurant opened near the station."
+          },
+          {
+            "ja": "このレストランは予約したほうがいいですよ。",
+            "en": "You should make a reservation at this restaurant."
           }
         ]
       },
@@ -527,6 +643,14 @@
           {
             "ja": "メニューを見せてください。",
             "en": "Please show me the menu."
+          },
+          {
+            "ja": "コーチが試合に向けた練習メニューを組んだ。",
+            "en": "The coach planned a training program for the upcoming match."
+          },
+          {
+            "ja": "設定は画面右上のメニューから変えられます。",
+            "en": "You can change the settings from the menu at the top right of the screen."
           }
         ]
       },
@@ -545,6 +669,10 @@
           {
             "ja": "デザートは別腹です。",
             "en": "There's always room for dessert."
+          },
+          {
+            "ja": "食後のデザートに果物を用意しました。",
+            "en": "I prepared some fruit for dessert after the meal."
           }
         ]
       },
@@ -561,8 +689,12 @@
         "meaningMnemonic": "A chef lassos a runaway tomato with one strand of <reading>PASTA</reading>. He reels it into a bowl where spaghetti and penne cheer for their fellow <vocabulary>pasta</vocabulary>. パスタ is the broad category; スパゲッティ names spaghetti specifically.",
         "contextSentences": [
           {
-            "ja": "ランチにトマトパスタを注文しました。",
-            "en": "I ordered tomato pasta for lunch."
+            "ja": "ランチにトマトソースのパスタを注文しました。",
+            "en": "I ordered pasta with tomato sauce for lunch."
+          },
+          {
+            "ja": "パスタは少しかためにゆでてください。",
+            "en": "Please cook the pasta so it is still slightly firm."
           }
         ]
       },
@@ -581,6 +713,10 @@
           {
             "ja": "このピザを三人で分けよう。",
             "en": "Let's split this pizza among the three of us."
+          },
+          {
+            "ja": "ピザを一枚、家まで配達してもらいました。",
+            "en": "I had a pizza delivered to my home."
           }
         ]
       },
@@ -597,8 +733,12 @@
         "meaningMnemonic": "A giant <reading>SANDWICH</reading> snaps shut like a book, trapping the chef between two slices of bread. The filling—and the chef—make it unmistakably a <vocabulary>sandwich</vocabulary>. サンドイッチ is the full word; サンド is a common shorter form in food names.",
         "contextSentences": [
           {
-            "ja": "朝ご飯に卵サンドイッチを作りました。",
+            "ja": "朝ご飯に卵のサンドイッチを作りました。",
             "en": "I made an egg sandwich for breakfast."
+          },
+          {
+            "ja": "公園で食べるサンドイッチを買ってきたよ。",
+            "en": "I bought a sandwich to eat at the park."
           }
         ]
       },
@@ -617,6 +757,10 @@
           {
             "ja": "仕事の後で冷たいビールを飲みました。",
             "en": "I drank a cold beer after work."
+          },
+          {
+            "ja": "生ビールをもう一杯お願いします。",
+            "en": "One more draft beer, please."
           }
         ]
       }
@@ -644,6 +788,10 @@
           {
             "ja": "スマホの充電が切れました。",
             "en": "My smartphone ran out of charge."
+          },
+          {
+            "ja": "スマホで地図を見ながら駅まで歩きました。",
+            "en": "I walked to the station while checking the map on my smartphone."
           }
         ]
       },
@@ -663,7 +811,11 @@
         "contextSentences": [
           {
             "ja": "パソコンで資料を作っています。",
-            "en": "I'm making the document on my computer."
+            "en": "I'm preparing the materials on my computer."
+          },
+          {
+            "ja": "パソコンが急に動かなくなりました。",
+            "en": "My computer suddenly stopped working."
           }
         ]
       },
@@ -683,6 +835,10 @@
           {
             "ja": "このアプリは無料で使えます。",
             "en": "You can use this app for free."
+          },
+          {
+            "ja": "写真を編集するアプリを入れました。",
+            "en": "I installed an app for editing photos."
           }
         ]
       },
@@ -703,6 +859,14 @@
           {
             "ja": "ネットで電車の時間を調べました。",
             "en": "I checked the train times online."
+          },
+          {
+            "ja": "社内ネットワークにつながらないので、担当者に連絡しました。",
+            "en": "I couldn't connect to the company network, so I contacted the person in charge."
+          },
+          {
+            "ja": "テニスのボールがネットに当たりました。",
+            "en": "The tennis ball hit the net."
           }
         ]
       },
@@ -723,7 +887,11 @@
         "contextSentences": [
           {
             "ja": "あとでメールを送ります。",
-            "en": "I'll send you an email later."
+            "en": "I'll send an email later."
+          },
+          {
+            "ja": "駅に着いたらメールしてね。",
+            "en": "Message me when you get to the station."
           }
         ]
       },
@@ -742,6 +910,10 @@
           {
             "ja": "旅行にカメラを持って行きます。",
             "en": "I'm taking a camera on the trip."
+          },
+          {
+            "ja": "猫にカメラを向けると、逃げてしまいました。",
+            "en": "When I pointed the camera at the cat, it ran away."
           }
         ]
       },
@@ -761,6 +933,10 @@
           {
             "ja": "電車の中ではイヤホンを使ってください。",
             "en": "Please use earphones on the train."
+          },
+          {
+            "ja": "片方のイヤホンから音が聞こえません。",
+            "en": "I can't hear anything through one of the earbuds."
           }
         ]
       },
@@ -781,6 +957,10 @@
           {
             "ja": "暑いので、エアコンをつけてもいいですか。",
             "en": "It's hot, so may I turn on the air conditioner?"
+          },
+          {
+            "ja": "寝る前にエアコンを消しました。",
+            "en": "I turned off the air conditioner before going to bed."
           }
         ]
       },
@@ -801,6 +981,10 @@
           {
             "ja": "テレビのリモコンはどこですか。",
             "en": "Where is the TV remote?"
+          },
+          {
+            "ja": "リモコンの電池を交換したら、また使えるようになりました。",
+            "en": "After I replaced the remote's batteries, it started working again."
           }
         ]
       },
@@ -819,6 +1003,10 @@
           {
             "ja": "友だちとオンラインゲームをしました。",
             "en": "I played an online game with a friend."
+          },
+          {
+            "ja": "家族でカードゲームを楽しみました。",
+            "en": "My family and I enjoyed a card game."
           }
         ]
       },
@@ -837,6 +1025,10 @@
           {
             "ja": "映画のチケットを二枚買いました。",
             "en": "I bought two movie tickets."
+          },
+          {
+            "ja": "新幹線のチケットはスマホで予約できます。",
+            "en": "You can book a bullet train ticket on your smartphone."
           }
         ]
       },
@@ -857,6 +1049,10 @@
           {
             "ja": "帰りにスーパーで牛乳を買います。",
             "en": "I'll buy milk at the supermarket on the way home."
+          },
+          {
+            "ja": "このスーパーは夜十時まで開いています。",
+            "en": "This supermarket is open until ten at night."
           }
         ]
       },
@@ -877,6 +1073,14 @@
           {
             "ja": "レジに長い列ができています。",
             "en": "A long line has formed at the checkout."
+          },
+          {
+            "ja": "このレジは故障中です。隣のレジをお使いください。",
+            "en": "This register is out of order. Please use the next one."
+          },
+          {
+            "ja": "レジの人に袋はいらないと伝えました。",
+            "en": "I told the cashier that I didn't need a bag."
           }
         ]
       },
@@ -897,6 +1101,10 @@
           {
             "ja": "すみません、トイレはどこですか。",
             "en": "Excuse me, where is the restroom?"
+          },
+          {
+            "ja": "次の駅でトイレを使いたいです。",
+            "en": "I want to use the restroom at the next station."
           }
         ]
       },
@@ -915,6 +1123,10 @@
           {
             "ja": "毎朝バスで学校に通っています。",
             "en": "I commute to school by bus every morning."
+          },
+          {
+            "ja": "最終バスに間に合いませんでした。",
+            "en": "I missed the last bus."
           }
         ]
       },
@@ -936,6 +1148,10 @@
           {
             "ja": "週末はカフェでアルバイトをしています。",
             "en": "I work part-time at a café on weekends."
+          },
+          {
+            "ja": "この店では新しいアルバイトを二人募集しています。",
+            "en": "This shop is hiring two new part-time workers."
           }
         ]
       }
@@ -1032,7 +1248,7 @@
           },
           {
             "ja": "子ども用のナイフを用意した。",
-            "en": "I prepared a knife for the child."
+            "en": "I set out a children's knife."
           }
         ]
       },
@@ -1166,6 +1382,10 @@
           {
             "ja": "トーストが少し焦げてしまった。",
             "en": "The toast got a little burnt."
+          },
+          {
+            "ja": "パンを二枚トーストしてください。",
+            "en": "Please toast two slices of bread."
           }
         ]
       },
@@ -1538,8 +1758,8 @@
             "en": "I ate hot takoyaki at the festival."
           },
           {
-            "ja": "たこやきは中がとても熱い。",
-            "en": "Takoyaki is very hot inside."
+            "ja": "たこやきを六個注文した。",
+            "en": "I ordered six pieces of takoyaki."
           }
         ]
       }
@@ -1589,7 +1809,7 @@
         "contextSentences": [
           {
             "ja": "えっ、今日は休みなの？",
-            "en": "What, today is a day off?"
+            "en": "Huh? We have today off?"
           },
           {
             "ja": "えっ、もう十時？",
@@ -1639,8 +1859,8 @@
             "en": "Well, let's think without rushing."
           },
           {
-            "ja": "まあ、今日はこれでいいでしょう。",
-            "en": "Well, this should be enough for today."
+            "ja": "まあまあ、そんなに怒らないで。",
+            "en": "Now, now, don't get so angry."
           }
         ]
       },
@@ -1705,7 +1925,7 @@
         "contextSentences": [
           {
             "ja": "へえ、そんな方法があるんだ。",
-            "en": "Oh really, there's a method like that?"
+            "en": "Oh, really? There's a way to do that?"
           },
           {
             "ja": "へえ、この店は百年も続いているの？",
@@ -1728,7 +1948,7 @@
         "contextSentences": [
           {
             "ja": "いよいよ明日が本番だ。",
-            "en": "At last, the real event is tomorrow."
+            "en": "Tomorrow is finally the big day."
           },
           {
             "ja": "いよいよ新しい店が開く。",
@@ -1798,11 +2018,11 @@
         "contextSentences": [
           {
             "ja": "締め切りまでになんとか終わった。",
-            "en": "I somehow finished by the deadline."
+            "en": "I managed to finish by the deadline."
           },
           {
-            "ja": "この問題はなんとか自分で解けそうだ。",
-            "en": "It looks like I can solve this problem somehow on my own."
+            "ja": "時間がないので、そこをなんとかお願いします。",
+            "en": "We're out of time, so please find some way to make it work."
           }
         ]
       }
@@ -1860,6 +2080,10 @@
           {
             "ja": "明日の準備をしっかりしておこう。",
             "en": "Let's prepare properly for tomorrow."
+          },
+          {
+            "ja": "彼は若いけれど、考え方がしっかりしている。",
+            "en": "He is young, but he has a level-headed way of thinking."
           }
         ]
       },
@@ -1949,11 +2173,11 @@
         "contextSentences": [
           {
             "ja": "今日はなんだか静かですね。",
-            "en": "It's somehow quiet today."
+            "en": "It feels strangely quiet today."
           },
           {
             "ja": "なんだか甘い物が食べたい。",
-            "en": "I somehow feel like eating something sweet."
+            "en": "For some reason, I feel like eating something sweet."
           }
         ]
       },
@@ -2581,8 +2805,8 @@
             "en": "I went to the interview in a navy suit."
           },
           {
-            "ja": "新しいスーツのサイズを直してもらった。",
-            "en": "I had the size of my new suit adjusted."
+            "ja": "新しいスーツを自分のサイズに直してもらった。",
+            "en": "I had my new suit altered to fit me."
           }
         ]
       },
@@ -2626,8 +2850,8 @@
             "en": "I matched a brown belt with the trousers."
           },
           {
-            "ja": "ベルトの穴を一つゆるめた。",
-            "en": "I loosened the belt by one hole."
+            "ja": "食べすぎたので、ベルトを少しゆるめた。",
+            "en": "I ate too much, so I loosened my belt a little."
           }
         ]
       },
@@ -2694,7 +2918,7 @@
           },
           {
             "ja": "白いスニーカーをきれいに洗った。",
-            "en": "I washed my white sneakers clean."
+            "en": "I washed my white sneakers thoroughly."
           }
         ]
       }
@@ -2765,8 +2989,8 @@
         "meaningMnemonic": "An <reading>escalator</reading> grows faster with every step until shoppers shoot onto the next floor like rockets. A guard pulls the plug on the wild <vocabulary>escalator</vocabulary>. エスカレーター is the moving staircase, with two long vowels in its Japanese loan form.",
         "contextSentences": [
           {
-            "ja": "エスカレーターの右側を空けた。",
-            "en": "I left the right side of the escalator open."
+            "ja": "エスカレーターでは手すりにつかまってください。",
+            "en": "Please hold the handrail while riding the escalator."
           },
           {
             "ja": "次の階へはエスカレーターで行けます。",
@@ -2926,7 +3150,7 @@
         "contextSentences": [
           {
             "ja": "日曜日に海までドライブした。",
-            "en": "We drove to the sea on Sunday."
+            "en": "We went for a drive to the coast on Sunday."
           },
           {
             "ja": "天気がいいからドライブに行こう。",
@@ -2983,7 +3207,7 @@
             "en": "I read an e-book on a tablet."
           },
           {
-            "ja": "会議ではタブレットにメモを取る。",
+            "ja": "会議ではタブレットでメモを取る。",
             "en": "I take notes on a tablet during meetings."
           }
         ]
@@ -3141,7 +3365,7 @@
           },
           {
             "ja": "共有フォルダに資料を入れてください。",
-            "en": "Please put the document in the shared folder."
+            "en": "Please put the materials in the shared folder."
           }
         ]
       },
@@ -3159,7 +3383,7 @@
         "contextSentences": [
           {
             "ja": "パスワードは他の人に教えないでください。",
-            "en": "Please don't tell your password to anyone else."
+            "en": "Please don't share your password with anyone else."
           },
           {
             "ja": "新しいパスワードを設定した。",
@@ -3285,7 +3509,7 @@
           },
           {
             "ja": "昨日のドラマは意外な終わり方だった。",
-            "en": "Yesterday's drama had a surprising ending."
+            "en": "Yesterday's episode of the drama had a surprising ending."
           }
         ]
       },
@@ -3307,7 +3531,7 @@
           },
           {
             "ja": "そのニュースはインターネットで知った。",
-            "en": "I learned that news on the internet."
+            "en": "I first heard the news online."
           }
         ]
       },
@@ -3415,7 +3639,7 @@
         "contextSentences": [
           {
             "ja": "兄は毎晩ギターを練習する。",
-            "en": "My older brother practices guitar every evening."
+            "en": "My older brother practices the guitar every evening."
           },
           {
             "ja": "この曲をギターで弾いてください。",
@@ -3494,8 +3718,8 @@
             "en": "I went shopping with my family on my day off."
           },
           {
-            "ja": "駅の近くでショッピングを楽しんだ。",
-            "en": "I enjoyed shopping near the station."
+            "ja": "最近は家でオンラインショッピングをすることが多い。",
+            "en": "Lately, I often shop online from home."
           }
         ]
       },
@@ -3517,7 +3741,7 @@
           },
           {
             "ja": "セールでコートを安く買った。",
-            "en": "I bought a coat cheaply in the sale."
+            "en": "I bought a coat at a discount during the sale."
           }
         ]
       },
@@ -3630,7 +3854,7 @@
           },
           {
             "ja": "旅行中はキャッシュレスで支払うことが多い。",
-            "en": "I often pay cashlessly while traveling."
+            "en": "I often use cashless payment while traveling."
           }
         ]
       },
@@ -3772,6 +3996,14 @@
           {
             "ja": "あいにく、その日は予定があります。",
             "en": "Unfortunately, I already have plans that day."
+          },
+          {
+            "ja": "あいにく店長は外出しております。",
+            "en": "I'm sorry, but the manager is out at the moment."
+          },
+          {
+            "ja": "遠足の日はあいにくの雨だった。",
+            "en": "Unfortunately, it rained on the day of the field trip."
           }
         ]
       },
@@ -3791,6 +4023,14 @@
           {
             "ja": "とにかく、まず話を聞いてください。",
             "en": "Anyway, please hear me out first."
+          },
+          {
+            "ja": "理由はあとで説明するから、とにかく今は逃げよう。",
+            "en": "I'll explain why later; for now, let's just get out of here."
+          },
+          {
+            "ja": "この店はとにかく量が多い。",
+            "en": "This restaurant serves really large portions."
           }
         ]
       },
@@ -3810,7 +4050,11 @@
         "contextSentences": [
           {
             "ja": "たしか、集合は九時だったと思います。",
-            "en": "If I remember correctly, the meeting time was nine."
+            "en": "If I remember correctly, we were supposed to meet at nine."
+          },
+          {
+            "ja": "たしかな情報が入るまで発表を待ちましょう。",
+            "en": "Let's wait to make an announcement until we have reliable information."
           }
         ]
       },
@@ -3830,6 +4074,14 @@
           {
             "ja": "せめて名前だけでも教えてください。",
             "en": "Please tell me at least your name."
+          },
+          {
+            "ja": "せめて一時間あれば、最後まで仕上げられるのに。",
+            "en": "If only I had at least an hour, I could finish it."
+          },
+          {
+            "ja": "結果は変わらなくても、せめて謝ってほしい。",
+            "en": "Even if it won't change the outcome, I at least want an apology."
           }
         ]
       },
@@ -3849,6 +4101,10 @@
           {
             "ja": "ひとまずここで休憩しましょう。",
             "en": "For now, let's take a break here."
+          },
+          {
+            "ja": "水漏れの問題はひとまず解決した。",
+            "en": "The leak has been dealt with for the time being."
           }
         ]
       },
@@ -3868,6 +4124,10 @@
           {
             "ja": "どうせ行くなら、早く出よう。",
             "en": "If we're going anyway, let's leave early."
+          },
+          {
+            "ja": "どうせ私が何を言っても、彼は聞かない。",
+            "en": "No matter what I say, he isn't going to listen."
           }
         ]
       },
@@ -3887,6 +4147,10 @@
           {
             "ja": "なにしろ初めてなので、少し緊張しています。",
             "en": "After all, it's my first time, so I'm a little nervous."
+          },
+          {
+            "ja": "なにしろ荷物が多くて、一人では運べません。",
+            "en": "The thing is, there is so much luggage that I can't carry it alone."
           }
         ]
       },
@@ -3905,7 +4169,11 @@
         "contextSentences": [
           {
             "ja": "もしかして、道に迷いましたか。",
-            "en": "Did you perhaps get lost?"
+            "en": "Did you get lost, by any chance?"
+          },
+          {
+            "ja": "もしかして、鍵を会社に忘れたかもしれない。",
+            "en": "Maybe I left my keys at the office."
           }
         ]
       },
@@ -3925,6 +4193,10 @@
           {
             "ja": "どうやら電車が遅れているようです。",
             "en": "Apparently, the train is running late."
+          },
+          {
+            "ja": "足跡を見ると、どうやら犬が庭に入ったらしい。",
+            "en": "Judging by the tracks, it seems a dog got into the yard."
           }
         ]
       },
@@ -3944,6 +4216,14 @@
           {
             "ja": "準備はほぼ終わりました。",
             "en": "The preparations are almost finished."
+          },
+          {
+            "ja": "駅までは歩いてほぼ十分です。",
+            "en": "It's about a ten-minute walk to the station."
+          },
+          {
+            "ja": "参加者のほぼ半数が初参加だった。",
+            "en": "Almost half of the participants were attending for the first time."
           }
         ]
       }
@@ -3972,6 +4252,10 @@
           {
             "ja": "旅行の前日はいつもわくわくする。",
             "en": "I always feel excited the day before a trip."
+          },
+          {
+            "ja": "子どもたちはプレゼントをわくわくしながら開けた。",
+            "en": "The children excitedly opened their presents."
           }
         ]
       },
@@ -3992,6 +4276,10 @@
           {
             "ja": "子どもはプレゼントを見てにこにこしていた。",
             "en": "The child was smiling when they saw the present."
+          },
+          {
+            "ja": "祖母は赤ちゃんを見ながら、にこにこ笑った。",
+            "en": "My grandmother smiled cheerfully as she looked at the baby."
           }
         ]
       },
@@ -4013,6 +4301,10 @@
           {
             "ja": "渋滞でなかなか進まず、いらいらした。",
             "en": "I got irritated because the traffic barely moved."
+          },
+          {
+            "ja": "彼の失礼な言い方にいらいらする。",
+            "en": "The rude way he speaks irritates me."
           }
         ]
       },
@@ -4033,6 +4325,10 @@
           {
             "ja": "新しい服を着て、うきうきしながら出かけた。",
             "en": "I went out in high spirits wearing my new clothes."
+          },
+          {
+            "ja": "明日から休みだと思うと、気分がうきうきする。",
+            "en": "Knowing that my break starts tomorrow puts me in a cheerful mood."
           }
         ]
       },
@@ -4053,6 +4349,10 @@
           {
             "ja": "試合が中止になって、みんながっかりした。",
             "en": "Everyone was disappointed when the game was canceled."
+          },
+          {
+            "ja": "悪い結果でも、あまりがっかりしないでね。",
+            "en": "Even if the result is bad, don't be too discouraged."
           }
         ]
       },
@@ -4073,6 +4373,10 @@
           {
             "ja": "後ろから名前を呼ばれてびっくりした。",
             "en": "I was startled when someone called my name from behind."
+          },
+          {
+            "ja": "ホテルの値段の高さにびっくりした。",
+            "en": "I was surprised by how expensive the hotel was."
           }
         ]
       },
@@ -4092,6 +4396,10 @@
           {
             "ja": "後ろの席からくすくす笑う声が聞こえた。",
             "en": "I heard quiet giggling from the back row."
+          },
+          {
+            "ja": "二人は顔を見合わせてくすくす笑った。",
+            "en": "The two of them looked at each other and giggled."
           }
         ]
       },
@@ -4111,7 +4419,11 @@
         "contextSentences": [
           {
             "ja": "無事だと聞いて、ほっとしました。",
-            "en": "I was relieved to hear that they were safe."
+            "en": "I was relieved to hear that all was well."
+          },
+          {
+            "ja": "試験が終わって、やっとほっと一息つけた。",
+            "en": "Once the exam was over, I could finally breathe a sigh of relief."
           }
         ]
       },
@@ -4133,6 +4445,10 @@
           {
             "ja": "彼は先生の前でおどおどしていた。",
             "en": "He acted nervously in front of the teacher."
+          },
+          {
+            "ja": "店員に話しかけられ、彼女はおどおどした声で答えた。",
+            "en": "When the clerk spoke to her, she answered in a timid voice."
           }
         ]
       },
@@ -4153,6 +4469,14 @@
           {
             "ja": "最後までどちらが勝つか分からず、はらはらした。",
             "en": "I was on edge because I couldn't tell who would win until the end."
+          },
+          {
+            "ja": "子どもが高い塀の上を歩くのを見て、はらはらした。",
+            "en": "Watching the child walk along the high wall made me nervous."
+          },
+          {
+            "ja": "このドラマは毎回はらはらする展開になる。",
+            "en": "Every episode of this drama takes a suspenseful turn."
           }
         ]
       }
@@ -4181,6 +4505,10 @@
           {
             "ja": "休日は家でのんびり過ごしたい。",
             "en": "I want to spend my day off relaxing at home."
+          },
+          {
+            "ja": "急がずに、海辺をのんびり歩いた。",
+            "en": "I took a leisurely walk along the beach without rushing."
           }
         ]
       },
@@ -4201,6 +4529,10 @@
           {
             "ja": "時間があったので、駅の周りをぶらぶらした。",
             "en": "I had time, so I wandered around the station."
+          },
+          {
+            "ja": "切れたひもがかばんからぶらぶら下がっている。",
+            "en": "A broken strap is dangling from the bag."
           }
         ]
       },
@@ -4220,6 +4552,10 @@
           {
             "ja": "毎日こつこつ勉強を続けている。",
             "en": "I keep studying diligently every day."
+          },
+          {
+            "ja": "少ない金額でも、毎月こつこつ貯金している。",
+            "en": "Even though it's only a small amount, I steadily save money every month."
           }
         ]
       },
@@ -4237,8 +4573,16 @@
         "meaningMnemonic": "Two actual goons grab a rope and chant <reading>GOON—GOON</reading> as they haul a tiny plant upward like a rocket. It grows <vocabulary>rapidly</vocabulary>, gaining height by leaps and bounds. ぐんぐん emphasizes strong, steady progress rather than one sudden jump.",
         "contextSentences": [
           {
-            "ja": "春になると、子どもたちは背がぐんぐん伸びる。",
-            "en": "In spring, the children grow taller by leaps and bounds."
+            "ja": "この一年で、子どもたちは背がぐんぐん伸びた。",
+            "en": "Over the past year, the children shot up in height."
+          },
+          {
+            "ja": "午後になると気温がぐんぐん上がった。",
+            "en": "The temperature climbed rapidly in the afternoon."
+          },
+          {
+            "ja": "練習を始めてから、彼女の記録はぐんぐん伸びている。",
+            "en": "Since she began practicing, her results have improved by leaps and bounds."
           }
         ]
       },
@@ -4258,6 +4602,10 @@
           {
             "ja": "赤ちゃんを起こさないように、ドアをそっと閉めた。",
             "en": "I gently closed the door so I wouldn't wake the baby."
+          },
+          {
+            "ja": "会議の途中で、彼は部屋をそっと抜け出した。",
+            "en": "He quietly slipped out of the room during the meeting."
           }
         ]
       },
@@ -4278,6 +4626,14 @@
           {
             "ja": "猫は窓の外をじっと見ていた。",
             "en": "The cat stared intently out the window."
+          },
+          {
+            "ja": "写真を撮る間、じっとしていてください。",
+            "en": "Please keep still while I take the picture."
+          },
+          {
+            "ja": "彼は何も言わず、痛みをじっとこらえた。",
+            "en": "Without saying anything, he patiently endured the pain."
           }
         ]
       },
@@ -4298,6 +4654,10 @@
           {
             "ja": "熱があって、立つとふらふらする。",
             "en": "I have a fever and feel unsteady when I stand."
+          },
+          {
+            "ja": "彼は疲れた足でふらふら歩いていた。",
+            "en": "He was staggering along on tired legs."
           }
         ]
       },
@@ -4317,6 +4677,14 @@
           {
             "ja": "子どもが同じ場所をぐるぐる回っている。",
             "en": "The child is going round and round in the same spot."
+          },
+          {
+            "ja": "長いマフラーを首にぐるぐる巻いた。",
+            "en": "I wrapped the long scarf around my neck several times."
+          },
+          {
+            "ja": "考えが頭の中をぐるぐる巡って、眠れなかった。",
+            "en": "Thoughts kept circling in my head, and I couldn't sleep."
           }
         ]
       },
@@ -4337,6 +4705,10 @@
           {
             "ja": "朝から何も食べていなくて、お腹がぺこぺこだ。",
             "en": "I haven't eaten since morning, so I'm starving."
+          },
+          {
+            "ja": "運動したら、お腹がぺこぺこになった。",
+            "en": "After exercising, I became ravenously hungry."
           }
         ]
       },
@@ -4358,6 +4730,10 @@
           {
             "ja": "締め切りぎりぎりにレポートを出した。",
             "en": "I submitted the report right at the deadline."
+          },
+          {
+            "ja": "この箱は棚にぎりぎり入る大きさだ。",
+            "en": "This box is just small enough to fit on the shelf."
           }
         ]
       }
@@ -4386,6 +4762,10 @@
           {
             "ja": "このパンは中がもちもちしている。",
             "en": "The inside of this bread is pleasantly chewy."
+          },
+          {
+            "ja": "米粉を使うと、麺がもちもちした食感になる。",
+            "en": "Using rice flour gives the noodles a springy texture."
           }
         ]
       },
@@ -4405,6 +4785,10 @@
           {
             "ja": "揚げたてのコロッケは衣がさくさくだ。",
             "en": "The coating on the freshly fried croquette is crisp."
+          },
+          {
+            "ja": "天ぷらの衣をさくさくにするため、冷たい水を使った。",
+            "en": "I used cold water to make the tempura batter crisp."
           }
         ]
       },
@@ -4425,6 +4809,10 @@
           {
             "ja": "焼きのりがぱりぱりしていておいしい。",
             "en": "The toasted seaweed is crispy and delicious."
+          },
+          {
+            "ja": "包装紙を丸めると、ぱりぱりと音がした。",
+            "en": "The wrapping paper crackled when I crumpled it."
           }
         ]
       },
@@ -4445,6 +4833,10 @@
           {
             "ja": "ベーコンをかりかりになるまで焼いた。",
             "en": "I cooked the bacon until it was crispy."
+          },
+          {
+            "ja": "待たされると、父はすぐかりかりする。",
+            "en": "My father gets irritated quickly when he is kept waiting."
           }
         ]
       },
@@ -4466,6 +4858,10 @@
           {
             "ja": "この石は水で磨かれてつるつるだ。",
             "en": "This stone has been polished smooth by the water."
+          },
+          {
+            "ja": "道が凍ってつるつるなので、転ばないように気をつけて。",
+            "en": "The road is icy and slippery, so be careful not to fall."
           }
         ]
       },
@@ -4487,6 +4883,14 @@
           {
             "ja": "このシャンプーを使うと髪がさらさらになる。",
             "en": "This shampoo makes my hair silky smooth."
+          },
+          {
+            "ja": "乾いた砂が指の間からさらさら落ちた。",
+            "en": "Dry sand flowed smoothly between my fingers."
+          },
+          {
+            "ja": "小川の水がさらさらと流れている。",
+            "en": "The stream is flowing with a soft, gentle sound."
           }
         ]
       },
@@ -4507,6 +4911,14 @@
           {
             "ja": "ジュースをこぼして、床がべたべたする。",
             "en": "I spilled juice, and the floor is sticky."
+          },
+          {
+            "ja": "汗でシャツが背中にべたべた張りつく。",
+            "en": "My shirt sticks to my back because of the sweat."
+          },
+          {
+            "ja": "人前でそんなにべたべたするのはやめて。",
+            "en": "Stop acting so clingy in public."
           }
         ]
       },
@@ -4527,6 +4939,10 @@
           {
             "ja": "砂が付いて、タオルがざらざらしている。",
             "en": "Sand is stuck to the towel, so it feels gritty."
+          },
+          {
+            "ja": "この紙は表面がざらざらしていて、鉛筆で描きやすい。",
+            "en": "This paper has a rough surface that is easy to draw on with a pencil."
           }
         ]
       },
@@ -4546,6 +4962,10 @@
           {
             "ja": "このサラダのレタスはしゃきしゃきしている。",
             "en": "The lettuce in this salad is crisp."
+          },
+          {
+            "ja": "れんこんをさっと炒めて、しゃきしゃきした食感を残した。",
+            "en": "I stir-fried the lotus root briefly so it kept its crisp texture."
           }
         ]
       },
@@ -4566,6 +4986,10 @@
           {
             "ja": "卵を半熟にして、黄身をとろとろにした。",
             "en": "I soft-cooked the egg so the yolk was runny."
+          },
+          {
+            "ja": "野菜をとろとろになるまで弱火で煮込んだ。",
+            "en": "I simmered the vegetables over low heat until they were meltingly soft."
           }
         ]
       }
@@ -4592,8 +5016,12 @@
         "meaningMnemonic": "A cat pokes a heater twice—<reading>POKE-A—POKE-A</reading>—then curls up in the sunbeam it releases. The room becomes <vocabulary>pleasantly warm</vocabulary>, never scorching. ぽかぽか often describes sunshine, a room, or a comfortably warmed body.",
         "contextSentences": [
           {
-            "ja": "今日は日差しがぽかぽかして暖かい。",
-            "en": "The sunshine feels pleasantly warm today."
+            "ja": "今日はぽかぽかした陽気で、上着はいらない。",
+            "en": "It's pleasantly warm today, so I don't need a jacket."
+          },
+          {
+            "ja": "温かいスープを飲むと、体がぽかぽかしてきた。",
+            "en": "After drinking the warm soup, my body began to feel nice and warm."
           }
         ]
       },
@@ -4613,6 +5041,10 @@
           {
             "ja": "梅雨は部屋の中までじめじめする。",
             "en": "During the rainy season, even the inside of the room feels damp."
+          },
+          {
+            "ja": "じめじめした押し入れに、かびが生えてしまった。",
+            "en": "Mold grew in the damp closet."
           }
         ]
       },
@@ -4632,6 +5064,10 @@
           {
             "ja": "今夜はむしむしして寝苦しい。",
             "en": "It's muggy tonight and hard to sleep."
+          },
+          {
+            "ja": "雨が上がったあと、電車の中はむしむししていた。",
+            "en": "After the rain stopped, it felt hot and humid inside the train."
           }
         ]
       },
@@ -4651,6 +5087,10 @@
           {
             "ja": "洞窟の中はひんやりしていた。",
             "en": "It was pleasantly cool inside the cave."
+          },
+          {
+            "ja": "冷蔵庫から出した桃がひんやり冷たい。",
+            "en": "The peach from the refrigerator feels refreshingly cold."
           }
         ]
       },
@@ -4670,6 +5110,10 @@
           {
             "ja": "朝から空がどんより曇っている。",
             "en": "The sky has been heavily overcast since morning."
+          },
+          {
+            "ja": "失敗のことを考えると、気分がどんよりする。",
+            "en": "Thinking about the failure puts me in a gloomy mood."
           }
         ]
       },
@@ -4689,6 +5133,10 @@
           {
             "ja": "外では雨がざあざあ降っている。",
             "en": "Rain is pouring down outside."
+          },
+          {
+            "ja": "雨がざあざあ降ってきたので、近くの店で雨宿りした。",
+            "en": "When the rain began pouring, I took shelter in a nearby shop."
           }
         ]
       },
@@ -4708,6 +5156,10 @@
           {
             "ja": "午後から雨がしとしと降り続いた。",
             "en": "A gentle rain kept falling from the afternoon onward."
+          },
+          {
+            "ja": "しとしと降る雨の中を、傘を差して歩いた。",
+            "en": "I walked through the gentle rain under an umbrella."
           }
         ]
       },
@@ -4728,6 +5180,10 @@
           {
             "ja": "傘を忘れて、服がびしょびしょになった。",
             "en": "I forgot my umbrella, and my clothes got soaked."
+          },
+          {
+            "ja": "犬が体を振って、床をびしょびしょにした。",
+            "en": "The dog shook itself and left the floor sopping wet."
           }
         ]
       },
@@ -4747,6 +5203,10 @@
           {
             "ja": "窓から涼しい風がそよそよ入ってくる。",
             "en": "A cool breeze is gently coming through the window."
+          },
+          {
+            "ja": "川辺では、風がそよそよと柳の葉を揺らしていた。",
+            "en": "A gentle breeze was stirring the willow leaves by the river."
           }
         ]
       },
@@ -4767,6 +5227,10 @@
           {
             "ja": "雨の翌日はからっと晴れた。",
             "en": "The day after the rain was bright and clear."
+          },
+          {
+            "ja": "洗濯物がからっと乾いて気持ちいい。",
+            "en": "The laundry dried thoroughly and feels wonderfully fresh."
           }
         ]
       }
@@ -4795,6 +5259,10 @@
           {
             "ja": "花粉のせいでくしゃみが止まらない。",
             "en": "I can't stop sneezing because of the pollen."
+          },
+          {
+            "ja": "ほこりを吸い込んだら、大きなくしゃみが出た。",
+            "en": "I breathed in some dust and let out a big sneeze."
           }
         ]
       },
@@ -4815,6 +5283,10 @@
           {
             "ja": "水を飲んだらしゃっくりが止まった。",
             "en": "My hiccups stopped after I drank water."
+          },
+          {
+            "ja": "食事の途中で急にしゃっくりが出始めた。",
+            "en": "I suddenly started hiccuping in the middle of the meal."
           }
         ]
       },
@@ -4834,6 +5306,10 @@
           {
             "ja": "急に立ち上がったら、めまいがした。",
             "en": "I felt dizzy when I stood up suddenly."
+          },
+          {
+            "ja": "朝からめまいが続いているので、病院に行くことにした。",
+            "en": "I've been dizzy since this morning, so I decided to go to the hospital."
           }
         ]
       },
@@ -4851,8 +5327,12 @@
         "meaningMnemonic": "A cow steps on your boots, then coos at you—<reading>MOO—COO—ME</reading>—while your feet balloon over the laces. The exaggerated puffiness makes <vocabulary>swelling</vocabulary> impossible to miss. むくみ commonly refers to fluid-related swelling in the face, hands, or legs.",
         "contextSentences": [
           {
-            "ja": "長い飛行の後、足にむくみが出た。",
+            "ja": "長時間飛行機に乗った後、足にむくみが出た。",
             "en": "My legs became swollen after the long flight."
+          },
+          {
+            "ja": "朝起きると、顔のむくみが気になった。",
+            "en": "When I woke up, I noticed that my face looked puffy."
           }
         ]
       },
@@ -4872,6 +5352,10 @@
           {
             "ja": "正座をしていたら、足にしびれがきた。",
             "en": "My legs went numb after I sat in seiza."
+          },
+          {
+            "ja": "指のしびれがなかなか取れない。",
+            "en": "The numbness in my fingers isn't going away."
           }
         ]
       },
@@ -4891,6 +5375,10 @@
           {
             "ja": "彼は左の頬に小さなほくろがある。",
             "en": "He has a small mole on his left cheek."
+          },
+          {
+            "ja": "鏡を見ると、鼻の横に新しいほくろができていた。",
+            "en": "When I looked in the mirror, I noticed a new mole beside my nose."
           }
         ]
       },
@@ -4910,6 +5398,10 @@
           {
             "ja": "寝不足が続くと、にきびができやすい。",
             "en": "I tend to get pimples when I don't sleep enough."
+          },
+          {
+            "ja": "額にできたにきびが少し痛い。",
+            "en": "The pimple on my forehead hurts a little."
           }
         ]
       },
@@ -4928,6 +5420,10 @@
           {
             "ja": "机にひじをぶつけてしまった。",
             "en": "I accidentally hit my elbow on the desk."
+          },
+          {
+            "ja": "ひじを曲げると痛いので、重い物を持てない。",
+            "en": "My elbow hurts when I bend it, so I can't lift anything heavy."
           }
         ]
       },
@@ -4947,6 +5443,10 @@
           {
             "ja": "子どものおでこに手を当てて熱を確かめた。",
             "en": "I put my hand on the child's forehead to check for a fever."
+          },
+          {
+            "ja": "低い棚におでこをぶつけた。",
+            "en": "I bumped my forehead on a low shelf."
           }
         ]
       },
@@ -4965,6 +5465,10 @@
           {
             "ja": "眠くて、まぶたが重くなってきた。",
             "en": "I'm sleepy, and my eyelids are getting heavy."
+          },
+          {
+            "ja": "朝起きたら、片方のまぶたが腫れていた。",
+            "en": "When I woke up, one of my eyelids was swollen."
           }
         ]
       }
@@ -4991,6 +5495,10 @@
           {
             "ja": "新しいオフィスは駅から近い。",
             "en": "The new office is close to the station."
+          },
+          {
+            "ja": "今日は自宅ではなく、オフィスで働きます。",
+            "en": "Today I'll work at the office rather than from home."
           }
         ]
       },
@@ -5008,7 +5516,11 @@
         "contextSentences": [
           {
             "ja": "午後三時からチームのミーティングがあります。",
-            "en": "We have a team meeting from three this afternoon."
+            "en": "We have a team meeting at three this afternoon."
+          },
+          {
+            "ja": "海外の同僚とオンラインでミーティングを行った。",
+            "en": "I held an online meeting with colleagues overseas."
           }
         ]
       },
@@ -5027,6 +5539,14 @@
           {
             "ja": "来週のスケジュールを確認してください。",
             "en": "Please check next week's schedule."
+          },
+          {
+            "ja": "出張のスケジュールが急に変更になった。",
+            "en": "The business trip schedule changed suddenly."
+          },
+          {
+            "ja": "今月はスケジュールが詰まっていて、休みが取れない。",
+            "en": "My schedule is packed this month, so I can't take any time off."
           }
         ]
       },
@@ -5044,7 +5564,11 @@
         "contextSentences": [
           {
             "ja": "新しいプロジェクトに参加することになった。",
-            "en": "I've been assigned to join a new project."
+            "en": "I'm going to take part in a new project."
+          },
+          {
+            "ja": "予算不足でプロジェクトが一時中断した。",
+            "en": "The project was temporarily suspended because of a lack of funding."
           }
         ]
       },
@@ -5063,6 +5587,10 @@
           {
             "ja": "この仕事は五人のチームで進めます。",
             "en": "A five-person team will carry out this work."
+          },
+          {
+            "ja": "決勝では強いチームと対戦する。",
+            "en": "We'll face a strong team in the final."
           }
         ]
       },
@@ -5081,6 +5609,10 @@
           {
             "ja": "この書類は黒いペンで書いてください。",
             "en": "Please fill out this document with a black pen."
+          },
+          {
+            "ja": "ペンのインクが切れたので、新しいものに替えた。",
+            "en": "The pen ran out of ink, so I replaced it with a new one."
           }
         ]
       },
@@ -5101,6 +5633,10 @@
           {
             "ja": "明日の数学のテストに向けて勉強している。",
             "en": "I'm studying for tomorrow's math test."
+          },
+          {
+            "ja": "新しい機能を公開する前に、十分なテストを行った。",
+            "en": "We thoroughly tested the new feature before releasing it."
           }
         ]
       },
@@ -5121,6 +5657,14 @@
           {
             "ja": "金曜日までにレポートを提出しなければならない。",
             "en": "I have to submit the report by Friday."
+          },
+          {
+            "ja": "実験の結果をレポートにまとめた。",
+            "en": "I summarized the experiment results in a report."
+          },
+          {
+            "ja": "記者が現地の様子をレポートした。",
+            "en": "A reporter covered the situation on location."
           }
         ]
       },
@@ -5141,6 +5685,10 @@
           {
             "ja": "会議の資料を十部コピーしました。",
             "en": "I made ten copies of the meeting materials."
+          },
+          {
+            "ja": "大切な写真をパソコンにコピーした。",
+            "en": "I copied the important photos onto my computer."
           }
         ]
       },
@@ -5161,6 +5709,10 @@
           {
             "ja": "忘れないように電話番号をメモした。",
             "en": "I wrote down the phone number so I wouldn't forget it."
+          },
+          {
+            "ja": "机の上に『牛乳を買う』というメモが置いてあった。",
+            "en": "There was a note on the desk that said, “Buy milk.”"
           }
         ]
       }
@@ -5188,6 +5740,10 @@
           {
             "ja": "シャツにアイロンをかけてから着た。",
             "en": "I ironed the shirt before putting it on."
+          },
+          {
+            "ja": "アイロンが熱いうちに、ハンカチのしわを伸ばした。",
+            "en": "While the iron was hot, I pressed the wrinkles out of the handkerchief."
           }
         ]
       },
@@ -5207,6 +5763,10 @@
           {
             "ja": "濡れたシャツをハンガーにかけた。",
             "en": "I put the wet shirt on a hanger."
+          },
+          {
+            "ja": "コートは入口にあるハンガーにかけてください。",
+            "en": "Please hang your coat on the hanger by the entrance."
           }
         ]
       },
@@ -5224,8 +5784,12 @@
         "meaningMnemonic": "A bottle of <reading>SHAMPOO</reading> erupts into a foam cloud and washes every head in the bathroom at once. The bubbles smell unmistakably of <vocabulary>shampoo</vocabulary>. シャンプーする means to shampoo one's hair; the word usually refers to hair washing rather than body soap.",
         "contextSentences": [
           {
-            "ja": "旅行用の小さいシャンプーを買った。",
-            "en": "I bought a small travel-size shampoo."
+            "ja": "旅行用に、小さいボトルのシャンプーを買った。",
+            "en": "I bought a small bottle of shampoo for traveling."
+          },
+          {
+            "ja": "海で泳いだあと、髪をよくシャンプーした。",
+            "en": "After swimming in the sea, I shampooed my hair thoroughly."
           }
         ]
       },
@@ -5245,6 +5809,10 @@
           {
             "ja": "ドライヤーで髪を乾かした。",
             "en": "I dried my hair with a hair dryer."
+          },
+          {
+            "ja": "夜遅いので、ドライヤーを弱風にして使った。",
+            "en": "Since it was late at night, I used the hair dryer on a low setting."
           }
         ]
       },
@@ -5263,6 +5831,10 @@
           {
             "ja": "柔らかいブラシで靴の汚れを落とした。",
             "en": "I removed the dirt from my shoes with a soft brush."
+          },
+          {
+            "ja": "朝、鏡の前でブラシを使って髪を整えた。",
+            "en": "In the morning, I used a brush to tidy my hair in front of the mirror."
           }
         ]
       },
@@ -5282,6 +5854,10 @@
           {
             "ja": "バケツに水を入れて庭まで運んだ。",
             "en": "I filled a bucket with water and carried it to the garden."
+          },
+          {
+            "ja": "雨漏りする場所の下にバケツを置いた。",
+            "en": "I put a bucket under the spot where the roof was leaking."
           }
         ]
       },
@@ -5300,6 +5876,10 @@
           {
             "ja": "スポンジに洗剤をつけて皿を洗った。",
             "en": "I put detergent on a sponge and washed the dishes."
+          },
+          {
+            "ja": "浴室の壁を新しいスポンジでこすった。",
+            "en": "I scrubbed the bathroom wall with a new sponge."
           }
         ]
       },
@@ -5320,6 +5900,10 @@
           {
             "ja": "残った料理にラップをして冷蔵庫に入れた。",
             "en": "I covered the leftover food with plastic wrap and put it in the refrigerator."
+          },
+          {
+            "ja": "ラップを少し緩めてから、レンジで温めた。",
+            "en": "I loosened the plastic wrap a little before heating it in the microwave."
           }
         ]
       },
@@ -5339,6 +5923,10 @@
           {
             "ja": "破れた紙をセロテープで直した。",
             "en": "I repaired the torn paper with clear tape."
+          },
+          {
+            "ja": "ポスターの四隅をセロテープで壁に貼った。",
+            "en": "I taped the four corners of the poster to the wall with clear tape."
           }
         ]
       },
@@ -5355,8 +5943,12 @@
         "meaningMnemonic": "A <reading>MOP</reading> grows a hundred yarn legs and races across a spill before anyone slips. The many-legged cleaner is still a floor <vocabulary>mop</vocabulary>. モップをかける means to mop a surface.",
         "contextSentences": [
           {
-            "ja": "閉店後にモップで床を掃除した。",
-            "en": "After closing, I cleaned the floor with a mop."
+            "ja": "閉店後にモップで床を拭いた。",
+            "en": "After closing, I mopped the floor."
+          },
+          {
+            "ja": "床に水をこぼしたので、モップを持ってきた。",
+            "en": "I spilled water on the floor, so I brought over a mop."
           }
         ]
       }
@@ -5384,6 +5976,10 @@
           {
             "ja": "電車は三番ホームに到着します。",
             "en": "The train will arrive at platform three."
+          },
+          {
+            "ja": "ホームの黄色い線の内側でお待ちください。",
+            "en": "Please wait behind the yellow line on the platform."
           }
         ]
       },
@@ -5403,6 +5999,10 @@
           {
             "ja": "朝のラッシュを避けて早く家を出た。",
             "en": "I left home early to avoid the morning rush."
+          },
+          {
+            "ja": "連休の初日は帰省ラッシュが予想されている。",
+            "en": "Heavy holiday travel is expected on the first day of the long weekend."
           }
         ]
       },
@@ -5423,6 +6023,14 @@
           {
             "ja": "現地のガイドが町を案内してくれた。",
             "en": "A local guide showed us around the town."
+          },
+          {
+            "ja": "美術館では無料の音声ガイドを借りられる。",
+            "en": "You can borrow a free audio guide at the museum."
+          },
+          {
+            "ja": "旅行ガイドを読んで、行きたい店を選んだ。",
+            "en": "I read a travel guide and chose the shops I wanted to visit."
           }
         ]
       },
@@ -5441,6 +6049,10 @@
           {
             "ja": "週末のバスツアーに申し込みました。",
             "en": "I signed up for a weekend bus tour."
+          },
+          {
+            "ja": "工場を見学するツアーは一時間かかります。",
+            "en": "The factory tour takes one hour."
           }
         ]
       },
@@ -5461,6 +6073,10 @@
           {
             "ja": "夏休みに湖の近くでキャンプした。",
             "en": "We camped near a lake during summer vacation."
+          },
+          {
+            "ja": "雨が強くなり、予定より早くキャンプを切り上げた。",
+            "en": "The rain grew heavier, so we ended our camping trip earlier than planned."
           }
         ]
       },
@@ -5481,6 +6097,10 @@
           {
             "ja": "駅前で自転車をレンタルできます。",
             "en": "You can rent a bicycle in front of the station."
+          },
+          {
+            "ja": "スキー板のレンタル料金は一日三千円です。",
+            "en": "Ski rental costs three thousand yen per day."
           }
         ]
       },
@@ -5500,6 +6120,10 @@
           {
             "ja": "市民センターで日本語の教室が開かれている。",
             "en": "Japanese classes are held at the community center."
+          },
+          {
+            "ja": "観光センターで町の地図をもらった。",
+            "en": "I picked up a map of the town at the tourist information center."
           }
         ]
       },
@@ -5519,6 +6143,10 @@
           {
             "ja": "このエリアでは無料のWi-Fiが使えます。",
             "en": "Free Wi-Fi is available in this area."
+          },
+          {
+            "ja": "駅の北側は静かな住宅エリアです。",
+            "en": "The area north of the station is a quiet residential neighborhood."
           }
         ]
       },
@@ -5538,6 +6166,10 @@
           {
             "ja": "荷物を駅のコインロッカーに預けた。",
             "en": "I left my luggage in a coin locker at the station."
+          },
+          {
+            "ja": "大きなコインロッカーはすべて使用中だった。",
+            "en": "All of the large coin lockers were in use."
           }
         ]
       },
@@ -5557,6 +6189,10 @@
           {
             "ja": "兄はバイクで会社に通っている。",
             "en": "My older brother commutes to work by motorcycle."
+          },
+          {
+            "ja": "雨の日は危ないので、バイクには乗らない。",
+            "en": "I don't ride my motorcycle on rainy days because it's dangerous."
           }
         ]
       }
@@ -5583,6 +6219,10 @@
           {
             "ja": "公園で若いカップルが写真を撮っていた。",
             "en": "A young couple was taking photos in the park."
+          },
+          {
+            "ja": "二人は大学時代から付き合っているカップルです。",
+            "en": "They have been a couple since their university days."
           }
         ]
       },
@@ -5602,6 +6242,10 @@
           {
             "ja": "彼女はそのバンドの長年のファンです。",
             "en": "She has been a fan of that band for many years."
+          },
+          {
+            "ja": "試合のあと、選手たちはファンに手を振った。",
+            "en": "After the game, the players waved to their fans."
           }
         ]
       },
@@ -5621,6 +6265,10 @@
           {
             "ja": "新しいメンバーをみんなに紹介します。",
             "en": "I'll introduce the new member to everyone."
+          },
+          {
+            "ja": "バンドのメンバー全員がステージに集まった。",
+            "en": "All of the band members gathered on stage."
           }
         ]
       },
@@ -5639,6 +6287,10 @@
           {
             "ja": "彼がこのプロジェクトのリーダーです。",
             "en": "He is the leader of this project."
+          },
+          {
+            "ja": "登山では経験のある人をリーダーに選んだ。",
+            "en": "An experienced person was chosen as the leader for the climb."
           }
         ]
       },
@@ -5657,6 +6309,10 @@
           {
             "ja": "今日の番組には特別なゲストが登場します。",
             "en": "A special guest will appear on today's program."
+          },
+          {
+            "ja": "ホテルのゲストは無料でプールを利用できる。",
+            "en": "Hotel guests can use the pool for free."
           }
         ]
       },
@@ -5676,6 +6332,10 @@
           {
             "ja": "妹は人気アイドルの歌を毎日聞いている。",
             "en": "My younger sister listens to songs by a popular idol every day."
+          },
+          {
+            "ja": "アイドルのコンサート会場で限定グッズを買った。",
+            "en": "I bought limited-edition merchandise at the idol's concert venue."
           }
         ]
       },
@@ -5693,8 +6353,12 @@
         "meaningMnemonic": "A suitcase marked <reading>TALENT</reading> opens on television, and a comedian, host, and singer all spring out. In Japanese media, each visible entertainer can be a <vocabulary>TV personality</vocabulary>. タレント usually labels a media performer rather than the abstract ability called “talent.”",
         "contextSentences": [
           {
-            "ja": "そのタレントは料理番組でも活躍している。",
-            "en": "That TV personality is also active on a cooking show."
+            "ja": "そのタレントは料理番組にもよく出演している。",
+            "en": "That TV personality also appears frequently on cooking shows."
+          },
+          {
+            "ja": "人気タレントが新しい商品の広告に出演した。",
+            "en": "A popular celebrity appeared in an advertisement for the new product."
           }
         ]
       },
@@ -5714,6 +6378,14 @@
           {
             "ja": "このアニメで一番好きなキャラクターは誰ですか。",
             "en": "Who is your favorite character in this anime?"
+          },
+          {
+            "ja": "主人公のキャラクターが原作とは少し違う。",
+            "en": "The protagonist's personality is slightly different from the original work."
+          },
+          {
+            "ja": "町のキャラクターが祭りに登場した。",
+            "en": "The town mascot appeared at the festival."
           }
         ]
       },
@@ -5732,6 +6404,10 @@
           {
             "ja": "子どもの頃、このヒーローに憧れていた。",
             "en": "I admired this hero when I was a child."
+          },
+          {
+            "ja": "勇気を出して助けた消防士は、町のヒーローになった。",
+            "en": "The firefighter who bravely came to the rescue became the town's hero."
           }
         ]
       },
@@ -5750,6 +6426,10 @@
           {
             "ja": "週末に駅前で音楽イベントが開かれる。",
             "en": "A music event will be held near the station this weekend."
+          },
+          {
+            "ja": "店の開店記念イベントに多くの客が集まった。",
+            "en": "Many customers gathered for the store's grand-opening event."
           }
         ]
       }
@@ -5777,6 +6457,10 @@
           {
             "ja": "花粉が多い日はマスクをつけます。",
             "en": "I wear a face mask on days with a lot of pollen."
+          },
+          {
+            "ja": "病院に入る前に、新しいマスクに替えた。",
+            "en": "Before entering the hospital, I changed into a fresh mask."
           }
         ]
       },
@@ -5796,6 +6480,10 @@
           {
             "ja": "今日はコンタクトではなくメガネをかけています。",
             "en": "Today I'm wearing glasses instead of contact lenses."
+          },
+          {
+            "ja": "目が乾いたので、コンタクトを外した。",
+            "en": "My eyes felt dry, so I took out my contact lenses."
           }
         ]
       },
@@ -5814,6 +6502,10 @@
           {
             "ja": "野菜からビタミンを摂るようにしています。",
             "en": "I try to get vitamins from vegetables."
+          },
+          {
+            "ja": "この果物にはビタミンCが多く含まれている。",
+            "en": "This fruit contains a lot of vitamin C."
           }
         ]
       },
@@ -5833,6 +6525,10 @@
           {
             "ja": "健康のために毎朝ジョギングしています。",
             "en": "I go jogging every morning for my health."
+          },
+          {
+            "ja": "雨の日はジョギングを休んで、家で運動する。",
+            "en": "On rainy days, I skip jogging and exercise at home."
           }
         ]
       },
@@ -5852,6 +6548,10 @@
           {
             "ja": "秋に家族と山へハイキングに行った。",
             "en": "I went hiking in the mountains with my family in autumn."
+          },
+          {
+            "ja": "初心者向けのハイキングコースを選んだ。",
+            "en": "We chose a hiking trail suitable for beginners."
           }
         ]
       },
@@ -5870,6 +6570,10 @@
           {
             "ja": "寝る前に二十分ヨガをしています。",
             "en": "I do twenty minutes of yoga before bed."
+          },
+          {
+            "ja": "週末のヨガ教室で呼吸の仕方を習った。",
+            "en": "I learned breathing techniques in a weekend yoga class."
           }
         ]
       },
@@ -5888,6 +6592,10 @@
           {
             "ja": "仕事の後でジムに通っています。",
             "en": "I go to the gym after work."
+          },
+          {
+            "ja": "このジムには初心者向けの器具もそろっている。",
+            "en": "This gym also has equipment for beginners."
           }
         ]
       },
@@ -5907,6 +6615,10 @@
           {
             "ja": "夏は市民プールで泳ぎます。",
             "en": "I swim at the public pool in summer."
+          },
+          {
+            "ja": "大会のため、今日はプールが貸し切りです。",
+            "en": "The pool is reserved today for a competition."
           }
         ]
       },
@@ -5927,6 +6639,10 @@
           {
             "ja": "走る前に足をストレッチした。",
             "en": "I stretched my legs before running."
+          },
+          {
+            "ja": "毎朝の軽いストレッチで体が動かしやすくなった。",
+            "en": "A little stretching every morning has made it easier for me to move."
           }
         ]
       },
@@ -5947,6 +6663,10 @@
           {
             "ja": "週に三回、筋力トレーニングをしている。",
             "en": "I do strength training three times a week."
+          },
+          {
+            "ja": "新人は接客のトレーニングを受けた。",
+            "en": "The new employee received customer-service training."
           }
         ]
       }
@@ -5973,7 +6693,11 @@
         "contextSentences": [
           {
             "ja": "とんかつにソースをかけて食べた。",
-            "en": "I ate the pork cutlet with sauce on it."
+            "en": "I poured sauce over the pork cutlet before eating it."
+          },
+          {
+            "ja": "パスタのソースを弱火で温めた。",
+            "en": "I warmed the pasta sauce over low heat."
           }
         ]
       },
@@ -5992,6 +6716,10 @@
           {
             "ja": "このカレーにはいろいろなスパイスが入っている。",
             "en": "This curry contains many different spices."
+          },
+          {
+            "ja": "肉にスパイスを振ってから焼いた。",
+            "en": "I sprinkled spices on the meat before grilling it."
           }
         ]
       },
@@ -6010,6 +6738,10 @@
           {
             "ja": "ネットで簡単なパスタのレシピを探した。",
             "en": "I looked online for an easy pasta recipe."
+          },
+          {
+            "ja": "初めて作る料理なので、レシピどおりに作った。",
+            "en": "Since it was my first time making the dish, I followed the recipe exactly."
           }
         ]
       },
@@ -6029,6 +6761,10 @@
           {
             "ja": "フライパンで野菜を炒めます。",
             "en": "I stir-fry vegetables in a frying pan."
+          },
+          {
+            "ja": "熱したフライパンに卵を割り入れた。",
+            "en": "I cracked an egg into the heated frying pan."
           }
         ]
       },
@@ -6047,6 +6783,14 @@
           {
             "ja": "オーブンを百八十度に温めてください。",
             "en": "Please preheat the oven to 180 degrees."
+          },
+          {
+            "ja": "クッキーをオーブンで十五分焼いた。",
+            "en": "I baked the cookies in the oven for fifteen minutes."
+          },
+          {
+            "ja": "この容器はオーブンでは使えません。",
+            "en": "This container cannot be used in the oven."
           }
         ]
       },
@@ -6066,6 +6810,10 @@
           {
             "ja": "冷めたスープをレンジで温めた。",
             "en": "I warmed the cold soup in the microwave."
+          },
+          {
+            "ja": "新しい台所には三口のガスレンジがある。",
+            "en": "The new kitchen has a three-burner gas range."
           }
         ]
       },
@@ -6085,6 +6833,10 @@
           {
             "ja": "魚をグリルで十分ほど焼いた。",
             "en": "I grilled the fish for about ten minutes."
+          },
+          {
+            "ja": "肉をグリルで焼いて、表面に焼き色をつけた。",
+            "en": "I cooked the meat on the grill and browned the surface."
           }
         ]
       },
@@ -6103,7 +6855,11 @@
         "contextSentences": [
           {
             "ja": "ミキサーでバナナジュースを作った。",
-            "en": "I made banana juice in a blender."
+            "en": "I made a banana smoothie in the blender."
+          },
+          {
+            "ja": "柔らかく煮た野菜をミキサーにかけてスープにした。",
+            "en": "I blended the softened vegetables into soup."
           }
         ]
       },
@@ -6122,6 +6878,10 @@
           {
             "ja": "夕食に赤ワインを一杯飲みました。",
             "en": "I drank a glass of red wine with dinner."
+          },
+          {
+            "ja": "このソースには料理用のワインを少し加える。",
+            "en": "Add a little cooking wine to this sauce."
           }
         ]
       },
@@ -6140,6 +6900,10 @@
           {
             "ja": "タイマーを五分にセットしてください。",
             "en": "Please set the timer for five minutes."
+          },
+          {
+            "ja": "タイマーが鳴ったら、オーブンからパンを出して。",
+            "en": "When the timer goes off, take the bread out of the oven."
           }
         ]
       }
@@ -6171,7 +6935,7 @@
         "contextSentences": [
           {
             "ja": "ケーキを一口食べた。",
-            "en": "I ate one bite of cake."
+            "en": "I took a bite of the cake."
           },
           {
             "ja": "一口飲めば、味が分かります。",
@@ -6228,8 +6992,8 @@
         "readingMnemonic": "A sneaker collector tears open a locked crate and gasps, <reading>NEW SHOE!</reading> Getting that rare shoe into her hands means she can finally <vocabulary>obtain</vocabulary> or <vocabulary>acquire</vocabulary> it. 入手する is common for acquiring an item or information.",
         "contextSentences": [
           {
-            "ja": "限定の切符を入手した。",
-            "en": "I obtained a limited-edition ticket."
+            "ja": "限定販売の切符を入手した。",
+            "en": "I obtained a limited-release ticket."
           },
           {
             "ja": "必要な情報はネットで入手できます。",
@@ -6380,7 +7144,7 @@
           },
           {
             "ja": "姉を手本にして勉強している。",
-            "en": "I study with my older sister as my model."
+            "en": "I follow my older sister's example when I study."
           }
         ],
         "requiredLevel": 2,
@@ -6442,6 +7206,10 @@
           {
             "ja": "町の中心に公園がある。",
             "en": "There is a park in the center of town."
+          },
+          {
+            "ja": "安全性を議論の中心に置いた。",
+            "en": "We put safety at the heart of the discussion."
           }
         ],
         "requiredLevel": 3,
@@ -6500,7 +7268,7 @@
           },
           {
             "ja": "明日は会場の下見に行きます。",
-            "en": "Tomorrow I am going to preview the venue."
+            "en": "Tomorrow I'm going to inspect the venue in advance."
           }
         ],
         "requiredLevel": 4,
@@ -6582,7 +7350,7 @@
         "contextSentences": [
           {
             "ja": "何か飲みますか。",
-            "en": "Would you like something to drink?"
+            "en": "Would you like anything to drink?"
           },
           {
             "ja": "机の下に何か落ちている。",
@@ -6833,8 +7601,8 @@
             "en": "Please reply within three days."
           },
           {
-            "ja": "駅から十分以内で行けます。",
-            "en": "You can get there from the station within ten minutes."
+            "ja": "駅から歩いて十分以内で行けます。",
+            "en": "You can walk there from the station in ten minutes or less."
           }
         ],
         "requiredLevel": 7,
@@ -6863,7 +7631,7 @@
           },
           {
             "ja": "そのニュースは世間で話題になった。",
-            "en": "That news became a topic of public conversation."
+            "en": "That news attracted a great deal of public attention."
           }
         ],
         "requiredLevel": 8,
@@ -6922,7 +7690,7 @@
           },
           {
             "ja": "今日の主役は新郎と新婦です。",
-            "en": "Today's main characters are the bride and groom."
+            "en": "The bride and groom are the stars of the day."
           }
         ],
         "requiredLevel": 8,
@@ -6992,7 +7760,7 @@
             "en": "Could I leave a message for Mr. Tanaka?"
           },
           {
-            "ja": "田中さんが帰ったら、この伝言を伝えます。",
+            "ja": "田中さんが帰ったら、この伝言を渡します。",
             "en": "I'll pass on this message when Mr. Tanaka returns."
           }
         ],
@@ -7019,7 +7787,7 @@
         "contextSentences": [
           {
             "ja": "母から元気だという便りが届いた。",
-            "en": "News arrived from my mother saying that she is well."
+            "en": "I heard from my mother that she's doing well."
           },
           {
             "ja": "旅先から便りを送ります。",
@@ -7261,7 +8029,7 @@
           },
           {
             "ja": "地域の交流を深める行事です。",
-            "en": "This event strengthens exchange within the community."
+            "en": "This event helps bring the community together."
           }
         ],
         "requiredLevel": 12,
@@ -7315,11 +8083,11 @@
         "contextSentences": [
           {
             "ja": "彼女の意見に強く共感した。",
-            "en": "I strongly empathized with her opinion."
+            "en": "I strongly identified with her point of view."
           },
           {
             "ja": "この物語は多くの共感を集めた。",
-            "en": "This story drew a great deal of sympathy."
+            "en": "This story resonated with many people."
           }
         ],
         "requiredLevel": 13,
@@ -7467,6 +8235,10 @@
           {
             "ja": "姉は会社で会計を担当している。",
             "en": "My sister handles accounting at her company."
+          },
+          {
+            "ja": "お会計は出口近くのレジでお願いします。",
+            "en": "Please pay at the register near the exit."
           }
         ],
         "requiredLevel": 15,
@@ -7596,8 +8368,8 @@
             "en": "I take a bath before bed."
           },
           {
-            "ja": "食後すぐの入浴は避けてください。",
-            "en": "Please avoid bathing immediately after eating."
+            "ja": "入浴の時間は午後九時までです。",
+            "en": "Bathing hours end at nine in the evening."
           }
         ],
         "requiredLevel": 16,
@@ -7651,7 +8423,7 @@
         "contextSentences": [
           {
             "ja": "この店には強い個性がある。",
-            "en": "This shop has a strong personality."
+            "en": "This shop has a distinctive character."
           },
           {
             "ja": "子どもの個性を大切にしたい。",
@@ -7812,8 +8584,8 @@
         "readingMnemonic": "INVESTIGATE 調 unlocks a case file while INSPECT 査 searches every drawer; their familiar sounds join as <reading>ちょう—さ</reading>. Hidden evidence spills across the desk and launches a full <vocabulary>investigation</vocabulary>. 調査する covers investigating facts or conducting research.",
         "contextSentences": [
           {
-            "ja": "市は住民の意見を調査した。",
-            "en": "The city surveyed its residents' opinions."
+            "ja": "市は住民の生活状況を調査した。",
+            "en": "The city surveyed its residents' living conditions."
           },
           {
             "ja": "事故の原因を詳しく調査している。",
@@ -8107,7 +8879,7 @@
         "contextSentences": [
           {
             "ja": "野菜には栄養がたくさんある。",
-            "en": "Vegetables contain plenty of nutrition."
+            "en": "Vegetables are rich in nutrients."
           },
           {
             "ja": "栄養のバランスを考えて食べる。",
@@ -8141,7 +8913,7 @@
           },
           {
             "ja": "この学校では無料の給食を出している。",
-            "en": "This school provides free meals."
+            "en": "This school provides free lunches."
           }
         ],
         "requiredLevel": 25,
@@ -8177,7 +8949,7 @@
         "contextSentences": [
           {
             "ja": "彼は明るい印象を与えた。",
-            "en": "He gave a cheerful impression."
+            "en": "He made a cheerful impression."
           },
           {
             "ja": "最初の印象と今の印象は全く違う。",
@@ -8401,8 +9173,8 @@
             "en": "My grandmother is good at knitting."
           },
           {
-            "ja": "冬の間に編み物を始めた。",
-            "en": "I took up knitting during the winter."
+            "ja": "棚には祖母が作った編み物が並んでいる。",
+            "en": "The knitted items my grandmother made are lined up on the shelf."
           }
         ],
         "requiredLevel": 31,
@@ -8463,6 +9235,10 @@
           {
             "ja": "オンラインで申し込みを済ませた。",
             "en": "I completed the registration online."
+          },
+          {
+            "ja": "資料の申し込みを電話で受け付けています。",
+            "en": "We accept requests for the information packet by phone."
           }
         ],
         "requiredLevel": 32,
@@ -8547,8 +9323,8 @@
             "en": "Steaming vegetables makes them sweeter."
           },
           {
-            "ja": "魚を蒸すと、身が柔らかくなる。",
-            "en": "Steaming fish makes the flesh tender."
+            "ja": "この鍋なら、一度にたくさんの野菜を蒸すことができます。",
+            "en": "With this pot, you can steam a large amount of vegetables at once."
           }
         ],
         "requiredLevel": 33,
@@ -8825,7 +9601,7 @@
           },
           {
             "ja": "メールの宛先を間違えた。",
-            "en": "I entered the wrong email address."
+            "en": "I got the email address wrong."
           }
         ],
         "requiredLevel": 39,
@@ -9014,7 +9790,7 @@
         "contextSentences": [
           {
             "ja": "肝心な鍵を家に忘れた。",
-            "en": "I left the crucial key at home."
+            "en": "I left the all-important key at home."
           },
           {
             "ja": "肝心なのは毎日続けることです。",
@@ -9046,8 +9822,8 @@
             "en": "This fabric feels smooth."
           },
           {
-            "ja": "練習して、会話が滑らかになった。",
-            "en": "Practice made my conversation more fluent."
+            "ja": "練習して、発音が滑らかになった。",
+            "en": "With practice, my pronunciation became smoother."
           }
         ],
         "requiredLevel": 42,
@@ -9407,7 +10183,7 @@
         "contextSentences": [
           {
             "ja": "セールで必要のない物を買うのは無駄遣いだ。",
-            "en": "Buying things you do not need in a sale is wasteful spending."
+            "en": "Buying things you don't need during a sale is wasteful spending."
           },
           {
             "ja": "時間を無駄遣いしないように計画を立てた。",
@@ -9508,7 +10284,7 @@
         "contextSentences": [
           {
             "ja": "冠婚葬祭で着られる黒い服を買った。",
-            "en": "I bought black clothes suitable for family ceremonies."
+            "en": "I bought black formalwear suitable for ceremonial occasions."
           },
           {
             "ja": "冠婚葬祭のマナーを本で学んだ。",
@@ -9603,7 +10379,7 @@
           },
           {
             "ja": "痛みは徐々に弱くなっている。",
-            "en": "The pain is steadily becoming weaker."
+            "en": "The pain is gradually easing."
           }
         ],
         "requiredLevel": 53,
@@ -9663,8 +10439,8 @@
             "en": "The fee will be left unchanged next year."
           },
           {
-            "ja": "金利の据え置きが発表された。",
-            "en": "A decision to leave interest rates unchanged was announced."
+            "ja": "元金の返済を一年間据え置きにしてもらった。",
+            "en": "I had the principal repayments deferred for one year."
           }
         ],
         "requiredLevel": 53,
@@ -9751,8 +10527,8 @@
             "en": "A doctor explained diabetes to me."
           },
           {
-            "ja": "運動は糖尿病の予防に役立つ。",
-            "en": "Exercise helps prevent diabetes."
+            "ja": "祖父は糖尿病の治療を続けている。",
+            "en": "My grandfather is continuing treatment for diabetes."
           }
         ],
         "requiredLevel": 55,
@@ -9893,7 +10669,11 @@
         "contextSentences": [
           {
             "ja": "男子の決勝は午後三時に始まる。",
-            "en": "The boys' final begins at three in the afternoon."
+            "en": "The men's final begins at three in the afternoon."
+          },
+          {
+            "ja": "この寮には男子学生が暮らしている。",
+            "en": "Male students live in this dormitory."
           }
         ],
         "requiredLevel": 4,
@@ -9919,6 +10699,10 @@
           {
             "ja": "市内のホテルまでバスで行けます。",
             "en": "You can take a bus to the hotel in the city."
+          },
+          {
+            "ja": "大雪のため、市内の学校はすべて休校になった。",
+            "en": "Because of the heavy snow, every school in the city was closed."
           }
         ],
         "requiredLevel": 4,
@@ -9944,6 +10728,10 @@
           {
             "ja": "店は今年も赤字になった。",
             "en": "The shop ran a deficit again this year."
+          },
+          {
+            "ja": "売り上げが伸び、会社はようやく赤字を脱した。",
+            "en": "Sales grew, and the company finally got out of the red."
           }
         ],
         "requiredLevel": 4,
@@ -9971,6 +10759,10 @@
           {
             "ja": "次の駅で下車してください。",
             "en": "Please get off at the next station."
+          },
+          {
+            "ja": "観光客は湖の近くで途中下車し、写真を撮った。",
+            "en": "The tourists stopped off near the lake and took some photos."
           }
         ],
         "requiredLevel": 4,
@@ -9995,7 +10787,11 @@
         "contextSentences": [
           {
             "ja": "弟は来年中学に入る。",
-            "en": "My younger brother enters junior high next year."
+            "en": "My younger brother will start junior high next year."
+          },
+          {
+            "ja": "中学ではバスケットボール部に入っていた。",
+            "en": "I was on the basketball team in junior high school."
           }
         ],
         "requiredLevel": 5,
@@ -10022,6 +10818,10 @@
           {
             "ja": "会議は正午に終わります。",
             "en": "The meeting ends at noon."
+          },
+          {
+            "ja": "正午ちょうどに寺の鐘が鳴った。",
+            "en": "The temple bell rang at exactly noon."
           }
         ],
         "requiredLevel": 3,
@@ -10048,6 +10848,10 @@
           {
             "ja": "日本に来て半年が過ぎた。",
             "en": "Half a year has passed since I came to Japan."
+          },
+          {
+            "ja": "歯の検診を半年ごとに受けている。",
+            "en": "I get a dental checkup every six months."
           }
         ],
         "requiredLevel": 4,
@@ -10073,6 +10877,10 @@
           {
             "ja": "この作家は本名を公開していない。",
             "en": "This author has not made their real name public."
+          },
+          {
+            "ja": "ホテルの受付では本名を記入してください。",
+            "en": "Please enter your real name at the hotel reception desk."
           }
         ],
         "requiredLevel": 4,
@@ -10098,6 +10906,10 @@
           {
             "ja": "本音を言えば、少し不安です。",
             "en": "To tell you my true feelings, I am a little anxious."
+          },
+          {
+            "ja": "遠慮せずに本音を聞かせてほしい。",
+            "en": "I want you to tell me what you honestly think without holding back."
           }
         ],
         "requiredLevel": 5,
@@ -10123,6 +10935,10 @@
           {
             "ja": "社会人になって初めて給料をもらった。",
             "en": "I received my first salary after becoming a working adult."
+          },
+          {
+            "ja": "社会人として時間を守るのは基本だ。",
+            "en": "Punctuality is a basic expectation for working adults."
           }
         ],
         "requiredLevel": 5,
@@ -10149,6 +10965,10 @@
           {
             "ja": "新聞の見出しだけを先に読んだ。",
             "en": "I read only the newspaper headlines first."
+          },
+          {
+            "ja": "各章に分かりやすい見出しを付けた。",
+            "en": "I gave each chapter a clear heading."
           }
         ],
         "requiredLevel": 4,
@@ -10174,8 +10994,12 @@
         "readingMnemonic": "外 pulls the front door open with がい and 出 launches しゅつ into the street as shoes leap onto your feet. The door slams out the rhythm <reading>がい—しゅつ</reading> as you step into the street, already <vocabulary>going out</vocabulary>. 外出する means leaving home or the office for a while, not moving away permanently.",
         "contextSentences": [
           {
-            "ja": "午後は買い物に外出します。",
-            "en": "I am going out shopping this afternoon."
+            "ja": "午後は買い物のために外出します。",
+            "en": "I am going out to shop this afternoon."
+          },
+          {
+            "ja": "担当者は外出中なので、夕方に戻ります。",
+            "en": "The person in charge is out and will return this evening."
           }
         ],
         "requiredLevel": 3,
@@ -10200,6 +11024,10 @@
           {
             "ja": "このパンは国産の小麦で作られている。",
             "en": "This bread is made with domestically grown wheat."
+          },
+          {
+            "ja": "農家は初夏に小麦を収穫する。",
+            "en": "Farmers harvest wheat in early summer."
           }
         ],
         "requiredLevel": 5,
@@ -10238,6 +11066,10 @@
           {
             "ja": "旅行の予算は十万円です。",
             "en": "The budget for the trip is 100,000 yen."
+          },
+          {
+            "ja": "限られた予算内で会場を探さなければならない。",
+            "en": "We have to find a venue within our limited budget."
           }
         ],
         "requiredLevel": 10,
@@ -10263,6 +11095,10 @@
           {
             "ja": "地元の野菜を使った料理です。",
             "en": "This dish uses locally grown vegetables."
+          },
+          {
+            "ja": "大学を卒業したら地元に戻るつもりだ。",
+            "en": "I plan to return to my hometown after graduating from university."
           }
         ],
         "requiredLevel": 6,
@@ -10288,6 +11124,10 @@
           {
             "ja": "会場は駅から歩いて五分です。",
             "en": "The venue is a five-minute walk from the station."
+          },
+          {
+            "ja": "開演前から会場には長い列ができていた。",
+            "en": "A long line had formed at the venue before the performance began."
           }
         ],
         "requiredLevel": 8,
@@ -10313,6 +11153,10 @@
           {
             "ja": "記者が市長に質問した。",
             "en": "A reporter asked the mayor a question."
+          },
+          {
+            "ja": "事件を取材するため、記者が現場に集まった。",
+            "en": "Reporters gathered at the scene to cover the incident."
           }
         ],
         "requiredLevel": 8,
@@ -10338,6 +11182,10 @@
           {
             "ja": "部長に企画書を提出した。",
             "en": "I submitted the proposal to the department head."
+          },
+          {
+            "ja": "彼女は今年、吹奏楽部の部長に選ばれた。",
+            "en": "She was chosen as president of the school band this year."
           }
         ],
         "requiredLevel": 9,
@@ -10363,6 +11211,10 @@
           {
             "ja": "この箱には最大で十キロ入る。",
             "en": "This box can hold a maximum of ten kilograms."
+          },
+          {
+            "ja": "これは県内最大の図書館です。",
+            "en": "This is the largest library in the prefecture."
           }
         ],
         "requiredLevel": 10,
@@ -10389,6 +11241,10 @@
           {
             "ja": "完成の見通しはまだ立っていない。",
             "en": "There is still no clear prospect of completion."
+          },
+          {
+            "ja": "霧が濃く、道路の見通しが悪い。",
+            "en": "The fog is thick, and visibility on the road is poor."
           }
         ],
         "requiredLevel": 7,
@@ -10417,6 +11273,10 @@
           {
             "ja": "会議で一度も発言しなかった。",
             "en": "I did not speak once during the meeting."
+          },
+          {
+            "ja": "大臣は誤解を招いた発言を撤回した。",
+            "en": "The minister withdrew the remark that had caused misunderstanding."
           }
         ],
         "requiredLevel": 9,
@@ -10444,6 +11304,10 @@
           {
             "ja": "その会社とは長年取引がある。",
             "en": "We have done business with that company for many years."
+          },
+          {
+            "ja": "高額な取引なので、契約条件を慎重に確認した。",
+            "en": "Because it was a high-value transaction, we checked the contract terms carefully."
           }
         ],
         "requiredLevel": 6,
@@ -10469,6 +11333,10 @@
           {
             "ja": "朝早く市場で魚を買った。",
             "en": "I bought fish at the market early in the morning."
+          },
+          {
+            "ja": "料理人たちは市場で新鮮な野菜を仕入れる。",
+            "en": "The chefs buy fresh vegetables at the marketplace."
           }
         ],
         "requiredLevel": 8,
@@ -10492,8 +11360,12 @@
         "readingMnemonic": "本 slams ほん onto the command desk while 部 stamps ぶ on every order leaving the central office. Orders marked <reading>ほん—ぶ</reading> stream from the central desk, revealing the organization's <vocabulary>headquarters</vocabulary>. 本部 is the main command center or head office of an organization.",
         "contextSentences": [
           {
-            "ja": "対策本部を市役所に設置した。",
-            "en": "A response headquarters was established at city hall."
+            "ja": "災害対策本部を市役所に設置した。",
+            "en": "A disaster response headquarters was set up at city hall."
+          },
+          {
+            "ja": "詳しい状況は東京の本部に報告してください。",
+            "en": "Please report the details of the situation to the Tokyo headquarters."
           }
         ],
         "requiredLevel": 9,
@@ -10520,6 +11392,10 @@
           {
             "ja": "まず計画全体を説明します。",
             "en": "First I will explain the plan as a whole."
+          },
+          {
+            "ja": "台風の影響で町全体が停電した。",
+            "en": "The entire town lost power because of the typhoon."
           }
         ],
         "requiredLevel": 6,
@@ -10545,6 +11421,10 @@
           {
             "ja": "市民が公園の計画について話し合った。",
             "en": "The citizens discussed the plan for the park."
+          },
+          {
+            "ja": "市は市民に節水への協力を呼びかけた。",
+            "en": "The city asked residents to help conserve water."
           }
         ],
         "requiredLevel": 7,
@@ -10582,6 +11462,10 @@
           {
             "ja": "彼女は医療の分野で働いている。",
             "en": "She works in the medical field."
+          },
+          {
+            "ja": "人工知能は急速に発展している分野だ。",
+            "en": "Artificial intelligence is a rapidly developing field."
           }
         ],
         "requiredLevel": 12,
@@ -10609,6 +11493,10 @@
           {
             "ja": "両社は新しい条件に合意した。",
             "en": "The two companies agreed to the new terms."
+          },
+          {
+            "ja": "話し合いを重ねたが、最終的な合意には至らなかった。",
+            "en": "Despite repeated discussions, they did not reach a final agreement."
           }
         ],
         "requiredLevel": 12,
@@ -10634,6 +11522,10 @@
           {
             "ja": "駅周辺には店が多い。",
             "en": "There are many shops around the station."
+          },
+          {
+            "ja": "警察は現場周辺の道路を封鎖した。",
+            "en": "The police closed the roads around the scene."
           }
         ],
         "requiredLevel": 14,
@@ -10660,6 +11552,10 @@
           {
             "ja": "当初の予定より完成が遅れた。",
             "en": "Completion was later than initially planned."
+          },
+          {
+            "ja": "当初は反対していたが、説明を聞いて考えが変わった。",
+            "en": "I was opposed at first, but the explanation changed my mind."
           }
         ],
         "requiredLevel": 11,
@@ -10685,6 +11581,10 @@
           {
             "ja": "彼は自分の信念を曲げなかった。",
             "en": "He did not compromise his convictions."
+          },
+          {
+            "ja": "医師として患者を第一にするという信念がある。",
+            "en": "As a doctor, she holds the conviction that patients should come first."
           }
         ],
         "requiredLevel": 15,
@@ -10711,6 +11611,14 @@
           {
             "ja": "週末までに課題を提出してください。",
             "en": "Please submit the assignment by the weekend."
+          },
+          {
+            "ja": "人手不足はこの業界の大きな課題だ。",
+            "en": "The labor shortage is a major issue for this industry."
+          },
+          {
+            "ja": "次の課題は、製品のコストを下げることだ。",
+            "en": "Our next task is to reduce the cost of the product."
           }
         ],
         "requiredLevel": 13,
@@ -10738,6 +11646,10 @@
           {
             "ja": "全員の予定を調整しています。",
             "en": "I am coordinating everyone's schedules."
+          },
+          {
+            "ja": "料理の味を見ながら塩の量を調整した。",
+            "en": "I adjusted the amount of salt while tasting the dish."
           }
         ],
         "requiredLevel": 13,
@@ -10766,6 +11678,14 @@
           {
             "ja": "山では通信が不安定になる。",
             "en": "Communication becomes unstable in the mountains."
+          },
+          {
+            "ja": "人工衛星が地上局と通信している。",
+            "en": "The satellite is communicating with the ground station."
+          },
+          {
+            "ja": "通信教育で簿記の資格を取った。",
+            "en": "I earned a bookkeeping qualification through distance education."
           }
         ],
         "requiredLevel": 15,
@@ -10791,6 +11711,10 @@
           {
             "ja": "銀行が住宅ローンの金利を下げた。",
             "en": "The bank lowered its mortgage interest rate."
+          },
+          {
+            "ja": "金利が上がると、借入金の返済額も増える。",
+            "en": "When interest rates rise, loan repayments increase too."
           }
         ],
         "requiredLevel": 11,
@@ -10816,6 +11740,10 @@
           {
             "ja": "予選を一位で通過した。",
             "en": "I advanced through the qualifying round in first place."
+          },
+          {
+            "ja": "雨のため、今日の予選は中止になった。",
+            "en": "Today's qualifying round was canceled because of the rain."
           }
         ],
         "requiredLevel": 13,
@@ -10843,6 +11771,10 @@
           {
             "ja": "卒業の記念に写真を撮った。",
             "en": "We took a photo to commemorate graduation."
+          },
+          {
+            "ja": "開店十周年を記念して、限定商品が発売される。",
+            "en": "A limited-edition product will be released to commemorate the store's tenth anniversary."
           }
         ],
         "requiredLevel": 14,
@@ -10868,6 +11800,10 @@
           {
             "ja": "東京は日本の首都です。",
             "en": "Tokyo is the capital of Japan."
+          },
+          {
+            "ja": "首都の中心部では家賃が高い。",
+            "en": "Rent is expensive in the center of the capital."
           }
         ],
         "requiredLevel": 12,
@@ -10892,6 +11828,10 @@
           {
             "ja": "ビザについて大使館に問い合わせた。",
             "en": "I contacted the embassy about a visa."
+          },
+          {
+            "ja": "大使館は自国民に早めの避難を勧めた。",
+            "en": "The embassy advised its citizens to evacuate early."
           }
         ],
         "requiredLevel": 13,
@@ -10930,6 +11870,10 @@
           {
             "ja": "多くの企業がこの町に本社を置く。",
             "en": "Many companies have their headquarters in this city."
+          },
+          {
+            "ja": "自治体は地元の中小企業を支援している。",
+            "en": "The local government supports small and medium-sized businesses in the area."
           }
         ],
         "requiredLevel": 16,
@@ -10957,6 +11901,10 @@
           {
             "ja": "このアプリには翻訳機能がある。",
             "en": "This app has a translation feature."
+          },
+          {
+            "ja": "事故のとき、車のブレーキが正常に機能しなかった。",
+            "en": "The car's brakes did not function properly during the accident."
           }
         ],
         "requiredLevel": 20,
@@ -10984,6 +11932,10 @@
           {
             "ja": "工場で電池を生産している。",
             "en": "The factory produces batteries."
+          },
+          {
+            "ja": "今年は米の生産量が去年より増えた。",
+            "en": "Rice production increased this year compared with last year."
           }
         ],
         "requiredLevel": 20,
@@ -11008,7 +11960,11 @@
         "contextSentences": [
           {
             "ja": "駅前の不動産を購入した。",
-            "en": "We purchased real estate in front of the station."
+            "en": "We purchased a property near the station."
+          },
+          {
+            "ja": "兄は不動産会社で賃貸物件を担当している。",
+            "en": "My brother handles rental properties at a real estate company."
           }
         ],
         "requiredLevel": 20,
@@ -11035,6 +11991,10 @@
           {
             "ja": "研究の成果を発表した。",
             "en": "We presented the results of the research."
+          },
+          {
+            "ja": "毎日の練習が成果につながり、自己記録を更新できた。",
+            "en": "Daily practice paid off, and I was able to set a new personal best."
           }
         ],
         "requiredLevel": 17,
@@ -11060,6 +12020,10 @@
           {
             "ja": "所得に応じて税金が決まる。",
             "en": "Taxes are determined according to income."
+          },
+          {
+            "ja": "世帯所得が一定額を下回る家庭は支援を受けられる。",
+            "en": "Households whose income falls below a certain amount can receive assistance."
           }
         ],
         "requiredLevel": 19,
@@ -11085,6 +12049,10 @@
           {
             "ja": "重要な文書を安全な場所に保管する。",
             "en": "We store important documents in a secure place."
+          },
+          {
+            "ja": "申請に必要な文書をメールで送りました。",
+            "en": "I sent the documents required for the application by email."
           }
         ],
         "requiredLevel": 16,
@@ -11111,6 +12079,10 @@
           {
             "ja": "目標を明確にしてください。",
             "en": "Please make the goal clear."
+          },
+          {
+            "ja": "二つの案の違いは明確だ。",
+            "en": "The difference between the two proposals is clear."
           }
         ],
         "requiredLevel": 20,
@@ -11137,6 +12109,10 @@
           {
             "ja": "話し合いの結果、同じ結論に達した。",
             "en": "After discussing it, we reached the same conclusion."
+          },
+          {
+            "ja": "結論から言うと、その計画は延期すべきです。",
+            "en": "To give you the bottom line, the plan should be postponed."
           }
         ],
         "requiredLevel": 20,
@@ -11162,6 +12138,10 @@
           {
             "ja": "冷凍食品をまとめて買った。",
             "en": "I bought several frozen food products at once."
+          },
+          {
+            "ja": "開封した食品は冷蔵庫に入れてください。",
+            "en": "Please refrigerate food products once they have been opened."
           }
         ],
         "requiredLevel": 16,
@@ -11189,6 +12169,10 @@
           {
             "ja": "注文に飲み物を追加した。",
             "en": "I added a drink to the order."
+          },
+          {
+            "ja": "荷物が重い場合は追加料金がかかります。",
+            "en": "There is an additional charge if your luggage is heavy."
           }
         ],
         "requiredLevel": 19,
@@ -11214,6 +12198,10 @@
           {
             "ja": "駅の書店で辞書を買った。",
             "en": "I bought a dictionary at the station bookstore."
+          },
+          {
+            "ja": "近所の書店で売り切れていた本を注文した。",
+            "en": "I ordered a book that was sold out at my neighborhood bookstore."
           }
         ],
         "requiredLevel": 16,
@@ -11240,6 +12228,10 @@
           {
             "ja": "工事は順調に進んでいる。",
             "en": "Construction is progressing smoothly."
+          },
+          {
+            "ja": "手術後の回復は順調です。",
+            "en": "Recovery after the operation is going well."
           }
         ],
         "requiredLevel": 19,
@@ -11276,7 +12268,11 @@
         "contextSentences": [
           {
             "ja": "この店では現金しか使えない。",
-            "en": "Only cash can be used at this shop."
+            "en": "This shop only accepts cash."
+          },
+          {
+            "ja": "家賃を現金で払ったので、領収書をもらった。",
+            "en": "I paid the rent in cash, so I asked for a receipt."
           }
         ],
         "requiredLevel": 23,
@@ -11302,6 +12298,10 @@
           {
             "ja": "三人の候補から一人を選ぶ。",
             "en": "We will choose one person from three candidates."
+          },
+          {
+            "ja": "新しい工場の建設地として、二つの町が候補に挙がった。",
+            "en": "Two towns emerged as possible sites for the new factory."
           }
         ],
         "requiredLevel": 25,
@@ -11327,6 +12327,10 @@
           {
             "ja": "原則として予約が必要です。",
             "en": "As a general rule, reservations are required."
+          },
+          {
+            "ja": "この病院では患者の安全を最優先にするのが原則だ。",
+            "en": "At this hospital, the guiding principle is to put patient safety first."
           }
         ],
         "requiredLevel": 23,
@@ -11354,6 +12358,10 @@
           {
             "ja": "来月アンケートを実施します。",
             "en": "We will conduct a survey next month."
+          },
+          {
+            "ja": "学校で地震を想定した避難訓練が実施された。",
+            "en": "An earthquake evacuation drill was conducted at the school."
           }
         ],
         "requiredLevel": 23,
@@ -11379,6 +12387,10 @@
           {
             "ja": "この製品は高い安全水準を満たしている。",
             "en": "This product meets a high safety standard."
+          },
+          {
+            "ja": "この地域では所得水準が徐々に上がっている。",
+            "en": "Income levels in this region are gradually rising."
           }
         ],
         "requiredLevel": 23,
@@ -11404,6 +12416,10 @@
           {
             "ja": "最近は景気が少し回復している。",
             "en": "Recently the economy has recovered a little."
+          },
+          {
+            "ja": "景気の悪化で、店の売り上げが落ちた。",
+            "en": "The store's sales fell because business conditions worsened."
           }
         ],
         "requiredLevel": 25,
@@ -11429,6 +12445,10 @@
           {
             "ja": "現地で担当者と会います。",
             "en": "I will meet the person in charge on site."
+          },
+          {
+            "ja": "現地の人に、おすすめの料理を教えてもらった。",
+            "en": "A local recommended some dishes to me."
           }
         ],
         "requiredLevel": 23,
@@ -11456,6 +12476,10 @@
           {
             "ja": "両親は小さな旅館を経営している。",
             "en": "My parents run a small inn."
+          },
+          {
+            "ja": "原材料の値上がりで、店の経営が苦しくなった。",
+            "en": "Rising material costs made it difficult to manage the store profitably."
           }
         ],
         "requiredLevel": 22,
@@ -11482,6 +12506,10 @@
           {
             "ja": "サービスに不満を感じた。",
             "en": "I felt dissatisfied with the service."
+          },
+          {
+            "ja": "彼は待ち時間が長いと不満そうに話した。",
+            "en": "He sounded dissatisfied as he complained about the long wait."
           }
         ],
         "requiredLevel": 25,
@@ -11508,6 +12536,14 @@
           {
             "ja": "経験があることを前提に話します。",
             "en": "I will speak on the assumption that you have experience."
+          },
+          {
+            "ja": "会員登録がイベント参加の前提です。",
+            "en": "Registering as a member is a prerequisite for taking part in the event."
+          },
+          {
+            "ja": "その前提が間違っていれば、結論も変わる。",
+            "en": "If that premise is wrong, the conclusion will change too."
           }
         ],
         "requiredLevel": 22,
@@ -11535,6 +12571,10 @@
           {
             "ja": "会社は新しい制度を導入した。",
             "en": "The company introduced a new system."
+          },
+          {
+            "ja": "工場に省エネ型の機械を導入する予定だ。",
+            "en": "The factory plans to install energy-efficient machinery."
           }
         ],
         "requiredLevel": 23,
@@ -11562,6 +12602,14 @@
           {
             "ja": "出発前に車を整備した。",
             "en": "I serviced the car before departure."
+          },
+          {
+            "ja": "市は災害に備えて避難所を整備している。",
+            "en": "The city is preparing evacuation shelters for disasters."
+          },
+          {
+            "ja": "観光客が安全に歩けるよう、山道が整備された。",
+            "en": "The mountain trail was improved so tourists could walk it safely."
           }
         ],
         "requiredLevel": 23,
@@ -11587,6 +12635,10 @@
           {
             "ja": "消費者の意見を商品開発に生かす。",
             "en": "We use consumer opinions in product development."
+          },
+          {
+            "ja": "誤解を招く広告から消費者を守る必要がある。",
+            "en": "Consumers need to be protected from misleading advertising."
           }
         ],
         "requiredLevel": 22,
@@ -11625,6 +12677,10 @@
           {
             "ja": "会社は環境を守る方針を発表した。",
             "en": "The company announced a policy of protecting the environment."
+          },
+          {
+            "ja": "売り上げの低迷を受け、経営方針を見直した。",
+            "en": "In response to weak sales, the company reviewed its management policy."
           }
         ],
         "requiredLevel": 26,
@@ -11652,6 +12708,10 @@
           {
             "ja": "会議では積極的に意見を出した。",
             "en": "I actively offered opinions in the meeting."
+          },
+          {
+            "ja": "彼女は地域の清掃活動に積極的だ。",
+            "en": "She is an active participant in neighborhood cleanup efforts."
           }
         ],
         "requiredLevel": 29,
@@ -11679,8 +12739,12 @@
         "readingMnemonic": "上 calls じょう from the first floor and 昇 answers しょう as the elevator rockets toward the roof. The balloon repeats <reading>じょう—しょう</reading> with every meter of its <vocabulary>rise</vocabulary>. 上昇 is upward movement or an increase in prices, temperature, rank, and similar measures.",
         "contextSentences": [
           {
-            "ja": "午後から気温が上昇した。",
-            "en": "The temperature rose in the afternoon."
+            "ja": "原油価格の上昇が運送費に影響している。",
+            "en": "The rise in crude oil prices is affecting shipping costs."
+          },
+          {
+            "ja": "気球はゆっくりと上昇し、雲の上に出た。",
+            "en": "The balloon rose slowly and emerged above the clouds."
           }
         ],
         "requiredLevel": 27,
@@ -11708,6 +12772,10 @@
           {
             "ja": "報告書の数字を修正した。",
             "en": "I corrected the numbers in the report."
+          },
+          {
+            "ja": "参加者の意見を受けて、計画の一部を修正した。",
+            "en": "We revised part of the plan in response to feedback from participants."
           }
         ],
         "requiredLevel": 28,
@@ -11732,6 +12800,10 @@
           {
             "ja": "大型の航空機が滑走路に着陸した。",
             "en": "A large aircraft landed on the runway."
+          },
+          {
+            "ja": "悪天候のため、航空機の出発が遅れている。",
+            "en": "Aircraft departures are delayed because of bad weather."
           }
         ],
         "requiredLevel": 29,
@@ -11760,6 +12832,10 @@
           {
             "ja": "この店は独自の製法を使っている。",
             "en": "This shop uses its own unique production method."
+          },
+          {
+            "ja": "研究チームは集めた資料を独自に分析した。",
+            "en": "The research team analyzed the collected material independently."
           }
         ],
         "requiredLevel": 26,
@@ -11787,6 +12863,10 @@
           {
             "ja": "来週、国際会議を開催します。",
             "en": "We will hold an international conference next week."
+          },
+          {
+            "ja": "花火大会は予定どおり開催される。",
+            "en": "The fireworks festival will be held as scheduled."
           }
         ],
         "requiredLevel": 29,
@@ -11812,6 +12892,10 @@
           {
             "ja": "この工場には百人の従業員がいる。",
             "en": "This factory has one hundred employees."
+          },
+          {
+            "ja": "会社は従業員向けの研修を毎年行っている。",
+            "en": "The company provides training for its employees every year."
           }
         ],
         "requiredLevel": 26,
@@ -11841,6 +12925,14 @@
           {
             "ja": "動画を最初から再生した。",
             "en": "I played the video from the beginning."
+          },
+          {
+            "ja": "けがをした組織が少しずつ再生している。",
+            "en": "The injured tissue is gradually regenerating."
+          },
+          {
+            "ja": "空き店舗を活用し、商店街の再生を目指す。",
+            "en": "Vacant stores will be put to use in an effort to revive the shopping district."
           }
         ],
         "requiredLevel": 26,
@@ -11869,6 +12961,10 @@
           {
             "ja": "会社は来月新しいビルへ移転する。",
             "en": "The company will relocate to a new building next month."
+          },
+          {
+            "ja": "駅の工事に伴い、バス乗り場が一時的に移転した。",
+            "en": "The bus stop was temporarily relocated because of construction at the station."
           }
         ],
         "requiredLevel": 28,
@@ -11896,6 +12992,10 @@
           {
             "ja": "父は六十五歳で退職した。",
             "en": "My father retired at age sixty-five."
+          },
+          {
+            "ja": "彼女は家族の介護に専念するため会社を退職した。",
+            "en": "She left her job to devote herself to caring for her family."
           }
         ],
         "requiredLevel": 27,
@@ -11921,6 +13021,10 @@
           {
             "ja": "学校で保健について学んだ。",
             "en": "We learned about health care at school."
+          },
+          {
+            "ja": "保健の先生にけがを見てもらった。",
+            "en": "I had the school nurse look at my injury."
           }
         ],
         "requiredLevel": 27,
@@ -11946,6 +13050,10 @@
           {
             "ja": "この地域には大小の河川が流れている。",
             "en": "Rivers large and small flow through this region."
+          },
+          {
+            "ja": "大雨に備えて河川の水位を監視している。",
+            "en": "River levels are being monitored in preparation for heavy rain."
           }
         ],
         "requiredLevel": 26,
@@ -11983,6 +13091,10 @@
           {
             "ja": "大学で金融について学んでいる。",
             "en": "I am studying finance at university."
+          },
+          {
+            "ja": "金融機関から住宅購入のための融資を受けた。",
+            "en": "I obtained financing from a financial institution to buy a home."
           }
         ],
         "requiredLevel": 31,
@@ -12009,6 +13121,10 @@
           {
             "ja": "彼には海外で働いた実績がある。",
             "en": "He has a track record of working overseas."
+          },
+          {
+            "ja": "昨年度の販売実績を基に生産計画を立てた。",
+            "en": "We based the production plan on last year's sales results."
           }
         ],
         "requiredLevel": 32,
@@ -12034,6 +13150,10 @@
           {
             "ja": "社長の秘書が予定を確認した。",
             "en": "The president's secretary checked the schedule."
+          },
+          {
+            "ja": "面会を希望する場合は、議員の秘書に連絡してください。",
+            "en": "If you would like a meeting, please contact the legislator's secretary."
           }
         ],
         "requiredLevel": 32,
@@ -12062,6 +13182,10 @@
           {
             "ja": "病院で夜間勤務をしている。",
             "en": "I work night shifts at a hospital."
+          },
+          {
+            "ja": "勤務先が変わり、通勤時間が短くなった。",
+            "en": "My workplace changed, shortening my commute."
           }
         ],
         "requiredLevel": 34,
@@ -12087,6 +13211,10 @@
           {
             "ja": "事故で大きな損失が出た。",
             "en": "The accident caused a major loss."
+          },
+          {
+            "ja": "停電によるデータの損失を防ぐため、定期的に保存する。",
+            "en": "We save data regularly to prevent its loss during a power outage."
           }
         ],
         "requiredLevel": 34,
@@ -12112,6 +13240,14 @@
           {
             "ja": "水は大切な資源です。",
             "en": "Water is an important resource."
+          },
+          {
+            "ja": "使い終わった紙を回収し、資源として再利用する。",
+            "en": "Used paper is collected and reused as a resource."
+          },
+          {
+            "ja": "地域の文化を観光資源として生かしたい。",
+            "en": "We want to make use of the region's culture as a tourism resource."
           }
         ],
         "requiredLevel": 34,
@@ -12139,7 +13275,11 @@
         "contextSentences": [
           {
             "ja": "変更について、あらかじめご了承ください。",
-            "en": "Please understand and accept the change in advance."
+            "en": "Please be aware of this change in advance."
+          },
+          {
+            "ja": "日程を変更する前に、参加者全員の了承を得た。",
+            "en": "Before changing the schedule, I obtained approval from every participant."
           }
         ],
         "requiredLevel": 34,
@@ -12165,6 +13305,10 @@
           {
             "ja": "最低賃金が今年引き上げられた。",
             "en": "The minimum wage was raised this year."
+          },
+          {
+            "ja": "働いた時間に応じて賃金が支払われる。",
+            "en": "Wages are paid according to the number of hours worked."
           }
         ],
         "requiredLevel": 33,
@@ -12189,6 +13333,10 @@
           {
             "ja": "この地域には千世帯が住んでいる。",
             "en": "One thousand households live in this area."
+          },
+          {
+            "ja": "この町では一人暮らしの世帯が増えている。",
+            "en": "The number of single-person households is increasing in this town."
           }
         ],
         "requiredLevel": 31,
@@ -12213,6 +13361,10 @@
           {
             "ja": "駅前の百貨店で贈り物を選んだ。",
             "en": "I chose a gift at the department store by the station."
+          },
+          {
+            "ja": "百貨店の地下で弁当と菓子を買った。",
+            "en": "I bought a boxed lunch and sweets in the department store basement."
           }
         ],
         "requiredLevel": 31,
@@ -12239,6 +13391,10 @@
           {
             "ja": "古い校舎を来年建て替える。",
             "en": "The old school building will be rebuilt next year."
+          },
+          {
+            "ja": "放課後の校舎には生徒がほとんど残っていなかった。",
+            "en": "Few students remained in the school building after classes ended."
           }
         ],
         "requiredLevel": 35,
@@ -12264,6 +13420,10 @@
           {
             "ja": "大豆から豆腐を作る。",
             "en": "Tofu is made from soybeans."
+          },
+          {
+            "ja": "この商品には大豆が含まれているので、アレルギーに注意してください。",
+            "en": "This product contains soybeans, so please be mindful of allergies."
           }
         ],
         "requiredLevel": 34,
@@ -12291,6 +13451,10 @@
           {
             "ja": "休憩中に同僚と雑談した。",
             "en": "I chatted with a coworker during the break."
+          },
+          {
+            "ja": "授業が始まるまで、友達と音楽について雑談していた。",
+            "en": "Until class began, I chatted casually with a friend about music."
           }
         ],
         "requiredLevel": 32,
@@ -12330,6 +13494,10 @@
           {
             "ja": "安全性への懸念が残っている。",
             "en": "Concerns about safety remain."
+          },
+          {
+            "ja": "専門家は感染が再び広がる可能性を懸念している。",
+            "en": "Experts are concerned that the infection may spread again."
           }
         ],
         "requiredLevel": 38,
@@ -12359,6 +13527,14 @@
           {
             "ja": "混雑を緩和するために電車を増やした。",
             "en": "More trains were added to ease congestion."
+          },
+          {
+            "ja": "政府は入国に関する規制を段階的に緩和した。",
+            "en": "The government gradually relaxed restrictions on entry."
+          },
+          {
+            "ja": "薬を飲むと、しばらくして痛みが緩和された。",
+            "en": "After I took the medicine, the pain eased before long."
           }
         ],
         "requiredLevel": 38,
@@ -12387,6 +13563,10 @@
           {
             "ja": "毎日の練習を継続することが大切だ。",
             "en": "It is important to continue practicing every day."
+          },
+          {
+            "ja": "資金不足のため、事業の継続が難しくなった。",
+            "en": "A shortage of funds made it difficult to keep the business operating."
           }
         ],
         "requiredLevel": 36,
@@ -12412,6 +13592,10 @@
           {
             "ja": "顧客の情報を安全に管理する。",
             "en": "We manage customer information securely."
+          },
+          {
+            "ja": "担当者は顧客の要望を詳しく聞き取った。",
+            "en": "The representative listened carefully to the client's requests."
           }
         ],
         "requiredLevel": 40,
@@ -12439,6 +13623,10 @@
           {
             "ja": "この診療所は夜も診療している。",
             "en": "This clinic provides medical care at night too."
+          },
+          {
+            "ja": "予約した時間に医師の診療を受けた。",
+            "en": "I received medical care from the doctor at my scheduled time."
           }
         ],
         "requiredLevel": 36,
@@ -12466,6 +13654,10 @@
           {
             "ja": "試合をテレビで生中継する。",
             "en": "The game will be broadcast live on television."
+          },
+          {
+            "ja": "通信衛星が遠く離れた二つの地点の電波を中継する。",
+            "en": "A communications satellite relays signals between two distant locations."
           }
         ],
         "requiredLevel": 36,
@@ -12491,6 +13683,10 @@
           {
             "ja": "夜空に大きな稲妻が走った。",
             "en": "A huge bolt of lightning streaked across the night sky."
+          },
+          {
+            "ja": "稲妻が一瞬、暗い海を照らした。",
+            "en": "A flash of lightning lit up the dark sea for an instant."
           }
         ],
         "requiredLevel": 39,
@@ -12516,6 +13712,10 @@
           {
             "ja": "結婚後も同じ姓を使うことにした。",
             "en": "I decided to keep the same surname after marriage."
+          },
+          {
+            "ja": "申込書には名より先に姓を書いてください。",
+            "en": "On the application form, write your family name before your given name."
           }
         ],
         "requiredLevel": 36,
@@ -12540,6 +13740,10 @@
           {
             "ja": "会社は多額の負債を抱えている。",
             "en": "The company carries a large amount of debt."
+          },
+          {
+            "ja": "事業を売却し、残った負債を返済した。",
+            "en": "The company sold the business and repaid the remaining liabilities."
           }
         ],
         "requiredLevel": 36,
@@ -12565,6 +13769,10 @@
           {
             "ja": "幅広い年代に人気がある。",
             "en": "It is popular with a wide range of age groups."
+          },
+          {
+            "ja": "会議では教育から環境まで幅広い問題を扱った。",
+            "en": "The meeting covered a broad range of issues, from education to the environment."
           }
         ],
         "requiredLevel": 36,
@@ -12592,6 +13800,10 @@
           {
             "ja": "夕食の後片付けを家族で分担した。",
             "en": "The family shared the cleanup after dinner."
+          },
+          {
+            "ja": "祭りが終わると、参加者全員で会場の後片付けをした。",
+            "en": "When the festival ended, all the participants helped clean up the venue."
           }
         ],
         "requiredLevel": 39,
@@ -12618,6 +13830,10 @@
           {
             "ja": "新学期の文房具を買いそろえた。",
             "en": "I bought all the stationery for the new school term."
+          },
+          {
+            "ja": "はさみやのりなどの文房具は、この引き出しに入っています。",
+            "en": "Stationery such as scissors and glue is kept in this drawer."
           }
         ],
         "requiredLevel": 38,
@@ -12646,6 +13862,10 @@
           {
             "ja": "借りた本を図書館に返却した。",
             "en": "I returned the borrowed book to the library."
+          },
+          {
+            "ja": "退去する日に部屋の鍵を管理会社へ返却した。",
+            "en": "I returned the apartment key to the property manager on the day I moved out."
           }
         ],
         "requiredLevel": 38,
@@ -12684,6 +13904,10 @@
           {
             "ja": "提案の趣旨を簡単に説明した。",
             "en": "I briefly explained the purpose of the proposal."
+          },
+          {
+            "ja": "質問の趣旨を理解してから答えてください。",
+            "en": "Please understand the point of the question before answering."
           }
         ],
         "requiredLevel": 43,
@@ -12710,6 +13934,10 @@
           {
             "ja": "週末に小さな劇場で芝居を見た。",
             "en": "I watched a play at a small theater this weekend."
+          },
+          {
+            "ja": "彼の自然な芝居に、観客は物語へ引き込まれた。",
+            "en": "His natural acting drew the audience into the story."
           }
         ],
         "requiredLevel": 42,
@@ -12736,7 +13964,11 @@
         "contextSentences": [
           {
             "ja": "日頃から健康に気を付けている。",
-            "en": "I usually pay attention to my health."
+            "en": "I make a habit of looking after my health."
+          },
+          {
+            "ja": "日頃の感謝を込めて、両親に花を贈った。",
+            "en": "I gave my parents flowers to thank them for all they do."
           }
         ],
         "requiredLevel": 45,
@@ -12760,8 +13992,12 @@
         "readingMnemonic": "書 prints しょ across fresh pages and 籍 stamps せき onto the catalog card before the book reaches the shelf. The catalog card clicks <reading>しょ—せき</reading> before the new <vocabulary>book</vocabulary> reaches its shelf. 書籍 is a formal collective or countable term for books and published works.",
         "contextSentences": [
           {
-            "ja": "専門書籍は二階にあります。",
-            "en": "Specialist books are on the second floor."
+            "ja": "専門分野の書籍は二階にあります。",
+            "en": "Books in specialist fields are on the second floor."
+          },
+          {
+            "ja": "この図書館では古い書籍を電子化している。",
+            "en": "This library is digitizing old books."
           }
         ],
         "requiredLevel": 43,
@@ -12790,6 +14026,10 @@
           {
             "ja": "古いデータは自動的に消滅する。",
             "en": "The old data disappears automatically."
+          },
+          {
+            "ja": "環境の変化によって、多くの生物種が消滅するおそれがある。",
+            "en": "Environmental changes may cause many species to disappear."
           }
         ],
         "requiredLevel": 43,
@@ -12817,6 +14057,10 @@
           {
             "ja": "贈り物をきれいに包装してもらった。",
             "en": "I had the gift wrapped beautifully."
+          },
+          {
+            "ja": "環境に配慮して、商品の包装を簡素にした。",
+            "en": "The product packaging was simplified out of consideration for the environment."
           }
         ],
         "requiredLevel": 41,
@@ -12844,6 +14088,10 @@
           {
             "ja": "彼は堅実な方法で貯金を続けた。",
             "en": "He continued saving money in a steady, sensible way."
+          },
+          {
+            "ja": "派手さはないが、彼女は堅実で信頼できる選手だ。",
+            "en": "She is not flashy, but she is a steady and reliable player."
           }
         ],
         "requiredLevel": 42,
@@ -12871,6 +14119,10 @@
           {
             "ja": "俳優が物語を朗読した。",
             "en": "The actor read the story aloud."
+          },
+          {
+            "ja": "国語の授業で好きな詩を朗読した。",
+            "en": "I recited my favorite poem in Japanese class."
           }
         ],
         "requiredLevel": 43,
@@ -12898,6 +14150,10 @@
           {
             "ja": "水の中に塩の結晶ができた。",
             "en": "Salt crystals formed in the water."
+          },
+          {
+            "ja": "この作品は職人たちの努力の結晶だ。",
+            "en": "This work is the culmination of the artisans' efforts."
           }
         ],
         "requiredLevel": 43,
@@ -12922,6 +14178,10 @@
           {
             "ja": "花嫁は白いドレスを着ていた。",
             "en": "The bride wore a white dress."
+          },
+          {
+            "ja": "花嫁と父親が腕を組んで式場に入った。",
+            "en": "The bride entered the wedding hall arm in arm with her father."
           }
         ],
         "requiredLevel": 45,
@@ -12950,6 +14210,10 @@
           {
             "ja": "財布を紛失したので警察に届けた。",
             "en": "I reported to the police that I had lost my wallet."
+          },
+          {
+            "ja": "社員証を紛失した場合は、すぐに総務部へ連絡してください。",
+            "en": "If you lose your employee ID, contact the general affairs department immediately."
           }
         ],
         "requiredLevel": 42,
@@ -12975,6 +14239,10 @@
           {
             "ja": "地震で壁に亀裂が入った。",
             "en": "The earthquake left a crack in the wall."
+          },
+          {
+            "ja": "その事件をきっかけに、両国の関係に亀裂が生じた。",
+            "en": "The incident caused a rift in relations between the two countries."
           }
         ],
         "requiredLevel": 43,
@@ -13000,6 +14268,10 @@
           {
             "ja": "長距離バスで大阪まで行った。",
             "en": "I went to Osaka by long-distance bus."
+          },
+          {
+            "ja": "彼は長距離を得意とする陸上選手だ。",
+            "en": "He is a track athlete who specializes in long-distance events."
           }
         ],
         "requiredLevel": 43,
@@ -13038,6 +14310,10 @@
           {
             "ja": "この物語の町は架空の場所です。",
             "en": "The town in this story is a fictional place."
+          },
+          {
+            "ja": "犯人は架空の名義で銀行口座を作っていた。",
+            "en": "The culprit had opened a bank account under a fictitious name."
           }
         ],
         "requiredLevel": 46,
@@ -13065,6 +14341,10 @@
           {
             "ja": "会社は社員の資格取得を奨励している。",
             "en": "The company encourages employees to earn qualifications."
+          },
+          {
+            "ja": "市は健康のため、自転車での通勤を奨励している。",
+            "en": "The city encourages commuting by bicycle for better health."
           }
         ],
         "requiredLevel": 49,
@@ -13093,6 +14373,14 @@
           {
             "ja": "長時間の拘束は大きな負担になる。",
             "en": "Being restrained for a long time is a heavy burden."
+          },
+          {
+            "ja": "警察は容疑者を拘束し、事情を聞いた。",
+            "en": "The police detained the suspect and questioned him."
+          },
+          {
+            "ja": "この仕事は拘束時間が長く、自由な時間が少ない。",
+            "en": "This job keeps me tied up for long hours, leaving little free time."
           }
         ],
         "requiredLevel": 49,
@@ -13121,6 +14409,10 @@
           {
             "ja": "屋根の傾斜が急なので雪が落ちやすい。",
             "en": "The roof has a steep slope, so snow falls off easily."
+          },
+          {
+            "ja": "道は海に向かって緩やかに傾斜している。",
+            "en": "The road slopes gently toward the sea."
           }
         ],
         "requiredLevel": 48,
@@ -13148,7 +14440,15 @@
         "contextSentences": [
           {
             "ja": "長年の経験が知識として蓄積された。",
-            "en": "Years of experience accumulated as knowledge."
+            "en": "Years of experience have built up into a body of knowledge."
+          },
+          {
+            "ja": "利用者のデータを蓄積し、サービスの改善に役立てる。",
+            "en": "We accumulate user data and use it to improve the service."
+          },
+          {
+            "ja": "疲労が蓄積していたので、週末はゆっくり休んだ。",
+            "en": "Fatigue had built up, so I rested over the weekend."
           }
         ],
         "requiredLevel": 48,
@@ -13175,6 +14475,10 @@
           {
             "ja": "説明が抽象的で分かりにくかった。",
             "en": "The explanation was abstract and difficult to understand."
+          },
+          {
+            "ja": "その画家は色と形だけで構成された抽象的な作品を描く。",
+            "en": "That painter creates abstract works composed only of color and form."
           }
         ],
         "requiredLevel": 49,
@@ -13200,7 +14504,11 @@
         "contextSentences": [
           {
             "ja": "彼女は人気漫画家として活躍している。",
-            "en": "She is active as a popular manga artist."
+            "en": "She is a successful and popular manga artist."
+          },
+          {
+            "ja": "その漫画家は毎週の締め切りに追われている。",
+            "en": "The manga artist is constantly racing to meet weekly deadlines."
           }
         ],
         "requiredLevel": 50,
@@ -13227,6 +14535,10 @@
           {
             "ja": "家計簿に毎日の支出を記録する。",
             "en": "I record daily expenses in the household account book."
+          },
+          {
+            "ja": "家計簿を見直したら、外食費が増えていることに気付いた。",
+            "en": "When I reviewed the household budget book, I noticed that our dining expenses had increased."
           }
         ],
         "requiredLevel": 50,
@@ -13253,6 +14565,10 @@
           {
             "ja": "風邪薬を飲んで早く寝た。",
             "en": "I took cold medicine and went to bed early."
+          },
+          {
+            "ja": "この風邪薬は眠くなることがあるので、運転は避けてください。",
+            "en": "This cold medicine may make you drowsy, so please avoid driving."
           }
         ],
         "requiredLevel": 50,
@@ -13280,7 +14596,11 @@
         "contextSentences": [
           {
             "ja": "鋭い洞察が問題の原因を明らかにした。",
-            "en": "Sharp insight revealed the cause of the problem."
+            "en": "A keen insight revealed the cause of the problem."
+          },
+          {
+            "ja": "彼女の小説には人間の心理に対する深い洞察がある。",
+            "en": "Her novel shows deep insight into human psychology."
           }
         ],
         "requiredLevel": 50,
@@ -13308,6 +14628,10 @@
           {
             "ja": "チームは大きな目標を成し遂げた。",
             "en": "The team accomplished a major goal."
+          },
+          {
+            "ja": "研究チームは十年かけて新薬の開発を成し遂げた。",
+            "en": "The research team completed the development of a new drug over ten years."
           }
         ],
         "requiredLevel": 48,
@@ -13331,8 +14655,12 @@
         "readingMnemonic": "遠 stretches えん across the map and 隔 closes かく between two offices linked only by a monitor. The monitor bridge flickers <reading>えん—かく</reading>, keeping two <vocabulary>remote</vocabulary> offices connected. 遠隔 describes activity or connection performed over distance, as in remote work, control, or medicine.",
         "contextSentences": [
           {
-            "ja": "遠隔で機械の状態を確認できる。",
-            "en": "The machine's condition can be checked remotely."
+            "ja": "遠隔操作で機械の状態を確認できる。",
+            "en": "We can check the machine's condition remotely."
+          },
+          {
+            "ja": "島の患者が遠隔診療で専門医の助言を受けた。",
+            "en": "A patient on the island received advice from a specialist through telemedicine."
           }
         ],
         "requiredLevel": 49,
@@ -13358,6 +14686,10 @@
           {
             "ja": "仰向けに寝て深呼吸した。",
             "en": "I lay on my back and took a deep breath."
+          },
+          {
+            "ja": "赤ちゃんをそっと仰向けにした。",
+            "en": "I gently turned the baby onto its back."
           }
         ],
         "requiredLevel": 50,
@@ -13395,6 +14727,10 @@
           {
             "ja": "名残惜しいが、そろそろ帰らなければならない。",
             "en": "I am sorry to leave, but I have to go home soon."
+          },
+          {
+            "ja": "卒業式の後、名残惜しくて友達と何枚も写真を撮った。",
+            "en": "After graduation, I was reluctant to part with my friends, so we took many photos together."
           }
         ],
         "requiredLevel": 55,
@@ -13422,6 +14758,10 @@
           {
             "ja": "彼女は競技人生の頂点に立った。",
             "en": "She reached the peak of her athletic career."
+          },
+          {
+            "ja": "三角形の三つの頂点に印を付けてください。",
+            "en": "Please mark the three vertices of the triangle."
           }
         ],
         "requiredLevel": 51,
@@ -13447,6 +14787,10 @@
           {
             "ja": "雨が降る前に洗濯物を取り込んだ。",
             "en": "I brought in the laundry before it rained."
+          },
+          {
+            "ja": "乾いた洗濯物を畳んで、家族ごとに分けた。",
+            "en": "I folded the dry laundry and sorted it by family member."
           }
         ],
         "requiredLevel": 51,
@@ -13473,6 +14817,10 @@
           {
             "ja": "洗ったタオルを乾燥機に入れた。",
             "en": "I put the washed towels in the dryer."
+          },
+          {
+            "ja": "雨の日は乾燥機を使うので、電気代が高くなる。",
+            "en": "On rainy days we use the dryer, so our electricity bill rises."
           }
         ],
         "requiredLevel": 51,
@@ -13499,6 +14847,10 @@
           {
             "ja": "雪を見ながら露天風呂に入った。",
             "en": "I bathed in an open-air bath while watching the snow."
+          },
+          {
+            "ja": "旅館の露天風呂から海に沈む夕日が見えた。",
+            "en": "We could see the sun setting over the sea from the inn's open-air bath."
           }
         ],
         "requiredLevel": 52,
@@ -13528,6 +14880,10 @@
           {
             "ja": "登山隊は正午に登頂した。",
             "en": "The climbing team reached the summit at noon."
+          },
+          {
+            "ja": "強風のため登頂を断念し、安全な場所まで下山した。",
+            "en": "Because of strong winds, we abandoned our summit attempt and descended to safety."
           }
         ],
         "requiredLevel": 51,
@@ -13555,7 +14911,15 @@
         "contextSentences": [
           {
             "ja": "経験がこの一冊に凝縮されている。",
-            "en": "The experience is concentrated in this one book."
+            "en": "All of that experience is distilled into this one book."
+          },
+          {
+            "ja": "冷たい窓に水蒸気が凝縮して水滴になった。",
+            "en": "Water vapor condensed on the cold window and formed droplets."
+          },
+          {
+            "ja": "果汁を凝縮して、濃い味のシロップを作る。",
+            "en": "The fruit juice is concentrated to make a richly flavored syrup."
           }
         ],
         "requiredLevel": 55,
@@ -13580,7 +14944,11 @@
         "contextSentences": [
           {
             "ja": "その発見は科学史に残る偉業だ。",
-            "en": "That discovery is a great achievement that will remain in the history of science."
+            "en": "That discovery is a great achievement that will go down in the history of science."
+          },
+          {
+            "ja": "選手は前人未到の記録を達成し、偉業を成し遂げた。",
+            "en": "The athlete set an unprecedented record and accomplished a remarkable feat."
           }
         ],
         "requiredLevel": 51,
@@ -13608,6 +14976,10 @@
           {
             "ja": "毎日の株価に一喜一憂しないほうがいい。",
             "en": "It is better not to swing between joy and worry over daily stock prices."
+          },
+          {
+            "ja": "試験の結果に一喜一憂するより、次の勉強を始めよう。",
+            "en": "Rather than riding an emotional roller coaster over the exam results, let's start studying for the next one."
           }
         ],
         "requiredLevel": 55,
@@ -13635,7 +15007,11 @@
         "contextSentences": [
           {
             "ja": "父は大阪へ単身赴任している。",
-            "en": "My father is on an unaccompanied job posting in Osaka."
+            "en": "My father lives alone in Osaka on a work assignment, away from our family."
+          },
+          {
+            "ja": "単身赴任中の夫は、月に二回家族のもとへ帰ってくる。",
+            "en": "My husband, who lives away from the family for work, comes home twice a month."
           }
         ],
         "requiredLevel": 55,
@@ -13663,6 +15039,10 @@
           {
             "ja": "チーム内の意思疎通を改善したい。",
             "en": "I want to improve communication within the team."
+          },
+          {
+            "ja": "言葉が通じなくても、身ぶりで意思疎通ができた。",
+            "en": "Even without a shared language, we were able to communicate through gestures."
           }
         ],
         "requiredLevel": 54,
@@ -13691,6 +15071,10 @@
           {
             "ja": "将来を見据えて計画を立てた。",
             "en": "I made a plan with the future firmly in view."
+          },
+          {
+            "ja": "猫は庭の鳥をじっと見据えて動かなかった。",
+            "en": "The cat stared fixedly at the bird in the garden without moving."
           }
         ],
         "requiredLevel": 53,
@@ -13718,6 +15102,10 @@
           {
             "ja": "裁判を傍聴するために法廷へ行った。",
             "en": "I went to the courtroom to observe the trial."
+          },
+          {
+            "ja": "市議会を傍聴したい人は、入口で手続きをしてください。",
+            "en": "Anyone wishing to observe the city council meeting should register at the entrance."
           }
         ],
         "requiredLevel": 55,
@@ -13755,6 +15143,10 @@
           {
             "ja": "浜辺できれいな貝殻を拾った。",
             "en": "I picked up a beautiful seashell on the beach."
+          },
+          {
+            "ja": "子どもたちは貝殻で写真立てを飾った。",
+            "en": "The children decorated a picture frame with seashells."
           }
         ],
         "requiredLevel": 58,
@@ -13780,6 +15172,10 @@
           {
             "ja": "盲導犬が利用者を駅まで案内した。",
             "en": "The guide dog led its user to the station."
+          },
+          {
+            "ja": "この店は盲導犬を連れた人も利用できます。",
+            "en": "People accompanied by guide dogs can also use this store."
           }
         ],
         "requiredLevel": 57,
@@ -13806,7 +15202,11 @@
         "contextSentences": [
           {
             "ja": "訓練では擬似環境を使って事故を再現した。",
-            "en": "The training used a simulated environment to recreate the accident."
+            "en": "A simulated environment was used during the training to recreate the accident."
+          },
+          {
+            "ja": "このプログラムは擬似乱数を使って大量の試験データを作る。",
+            "en": "This program uses pseudorandom numbers to generate a large volume of test data."
           }
         ],
         "requiredLevel": 59,
@@ -13831,8 +15231,12 @@
         "readingMnemonic": "萌 supplies its attested kun stem も while the okurigana える uncurls behind it, and a green shoot and a fan's heart pop up together. Shoot and heart spring up together to <reading>も—える</reading>; both suddenly <vocabulary>sprout</vocabulary>. 萌える literally means to sprout and in pop-culture usage means feeling intense affection for a character or trait.",
         "contextSentences": [
           {
-            "ja": "春になると木の芽が萌える。",
-            "en": "Tree buds sprout when spring arrives."
+            "ja": "春になると草木が萌える。",
+            "en": "Plants begin to sprout when spring arrives."
+          },
+          {
+            "ja": "このアニメの主人公に萌えるファンが多い。",
+            "en": "Many fans find the protagonist of this anime irresistibly cute."
           }
         ],
         "requiredLevel": 57,
@@ -13857,6 +15261,10 @@
           {
             "ja": "専門家が品質に太鼓判を押した。",
             "en": "An expert gave the quality a firm seal of approval."
+          },
+          {
+            "ja": "友人が太鼓判を押す店なら、きっと料理もおいしいだろう。",
+            "en": "If a friend gives a restaurant their seal of approval, the food is probably good."
           }
         ],
         "requiredLevel": 57,
@@ -13883,6 +15291,10 @@
           {
             "ja": "好きなバンドの新譜を予約した。",
             "en": "I preordered my favorite band's new release."
+          },
+          {
+            "ja": "楽譜売り場で、ピアノ曲の新譜を探した。",
+            "en": "I looked in the sheet-music section for a newly published piano score."
           }
         ],
         "requiredLevel": 58,
@@ -13908,6 +15320,10 @@
           {
             "ja": "亀が甲羅から頭を出した。",
             "en": "The turtle stuck its head out of its shell."
+          },
+          {
+            "ja": "ゆでたカニの甲羅を外して身を取り出した。",
+            "en": "I removed the boiled crab's shell and took out the meat."
           }
         ],
         "requiredLevel": 57,
@@ -13933,7 +15349,11 @@
         "contextSentences": [
           {
             "ja": "観客が手拍子で歌を盛り上げた。",
-            "en": "The audience energized the song by clapping to the beat."
+            "en": "The audience livened up the song by clapping to the beat."
+          },
+          {
+            "ja": "先生の手拍子に合わせて、子どもたちが踊った。",
+            "en": "The children danced in time with the teacher's clapping."
           }
         ],
         "requiredLevel": 56,
@@ -13960,6 +15380,10 @@
           {
             "ja": "海賊版のソフトを販売してはいけない。",
             "en": "You must not sell pirated software."
+          },
+          {
+            "ja": "映画の海賊版を配信していたサイトが閉鎖された。",
+            "en": "A website that distributed a pirated copy of the film was shut down."
           }
         ],
         "requiredLevel": 57,
@@ -13986,6 +15410,10 @@
           {
             "ja": "新しい技術が市場の成長に拍車をかけた。",
             "en": "New technology accelerated the growth of the market."
+          },
+          {
+            "ja": "騎手は馬の腹に軽く拍車を当て、速度を上げた。",
+            "en": "The rider lightly pressed a spur against the horse's side, urging it to go faster."
           }
         ],
         "requiredLevel": 56,
@@ -14011,6 +15439,10 @@
           {
             "ja": "新しい事業は順風満帆に進んでいる。",
             "en": "The new business is progressing smoothly."
+          },
+          {
+            "ja": "彼の人生は決して順風満帆だったわけではない。",
+            "en": "His life was by no means smooth sailing."
           }
         ],
         "requiredLevel": 58,
@@ -14038,6 +15470,10 @@
           {
             "ja": "鼻の粘膜が炎症を起こしている。",
             "en": "The mucous membrane in my nose is inflamed."
+          },
+          {
+            "ja": "胃の粘膜を守る薬も一緒に処方された。",
+            "en": "I was also prescribed medicine to protect the lining of my stomach."
           }
         ],
         "requiredLevel": 57,
@@ -14063,7 +15499,11 @@
         "contextSentences": [
           {
             "ja": "その説明には甚だしい誤りがある。",
-            "en": "That explanation contains severe errors."
+            "en": "That explanation contains a serious error."
+          },
+          {
+            "ja": "台風による農作物の被害は甚だしかった。",
+            "en": "The typhoon caused extensive damage to the crops."
           }
         ],
         "requiredLevel": 59,

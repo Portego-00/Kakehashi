@@ -299,6 +299,32 @@ describe("JLPT mobile UI", () => {
     expect(screen.getByText(/only natural order/)).toBeTruthy();
   });
 
+  it("finishes a quiz and opens results without Array.prototype.toSorted", async () => {
+    const toSorted = Object.getOwnPropertyDescriptor(Array.prototype, "toSorted");
+    // eslint-disable-next-line no-extend-native -- Match Hermes 0.14.1, which does not provide toSorted.
+    Object.defineProperty(Array.prototype, "toSorted", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      (loadJlptQuestionBank as jest.Mock).mockResolvedValue([readingQuestion]);
+      mockSearchParams = { level: "N5", mode: "quick" };
+
+      const screen = render(<JlptSessionScreen />);
+      fireEvent.press(await screen.findByTestId("jlpt-option-2"));
+      fireEvent.press(screen.getByTestId("jlpt-submit"));
+      fireEvent.press(await screen.findByText("See results"));
+
+      expect(await screen.findByTestId("jlpt-results")).toBeTruthy();
+      expect(screen.getByText("1 of 1 correct")).toBeTruthy();
+    } finally {
+      // eslint-disable-next-line no-extend-native -- Restore the test runtime's original built-in.
+      if (toSorted) Object.defineProperty(Array.prototype, "toSorted", toSorted);
+      else Reflect.deleteProperty(Array.prototype, "toSorted");
+    }
+  });
+
   it("requires all four sentence fragments in mock mode and keeps correctness hidden", async () => {
     const created = createJlptSession({
       level: "N5",

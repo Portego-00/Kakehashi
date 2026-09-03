@@ -504,8 +504,8 @@ interface SubjectDetailPanelsProps {
   embedded?: boolean;
   replaceRelated?: boolean;
   sequentialNavigation?: {
-    previous?: () => void;
-    next: () => void;
+    previous?: (focusTab: boolean) => void;
+    next: (focusTab: boolean) => void;
   };
   allowStudyMaterialEditing?: boolean;
   showVocabularyFrequency?: boolean;
@@ -584,8 +584,8 @@ export function SubjectDetailPanels({
       if (focusTab) window.requestAnimationFrame(() => document.getElementById(`${idPrefix}-tab-${nextTab.id}`)?.focus({ preventScroll: true }));
       return;
     }
-    if (direction < 0) sequentialNavigation?.previous?.();
-    else sequentialNavigation?.next();
+    if (direction < 0) sequentialNavigation?.previous?.(focusTab);
+    else sequentialNavigation?.next(focusTab);
   }, [activeTabIndex, idPrefix, selectTab, sequentialNavigation, tabs]);
 
   useEffect(() => {
@@ -601,7 +601,7 @@ export function SubjectDetailPanels({
   }, [navigateSequentially, sequentialNavigation]);
 
   return <SubjectAudioProvider><div className={`${styles.subjectDetailPanels}${embedded ? ` ${styles.embeddedSubjectDetails}` : ""}`} data-subject-detail-type={tone}>
-    <nav className={`${styles.detailTabs}${embedded ? ` ${styles.embeddedDetailTabs}` : ""}`} data-count={tabs.length} role="tablist" aria-label="Subject details">
+    <nav className={`${styles.detailTabs}${embedded ? ` ${styles.embeddedDetailTabs}` : ""}`} data-count={tabs.length} data-sequential-navigation={sequentialNavigation ? "true" : undefined} role="tablist" aria-label="Subject details">
       {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={tabId(tab.id)} aria-selected={resolvedActiveTab === tab.id} aria-controls={panelId(tab.id)} tabIndex={resolvedActiveTab === tab.id ? 0 : -1} onClick={() => selectTab(tab.id)} onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
         event.preventDefault();

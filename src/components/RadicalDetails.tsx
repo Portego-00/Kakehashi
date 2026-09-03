@@ -45,6 +45,7 @@ import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { FormattedNoteText } from "./formatted-note";
+import { NoteFieldContainer } from "./note-field-container";
 import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
 
@@ -659,14 +660,14 @@ export default function RadicalDetails({
             Notes
           </Text>
           {radical.meaningNote ? (
-            <TouchableOpacity
-              accessible={false}
+            <NoteFieldContainer
+              addAccessibilityLabel="Add meaning note"
+              hasContent
               style={[
                 styles.infoBox,
                 styles.noteBox,
                 { backgroundColor: theme.cardBackground },
               ]}
-              onPress={radical.onEditNote}
             >
               <View style={styles.noteContainer}>
                 <View style={styles.noteHeader}>
@@ -696,22 +697,22 @@ export default function RadicalDetails({
                   style={[styles.noteContent, { color: theme.textColor }]}
                 />
               </View>
-            </TouchableOpacity>
+            </NoteFieldContainer>
           ) : (
-            <TouchableOpacity
-              accessibilityLabel="Add meaning note"
-              accessibilityRole="button"
+            <NoteFieldContainer
+              addAccessibilityLabel="Add meaning note"
+              hasContent={false}
               style={[
                 styles.infoBox,
                 styles.noteBox,
                 { backgroundColor: theme.cardBackground },
               ]}
-              onPress={radical.onEditNote}
+              onAdd={radical.onEditNote}
             >
               <Text style={[styles.noteText, { color: theme.textLight }]}>
                 Click to add note
               </Text>
-            </TouchableOpacity>
+            </NoteFieldContainer>
           )}
         </View>
 

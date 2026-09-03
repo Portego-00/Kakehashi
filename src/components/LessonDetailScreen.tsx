@@ -61,12 +61,16 @@ import { getAllSubjects } from "../utils/cache";
 import { azureSpeechService } from "../utils/azureSpeech";
 import { SynonymsModal } from "./SynonymsModal";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
-import { CustomContextSentencesSection } from "./CustomContextSentencesSection";
+import {
+  CustomContextSentencesSection,
+  type CustomContextSentencesSectionHandle,
+} from "./CustomContextSentencesSection";
 import {
   FormattedNoteEditor,
   FormattedNoteText,
   type FormattedNoteEditorHandle,
 } from "./formatted-note";
+import { NoteFieldContainer } from "./note-field-container";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
@@ -372,6 +376,8 @@ const SubjectContent = ({
   showAllSections?: boolean;
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
+  const customContextSentencesRef =
+    useRef<CustomContextSentencesSectionHandle>(null);
   const {
     groupKanjiVocabularyExamplesByReading,
     showPitchAccent,
@@ -1273,10 +1279,15 @@ const SubjectContent = ({
 
     setIsSavingNote(true);
     try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? editingNoteText;
+      if (currentNoteText !== editingNoteText) {
+        setEditingNoteText(currentNoteText);
+      }
       const updates =
         editingNoteType === "meaning"
-          ? { meaning_note: editingNoteText }
-          : { reading_note: editingNoteText };
+          ? { meaning_note: currentNoteText }
+          : { reading_note: currentNoteText };
       const savedMaterial = await upsertStudyMaterial(updates);
       applyStudyMaterialState(savedMaterial);
       setNoteModalVisible(false);
@@ -2092,13 +2103,12 @@ const SubjectContent = ({
     const noteValue = type === "meaning" ? meaningNote : readingNote;
     const noteLabel = type === "meaning" ? "Meaning Note" : "Reading Note";
     return (
-      <TouchableOpacity
-        accessible={!noteValue}
-        accessibilityLabel={noteValue ? undefined : `Add ${type} note`}
-        accessibilityRole={noteValue ? undefined : "button"}
-        style={styles.infoSection}
-        onPress={() => handleEditNote(type)}
+      <NoteFieldContainer
         activeOpacity={0.85}
+        addAccessibilityLabel={`Add ${type} note`}
+        hasContent={Boolean(noteValue)}
+        onAdd={() => handleEditNote(type)}
+        style={styles.infoSection}
       >
         <View style={styles.noteCardHeader}>
           <Text style={styles.noteCardTitle}>{noteLabel}</Text>
@@ -2122,7 +2132,7 @@ const SubjectContent = ({
             {`Tap to add ${type} note`}
           </Text>
         )}
-      </TouchableOpacity>
+      </NoteFieldContainer>
     );
   };
 
@@ -2227,6 +2237,7 @@ const SubjectContent = ({
 
   const renderCustomContextSentences = () => (
     <CustomContextSentencesSection
+      ref={customContextSentencesRef}
       subjectId={subject.id}
       subjectCharacters={
         typeof subject.data.characters === "string"
@@ -2236,6 +2247,24 @@ const SubjectContent = ({
       subjectReadings={Array.from(subjectReadingSet)}
       accentColor={subjectColors.vocabulary}
     />
+  );
+
+  const renderContextSentencesHeader = () => (
+    <View style={styles.contextSentencesHeader}>
+      <Text style={[styles.sectionTitle, styles.contextSentencesTitle]}>
+        Context Sentences
+      </Text>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Add context sentence"
+        activeOpacity={0.55}
+        hitSlop={8}
+        onPress={() => customContextSentencesRef.current?.openNewEditor()}
+        style={styles.contextSentenceAddButton}
+      >
+        <Ionicons name="add" size={18} color={subjectColors.vocabulary} />
+      </TouchableOpacity>
+    </View>
   );
 
   // Render all sections in a single scrollable page (when showAllSections is true)
@@ -2270,7 +2299,7 @@ const SubjectContent = ({
     const renderContextSentences = () => (
       <>
         <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Context Sentences</Text>
+          {renderContextSentencesHeader()}
           {subject.data.context_sentences &&
           subject.data.context_sentences.length > 0 ? (
             <View style={styles.sentencesContainer}>
@@ -2334,8 +2363,8 @@ const SubjectContent = ({
               No context sentences available for this vocabulary.
             </Text>
           )}
+          {renderCustomContextSentences()}
         </View>
-        {renderCustomContextSentences()}
       </>
     );
 
@@ -3713,7 +3742,7 @@ const SubjectContent = ({
                 // Context tab
                 <View>
                   {renderUsagePatternSection()}
-                  <Text style={styles.sectionTitle}>Context Sentences</Text>
+                  {renderContextSentencesHeader()}
 
                   {subject.data.context_sentences &&
                   subject.data.context_sentences.length > 0 ? (
@@ -4110,7 +4139,7 @@ const SubjectContent = ({
                 // Context tab
                 <View>
                   {renderUsagePatternSection()}
-                  <Text style={styles.sectionTitle}>Context Sentences</Text>
+                  {renderContextSentencesHeader()}
 
                   {subject.data.context_sentences &&
                   subject.data.context_sentences.length > 0 ? (
@@ -5869,6 +5898,22 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       marginBottom: 20,
       letterSpacing: -0.3,
       textTransform: "uppercase",
+    },
+    contextSentencesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 20,
+    },
+    contextSentencesTitle: {
+      flex: 1,
+      marginBottom: 0,
+    },
+    contextSentenceAddButton: {
+      width: 28,
+      height: 28,
+      alignItems: "center",
+      justifyContent: "center",
     },
     meaningText: {
       fontSize: 28,

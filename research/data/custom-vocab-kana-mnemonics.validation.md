@@ -77,7 +77,7 @@ The candidate was checked against its own metadata and the prior [`custom-vocab-
 - all 120 word IDs and normalized written forms remain unique;
 - all visible forms remain kana-only and every canonical reading still matches its visible kana form after normalization;
 - every non-reading field required by the documented production shape is present and non-empty;
-- all 120 entries still contain two valid Japanese/English context pairs, for 240 pairs total, and each Japanese example contains its target form.
+- all 120 entries contain two or three valid Japanese/English context pairs (118 with two and 2 with three), for 242 pairs total, and each Japanese example contains its target form.
 
 No non-reading-field invariant recorded by the source validation metadata has changed. The 10 final candidate packs also match their counterparts in the generated production catalog field-for-field. This audit did not modify the candidate JSON.
 

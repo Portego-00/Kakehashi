@@ -13,6 +13,12 @@ jest.mock("expo-speech", () => ({
   stop: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock("expo-router", () => ({
+  router: {
+    push: jest.fn(),
+  },
+}));
+
 jest.mock("@react-navigation/native", () => ({
   useNavigation: () => ({ goBack: jest.fn() }),
 }));

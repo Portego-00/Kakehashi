@@ -643,6 +643,8 @@
 .detailTabs button { position: relative; min-height: 3rem; padding: 0 var(--space-sm); border: 0; background: transparent; color: var(--color-muted); font-weight: 700; cursor: pointer; white-space: nowrap; }
 .detailTabs button[aria-selected="true"] { color: var(--color-ink); }
 .detailTabs button[aria-selected="true"]::after { content: ""; position: absolute; inset-inline: 0; inset-block-end: -1px; height: 0.2rem; background: var(--subject-color); }
+.detailTabs[data-sequential-navigation="true"] button:focus-visible { outline: none; }
+.detailTabs[data-sequential-navigation="true"] button:focus-visible::after { height: 0.3rem; }
 .detailContent {
   width: min(100%, var(--content-max));
   margin-inline: auto;

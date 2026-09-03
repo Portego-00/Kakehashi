@@ -27,7 +27,7 @@ The candidate file uses the top-level shape `{ schemaVersion, generatedAt, sourc
   partsOfSpeech[],
   meaningMnemonic,
   readingMnemonic,
-  contextSentences[{ ja, en }, { ja, en }],
+  contextSentences[{ ja, en }, { ja, en }[, { ja, en }]],
   requiredLevel,
   kanjiLevels,
   jmdictPriorityTags[]
@@ -127,8 +127,8 @@ Automated validation passed all of the following with **zero errors and zero war
 - Every meaning mnemonic includes a supported `<vocabulary>...</vocabulary>` target matching one of the lesson meanings.
 - Every reading mnemonic includes the exact canonical reading in `<reading>...</reading>`.
 - Mnemonics use only the supported `radical`, `kanji`, `vocabulary`, `meaning`, and `reading` tags.
-- Every word has exactly two non-empty Japanese/English context pairs, for **242 context pairs total**.
-- Both Japanese contexts for every word include the exact target written form.
+- Every word has two or three non-empty Japanese/English context pairs: 118 have two and 3 have three, for **245 context pairs total**.
+- Every Japanese context for every word includes the exact target written form.
 - There are zero exact or polite-prefix/`する`-normalized overlaps with the 6,825 live WaniKani forms, 48 original custom forms, or 120 completed kana-candidate forms.
 - Every `kanjiLevels` map and `requiredLevel` value matches the live WaniKani kanji snapshot.
 

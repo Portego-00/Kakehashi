@@ -1,5 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
+import { StyleSheet } from "react-native";
 
 import { getSubjects } from "../../utils/api";
 import { getAllSubjects } from "../../utils/cache";
@@ -55,9 +56,12 @@ jest.mock("../../utils/store", () => ({
 }));
 
 jest.mock("../../utils/subjectColors", () => ({
-  getBestContrastTextColor: () => "#ffffff",
   useSubjectColors: () => ({
-    getColorForType: () => "#7c3aed",
+    getColorForType: (type: string) => {
+      if (type === "radical") return "#3c9bff";
+      if (type === "kanji") return "#fa1f62";
+      return "#9c38d9";
+    },
   }),
 }));
 
@@ -69,6 +73,7 @@ jest.mock("../../utils/theme", () => ({
       cardBackground: "#ffffff",
       error: "#cc0000",
       headerSurface: "#eeeeee",
+      headerText: "#ffffff",
       primary: "#3366cc",
       textColor: "#111111",
       textLight: "#888888",
@@ -96,6 +101,28 @@ const unrelatedSubject = {
     level: 2,
     meanings: [{ meaning: "River", primary: true }],
     readings: [{ reading: "かわ", primary: true }],
+  },
+};
+
+const lifeRadical = {
+  id: 442,
+  object: "radical",
+  data: {
+    characters: "生",
+    level: 3,
+    meanings: [{ meaning: "Life Radical", primary: true }],
+    readings: null,
+  },
+};
+
+const lifeKanji = {
+  id: 443,
+  object: "kanji",
+  data: {
+    characters: "命",
+    level: 7,
+    meanings: [{ meaning: "Life Kanji", primary: true }],
+    readings: [{ reading: "めい", primary: true }],
   },
 };
 
@@ -133,6 +160,30 @@ describe("NoteSubjectLinkPicker", () => {
     fireEvent.press(bridgeResult);
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(bridgeSubject);
+  });
+
+  it("uses white characters on radical and kanji subject colors", async () => {
+    (getAllSubjects as jest.Mock).mockResolvedValue([
+      lifeRadical,
+      lifeKanji,
+    ]);
+    const screen = render(
+      <NoteSubjectLinkPicker
+        initialQuery="life"
+        onCancel={jest.fn()}
+        onSelect={jest.fn()}
+      />,
+    );
+
+    const radicalCharacters = await waitFor(() => screen.getByText("生"));
+    const kanjiCharacters = await waitFor(() => screen.getByText("命"));
+
+    expect(StyleSheet.flatten(radicalCharacters.props.style)).toMatchObject({
+      color: "#ffffff",
+    });
+    expect(StyleSheet.flatten(kanjiCharacters.props.style)).toMatchObject({
+      color: "#ffffff",
+    });
   });
 
   it("offers removal when editing an existing subject link", async () => {

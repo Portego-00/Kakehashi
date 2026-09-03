@@ -43,6 +43,9 @@ const FORMAT_MARKERS: Record<NoteFormat, FormatMarker> = {
   italic: { format: "italic", open: "<i>", close: "</i>" },
   underline: { format: "underline", open: "<u>", close: "</u>" },
 };
+const NOTE_FORMATS = new Set<NoteFormat>(["bold", "italic", "underline"]);
+const MAX_NOTE_EDITOR_RUNS = 10_000;
+const MAX_NOTE_EDITOR_TEXT_LENGTH = 200_000;
 
 const NOTE_TAG_SOURCE =
   "<\\/?(?:b|i|u)>|<a\\s+href=(?:\"wk:\\/\\/subject\\/\\d+\"|'wk:\\/\\/subject\\/\\d+')\\s*>|<\\/a>";
@@ -65,6 +68,26 @@ function parseSubjectLinkId(tag: string): number | null {
 
 function createSubjectLinkOpenTag(subjectId: number): string {
   return `<a href="wk://subject/${subjectId}">`;
+}
+
+function encodeStoredNoteText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function decodeStoredNoteText(text: string): string {
+  return text.replace(/&(amp|lt|gt);/g, (entity) => {
+    switch (entity) {
+      case "&amp;":
+        return "&";
+      case "&lt;":
+        return "<";
+      default:
+        return ">";
+    }
+  });
 }
 
 function formatForTag(tag: string): NoteFormat {
@@ -130,7 +153,7 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
   while (match) {
     appendSegment(
       segments,
-      note.slice(cursor, match.index),
+      decodeStoredNoteText(note.slice(cursor, match.index)),
       activeFormats,
       activeSubjectId,
     );
@@ -189,7 +212,12 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
     match = NOTE_TAG_PATTERN.exec(note);
   }
 
-  appendSegment(segments, note.slice(cursor), activeFormats, activeSubjectId);
+  appendSegment(
+    segments,
+    decodeStoredNoteText(note.slice(cursor)),
+    activeFormats,
+    activeSubjectId,
+  );
 
   // If an opening tag was never closed, restore it and everything after it as
   // literal text instead of silently hiding part of the note.
@@ -198,13 +226,136 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
     segments.splice(firstUnclosedTag.segmentIndex);
     appendSegment(
       segments,
-      note.slice(firstUnclosedTag.sourceIndex),
+      decodeStoredNoteText(note.slice(firstUnclosedTag.sourceIndex)),
       firstUnclosedTag.parentFormats,
       firstUnclosedTag.parentSubjectId,
     );
   }
 
   return segments;
+}
+
+function haveSameSegmentMetadata(
+  left: FormattedNoteSegment,
+  right: FormattedNoteSegment,
+): boolean {
+  return (
+    left.subjectId === right.subjectId &&
+    left.formats.length === right.formats.length &&
+    left.formats.every((format, index) => format === right.formats[index])
+  );
+}
+
+/**
+ * Validates runs received from the visual editor before they cross back into
+ * the stored note format. Unknown fields, formats, or subject targets reject
+ * the complete update instead of partially accepting untrusted markup.
+ */
+export function normalizeFormattedNoteSegments(
+  value: unknown,
+): FormattedNoteSegment[] | null {
+  if (!Array.isArray(value) || value.length > MAX_NOTE_EDITOR_RUNS) {
+    return null;
+  }
+
+  const normalized: FormattedNoteSegment[] = [];
+  let totalTextLength = 0;
+
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object") return null;
+
+    const run = candidate as {
+      text?: unknown;
+      formats?: unknown;
+      subjectId?: unknown;
+    };
+    if (typeof run.text !== "string" || !Array.isArray(run.formats)) {
+      return null;
+    }
+
+    const formats: NoteFormat[] = [];
+    for (const candidateFormat of run.formats) {
+      if (
+        typeof candidateFormat !== "string" ||
+        !NOTE_FORMATS.has(candidateFormat as NoteFormat)
+      ) {
+        return null;
+      }
+
+      const format = candidateFormat as NoteFormat;
+      if (!formats.includes(format)) formats.push(format);
+    }
+
+    const hasSubjectId = run.subjectId !== undefined && run.subjectId !== null;
+    if (
+      hasSubjectId &&
+      (!Number.isInteger(run.subjectId) || Number(run.subjectId) <= 0)
+    ) {
+      return null;
+    }
+
+    totalTextLength += run.text.length;
+    if (totalTextLength > MAX_NOTE_EDITOR_TEXT_LENGTH) return null;
+    if (!run.text) continue;
+
+    const segment: FormattedNoteSegment = {
+      text: run.text,
+      formats,
+      ...(hasSubjectId ? { subjectId: Number(run.subjectId) } : {}),
+    };
+    const previous = normalized[normalized.length - 1];
+    if (previous && haveSameSegmentMetadata(previous, segment)) {
+      previous.text += segment.text;
+    } else {
+      normalized.push(segment);
+    }
+  }
+
+  return normalized;
+}
+
+function serializeFormattedTextSegment(segment: FormattedNoteSegment): string {
+  let serialized = encodeStoredNoteText(segment.text);
+  for (let index = segment.formats.length - 1; index >= 0; index -= 1) {
+    const marker = FORMAT_MARKERS[segment.formats[index]];
+    serialized = `${marker.open}${serialized}${marker.close}`;
+  }
+  return serialized;
+}
+
+/** Serializes trusted visual-editor runs into the existing note wire format. */
+export function serializeFormattedNote(
+  segments: readonly FormattedNoteSegment[],
+): string {
+  let serialized = "";
+
+  for (let index = 0; index < segments.length;) {
+    const segment = segments[index];
+    if (!segment.subjectId) {
+      serialized += serializeFormattedTextSegment(segment);
+      index += 1;
+      continue;
+    }
+
+    const subjectId = segment.subjectId;
+    let linkEnd = index + 1;
+    while (
+      linkEnd < segments.length &&
+      segments[linkEnd].subjectId === subjectId
+    ) {
+      linkEnd += 1;
+    }
+
+    serialized += createSubjectLinkOpenTag(subjectId);
+    serialized += segments
+      .slice(index, linkEnd)
+      .map(serializeFormattedTextSegment)
+      .join("");
+    serialized += "</a>";
+    index = linkEnd;
+  }
+
+  return serialized;
 }
 
 function clampSelection(note: string, selection: NoteSelection): NoteSelection {
@@ -371,8 +522,7 @@ function stripSubjectLinkTags(text: string): string {
     .sort((left, right) => right.start - left.start);
 
   return tagRanges.reduce(
-    (result, range) =>
-      result.slice(0, range.start) + result.slice(range.end),
+    (result, range) => result.slice(0, range.start) + result.slice(range.end),
     text,
   );
 }
@@ -391,9 +541,7 @@ function findExactFormatRange(
       const rangeContainsSelection =
         selection.start >= range.contentStart &&
         selection.end <= range.contentEnd &&
-        containsOnlyNoteTags(
-          note.slice(range.contentStart, selection.start),
-        ) &&
+        containsOnlyNoteTags(note.slice(range.contentStart, selection.start)) &&
         containsOnlyNoteTags(note.slice(selection.end, range.contentEnd));
 
       return selectionIncludesRange || rangeContainsSelection;
@@ -535,11 +683,7 @@ export function toggleNoteFormat(
   );
   const { open, close } = FORMAT_MARKERS[format];
   const selectedText = note.slice(start, end);
-  const existingRange = findExactFormatRange(
-    note,
-    { start, end },
-    format,
-  );
+  const existingRange = findExactFormatRange(note, { start, end }, format);
 
   if (existingRange) {
     const innerText = note.slice(

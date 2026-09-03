@@ -43,7 +43,7 @@
           "contextSentences": [
             {
               "ja": "ケーキを一口食べた。",
-              "en": "I ate one bite of cake."
+              "en": "I took a bite of the cake."
             },
             {
               "ja": "一口飲めば、味が分かります。",
@@ -112,8 +112,8 @@
           "readingMnemonic": "A sneaker collector tears open a locked crate and gasps, <reading>NEW SHOE!</reading> Getting that rare shoe into her hands means she can finally <vocabulary>obtain</vocabulary> or <vocabulary>acquire</vocabulary> it. 入手する is common for acquiring an item or information.",
           "contextSentences": [
             {
-              "ja": "限定の切符を入手した。",
-              "en": "I obtained a limited-edition ticket."
+              "ja": "限定販売の切符を入手した。",
+              "en": "I obtained a limited-release ticket."
             },
             {
               "ja": "必要な情報はネットで入手できます。",
@@ -294,7 +294,7 @@
             },
             {
               "ja": "姉を手本にして勉強している。",
-              "en": "I study with my older sister as my model."
+              "en": "I follow my older sister's example when I study."
             }
           ],
           "readingMap": "て・ほ・ん"
@@ -368,6 +368,10 @@
             {
               "ja": "町の中心に公園がある。",
               "en": "There is a park in the center of town."
+            },
+            {
+              "ja": "安全性を議論の中心に置いた。",
+              "en": "We put safety at the heart of the discussion."
             }
           ],
           "readingMap": "ちゅ・う・し・ん"
@@ -438,7 +442,7 @@
             },
             {
               "ja": "明日は会場の下見に行きます。",
-              "en": "Tomorrow I am going to preview the venue."
+              "en": "Tomorrow I'm going to inspect the venue in advance."
             }
           ],
           "readingMap": "し・た・み"
@@ -538,7 +542,7 @@
           "contextSentences": [
             {
               "ja": "何か飲みますか。",
-              "en": "Would you like something to drink?"
+              "en": "Would you like anything to drink?"
             },
             {
               "ja": "机の下に何か落ちている。",
@@ -838,8 +842,8 @@
               "en": "Please reply within three days."
             },
             {
-              "ja": "駅から十分以内で行けます。",
-              "en": "You can get there from the station within ten minutes."
+              "ja": "駅から歩いて十分以内で行けます。",
+              "en": "You can walk there from the station in ten minutes or less."
             }
           ],
           "readingMap": "い・な・い"
@@ -874,7 +878,7 @@
             },
             {
               "ja": "そのニュースは世間で話題になった。",
-              "en": "That news became a topic of public conversation."
+              "en": "That news attracted a great deal of public attention."
             }
           ],
           "readingMap": "せ・け・ん"
@@ -945,7 +949,7 @@
             },
             {
               "ja": "今日の主役は新郎と新婦です。",
-              "en": "Today's main characters are the bride and groom."
+              "en": "The bride and groom are the stars of the day."
             }
           ],
           "readingMap": "しゅ・や・く"
@@ -1027,7 +1031,7 @@
               "en": "Could I leave a message for Mr. Tanaka?"
             },
             {
-              "ja": "田中さんが帰ったら、この伝言を伝えます。",
+              "ja": "田中さんが帰ったら、この伝言を渡します。",
               "en": "I'll pass on this message when Mr. Tanaka returns."
             }
           ],
@@ -1059,7 +1063,7 @@
           "contextSentences": [
             {
               "ja": "母から元気だという便りが届いた。",
-              "en": "News arrived from my mother saying that she is well."
+              "en": "I heard from my mother that she's doing well."
             },
             {
               "ja": "旅先から便りを送ります。",
@@ -1350,7 +1354,7 @@
             },
             {
               "ja": "地域の交流を深める行事です。",
-              "en": "This event strengthens exchange within the community."
+              "en": "This event helps bring the community together."
             }
           ],
           "readingMap": "こ・う・りゅ・う"
@@ -1416,11 +1420,11 @@
           "contextSentences": [
             {
               "ja": "彼女の意見に強く共感した。",
-              "en": "I strongly empathized with her opinion."
+              "en": "I strongly identified with her point of view."
             },
             {
               "ja": "この物語は多くの共感を集めた。",
-              "en": "This story drew a great deal of sympathy."
+              "en": "This story resonated with many people."
             }
           ],
           "readingMap": "きょ・う・か・ん"
@@ -1598,6 +1602,10 @@
             {
               "ja": "姉は会社で会計を担当している。",
               "en": "My sister handles accounting at her company."
+            },
+            {
+              "ja": "お会計は出口近くのレジでお願いします。",
+              "en": "Please pay at the register near the exit."
             }
           ],
           "readingMap": "か・い・け・い"
@@ -1751,8 +1759,8 @@
               "en": "I take a bath before bed."
             },
             {
-              "ja": "食後すぐの入浴は避けてください。",
-              "en": "Please avoid bathing immediately after eating."
+              "ja": "入浴の時間は午後九時までです。",
+              "en": "Bathing hours end at nine in the evening."
             }
           ],
           "readingMap": "にゅ・う・よ・く"
@@ -1818,7 +1826,7 @@
           "contextSentences": [
             {
               "ja": "この店には強い個性がある。",
-              "en": "This shop has a strong personality."
+              "en": "This shop has a distinctive character."
             },
             {
               "ja": "子どもの個性を大切にしたい。",
@@ -2009,8 +2017,8 @@
           "readingMnemonic": "INVESTIGATE 調 unlocks a case file while INSPECT 査 searches every drawer; their familiar sounds join as <reading>ちょう—さ</reading>. Hidden evidence spills across the desk and launches a full <vocabulary>investigation</vocabulary>. 調査する covers investigating facts or conducting research.",
           "contextSentences": [
             {
-              "ja": "市は住民の意見を調査した。",
-              "en": "The city surveyed its residents' opinions."
+              "ja": "市は住民の生活状況を調査した。",
+              "en": "The city surveyed its residents' living conditions."
             },
             {
               "ja": "事故の原因を詳しく調査している。",
@@ -2364,7 +2372,7 @@
           "contextSentences": [
             {
               "ja": "野菜には栄養がたくさんある。",
-              "en": "Vegetables contain plenty of nutrition."
+              "en": "Vegetables are rich in nutrients."
             },
             {
               "ja": "栄養のバランスを考えて食べる。",
@@ -2404,7 +2412,7 @@
             },
             {
               "ja": "この学校では無料の給食を出している。",
-              "en": "This school provides free meals."
+              "en": "This school provides free lunches."
             }
           ],
           "readingMap": "きゅ・う・しょ・く"
@@ -2446,7 +2454,7 @@
           "contextSentences": [
             {
               "ja": "彼は明るい印象を与えた。",
-              "en": "He gave a cheerful impression."
+              "en": "He made a cheerful impression."
             },
             {
               "ja": "最初の印象と今の印象は全く違う。",
@@ -2712,8 +2720,8 @@
               "en": "My grandmother is good at knitting."
             },
             {
-              "ja": "冬の間に編み物を始めた。",
-              "en": "I took up knitting during the winter."
+              "ja": "棚には祖母が作った編み物が並んでいる。",
+              "en": "The knitted items my grandmother made are lined up on the shelf."
             }
           ],
           "readingMap": "あ・み・も・の"
@@ -2786,6 +2794,10 @@
             {
               "ja": "オンラインで申し込みを済ませた。",
               "en": "I completed the registration online."
+            },
+            {
+              "ja": "資料の申し込みを電話で受け付けています。",
+              "en": "We accept requests for the information packet by phone."
             }
           ],
           "readingMap": "も・う・し・こ・み"
@@ -2887,8 +2899,8 @@
               "en": "Steaming vegetables makes them sweeter."
             },
             {
-              "ja": "魚を蒸すと、身が柔らかくなる。",
-              "en": "Steaming fish makes the flesh tender."
+              "ja": "この鍋なら、一度にたくさんの野菜を蒸すことができます。",
+              "en": "With this pot, you can steam a large amount of vegetables at once."
             }
           ],
           "readingMap": "む・す"
@@ -3219,7 +3231,7 @@
             },
             {
               "ja": "メールの宛先を間違えた。",
-              "en": "I entered the wrong email address."
+              "en": "I got the email address wrong."
             }
           ],
           "readingMap": "あ・て・さ・き"
@@ -3444,7 +3456,7 @@
           "contextSentences": [
             {
               "ja": "肝心な鍵を家に忘れた。",
-              "en": "I left the crucial key at home."
+              "en": "I left the all-important key at home."
             },
             {
               "ja": "肝心なのは毎日続けることです。",
@@ -3481,8 +3493,8 @@
               "en": "This fabric feels smooth."
             },
             {
-              "ja": "練習して、会話が滑らかになった。",
-              "en": "Practice made my conversation more fluent."
+              "ja": "練習して、発音が滑らかになった。",
+              "en": "With practice, my pronunciation became smoother."
             }
           ],
           "readingMap": "な・め・ら・か"
@@ -3914,7 +3926,7 @@
           "contextSentences": [
             {
               "ja": "セールで必要のない物を買うのは無駄遣いだ。",
-              "en": "Buying things you do not need in a sale is wasteful spending."
+              "en": "Buying things you don't need during a sale is wasteful spending."
             },
             {
               "ja": "時間を無駄遣いしないように計画を立てた。",
@@ -4034,7 +4046,7 @@
           "contextSentences": [
             {
               "ja": "冠婚葬祭で着られる黒い服を買った。",
-              "en": "I bought black clothes suitable for family ceremonies."
+              "en": "I bought black formalwear suitable for ceremonial occasions."
             },
             {
               "ja": "冠婚葬祭のマナーを本で学んだ。",
@@ -4141,7 +4153,7 @@
             },
             {
               "ja": "痛みは徐々に弱くなっている。",
-              "en": "The pain is steadily becoming weaker."
+              "en": "The pain is gradually easing."
             }
           ],
           "readingMap": "じょ・じょ・に"
@@ -4214,8 +4226,8 @@
               "en": "The fee will be left unchanged next year."
             },
             {
-              "ja": "金利の据え置きが発表された。",
-              "en": "A decision to leave interest rates unchanged was announced."
+              "ja": "元金の返済を一年間据え置きにしてもらった。",
+              "en": "I had the principal repayments deferred for one year."
             }
           ],
           "readingMap": "す・え・お・き"
@@ -4320,8 +4332,8 @@
               "en": "A doctor explained diabetes to me."
             },
             {
-              "ja": "運動は糖尿病の予防に役立つ。",
-              "en": "Exercise helps prevent diabetes."
+              "ja": "祖父は糖尿病の治療を続けている。",
+              "en": "My grandfather is continuing treatment for diabetes."
             }
           ],
           "readingMap": "と・う・にょ・う・びょ・う"

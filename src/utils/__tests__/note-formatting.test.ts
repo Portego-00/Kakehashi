@@ -1,9 +1,11 @@
 import {
   getNoteLinkSearchText,
   getNoteSubjectLinkAtSelection,
+  normalizeFormattedNoteSegments,
   parseFormattedNote,
   removeNoteSubjectLink,
   selectionHasNoteFormat,
+  serializeFormattedNote,
   setNoteSubjectLink,
   toggleNoteFormat,
 } from "../note-formatting";
@@ -17,9 +19,7 @@ describe("note formatting", () => {
 
   it("parses nested bold, italic, and underline formatting", () => {
     expect(
-      parseFormattedNote(
-        "Use <b>on-yomi <i><u>しょう</u></i></b> here",
-      ),
+      parseFormattedNote("Use <b>on-yomi <i><u>しょう</u></i></b> here"),
     ).toEqual([
       { text: "Use ", formats: [] },
       { text: "on-yomi ", formats: ["bold"] },
@@ -61,6 +61,69 @@ describe("note formatting", () => {
     ]);
   });
 
+  it("round-trips visual editor runs through the existing note format", () => {
+    const runs = [
+      { text: "Compare ", formats: [] },
+      {
+        text: "橋",
+        formats: ["bold" as const],
+        subjectId: 440,
+      },
+      {
+        text: " and はし",
+        formats: ["italic" as const, "underline" as const],
+        subjectId: 440,
+      },
+      { text: "\n🧠", formats: [] },
+    ];
+
+    const stored = serializeFormattedNote(runs);
+    expect(stored).toBe(
+      'Compare <a href="wk://subject/440"><b>橋</b><i><u> and はし</u></i></a>\n🧠',
+    );
+    expect(parseFormattedNote(stored)).toEqual(runs);
+  });
+
+  it("round-trips text that looks like note markup without interpreting it", () => {
+    const runs = [
+      {
+        text: "Literal <b>word</b>, </a>, malformed <i>, & entity",
+        formats: [],
+      },
+      {
+        text: " <u>linked text</u>",
+        formats: ["underline" as const],
+        subjectId: 440,
+      },
+    ];
+
+    const stored = serializeFormattedNote(runs);
+    expect(stored).toBe(
+      'Literal &lt;b&gt;word&lt;/b&gt;, &lt;/a&gt;, malformed &lt;i&gt;, &amp; entity<a href="wk://subject/440"><u> &lt;u&gt;linked text&lt;/u&gt;</u></a>',
+    );
+    expect(parseFormattedNote(stored)).toEqual(runs);
+  });
+
+  it("validates and merges visual editor bridge runs", () => {
+    expect(
+      normalizeFormattedNoteSegments([
+        { text: "日", formats: ["bold", "bold"], subjectId: 22 },
+        { text: "本", formats: ["bold"], subjectId: 22 },
+      ]),
+    ).toEqual([{ text: "日本", formats: ["bold"], subjectId: 22 }]);
+
+    expect(
+      normalizeFormattedNoteSegments([
+        { text: "unsafe", formats: ["script"], subjectId: 22 },
+      ]),
+    ).toBeNull();
+    expect(
+      normalizeFormattedNoteSegments([
+        { text: "bad target", formats: [], subjectId: -1 },
+      ]),
+    ).toBeNull();
+  });
+
   it.each([
     'Try <a href="wk://subject/440">橋',
     'Try <a href="https://example.com/440">橋</a>',
@@ -70,12 +133,7 @@ describe("note formatting", () => {
 
   it("inserts a subject link around selected text", () => {
     expect(
-      setNoteSubjectLink(
-        "See bridge here",
-        { start: 4, end: 10 },
-        42,
-        "橋",
-      ),
+      setNoteSubjectLink("See bridge here", { start: 4, end: 10 }, 42, "橋"),
     ).toEqual({
       text: 'See <a href="wk://subject/42">bridge</a> here',
       selection: { start: 30, end: 36 },
@@ -91,9 +149,9 @@ describe("note formatting", () => {
       text: 'See <a href="wk://subject/99">bridge</a> here',
       selection: { start: 30, end: 36 },
     });
-    expect(
-      getNoteSubjectLinkAtSelection(note, { start: 30, end: 36 }),
-    ).toEqual({ subjectId: 42, text: "bridge" });
+    expect(getNoteSubjectLinkAtSelection(note, { start: 30, end: 36 })).toEqual(
+      { subjectId: 42, text: "bridge" },
+    );
   });
 
   it("expands a selection crossing link markup instead of leaving broken tags", () => {
@@ -155,10 +213,10 @@ describe("note formatting", () => {
 
   it("removes a subject link and keeps its label selected", () => {
     expect(
-      removeNoteSubjectLink(
-        'See <a href="wk://subject/42">bridge</a> here',
-        { start: 30, end: 36 },
-      ),
+      removeNoteSubjectLink('See <a href="wk://subject/42">bridge</a> here', {
+        start: 30,
+        end: 36,
+      }),
     ).toEqual({
       text: "See bridge here",
       selection: { start: 4, end: 10 },

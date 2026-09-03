@@ -73,7 +73,7 @@ An independent editor then inspected every entry's reading path, rendered compos
 - 12 packs, each declaring one exact five-level band from 1–5 through 56–60
 - 156 total words and 156 unique word IDs
 - 156 unique written forms
-- 156 natural Japanese/English context pairs
+- 322 natural Japanese/English context pairs (146 words with two and 10 with three)
 - 156 JMdict-verified written-reading pairs
 - 156 composition mnemonics passing the live WaniKani gloss/order gate
 - 156 reading mnemonics passing reading-map and markup validation

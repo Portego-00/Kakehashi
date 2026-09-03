@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, CircleAlert, Cloud, HardDrive, Plus, RotateCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, CircleAlert, Cloud, HardDrive, Library, Plus, RotateCw } from "lucide-react";
 import Link from "next/link";
+import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Progress } from "@/components/ui/Progress";
@@ -30,13 +32,95 @@ const STAGE_GROUPS = [
   { label: "Burned", stage: 9, key: "burned" },
 ] as const;
 
+const PACK_FLIGHT_WIDTH = 168;
+const PACK_FLIGHT_HEIGHT = 44;
+
+type PackFlightRect = Pick<DOMRect, "height" | "left" | "top" | "width">;
+
+type PackFlight = {
+  id: number;
+  title: string;
+  characters: string;
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+};
+
+type PackFlightOrigin = {
+  rect: PackFlightRect;
+  scrollX: number;
+  scrollY: number;
+  viewportHeight: number;
+  viewportWidth: number;
+};
+
+function flightPoint(rect: PackFlightRect) {
+  return {
+    x: rect.left + rect.width / 2 - PACK_FLIGHT_WIDTH / 2,
+    y: rect.top + rect.height / 2 - PACK_FLIGHT_HEIGHT / 2,
+  };
+}
+
+function capturePackFlightOrigin(origin: HTMLButtonElement): PackFlightOrigin {
+  const rect = origin.getBoundingClientRect();
+  return {
+    rect: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    viewportHeight: window.innerHeight,
+    viewportWidth: window.innerWidth,
+  };
+}
+
+function currentPackFlightOrigin(origin: HTMLButtonElement, initial: PackFlightOrigin): PackFlightRect | null {
+  const viewportChanged = Math.abs(window.scrollX - initial.scrollX) > 1
+    || Math.abs(window.scrollY - initial.scrollY) > 1
+    || window.innerHeight !== initial.viewportHeight
+    || window.innerWidth !== initial.viewportWidth;
+  if (viewportChanged) return null;
+
+  const rect = origin.isConnected ? origin.getBoundingClientRect() : initial.rect;
+  return { height: rect.height, left: rect.left, top: rect.top, width: rect.width };
+}
+
+function PackFlightLayer({ flight, onComplete }: { flight: PackFlight | null; onComplete: (id: number) => void }) {
+  if (!flight || typeof document === "undefined") return null;
+  const deltaX = flight.end.x - flight.start.x;
+  const lift = Math.min(112, Math.max(48, Math.abs(flight.end.y - flight.start.y) * 0.18));
+  const apexY = Math.min(flight.start.y, flight.end.y) - lift;
+
+  return createPortal(
+    <MotionConfig reducedMotion="user">
+      <motion.div
+        key={flight.id}
+        className={styles.packFlight}
+        data-pack-flight=""
+        aria-hidden="true"
+        initial={{ opacity: 0, rotate: -2, scale: 0.9, x: flight.start.x, y: flight.start.y }}
+        animate={{
+          opacity: [0, 1, 1, 0],
+          rotate: [-2, -4, 2, 0],
+          scale: [0.9, 1, 0.64, 0.2],
+          x: [flight.start.x, flight.start.x + deltaX * 0.18, flight.start.x + deltaX * 0.7, flight.end.x],
+          y: [flight.start.y, apexY, flight.end.y - 18, flight.end.y],
+        }}
+        transition={{ duration: 0.72, ease: [0.2, 0, 0, 1], times: [0, 0.16, 0.78, 1] }}
+        onAnimationComplete={() => onComplete(flight.id)}
+      >
+        <span className={styles.packFlightCharacter} lang="ja">{flight.characters}</span>
+        <strong>{flight.title}</strong>
+      </motion.div>
+    </MotionConfig>,
+    document.body,
+  );
+}
+
 function readableError(error: unknown) {
   if (!error) return "";
   return error instanceof Error ? error.message : typeof error === "string" ? error : "Custom vocabulary progress could not be loaded.";
 }
 
 function PackWordStatus({ state, wordId, enrolled }: { state: CustomSrsState; wordId: string; enrolled: boolean }) {
-  if (!enrolled) return <span className={styles.wordStatus}>Preview</span>;
+  if (!enrolled) return null;
   const stage = state.assignments[wordId]?.stage ?? 0;
   if (stage === 0) return <span className={styles.wordStatus}>Lesson</span>;
   return (
@@ -118,10 +202,10 @@ function VocabularyPack({
   progressSource: string;
   disabled: boolean;
   pending: boolean;
-  onAdd: (pack: CustomVocabularyPack) => Promise<void>;
+  onAdd: (pack: CustomVocabularyPack, origin: HTMLButtonElement) => Promise<void>;
 }) {
   const enrolled = state.enrolledPackIds.includes(pack.id);
-  const previewWords = pack.words.slice(0, 4);
+  const previewWords = pack.words.slice(0, 2);
   const remainingWords = pack.words.slice(previewWords.length);
   const wordCountLabel = `${pack.words.length} ${pack.words.length === 1 ? "word" : "words"}`;
   const packMeta = pack.levelRange
@@ -145,7 +229,7 @@ function VocabularyPack({
             state={pending ? "loading" : "idle"}
             disabled={disabled}
             aria-label={`Add ${pack.title} pack`}
-            onClick={() => void onAdd(pack)}
+            onClick={(event) => void onAdd(pack, event.currentTarget)}
           >
             {pending ? null : <Plus size={16} aria-hidden="true" />} Add pack
           </Button>
@@ -183,11 +267,25 @@ export function CustomVocabularyHub() {
   const [pendingPackId, setPendingPackId] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [announcement, setAnnouncement] = useState("");
+  const [packFlight, setPackFlight] = useState<PackFlight | null>(null);
+  const [receivingSequence, setReceivingSequence] = useState<number | null>(null);
+  const packShelfRef = useRef<HTMLDivElement>(null);
+  const packStickyHeadingRef = useRef<HTMLDivElement>(null);
+  const flightSequenceRef = useRef(0);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (receivingSequence === null) return;
+    const timer = window.setTimeout(() => {
+      setReceivingSequence((current) => current === receivingSequence ? null : current);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [receivingSequence]);
 
   const queue = useMemo(() => ({
     lessons: customLessonWords(state, CUSTOM_VOCABULARY_PACKS).length,
@@ -227,13 +325,44 @@ export function CustomVocabularyHub() {
     </section>;
   }
 
-  async function addPack(pack: CustomVocabularyPack) {
+  function collectPack(pack: CustomVocabularyPack, originRect: PackFlightRect | null) {
+    const sequence = flightSequenceRef.current + 1;
+    flightSequenceRef.current = sequence;
+    setReceivingSequence(sequence);
+
+    const shelfRect = packShelfRef.current?.getBoundingClientRect();
+    const currentlyReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (reduceMotion || currentlyReduced || !originRect || !shelfRect) return;
+    setPackFlight({
+      id: sequence,
+      title: pack.title,
+      characters: pack.words[0]?.characters ?? "語",
+      start: flightPoint(originRect),
+      end: flightPoint(shelfRect),
+    });
+  }
+
+  function focusPackHeading(packId: string) {
+    const heading = document.getElementById(`pack-${packId}`);
+    if (!heading) return;
+
+    heading.focus();
+    const stickyBottom = packStickyHeadingRef.current?.getBoundingClientRect().bottom ?? 0;
+    const headingRect = heading.getBoundingClientRect();
+    if (headingRect.top < stickyBottom + 8 || headingRect.bottom > window.innerHeight - 8) {
+      heading.scrollIntoView?.({ block: "start" });
+    }
+  }
+
+  async function addPack(pack: CustomVocabularyPack, origin: HTMLButtonElement) {
+    const flightOrigin = capturePackFlightOrigin(origin);
     setPendingPackId(pack.id);
     setMutationError("");
     try {
       await enrollPack(pack);
       setAnnouncement(`${pack.title} added. ${pack.words.length} custom ${pack.words.length === 1 ? "lesson is" : "lessons are"} ready.`);
-      document.getElementById(`pack-${pack.id}`)?.focus();
+      focusPackHeading(pack.id);
+      collectPack(pack, currentPackFlightOrigin(origin, flightOrigin));
     } catch (cause) {
       setMutationError(readableError(cause) || `Could not add ${pack.title}. Try again.`);
     } finally {
@@ -284,12 +413,25 @@ export function CustomVocabularyHub() {
       </section>
 
       <section className={styles.packs} aria-labelledby="custom-packs-heading">
-        <div className={styles.sectionHeading}>
+        <div ref={packStickyHeadingRef} className={styles.sectionHeading}>
           <div>
             <h2 id="custom-packs-heading">Vocabulary packs</h2>
             <p>Common words checked against WaniKani’s complete vocabulary catalog.</p>
           </div>
-          <p>{state.enrolledPackIds.length} of {CUSTOM_VOCABULARY_PACKS.length} added</p>
+          <div
+            key={receivingSequence ?? "idle"}
+            ref={packShelfRef}
+            className={styles.packShelf}
+            data-receiving={receivingSequence === null ? undefined : "true"}
+            aria-label={`${state.enrolledPackIds.length} of ${CUSTOM_VOCABULARY_PACKS.length} vocabulary packs added`}
+          >
+            <Library size={17} aria-hidden="true" />
+            <span>
+              <strong>{state.enrolledPackIds.length}</strong>
+              <span> of {CUSTOM_VOCABULARY_PACKS.length}</span>
+              <span className={styles.packShelfAdded}> added</span>
+            </span>
+          </div>
         </div>
         {renderPackGroup("custom-kana-packs-heading", "Kana & everyday language", kanaPacks)}
         {renderPackGroup("custom-kanji-packs-heading", "Kanji by WaniKani level", kanjiPacks)}
@@ -317,6 +459,11 @@ export function CustomVocabularyHub() {
           used under its <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">CC BY-SA 4.0 licence</a>. Every written form is checked against the complete <a href="https://docs.api.wanikani.com/20170710/#get-all-subjects" target="_blank" rel="noreferrer">WaniKani subject catalog</a>, and level-banded packs use the highest component-kanji level. Mnemonics and examples are original to Kakehashi.
         </p>
       </footer>
+
+      <PackFlightLayer
+        flight={packFlight}
+        onComplete={(id) => setPackFlight((current) => current?.id === id ? null : current)}
+      />
     </main>
   );
 }

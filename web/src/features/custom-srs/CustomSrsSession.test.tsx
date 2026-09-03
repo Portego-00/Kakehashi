@@ -166,6 +166,23 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(await screen.findByRole("heading", { name: "Dog" })).toBeInTheDocument();
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     expect(scrollIntoViewMock).not.toHaveBeenCalledWith({ block: "start" });
+    expect(screen.getByRole("tab", { name: "Meaning" })).not.toHaveFocus();
+  });
+
+  it("keeps tab focus when tab arrows cross between lesson words", async () => {
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat, dog] };
+    hook.state = stateFor(pack, {});
+
+    renderSession("lessons", [pack]);
+    const contextTab = screen.getByRole("tab", { name: "Context" });
+    fireEvent.click(contextTab);
+    contextTab.focus();
+
+    fireEvent.keyDown(contextTab, { key: "ArrowRight" });
+
+    expect(await screen.findByRole("heading", { name: "Dog" })).toBeInTheDocument();
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    expect(screen.getByRole("tab", { name: "Meaning" })).toHaveFocus();
   });
 
   it("teaches the editorial content and keeps wrong-mode answers non-penalizing", async () => {
@@ -192,29 +209,30 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(screen.getByText("A cat is walking through the garden.")).toBeInTheDocument();
     expect(fetchImmersionExamplesMock).toHaveBeenCalledWith("ねこ", ["*"], expect.any(AbortSignal));
     fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
+    expect(screen.queryByRole("link", { name: "Pause" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
-    const answer = screen.getByRole("textbox", { name: "Your answer" });
+    const answer = screen.getByRole("textbox", { name: "Vocabulary Meaning" });
+    expect(screen.getByRole("link", { name: "Pause and exit session" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
     fireEvent.change(answer, { target: { value: "neko" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(screen.getByText("Try another answer")).toBeInTheDocument();
     expect(screen.getByText("You entered the reading, but we want the meaning.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");
     expect(hook.completeLesson).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "banana" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "banana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(screen.getByText("Incorrect")).toBeInTheDocument();
-    expect(screen.getByLabelText("Question status")).toHaveTextContent("1 mistake");
 
-    fireEvent.click(screen.getByRole("button", { name: "Next Question" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "cat" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    const finish = screen.getByRole("button", { name: "Finish" });
-    fireEvent.click(finish);
-    fireEvent.click(finish);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    const next = screen.getByRole("button", { name: "Next" });
+    fireEvent.click(next);
+    fireEvent.click(next);
 
     expect(await screen.findByRole("heading", { name: "Custom lessons complete" })).toBeInTheDocument();
     expect(hook.completeLesson).toHaveBeenCalledOnce();
@@ -252,18 +270,17 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(screen.getByText("WaniKani level 8+")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Reading" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "footsteps" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    fireEvent.click(screen.getByRole("button", { name: "Next Question" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "footsteps" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(hook.completeLesson).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "reading" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Type kana or romaji…")).toBeInTheDocument();
+    expect(screen.getByText("Reading", { selector: "strong" })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "ashioto" } });
-    expect(screen.getByRole("textbox", { name: "Your answer" })).toHaveValue("あしおと");
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Reading" }), { target: { value: "ashioto" } });
+    expect(screen.getByRole("textbox", { name: "Vocabulary Reading" })).toHaveValue("あしおと");
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(await screen.findByRole("heading", { name: "Custom lessons complete" })).toBeInTheDocument();
     expect(hook.completeLesson).toHaveBeenCalledOnce();
@@ -326,14 +343,14 @@ describe("custom vocabulary lesson and review sessions", () => {
 
     expect(screen.getByText("ねこ")).toBeInTheDocument();
     expect(screen.queryByText("いぬ")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "banana" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    fireEvent.click(screen.getByRole("button", { name: "Next Question" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "cat" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    const finish = screen.getByRole("button", { name: "Finish" });
-    fireEvent.click(finish);
-    fireEvent.click(finish);
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "banana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    const next = screen.getByRole("button", { name: "Next" });
+    fireEvent.click(next);
+    fireEvent.click(next);
 
     expect(await screen.findByRole("heading", { name: "Custom reviews complete" })).toBeInTheDocument();
     expect(hook.submitReview).toHaveBeenCalledOnce();
@@ -352,9 +369,9 @@ describe("custom vocabulary lesson and review sessions", () => {
       .mockResolvedValueOnce(withAssignment(initial, cat.id, 2, "2999-01-01T00:00:00.000Z"));
 
     renderSession("reviews", [pack]);
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "cat" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Progress is temporarily unavailable.");
     fireEvent.click(screen.getByRole("button", { name: "Retry Save" }));
@@ -375,11 +392,11 @@ describe("custom vocabulary lesson and review sessions", () => {
     renderSession("reviews", [pack]);
 
     expect(screen.getByRole("heading", { name: "Custom vocabulary could not load" })).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to Vocabulary Packs" })).toHaveAttribute("href", "/custom-vocabulary");
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
 
-    expect(await screen.findByRole("textbox", { name: "Your answer" })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ })).toBeInTheDocument();
     expect(hook.refresh).toHaveBeenCalledOnce();
   });
 });

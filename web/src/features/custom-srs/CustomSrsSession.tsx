@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowRight, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, RotateCcw, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
+import { srsStageLabel } from "@/components/SrsStageIcon";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "@/features/core-study/answer-checker";
@@ -15,6 +16,7 @@ import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
 import { fetchImmersionExamples } from "@/features/study/immersion";
+import studyStyles from "@/features/study/study.module.css";
 import { composeKanaInput } from "@/lib/kana";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
@@ -24,7 +26,6 @@ import { nextCustomSrsStage } from "./scheduler";
 import { customAssignmentToWaniKani, customWordToSubject, customWordUsesKanji } from "./subject-adapter";
 import type { CustomSrsStage, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
 import { useCustomSrs } from "./use-custom-srs";
-import sessionStyles from "./custom-srs-session.module.css";
 
 type CustomStudyMode = "lessons" | "reviews";
 type SessionPhase = "teaching" | "quiz" | "results";
@@ -145,17 +146,21 @@ function CustomLessonTeaching({
   const heroRef = useRef<HTMLElement>(null);
   const activeBatchItemRef = useRef<HTMLButtonElement>(null);
   const [activeTab, setActiveTab] = useState<SubjectDetailTab>("meaning");
+  const [preserveViewportAfterSubjectChange, setPreserveViewportAfterSubjectChange] = useState(false);
   const [focusTabAfterSubjectChange, setFocusTabAfterSubjectChange] = useState(false);
   const previousWordIdRef = useRef(word?.id);
 
   useEffect(() => {
     if (!word || previousWordIdRef.current === word.id) return;
     previousWordIdRef.current = word.id;
+    if (!preserveViewportAfterSubjectChange) {
+      heroRef.current?.scrollIntoView({ block: "start" });
+    }
     if (!focusTabAfterSubjectChange) return;
     const subjectId = customWordToSubject(word).id;
     const frame = window.requestAnimationFrame(() => document.getElementById(`custom-lesson-subject-${subjectId}-tab-meaning`)?.focus({ preventScroll: true }));
     return () => window.cancelAnimationFrame(frame);
-  }, [focusTabAfterSubjectChange, word]);
+  }, [focusTabAfterSubjectChange, preserveViewportAfterSubjectChange, word]);
 
   useEffect(() => {
     activeBatchItemRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -177,14 +182,15 @@ function CustomLessonTeaching({
   const assignment = state.assignments[word.id];
   const characterCount = Array.from(word.characters).length;
   const progress = words.length ? (currentIndex + 1) / words.length : 0;
-  const goToWord = (index: number, focusTab = false) => {
+  const goToWord = (index: number, preserveViewport = false, focusTab = false) => {
+    setPreserveViewportAfterSubjectChange(preserveViewport);
     setFocusTabAfterSubjectChange(focusTab);
     setActiveTab("meaning");
     onCurrentIndexChange(index);
   };
-  const previous = currentIndex > 0 ? () => goToWord(currentIndex - 1, true) : undefined;
-  const next = () => {
-    if (currentIndex < words.length - 1) goToWord(currentIndex + 1, true);
+  const previous = currentIndex > 0 ? (focusTab: boolean) => goToWord(currentIndex - 1, true, focusTab) : undefined;
+  const next = (focusTab: boolean) => {
+    if (currentIndex < words.length - 1) goToWord(currentIndex + 1, true, focusTab);
     else {
       heroRef.current?.scrollIntoView({ block: "start" });
       onStartQuiz();
@@ -204,7 +210,6 @@ function CustomLessonTeaching({
       <header ref={heroRef} className={`${coreStyles.lessonSubjectHero} ${coreStyles.fullSubjectContrast}`} style={{ "--subject-color": subjectColor() } as CSSProperties}>
         <div className={coreStyles.lessonHeroBar}>
           <div className={coreStyles.sessionProgress}><span>Custom lessons</span><strong>{currentIndex + 1} / {words.length}</strong></div>
-          <div className={coreStyles.lessonHeroActions}><ButtonLink className={coreStyles.lessonHeroLeave} href="/custom-vocabulary" tone="ghost" size="small">Pause</ButtonLink></div>
         </div>
         <div className={coreStyles.progressTrack} role="progressbar" aria-label="Lesson progress" aria-valuemin={0} aria-valuemax={words.length} aria-valuenow={currentIndex + 1}>
           <span style={{ "--study-progress": progress } as CSSProperties} />
@@ -245,7 +250,7 @@ function CustomLessonTeaching({
       </div>
 
       <nav className={coreStyles.lessonFooter} aria-label="Custom lesson navigation">
-        <button type="button" className={coreStyles.lessonFooterArrow} aria-label="Previous lesson" disabled={!previous} onClick={previous}>
+        <button type="button" className={coreStyles.lessonFooterArrow} aria-label="Previous lesson" disabled={!previous} onClick={() => previous?.(false)}>
           <ChevronLeft size={20} aria-hidden /><span>Previous</span>
         </button>
         <div className={coreStyles.lessonBatchItems} role="list" aria-label="Lessons in this batch">
@@ -265,7 +270,7 @@ function CustomLessonTeaching({
             ><SubjectCharacter subject={batchSubject} imageSize="1.35rem" imageTone="subject" /></button></span>;
           })}
         </div>
-        <button type="button" className={coreStyles.lessonFooterArrow} aria-label={currentIndex === words.length - 1 ? "Start lesson quiz" : "Next lesson"} onClick={next}>
+        <button type="button" className={coreStyles.lessonFooterArrow} aria-label={currentIndex === words.length - 1 ? "Start lesson quiz" : "Next lesson"} onClick={() => next(false)}>
           <span>{currentIndex === words.length - 1 ? "Start quiz" : "Next"}</span><ChevronRight size={20} aria-hidden />
         </button>
       </nav>
@@ -407,8 +412,8 @@ function ReadyCustomSrsSession({
   const currentSubject = useMemo(() => currentWord ? customWordToSubject(currentWord) : null, [currentWord]);
   const currentAssignment = currentWord ? state.assignments[currentWord.id] : undefined;
   const total = sessionWords.length;
-  const mistakes = currentWord ? incorrectByWord[currentWord.id] ?? 0 : 0;
-  const itemProgress = total ? completedCount / total : 0;
+  const displayedCurrent = Math.min(total, completedCount + 1);
+  const itemProgress = total ? displayedCurrent / total : 0;
 
   const startQuiz = () => {
     setPhase("quiz");
@@ -553,78 +558,104 @@ function ReadyCustomSrsSession({
     </div>;
   }
 
-  const pack = packsByWordId.get(currentWord.id);
-  const feedbackTone = feedback?.status === "correct" ? coreStyles.feedbackCorrect : feedback?.status === "close" || feedback?.status === "blocked" ? coreStyles.feedbackClose : coreStyles.feedbackWrong;
   const feedbackTitle = feedback?.status === "correct" ? "Correct" : feedback?.status === "close" ? "Accepted with a typo" : feedback?.status === "blocked" ? "Try another answer" : "Incorrect";
-  const answerStopped = Boolean(feedback && feedback.status !== "blocked");
-  const nextButtonLabel = commitError ? "Retry Save" : feedback?.status === "blocked" ? "Try Again" : queue.length <= 1 && feedback && feedback.status !== "incorrect" ? "Finish" : "Next Question";
+  const nextButtonLabel = commitError ? "Retry Save" : feedback?.status === "blocked" ? "Try Again" : "Next";
   const isReadingQuestion = currentKind === "reading";
+  const promptLabel = isReadingQuestion ? "Reading" : "Meaning";
+  const resultTone = feedback
+    ? feedback.status === "correct" ? "correct" : feedback.status === "incorrect" ? "incorrect" : "warning"
+    : undefined;
+  const reviewCharacterScale = studySettings.reviewCharacterFontScale ?? 1;
+  const reviewInputScale = studySettings.reviewInputFontScale ?? 1;
+  const reviewCharacterSize = `clamp(${2.75 * reviewCharacterScale}rem, ${9 * reviewCharacterScale}vw, ${6.5 * reviewCharacterScale}rem)`;
+  const acceptedAnswer = feedback?.canonical ?? (isReadingQuestion ? currentWord.reading : currentWord.meanings[0]);
 
-  return <div className={coreStyles.studyShell} data-subject-detail-type="vocabulary">
-    <section className={coreStyles.question} aria-labelledby="custom-study-prompt-title">
-      <header className={`${coreStyles.promptBand} ${coreStyles.fullSubjectContrast} ${sessionStyles.contrastStableReveal}`} style={{ "--subject-color": subjectColor() } as CSSProperties} aria-label={mode === "lessons" ? "Custom lesson quiz prompt" : "Custom review prompt"}>
-        <div className={coreStyles.bandHeader}>
-          <div className={coreStyles.sessionProgress}><span>{mode === "lessons" ? "Lesson Quiz" : "Custom Reviews"}</span><strong>{Math.min(total, completedCount + 1)} / {total}</strong></div>
-          <div className={coreStyles.bandActions}><ButtonLink className={coreStyles.bandAction} href="/custom-vocabulary" tone="ghost" size="small">Pause</ButtonLink></div>
-        </div>
-        <div className={coreStyles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={total} aria-valuenow={completedCount}>
-          <span style={{ "--study-progress": itemProgress } as CSSProperties} />
-        </div>
-        <div className={coreStyles.subjectGlyph}>
-          <SubjectCharacter subject={currentSubject} className={coreStyles.characters} eager />
-        </div>
-      </header>
-
-      <div className={`${coreStyles.promptTypeStrip} ${sessionStyles.contrastStableReveal}`}>
-        <div className={coreStyles.promptIdentity}><span className={coreStyles.promptSubject}>{customWordUsesKanji(currentWord) ? "Vocabulary" : "Kana vocabulary"}</span><span className={coreStyles.promptDivider} aria-hidden /><h1 className={coreStyles.promptKind} id="custom-study-prompt-title">{currentKind}</h1></div>
-        <span className={coreStyles.promptInstruction}>{isReadingQuestion ? "Enter the reading" : "Enter the meaning"}</span>
+  return <section
+    className={studyStyles.quizShell}
+    data-study-session="active"
+    data-type={customWordUsesKanji(currentWord) ? "vocabulary" : "kana_vocabulary"}
+    aria-labelledby="question-prompt"
+  >
+    <div className={studyStyles.quizTopbar}>
+      <span className={studyStyles.numeric}>{displayedCurrent} / {total}</span>
+      <div className={studyStyles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={total}>
+        <span style={{ transform: `scaleX(${itemProgress})` }} />
       </div>
+      <div className={studyStyles.quizTopbarActions}>
+        <Link className={studyStyles.iconButton} href="/custom-vocabulary" aria-label="Pause and exit session"><X size={19} aria-hidden /></Link>
+      </div>
+    </div>
 
-      <div className={`${coreStyles.answerRegion} ${sessionStyles.contrastStableReveal}`}>
-        {lastProgression && studySettings.srsProgressionCardDisplayMode !== "hidden" ? <SrsProgressionNotice progression={lastProgression} mode={studySettings.srsProgressionCardDisplayMode} /> : <div className={coreStyles.itemMeta} aria-label="Question status">
-          {pack ? <span>{pack.title}</span> : null}
-          {mode === "reviews" && currentAssignment ? <span><SrsStageIcon stage={currentAssignment.stage} size={16} />{srsStageLabel(currentAssignment.stage)}</span> : <span>Lesson quiz</span>}
-          <span>{mistakes} {mistakes === 1 ? "mistake" : "mistakes"}</span>
-        </div>}
+    <div className={studyStyles.questionCard} data-type={customWordUsesKanji(currentWord) ? "vocabulary" : "kana_vocabulary"}>
+      <h2
+        id="question-prompt"
+        data-question-kind={currentKind}
+        data-character-scale={reviewCharacterScale}
+        lang="ja"
+        style={{ fontSize: reviewCharacterSize }}
+      >{currentWord.characters}</h2>
+    </div>
 
-        <form className={coreStyles.answerForm} onSubmit={submitAnswer}>
-          <label className={coreStyles.answerLabel} htmlFor="custom-review-answer">Your answer</label>
-          <div className={coreStyles.answerRow}>
-            <input
-              ref={inputRef}
-              id="custom-review-answer"
-              name="custom-review-answer"
-              className={coreStyles.answerInput}
-              value={answer}
-              onChange={(event) => setAnswer(isReadingQuestion ? composeKanaInput(event.target.value) : event.target.value)}
-              disabled={Boolean(feedback) || committing || hookSaving}
-              aria-describedby="custom-review-answer-helper"
-              autoComplete="off"
-              lang={isReadingQuestion ? "ja" : undefined}
-              spellCheck={!isReadingQuestion}
-              inputMode={isReadingQuestion ? "text" : undefined}
-              placeholder={isReadingQuestion ? "Type kana or romaji…" : "Type the English meaning…"}
-            />
-            <Button className={coreStyles.checkButton} tone="primary" disabled={!answer.trim() || Boolean(feedback) || committing || hookSaving}>Check Answer</Button>
-          </div>
-          <p id="custom-review-answer-helper" className={coreStyles.answerHelper}>{isReadingQuestion ? "Romaji converts to kana as you type. Enter an accepted vocabulary reading." : "Accepted English meanings are checked. Kana or romaji gets a warning and does not count as a miss."}</p>
-        </form>
-
-        <div className={coreStyles.studyTools} aria-label="Answer controls">
-          <span className={coreStyles.inputMode}><span lang={isReadingQuestion ? "ja" : undefined}>{isReadingQuestion ? "あ" : "A"}</span><span className={coreStyles.secondaryToolLabel}>{isReadingQuestion ? "Kana reading" : "English meaning"}</span></span>
+    <div className={studyStyles.answerArea}>
+      <form
+        className={studyStyles.answerForm}
+        data-result={resultTone}
+        onSubmit={(event) => {
+          if (feedback) {
+            event.preventDefault();
+            void advanceQuiz();
+            return;
+          }
+          submitAnswer(event);
+        }}
+      >
+        <label className={studyStyles.promptTypeStrip} data-tone={isReadingQuestion ? "reading" : "meaning"} htmlFor="custom-review-answer">
+          <span>Vocabulary</span><strong>{promptLabel}</strong>{isReadingQuestion ? <small>Romaji → かな</small> : null}
+        </label>
+        <div className={studyStyles.answerInputRow} data-result={resultTone}>
+          <input
+            ref={inputRef}
+            id="custom-review-answer"
+            name="custom-review-answer"
+            value={answer}
+            onChange={(event) => setAnswer(isReadingQuestion ? composeKanaInput(event.target.value) : event.target.value)}
+            readOnly={Boolean(feedback)}
+            disabled={committing || hookSaving}
+            aria-label={`Vocabulary ${promptLabel}`}
+            aria-invalid={feedback?.status === "incorrect" || feedback?.status === "blocked" ? true : undefined}
+            aria-describedby={feedback ? "custom-review-answer-status" : undefined}
+            autoComplete="off"
+            lang={isReadingQuestion ? "ja" : undefined}
+            spellCheck={false}
+            inputMode={isReadingQuestion ? "text" : undefined}
+            style={{ fontSize: `${reviewInputScale}rem` }}
+          />
+          <button
+            id={feedback ? "custom-study-advance" : undefined}
+            type="submit"
+            className={studyStyles.primaryButton}
+            disabled={committing || hookSaving || (!feedback && !answer.trim())}
+          >
+            {feedback?.status === "blocked" ? <RotateCcw size={18} aria-hidden /> : feedback ? <ArrowRight size={18} aria-hidden /> : <Check size={18} aria-hidden />}
+            {feedback ? nextButtonLabel : "Check"}
+          </button>
         </div>
-        <p className={coreStyles.shortcut}>Enter checks the answer; the focused result button advances.</p>
+      </form>
 
-        {feedback ? <div className={`${coreStyles.feedback} ${feedbackTone}`} role="status" aria-live="polite">
-          <strong>{feedbackTitle}</strong>
-          <p>{feedback.message}</p>
-          {answerStopped ? <div className={coreStyles.answerStopDetails}><span>{isReadingQuestion ? "Accepted reading" : "Accepted meanings"}</span><strong>{isReadingQuestion ? currentWord.reading : currentWord.meanings.join(" · ")}</strong>{currentWord.contextSentences[0] ? <p><span lang="ja">{currentWord.contextSentences[0].ja}</span><br />{currentWord.contextSentences[0].en}</p> : null}</div> : null}
+      <div className={studyStyles.answerStopReveal} data-answer-stop data-visible={Boolean(feedback)} aria-hidden={!feedback} inert={!feedback ? true : undefined}>
+        <div className={studyStyles.answerStopContent}>
+          {feedback ? <div id="custom-review-answer-status" className={studyStyles.answerStatus} role="status" aria-live="polite">
+            <span className={studyStyles.answerVerdict} data-correct={feedback.status === "correct"} data-warning={feedback.status === "close" || feedback.status === "blocked" || undefined}>
+              {feedback.status === "blocked" ? <RotateCcw size={18} aria-hidden /> : feedback.status === "correct" || feedback.status === "close" ? <Check size={18} aria-hidden /> : <X size={18} aria-hidden />}
+              <strong>{feedbackTitle}</strong>
+            </span>
+            {feedback.status === "incorrect" ? <span className={studyStyles.correctAnswer}><small>Correct answer</small><strong lang={isReadingQuestion ? "ja" : undefined}>{acceptedAnswer}</strong></span> : feedback.status === "blocked" || feedback.status === "close" ? <span>{feedback.message}</span> : null}
+          </div> : null}
           {commitError ? <p className={coreStyles.error} role="alert">{commitError}</p> : null}
-          <div className={coreStyles.feedbackActions}>
-            <Button id="custom-study-advance" type="button" tone={feedback.status === "incorrect" ? "danger" : "primary"} disabled={committing || hookSaving} state={committing || hookSaving ? "loading" : commitError ? "error" : "idle"} onClick={() => void advanceQuiz()}>{nextButtonLabel}<ArrowRight size={17} aria-hidden /></Button>
-          </div>
-        </div> : null}
+        </div>
       </div>
-    </section>
-  </div>;
+
+      {studySettings.keyboardShortcuts ? <p className={studyStyles.keyboardHint}>Press <kbd>Enter</kbd> to {feedback?.status === "blocked" ? "try again" : feedback ? "continue" : "check"}</p> : null}
+    </div>
+  </section>;
 }

@@ -109,8 +109,49 @@
 .queueActions > a:focus-visible > svg:last-child { transform: translateX(var(--space-3xs)); }
 
 .packs { margin-block-start: var(--space-xl); }
-.sectionHeading { display: flex; align-items: flex-start; flex-direction: column; gap: var(--space-sm); margin-block-end: var(--space-md); }
-.sectionHeading > p { color: var(--color-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sectionHeading {
+  position: sticky;
+  inset-block-start: calc(var(--banner-height) + var(--space-md));
+  z-index: calc(var(--z-sticky-nav) - 1);
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-block-end: var(--space-md);
+  padding-block: var(--space-xs);
+  border-block-end: var(--rule-thin) solid var(--color-rule-2);
+  background: var(--color-paper);
+}
+
+.packShelf {
+  position: relative;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-inline: var(--space-sm);
+  border: var(--rule-thin) solid var(--color-rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.packShelf > svg { flex: 0 0 auto; color: var(--color-vocabulary-ink); }
+.packShelf strong { color: var(--color-vocabulary-ink); }
+.packShelf[data-receiving="true"] { animation: packShelfReceive 760ms var(--ease-out) both; }
+.packShelf[data-receiving="true"] > svg { animation: packShelfCatch 280ms var(--ease-out) 460ms both; }
+.packShelf[data-receiving="true"]::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-2xs) * -1);
+  border: var(--rule-thin) solid var(--color-vocabulary);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  animation: packShelfRing 280ms var(--ease-out) 460ms both;
+}
 .packGroup + .packGroup { margin-block-start: var(--space-xl); }
 .groupHeading {
   display: flex;
@@ -123,7 +164,7 @@
 }
 .groupHeading h3 { font-size: var(--text-base); }
 .groupHeading p { color: var(--color-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.packList { display: grid; gap: var(--space-md); }
+.packList { display: grid; align-items: start; gap: var(--space-sm); }
 
 .pack {
   min-width: 0;
@@ -139,12 +180,22 @@
 .pack:nth-child(2) { animation-delay: 40ms; }
 .pack:nth-child(3) { animation-delay: 80ms; }
 .pack[data-enrolled="true"] { border-color: color-mix(in oklch, var(--color-vocabulary) 44%, var(--color-rule-2)); }
-.packHeader { display: flex; align-items: stretch; flex-direction: column; gap: var(--space-md); padding: var(--space-md); }
+.packHeader { display: flex; align-items: stretch; flex-direction: column; gap: var(--space-sm); padding: var(--space-sm); }
 .packHeader > button { width: 100%; white-space: nowrap; }
 .packIdentity { min-width: 0; }
-.packIdentity h4 { font-size: var(--text-md); }
+.packIdentity h4 { scroll-margin-block-start: calc(var(--banner-height) + 5rem); font-size: var(--text-md); }
 .packMeta { margin-block-start: var(--space-2xs); color: var(--color-vocabulary-ink); font-size: var(--text-sm); font-weight: 700; }
-.packDescription { max-width: 72ch; margin-block-start: var(--space-xs); color: var(--color-muted); font-size: var(--text-sm); }
+.packDescription {
+  max-width: 72ch;
+  min-height: 2.8em;
+  display: -webkit-box;
+  margin-block-start: var(--space-2xs);
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .addedMark { min-height: var(--control-height); display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-success); font-size: var(--text-sm); font-weight: 750; white-space: nowrap; animation: stateEnter var(--dur-short) var(--ease-out) both; }
 
 .packProgress {
@@ -172,13 +223,13 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-md);
-  padding: var(--space-md) var(--space-md) 0;
+  padding: var(--space-sm) var(--space-sm) 0;
   border-block-start: var(--rule-thin) solid var(--color-rule-2);
 }
 
 .wordsHeading h5 { margin: 0; font-size: var(--text-sm); }
 .wordsHeading > span { color: var(--color-muted); font-size: var(--text-xs); }
-.wordList { display: grid; grid-template-columns: minmax(0, 1fr); margin: var(--space-xs) 0 0; padding: 0 var(--space-md) var(--space-md); list-style: none; }
+.wordList { display: grid; grid-template-columns: minmax(0, 1fr); margin: var(--space-2xs) 0 0; padding: 0 var(--space-sm) var(--space-sm); list-style: none; }
 .wordList li {
   min-width: 0;
   display: grid;
@@ -187,14 +238,12 @@
 
 .wordLink {
   min-width: 0;
-  min-height: 5.5rem;
+  min-height: 3.75rem;
   display: grid;
-  grid-template-areas:
-    "character navigation"
-    "meaning meaning";
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "character meaning navigation";
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  align-content: start;
+  align-content: center;
   gap: var(--space-xs) var(--space-sm);
   padding-block: var(--space-sm);
   border-radius: var(--radius-sm);
@@ -228,13 +277,25 @@
   white-space: nowrap;
 }
 
-.wordMeaning { grid-area: meaning; min-width: 0; color: var(--color-ink-2); font-size: var(--text-sm); line-height: 1.4; overflow-wrap: anywhere; transition: color var(--dur-micro) var(--ease-out); }
+.wordMeaning {
+  grid-area: meaning;
+  min-width: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  transition: color var(--dur-micro) var(--ease-out);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .wordNavigation { grid-area: navigation; justify-self: end; display: inline-flex; align-items: center; gap: var(--space-xs); }
 .wordStatus { flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--space-2xs); color: var(--color-muted); font-size: var(--text-xs); }
 .wordStatus > span { max-width: 6.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wordCue { flex: 0 0 auto; color: var(--color-muted); transition: color var(--dur-micro) var(--ease-out), transform var(--dur-micro) var(--ease-out); }
 
-.wordDisclosure { padding: 0 var(--space-md) var(--space-sm); }
+.wordDisclosure { padding: 0 var(--space-sm) var(--space-xs); }
 .wordDisclosure summary {
   width: fit-content;
   min-height: var(--control-height);
@@ -294,7 +355,7 @@
   .queueActions { display: flex; flex-wrap: wrap; }
   .queueActions > a { width: auto; }
   .stageCounts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .wordList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-lg); }
+  .wordList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-md); }
 }
 
 @media (min-width: 50rem) {
@@ -306,8 +367,13 @@
   .schedulingBody { grid-template-columns: minmax(16rem, .75fr) minmax(0, 1.25fr); gap: var(--space-xl); }
 }
 
+@media (min-width: 58rem) {
+  .packList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pack[data-enrolled="true"] { grid-column: 1 / -1; }
+}
+
 @media (min-width: 70rem) {
-  .wordList { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pack[data-enrolled="true"] .wordList { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -331,6 +397,59 @@
   from { opacity: 0; transform: translateY(calc(var(--space-2xs) * -1)); }
 }
 
+@keyframes packShelfReceive {
+  0%, 58% { border-color: var(--color-rule-2); background: var(--color-surface); transform: scale(1); }
+  76% { border-color: var(--color-vocabulary); background: color-mix(in oklch, var(--color-vocabulary) 9%, var(--color-surface)); transform: scale(1.035); }
+  100% { border-color: var(--color-rule-2); background: var(--color-surface); transform: scale(1); }
+}
+
+@keyframes packShelfCatch {
+  0% { transform: scale(1); }
+  45% { transform: scale(.82); }
+  100% { transform: scale(1); }
+}
+
+@keyframes packShelfRing {
+  from { opacity: .55; transform: scale(.94); }
+  to { opacity: 0; transform: scale(1.12); }
+}
+
+.packFlight {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: var(--z-toast);
+  width: 10.5rem;
+  height: 2.75rem;
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-3xs) var(--space-xs) var(--space-3xs) var(--space-3xs);
+  overflow: hidden;
+  border: var(--rule-thin) solid color-mix(in oklch, var(--color-vocabulary) 46%, var(--color-rule-2));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-floating);
+  color: var(--color-ink);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.packFlightCharacter {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-vocabulary);
+  color: var(--color-subject-text);
+  font: 750 var(--text-sm) var(--font-japanese);
+  white-space: nowrap;
+}
+
+.packFlight > strong { overflow: hidden; font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+
 @media (prefers-reduced-motion: reduce) {
   .pack,
   .addedMark,
@@ -349,4 +468,25 @@
   .queueActions > a:not([aria-disabled="true"]):hover > svg:last-child { transform: none; }
   .wordDisclosure summary > svg,
   .scheduling > summary svg { transition: none; }
+  .packShelf[data-receiving="true"] { animation: packShelfReduced 150ms var(--ease-out) both; }
+  .packShelf[data-receiving="true"] > svg { animation: none; }
+  .packShelf[data-receiving="true"]::after { display: none; }
+}
+
+@media (max-width: 53.999rem) {
+  .sectionHeading {
+    inset-block-start: 5rem;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+    gap: var(--space-xs);
+  }
+  .sectionHeading > div > p { display: none; }
+  .packShelf { min-height: 2.25rem; padding-inline: var(--space-xs); }
+  .packShelfAdded { display: none; }
+  .packIdentity h4 { scroll-margin-block-start: 9rem; }
+}
+
+@keyframes packShelfReduced {
+  50% { border-color: var(--color-vocabulary); background: color-mix(in oklch, var(--color-vocabulary) 9%, var(--color-surface)); }
 }

@@ -41,6 +41,7 @@ import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { FormattedNoteText } from "./formatted-note";
+import { NoteFieldContainer } from "./note-field-container";
 import KanjiEtymologySection from "./KanjiEtymologySection";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import KanjiReadingExamples from "./KanjiReadingExamples";
@@ -1240,14 +1241,11 @@ export default function KanjiDetails({
                 ]}
               >
                 {activeTab === "meaning" ? (
-                  <TouchableOpacity
-                    accessible={!kanji.meaningNote}
-                    accessibilityLabel={
-                      kanji.meaningNote ? undefined : "Add meaning note"
-                    }
-                    accessibilityRole={kanji.meaningNote ? undefined : "button"}
+                  <NoteFieldContainer
+                    addAccessibilityLabel="Add meaning note"
+                    hasContent={Boolean(kanji.meaningNote)}
+                    onAdd={() => kanji.onEditNote?.("meaning")}
                     style={styles.noteContainer}
-                    onPress={() => kanji.onEditNote?.("meaning")}
                   >
                     <View style={styles.noteHeader}>
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
@@ -1282,16 +1280,13 @@ export default function KanjiDetails({
                         Click to add meaning note
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </NoteFieldContainer>
                 ) : (
-                  <TouchableOpacity
-                    accessible={!kanji.readingNote}
-                    accessibilityLabel={
-                      kanji.readingNote ? undefined : "Add reading note"
-                    }
-                    accessibilityRole={kanji.readingNote ? undefined : "button"}
+                  <NoteFieldContainer
+                    addAccessibilityLabel="Add reading note"
+                    hasContent={Boolean(kanji.readingNote)}
+                    onAdd={() => kanji.onEditNote?.("reading")}
                     style={styles.noteContainer}
-                    onPress={() => kanji.onEditNote?.("reading")}
                   >
                     <View style={styles.noteHeader}>
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
@@ -1326,7 +1321,7 @@ export default function KanjiDetails({
                         Click to add reading note
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </NoteFieldContainer>
                 )}
               </View>
             </View>

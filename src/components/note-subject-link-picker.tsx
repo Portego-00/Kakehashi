@@ -23,7 +23,6 @@ import { type Subject, getSubjects } from "../utils/api";
 import { getAllSubjects } from "../utils/cache";
 import { fontStyles } from "../utils/fonts";
 import {
-  getBestContrastTextColor,
   type SubjectType,
   useSubjectColors,
 } from "../utils/subjectColors";
@@ -169,7 +168,6 @@ export default function NoteSubjectLinkPicker({
       const color = subjectColors.getColorForType(
         getSubjectType(item.object),
       );
-      const subjectTextColor = getBestContrastTextColor(color);
 
       return (
         <Pressable
@@ -190,7 +188,7 @@ export default function NoteSubjectLinkPicker({
               style={[
                 styles.subjectCharacters,
                 fontStyles.japaneseText,
-                { color: subjectTextColor },
+                { color: theme.headerText },
               ]}
             >
               {getDisplayCharacters(item)}

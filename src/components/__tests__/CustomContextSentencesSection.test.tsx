@@ -13,7 +13,10 @@ import {
 } from "../../services/customContextSentenceService";
 import type { CustomContextSentence } from "../../types/customContextSentence";
 import { azureTranslatorService } from "../../utils/azureTranslator";
-import { CustomContextSentencesSection } from "../CustomContextSentencesSection";
+import {
+  CustomContextSentencesSection,
+  type CustomContextSentencesSectionHandle,
+} from "../CustomContextSentencesSection";
 
 jest.mock("react-native-safe-area-context", () => {
   const mockReact = require("react");
@@ -30,38 +33,6 @@ jest.mock("@expo/vector-icons", () => {
   return {
     Ionicons: ({ name }: { name: string }) =>
       mockReact.createElement(MockText, null, name),
-  };
-});
-
-jest.mock("@react-native-segmented-control/segmented-control", () => {
-  const mockReact = require("react");
-  const { Pressable: MockPressable, Text: MockText, View: MockView } =
-    require("react-native");
-
-  return function MockSegmentedControl({
-    accessibilityLabel,
-    onValueChange,
-    values = [],
-  }: {
-    accessibilityLabel?: string;
-    onValueChange?: (value: string) => void;
-    values?: string[];
-  }) {
-    return mockReact.createElement(
-      MockView,
-      { accessibilityLabel },
-      values.map((value) =>
-        mockReact.createElement(
-          MockPressable,
-          {
-            accessibilityLabel: `Select ${value}`,
-            key: value,
-            onPress: () => onValueChange?.(value),
-          },
-          mockReact.createElement(MockText, null, value),
-        ),
-      ),
-    );
   };
 });
 
@@ -119,9 +90,10 @@ const storedSentence: CustomContextSentence = {
   updatedAt: "2026-08-31T10:00:00.000Z",
 };
 
-function renderSection() {
+function renderSection(ref?: React.Ref<CustomContextSentencesSectionHandle>) {
   return render(
     <CustomContextSentencesSection
+      ref={ref}
       subjectId={42}
       subjectCharacters="世界"
       subjectReadings={["せかい"]}
@@ -197,13 +169,17 @@ describe("CustomContextSentencesSection", () => {
       Promise.resolve(text === "世界" ? "せかい" : "せかいです"),
     );
 
-    const screen = renderSection();
+    const editorRef = React.createRef<CustomContextSentencesSectionHandle>();
+    const screen = renderSection(editorRef);
     await act(async () => {
       await Promise.resolve();
     });
-    fireEvent.press(screen.getByLabelText("Add custom context sentence"));
+    act(() => {
+      editorRef.current?.openNewEditor();
+    });
 
-    const japaneseInput = screen.getByLabelText("Japanese sentence in kanji");
+    expect(screen.queryByLabelText("Japanese display style")).toBeNull();
+    const japaneseInput = screen.getByLabelText("Japanese sentence");
     fireEvent.changeText(japaneseInput, "世界");
     await act(async () => {
       jest.advanceTimersByTime(650);

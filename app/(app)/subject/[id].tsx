@@ -672,12 +672,17 @@ export default function SubjectDetailsScreen() {
 
     setIsSavingNote(true);
     try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? noteText;
+      if (currentNoteText !== noteText) {
+        setNoteText(currentNoteText);
+      }
       // Prepare updates for the note
       const updates: any = {};
       if (noteType === "meaning") {
-        updates.meaning_note = noteText;
+        updates.meaning_note = currentNoteText;
       } else {
-        updates.reading_note = noteText;
+        updates.reading_note = currentNoteText;
       }
 
       let savedMaterial: any;

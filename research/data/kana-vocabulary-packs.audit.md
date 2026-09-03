@@ -29,11 +29,11 @@ word:
   partsOfSpeech[],
   meaningMnemonic,
   readingMnemonic,
-  contextSentences[{ ja, en }]
+  contextSentences[{ ja, en }, { ja, en }[, { ja, en }]]
 }
 ```
 
-All 48 word IDs are unique. Every word has an original meaning mnemonic, an original reading mnemonic, and one original context sentence with an English translation.
+All 48 word IDs are unique. Every word has an original meaning mnemonic, an original reading mnemonic, and two or three original context sentences with English translations. The current context expansion and review results are recorded in [`../custom-vocabulary-context-sentence-research.md`](../custom-vocabulary-context-sentence-research.md).
 
 ## WaniKani exclusion result
 
@@ -194,5 +194,5 @@ The reading mnemonic is retained because the requested import schema requires it
 - Assert that every pack word's normalized `characters` and `reading` are absent from the refreshed WaniKani kana denylist.
 - When a WaniKani token is available in CI, also compare against every ordinary vocabulary reading; this catches kanji/kana orthographic duplicates.
 - Assert unique pack IDs and globally unique word IDs.
-- Assert that each word has at least one meaning, one part of speech, both mnemonic fields, and at least one bilingual context sentence.
+- Assert that each word has at least one meaning, one part of speech, both mnemonic fields, and two or three bilingual context sentences.
 - Treat a WaniKani data timestamp newer than the checked snapshot as a prompt to refresh and rerun the audit.

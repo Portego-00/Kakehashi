@@ -108,7 +108,7 @@
             },
             {
               "ja": "子ども用のナイフを用意した。",
-              "en": "I prepared a knife for the child."
+              "en": "I set out a children's knife."
             }
           ],
           "readingMap": "ナ・イ・フ"
@@ -248,6 +248,10 @@
             {
               "ja": "トーストが少し焦げてしまった。",
               "en": "The toast got a little burnt."
+            },
+            {
+              "ja": "パンを二枚トーストしてください。",
+              "en": "Please toast two slices of bread."
             }
           ],
           "readingMap": "ト・ー・ス・ト"
@@ -636,8 +640,8 @@
               "en": "I ate hot takoyaki at the festival."
             },
             {
-              "ja": "たこやきは中がとても熱い。",
-              "en": "Takoyaki is very hot inside."
+              "ja": "たこやきを六個注文した。",
+              "en": "I ordered six pieces of takoyaki."
             }
           ],
           "readingMap": "た・こ・や・き"
@@ -689,7 +693,7 @@
           "contextSentences": [
             {
               "ja": "えっ、今日は休みなの？",
-              "en": "What, today is a day off?"
+              "en": "Huh? We have today off?"
             },
             {
               "ja": "えっ、もう十時？",
@@ -741,8 +745,8 @@
               "en": "Well, let's think without rushing."
             },
             {
-              "ja": "まあ、今日はこれでいいでしょう。",
-              "en": "Well, this should be enough for today."
+              "ja": "まあまあ、そんなに怒らないで。",
+              "en": "Now, now, don't get so angry."
             }
           ],
           "readingMap": "ま・あ"
@@ -810,7 +814,7 @@
           "contextSentences": [
             {
               "ja": "へえ、そんな方法があるんだ。",
-              "en": "Oh really, there's a method like that?"
+              "en": "Oh, really? There's a way to do that?"
             },
             {
               "ja": "へえ、この店は百年も続いているの？",
@@ -834,7 +838,7 @@
           "contextSentences": [
             {
               "ja": "いよいよ明日が本番だ。",
-              "en": "At last, the real event is tomorrow."
+              "en": "Tomorrow is finally the big day."
             },
             {
               "ja": "いよいよ新しい店が開く。",
@@ -907,11 +911,11 @@
           "contextSentences": [
             {
               "ja": "締め切りまでになんとか終わった。",
-              "en": "I somehow finished by the deadline."
+              "en": "I managed to finish by the deadline."
             },
             {
-              "ja": "この問題はなんとか自分で解けそうだ。",
-              "en": "It looks like I can solve this problem somehow on my own."
+              "ja": "時間がないので、そこをなんとかお願いします。",
+              "en": "We're out of time, so please find some way to make it work."
             }
           ],
           "readingMap": "な・ん・と・か"
@@ -971,6 +975,10 @@
             {
               "ja": "明日の準備をしっかりしておこう。",
               "en": "Let's prepare properly for tomorrow."
+            },
+            {
+              "ja": "彼は若いけれど、考え方がしっかりしている。",
+              "en": "He is young, but he has a level-headed way of thinking."
             }
           ],
           "readingMap": "し・っ・か・り"
@@ -1064,11 +1072,11 @@
           "contextSentences": [
             {
               "ja": "今日はなんだか静かですね。",
-              "en": "It's somehow quiet today."
+              "en": "It feels strangely quiet today."
             },
             {
               "ja": "なんだか甘い物が食べたい。",
-              "en": "I somehow feel like eating something sweet."
+              "en": "For some reason, I feel like eating something sweet."
             }
           ],
           "readingMap": "な・ん・だ・か"
@@ -1723,8 +1731,8 @@
               "en": "I went to the interview in a navy suit."
             },
             {
-              "ja": "新しいスーツのサイズを直してもらった。",
-              "en": "I had the size of my new suit adjusted."
+              "ja": "新しいスーツを自分のサイズに直してもらった。",
+              "en": "I had my new suit altered to fit me."
             }
           ],
           "readingMap": "ス・ー・ツ"
@@ -1770,8 +1778,8 @@
               "en": "I matched a brown belt with the trousers."
             },
             {
-              "ja": "ベルトの穴を一つゆるめた。",
-              "en": "I loosened the belt by one hole."
+              "ja": "食べすぎたので、ベルトを少しゆるめた。",
+              "en": "I ate too much, so I loosened my belt a little."
             }
           ],
           "readingMap": "ベ・ル・ト"
@@ -1841,7 +1849,7 @@
             },
             {
               "ja": "白いスニーカーをきれいに洗った。",
-              "en": "I washed my white sneakers clean."
+              "en": "I washed my white sneakers thoroughly."
             }
           ],
           "readingMap": "ス・ニ・ー・カ・ー"
@@ -1915,8 +1923,8 @@
           "meaningMnemonic": "An <reading>escalator</reading> grows faster with every step until shoppers shoot onto the next floor like rockets. A guard pulls the plug on the wild <vocabulary>escalator</vocabulary>. エスカレーター is the moving staircase, with two long vowels in its Japanese loan form.",
           "contextSentences": [
             {
-              "ja": "エスカレーターの右側を空けた。",
-              "en": "I left the right side of the escalator open."
+              "ja": "エスカレーターでは手すりにつかまってください。",
+              "en": "Please hold the handrail while riding the escalator."
             },
             {
               "ja": "次の階へはエスカレーターで行けます。",
@@ -2083,7 +2091,7 @@
           "contextSentences": [
             {
               "ja": "日曜日に海までドライブした。",
-              "en": "We drove to the sea on Sunday."
+              "en": "We went for a drive to the coast on Sunday."
             },
             {
               "ja": "天気がいいからドライブに行こう。",
@@ -2142,7 +2150,7 @@
               "en": "I read an e-book on a tablet."
             },
             {
-              "ja": "会議ではタブレットにメモを取る。",
+              "ja": "会議ではタブレットでメモを取る。",
               "en": "I take notes on a tablet during meetings."
             }
           ],
@@ -2307,7 +2315,7 @@
             },
             {
               "ja": "共有フォルダに資料を入れてください。",
-              "en": "Please put the document in the shared folder."
+              "en": "Please put the materials in the shared folder."
             }
           ],
           "readingMap": "フォ・ル・ダ"
@@ -2326,7 +2334,7 @@
           "contextSentences": [
             {
               "ja": "パスワードは他の人に教えないでください。",
-              "en": "Please don't tell your password to anyone else."
+              "en": "Please don't share your password with anyone else."
             },
             {
               "ja": "新しいパスワードを設定した。",
@@ -2457,7 +2465,7 @@
             },
             {
               "ja": "昨日のドラマは意外な終わり方だった。",
-              "en": "Yesterday's drama had a surprising ending."
+              "en": "Yesterday's episode of the drama had a surprising ending."
             }
           ],
           "readingMap": "ド・ラ・マ"
@@ -2480,7 +2488,7 @@
             },
             {
               "ja": "そのニュースはインターネットで知った。",
-              "en": "I learned that news on the internet."
+              "en": "I first heard the news online."
             }
           ],
           "readingMap": "ニュ・ー・ス"
@@ -2593,7 +2601,7 @@
           "contextSentences": [
             {
               "ja": "兄は毎晩ギターを練習する。",
-              "en": "My older brother practices guitar every evening."
+              "en": "My older brother practices the guitar every evening."
             },
             {
               "ja": "この曲をギターで弾いてください。",
@@ -2675,8 +2683,8 @@
               "en": "I went shopping with my family on my day off."
             },
             {
-              "ja": "駅の近くでショッピングを楽しんだ。",
-              "en": "I enjoyed shopping near the station."
+              "ja": "最近は家でオンラインショッピングをすることが多い。",
+              "en": "Lately, I often shop online from home."
             }
           ],
           "readingMap": "ショ・ッ・ピ・ン・グ"
@@ -2699,7 +2707,7 @@
             },
             {
               "ja": "セールでコートを安く買った。",
-              "en": "I bought a coat cheaply in the sale."
+              "en": "I bought a coat at a discount during the sale."
             }
           ],
           "readingMap": "セ・ー・ル"
@@ -2817,7 +2825,7 @@
             },
             {
               "ja": "旅行中はキャッシュレスで支払うことが多い。",
-              "en": "I often pay cashlessly while traveling."
+              "en": "I often use cashless payment while traveling."
             }
           ],
           "readingMap": "キャ・ッ・シュ・レ・ス"

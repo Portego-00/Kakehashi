@@ -66,6 +66,23 @@ async function cardMetrics(card: Locator) {
   });
 }
 
+async function quizFrameClasses(page: Page) {
+  return page.locator('section[aria-labelledby="question-prompt"]').evaluate((shell) => {
+    const prompt = document.getElementById("question-prompt");
+    const input = shell.querySelector("input");
+    const form = input?.closest("form");
+    return {
+      shell: shell.className,
+      topbar: shell.firstElementChild?.className ?? "",
+      questionCard: prompt?.parentElement?.className ?? "",
+      answerArea: form?.parentElement?.className ?? "",
+      answerForm: form?.className ?? "",
+      promptTypeStrip: form?.querySelector("label")?.className ?? "",
+      answerInputRow: input?.parentElement?.className ?? "",
+    };
+  });
+}
+
 async function watchNavbarItemMotion(navigation: Locator, href: string) {
   await navigation.evaluate((element, watchedHref) => {
     element.setAttribute("data-motion-observed", "false");
@@ -618,7 +635,7 @@ test("keeps custom vocabulary low on the dashboard and opens a word's subject de
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom vocabulary subject details overflow at 320px").toBe(true);
 });
 
-test("gives long custom vocabulary meanings the full preview width", async ({ page }, testInfo) => {
+test("keeps long custom vocabulary meanings compact without collisions", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop layout assertion");
   await page.setViewportSize({ width: 1120, height: 800 });
   await mockApp(page);
@@ -654,6 +671,7 @@ test("gives long custom vocabulary meanings the full preview width", async ({ pa
   });
   await page.reload();
 
+  await foodPack.getByText("Show 14 more words", { exact: true }).click();
   const longWord = page.locator('a[href="/custom-vocabulary/words/food-gochisousama"]');
   await expect(longWord).toBeVisible();
   await expect(longWord).toContainText("Apprentice III");
@@ -666,14 +684,18 @@ test("gives long custom vocabulary meanings the full preview width", async ({ pa
     const navigationRect = navigation.getBoundingClientRect();
     return {
       characterRight: characterRect.right,
+      meaningLeft: meaningRect.left,
+      meaningRight: meaningRect.right,
       navigationLeft: navigationRect.left,
-      linkWidth: linkRect.width,
-      meaningWidth: meaningRect.width,
+      linkHeight: linkRect.height,
+      meaningHeight: meaningRect.height,
     };
   });
 
-  expect(layout.meaningWidth).toBeGreaterThanOrEqual(layout.linkWidth - 1);
-  expect(layout.characterRight).toBeLessThanOrEqual(layout.navigationLeft);
+  expect(layout.characterRight).toBeLessThanOrEqual(layout.meaningLeft);
+  expect(layout.meaningRight).toBeLessThanOrEqual(layout.navigationLeft);
+  expect(layout.meaningHeight).toBeLessThanOrEqual(layout.linkHeight);
+  expect(layout.linkHeight).toBeLessThanOrEqual(64);
 });
 
 test("enrolls a kana pack and persists custom lessons and reviews without WaniKani mutations", async ({ page }) => {
@@ -702,14 +724,18 @@ test("enrolls a kana pack and persists custom lessons and reviews without WaniKa
     ["じゃあ", "well then"],
     ["どうも", "thanks"],
   ]);
+  let previousPrompt = "";
   for (let index = 0; index < answers.size; index += 1) {
-    const prompt = await page.locator('header[aria-label="Custom lesson quiz prompt"]').textContent();
+    const promptElement = page.locator("#question-prompt");
+    if (previousPrompt) await expect(promptElement).not.toHaveText(previousPrompt);
+    const prompt = await promptElement.textContent();
     const answer = [...answers].find(([characters]) => prompt?.includes(characters))?.[1];
     expect(answer, `unexpected shuffled lesson prompt: ${prompt}`).toBeTruthy();
-    await page.getByRole("textbox", { name: "Your answer" }).fill(answer!);
-    await page.getByRole("button", { name: "Check Answer" }).click();
+    await page.getByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ }).fill(answer!);
+    await page.getByRole("button", { name: "Check" }).click();
     await expect(page.getByText("Correct", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: index === answers.size - 1 ? "Finish" : "Next Question" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    previousPrompt = prompt ?? "";
   }
   await expect(page.getByRole("heading", { name: "Custom lessons complete" })).toBeVisible();
 
@@ -726,9 +752,9 @@ test("enrolls a kana pack and persists custom lessons and reviews without WaniKa
 
   await page.goto("/custom-vocabulary/reviews");
   await expect(page.getByText("どうぞ", { exact: true })).toBeVisible();
-  await page.getByRole("textbox", { name: "Your answer" }).fill("please");
-  await page.getByRole("button", { name: "Check Answer" }).click();
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByRole("textbox", { name: "Vocabulary Meaning" }).fill("please");
+  await page.getByRole("button", { name: "Check" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByRole("heading", { name: "Custom reviews complete" })).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("kakehashi:custom-srs:v1:account:1") || "null").assignments["conversation-douzo"].stage)).toBe(2);
   expect(waniKaniMutations).toEqual([]);
@@ -930,27 +956,55 @@ test("keeps a custom vocabulary lesson session labelled and keyboard operable", 
     expect.soft(metric.rightInset, `${metric.label} should retain its right padding`).toBeGreaterThanOrEqual(metric.paddingRight - 1);
   }
   await expect(lessonNavigation.getByRole("button", { name: "Previous lesson" })).toBeDisabled();
-  await expect(lessonNavigation.getByRole("button", { name: "Next lesson" })).toBeVisible();
+  const nextLessonButton = lessonNavigation.getByRole("button", { name: "Next lesson" });
+  await expect(nextLessonButton).toBeVisible();
+
+  await nextLessonButton.press("Enter");
+  await expect(page.getByRole("progressbar", { name: "Lesson progress" })).toHaveAttribute("aria-valuenow", "2");
+  const meaningTabAfterLessonArrow = page.getByRole("tab", { name: "Meaning", exact: true });
+  await expect(meaningTabAfterLessonArrow).not.toBeFocused();
+  expect(await meaningTabAfterLessonArrow.evaluate((tab) => {
+    const style = getComputedStyle(tab);
+    return (style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0) || style.boxShadow !== "none";
+  }), "lesson navigation arrows should not paint a focus box around the Meaning tab").toBe(false);
+  await lessonNavigation.getByRole("button", { name: "Previous lesson" }).click();
+  await expect(page.getByRole("progressbar", { name: "Lesson progress" })).toHaveAttribute("aria-valuenow", "1");
 
   await lessonNavigation.evaluate((navigation) => navigation.scrollIntoView({ block: "center" }));
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const scrollPositionBeforeTabArrow = await page.evaluate(() => window.scrollY);
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "Context", exact: true })).toHaveAttribute("aria-selected", "true");
+  const contextTab = page.getByRole("tab", { name: "Context", exact: true });
+  await expect(contextTab).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: /Anime/i })).toBeVisible();
   await expect(page.getByText("日本史をアニメで勉強します。", { exact: true })).toBeVisible();
   await page.evaluate(() => new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))));
   const scrollPositionAfterTabArrow = await page.evaluate(() => window.scrollY);
   expect(Math.abs(scrollPositionAfterTabArrow - scrollPositionBeforeTabArrow), "lesson tab arrow should not scroll the page").toBeLessThanOrEqual(1);
   await page.keyboard.press("ArrowLeft");
-  await expect(page.getByRole("tab", { name: "Meaning", exact: true })).toHaveAttribute("aria-selected", "true");
+  const meaningTab = page.getByRole("tab", { name: "Meaning", exact: true });
+  await expect(meaningTab).toHaveAttribute("aria-selected", "true");
+  await meaningTab.focus();
+  await meaningTab.press("ArrowRight");
+  await expect(contextTab).toBeFocused();
+  await contextTab.press("ArrowLeft");
+  await expect(meaningTab).toBeFocused();
+  const focusedTabDecoration = await meaningTab.evaluate((tab) => {
+    const style = getComputedStyle(tab);
+    const indicator = getComputedStyle(tab, "::after");
+    return {
+      hasBoxOutline: style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0,
+      focusUnderlineHeight: Number.parseFloat(indicator.height),
+    };
+  });
+  expect(focusedTabDecoration.hasBoxOutline, "tab arrows should not paint a blue focus box").toBe(false);
+  expect(focusedTabDecoration.focusUnderlineHeight, "tab arrows should retain a visible subject underline").toBeCloseTo(4.8, 1);
 
   for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson" }).click();
   await page.getByRole("button", { name: "Start lesson quiz" }).click();
   expect(await seriousAccessibilityViolations(page), "custom lesson quiz has serious accessibility violations").toEqual([]);
-  const answer = page.getByRole("textbox", { name: "Your answer" });
-  await expect(answer).toHaveAccessibleDescription(/Accepted English meanings are checked/);
-  const promptText = await page.locator('header[aria-label="Custom lesson quiz prompt"]').textContent();
+  const answer = page.getByRole("textbox", { name: "Vocabulary Meaning" });
+  const promptText = await page.locator("#question-prompt").textContent();
   const promptAnswer = [
     ["どうぞ", "please"],
     ["やっぱり", "as expected"],
@@ -963,7 +1017,30 @@ test("keeps a custom vocabulary lesson session labelled and keyboard operable", 
   await answer.press("Enter");
 
   await expect(page.getByRole("status")).toContainText("Correct");
-  await expect(page.getByRole("button", { name: "Next Question" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Next" })).toBeFocused();
+});
+
+test("uses the standard review frame for a custom vocabulary lesson quiz", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/study/custom-review?subjectIds=3&start=1");
+  await expect(page.getByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ })).toBeVisible();
+  const standardFrame = await quizFrameClasses(page);
+
+  await page.goto("/custom-vocabulary");
+  await page.getByRole("button", { name: "Add Conversation Glue pack" }).click();
+  await page.getByRole("link", { name: /Start lessons/i }).click();
+
+  await expect(page.getByRole("link", { name: "Pause", exact: true })).toHaveCount(0);
+
+  for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson" }).click();
+  await page.getByRole("button", { name: "Start lesson quiz" }).click();
+
+  await expect(page.locator('section[data-study-session="active"]')).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeHidden();
+  await expect(page.getByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pause and exit session" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pause", exact: true })).toHaveCount(0);
+  expect(await quizFrameClasses(page)).toEqual(standardFrame);
 });
 
 test("applies live navigation preferences and keeps main study destinations disabled", async ({ page }, testInfo) => {

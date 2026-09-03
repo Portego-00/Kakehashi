@@ -485,6 +485,8 @@ function validatePacks(value, vocabulary, kanji, readingHookReviews) {
   const wordIds = new Set();
   const writtenForms = new Set();
   const usedReadingHookReviews = new Set();
+  const contextJapanese = new Set();
+  const contextEnglish = new Set();
 
   for (const [packIndex, pack] of value.entries()) {
     if (!pack || typeof pack !== "object" || Array.isArray(pack)) fail(`pack ${packIndex} must be an object`);
@@ -568,8 +570,22 @@ function validatePacks(value, vocabulary, kanji, readingHookReviews) {
           usedReadingHookReviews,
         });
       }
-      if (!Array.isArray(word.contextSentences) || word.contextSentences.length < 1 || word.contextSentences.some((sentence) => !sentence || typeof sentence !== "object" || !String(sentence.ja ?? "").trim() || !String(sentence.en ?? "").trim())) fail(`${wordId}.contextSentences is invalid`);
-      if (!word.contextSentences.some((sentence) => contextContainsTarget(normalized(sentence.ja, `${wordId}.contextSentences.ja`), written, word.partsOfSpeech))) fail(`${wordId} needs a Japanese context sentence containing the written form or a valid inflection`);
+      if (!Array.isArray(word.contextSentences) || word.contextSentences.length < 2 || word.contextSentences.length > 3 || word.contextSentences.some((sentence) => !sentence || typeof sentence !== "object" || !String(sentence.ja ?? "").trim() || !String(sentence.en ?? "").trim())) fail(`${wordId}.contextSentences must contain two or three bilingual examples`);
+      const wordJapanese = new Set();
+      const wordEnglish = new Set();
+      for (const [sentenceIndex, sentence] of word.contextSentences.entries()) {
+        const sentencePath = `${wordId}.contextSentences[${sentenceIndex}]`;
+        const japanese = normalized(sentence.ja, `${sentencePath}.ja`);
+        const english = normalized(sentence.en, `${sentencePath}.en`).toLocaleLowerCase("en");
+        if (!contextContainsTarget(japanese, written, word.partsOfSpeech)) fail(`${sentencePath}.ja must contain ${written} or a valid inflection`);
+        if (wordJapanese.has(japanese) || wordEnglish.has(english)) fail(`${wordId}.contextSentences contains a duplicate example`);
+        if (contextJapanese.has(japanese)) fail(`${sentencePath}.ja duplicates another catalog example`);
+        if (contextEnglish.has(english)) fail(`${sentencePath}.en duplicates another catalog example`);
+        wordJapanese.add(japanese);
+        wordEnglish.add(english);
+        contextJapanese.add(japanese);
+        contextEnglish.add(english);
+      }
     }
   }
 

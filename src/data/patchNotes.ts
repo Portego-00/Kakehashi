@@ -71,6 +71,12 @@ export const PATCH_NOTES: PatchNote[] = [
       },
       {
         type: "feature",
+        title: "Personal Context Sentences",
+        description:
+          "Add your own Japanese and English examples from the + button in Context Sentences, with automatic translation, kana, audio, and dedicated review practice. Sentences are saved locally on this device.",
+      },
+      {
+        type: "feature",
         title: "News Furigana Default",
         description:
           "News articles can now open with furigana hidden by default when using No Study Mode.",

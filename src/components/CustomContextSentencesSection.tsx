@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -42,13 +42,17 @@ import { useTheme } from "../utils/theme";
 const TRANSLATION_DEBOUNCE_MS = 650;
 const ICON_HIT_SLOP = { top: 4, right: 4, bottom: 4, left: 4 };
 
-type ManuallyEditedField = "japanese" | "kana" | "english" | null;
+type ManuallyEditedField = "japanese" | "english" | null;
 
 export interface CustomContextSentencesSectionProps {
   subjectId: number;
   subjectCharacters: string;
   subjectReadings: readonly string[];
   accentColor?: string;
+}
+
+export interface CustomContextSentencesSectionHandle {
+  openNewEditor: () => void;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -68,12 +72,13 @@ function hasNonAbortFailure(
   );
 }
 
-export function CustomContextSentencesSection({
-  subjectId,
-  subjectCharacters,
-  subjectReadings,
-  accentColor,
-}: CustomContextSentencesSectionProps) {
+export const CustomContextSentencesSection = React.forwardRef<
+  CustomContextSentencesSectionHandle,
+  CustomContextSentencesSectionProps
+>(function CustomContextSentencesSection(
+  { subjectId, subjectCharacters, subjectReadings, accentColor },
+  ref,
+) {
   const { theme } = useTheme();
   const userId = useAuthStore((state) => state.userData?.id ?? null);
   const resolvedAccentColor = accentColor ?? theme.primary;
@@ -116,8 +121,6 @@ export function CustomContextSentencesSection({
     [subjectReadings],
   );
 
-  const selectedJapaneseDraft =
-    draftDisplayMode === "kana" ? draftKana : draftJapanese;
   const japaneseDraftMatchesSubject =
     draftJapanese.trim().length > 0 &&
     tryBlankContextSentence(draftJapanese, japaneseVocabularyForms) !== null;
@@ -212,11 +215,9 @@ export function CustomContextSentencesSection({
   const translationSourceText =
     lastEditedField === "japanese"
       ? draftJapanese
-      : lastEditedField === "kana"
-        ? draftKana
-        : lastEditedField === "english"
-          ? draftEnglish
-          : "";
+      : lastEditedField === "english"
+        ? draftEnglish
+        : "";
 
   useEffect(() => {
     if (!editorVisible || !lastEditedField || !translationSourceText.trim()) {
@@ -275,55 +276,24 @@ export function CustomContextSentencesSection({
           return;
         }
 
-        if (lastEditedField === "english") {
-          try {
-            const japanese = await azureTranslatorService.translate(
-              sourceText,
-              "en",
-              "ja",
-              { signal: controller?.signal },
-            );
-            if (!isCurrentRequest()) {
-              return;
-            }
-            setDraftJapanese(japanese);
-
-            const kana =
-              await azureTranslatorService.transliterateJapaneseToKana(
-                japanese,
-                { signal: controller?.signal },
-              );
-            if (isCurrentRequest()) {
-              setDraftKana(kana);
-            }
-          } catch (error) {
-            if (!isAbortError(error)) {
-              showTranslationFailure();
-            }
-          }
-          return;
-        }
-
         try {
-          const english = await azureTranslatorService.translate(
+          const japanese = await azureTranslatorService.translate(
             sourceText,
-            "ja",
             "en",
+            "ja",
             { signal: controller?.signal },
           );
           if (!isCurrentRequest()) {
             return;
           }
-          setDraftEnglish(english);
+          setDraftJapanese(japanese);
 
-          const commonKanjiJapanese = await azureTranslatorService.translate(
-            english,
-            "en",
-            "ja",
+          const kana = await azureTranslatorService.transliterateJapaneseToKana(
+            japanese,
             { signal: controller?.signal },
           );
           if (isCurrentRequest()) {
-            setDraftJapanese(commonKanjiJapanese);
+            setDraftKana(kana);
           }
         } catch (error) {
           if (!isAbortError(error)) {
@@ -369,6 +339,8 @@ export function CustomContextSentencesSection({
     setEditorVisible(true);
   }, [cancelTranslations, resetEditor, stopPlayback]);
 
+  useImperativeHandle(ref, () => ({ openNewEditor }), [openNewEditor]);
+
   const openEditEditor = useCallback(
     (sentence: CustomContextSentence) => {
       cancelTranslations();
@@ -402,15 +374,10 @@ export function CustomContextSentencesSection({
       cancelTranslations();
       setTranslationError(null);
       setEditorError(null);
-      if (draftDisplayMode === "kana") {
-        setDraftKana(value);
-        setLastEditedField("kana");
-      } else {
-        setDraftJapanese(value);
-        setLastEditedField("japanese");
-      }
+      setDraftJapanese(value);
+      setLastEditedField("japanese");
     },
-    [cancelTranslations, draftDisplayMode],
+    [cancelTranslations],
   );
 
   const handleManualEnglishChange = useCallback(
@@ -423,11 +390,6 @@ export function CustomContextSentencesSection({
     },
     [cancelTranslations],
   );
-
-  const handleDisplayModeChange = useCallback((value: string) => {
-    setDraftDisplayMode(value === "Kana" ? "kana" : "kanji");
-    setEditorError(null);
-  }, []);
 
   const handlePlay = useCallback(
     async (text: string, id: string) => {
@@ -674,53 +636,19 @@ export function CustomContextSentencesSection({
     [userId],
   );
 
-  const japaneseInputValue =
-    draftDisplayMode === "kana" ? draftKana : draftJapanese;
   const draftPlaybackId = "custom-context-draft";
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text
-          accessibilityRole="header"
-          style={[styles.sectionTitle, { color: theme.textColor }]}
+    <>
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="small" color={resolvedAccentColor} />
+        </View>
+      ) : sentences.length > 0 ? (
+        <View
+          style={[styles.sentenceList, { borderTopColor: theme.border }]}
         >
-          My Sentences
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add custom context sentence"
-          onPress={openNewEditor}
-          style={({ pressed }) => [
-            styles.addButton,
-            { opacity: pressed ? 0.5 : 1 },
-          ]}
-        >
-          <Ionicons name="add" size={20} color={resolvedAccentColor} />
-        </Pressable>
-      </View>
-
-      <View
-        style={[
-          styles.sentenceList,
-          {
-            backgroundColor: theme.cardBackground,
-            borderColor: theme.border,
-          },
-        ]}
-      >
-        {isLoading ? (
-          <View style={styles.emptyState}>
-            <ActivityIndicator size="small" color={resolvedAccentColor} />
-          </View>
-        ) : sentences.length === 0 ? (
-          <Text
-            style={[styles.emptyText, { color: theme.textSecondary }]}
-          >
-            No saved sentences yet.
-          </Text>
-        ) : (
-          sentences.map((sentence, index) => {
+          {sentences.map((sentence, index) => {
             const displayedJapanese =
               sentence.displayMode === "kana"
                 ? sentence.kana
@@ -837,9 +765,9 @@ export function CustomContextSentencesSection({
                 </View>
               </View>
             );
-          })
-        )}
-      </View>
+          })}
+        </View>
+      ) : null}
 
       {sectionError ? (
         <Text
@@ -900,42 +828,26 @@ export function CustomContextSentencesSection({
               contentContainerStyle={styles.editorContent}
               showsVerticalScrollIndicator={false}
             >
-              <View style={styles.fieldHeader}>
-                <Text
-                  style={[styles.fieldLabel, { color: theme.textColor }]}
-                >
-                  Japanese
-                </Text>
-                <SegmentedControl
-                  accessibilityLabel="Japanese display style"
-                  values={["Kanji", "Kana"]}
-                  selectedIndex={draftDisplayMode === "kanji" ? 0 : 1}
-                  onValueChange={handleDisplayModeChange}
-                  tintColor={resolvedAccentColor}
-                  backgroundColor={theme.cardBackground}
-                  appearance={theme.isDark ? "dark" : "light"}
-                  style={styles.segmentedControl}
-                />
-              </View>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  styles.japaneseFieldLabel,
+                  { color: theme.textColor },
+                ]}
+              >
+                Japanese
+              </Text>
 
               <View style={styles.inputWithAction}>
                 <TextInput
-                  accessibilityLabel={
-                    draftDisplayMode === "kanji"
-                      ? "Japanese sentence in kanji"
-                      : "Japanese sentence in kana"
-                  }
+                  accessibilityLabel="Japanese sentence"
                   multiline
                   autoCapitalize="none"
                   autoCorrect={false}
                   textAlignVertical="top"
-                  placeholder={
-                    draftDisplayMode === "kanji"
-                      ? `Write a sentence using ${subjectCharacters}`
-                      : "Write the sentence in kana"
-                  }
+                  placeholder={`Write a sentence using ${subjectCharacters}`}
                   placeholderTextColor={theme.textLight}
-                  value={japaneseInputValue}
+                  value={draftJapanese}
                   onChangeText={handleManualJapaneseChange}
                   style={[
                     styles.textInput,
@@ -954,9 +866,9 @@ export function CustomContextSentencesSection({
                       ? "Stop draft sentence audio"
                       : "Play draft sentence audio"
                   }
-                  disabled={!selectedJapaneseDraft.trim()}
+                  disabled={!draftJapanese.trim()}
                   onPress={() =>
-                    void handlePlay(selectedJapaneseDraft, draftPlaybackId)
+                    void handlePlay(draftJapanese, draftPlaybackId)
                   }
                   style={({ pressed }) => [
                     styles.draftPlayButton,
@@ -966,7 +878,7 @@ export function CustomContextSentencesSection({
                           ? resolvedAccentColor
                           : withAlpha(resolvedAccentColor, 0.1),
                       opacity:
-                        pressed || !selectedJapaneseDraft.trim() ? 0.45 : 1,
+                        pressed || !draftJapanese.trim() ? 0.45 : 1,
                     },
                   ]}
                 >
@@ -1116,46 +1028,20 @@ export function CustomContextSentencesSection({
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
-    </View>
+    </>
   );
-}
+});
 
 const styles = StyleSheet.create({
-  section: {
-    marginHorizontal: 16,
-    marginTop: 16,
-  },
-  sectionHeader: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   sentenceList: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    overflow: "hidden",
+    marginTop: 14,
+    paddingTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  emptyState: {
-    minHeight: 54,
+  loadingState: {
+    minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
-  },
-  emptyText: {
-    minHeight: 54,
-    paddingHorizontal: 14,
-    paddingVertical: 17,
-    fontSize: 14,
   },
   sentenceRow: {
     minHeight: 70,
@@ -1232,20 +1118,12 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 24,
   },
-  fieldHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 8,
-  },
   fieldLabel: {
     fontSize: 15,
     fontWeight: "700",
   },
-  segmentedControl: {
-    width: 168,
-    height: 32,
+  japaneseFieldLabel: {
+    marginBottom: 8,
   },
   inputWithAction: {
     position: "relative",

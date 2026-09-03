@@ -65,6 +65,20 @@ function setHookState(state: CustomSrsState, overrides: Record<string, unknown> 
   };
 }
 
+function rect(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    bottom: top + height,
+    height,
+    left,
+    right: left + width,
+    top,
+    width,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 beforeEach(() => {
   hubTestState.enrollPack.mockReset();
   hubTestState.enrollPack.mockResolvedValue(undefined);
@@ -77,6 +91,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("custom vocabulary pack hub", () => {
@@ -99,14 +114,21 @@ describe("custom vocabulary pack hub", () => {
     expect(screen.getByText("よろしく")).toBeInTheDocument();
     expect(screen.getByText("足音")).toBeInTheDocument();
     expect(screen.getByText("Kanji · WaniKani levels 1–10 · 1 word")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 of 4 vocabulary packs added")).toBeInTheDocument();
     expect(screen.getByText("もしもし").closest("a")).toHaveAttribute("href", `/custom-vocabulary/words/${encodeURIComponent(wordId)}`);
     expect(screen.getByText("メモ").closest("a")).toHaveAttribute("href", `/custom-vocabulary/words/${encodeURIComponent(CUSTOM_VOCABULARY_PACKS[1].words[0].id)}`);
+    const mixedPack = screen.getByRole("article", { name: "Mixed Kana" });
+    const mixedPreview = within(mixedPack).getByRole("list", { name: "Mixed Kana word preview" });
+    expect(within(mixedPreview).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(mixedPreview).getByText("よろしく")).toBeInTheDocument();
+    expect(within(mixedPreview).getByText("メール")).toBeInTheDocument();
+    expect(within(mixedPreview).queryByText("ごちそうさま")).not.toBeInTheDocument();
     const longMeaning = screen.getByText("Thank You For The Meal, That Was Delicious");
     const longMeaningLink = longMeaning.closest("a");
     expect(longMeaningLink).toHaveAttribute("href", "/custom-vocabulary/words/food-gochisousama");
     expect(longMeaning.parentElement).toBe(longMeaningLink);
     expect(screen.getByText("ごちそうさま").parentElement).toBe(longMeaningLink);
-    expect(screen.getByText("Show 1 more words")).toBeInTheDocument();
+    expect(within(mixedPack).getByText("Show 3 more words")).toBeInTheDocument();
     expect(screen.getByText("Cloud progress", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/adaptive FSRS/i)).toBeInTheDocument();
     expect(screen.getByText(/does not reproduce WaniKani’s exact schedule/i)).toBeInTheDocument();
@@ -131,16 +153,109 @@ describe("custom vocabulary pack hub", () => {
     render(<CustomVocabularyHub />);
 
     const addButton = screen.getByRole("button", { name: "Add Everyday Hiragana pack" });
+    const packHeading = screen.getByRole("heading", { name: "Everyday Hiragana" });
+    const packShelf = screen.getByLabelText("0 of 4 vocabulary packs added");
+    const readButtonBounds = vi.spyOn(addButton, "getBoundingClientRect").mockReturnValue(rect(120, 340, 92, 32));
+    const readShelfBounds = vi.spyOn(packShelf, "getBoundingClientRect").mockReturnValue(rect(820, 110, 180, 52));
+    vi.spyOn(packShelf.parentElement as HTMLDivElement, "getBoundingClientRect").mockReturnValue(rect(0, 80, 1000, 56));
+    vi.spyOn(packHeading, "getBoundingClientRect").mockReturnValue(rect(24, 120, 220, 28));
+    const scrollHeading = vi.fn();
+    Object.defineProperty(packHeading, "scrollIntoView", { configurable: true, value: scrollHeading });
+    const focusHeading = vi.spyOn(packHeading, "focus");
     fireEvent.click(addButton);
 
     expect(hubTestState.enrollPack).toHaveBeenCalledWith(CUSTOM_VOCABULARY_PACKS[0]);
+    expect(readButtonBounds).toHaveBeenCalledTimes(1);
     expect(addButton).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add Everyday Katakana pack" })).toBeDisabled();
+    expect(document.querySelector("[data-pack-flight]")).not.toBeInTheDocument();
 
     await act(async () => { resolveEnrollment?.(); });
     expect(screen.getByRole("button", { name: "Add Everyday Hiragana pack" })).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent("Everyday Hiragana added. 1 custom lesson is ready.");
-    expect(screen.getByRole("heading", { name: "Everyday Hiragana" })).toHaveFocus();
+    expect(readShelfBounds).toHaveBeenCalled();
+    expect(readButtonBounds).toHaveBeenCalledTimes(2);
+    expect(document.querySelector("[data-pack-flight]")).toHaveAttribute("aria-hidden", "true");
+    expect(focusHeading).toHaveBeenCalledWith();
+    expect(scrollHeading).toHaveBeenCalledWith({ block: "start" });
+    expect(packHeading).toHaveFocus();
+  });
+
+  it("suppresses stale flight geometry if the viewport moves while enrollment is pending", async () => {
+    let resolveEnrollment: (() => void) | undefined;
+    let scrollY = 0;
+    hubTestState.enrollPack.mockReturnValue(new Promise<void>((resolve) => { resolveEnrollment = resolve; }));
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+    render(<CustomVocabularyHub />);
+
+    const addButton = screen.getByRole("button", { name: "Add Everyday Hiragana pack" });
+    const packShelf = screen.getByLabelText("0 of 4 vocabulary packs added");
+    const readButtonBounds = vi.spyOn(addButton, "getBoundingClientRect").mockReturnValue(rect(120, 340, 92, 32));
+    vi.spyOn(packShelf, "getBoundingClientRect").mockReturnValue(rect(820, 110, 180, 52));
+
+    fireEvent.click(addButton);
+    scrollY = 160;
+    await act(async () => { resolveEnrollment?.(); });
+
+    expect(readButtonBounds).toHaveBeenCalledOnce();
+    expect(document.querySelector("[data-pack-flight]")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("0 of 4 vocabulary packs added")).toHaveAttribute("data-receiving", "true");
+  });
+
+  it("suppresses the flight when focus correction scrolls past its captured origin", async () => {
+    let scrollY = 0;
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+    render(<CustomVocabularyHub />);
+
+    const addButton = screen.getByRole("button", { name: "Add Everyday Hiragana pack" });
+    const packHeading = screen.getByRole("heading", { name: "Everyday Hiragana" });
+    const packShelf = screen.getByLabelText("0 of 4 vocabulary packs added");
+    vi.spyOn(addButton, "getBoundingClientRect").mockReturnValue(rect(120, 340, 92, 32));
+    vi.spyOn(packShelf, "getBoundingClientRect").mockReturnValue(rect(820, 110, 180, 52));
+    vi.spyOn(packShelf.parentElement as HTMLDivElement, "getBoundingClientRect").mockReturnValue(rect(0, 80, 1000, 56));
+    vi.spyOn(packHeading, "getBoundingClientRect").mockReturnValue(rect(24, 120, 220, 28));
+    Object.defineProperty(packHeading, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(() => { scrollY = 96; }),
+    });
+
+    await act(async () => { fireEvent.click(addButton); });
+
+    expect(document.querySelector("[data-pack-flight]")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("0 of 4 vocabulary packs added")).toHaveAttribute("data-receiving", "true");
+  });
+
+  it("does not launch a pack flight when enrollment fails", async () => {
+    hubTestState.enrollPack.mockRejectedValue(new Error("Pack enrollment failed."));
+    render(<CustomVocabularyHub />);
+
+    const addButton = screen.getByRole("button", { name: "Add Everyday Hiragana pack" });
+    vi.spyOn(addButton, "getBoundingClientRect").mockReturnValue(rect(120, 340, 92, 32));
+
+    await act(async () => { fireEvent.click(addButton); });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Pack enrollment failed.");
+    expect(document.querySelector("[data-pack-flight]")).not.toBeInTheDocument();
+  });
+
+  it("uses non-spatial shelf feedback when reduced motion is requested", async () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: true,
+      media: "(prefers-reduced-motion: reduce)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    render(<CustomVocabularyHub />);
+
+    const addButton = screen.getByRole("button", { name: "Add Everyday Hiragana pack" });
+    const packShelf = screen.getByLabelText("0 of 4 vocabulary packs added");
+    vi.spyOn(addButton, "getBoundingClientRect").mockReturnValue(rect(120, 340, 92, 32));
+    vi.spyOn(packShelf, "getBoundingClientRect").mockReturnValue(rect(820, 110, 180, 52));
+
+    await act(async () => { fireEvent.click(addButton); });
+
+    expect(document.querySelector("[data-pack-flight]")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("0 of 4 vocabulary packs added")).toHaveAttribute("data-receiving", "true");
   });
 
   it("keeps the pack preview visible while cloud progress reports an error", () => {

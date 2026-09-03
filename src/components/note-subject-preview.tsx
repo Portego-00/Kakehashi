@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -16,11 +17,8 @@ import { type Subject, getSubject } from "../utils/api";
 import { getSubjectById } from "../utils/cache";
 import { fontStyles } from "../utils/fonts";
 import { registerOpenNoteSubjectPreview } from "../utils/note-subject-preview-state";
-import {
-  getBestContrastTextColor,
-  type SubjectType,
-  useSubjectColors,
-} from "../utils/subjectColors";
+import { rememberNoteSubjectType } from "../utils/note-subject-metadata";
+import { type SubjectType, useSubjectColors } from "../utils/subjectColors";
 import { useAuthStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 
@@ -70,6 +68,14 @@ function formatPartsOfSpeech(partsOfSpeech: string[] | null): string {
     .join(" · ");
 }
 
+function getUniqueReadings(
+  readings: NonNullable<Subject["data"]["readings"]>,
+): string {
+  return Array.from(new Set(readings.map((reading) => reading.reading))).join(
+    " · ",
+  );
+}
+
 export default function NoteSubjectPreview({
   linkText,
   onClose,
@@ -84,6 +90,16 @@ export default function NoteSubjectPreview({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+
+  const handleViewFullDetails = useCallback(() => {
+    onClose();
+    router.push({
+      pathname: "/subject/[id]",
+      params: {
+        id: subjectId.toString(),
+      },
+    });
+  }, [onClose, subjectId]);
 
   useEffect(() => registerOpenNoteSubjectPreview(), []);
 
@@ -100,6 +116,7 @@ export default function NoteSubjectPreview({
         if (cancelled) return;
 
         if (isSubject(cachedSubject)) {
+          rememberNoteSubjectType(cachedSubject.id, cachedSubject.object);
           setSubject(cachedSubject);
           return;
         }
@@ -108,7 +125,9 @@ export default function NoteSubjectPreview({
 
         const fetchedSubject = await getSubject(apiToken, subjectId);
         if (cancelled) return;
-        if (!isSubject(fetchedSubject)) throw new Error("Invalid subject data.");
+        if (!isSubject(fetchedSubject))
+          throw new Error("Invalid subject data.");
+        rememberNoteSubjectType(fetchedSubject.id, fetchedSubject.object);
         setSubject(fetchedSubject);
       } catch {
         if (!cancelled) {
@@ -133,9 +152,34 @@ export default function NoteSubjectPreview({
       (left, right) =>
         left.primary === right.primary ? 0 : left.primary ? -1 : 1,
     );
-    const readings = Array.from(
-      new Set(orderedReadings.map((reading) => reading.reading)),
-    ).join(" · ");
+    const readingRows =
+      subject.object === "kanji"
+        ? [
+            {
+              label: "On’yomi",
+              value: getUniqueReadings(
+                orderedReadings.filter((reading) => reading.type === "onyomi"),
+              ),
+            },
+            {
+              label: "Kun’yomi",
+              value: getUniqueReadings(
+                orderedReadings.filter((reading) => reading.type === "kunyomi"),
+              ),
+            },
+            {
+              label: "Nanori",
+              value: getUniqueReadings(
+                orderedReadings.filter((reading) => reading.type === "nanori"),
+              ),
+            },
+          ].filter((row) => row.value.length > 0)
+        : [
+            {
+              label: "Reading",
+              value: getUniqueReadings(orderedReadings),
+            },
+          ].filter((row) => row.value.length > 0);
     const meanings = Array.from(
       new Set(subject.data.meanings.map((meaning) => meaning.meaning)),
     )
@@ -145,7 +189,7 @@ export default function NoteSubjectPreview({
     return {
       characters: subject.data.characters || getPrimaryMeaning(subject),
       meanings,
-      readings,
+      readingRows,
       partsOfSpeech: formatPartsOfSpeech(subject.data.parts_of_speech),
       type: formatSubjectType(subject.object),
     };
@@ -154,7 +198,7 @@ export default function NoteSubjectPreview({
   const subjectColor = subject
     ? subjectColors.getColorForType(getSubjectType(subject.object))
     : theme.primary;
-  const headerTextColor = getBestContrastTextColor(subjectColor);
+  const headerTextColor = theme.headerText;
   const cardWidth = Math.min(380, width - 32);
   const cardMaxHeight = Math.max(
     240,
@@ -241,7 +285,8 @@ export default function NoteSubjectPreview({
                   selectable
                   style={[styles.stateText, { color: theme.textSecondary }]}
                 >
-                  This linked subject could not be loaded. It may no longer be available.
+                  This linked subject could not be loaded. It may no longer be
+                  available.
                 </Text>
                 <Pressable
                   accessibilityRole="button"
@@ -258,12 +303,12 @@ export default function NoteSubjectPreview({
               </View>
             ) : (
               <>
-                {previewData.readings ? (
-                  <View style={styles.row}>
+                {previewData.readingRows.map((readingRow) => (
+                  <View key={readingRow.label} style={styles.row}>
                     <Text
                       style={[styles.label, { color: theme.textSecondary }]}
                     >
-                      Reading
+                      {readingRow.label}
                     </Text>
                     <Text
                       selectable
@@ -273,10 +318,10 @@ export default function NoteSubjectPreview({
                         { color: theme.textColor },
                       ]}
                     >
-                      {previewData.readings}
+                      {readingRow.value}
                     </Text>
                   </View>
-                ) : null}
+                ))}
 
                 <View style={styles.row}>
                   <Text style={[styles.label, { color: theme.textSecondary }]}>
@@ -307,6 +352,31 @@ export default function NoteSubjectPreview({
                 ) : null}
               </>
             )}
+
+            <Pressable
+              accessibilityHint="Opens the complete subject page"
+              accessibilityLabel="View full details"
+              accessibilityRole="button"
+              onPress={handleViewFullDetails}
+              style={({ pressed }) => [
+                styles.detailsButton,
+                {
+                  backgroundColor: subjectColor,
+                  opacity: pressed ? 0.65 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.detailsButtonText, { color: headerTextColor }]}
+              >
+                View full details
+              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={16}
+                color={headerTextColor}
+              />
+            </Pressable>
           </ScrollView>
         </View>
       </View>
@@ -395,5 +465,18 @@ const styles = StyleSheet.create({
   retryText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  detailsButton: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  detailsButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

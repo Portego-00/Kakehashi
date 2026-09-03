@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-01T13:00:07Z",
+  "generatedAt": "2026-09-01T21:16:50Z",
   "source": {
     "name": "JMdict English XML distribution",
     "url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
     "distributionIndexUrl": "https://www.edrdg.org/pub/Nihongo/00INDEX.html",
     "dtdDocumentationUrl": "https://www.edrdg.org/jmdict/jmdict_dtd_h.html",
-    "fetchedAt": "2026-09-01T12:05:35Z",
+    "fetchedAt": "2026-09-01T21:16:48Z",
     "serverLastModified": "Tue, 01 Sep 2026 03:30:43 GMT",
     "jmdictCreatedDate": "2026-09-01",
     "compressedBytes": 10564910,
@@ -143,7 +143,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "ad92242db845ef59b6e16968ed61b2f35ba46e67fba5ad5682ae3ebbb51f9b71"
+      "nonMnemonicSha256": "fdde63cfef91099638d0d2621d18c140ccb5526ee1e7bb130b09557989d043eb"
     },
     {
       "id": "conversation-yappari",
@@ -166,7 +166,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "93233dd376e89c1decf00c2414744ba13295f928ff0762ae343f7d05a7d7419d"
+      "nonMnemonicSha256": "8e0744e146ad8a3a151d996ac58d1c7bbf1b60212c5a5acae8a32460a6e9c6a7"
     },
     {
       "id": "conversation-yukkuri",
@@ -187,7 +187,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "ef933d6b8865c888533d447b1eb782d64917b90caa0e38b5f3c7dadd49e3dc9b"
+      "nonMnemonicSha256": "3af28f28a718ba19db3176047b957faea2923ef7c7de0913ac56d36128274553"
     },
     {
       "id": "conversation-jaa",
@@ -206,7 +206,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "fa874dc7a062549ff18e7ee534f7c857c9482e4a6e37a7596ba8b522a429a160"
+      "nonMnemonicSha256": "8cf8171ac7ad1cd8f3eae3cdc04b0c9ac8eb94ba55602e391da1f0d1754e27f2"
     },
     {
       "id": "conversation-doumo",
@@ -230,7 +230,7 @@
         5,
         6
       ],
-      "nonMnemonicSha256": "625efa696ffe9ffeefdeacaf2ba3dda9a1619ad16eae427febbdd3039d539b3b"
+      "nonMnemonicSha256": "1f8436f3fc63346e839090978d8c76542c6586dad7fe8990e1d7cab4a63e5515"
     },
     {
       "id": "conversation-masaka",
@@ -253,7 +253,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "b3e92f026df47dcc6e33c2772068942eed172bbe3da5f653423214bbd00c657d"
+      "nonMnemonicSha256": "fb618646bd36ed873c559ad6f45603347a2b4e98b62c1f039359c0c5c8d6e44e"
     },
     {
       "id": "conversation-sorosoro",
@@ -274,7 +274,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "0c9c226fe53c116899b74d1ae83fe048e61695f4ae981eac51cdc741841ea2cc"
+      "nonMnemonicSha256": "abe3e759e39de1ee5cd51bf0acb9162af66437e5d4cd418c83f3b37356f1dcd2"
     },
     {
       "id": "conversation-chanto",
@@ -296,7 +296,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "ca9dc01a2c1efa0175dd05225b1fe90f8605720cedb405f4fe429d855d23bcc3"
+      "nonMnemonicSha256": "b278f273e48c8f3981241f87cc0d29c26c4df0ac3a7f01697706b7a3afae3ea8"
     },
     {
       "id": "conversation-narubeku",
@@ -315,7 +315,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ff46082541c9566421f327fe3c7671e0b0d12d7a08a04f87c2d730a98ee12f20"
+      "nonMnemonicSha256": "8f906e578cb1dc6ea5bf72a168750937ea663463380407eca25ac36216b9a641"
     },
     {
       "id": "conversation-nande",
@@ -335,7 +335,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "ba75ef72ce0b1be7ee655a7ef2f0717879353ff4d6d5ff26eea1960993b08484",
+      "nonMnemonicSha256": "e80736d717654d8c861c839c722dc651ea3b1c237045756787d564a41416efb6",
       "candidateEntSeqs": [
         1611020,
         2827864
@@ -362,7 +362,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "5e5660201bc4ecaec7ae6ef96bc5876651dc473b3ab74d9c7823bae773e0de8d"
+      "nonMnemonicSha256": "ad09f637fa629b5610cd7e9d60a71cf4dd14d1277609bd7a9bacefc90bcdadfd"
     },
     {
       "id": "conversation-douyatte",
@@ -381,7 +381,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "dc51ab093119aa4697dfb398cfdd01e03521a6209887a1fa80d4699ff8f905f6"
+      "nonMnemonicSha256": "bd97180e8b64cdafbf0281d750cda9c2576e7d3921c61f1b53526ba91d508096"
     },
     {
       "id": "conversation-nantonaku",
@@ -400,7 +400,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "eaaa05acb14d1b492a9a80f638455748f187909cb67439441c8f11da12d45dfd"
+      "nonMnemonicSha256": "3558a7272a4e49e2ede40820fca19632406f7749cedc989a63e927979480b3f3"
     },
     {
       "id": "conversation-chinamini",
@@ -419,7 +419,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "93eef9cee530ee5ccc62e47d298aded48ee3e0421e99dbfcec3d49a1f9cff0b0"
+      "nonMnemonicSha256": "21d4c51c30d80a326b21e292f9735e1568f62238adfb199d9237d64ac16fe921"
     },
     {
       "id": "conversation-tsumari",
@@ -444,7 +444,7 @@
         6,
         7
       ],
-      "nonMnemonicSha256": "424a035e80043b5ec7f3875b64546897fa37fd37c74a85e601a8eb0670bd53aa"
+      "nonMnemonicSha256": "191762b7a239c41750785d79fe5ff95795059d0b3e3582d0eb3726c38bff2077"
     },
     {
       "id": "conversation-moshi",
@@ -463,7 +463,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ff147bd5b70b2bc09a42055e60b7a8102d2097cb0155cef0f1e5b3ab0244589f",
+      "nonMnemonicSha256": "9d326fbb3b85f80b62f4a5a7c904bda7e2493dfb953eaa70f068872aa8ea3ccd",
       "candidateEntSeqs": [
         1012500,
         1912410,
@@ -490,7 +490,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "2d2084e85085468ead1b57e6b470953d8b77053a0c7a3a151426e1e08560d5aa"
+      "nonMnemonicSha256": "e863694b9fa45018b3bc30c4ece4d1037b637e1609b437c307f02c3223b806fa"
     },
     {
       "id": "food-okawari",
@@ -510,7 +510,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "4553d870c712b4720d8e79a89fc101f72699b81747b65edec9d4eb971a90a1e3"
+      "nonMnemonicSha256": "442bb5895a25c8dbb3897ed776d0f68b301d77207fa93f5992724734ea7ec0b8"
     },
     {
       "id": "food-gochisousama",
@@ -530,7 +530,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "ba9278c9cf218ab432a0570d644208e20581c9ea1c1dff3a05d0a2e92d798fa7"
+      "nonMnemonicSha256": "3865c6363d15d20d7d2aa64ce16f2f6e8af0dd553c6119731157bebe10251bf3"
     },
     {
       "id": "food-karee",
@@ -550,7 +550,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "57c672e8a8cc5b2134b405a81635c5af66d156bbe43c6e3f7e0ba64d0d28c92b"
+      "nonMnemonicSha256": "a6c67517ef26149c3c99c2756a070e923daaf48333fac54d5db138b2d36f39b4"
     },
     {
       "id": "food-sarada",
@@ -569,7 +569,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "6f13cb67969b0523ee1feb867a8eaedf84da01959b78928b258f1bc57e54b4e0"
+      "nonMnemonicSha256": "6a04c0ce1ac2c26519ef39f32713069eba189791742207d3ad8cfb48eef0acc0"
     },
     {
       "id": "food-suupu",
@@ -588,7 +588,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b2ce5c642e13b8909ec96010e93bda52d631791dfa0b0d6be4a2bdfbd003a79b"
+      "nonMnemonicSha256": "d8deacb5c1cbcfdf463f0bb44ad02d140a3a32202b7cd4a9ce74a7ca9ffb6672"
     },
     {
       "id": "food-juusu",
@@ -608,7 +608,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "1649489fa23769c46d5beb99f0dae9a7fee8eabb8bc6bf8fdabc82169ed5fbe4",
+      "nonMnemonicSha256": "0d00423657ecbb1251a8f1f62ec96cdcbaa64f0d6d60800a3df2a0ac2fd6873e",
       "candidateEntSeqs": [
         1065950,
         2843595
@@ -632,7 +632,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d7313061757e27e603aaab8add11730c7c02383209c475b5bb278eaf95ae1c2a"
+      "nonMnemonicSha256": "92c4b4e0816b3363f8b5dda53c2c9c1fd56627f304f420bd860ec96c730b59d8"
     },
     {
       "id": "food-aisu",
@@ -656,7 +656,7 @@
         5,
         6
       ],
-      "nonMnemonicSha256": "648ba851973282b8d3478672d41d8cf7cad621b4e6de495c5640d358a432e8b2"
+      "nonMnemonicSha256": "dd9edcc0040d059b876ad145c6cda74fb4ba358405c6781317f0e36e2158b4fb"
     },
     {
       "id": "food-resutoran",
@@ -675,7 +675,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a7aa6cddc73245148231bf72daa41c43cec9c2266b2d4aa0afc66fad102f4025"
+      "nonMnemonicSha256": "95c497f6d202416771aeed22f4991f013083317f28825d51ec44c5ccb48813c0"
     },
     {
       "id": "food-menyuu",
@@ -696,7 +696,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "45736903ce87fd140de68f4831c6e084888a1d5a84980c480cce853eaacdcd32"
+      "nonMnemonicSha256": "c49cb2d85d47b11e4fc7e743bed6046f0a08d2cb281e170071f8105b21f51276"
     },
     {
       "id": "food-dezaato",
@@ -715,7 +715,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2a9491b991e58da5c38982016f321acebcf8fe5d02d18b5f17cad55e01ec10d6",
+      "nonMnemonicSha256": "7fbe39e05a559630dba1753e4ec18cd99029c8d24969ac516b6961ac6a349a99",
       "candidateEntSeqs": [
         1082850,
         2863580
@@ -739,7 +739,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8c702ca7b1c8986aa9574d21510a0bd5ede46b4d411a48941ebb13204bae4c14"
+      "nonMnemonicSha256": "c5fc1328cbfc1e45fbee5ead16b25b31985d324306ca3f9d3b9fe0d4f0d17080"
     },
     {
       "id": "food-piza",
@@ -759,7 +759,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "f756e27294030e0ea86bca36dcb2f754db20191a611e9c9d6f9045a3917bd0d7"
+      "nonMnemonicSha256": "e5d8f44781da122f77d9719a1518e026190e85184b3ce2e01f3afafcb8ca957b"
     },
     {
       "id": "food-sandoicchi",
@@ -778,7 +778,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "bd54f75494bebb3de76be913e1576e497f989a7e569cba6d2b6dc70a292d5ba6"
+      "nonMnemonicSha256": "2839d150db32b84265d2a21a72b491e37f1e6460a9f89acbcdef1a7b0aa23a6f"
     },
     {
       "id": "food-biiru",
@@ -797,7 +797,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "cd0637366e13c7bafd7583b298607d7d229bb16cb6d225c8382a74de4b0005f5",
+      "nonMnemonicSha256": "616190231d595ec3e773ecda9d5bed6c7df67425dfd0c1281e896bb9a2e6a427",
       "candidateEntSeqs": [
         1104550,
         2796520
@@ -821,7 +821,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "1a988c664add4b48e45d8ad6a7ef783b825818607f863d34ec70a98439991ec6"
+      "nonMnemonicSha256": "18f10dcaa6be6b07f00be90097067aaacc94982ced19139c7fc4c43db444e261"
     },
     {
       "id": "daily-pasokon",
@@ -840,7 +840,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9b2a2b8a9bb4019b1bbe312471b6ae40df488aa055769be8bd40037ab038c260"
+      "nonMnemonicSha256": "6020785359fa892af2693ed60e1f85fb831d3bf5188519303a72fd1ac355f0ca"
     },
     {
       "id": "daily-apuri",
@@ -859,7 +859,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "af6e75f622fda3718362ac6a52334c86d18f22f3ef075f8f37fa2ec3627e9e1b"
+      "nonMnemonicSha256": "614dc7f0cb05828497089caa913c9b85032dca57db00390c407a542a1ea7e87e"
     },
     {
       "id": "daily-netto",
@@ -881,7 +881,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "c744ad0faf4dbe0f376bb039d239f6096f53146bfccfc19a2b3aa739ab1a88e3"
+      "nonMnemonicSha256": "cd2ef3891225a3611fe87214bac28641cc0b4e9c4ad798a9ec613ae9a71e832f"
     },
     {
       "id": "daily-meeru",
@@ -902,7 +902,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "64316eb3531c606ceac3df65f3dc73bee66a7cdebe71e20c68506d750f184d44",
+      "nonMnemonicSha256": "bde0a91507138b4a0b3ed2a798a4fe10047709367dacc4e48a9fbf0d8ae680c3",
       "candidateEntSeqs": [
         1132620,
         2861075
@@ -926,7 +926,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ad521240bf262b9d54b82e8cc1ccc38eddadddb150a1eed9e27f1a92d4a4c2a1"
+      "nonMnemonicSha256": "2bc0abc3f632f12d235f41e240e9b6ce1fd2279a3fed69ac66127ade629e0c39"
     },
     {
       "id": "daily-iyahon",
@@ -945,7 +945,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "df239bed12ba891625b66d9c50615d95e410e40d6435686af3f2c6152681bc2a"
+      "nonMnemonicSha256": "9d5ddc37a1b591d0bad548d2e7e4aae5cc3b59895fc0ad997c24c6a477f18a61"
     },
     {
       "id": "daily-eakon",
@@ -964,7 +964,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d8e5a78868c7bb3a868d2cde0b019d7c704616505a3a8482987efc209093712f"
+      "nonMnemonicSha256": "d9c52c001ac5277600d6ba522edcb5c881f0f428d1cbec94e521d6ee2f4933e9"
     },
     {
       "id": "daily-rimokon",
@@ -983,7 +983,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "63d829cbfa14deb803ee3e50f50b4f634b0450d589140e815103c728b8565921"
+      "nonMnemonicSha256": "606c397aaa4b604effd51b8669284120637dd6421e632eaf958f1c0416da0628"
     },
     {
       "id": "daily-geemu",
@@ -1002,7 +1002,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ddd3ab5387984aa8deefcb405535bc437959f172073cea1ca1aa30bc19c68a74"
+      "nonMnemonicSha256": "c408bfa24fef72838d606a2ca9d12c268f700f9336510d3a4d5b204395c781dc"
     },
     {
       "id": "daily-chiketto",
@@ -1021,7 +1021,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "6db2f4c936eedcca7b79eb6005bbf92e3e4b9038962bde70730c6093749f0f32"
+      "nonMnemonicSha256": "1cee0c8c8962f162510b870c4fa39a8f40820276035c3927dbef5174334990a3"
     },
     {
       "id": "daily-suupaa",
@@ -1043,7 +1043,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "efaf2e5cd5b76795cc1774f019bb83b8f5e23b9ec677552fe0866fb92f62f05d"
+      "nonMnemonicSha256": "859f0ddafdfa2f7d166afe960b4ae0065d845ec5ea2321a389ec42fff7a0698a"
     },
     {
       "id": "daily-reji",
@@ -1063,7 +1063,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "bde5644064b8756afecb17c95f32d5b8e08beaa18bd26716be935b420220cd59"
+      "nonMnemonicSha256": "f2c1ec6c480f368ad09b337112636d0201fcdfac21d7e0926f9d1c5504448335"
     },
     {
       "id": "daily-toire",
@@ -1083,7 +1083,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "b1abbfa517912bc9de31d4037eedbcdab982819482ea46633dd0de1a6ac85b18"
+      "nonMnemonicSha256": "53f916882a31cc4f3dc9b5ab50de09f6985882207fbb37bb5a07ea21a4ebe054"
     },
     {
       "id": "daily-basu",
@@ -1103,7 +1103,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "76f60ddb44a9ccf46df619f36b78b581aeb39d56c155696a70273bac8998a305",
+      "nonMnemonicSha256": "8b3e3fcc6082ee2707618892c1b4f74281a99ace9d73abec38a011e6b8e57dd0",
       "candidateEntSeqs": [
         1098390,
         2845312,
@@ -1130,7 +1130,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "89b35fca56eebb6fd8f1f411350d7657ae640b7fff2e52f5bac45ab44b77080a",
+      "nonMnemonicSha256": "ec82e25747f72c9b901bf3d47ba4ef9fcbab02f3cdc0fff6b3952dca11a3e852",
       "candidateEntSeqs": [
         1019420,
         2855080
@@ -1225,7 +1225,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ac34e465882395f513d92f01648bc9327f339162e8280c786948f3514c6048bc"
+      "nonMnemonicSha256": "5f9b41a8d96e7fba6024dce66d577373d67c5172fc2a081e7b87e4c0627b773e"
     },
     {
       "id": "cafe-koora",
@@ -1344,7 +1344,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b294394acb23baaba84f9cac5d818f16a9071f6cf3e67296e6188be6029eef88"
+      "nonMnemonicSha256": "f8e93ab6668b21f90b1b62623ce3eef82a833ee86e83bbc5c0546ad06d5dcc44"
     },
     {
       "id": "cafe-jamu",
@@ -1662,7 +1662,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c46e1df2b8948d76ae2e0f8ea4ca1826284c61fec464d4b97b275de079851011"
+      "nonMnemonicSha256": "a21629888cebfcded6936d9a2e636c5d34ae43236d6815e3c640e66672e0f6d4"
     },
     {
       "id": "signals-a",
@@ -1701,7 +1701,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "150bdb49557b7020aecf40fc33b64ad48edca76ad4599da5bed25095755fc06e"
+      "nonMnemonicSha256": "6c344920f874fa888588f556d4658838461439d0e49e7db2792314acc709681b"
     },
     {
       "id": "signals-ee",
@@ -1746,7 +1746,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "a3d078e2195762e1e1dc769cc8b6cac9d459034a379e720835020babc5c2e5c2"
+      "nonMnemonicSha256": "40f1ead5ce06d17320106dcb075a041b6583ed33f986de0099e3526b8d9662e8"
     },
     {
       "id": "signals-uwa",
@@ -1810,7 +1810,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "1e5b3c984f34969dfd966a1cf23574d5b9ea3fe3d5fe1d07050776c95180a145"
+      "nonMnemonicSha256": "0039d843add1e584c7d47f2b5e31eef5c63a51df85524f80082a7f3d44632c0b"
     },
     {
       "id": "signals-iyoiyo",
@@ -1831,7 +1831,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "636ddb87e32d507c415e73c023b9e456844528a2dd2317c455e046a9cdaf1561"
+      "nonMnemonicSha256": "1667d66e672d8544a82da73510af887004eaa9d65f7b6f7d735a37073a07c77f"
     },
     {
       "id": "signals-toutou",
@@ -1902,7 +1902,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "4e2e6654a0e22c36bbbf30b68e35df11398c2c1c3d20493aace443c9b61665b8"
+      "nonMnemonicSha256": "7926bfd034e9a6d4f79ca29b5c033fbba94361866c8ad01b0ed1c6d05f1e58ba"
     },
     {
       "id": "manner-sappari",
@@ -1949,7 +1949,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "c1e7c779f102a13cc5f6e7b5dfe7fa43ace4c401075d5b31264a1e297cc0e103"
+      "nonMnemonicSha256": "9317f044b6a2f43b9c9100add5435573d3dbe6c6ee5703dade6142ff78ef4f00"
     },
     {
       "id": "manner-kichinto",
@@ -2030,7 +2030,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7357898d9675f4152e4f3450e871dd3cc29479444f904adc9a040455d5bda162"
+      "nonMnemonicSha256": "958926933bf1559cfac33a0a9d67b8858de67bfbe6b9b6014ba54fae422db435"
     },
     {
       "id": "manner-ikinari",
@@ -2559,7 +2559,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "8f530012c77bea6b37b9f0ac246018accc06b3eeb21fb2303324b0c3d198e72c"
+      "nonMnemonicSha256": "2a1414e16cac44156a6b56ee8332c928d39a31c8adffbf5c33b0e883ade76434"
     },
     {
       "id": "clothes-nekutai",
@@ -2599,7 +2599,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "a1678ca8289072ad9ad50bcd502294b9941a919b1ba8895757b65666ebd62e4f"
+      "nonMnemonicSha256": "55cbeaa8d31e5459e459e0b6ff501193c1ce6f230755348b8500b9ea61cf23bd"
     },
     {
       "id": "clothes-poketto",
@@ -2662,7 +2662,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "bb1966efb8f1adf8dc7b0e010e4423f5b3634a434d238c261c39eca752dc82df"
+      "nonMnemonicSha256": "c99b5c8ba738b651ab1a4e10a8a7f28ee57c86f4415f921d987ccc3f9bbc9a10"
     },
     {
       "id": "travel-torakku",
@@ -2725,7 +2725,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c003c88b6c68733490a7019a0b52f328546187f5cdf2761295d62a281ea84f77"
+      "nonMnemonicSha256": "3012c3c370225db09ca6366eab6936f16e8cb548a1e5bdf50a153eb34eee941e"
     },
     {
       "id": "travel-robii",
@@ -2865,7 +2865,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "5284935837a7bb0c6301123579459645a239b7d06c8fe4af6fc75ee8ce67bfa2"
+      "nonMnemonicSha256": "cb3210ad39e3ecec9d4977fffa8c1554b0c54ad63bfdd7e61c485ca12bbbfe8d"
     },
     {
       "id": "travel-gasorin",
@@ -2906,7 +2906,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "2fefd058f6b1f5f259e9663710514a53c57a6e58319a7297a0e2669d08e0136c"
+      "nonMnemonicSha256": "e22e54a92d966451312eb93a3f325a1918190cf694518506d8d058700c8ee430"
     },
     {
       "id": "digital-nootopasokon",
@@ -3049,7 +3049,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "557c32b724047aa89268ce539801856fcbd64f6affe74e191f1e2923ddae049d"
+      "nonMnemonicSha256": "5894b3783f0c16012fd133b9f2c7868432dba4db5798dbb70da1b4e56e2d763f"
     },
     {
       "id": "digital-pasuwaado",
@@ -3068,7 +3068,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d0cbb560227c88b95f399d30ad0043589111554fe72c575b1efe8d5fd09bd3c9"
+      "nonMnemonicSha256": "fbd36810e73856c3edd498f7112a996d7d1f87f46536284b032309827b19c768"
     },
     {
       "id": "digital-akaunto",
@@ -3164,7 +3164,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "1330faf9dac4f354b0165a5f6211693d10f0bea9a1e2de946555291a4c014e42"
+      "nonMnemonicSha256": "be23fd1aa5c0303d73bc8e35c676ed9ecd3db1c04d1261e844ea4500cdbe1842"
     },
     {
       "id": "media-nyuusu",
@@ -3183,7 +3183,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e3da00b942d47abbcc3790ad62405492f8179fdb97e49d744a8cd90868411ba9"
+      "nonMnemonicSha256": "31d0c288c6524f33404858818adc79e05f141c3e87e418fa3eff8e3e9c2eb90f"
     },
     {
       "id": "media-rajio",
@@ -3278,7 +3278,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b6f18ad9a2381b905a2c02e505f2dba5d390021863aab7d63b0cfa4e3356dd6b"
+      "nonMnemonicSha256": "d01576d7f41336d9d831cdc60ab42b03f4a22667ead241464bfc0261ad838e16"
     },
     {
       "id": "media-piano",
@@ -3342,7 +3342,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "645d59cdd3c8df63df9fe80c40a9d08ef86493ade67259a3928b3c33001e7551"
+      "nonMnemonicSha256": "0d7dbfeec14aa0db7db72f65126eee914136d9aac9937cae23dc1c31072a42b1"
     },
     {
       "id": "shopping-seeru",
@@ -3361,7 +3361,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "fa7b82fb1b834244c823b43809d430776a28ad2bb1853e83b390e4b00aaa0a4a"
+      "nonMnemonicSha256": "9f50b0e26f9b817a33d6b25537d897c12a1a2a041d29dca2279030b2f66c61a0"
     },
     {
       "id": "shopping-baagen",
@@ -3469,7 +3469,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2526938645ae2a98887da5ba8e275e79819b72943651e312f31876a4be48229e"
+      "nonMnemonicSha256": "686d9e21cbee578fec79b143d453954242a9d3375dfb6b95f894c8c6ce232ed1"
     },
     {
       "id": "shopping-sutaffu",
@@ -3588,7 +3588,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "0a6173cc9d69005435087e7f4faa4c30d4be7789679ccf355d3fb1acb3eff1d3"
+      "nonMnemonicSha256": "daaa5728f76622ea9ca8ac002db65e6471f04be63dc32d65fc12c0c87e106279"
     },
     {
       "id": "kana-expansion-tonikaku",
@@ -3609,7 +3609,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "f8f726c0cdc65e41cd621aab47f61a6e806f5396daf6f020c8ab9b474a03e687"
+      "nonMnemonicSha256": "26a3b12f5cfbdc9c67d610642c541f801e1da2924689b101c95c56381d969f84"
     },
     {
       "id": "kana-expansion-tashika",
@@ -3630,7 +3630,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "bbb4ac8b76a7868d12e00e05b0d45d105985c032ae88f2bec822be1592aadc16"
+      "nonMnemonicSha256": "fc59433510fdf8ba91fc6b8e09260b387d83ec9d65f453ef34c450ebe5e3e987"
     },
     {
       "id": "kana-expansion-semete",
@@ -3649,7 +3649,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "45b02aeedd6a0e37542f5f1636dd3332601368789028782a72e729f12bb59707",
+      "nonMnemonicSha256": "a20cb7d29b683c81ee022fdf7c928da515709f02ddcdb62131d34a5955fc0383",
       "candidateEntSeqs": [
         1006570,
         1675160
@@ -3674,7 +3674,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "db71d511a613cca474c0094bd0db72692e45be0fb51a9848b93e60862f98652e"
+      "nonMnemonicSha256": "cdb669851ecd222dc908ebec25cf7aa50096f85e8e3e56d0ab1062fe6ef2a40e"
     },
     {
       "id": "kana-expansion-douse",
@@ -3694,7 +3694,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "b6c9bd04a60169db5c8ea3c37ad57905740a6b79606a18855c3f8ad755a95e8f"
+      "nonMnemonicSha256": "90e0e55f5cb422622d15e816058135057d5ed1664c09bb30bbdd144268d3af3a"
     },
     {
       "id": "kana-expansion-nanishiro",
@@ -3714,7 +3714,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "3a67c43000f37dd1a34df9ea0c45fd59ea8621811aca473c72ed5eef0c6678b9"
+      "nonMnemonicSha256": "e18bd17181118576c1c5067d25524e80c751a8eacc69379d56b3950b3bc914a7"
     },
     {
       "id": "kana-expansion-moshikashite",
@@ -3734,7 +3734,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "3afb24b5a21067807e6c409e29935f75fe41b8ffc22e628a9415218db2434406"
+      "nonMnemonicSha256": "a20654c6ed377946139d1b74c09f8f69b61a4fc89948a97c47bf7f3aefb3dc16"
     },
     {
       "id": "kana-expansion-douyara",
@@ -3754,7 +3754,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "eb5b66649a2108cef6477340b8581c30ab8062cf109bc0d4ba39099ad4dd0434"
+      "nonMnemonicSha256": "110b527fb4f93e4b9cd60ae6a1ec9deb29690acbdb4348ac5f970b6930e4de70"
     },
     {
       "id": "kana-expansion-hobo",
@@ -3774,7 +3774,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "4d4c5e313f72dfdcd044b232168806055cd31a38f13e2e52e35c5048f1a2ff04",
+      "nonMnemonicSha256": "c3ad7f2982651372511e0f4d8023be6cf1c63260135f1b4d1f566e4d3fadbfbd",
       "candidateEntSeqs": [
         1551940,
         1603540
@@ -3798,7 +3798,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7beccc0478ece957197eda066811280421a5ba6a6f3e06bd6917788bc95abd43"
+      "nonMnemonicSha256": "4a7d40b1b47eae86f9c966a6f5fea582258aa0ce1da5ec3f351ad59f6509cb55"
     },
     {
       "id": "kana-expansion-nikoniko",
@@ -3817,7 +3817,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b2cb25619c7daa47246e98fc3705299617708e68af954ea55b98fd0dbfc96265"
+      "nonMnemonicSha256": "b76101fb88adb1b175abe6a4bab587a5b7d2aafc068ae45ef83f5ca6c7b8b8bd"
     },
     {
       "id": "kana-expansion-iraira",
@@ -3836,7 +3836,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "15f79615ba309262b92fee5ee44790e6f3641aa821d6765b58e0cc6a3ba3cf3f"
+      "nonMnemonicSha256": "d56d7896f8ccd0e506c17d14930b4b2b69ba3cfbc18b5c81cd59119bb125a5f4"
     },
     {
       "id": "kana-expansion-ukiuki",
@@ -3855,7 +3855,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "70ca619b9911457c2b6e1f5bf5cfb206c4a674728ab657ee43bd40ff77d5c120"
+      "nonMnemonicSha256": "6f6a6f63b109734bd00d49bb5681e323adc349da55729f205e42af7e45a70ac2"
     },
     {
       "id": "kana-expansion-gakkari",
@@ -3875,7 +3875,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "fea50590de03320f4a93fb5fd06fc07ae319d2f51744d0ddbf317f525a34cbee"
+      "nonMnemonicSha256": "18e617232e0aa58b61e1a43e888a2d4d89c3ca626220c4d383c2251dfbc22994"
     },
     {
       "id": "kana-expansion-bikkuri",
@@ -3895,7 +3895,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a9fa3388f8bafd7b37278eb87204ce74506192a9428d4ac6964b352edeb90cea"
+      "nonMnemonicSha256": "bf66f347f49e451a012f355ac1b45d835a9839cebbd6d7dcc115a999828f0d13"
     },
     {
       "id": "kana-expansion-kusukusu",
@@ -3914,7 +3914,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7bfc2dc9bfa1def4ab00313c7c6b77ab9fad137f8e1c386f09b211a3f6a8bfa0"
+      "nonMnemonicSha256": "e3cfa98189d174c54adc5a9b84a14357ff81f21d6d5376cea0136713b75f689f"
     },
     {
       "id": "kana-expansion-hotto",
@@ -3934,7 +3934,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "6758819a8bdecf2ee1668571dbdf5eb278f9a7f719377d6e757ec8fbd8046710"
+      "nonMnemonicSha256": "bb13d38ad8412582ff7455902b0529e4ac1a3dff063086aaa713a5c07cda760d"
     },
     {
       "id": "kana-expansion-odoodo",
@@ -3953,7 +3953,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8a328b7888d3057d2b0409abecacffaafd7e116141c943a2732e58ee94e32588"
+      "nonMnemonicSha256": "b1074b44fccfae640b3dab0e73be8c4fb7095fcdab499d70584e9ed50c3fcc06"
     },
     {
       "id": "kana-expansion-harahara",
@@ -3974,7 +3974,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "dfcacd09f257e3d3ebe6b6fde096e96562a7c2da589ba0b65dcf6fe7d11a0972"
+      "nonMnemonicSha256": "7d842d35df7c556b051f82c2b84441aa2d95cc1d30d0ba904b2cbfe717732e2e"
     },
     {
       "id": "kana-expansion-nonbiri",
@@ -3994,7 +3994,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "65605fec671a5a8b51e29f3e816ab38c4bddeede1985fa9e48271b89e9663746"
+      "nonMnemonicSha256": "fb9892b88d2ccf425575eb3dc9f649ee3e4d868bf7cd9b7fdc7f575c951dc2fa"
     },
     {
       "id": "kana-expansion-burabura",
@@ -4015,7 +4015,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "2f98c168986ebaff19b01e6f422d88d8239bf8a847c8032b54d31ed582de81ab"
+      "nonMnemonicSha256": "e163532b702b8280d691fc79f534737e51e4027b6868414f587562dfdb594a43"
     },
     {
       "id": "kana-expansion-kotsukotsu",
@@ -4035,7 +4035,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "5a200ec1098075e8e9b7dc400be965bdd63387f6315759f69fcf2bb49151cc0c"
+      "nonMnemonicSha256": "42aee271e00c04dd07b29d7c4ed95db00ae7ed901b848c8714bc1821c74f4a8d"
     },
     {
       "id": "kana-expansion-gungun",
@@ -4054,7 +4054,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "db5436499f204233e51d5e206a21a4c91748a731902f20a43146f43b5ff21433"
+      "nonMnemonicSha256": "b4e7a3e4936edd7557a762926ccf860f0e4791b43d56fff2a13f48768a1a7cad"
     },
     {
       "id": "kana-expansion-sotto",
@@ -4075,7 +4075,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "f9630f6b1397e5b6bf7c09cb94a666a0f000bd46993de5f9dcdb87f20af4ffcf",
+      "nonMnemonicSha256": "84ad624a09a9b112754a4646606bbd3efb4e6c15bc0438cdd6705658b06cff3b",
       "candidateEntSeqs": [
         1006810,
         1551230
@@ -4102,7 +4102,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "a2cdbb31768946210a18374773cfe4b679a1fb36b951187b5440d307d9109093"
+      "nonMnemonicSha256": "24abdb5059598c8edfa15b5df80c4f52da71315a3ea8d82335666faae8f8db11"
     },
     {
       "id": "kana-expansion-furafura",
@@ -4123,7 +4123,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "cc2723a0d2e727c94c0a868d049290ccba887c9b5ae5dc8ce64c7877ea4071f5"
+      "nonMnemonicSha256": "970e4e1b2a08b11b93ccd9d7f9153f9b8a39e006989de9365ccd2edfaa9f126f"
     },
     {
       "id": "kana-expansion-guruguru",
@@ -4143,7 +4143,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "39d6c3b5381840cd1c5e4e286235aef9f0f3ebec328d7891d3f5a8ada8856bcf"
+      "nonMnemonicSha256": "a095dedf4269a1cdfbc4a78a4e9d94a245ab7f1e7b6e96b56afa4da2531e433a"
     },
     {
       "id": "kana-expansion-pekopeko",
@@ -4164,7 +4164,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "ffc0c7a0f9cc25a0ece2edea7d2ba0e74ebd302d96d2931921e34186e731ef8c"
+      "nonMnemonicSha256": "e5d93164f2b218f0cb1b04e00c9538336678c294d8a9fe91864130e3aa2e8e50"
     },
     {
       "id": "kana-expansion-girigiri",
@@ -4183,7 +4183,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "545b27d71e621108848e5698e3adca9ee3d65f27fc4a5778ce00ef125520b7e3",
+      "nonMnemonicSha256": "58e077ca06704f5082a0b8ead5224df9b6bacfdeace53863a65ac7be0c9ae789",
       "candidateEntSeqs": [
         1003660,
         2832861
@@ -4207,7 +4207,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "0b97614a9a2fbdd1c0e341750c97acd32526aee01d07af069fb187e08bec5ee2"
+      "nonMnemonicSha256": "0d4ffa627a38f6ef66253e0fd2edd5cfb76836d0f9a7bdb9b14ef9128fdebe94"
     },
     {
       "id": "kana-expansion-sakusaku",
@@ -4230,7 +4230,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "b52b6cbd83be50870fb3a56750534bbe26d0aaa7a7e789768d8b2fac1093896f",
+      "nonMnemonicSha256": "cb082356ac5e5fcd8658d5d52c7b892515ce199e12f8bfa84aa309d8035550e3",
       "candidateEntSeqs": [
         1005130,
         2845776
@@ -4257,7 +4257,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "2b04aa4fd89333b00b763de5be15a3ddec11a6204329692ed48bbd3bd1578eca"
+      "nonMnemonicSha256": "1af98dfa979052e785eda4341aafbb2120766ef91d41b1f47181406a7a8b860f"
     },
     {
       "id": "kana-expansion-karikari",
@@ -4279,7 +4279,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "c2ced968434595286cfc8c1a039473e92b128cc261a375a645d9ffadfbc97401"
+      "nonMnemonicSha256": "05722e065f80d5520c3f2be415f37a807d366d72ed763cdb71380eccd7968836"
     },
     {
       "id": "kana-expansion-tsurutsuru",
@@ -4300,7 +4300,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "8a0b8ed4c6ff5625877afb73108531d15a3e5a6a1daed277f87e45607d431072"
+      "nonMnemonicSha256": "d30d82984fede1e27faa2cf9848779ed363bc8530732759d895329e330904e69"
     },
     {
       "id": "kana-expansion-sarasara",
@@ -4323,7 +4323,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "f9bc45bacacdb32d7c395146619e61bb1b1f33dd8db32f6d82a3eeb2a6fd26e1",
+      "nonMnemonicSha256": "39f8fe58c668f42d8fe9cdb41b14099712e1a8b9914401e7f5a28195a5a82143",
       "candidateEntSeqs": [
         1005310,
         1593880
@@ -4351,7 +4351,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "81f20a39cd39e9cde8af3314fbb8c26be498981e0e90db7c2ad10f12f6bb734d"
+      "nonMnemonicSha256": "976c4707eebb0a311c48f7d76ffd72fb17be880f023e040df8e97a5299fda841"
     },
     {
       "id": "kana-expansion-zarazara",
@@ -4371,7 +4371,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "89b35b03292b6d4fd2a2a0dc9d8042ce8efb48954fcaade6dbcdde7b8ff35c0c"
+      "nonMnemonicSha256": "34e82c1463f0fb9aaa2880dcf91a673c58ec49b189247f2ff42a6fc64ae5fc77"
     },
     {
       "id": "kana-expansion-shakishaki",
@@ -4390,7 +4390,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b4db3fe3be0c51789a6af167880736b6baf9608f940b83e35cd52d39e465a767"
+      "nonMnemonicSha256": "1fa4b37483749fa59e4a25d0aa4941f3038ef7a81b7aa6a7981cbea00a8e0247"
     },
     {
       "id": "kana-expansion-torotoro",
@@ -4412,7 +4412,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "d2b1311f793adc651f49b0cdf7ca21fc9aaba598029f27c648503fb21521fb52"
+      "nonMnemonicSha256": "9a807eb792d7f92062ad38743f2402087e89c41685ebbb8d5542a727031cb0a0"
     },
     {
       "id": "kana-expansion-pokapoka",
@@ -4432,7 +4432,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "f6417e04c4dbb6b9b29527035a0566b7484d2cc8bde118dda4c4ae6ab8be770c"
+      "nonMnemonicSha256": "26a2224f3b1a8d0ea1d1260c9d04ee8d54412a4b73d3dfcbdab9a447fd4ca308"
     },
     {
       "id": "kana-expansion-jimejime",
@@ -4452,7 +4452,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "9db93233e4e2b210ef3ab7d1f20bed6d8083f9f79e4d990f28a96721375521d8"
+      "nonMnemonicSha256": "4fbc24a1f64e0e6825a6e2ff9d64a2cac5e923ae4df02113b03028ee41b4a82e"
     },
     {
       "id": "kana-expansion-mushimushi",
@@ -4471,7 +4471,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "cf49403bb6777bbf05e0a5e0efa4ef91883932e0d7759a6951cc02ccdb440f51"
+      "nonMnemonicSha256": "eb1e399b42dfec5f1577228302fe190a89fd0bf19c148955462e23314efca586"
     },
     {
       "id": "kana-expansion-hinyari",
@@ -4490,7 +4490,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f47e27d73e8fb3e1d057102286e10104ee0453ad037a128bfaa70ecbe46b2407"
+      "nonMnemonicSha256": "539611cfbf6b29de0a80bb923adfabcc2160604bfccff62ce86bcb3e82ec3f9b"
     },
     {
       "id": "kana-expansion-donyori",
@@ -4510,7 +4510,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "c743cc3f2899c5d2c665ff0834874674494ea6df14272a3b3beefeb5f9d19175"
+      "nonMnemonicSha256": "b877116eacc87231e6da54b327c9fdef92b6ea495622ecc76cadfb0ba9294990"
     },
     {
       "id": "kana-expansion-zaazaa",
@@ -4530,7 +4530,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "31b550b78872c6927cddd54bbb82ee72900da4e37c77be7c42b59cb30914ef62"
+      "nonMnemonicSha256": "a0d6a5add15cbfa4284b285842de00c1dfc35dc7bd46b060ec48cce309f39e2e"
     },
     {
       "id": "kana-expansion-shitoshito",
@@ -4550,7 +4550,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "5a4504137554af4f255e8e373f0d88043a1c3f5eb9907272a3996af7b1a0f877"
+      "nonMnemonicSha256": "1ccece75411cf6c8d99bfd26b742ac0fc88174d7a9ac1862f6b8c5e4c07bb2a4"
     },
     {
       "id": "kana-expansion-bishobisho",
@@ -4570,7 +4570,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "0f28825dd17ff1dc58d4c32d84a9e880be50598de3ed9e69161d90788b0f0ac5"
+      "nonMnemonicSha256": "59b869d177f1e562dfcdeab4be976217350ead8ee0302d355a24d742f20d69e1"
     },
     {
       "id": "kana-expansion-soyosoyo",
@@ -4589,7 +4589,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "87a553113e2c296e00dab852c13adee7fbbed255e694639e54dce32a7bc1c569"
+      "nonMnemonicSha256": "476a1ed94c438bac3d5412f40c8d9936d89408bb145ea5944f7af9056dcc9691"
     },
     {
       "id": "kana-expansion-karatto",
@@ -4610,7 +4610,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "cbfadce74b7085b92dab26a7ab06f017db04266d1bd17904c4e8e857e98c29a1"
+      "nonMnemonicSha256": "3d507162d4cb2d931ae6b32ef5742b29a02ea612e866b3bc691f8a34c3eafc6a"
     },
     {
       "id": "kana-expansion-kushami",
@@ -4629,7 +4629,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f958fb8a81c949b1bd286065ecd0245d14abdd2ef010104cabd17d95c0655f17"
+      "nonMnemonicSha256": "bd6ac38b46ff5a0bacd27ad2df8fba8c9515b61871be5df1a93d5b287fe7a358"
     },
     {
       "id": "kana-expansion-shakkuri",
@@ -4648,7 +4648,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "969865445c8a3899c87dfde005e2bc46e4a11eabd2168acc6d8f966565289599"
+      "nonMnemonicSha256": "d6fca16c313f862a85ca2784dba07dd01ddae384c76782917da46863ed8ece37"
     },
     {
       "id": "kana-expansion-memai",
@@ -4667,7 +4667,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "124c19f0cb1a9bbe5ff33510f3ebc9e130e9d3aa8ee4941d18d29b78f5d19293"
+      "nonMnemonicSha256": "4871448c36e3b42cd30d041ca9c7e20ef9852ce94f85a26ac76bc1d5509609cd"
     },
     {
       "id": "kana-expansion-mukumi",
@@ -4686,7 +4686,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "22a12cb4d8407178f7fbceede025fb4127b164daf60255bc8ada603584f60e1d"
+      "nonMnemonicSha256": "96e2260b54695823b1eafd01f820f48bc8d287b46ce3bd881b92ebf6f22983f5"
     },
     {
       "id": "kana-expansion-shibire",
@@ -4705,7 +4705,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "df7d259fe1c1910fdaf6f66508703cbe9fd1c3d2b1722f761c2c29bcf3a42f03"
+      "nonMnemonicSha256": "9abfae575aaf71d9b5d7d1a5068b4286ba59131a837a0155a2c5ddcef402de37"
     },
     {
       "id": "kana-expansion-hokuro",
@@ -4724,7 +4724,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d546e245bd4e52061e4a8cdede3bf377f6ef69a890ee49d3e5dae38937215cec"
+      "nonMnemonicSha256": "56e8714d5791e643b2b61156cee1df72d490ab0ba14cf2ee190481933d0e7f94"
     },
     {
       "id": "kana-expansion-nikibi",
@@ -4743,7 +4743,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c0e1c6f8ec9eaf4189edf5fc95f8534368e40cf1fd29a6c4b3cc4ad71a3f3de2"
+      "nonMnemonicSha256": "3ba6d847f75ce2aa3baac05e83e24cb14209b15faeb5406159c2e601e27e4741"
     },
     {
       "id": "kana-expansion-hiji",
@@ -4762,7 +4762,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c5e775a4716d5f5d0b344837a8d81a3c319b6c51601f298a05cddb054057b4fd",
+      "nonMnemonicSha256": "010b9a9ad0b10619e5bd8b206e3fdade7c935bd3716cc3d1ba129e0457bc48a9",
       "candidateEntSeqs": [
         1487380,
         1731290,
@@ -4790,7 +4790,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "4afe7bfaec589518dcf41c72e2c0ef54b918261aeea2799c06e746cb4ce2fa8f"
+      "nonMnemonicSha256": "3be3b47eea7fc22bd754735ef85022896527447d87606ffea68bff10d03c0c12"
     },
     {
       "id": "kana-expansion-mabuta",
@@ -4809,7 +4809,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8402e73997830c6794dacef4f0dc86b43adb88fb6864c435d2b1b75b5844524c"
+      "nonMnemonicSha256": "7d18dc5ddf6816301add5042931457bd92c44eaf419e178eb248cd7bb23c34bd"
     },
     {
       "id": "kana-expansion-ofisu",
@@ -4828,7 +4828,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "4d09bececaa3b6226bc88f3d84b3426eaca5f6348d0cf6cbc2b3c349f125a0cd"
+      "nonMnemonicSha256": "707c50d4e3432564082224fb7ec1a5dae6d2c6d805b29dfe4c6809cfeb9c8369"
     },
     {
       "id": "kana-expansion-miitingu",
@@ -4847,7 +4847,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c29c478b63f983e3941ae302844fc5accc934585cf62771af09e5b932286a5d2"
+      "nonMnemonicSha256": "22d4c70a0ec68ef09e67b6e9cd94a2b850702898860e8ef3132e05f5e830b759"
     },
     {
       "id": "kana-expansion-sukejuuru",
@@ -4866,7 +4866,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9c6179714386506aa8b2150fe328a4a26396f240a933990a3dbfb4e235a63dff"
+      "nonMnemonicSha256": "61e5b581376d63d6f56efd2eeb98d90f9b5561be257496eb8c2d7ec4e20a9e8a"
     },
     {
       "id": "kana-expansion-purojekuto",
@@ -4885,7 +4885,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "4694819f1dd2782a3a85adeda4c5deb2a5b2501d878d86549ddb34574d15f40b"
+      "nonMnemonicSha256": "5abad2905aa5418d453eb48c8ce27562cb9c744b90995a4cd23cae19dd792be7"
     },
     {
       "id": "kana-expansion-chiimu",
@@ -4904,7 +4904,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "82180ca6a438abb29bd35598358c09f51a3ab66083e03ded62171adec74c485e"
+      "nonMnemonicSha256": "cf4ded9d7ac895d72059f1478b9a352e851970a1ca4dc04766e8ae4200c66488"
     },
     {
       "id": "kana-expansion-pen",
@@ -4923,7 +4923,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e889d0f8c066a6a5fb572f1fc53c184748687f9cea24c388459e2ebe84aa29e1",
+      "nonMnemonicSha256": "84e9370484bb209d3e09c6d85efc47edcd4cdfca0eb7196489c5b8b0c6bd7459",
       "candidateEntSeqs": [
         1121380,
         5000059
@@ -4949,7 +4949,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "a3a982de2f6e2f1f7ac03fc9dd763c5cbe7f3be45cd5aa309413864c20e4b717"
+      "nonMnemonicSha256": "14b48c018f478c5ef0339a30c1b69cc0aae63657c1c5ac380c320d4b11132ec6"
     },
     {
       "id": "kana-expansion-repooto",
@@ -4969,7 +4969,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "f9f145cd46b62e65f40f7aefe18bec4c76899a0bd9f5f1b99e8fd8ddfa69f38c"
+      "nonMnemonicSha256": "c2ec3112bd30f2ff2aa0cb3548c92bd6540a1fc8c890bee7e5ea351d88907e64"
     },
     {
       "id": "kana-expansion-kopii",
@@ -4990,7 +4990,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "d563da15f9e30e63665f3b3633034e8f81ce050867bb79386eefdabebd52ee85"
+      "nonMnemonicSha256": "3d98f036ab2b12e239a25c85ec2a19fdaa4e5118ec9f0ac6a0649021ee6ccf5a"
     },
     {
       "id": "kana-expansion-memo",
@@ -5009,7 +5009,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "1767a5567f3426d663ad8b3679a8868802a2510e06ad364bbbacfcd5b6b5ed79"
+      "nonMnemonicSha256": "d3a811821a3021c05323cb1852c15f51cac329a7eeba9ba0f3c31ac8c8336846"
     },
     {
       "id": "kana-expansion-airon",
@@ -5029,7 +5029,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a001e21be4559b490270d9141a7a53a26bdeab00391b0b896e56f24d9e9ebaf9"
+      "nonMnemonicSha256": "c4f90959542c6370ca95251497d1382905f8ab449f7ab02e894d7bd31b1961b4"
     },
     {
       "id": "kana-expansion-hangaa",
@@ -5048,7 +5048,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "bb84613e512a62697a270e8a0d911d8a2cdccb899a4e9f42ca6466090efa3dbf",
+      "nonMnemonicSha256": "85281cb3987e687945c395e3e0828aadee47a712ca84211d83d0144fd59c44ff",
       "candidateEntSeqs": [
         1096430,
         2861509,
@@ -5073,7 +5073,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f219b2424ac81e9b7ee94a7d9d16b754fb0bd783ec1020f6f4c46f0a9cce3343"
+      "nonMnemonicSha256": "7c54bb8a83a3eee8166ed43b69a9f4531ed5bdf6296a1bcfb5619e88391ef439"
     },
     {
       "id": "kana-expansion-doraiyaa",
@@ -5092,7 +5092,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "aa3806a107dc2e761b8d1a0d94846a42f723f02adcd3fb1e3464645af4ffa562"
+      "nonMnemonicSha256": "f8b45fd2c6f0b5417ace7daa5a5c685e8ecf711160579ddeaf6906d66ea46b08"
     },
     {
       "id": "kana-expansion-burashi",
@@ -5111,7 +5111,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8a3926843c246559b14ab0fc88a103e366e0392054432f3a84fd8a215dfb011f",
+      "nonMnemonicSha256": "787add1417885f4a737413899abffa33ff5eaf652ddd3fbb705efca95ff80be2",
       "candidateEntSeqs": [
         1579310,
         1611450
@@ -5135,7 +5135,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a95c7b160283fc7f19a6432870cbac22c21a971c669be2ea97beee79f5232640"
+      "nonMnemonicSha256": "513ea39dd9cc45c64c00df59595db55f5eef4799342ff89bfbdb931d53d92973"
     },
     {
       "id": "kana-expansion-suponji",
@@ -5154,7 +5154,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7f2c97cff502eb07b50d7c84cd454438e1628e1e71b85f749e337f74a17a7797"
+      "nonMnemonicSha256": "86727f8e4f495758dd57c7bb6d68a2c55c47c0ccdbca92100ea543aafdcfb15d"
     },
     {
       "id": "kana-expansion-rappu",
@@ -5174,7 +5174,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "1789ff88328341f5b2d897484f47fbdf316a29fd6e2823dfd039987d3331bb8d",
+      "nonMnemonicSha256": "b7732c3ee69931308b84d6cac7389bce054e89e2d404cff67cfbe0ca7f85e8fa",
       "candidateEntSeqs": [
         1139250,
         2267180,
@@ -5200,7 +5200,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "cbabbc0304e54ea31d23b53fa138fdd0944a3bd04b7a07738f435f8aa514c373"
+      "nonMnemonicSha256": "e358da8023fa194ab2708230f487bf648322455d6a00af5a9a015735e3eb82f1"
     },
     {
       "id": "kana-expansion-moppu",
@@ -5219,7 +5219,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "5e09fff0bcacaec2e541768a3b53488bbcdb6c8f6e11765d4cb47c549006e041"
+      "nonMnemonicSha256": "0b6e65a3b5d7d327e599eda507786b28fa060f9d909e657e73994c1246cd514f"
     },
     {
       "id": "kana-expansion-hoomu",
@@ -5238,7 +5238,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7961838cc06617f90b33ea38a643b5611fb658dcbeeb9e6edb3d9f10bfeaace9",
+      "nonMnemonicSha256": "154f3d9d160c0a8538a0471a839058bade9290f7e41cd0e6640bebf5c7607129",
       "candidateEntSeqs": [
         1121740,
         2855797
@@ -5265,7 +5265,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "b7ae21b5b4cdccfc0f77a3794121cf74cd2ac8839bbb48620e1941610e5a8ade",
+      "nonMnemonicSha256": "e55b8ccd0d76c6a9afe770d50bf1abe1c5efdca21034bf2ae290fbc5faf2f152",
       "candidateEntSeqs": [
         1139180,
         2862100
@@ -5291,7 +5291,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "1bfe6ac44faf1db16538a0a09e09027dc3dc3d7c752cbd1c64200b7788bd53f9"
+      "nonMnemonicSha256": "3a5a54c3211deb1e57579cfa968ff391419937777ec0fa90f1d21b03ede4c4c6"
     },
     {
       "id": "kana-expansion-tsuaa",
@@ -5310,7 +5310,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "fd285caf6541afdbab938f583fdb759042f61bd9a823c3d57c0b21fe84cdda94"
+      "nonMnemonicSha256": "2b6fd53a738e3c15b42f72f41d85fa09f2f31ecb288f031665ddf0ff2a013759"
     },
     {
       "id": "kana-expansion-kyanpu",
@@ -5329,7 +5329,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "90e040da6a3f6af5cba0dc5206af5b06195733f20ddfeabd8bb89b91d4ebe737"
+      "nonMnemonicSha256": "4cadec0acda0268f9ceb463297c37e4f86a2734778e2984bc22443b79a3206d8"
     },
     {
       "id": "kana-expansion-rentaru",
@@ -5348,7 +5348,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "72225ce3de28589ae314ed1f108a2ca181c0bcb51225837094a5f5bd91b52d96"
+      "nonMnemonicSha256": "61fba76436b719a26f5d80aec5767c7996dfce6b1218e1d3e9797b5ebb9d55c6"
     },
     {
       "id": "kana-expansion-sentaa",
@@ -5368,7 +5368,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "f06e4f9693111f6b7dfd26979dd1806e57606a1add8df4b1e6663d83f72d007f"
+      "nonMnemonicSha256": "58c95e8992a05fef30a746ab23b5d8b4308fcaba5749c58cc9772422c157b804"
     },
     {
       "id": "kana-expansion-eria",
@@ -5387,7 +5387,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ab2ec117fd3f8976068dfdc324615b09fa1715154d07f5ccdb28f0d3d934595c"
+      "nonMnemonicSha256": "bad26b53253a581686ebbaf50b27054078b5e4b862c53c8bb2bb163a1eea2c09"
     },
     {
       "id": "kana-expansion-koinrokkaa",
@@ -5406,7 +5406,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2ef80ed2a46bc68267123989804dc6ebf35028bdb890e56607ab6d31992ec65b"
+      "nonMnemonicSha256": "d97f196f3ab88945a8c74c3cd3daf809b1518de3d3092f82044c4a4cd417a88f"
     },
     {
       "id": "kana-expansion-baiku",
@@ -5426,7 +5426,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "1d0e4e4dc694aabba93b5113c4c16194e2bacff8eb22cc14b0d09c9adaf88012"
+      "nonMnemonicSha256": "3ca19e87b7a3557b20d1d976c89c218c4a14e9eee70c723741facce5772fbfbd"
     },
     {
       "id": "kana-expansion-kappuru",
@@ -5445,7 +5445,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "64c26017d071bd6ec4a1fe86ffaa61c659789e9efd86eefac12d90c1dae94b3d"
+      "nonMnemonicSha256": "f2725379b6c9afa76d02eeb95181b2c43579d5d10f45a106df358ab38c1af78a"
     },
     {
       "id": "kana-expansion-fan",
@@ -5465,7 +5465,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "d9d770f7389b3d247fae76272a583fd513412ebfbd96139313ed2af40d17e2b6",
+      "nonMnemonicSha256": "1bdfe2d733c4bf0a1e6c21bc6e23e49fe2945354728032d2c6f1dcdc2ca62a0a",
       "candidateEntSeqs": [
         1108540,
         2833260,
@@ -5490,7 +5490,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "6ca1ac4abcb5467c22bec0b1328bf5bf67d73a3b7e3d273195851ee28790906a"
+      "nonMnemonicSha256": "3c207f55ad72fab3123ad6dce805a23d4a821405986aba019e4d9aadc5674966"
     },
     {
       "id": "kana-expansion-riidaa",
@@ -5510,7 +5510,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "406b8f6f92bf550ffc51f1d9871b23bac52adbbfa9eada4117b3eec109040e50",
+      "nonMnemonicSha256": "f2f34223742fd1ff7a92ddb8a1e91d2428be2db662d2afc44bff78ad0c399af3",
       "candidateEntSeqs": [
         1140590,
         2857529
@@ -5534,7 +5534,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8744fa61e474365434ceb00cb9ed61cc711edeb238b28107f650069e1d351fdf"
+      "nonMnemonicSha256": "6a95d4251b6b7c67dbba45a3a0b6a1061bca536fd5ac563f9f379d53f9497698"
     },
     {
       "id": "kana-expansion-aidoru",
@@ -5555,7 +5555,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "3dc774b73647c9c0b382ca0e354f6a8634dc97403a8af98aa4659298e148a6ba",
+      "nonMnemonicSha256": "50f7d867b130d456e30fb324a538d9da2279b9505c4c524f9f71fa6ffbf68ed4",
       "candidateEntSeqs": [
         1014340,
         2841342
@@ -5581,7 +5581,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "45bbcc59793070fb957d8fb947cc3ec5b37e94a91c5018719935a5d6f3a9ac61"
+      "nonMnemonicSha256": "3a351db5ff5e85ce5baceb8048ba504d4543d2045d427cfe10f88fd8bde15e6b"
     },
     {
       "id": "kana-expansion-kyarakutaa",
@@ -5602,7 +5602,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "ebeac589e230d4117a8c0ea013e394964db04ff6c85be79486ecde505202a9fe"
+      "nonMnemonicSha256": "aa5b028e1efa0a283373f62e8144172904afba1aa5165416af886e84a396834f"
     },
     {
       "id": "kana-expansion-hiiroo",
@@ -5621,7 +5621,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "640340a3513675715e194b3ea9b5ee3297b683128e7f5c4847236395322cb07c"
+      "nonMnemonicSha256": "03e2160374e6b57ba7a8bb25c729e278e93ab01adc0eaacf6a56942e96543382"
     },
     {
       "id": "kana-expansion-ibento",
@@ -5640,7 +5640,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "20c58f999c023bcb7bd6c15482f7881ec7f5ab0014bad490f1f0fe6c41da9226"
+      "nonMnemonicSha256": "af0171f5a6e79a801a94213767afecc640e883cad834fc24cf360995d3c32025"
     },
     {
       "id": "kana-expansion-masuku",
@@ -5661,7 +5661,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "374fcc38002ba71ea7642a6e94357a4656847bdcfbd0327e9977d663e28f243d"
+      "nonMnemonicSha256": "b2b6d19029a0fa67b0a1ce7e20f06577f3bb86a1b644ea5a250fe644925045b1"
     },
     {
       "id": "kana-expansion-kontakuto",
@@ -5681,7 +5681,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "208e9e2627b4dce923aa5ff44236cc994f3a2b7798409e8900823b4d163f047a"
+      "nonMnemonicSha256": "7e4413aaff62bb3aeefc01c32c547948c9334147efc57793015aff470bac2d84"
     },
     {
       "id": "kana-expansion-bitamin",
@@ -5700,7 +5700,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "85f553290f04166f0cf5ad0ed167e35fb007b6d96320375009d6da497acc3bfc"
+      "nonMnemonicSha256": "dfbb3ecb8fdb4df157aca2d7a6dce571671268ed7f7762c6adc789e0bdab093f"
     },
     {
       "id": "kana-expansion-jogingu",
@@ -5719,7 +5719,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "79a5e7700a27038c91c38f8e03d00af71300a6fb711f1107c176a5616adf0ebc"
+      "nonMnemonicSha256": "16a9247537a727201e97974032d282e2630b82550a386cb97073cfd673eacaf8"
     },
     {
       "id": "kana-expansion-haikingu",
@@ -5738,7 +5738,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d1a1f7450e0e4bb48e86610fec90cf9f5424f322e11ad018bdf50d607287b5b8"
+      "nonMnemonicSha256": "510facec57e998ab3337baaa415b91f84a0369bf284e45317a89b67507666740"
     },
     {
       "id": "kana-expansion-yoga",
@@ -5757,7 +5757,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "17ecff24f1c605b3d5b42faceaf1558cf70c7a52b786e4ff33757e3c81b4ba7a"
+      "nonMnemonicSha256": "b1e356efdf37d524da6a0735390938932d186044ef7317427451872e5640dbf0"
     },
     {
       "id": "kana-expansion-jimu",
@@ -5776,7 +5776,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "49ff367c34e12a8f552a466fc872bc4694c00de83aab92c4cd493787a6598d22"
+      "nonMnemonicSha256": "0ed0349af3b7a17148dff8c5b40f94a0a444985fe8456312cc2d7b48cb048d86"
     },
     {
       "id": "kana-expansion-puuru",
@@ -5798,7 +5798,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "944721bfa16c6f9ccf033f5d1636151d8345680e8d82ca6c331d9ca0e4435b5a"
+      "nonMnemonicSha256": "0058ed5dc33abd0c3e81c2b6c1907075d4b78166ee71587e90a2f05861588817"
     },
     {
       "id": "kana-expansion-sutorecchi",
@@ -5819,7 +5819,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "d1a485d7de7f7c3a3265c97417e99f0cc793bcc8e3874a93d3bd27af9635f6d4"
+      "nonMnemonicSha256": "39e2c829f5af79fd2484d387d8785fa3acd229b03498d3ac448134975f02b9bb"
     },
     {
       "id": "kana-expansion-toreeningu",
@@ -5839,7 +5839,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "8e9964e69c6ee80d867bd99b7ad1050eaf4751cfda9854b4d21a402e6a19cc14"
+      "nonMnemonicSha256": "9d82862a89e692d94ffc35e83ea2c4b53136a52a5831b1fd8a480aa6582078bc"
     },
     {
       "id": "kana-expansion-soosu",
@@ -5859,7 +5859,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "35d3bf4ce1e88679c6e83f7cb5dcbf1cbd994fcb2029ed8e26481533251428fa",
+      "nonMnemonicSha256": "34592a0984de3edcd671b800a2ed73246aafe37830ee2e0f1d453d655a086390",
       "candidateEntSeqs": [
         1075270,
         2843727
@@ -5883,7 +5883,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "392eb84dec5783c59867548925277cb64cb17c15bea51690087a3ce0c1a25e42"
+      "nonMnemonicSha256": "ec641fc7457cbcd86139eb567e3bd706b65e31cf3075d1d3ff2ad82a25c3dc5a"
     },
     {
       "id": "kana-expansion-reshipi",
@@ -5904,7 +5904,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "17556a85eac30c99651db07c3507f315321dbf61f7cb71c6613545a2bcbde552"
+      "nonMnemonicSha256": "e83c28bf03d9581b7087ba4425379448a68e51135d2ad22364ab371372b77d28"
     },
     {
       "id": "kana-expansion-furaipan",
@@ -5923,7 +5923,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "43f05a7b5adb544cc8436e8b8ba108efbb6efd554a5e827ec8485ad04e04fa33"
+      "nonMnemonicSha256": "5f272a106d07af452f054dae9b6bafe0de456fb5efd779a5cd30e4f9c3d7aeee"
     },
     {
       "id": "kana-expansion-oobun",
@@ -5942,7 +5942,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "605e13d1bfe7d8a1ac32dfd1fd474778450c5f83123f31af8f523091a238e558"
+      "nonMnemonicSha256": "6fc811933cfe5f5a7d133e0d2532e96ec91b3703bb0e23c720db18afd8cb4ed9"
     },
     {
       "id": "kana-expansion-renji",
@@ -5962,7 +5962,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a9e62e7ce01254bdaabd9cfff1299549e3effcf248f78b7963b842330d950ff6"
+      "nonMnemonicSha256": "4803e614f147a49d39e444e3a78d402eb5b7009bc6477af0f7d66b6fdff01ee9"
     },
     {
       "id": "kana-expansion-guriru",
@@ -5983,7 +5983,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "40042e3aadc84120eab0239cac8bad650d91a9465f1d8d4952316b967342b31c"
+      "nonMnemonicSha256": "5761d38e227d6b23906176084e16ae2f71c9e584c558320f6824f64e8b840ea7"
     },
     {
       "id": "kana-expansion-mikisaa",
@@ -6003,7 +6003,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "0379d28599ee0ce3d4514e028061b46c39a5adaf19d7d08b6c64f98bf4a3822f"
+      "nonMnemonicSha256": "ea9cccaba6f301718a11699fdab8f57de221d01ffbb58d97a672d8b72203dd4c"
     },
     {
       "id": "kana-expansion-wain",
@@ -6022,7 +6022,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9abc4489968e6f99286e98fb8f55ef96d72cd4b357e979a6ac0e53ac4abaae6b"
+      "nonMnemonicSha256": "a5212cbb35b40a0cce1663a620a9bf67725bd3af68afe5aaef3d8c67e0a1bba4"
     },
     {
       "id": "kana-expansion-taimaa",
@@ -6044,7 +6044,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "7d875b6bd57d7659295d0bded71f62efed334514575149dc89bc064c88639d9c"
+      "nonMnemonicSha256": "92b99f15c46b3ae8e5907209aeedd86c8786e9db57e1efd71ff2be7dca838585"
     },
     {
       "id": "kanji-01-10-hitokuchi",
@@ -6066,7 +6066,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "ae9782cf302fed5b9a70e34d89eeaf70f42a7594380c75d357b06eee49af54dc"
+      "nonMnemonicSha256": "aa3e78693a60742e26aca858686a6c4db8f65ae9acb6f586022a8252fc11374e"
     },
     {
       "id": "kanji-01-10-daiku",
@@ -6104,7 +6104,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "3ae45c2034753379f11919f81f5c545cc019773e6658a8126502cdef5e309e34"
+      "nonMnemonicSha256": "661851bc3498bb2f9a8f78418c42a19f225034b3cefa5a56b3d1519454ec7352"
     },
     {
       "id": "kanji-01-10-yuuhi",
@@ -6202,7 +6202,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "261264582e097ff57847cb1e3c4e7724728349d4c23cc2a0fdb19bed3657754c"
+      "nonMnemonicSha256": "5a3b56372b0bf59517605f8db417da42dc6ba6af436c9cfe37c6cad6c947fda4"
     },
     {
       "id": "kanji-01-10-issai",
@@ -6242,7 +6242,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "ae3128204ba3241c0b673d2f5005ca01e66add625e00f624fdcdffa2f335a2c0"
+      "nonMnemonicSha256": "d059ce98a91e060b04d799f47f4f7e992f08a268f091b7a006f86a9a9f656e72"
     },
     {
       "id": "kanji-01-10-furuhon",
@@ -6282,7 +6282,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "e74a7f63f168ece63be4f9d132c824826da31a467d72c97224fb14c262b2746f"
+      "nonMnemonicSha256": "9243d7615227d15553d51de37144d107bd5823afdcadfd7ef0571dabfc55624e"
     },
     {
       "id": "kanji-01-10-hitokoto",
@@ -6341,7 +6341,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "13378cdf80c2820128f10b6a4b54cc3dfc89dcdf29950076fbf713d40b3846e1"
+      "nonMnemonicSha256": "3f6c11a09630ce8f79b9cdd1cc29cff556868621f314e245576ba971a4cff94d"
     },
     {
       "id": "kanji-01-10-totte",
@@ -6495,7 +6495,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a042cee715ededd9d45cf97315d00f4a0f1dc79595e2d0252217ce53049754b3"
+      "nonMnemonicSha256": "db553c7391c398af82a27a1f49f6dcf462cd3f2d099b79d68c111fef9044ec93"
     },
     {
       "id": "kanji-01-10-seken",
@@ -6514,7 +6514,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "1218c28d576031d1804ad52c37167675a924f0e5ca71e50bbbebbf679c734876"
+      "nonMnemonicSha256": "3c7039af0fd2f7a06ae7284a3d0d3f4e34a1e96190af1e46b79a72b4066ead7f"
     },
     {
       "id": "kanji-01-10-nakami",
@@ -6554,7 +6554,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "364f514bacc1fc0c52c8e564a1dfc5863b61c2858eb0e43b9fa85c31945bd578"
+      "nonMnemonicSha256": "39fb3638486773205f5290db62c62fb497c2b4a3fd133fb00d80d397c9eb6c11"
     },
     {
       "id": "kanji-01-10-taichou",
@@ -6592,7 +6592,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "77e1a55fc63ef0e78dd1d5b4a4380d30d11e5e5b1b2f1c69b9e5e14ee4ade9d4"
+      "nonMnemonicSha256": "b0cabd4dd86eac4bceb6b879b7d0eca659e401ea201d8d83fa15336ca3b189e4"
     },
     {
       "id": "kanji-11-20-tayori",
@@ -6611,7 +6611,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "fa187a07b4af2d8b0e0315ddea9a4388993887f0191166564a0e254d58c47d64"
+      "nonMnemonicSha256": "7b65e28d4f03a47e1419e417fe11ae5aa9a5abbdc1dae56f04001caa4fc6f7ba"
     },
     {
       "id": "kanji-11-20-kyoutsuu",
@@ -6770,7 +6770,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "4e433e7246871e1c669f682c1b508adae94317ea17c52b1ef754893a08eae405"
+      "nonMnemonicSha256": "93434822665c44a97efd39def9c30488cf4a8a0bc6734aa6756bd6fab706c5ae"
     },
     {
       "id": "kanji-11-20-taion",
@@ -6808,7 +6808,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9c50bc1f238062b236266d801a7940d67d69d52ff05646a97c1e560b4107e540"
+      "nonMnemonicSha256": "e13557da78f1c87c64e47edea41adbd7f959f540b1f75b4ec96f88025cc8bb5a"
     },
     {
       "id": "kanji-11-20-yuujou",
@@ -6907,7 +6907,7 @@
         4,
         5
       ],
-      "nonMnemonicSha256": "9a9195f34a2477d03faac59ee569fc1f2b2685b8a152f1c37ba42c165e9c714b"
+      "nonMnemonicSha256": "a13fe81309217017e2f42e6512facd6208f010a98342bf0a47a5078d919256b2"
     },
     {
       "id": "kanji-11-20-kubetsu",
@@ -6986,7 +6986,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "197447adb87895230ed18cd189bd7283e7ffb3c37abf9c544e0baa9f8c655ac0"
+      "nonMnemonicSha256": "11ed938e3ec5a0fa17ea0b5bea56a5393d209927443fa743865fe97f03157142"
     },
     {
       "id": "kanji-11-20-mikaku",
@@ -7024,7 +7024,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "13d609d1fd48b64471ec7278a059ee25d2571106cf34154184df0828c223b80e"
+      "nonMnemonicSha256": "2a68baeece1969c23a6ec98ffb5826df4aab553a3bdd7f9aeb7fed48e969aaa9"
     },
     {
       "id": "kanji-21-30-jimu",
@@ -7119,7 +7119,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7baa719926b9fd78396577a2dd7068759f246487aa49884da0960c2e70a524c2"
+      "nonMnemonicSha256": "16a1473ca0d7422e58c1375d3f17881b156a4d7c17d4084bb6482990ab536129"
     },
     {
       "id": "kanji-21-30-shinshitsu",
@@ -7312,7 +7312,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2652ab2b5d8d21a359d33ef635030ebe656e9a8e38932fb9c03c3981b1a0bbf6"
+      "nonMnemonicSha256": "eaa88be566af9541da26d95fa398bfc8614e14e7bcfc0f3c118e044c3ae20506"
     },
     {
       "id": "kanji-21-30-kyuushoku",
@@ -7331,7 +7331,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "73ab957ae94a6526dfb64ce2556d7986734d79b88b174cd8078739d22bc11459"
+      "nonMnemonicSha256": "cea7c4f406706d5d17296dae407912b8fe5baa4fc1814834cf318a00b1853b9f"
     },
     {
       "id": "kanji-21-30-inshou",
@@ -7350,7 +7350,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "0944ab67e26bd868336842f6589bcca428bb1f6f97d6c109d720da4507515e6e"
+      "nonMnemonicSha256": "56dbd3445b135a61357df4b3ed967af8b22d45f8798ae94e86470da4fd723387"
     },
     {
       "id": "kanji-21-30-shudan",
@@ -7485,7 +7485,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8439ccc963459de667c0b1f18b81d3913a47d1ad8d9d5db679bc35ad75e97983"
+      "nonMnemonicSha256": "dab7703f848b396a09654dc04a3fa174da02929bc5d5e30c600a87014df47acf"
     },
     {
       "id": "kanji-31-40-konzatsu",
@@ -7524,7 +7524,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7bbd971188d93453e18cb2d5941d83c2336e55ef2b27d5aa288cd044ef94a29c"
+      "nonMnemonicSha256": "3b1c11a77ba6ecbd65009c3a1941cf6a78e69f7cf5e3c0d9a5e9265ce7eb2e49"
     },
     {
       "id": "kanji-31-40-oomori",
@@ -7582,7 +7582,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "c35b5f9f1f5dfa2b731cd516e43a2ab97a1596ce2829d5db84e599b034492131"
+      "nonMnemonicSha256": "b671db9afc56f113e43804a7a1a8a9ed67989518889cbb12ddcc59c536e564a2"
     },
     {
       "id": "kanji-31-40-shukkin",
@@ -7761,7 +7761,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f5450264edd3254488e62eac15c3bf93a9bb2e667bb89aaa941c4e7b268dcc3c"
+      "nonMnemonicSha256": "22884f440d7c2904241cccd01d6488ba695fcc30c297ba4967cf3a5cba5d4dff"
     },
     {
       "id": "kanji-31-40-katazukeru",
@@ -7880,7 +7880,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7c74a6d322fd402465948bb9f5a9208209f905d5785e812eda465f029a5a5db4"
+      "nonMnemonicSha256": "a7781a5328a525960b7da72555b2afcc572e2addc5f82473ee5c39a9c6777e4b"
     },
     {
       "id": "kanji-41-50-nameraka",
@@ -7901,7 +7901,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "3f0154d049dc7873a92d22a28d270ea7e8ba7fe7c3eb5f92e9013662092650fc"
+      "nonMnemonicSha256": "6e9e927095ceb33308f415fff22bce664a60d0a6106f3347c29d77896b4a6a00"
     },
     {
       "id": "kanji-41-50-sokuseki",
@@ -8132,7 +8132,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "206d2cf7d5203cfcee43e0cd83d2bd05ee437ac54a8c65fb14c817858b23ac0c"
+      "nonMnemonicSha256": "6b79aa3d918721ff10c536eb86aa0aea5a69c7e468607c94c6440e641c7a9a1e"
     },
     {
       "id": "kanji-51-60-kareha",
@@ -8189,7 +8189,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e5f32cabf28d0216e245e5ef53d0cb36fe1a902245721be366c58dc58654a1e2"
+      "nonMnemonicSha256": "d4f31f9f8fb6f421380fff1a0fa54ac15ca3baa5c135c5c6b386c7c43297cedc"
     },
     {
       "id": "kanji-51-60-hensachi",
@@ -8246,7 +8246,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "5248e7c33fc06534440d9514ce63fcb262bea980ceac28d47f6806bfcadae881"
+      "nonMnemonicSha256": "e2bf6bb9b6757b9b61849c7da0fdbd2e535eec2bedf61b74aec688bd56543d89"
     },
     {
       "id": "kanji-51-60-genkouyoushi",
@@ -8285,7 +8285,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "e82634b2ac38e506e1176066cdbfd11cd812d458e371b8872c8a2272f7216938"
+      "nonMnemonicSha256": "c90ee807819cfdbe83e5874210d0e360a31057f4c2d20a0970080f9a5a8b97cb"
     },
     {
       "id": "kanji-51-60-kenbikyou",
@@ -8343,7 +8343,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7634873952f1aa6ce0ee5fbbb21c2939d4e5d37ec1107e3077348c63b5408858"
+      "nonMnemonicSha256": "c5903ee95267cf3028debd7af4f12872afa45dad09c249527048fd056881f5ed"
     },
     {
       "id": "kanji-51-60-shikousakugo",
@@ -8420,7 +8420,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "ddc51ac8fdd90dc7efcdd130e2af7ee02bf3e47b4de8ec1863e21cb8980ad8d8"
+      "nonMnemonicSha256": "4a9c3c69a50d380144f4dc63bae449927f57d6afdf5b26aa3465354df64711d1"
     },
     {
       "id": "kanji-expansion-01-05-17t9b0d",
@@ -8439,7 +8439,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "416a546cc65dd1d912c26782b67cc998f87af5b806c9cf30d95ee2f840ff45ae"
+      "nonMnemonicSha256": "d959f814be0a663c99efd7d02596b1d1cb6cf071651e42a3223844c41e200fd3"
     },
     {
       "id": "kanji-expansion-01-05-w7t1a5c",
@@ -8460,7 +8460,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "388e56fe54c07272c23e2ba11f263706cac33b562619c71a8448183dc4ea93b8"
+      "nonMnemonicSha256": "8dbde2a3a51b3286b95a673bc4d0cea914b4cfda011da8772dfbc29c0ea1f35a"
     },
     {
       "id": "kanji-expansion-01-05-t8tqa0p",
@@ -8479,7 +8479,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e628c0a7b4a083657075c06eab9435f89d057b8e95ff949cbb87ffa1d953019d"
+      "nonMnemonicSha256": "5bde3f5fbd943566ef89b74480050a9df3aef7e45828444159e567cbe4cc3f20"
     },
     {
       "id": "kanji-expansion-01-05-47ttam0gqk",
@@ -8498,7 +8498,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "62e79e80b98dd0f918554f24c4f1b0e7b597a1684c93db7baee93b292f6c0d82"
+      "nonMnemonicSha256": "adbe64506594a57320f68f3b79c66c41bf0b5432e311413063b07863df22f60e"
     },
     {
       "id": "kanji-expansion-01-05-47txbj4v",
@@ -8517,7 +8517,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d013b70446682c4a36b2c4f2b1796b36d4568079570c1119f746c79327cb3639"
+      "nonMnemonicSha256": "80d2da9cd2d0e9c545097296f20c6d4252006446f767217f4be985a2dd96616c"
     },
     {
       "id": "kanji-expansion-01-05-48t4b0a4p",
@@ -8536,7 +8536,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "3a25126bcfae0314751e11eadb452c4668862defa2da46fa9d1e00dad4768419"
+      "nonMnemonicSha256": "711679e32477a657eefdfad68c10ec4b696d75fcdfeedabe56993a99d21e7faf"
     },
     {
       "id": "kanji-expansion-01-05-57trhra4b4d",
@@ -8555,7 +8555,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "67a2c4fe0bd935991d19e12b3f8db627139c70addc6f8aeec8ba1349cfe2bf5f"
+      "nonMnemonicSha256": "4898481e339a374d1647590f713bb34164ff0a941fc2e115f2bd4a2deb4ede5a"
     },
     {
       "id": "kanji-expansion-01-05-ebuub0f",
@@ -8574,7 +8574,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "61fdeab7156a7a166ef690a4ddfd5ed1ec1f42df18f7af8572bf0ca0bfacbdb7"
+      "nonMnemonicSha256": "0624ca07b14806a4bfe268048a002154a2878370c03e86cc2520f0b5d6bf35ab"
     },
     {
       "id": "kanji-expansion-01-05-f73a1a2dk01are",
@@ -8593,7 +8593,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d68fa1ad16736d2dec7ec82a19b9da4b068db90d3f41e983257444e0f4d82573"
+      "nonMnemonicSha256": "d5cb4b822d59311454534e71feb384282c944e2c137d5c9852f915f62f0fa619"
     },
     {
       "id": "kanji-expansion-01-05-48t0a8i",
@@ -8614,7 +8614,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "58cbdab0aa56a8eff81e171f302429c3a28c9735143257d50df156131db54aa6"
+      "nonMnemonicSha256": "c07d80b5c1cb1dde0f8f8c3f0af5fdd3e83dec4374e53ef189dec82986ade3d9"
     },
     {
       "id": "kanji-expansion-01-05-07txa0c9c9j",
@@ -8633,7 +8633,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "3cd3704a9602b0d004268eda9ed90ff7f9e1c5cdb31abaac8720db7d64398632"
+      "nonMnemonicSha256": "62f21fb5e409683ead03b30c3ceba01fe0f99c44b3aa74db1421e2b5f03060da"
     },
     {
       "id": "kanji-expansion-01-05-m8tn5p",
@@ -8652,7 +8652,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "17cd58517a6441fe4c5f9744af718acda843bac7233224a389deb37b049ca8fb"
+      "nonMnemonicSha256": "51b2e2ea0ce94953fb2c6dc82e6482841372b874c25a3590a3b504af31790716"
     },
     {
       "id": "kanji-expansion-06-10-08t5gub",
@@ -8671,7 +8671,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "489da397fc9c11078685d6daae1fe7785bcefba8a55ff334c1addf5dc519bae3"
+      "nonMnemonicSha256": "47b3afb1fdc0b9be2a4868a8f39ede342852645cbeddebeda386b2933299899d"
     },
     {
       "id": "kanji-expansion-06-10-58t3bxf",
@@ -8691,7 +8691,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "1089c95667b9588a943937605b95a2a19bab6b707578fb2dfc4301406fe6e441"
+      "nonMnemonicSha256": "3d55ee313bf58d275c140160386dfd7befcb4ccae5f5ad158e18ca454f73c509"
     },
     {
       "id": "kanji-expansion-06-10-07thr1e4o",
@@ -8710,7 +8710,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "dc72fbfe0f23c284b7c7a4e8b9e5484dec4dd488d8a0989685413f261a8a153e"
+      "nonMnemonicSha256": "4be881e9789d31068b718f881cf243e8aecd1572783adab3ddae7808bf55d7a4"
     },
     {
       "id": "kanji-expansion-06-10-j8t5a6m",
@@ -8729,7 +8729,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9fa15c832bd993c77c256eb1d52c487ff1d774b4becc4134a5359ac50f1d907f"
+      "nonMnemonicSha256": "76d51b246a7cdb9c0b7d719d38a59692ed4f5946b415dd17f1fc832768b07024"
     },
     {
       "id": "kanji-expansion-06-10-57tudwd1d",
@@ -8749,7 +8749,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "4545e312f36cdcd6cd22b906a2b797b018f4cc3ad264b216463bf5131d02c2eb"
+      "nonMnemonicSha256": "17d016f4ca8c6e3fb0fcc7233baff6e69b88ad80fb215ced82209930736f97af"
     },
     {
       "id": "kanji-expansion-06-10-07tb9dvc",
@@ -8768,7 +8768,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "96f4e50281a9db8dc3dc55e79cfa36b1aff8c4226b6f531bf5b9d7aff70f8c28"
+      "nonMnemonicSha256": "f10c259afb1e9b5a92fae95456bd963f7d2a8e31b60135c53148e929ecad73f6"
     },
     {
       "id": "kanji-expansion-06-10-e8ttbydxf",
@@ -8789,7 +8789,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "bcb1fcf274d9957f8d0a4f6a1131ee07859c96e49a084b6c6c7921046efc5df2"
+      "nonMnemonicSha256": "33ce57802b3b3e81a6cd9b654b71ebdc4e5e334adda070223571e18b23e9def8"
     },
     {
       "id": "kanji-expansion-06-10-u8t6b0b3l",
@@ -8808,7 +8808,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f740a22f15323130664b9bd0901d81759706bb3d83c7d407b4905fdab6b2865c"
+      "nonMnemonicSha256": "50ba3144c9dcd1e6926e6e1413a6bb7429fd94bab2a6ecc3a86f63e9fe652bf9"
     },
     {
       "id": "kanji-expansion-06-10-k8ttdvb8g",
@@ -8827,7 +8827,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "23580fcf70fe3b8f202478afa7c33e321735a46758dfdcfd6955d0ef013ba63c"
+      "nonMnemonicSha256": "badb7be41d9516bc7ff8fb68f408c31fd014413b10d65d47092aedb1a748b010"
     },
     {
       "id": "kanji-expansion-06-10-07t1dtc",
@@ -8846,7 +8846,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "af485b2420a1e5e83c91f12cf5a6fcf28b0ab909fc1eb1eb7f08abdcedd20de3"
+      "nonMnemonicSha256": "cffb45d71861089044c135d8906435180554c8c757bdac7c3639413e8cd1362d"
     },
     {
       "id": "kanji-expansion-06-10-wbun0h",
@@ -8865,7 +8865,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "faec8104697478beea847a925b8b9f0791037b109df27be6ca2e6db65b80767f"
+      "nonMnemonicSha256": "9337f5f009ba1df91848130843638e176285a1d513da51b1f36d58764155c18e"
     },
     {
       "id": "kanji-expansion-06-10-17t4cn2x",
@@ -8886,7 +8886,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "aa7e542d7b401f148ecc49a515c1506b4665a3f5c552774e686cb78cb2cd5282"
+      "nonMnemonicSha256": "884ca9fc4f83ab4213bd187a05d85e075ec5c9edb7d26059be2d3b422c57fdc7"
     },
     {
       "id": "kanji-expansion-06-10-38tvf6c",
@@ -8907,7 +8907,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "6a9a36076be3291f418a549d5707a50fd0a8e3c3beb14453a2566337bae5bcc5"
+      "nonMnemonicSha256": "6b9ff3512abe1ea645f35137f781dab47fef2a33afd4a67fc5cc9452f0cf154c"
     },
     {
       "id": "kanji-expansion-11-15-vbuxb2c",
@@ -8926,7 +8926,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8805a8613a357b704de549d5aec462363b6edece0222cfad560de6436e9fd348"
+      "nonMnemonicSha256": "4e0590eb5390d360ff7672ee781387bf131160eab088975ef95cd5ce81193588"
     },
     {
       "id": "kanji-expansion-11-15-17te9c",
@@ -8945,7 +8945,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "aaed3a371d611cada2341920c5ef326548367b62dcaebb22f2fe7f5b01dd8332"
+      "nonMnemonicSha256": "625d88fc613afcbec2ae2f3cf57294fd9be2fce9566c78e81e1f89fb062d3757"
     },
     {
       "id": "kanji-expansion-11-15-47t4bwhocte",
@@ -8965,7 +8965,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "cc2ee881ac0f0ff8119c1c97b70aef3211db208207552e268e3e1b981f3d83b9"
+      "nonMnemonicSha256": "ba7ecb25f905909b7003993b2fe64193aaf7544d87af23f04b782098eedd9126"
     },
     {
       "id": "kanji-expansion-11-15-47t6b5c6h",
@@ -8985,7 +8985,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "e9740d98dcbcf1cef81e92034ee6c7373967dce009343f349c938b04a4e5854c"
+      "nonMnemonicSha256": "ccc2ca13f935dbb0488a3d1455d2abdb8a26ff1d233edd3b88f926351ef07f41"
     },
     {
       "id": "kanji-expansion-11-15-38t1crhc",
@@ -9004,7 +9004,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "79d15650eee9c1982d4d1d715a4f53e926524f47a47628208dd60c8557cbf56d"
+      "nonMnemonicSha256": "1fa63ef0e38d123cc3eedb3d922b5a37ce98fced35bf27e8810ba113d102b179"
     },
     {
       "id": "kanji-expansion-11-15-17tta9f",
@@ -9026,7 +9026,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "22a4030207bd3d6898a39e2887e6baa6d10f6dd7211710d8115e8378aeeba0c5"
+      "nonMnemonicSha256": "7ea53e3c45ab519cba84656f9e84f75bc1641f1f457399f9428eee2d0dcfe3e3"
     },
     {
       "id": "kanji-expansion-11-15-17te9f1a2u",
@@ -9045,7 +9045,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "0597b1a09b7ba857e825b8ad2981f12c092651824d12c77ca98650e023578533"
+      "nonMnemonicSha256": "14ab7de2fca2370f7d748b2d420853ec2fb9a95b00a436204a544add3e21c71f"
     },
     {
       "id": "kanji-expansion-11-15-47t6b6b2o",
@@ -9064,7 +9064,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "dfb20fc3e26edaafb4644170a9b26bf3191620a5550082ebf887b81d09524751"
+      "nonMnemonicSha256": "694b9425d7b77abbfef2a678d86f9318b046aec85fa20ed6b6f04d6b5eab07db"
     },
     {
       "id": "kanji-expansion-11-15-j8tyi8a",
@@ -9083,7 +9083,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "613104b899a9bdaf8e2870433a6a6cdc597ca82851693d7e4db2b338009d5cb8"
+      "nonMnemonicSha256": "755ae89b56110e34a1ef0ce46d597d66b0834eb1e21cc995fe9af0fb8d096123"
     },
     {
       "id": "kanji-expansion-11-15-d9t7fvb",
@@ -9103,7 +9103,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "2673a412f4292ea45d82e5864c000db983f4d043345111a525973ba4a0b43f7c"
+      "nonMnemonicSha256": "9e3afc7d7ef56517f1dca877b3be2c3f87bb7992c13174f71360c29914ccb229"
     },
     {
       "id": "kanji-expansion-11-15-j8treug",
@@ -9123,7 +9123,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "16ea7c3826be01880d941c7bc30856686c469a9d5f57cf2a4f860dcd190fa9a1"
+      "nonMnemonicSha256": "c47219bd0cf4161561c29ecd72d2408b42e5afd30a87db747622254c7fcb8894"
     },
     {
       "id": "kanji-expansion-11-15-38t6b3f",
@@ -9142,7 +9142,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f40a0dcfc4cf1563aba176703537acf269dd26b1620f537396d76e30ee38a791"
+      "nonMnemonicSha256": "e37e6a9354402262296590bad91b832ee9fbd2ac7a210f125e6c481be2d7d803"
     },
     {
       "id": "kanji-expansion-11-15-e73a4azd2b7y",
@@ -9161,7 +9161,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e0f47d8ab9236d736fbb2b267621547180fc44abd04f02cafd504f1a79dc2901"
+      "nonMnemonicSha256": "47a68bf0fc634a8139385dcd5fa6d3c7da7f0a22e5d3cc53f7c53ebc0c1018b4"
     },
     {
       "id": "kanji-expansion-16-20-57ttaf9z",
@@ -9180,7 +9180,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e10c06ecb08782721cb22acba2e9c55929c3f861f4040feab74c45f4598bdb12"
+      "nonMnemonicSha256": "2687a27b5c2a8e9df04472428139adfcb48e0fbbbd2d70fce57bdeac32213f4e"
     },
     {
       "id": "kanji-expansion-16-20-57tta7k",
@@ -9199,7 +9199,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e8685d3c3eb7260a7da598da48d76b41f50ff877af494eed1c61f8acd0076855"
+      "nonMnemonicSha256": "ed2cd934315f9b674d7a0a480b3878ec8b763ca741382af98c2d5145cb1cef06"
     },
     {
       "id": "kanji-expansion-16-20-07t6bva7z",
@@ -9218,7 +9218,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b712057f4d7fba9e9c92d78f7aca24c1faf9bf5e0d0f2e07e0cde53d76b8d284"
+      "nonMnemonicSha256": "28e24e0bc39cdda910b449474022ee01473743e2f4548eb6f92abfd4d36728c2"
     },
     {
       "id": "kanji-expansion-16-20-l73apc3e2c9k",
@@ -9237,7 +9237,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ec8d7de3898d23ca52010a010834680f4bc21a9c349be05e985498722e1de9d1"
+      "nonMnemonicSha256": "55a0c884e4d86e92710e10eefc8e03ac0623046faf52066a4c671af59dbcc41e"
     },
     {
       "id": "kanji-expansion-16-20-07twa5d",
@@ -9256,7 +9256,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "4b249a30018a9b3771999f4b8fa5dfb30e88ee22d8135e6db492cefab0f6bd24"
+      "nonMnemonicSha256": "b542843cdbe0bd37495366be6e3a2979561ecf9ba2f1f6b478b6d67732af973e"
     },
     {
       "id": "kanji-expansion-16-20-o8twa3e1h",
@@ -9275,7 +9275,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "dc9eed1f1a741913ff46ade2057847e42cd9864a74708d698baacf958ac95598"
+      "nonMnemonicSha256": "9804528e51bb04d9164c65b12578928a991c7ac995b6c4ced354a080bedbef4f"
     },
     {
       "id": "kanji-expansion-16-20-48t5d0ctc",
@@ -9294,7 +9294,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "62ac326ffc980d2956cd7c3feb84d83022077c83b4c6f49fc5ef1afccaa80122"
+      "nonMnemonicSha256": "162ed9fdb1b05a9fcbc07c126cae95363d5ae12bbd0138c59b8f38860adfdf19"
     },
     {
       "id": "kanji-expansion-16-20-07twaq0w",
@@ -9313,7 +9313,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "60378b1ffff039b8740581ec63e0e4dceb8025598ecb3deb15d3a533b61b4f0d"
+      "nonMnemonicSha256": "e48172eb48945c3aad9e7467a1b6a08d3dda02079504445a49fad3aaeb6a5c9d"
     },
     {
       "id": "kanji-expansion-16-20-r8trc3i4a",
@@ -9333,7 +9333,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "0fae01db52e6204e8fb0f8319b55f383ba0f0ad5e52db48d03cf87c6921e3e88"
+      "nonMnemonicSha256": "ac4a93a364621eaf8a425e26185aeb1e2a2695ec04148545ef54a82951041bcf"
     },
     {
       "id": "kanji-expansion-16-20-n8txa4i7d5c",
@@ -9352,7 +9352,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "78004749b805a859d13d19b5f60c4e44a1e83d98be64bb42349a502482593737"
+      "nonMnemonicSha256": "e1d0f79dc520f3e4d8f98e646216c1292227f127585ee1e1714408d7d94231b1"
     },
     {
       "id": "kanji-expansion-16-20-07twa1h",
@@ -9371,7 +9371,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "5d2a31256fed54d860a74764dc42a59ea9fef0d05780238bc01c00623d3e4200"
+      "nonMnemonicSha256": "72820df8a8ceebe90f5c87b8554f8b0b35df16de994978c130d47f8209595ef5"
     },
     {
       "id": "kanji-expansion-16-20-38t0bzhoc",
@@ -9390,7 +9390,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "cdc8788a9ab45afec9b3a8ef96e0094345ecb87cf7a96f655e4f64d28446c422"
+      "nonMnemonicSha256": "7054841d7d88372d09a01df180610cf8d7b81a73c94b1da3ce0b900ea16af777"
     },
     {
       "id": "kanji-expansion-16-20-57t6bub9loa5f",
@@ -9409,7 +9409,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ca8e03c82971bdfb42ff22975128cf20815351d93e83b7859baf95fdf4b4b964"
+      "nonMnemonicSha256": "f2d529564d7c59b80cfe9c0376b515905486c811c30d3674d13e47091d55d5a8"
     },
     {
       "id": "kanji-expansion-21-25-k8tn4xc",
@@ -9429,7 +9429,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "f109e26c62c9426f398faeb433ff01fc34e238c483d318928e01f13137b3be77"
+      "nonMnemonicSha256": "5ab5ef659dcf1ba7431f9f4edd0ab2c346baf932a7809af15ec925f6c6279af9"
     },
     {
       "id": "kanji-expansion-21-25-47tsbwk",
@@ -9449,7 +9449,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "546ef4880bca6b0dc145b2261c843cabca61ee25f8f9db61a0d03d87563bd4d8"
+      "nonMnemonicSha256": "9abf79b8337fd54369b8339ee9794c4af861458ce600daf46232bc7cc7708b82"
     },
     {
       "id": "kanji-expansion-21-25-o8th9b4r",
@@ -9469,7 +9469,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "6a12c6d4499807a9d19bd7728bbfac3fb22750e6f3097968fcd469da94186085"
+      "nonMnemonicSha256": "5580afad77737ca651309fbd260e6e29d8da8e0bfc5b0a46f9b29d1860f60754"
     },
     {
       "id": "kanji-expansion-21-25-48tb8b",
@@ -9488,7 +9488,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "de7c002de8d911adcf0260855d72799f746101ec8d58c70dde93babd15f36e15"
+      "nonMnemonicSha256": "f4aa9570b22e0e86632f10df120d40b27e95f33b5a361d9a64427fe40ec99918"
     },
     {
       "id": "kanji-expansion-21-25-07tvcb7t2c",
@@ -9508,7 +9508,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "1df59460e8460132e90a967d5dc6ee62158cc64515e6dd45d459f247e23bec51"
+      "nonMnemonicSha256": "5b85fa759b2cd4bb0b69b6dd67e95c4d866d0c56f87b48789b02c0bc6b5f6438"
     },
     {
       "id": "kanji-expansion-21-25-07t2an",
@@ -9529,7 +9529,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "16dcac67a6dd119194ee67099539e53415b1601f8b6f7e1019713a49a21ac9ad"
+      "nonMnemonicSha256": "be08e4b26d248561b2a1eca1dc6132d767f490700b4562fb2bf6dbfa4d627631"
     },
     {
       "id": "kanji-expansion-21-25-t8t0b7l",
@@ -9549,7 +9549,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "2411b4ff6d7f895a6ada63b8d918bac741cdc85272ae420136bac57669a4e659"
+      "nonMnemonicSha256": "6722df13f399eff194539c5b6d010bdd51cba660899b9bda2aa1c683484344d7"
     },
     {
       "id": "kanji-expansion-21-25-07tbp6b",
@@ -9568,7 +9568,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "096d041c10545edda02ab26c2afc50ac99f6724fac0f279a9ff3545ed4f7b543"
+      "nonMnemonicSha256": "e5cd66b645f55cf1e86bcab196b99a985286862bcb37b35f56bbec6fea8f87d5"
     },
     {
       "id": "kanji-expansion-21-25-tbu2a3f",
@@ -9587,7 +9587,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "fabcb6801b8d0e931e900e0f6a027ac06eba98eec987b289bbd0d971cb85aeb1"
+      "nonMnemonicSha256": "2248fda9c176853f370b79f7da7972872b22e0dbc72439964871e68a1b156764"
     },
     {
       "id": "kanji-expansion-21-25-17t4cwb1o",
@@ -9608,7 +9608,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "42ecba47777492fdbb01f12f7254381b6778b342882ae3586e7ddd56fe865432"
+      "nonMnemonicSha256": "1be5ba1f1e0919164630c5fdfd2b93d5f8e0b6a824dce20053e260e605e0a592"
     },
     {
       "id": "kanji-expansion-21-25-47tb1lma0n",
@@ -9628,7 +9628,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a431e664ae2cf4dc8f89a6af7be3a9d4ae86c0c873d5c627be449aeec4808f70"
+      "nonMnemonicSha256": "d928e78cce4e88ea71a922f5478b471f126b2afb5191db8dfb016cf96752bc2b"
     },
     {
       "id": "kanji-expansion-21-25-07t2cwe",
@@ -9648,7 +9648,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "181cee235e450fa59b1e736da87a869d926491ab1dffc254755daa65d7c9ed58"
+      "nonMnemonicSha256": "4bb66672f68280c09d9dc13309b5e84f34ce3459dfab09588f9c7f7a22320775"
     },
     {
       "id": "kanji-expansion-21-25-k73avcd4nve0a",
@@ -9668,7 +9668,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "ba8866e4b9dc08d2124ecf32a98ce194c159db1413c03005c31e77833b6f0112"
+      "nonMnemonicSha256": "854eacb1e4c1d957d093d85dc45a96bc9fc8ed14d769aac1eea5243323acc8b8"
     },
     {
       "id": "kanji-expansion-26-30-47t6bwhxe",
@@ -9688,7 +9688,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "2955508e67c2878fb86fe4859b5aa0baa3510d2fa6a6b498d1a47263e048ae78"
+      "nonMnemonicSha256": "793116c7c04cb46d551486dacb6c19b901bf7330a8fd04a2a38ac8fec7bf748c"
     },
     {
       "id": "kanji-expansion-26-30-673abi3euc2a80a",
@@ -9707,7 +9707,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "134a708160f6effd6a48dcda5ed5ae7acbe769d129a57098aee983c6546c32e0"
+      "nonMnemonicSha256": "b0dac7f6f21345dbb6743b5023d17473499df80f16f0a22478461228234a9ad8"
     },
     {
       "id": "kanji-expansion-26-30-47tb1ec6zd",
@@ -9726,7 +9726,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "24d01e0ac75cdb68d9b72cfe25a011e8b7b59258640b60cc91a29f2bdf3f4ac3"
+      "nonMnemonicSha256": "33f540e80fac5cb6d38d3cd08d6615fb1c7f3017b63c9c3de6cd17bbd820c49e"
     },
     {
       "id": "kanji-expansion-26-30-17te1ewa3w",
@@ -9745,7 +9745,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "22f53fd8c04732fae5d95d60905cf6013239b2336af0d5060dc5449fcf4eb504"
+      "nonMnemonicSha256": "3b4ccb7a631de40f1adff2223a6449205bf3884286b7da126f7f07c3ade572e0"
     },
     {
       "id": "kanji-expansion-26-30-k73ab0bjz",
@@ -9764,7 +9764,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "896bfb1671bcb71e21893f71d5bdc8cc11260a6b3c818cf4a3b8b41cabb33257"
+      "nonMnemonicSha256": "b4f667e1126d9eec07d7c6678afcd9e7213744a4601933d8b0fb54414f88577f"
     },
     {
       "id": "kanji-expansion-26-30-n8t2a6d",
@@ -9784,7 +9784,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "be86a00c491f4eaa63c2c18d612fabd0952dea21292230c4e8c8dbd477dd86e4"
+      "nonMnemonicSha256": "4d737fdb33de4e717f3b1a34eecb76a324cf8e4ee1166e67a89e29ba4f2611a9"
     },
     {
       "id": "kanji-expansion-26-30-07tbz6c",
@@ -9803,7 +9803,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "477549fb8c2a51c57feca7070f7cf2090f1c60a8ff638b571edd7a2f8a926078"
+      "nonMnemonicSha256": "b15ac0d4d6bbd5d4e3de10aad15e5376085508e8038fdff354b1faad4c8d4f60"
     },
     {
       "id": "kanji-expansion-26-30-g73afb1czduuva7j",
@@ -9822,7 +9822,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "beb1214d54d5b3670bb126ebba07162f10a415d2e4fcb86c493150ff267a8e20"
+      "nonMnemonicSha256": "aaadc6c4aa3883ffbb407f7f46b3864fe4ad1805804fa2db7aff6973cb3b195c"
     },
     {
       "id": "kanji-expansion-26-30-07tb9d6a",
@@ -9847,7 +9847,7 @@
         6,
         7
       ],
-      "nonMnemonicSha256": "16e152a4ccf1a0fb0c304c54a96406ad8ee785feb02adbb64b84a9cfa07cbdf9"
+      "nonMnemonicSha256": "c34788d58aae1be4d74a6be7e8c9732ccde7306d0cc8b6aba6c9c276235bcee4"
     },
     {
       "id": "kanji-expansion-26-30-07txeth",
@@ -9867,7 +9867,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "61ec8657d14f810b07eee7bf0b54a40d67c7855a9b380a281d5659445bce008d"
+      "nonMnemonicSha256": "b048a526125093bfa61347a1b397c4aaac06c5dfce18b20ca9ee702803ff049a"
     },
     {
       "id": "kanji-expansion-26-30-07t8a5a0b1s",
@@ -9886,7 +9886,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "884b1e7349fd7172f62e8ef2a422da2c1bccf3bf3b9f310555e4e344ee28d9c4"
+      "nonMnemonicSha256": "07e3e09498e96e64882703693fc4f8b1f6657049252568fe357273c8c2a51839"
     },
     {
       "id": "kanji-expansion-26-30-s8tyf0d",
@@ -9906,7 +9906,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a0dd8d99e1cc54620c52408d4a111043fcb73a60f469e2b722fd65e7fdaadccc"
+      "nonMnemonicSha256": "144210071ec820da3113082d77348b033f1ce2fa4fe26d600267061091a39bd8"
     },
     {
       "id": "kanji-expansion-26-30-f8t3b6m",
@@ -9925,7 +9925,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "82ea80879a01b10c728b8572374bf34eadd474df6e789d167c2b9b74046ef85b"
+      "nonMnemonicSha256": "11f678cbb1c95f9bc847e1917af116e70504413d5e21802217bd48b48df02e03"
     },
     {
       "id": "kanji-expansion-31-35-57tta3u9b",
@@ -9945,7 +9945,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a9bfb0483bc297e72cd142b974f0528d242ac337058879776b35cef60bc1334f"
+      "nonMnemonicSha256": "002cf9a662148e018f8f206e916a2d2200ba6f39d3b5385f46be9930c0e5a81c"
     },
     {
       "id": "kanji-expansion-31-35-k8t5an2b",
@@ -9964,7 +9964,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ef923253cf5589135197af6e416f3ff144e05c6cdb1313cc9703eaf24398764a"
+      "nonMnemonicSha256": "0fc8612a71b026a313f0a0a502bf020d251499618d67c934494162f52b6514df"
     },
     {
       "id": "kanji-expansion-31-35-48ttd0d",
@@ -9984,7 +9984,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "2f4b3bbd69d063bfc4c1b2579dbbbfa7ca50efdb0335286f78e9cc0309abb2e8"
+      "nonMnemonicSha256": "6428dc6161c7c95e4691e8e757ed804cff4db073fe51b79d9d0303301f5df185"
     },
     {
       "id": "kanji-expansion-31-35-j8t8gwc",
@@ -10003,7 +10003,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "697fbdd2fe7a94fd9dffbe9c3566de010c18183f260b73ac5c8d48a3aebc9f46"
+      "nonMnemonicSha256": "b479a79e197e9f4cb9f965accf86a5c95435f8e32020c110ba4e1cc8d5e9f019"
     },
     {
       "id": "kanji-expansion-31-35-48tqa4a8s",
@@ -10022,7 +10022,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f6506b3b66092eabcfb8260c7a3195ab15e0b83863f4764f5d7b63aecda26d81"
+      "nonMnemonicSha256": "04004c749a6333aebd03ff59a04b541a6df643814b0d3b089a8aa5e2ce225516"
     },
     {
       "id": "kanji-expansion-31-35-u8tn6v",
@@ -10041,7 +10041,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "19bdc0637ff269b65f6405c0f09806ce2e91a505c13a27f07d19c0bf55d9d1d6"
+      "nonMnemonicSha256": "04d7f749e18f2476139de650dad7852af31e64b63232b352be63fef8b9ee0fb3"
     },
     {
       "id": "kanji-expansion-31-35-47tb1evmdq",
@@ -10060,7 +10060,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "90726b42873a66d1da52388e2e8d26c65877a78bf9eb4ed64c7527d43befedb7"
+      "nonMnemonicSha256": "9c2c31e32a34f754003003bf267de74fea08e9fa4ba6b5f312e736a53ef35cf6"
     },
     {
       "id": "kanji-expansion-31-35-m8t9b4kc",
@@ -10079,7 +10079,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "faa0f0445db50d0ee1fe84ec70ad4f962eace2712441ddf6d9d94ac2c0f68fd8"
+      "nonMnemonicSha256": "d5d65c15a7e90ebdbb2a146cd02c70edfaeed3280f9aedda368673425a9d9134"
     },
     {
       "id": "kanji-expansion-31-35-17t1cra",
@@ -10098,7 +10098,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "efc72af0b657eea80188d4cfe39830737ef8f99b57c6238cb314d6f31a1c9963"
+      "nonMnemonicSha256": "187410e223b11bf949800776b566cd571094fe41c5fa1230e64b35294ab52a85"
     },
     {
       "id": "kanji-expansion-31-35-073azdsa1e3fxf",
@@ -10117,7 +10117,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "15a45bedad19187ce1db8f413e02c8a8702c9f9cf31f8562f05c0d0c33ed8903"
+      "nonMnemonicSha256": "959a6a206bd5a8ace57adbc6d9f93f9dbaa7d39157fc3cb30764dd379a0d8421"
     },
     {
       "id": "kanji-expansion-31-35-47tsbs4t",
@@ -10136,7 +10136,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "60ecf0837fcaae7c9050d182cafbf0fe3765ca42e00ff226bf139537852fca3d"
+      "nonMnemonicSha256": "51e6562f9499463f5a577fcbbdd5095b4e0cab09e44a826a9a2748158dc9b77e"
     },
     {
       "id": "kanji-expansion-31-35-07t1cva",
@@ -10155,7 +10155,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c3b01d4cb6a6e99141dafece25624ad847f4d8a4ceb17832dca3cd222337b663"
+      "nonMnemonicSha256": "024aa718b483b6ce995fb63f8d0175a7ca4f0ddaa4ef866054355eeb15d3aba1"
     },
     {
       "id": "kanji-expansion-31-35-18t5ao1v",
@@ -10174,7 +10174,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "ff919904358edae8407a6ebd11c32e03d1042d876183a8340c4a9cb0c931fd8d"
+      "nonMnemonicSha256": "70ffdfe19f9bd3bcf17eef6d17befcb275666aa8bcdc5c94f23d7f880f3bb6fa"
     },
     {
       "id": "kanji-expansion-36-40-r8tzd0g",
@@ -10193,7 +10193,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c822e17214c8806d2b5bc1b7c43cd395a91db3accbeabdf76beef4be0511e7bf"
+      "nonMnemonicSha256": "0da431227cb0d7e0e5c816f5bee45c96553f1f6a0a8dbc069849696699e1e458"
     },
     {
       "id": "kanji-expansion-36-40-f8tzjoa",
@@ -10212,7 +10212,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "3d738f9ef15c42db84be97e67ed0065cacc8a356fa167233ac7f9aa623bc2a3d"
+      "nonMnemonicSha256": "97e083f1d637015a931f73f7fd9d6af12cc87e09ab619c6090e1cbffe8568897"
     },
     {
       "id": "kanji-expansion-36-40-07t8af1e",
@@ -10231,7 +10231,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "7b2620141f73e23aa8a4347402b5ff0913f63f551b24d66e6e4bef82703d0bc1"
+      "nonMnemonicSha256": "15c7085663eac77e58b7856eed23f6dde1e306e71fe57e9ea9c1b23bb729337d"
     },
     {
       "id": "kanji-expansion-36-40-k8tgn6v",
@@ -10250,7 +10250,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "344507049394aa2d1c03a1641ca9ea16445693e12d53b6276dc36d8cc35fe72e"
+      "nonMnemonicSha256": "b2df8fb6896808552cd043dec5fa20b8776213b0a8d28007ef10c263dd8cbd9e"
     },
     {
       "id": "kanji-expansion-36-40-57t3b7koa6c",
@@ -10269,7 +10269,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c1436a050766d873f28ae1240e8a21a5401a11cfbf25657085cda00f70639592"
+      "nonMnemonicSha256": "21a83066937111a8bd5b6a16ddd9b47e5c06967330a5904a8edfa17acb62de3d"
     },
     {
       "id": "kanji-expansion-36-40-17te9b9d0k",
@@ -10289,7 +10289,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "57a013bed2dd97f1d689e6efb1e76985d6b38048ffd9b6c2e759fc2f8dcc80ea"
+      "nonMnemonicSha256": "68cabf773528cccda073f4da9d95d88b35f5393f7873fa1ecf7870bb96e69d04"
     },
     {
       "id": "kanji-expansion-36-40-07t1cyc4e",
@@ -10308,7 +10308,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2979c265393d6c096930e9de56027f575d5109776c32e3285bb9de9ca9b879c7"
+      "nonMnemonicSha256": "4347f3e1e2174dc6da1c4115c69b45c7b367e9a92f7633152bce5b42dfa944c6"
     },
     {
       "id": "kanji-expansion-36-40-n8j2b",
@@ -10328,7 +10328,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "03bac554face1b872c5d22dccb3a6515b7ceda6535d84fcb696202176be7f378"
+      "nonMnemonicSha256": "a0fa4a76d1e095e586df48deacdea3823ce2bbbfc5b615139bc386f4226a8d69"
     },
     {
       "id": "kanji-expansion-36-40-17t4b4g",
@@ -10347,7 +10347,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "95dc0236842e51d5fef098c897ae8af726cfde9123952dc716d982bd903ec587"
+      "nonMnemonicSha256": "6f256e90a24023a802a414f61f1a3b50adcc41dea0b520736f153bbef8fc6b71"
     },
     {
       "id": "kanji-expansion-36-40-17t1fel6n",
@@ -10366,7 +10366,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "4e469b01ef102c12819519b37b4866035d0c7d9b292401de7ab528c4664e483d"
+      "nonMnemonicSha256": "75878797ac8a6c2c52a189fae9c373429a8a0f5e1ff334980a30a63e2eee90a3"
     },
     {
       "id": "kanji-expansion-36-40-763aob5a1fybt",
@@ -10385,7 +10385,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9b9cc81ab03071e9de96a93a9fbf27954fdad80893922a54ab4adb3e16d4cd9e"
+      "nonMnemonicSha256": "2bf6ccb4276f3284cb2b602da799ec73f6c371099678a475f39005e082304394"
     },
     {
       "id": "kanji-expansion-36-40-l73asb6llb1l",
@@ -10404,7 +10404,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "e010cd35e6e860d4a206890ac39a11700bafe14e9b4de7e6260895e5babbf388"
+      "nonMnemonicSha256": "4411ae2b3c03ab5159fa9cacef29115d442b123775ce616f04412bdc293418ee"
     },
     {
       "id": "kanji-expansion-36-40-k8tg5n5b3e",
@@ -10423,7 +10423,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "6aca3e3d0bf07cfad98a586d3e923e6c0bc8601df0edb939912849c4cbe92d1e"
+      "nonMnemonicSha256": "2c6396dc756918ccd895d5c99652edcadecb1cb273e71fc69f6d99ef5b876036"
     },
     {
       "id": "kanji-expansion-41-45-38tb6p",
@@ -10443,7 +10443,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "90a92aed2adc1c1870498984e9a3b1d44fad84cae376eeae1c0cf5d0d146651d"
+      "nonMnemonicSha256": "ca2be49560559dadbd7b4889c6ab2e53d811144dab90d4a55d8a10b4b0cede9f"
     },
     {
       "id": "kanji-expansion-41-45-17t9b6e",
@@ -10462,7 +10462,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "6347d038e00213b2b527fcc6f1ee3cab2b9b90115930c61c7b524d113a72887c"
+      "nonMnemonicSha256": "2b8b7aff8657635df9fe7852f95139125500fc6c3294b19e3b301ad7bda3475b"
     },
     {
       "id": "kanji-expansion-41-45-y8t2d0e",
@@ -10482,7 +10482,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "3ccd5e677fce137e450aa1554c9a74d2018938dee87f5b952c9d48ac94c28a81"
+      "nonMnemonicSha256": "a4903a6d18dc054733d7785ebd0b0117cd1dfd299d579bcf6a532d39e6e88434"
     },
     {
       "id": "kanji-expansion-41-45-k8t2ar2t",
@@ -10501,7 +10501,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f1f926bd5ec35dd1c09d76c0627dcc7ea6efb30147a799dc028e468edd1ac2cd"
+      "nonMnemonicSha256": "17ce7b0f722f8b4daffcb72966149e49036a57ad35de660a58d524d51438f909"
     },
     {
       "id": "kanji-expansion-41-45-47t4bwc6h7a",
@@ -10521,7 +10521,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "7da3b0a219ea2472004d090d977faad3e9a7ae6c19e472a97c261aad402280e5"
+      "nonMnemonicSha256": "9c20c895bac57eeaf289bd08cf7d0cfade3f3e217c5ff46e3c5c9e218d65cbdd"
     },
     {
       "id": "kanji-expansion-41-45-47tb5gvg",
@@ -10540,7 +10540,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "69a6289f18a58b4f538f17ae54a8a7f643f0147b2743a02491fa45b179035733"
+      "nonMnemonicSha256": "f5f3cc44363c6d24e8160b312d587ba0450e16cf0dcba0a2ad1a1ad6798f7e1e"
     },
     {
       "id": "kanji-expansion-41-45-r8twa2cwo",
@@ -10559,7 +10559,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "4a3f6838c78c22b4beb0301d58b619ad129482462ae00e4ba1f7a7044e6dd4e3"
+      "nonMnemonicSha256": "2d1fffdd8320c3e564d173e5162b32cf6ddf4993d416ec0ca4343d80f06bfde3"
     },
     {
       "id": "kanji-expansion-41-45-47t2a0hxh",
@@ -10578,7 +10578,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "455d22ec1bb9e4bce6b2d35baef139b99194b0f37249920e49bdd79efbdad872"
+      "nonMnemonicSha256": "32daba9bdca923a278c21775a7672633c1c52ca5478027ed88aa1fd86cff3239"
     },
     {
       "id": "kanji-expansion-41-45-57t5aza2d5l",
@@ -10598,7 +10598,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "6ecbf4b8e0fd704bfab2219285010a7dbe68f25a21972aeb072cef94d93edeac"
+      "nonMnemonicSha256": "3c5865d4f1ea57f8da810c3ae08268db32914ddd193ad301845f6d715621a0b9"
     },
     {
       "id": "kanji-expansion-41-45-69to8e8a",
@@ -10617,7 +10617,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "cbf5b152165af4390cc65daf11db2a88bb5035edda5e04b6e769ac5182043cb0"
+      "nonMnemonicSha256": "7198b23ecaa20d4b1be957c464867cfd976b5e87ba6ef4baaae5131c131389d7"
     },
     {
       "id": "kanji-expansion-41-45-48ttbxdyh",
@@ -10636,7 +10636,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "64b1a4b9b2857199ac80994af9a60e7c40fe4af34f08577d4e25a7d84d2c7003"
+      "nonMnemonicSha256": "08968c8af776e48567819243dabc2ded3219c11b5557c87d55a2c0664e2038bc"
     },
     {
       "id": "kanji-expansion-41-45-j8t4c0h",
@@ -10655,7 +10655,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d7697ebf2643e8575884d3a52340dd381310de334255ecca8e28abb3bf790f24"
+      "nonMnemonicSha256": "314d95dce4ec0557b0c63fe2b3c7a3df658207976017797318c1ccba865bcd9d"
     },
     {
       "id": "kanji-expansion-41-45-k73a3a5gskdz",
@@ -10675,7 +10675,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "6cf7f67076ab52ccfa8023e2b2b9d0fe1530f7b7994ae3e6faff279af66d347f"
+      "nonMnemonicSha256": "aa2003c506e946acf97b6fec967568f40dcbaf63ca0ffed20054ff6e5120a34c"
     },
     {
       "id": "kanji-expansion-46-50-57tnr",
@@ -10695,7 +10695,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "022546e2066e9c68f3f58f3301426024dc645a34cebf11223dc1d61b834d45a9"
+      "nonMnemonicSha256": "a975a4059df8bb9da992a41f7d4c52b5d7858ea4f69b3126a5143a8f6441a5ab"
     },
     {
       "id": "kanji-expansion-46-50-17te1eym6a",
@@ -10714,7 +10714,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "98dac8913f17a8aac88662809d07f37bffe82be4b0546a1093461b4098099bc4"
+      "nonMnemonicSha256": "29fbe0583c1430a36736b3ecdeeffc31cd225accefb23ca20e4932d079cd5400"
     },
     {
       "id": "kanji-expansion-46-50-47t2an6c",
@@ -10733,7 +10733,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "888a0896e879aab7d9a6c32150001fbf96e850204c9a44d1b6837ee51c9bc710"
+      "nonMnemonicSha256": "3496ec65e36a958843dbbd56cd18a8ac7d4e300a37061f60a711c555e7192485"
     },
     {
       "id": "kanji-expansion-46-50-07tsb0a4t",
@@ -10752,7 +10752,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a122cf7e10bcad75a612c99ecb0cdd1438563d72a6a6dadff95595a4c2f8d661"
+      "nonMnemonicSha256": "7da38f58f3688a0c79071306565b2cf938f59e549cf7899073b365d50fb11824"
     },
     {
       "id": "kanji-expansion-46-50-k8te3c1a",
@@ -10771,7 +10771,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "4fdfa9cdf0699a151d15eb1de8aaf45483ee161da8e2ed1b023f272ec12e597e"
+      "nonMnemonicSha256": "0bb248a6c76bc995e9db52316cb38fb624fb2fec46f5f2bd67e6c2e4f5cae6d4"
     },
     {
       "id": "kanji-expansion-46-50-k73ab0b7c9c2b0txa",
@@ -10790,7 +10790,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "aba3f0c92b142ae44eee167b4f95cd05fd5517e95f989496b497cd85015e83fd"
+      "nonMnemonicSha256": "267d1b0284b9512aed2b49f97515e9c1441b9cd0b7944f8da9ff0eb32ac31078"
     },
     {
       "id": "kanji-expansion-46-50-173ac2woe",
@@ -10809,7 +10809,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "17c93ffeb6e76a048124b4c2f2f0db742dfade497767837f6a7f2c9d48cd5bd2"
+      "nonMnemonicSha256": "be6f3a0800033588079eb5a398680eefdcaa188a75afe0753ee412aa2f4f98e9"
     },
     {
       "id": "kanji-expansion-46-50-f73a0a5a3v",
@@ -10828,7 +10828,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "df0325509f8480e000a8303b59d9dfb3b0ef3b866d3742c52b0d4e38809175e2"
+      "nonMnemonicSha256": "e92172ddd4460e1cee0f8f20bdc15be13a31e7f105fc9fa1796a90ea51f9cecc"
     },
     {
       "id": "kanji-expansion-46-50-f8tqa0bm3z",
@@ -10847,7 +10847,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d2cf649ed3a1811c835538f8c9ccc65d4f080720cfc55f63e1d4267a8044ec00"
+      "nonMnemonicSha256": "a6031ac1fc8a844d53102b329a803ae8d775f26d152670dd1e4068f16bc73b4e"
     },
     {
       "id": "kanji-expansion-46-50-47t0b4cva",
@@ -10866,7 +10866,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "d3f30f832c90ff01cca3a30c2af4cdbc0a9dd71ef2f456dcce64a3d510010966"
+      "nonMnemonicSha256": "79b10b4cd939bfd702fc11933a9111a396ce5d315cd831607ae9e7908bd39a5a"
     },
     {
       "id": "kanji-expansion-46-50-u8tn3eh6r",
@@ -10885,7 +10885,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "1761fb96565a72e0f6d3d563cb791da90c9fa1a67c7e44f8b471c1c3432dc340"
+      "nonMnemonicSha256": "225798805ebf2ac6c549972f874068682a4b21f446abf0f4e9b9b18ea07aa4e1"
     },
     {
       "id": "kanji-expansion-46-50-87tkq15a",
@@ -10904,7 +10904,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f65d38ade1308a4dd80edd6cd9eb36308d4155ee29a9355d944d065b6e71d0fe"
+      "nonMnemonicSha256": "42141197bf3b8275b819d1b706b9ea561de9dca404a8e92a5ded7419b91c14fd"
     },
     {
       "id": "kanji-expansion-46-50-w7tya3azt",
@@ -10923,7 +10923,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "07ec807375e4f9b4b45b0ba877405a8d1cb3a706d5b4a623b4e38bf2f6e15ae2"
+      "nonMnemonicSha256": "9510550eeab86b3e14c80d7bec7224be16e7c8719c7e55a9f82683ec881c3b2b"
     },
     {
       "id": "kanji-expansion-51-55-17tra2br4i1j",
@@ -10942,7 +10942,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "60b6e73ade4e4ee509e0dba001ce1de7b108d6699200c7546ba4c2c6a504c7f5"
+      "nonMnemonicSha256": "8a9adcd2ca546fd1c761c69144a90b7704866bfe627a1a195ea1dd668a64ffcf"
     },
     {
       "id": "kanji-expansion-51-55-47tudwa6nzc",
@@ -10964,7 +10964,7 @@
         3,
         4
       ],
-      "nonMnemonicSha256": "199b4554d80d323b795393eacc33c44786a4186fd9fe1a716a9b9b0256a7427a"
+      "nonMnemonicSha256": "1caadd11c441a3d458258b7fa3bd0e33fafe17b80c273cad061ac673d808e707"
     },
     {
       "id": "kanji-expansion-51-55-d83axbva6gtg9e",
@@ -10983,7 +10983,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "fced0e0dc4c46f0a6932acceed21d73b7a98827461c68ce21a72077705a0c5b7"
+      "nonMnemonicSha256": "8d58df80814d03b47c95fc6d976eefa438ed7e6c9680255c52cb85c4c510fb5a"
     },
     {
       "id": "kanji-expansion-51-55-l73asan7gqs",
@@ -11002,7 +11002,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "3db26cdebbf84a1f2e328cfac535b97f95b97f8e1b5a699fc139956b4cc7c268"
+      "nonMnemonicSha256": "f3c72c4854fc8d96e90880bf7d78d99b59828a8293f441391bd8e4b5d5f0e010"
     },
     {
       "id": "kanji-expansion-51-55-ob4b5c8ff8b",
@@ -11021,7 +11021,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a030362d70a90024b2034334452c3891040fbecfc5f64befc53fddc986f90eb3"
+      "nonMnemonicSha256": "ca85b8a6abe15d8b3f731f18014bf0b666c5a2cf305413315c2199b07889abfd"
     },
     {
       "id": "kanji-expansion-51-55-47tb1i6a7n",
@@ -11040,7 +11040,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "c3642b038982ec3a3b225d318a60707d969d8f74c79e8eca010ecef083ecce9e"
+      "nonMnemonicSha256": "6694c2341d9a1a143d45f4256ac5751a7797d0324a5d7af144a485782e45eb1b"
     },
     {
       "id": "kanji-expansion-51-55-47txag3b3tka",
@@ -11060,7 +11060,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "3ccc6413661c21ae77cc10a8291d03d54fe08ef9872423b75721905cdbde230a"
+      "nonMnemonicSha256": "5468834bf9418926a0201a8fc44f781d0ffe40203785d01eb74f16abe4cc26ca"
     },
     {
       "id": "kanji-expansion-51-55-07th5a6x",
@@ -11079,7 +11079,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2f8bea20a2233bc8d3f9458f581fac9ebfe30deaa859108be044dd8bb678ffbd"
+      "nonMnemonicSha256": "e02c26ed794f9a6a2c3e110520cc95e1d2bcc3d9ba861f3bc23609d55b5fac96"
     },
     {
       "id": "kanji-expansion-51-55-r63bcn9bwkna07a",
@@ -11098,7 +11098,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "f3245e00fbd12c605199a9292141a7ecf5735a3630245395a470c4f063a8c102"
+      "nonMnemonicSha256": "6f9fa1f9c0a15f63e37b7b127acf416c4c178379248898ee76f086703acb3333"
     },
     {
       "id": "kanji-expansion-51-55-y83bobye4cumce",
@@ -11117,7 +11117,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "8bd38113fef0ced716f832187db8828ae0536ead4b2a121e6707b6e563a08b6b"
+      "nonMnemonicSha256": "722ea8d08402ced80e0bd06fd9ae9c006baf0ef4730dcfb62aaa8cc44dfefef7"
     },
     {
       "id": "kanji-expansion-51-55-r63bna3hwb5c",
@@ -11136,7 +11136,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "23125f6ec5a5bbe729e5a47f9aa52a85191ca8d33e2401ed4a83c6fd0cd8bb35"
+      "nonMnemonicSha256": "e73a2c050eb967bbbe73ae12b80deaa05c3d82096d1db3a1c8485325df31c8ac"
     },
     {
       "id": "kanji-expansion-51-55-97t4bwinc",
@@ -11156,7 +11156,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "0d3f103b7baf628cf95ecfdc940b8c9a8603792b59c92856a6bc1af4e59b2106"
+      "nonMnemonicSha256": "1fce1d79ba4e6536b049241923a3c29b85e26ed27f916e8ea9c3a385de2569ae"
     },
     {
       "id": "kanji-expansion-51-55-47tb1iwfvc",
@@ -11175,7 +11175,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "9ce7fec80e2ac856ec37ef44db96fdfd73004ddc99f888b143dffebb5084b62a"
+      "nonMnemonicSha256": "5ee3e6623d34d2ef5b855caa0d5a459b8b9fbdd04d1b4f95e72a3fceb501d02d"
     },
     {
       "id": "kanji-expansion-56-60-07tuag91a",
@@ -11194,7 +11194,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a9603823a21e43c69c809d157b41a773305cab5b18100f6231ec3d09f6d24f5c"
+      "nonMnemonicSha256": "7cf87a2143ea630b71f1fe1b257743b02c2e6ea73731b2faf16a08ce07fb6683"
     },
     {
       "id": "kanji-expansion-56-60-k73ab0d3h2grf",
@@ -11213,7 +11213,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "b2cfba4ea653e5f175132e4468b8feb3e51304a53f69752b9b5d9fdbb000af6b"
+      "nonMnemonicSha256": "947f71e08bad9dea8b98c5f71f91b53da687b4519984f8afd5f912bf42ad3113"
     },
     {
       "id": "kanji-expansion-56-60-l8t5a",
@@ -11233,7 +11233,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "a76e8d652aa5baf850ab8d697600a4f8986847b3d3a200cd2a4d8e1b22feac1d"
+      "nonMnemonicSha256": "66ed3a6052badb41b1d02b9c028b1b56d48bc5ce6f6d2853d8bfb4925abdc628"
     },
     {
       "id": "kanji-expansion-56-60-97t6hlb",
@@ -11253,7 +11253,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "b759617644e138ec03a9f8e4d33ac4b40696f580f1b28a3e47ea3602a64afa2d"
+      "nonMnemonicSha256": "2a85bb6cefd88ac0e51cd2c9ac4c2280ba96f56decbd93997a5f97d871270de4"
     },
     {
       "id": "kanji-expansion-56-60-e73apcxc0fzk",
@@ -11273,7 +11273,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "b7f61db6cf3857ad3909e3178fbf4d4dc24636f38567d2e9a86dee3a09035931"
+      "nonMnemonicSha256": "acc3a366cb74f3bd0f855f8f77d297aa2a0231850ccb6b6dd8f325c3944763df"
     },
     {
       "id": "kanji-expansion-56-60-38trewe",
@@ -11293,7 +11293,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "90563c19d352ba581bfa4d662060ab48014d9adfe9cab776c1926f3bb61940e4"
+      "nonMnemonicSha256": "806d056a5eab74cfc945b76a2c49142ee5e754363aac78c577f395a1a35dc6eb"
     },
     {
       "id": "kanji-expansion-56-60-47tsbwo",
@@ -11314,7 +11314,7 @@
         2,
         3
       ],
-      "nonMnemonicSha256": "5887b4631ddc1b0631a40a5a04974279777c7464649a6924ce7592e1835e54d5"
+      "nonMnemonicSha256": "02f2a9f75aea65a523289c403e6ba1344dceaff360a7ee1eb2be49a1daf3da17"
     },
     {
       "id": "kanji-expansion-56-60-57t5bzc6c4f",
@@ -11334,7 +11334,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "3ce99c2a0e5590eac7caea7b1d6615baffc0c8c29ebf00886d8ccbbd4bb3d375"
+      "nonMnemonicSha256": "530f58bbcd267a464843e9b429e80f004c83f66912ef9afd7930cb2fd50384b2"
     },
     {
       "id": "kanji-expansion-56-60-e73a1aw3g2f1l",
@@ -11353,7 +11353,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "a894ef9381dc6a48aedfddf5810cb9e19f47846aa67ac8372b3c37e3a9ebf4a3"
+      "nonMnemonicSha256": "ad6a960de539e73aad681c2ffa5562677d8368d15fdc49a201cdd12c0c5b4eec"
     },
     {
       "id": "kanji-expansion-56-60-n8tza7gte",
@@ -11373,7 +11373,7 @@
         1,
         2
       ],
-      "nonMnemonicSha256": "9ca694314dcc0a5fb4277d090998107a7e4a47b801b65a36e4f6409e2fc6629f"
+      "nonMnemonicSha256": "06e4e201a2ca0da3a603746957a36a110c800ca00e92a3b22975da4f39be7902"
     },
     {
       "id": "kanji-expansion-56-60-47t7b8e1a8b5b2geb",
@@ -11392,7 +11392,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "567d923284ac60d6aff174677bee707275d9c81407097a0a21fd40c67c2219b2"
+      "nonMnemonicSha256": "f64fdbfa08f02bb9beff4d1f2a7702042327ff3bcb38e49a2f4c0d6bf4ec0d09"
     },
     {
       "id": "kanji-expansion-56-60-o8t2d1c5e",
@@ -11411,7 +11411,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "2bd46399fb17ebb9a9ba7fe77528c86c6ed1fd2655e230236dafd79864f14d81"
+      "nonMnemonicSha256": "c86569e8544d15fc4a0123d582ed0c36a182fdda2d53fd8e826ced7b4ba60d4b"
     },
     {
       "id": "kanji-expansion-56-60-n8jub0a2byab",
@@ -11430,7 +11430,7 @@
       "applicableSenseIndexes": [
         1
       ],
-      "nonMnemonicSha256": "55707d637a16f5ebb8253e56861ff58c936faa66cdffe6d35618368cb5e2c410"
+      "nonMnemonicSha256": "0b77ac2a25bc7ce0f9ac5d0e534b12309660f59e1ab5b09806a26cae55f2b8ad"
     }
   ]
 }
