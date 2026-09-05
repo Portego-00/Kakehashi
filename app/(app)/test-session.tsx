@@ -14,6 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import ExtraStudyCompletionTransition, {
   useExtraStudyResultsReveal,
 } from "../../src/components/ExtraStudyCompletionTransition";
+import AudioVocabPrompt from "../../src/components/audio-vocab-prompt";
+import ExtraStudyModeAccess from "../../src/components/ExtraStudyModeAccess";
+import { createAudioVocabCard } from "../../src/utils/audioVocabStudy";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import { useSession } from "../../src/contexts/AuthContext";
@@ -33,6 +36,7 @@ import {
 } from "../../src/utils/extraStudySubjectLists";
 import {
   EXTRA_STUDY_SESSION_STORAGE_KEYS,
+  getAccountScopedExtraStudySessionStorageKey,
   clearExtraStudySessionState,
   loadExtraStudySessionState,
   saveExtraStudySessionState,
@@ -48,7 +52,7 @@ import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
 type QuestionType = "meaning" | "reading";
-type TestSessionMode = "random-test" | "hiragana-vocab-meaning";
+type TestSessionMode = "random-test" | "hiragana-vocab-meaning" | "audio-vocab";
 
 interface TestQuestion {
   id: number;
@@ -97,6 +101,8 @@ interface TestSessionConfig {
   minLevel: number;
   maxLevel: number;
   selectedListIds: string[];
+  autoPlayAudio?: boolean;
+  audioSource?: "word" | "sentence";
 }
 
 interface RandomTestProgress {
@@ -166,6 +172,7 @@ const hasReadingQuestion = (subject: ApiSubject): boolean => {
 };
 
 function resolveTestSessionMode(rawMode: unknown): TestSessionMode {
+  if (rawMode === "audio-vocab") return "audio-vocab";
   if (
     typeof rawMode === "string" &&
     rawMode.trim() === HIRAGANA_VOCAB_MEANING_MODE_PARAM
@@ -437,24 +444,46 @@ const buildRandomTestSession = (
   return { questions, reviewItems };
 };
 
-export default function TestSessionScreen() {
+export default function TestSessionRoute() {
+  const params = useLocalSearchParams();
+  return resolveTestSessionMode(params.mode) === "audio-vocab" ? (
+    <ExtraStudyModeAccess modeId="audio-vocab">
+      <TestSessionScreen />
+    </ExtraStudyModeAccess>
+  ) : (
+    <TestSessionScreen />
+  );
+}
+
+function TestSessionScreen() {
   useActivityTracking("test_session");
   const { theme } = useTheme();
-  const { apiToken } = useAuthStore();
+  const { apiToken, userData } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
   const sessionMode = resolveTestSessionMode(params.mode);
   const isHiraganaVocabMeaningMode =
     sessionMode === "hiragana-vocab-meaning";
-  const sessionStorageKey = isHiraganaVocabMeaningMode
-    ? EXTRA_STUDY_SESSION_STORAGE_KEYS.HIRAGANA_VOCAB_MEANING
-    : RANDOM_TEST_SESSION_KEY;
-  const configRoute = isHiraganaVocabMeaningMode
-    ? "/hiragana-vocab-meaning-config"
-    : "/test-config";
-  const sessionLabel = isHiraganaVocabMeaningMode
-    ? "hiragana vocab quiz"
-    : "random test";
+  const isAudioVocabMode = sessionMode === "audio-vocab";
+  const isMeaningOnlyVocabMode = isHiraganaVocabMeaningMode || isAudioVocabMode;
+  const sessionStorageKey = isAudioVocabMode
+    ? getAccountScopedExtraStudySessionStorageKey(
+        EXTRA_STUDY_SESSION_STORAGE_KEYS.AUDIO_VOCAB,
+        userData?.id ?? "anonymous",
+      )
+    : isHiraganaVocabMeaningMode
+      ? EXTRA_STUDY_SESSION_STORAGE_KEYS.HIRAGANA_VOCAB_MEANING
+      : RANDOM_TEST_SESSION_KEY;
+  const configRoute = isAudioVocabMode
+    ? "/audio-vocab"
+    : isHiraganaVocabMeaningMode
+      ? "/hiragana-vocab-meaning-config"
+      : "/test-config";
+  const sessionLabel = isAudioVocabMode
+    ? "audio vocab quiz"
+    : isHiraganaVocabMeaningMode
+      ? "hiragana vocab quiz"
+      : "random test";
   const {
     ankiCardMode,
     ankiGroupQuestions,
@@ -508,7 +537,11 @@ export default function TestSessionScreen() {
       ),
     );
 
-    setConfig(savedSession.config);
+    setConfig({
+      ...savedSession.config,
+      audioSource:
+        savedSession.config.audioSource === "sentence" ? "sentence" : "word",
+    });
     setTestQuestions(savedSession.testQuestions);
     setCurrentQuestionIndex(safeIndex);
     setReviewItems(savedSession.reviewItems);
@@ -584,12 +617,15 @@ export default function TestSessionScreen() {
 
         const parsedConfig = JSON.parse(configData);
         setConfig({
-          includeRadicals: isHiraganaVocabMeaningMode
+          includeRadicals: isMeaningOnlyVocabMode
             ? false
             : parsedConfig.includeRadicals === true,
-          includeKanji: isHiraganaVocabMeaningMode
+          includeKanji: isMeaningOnlyVocabMode
             ? false
             : parsedConfig.includeKanji === true,
+          autoPlayAudio: parsedConfig.autoPlayAudio !== false,
+          audioSource:
+            parsedConfig.audioSource === "sentence" ? "sentence" : "word",
           includeVocabulary: parsedConfig.includeVocabulary !== false,
           includeKanaVocabulary: parsedConfig.includeKanaVocabulary !== false,
           numberOfQuestions:
@@ -597,13 +633,13 @@ export default function TestSessionScreen() {
               ? parsedConfig.numberOfQuestions
               : 20,
           includeMeaning:
-            isHiraganaVocabMeaningMode
+            isMeaningOnlyVocabMode
               ? true
               : (parsedConfig.questionTypes?.meaning ??
                 parsedConfig.includeMeaning ??
                 true),
           includeReading:
-            isHiraganaVocabMeaningMode
+            isMeaningOnlyVocabMode
               ? false
               : (parsedConfig.questionTypes?.reading ??
                 parsedConfig.includeReading ??
@@ -624,25 +660,27 @@ export default function TestSessionScreen() {
       }
 
       setConfig({
+        autoPlayAudio: params.autoPlayAudio !== "false",
+        audioSource: params.audioSource === "sentence" ? "sentence" : "word",
         includeRadicals:
-          !isHiraganaVocabMeaningMode && params.includeRadicals === "true",
+          !isMeaningOnlyVocabMode && params.includeRadicals === "true",
         includeKanji:
-          !isHiraganaVocabMeaningMode && params.includeKanji === "true",
+          !isMeaningOnlyVocabMode && params.includeKanji === "true",
         includeVocabulary:
           params.includeVocabulary === "true" ||
-          (isHiraganaVocabMeaningMode &&
+          (isMeaningOnlyVocabMode &&
             typeof params.includeVocabulary !== "string"),
         includeKanaVocabulary:
           params.includeKanaVocabulary === "true" ||
-          (isHiraganaVocabMeaningMode &&
+          (isMeaningOnlyVocabMode &&
             typeof params.includeKanaVocabulary !== "string"),
         numberOfQuestions:
           Number.parseInt(params.numberOfQuestions as string, 10) || 20,
         includeMeaning:
-          isHiraganaVocabMeaningMode ||
+          isMeaningOnlyVocabMode ||
           params.includeMeaning === "true",
         includeReading:
-          !isHiraganaVocabMeaningMode && params.includeReading === "true",
+          !isMeaningOnlyVocabMode && params.includeReading === "true",
         srsGroups: {
           apprentice: params.srsApprentice !== "false",
           guru: params.srsGuru !== "false",
@@ -668,6 +706,8 @@ export default function TestSessionScreen() {
       ]);
     }
   }, [
+    params.autoPlayAudio,
+    params.audioSource,
     params.includeKanaVocabulary,
     params.includeKanji,
     params.includeMeaning,
@@ -687,6 +727,7 @@ export default function TestSessionScreen() {
     params.srsMaster,
     params.useCustomLevelRange,
     configRoute,
+    isMeaningOnlyVocabMode,
     isHiraganaVocabMeaningMode,
     restoreSavedRandomTestSession,
     sessionLabel,
@@ -722,7 +763,7 @@ export default function TestSessionScreen() {
     }
 
     const loadRecentRandomTestSubjectIds = async (): Promise<Set<number>> => {
-      if (isHiraganaVocabMeaningMode) {
+      if (isMeaningOnlyVocabMode) {
         return new Set();
       }
 
@@ -741,7 +782,7 @@ export default function TestSessionScreen() {
     const saveGeneratedRandomTestHistory = async (
       items: RandomTestReviewItem[],
     ): Promise<void> => {
-      if (isHiraganaVocabMeaningMode) {
+      if (isMeaningOnlyVocabMode) {
         return;
       }
 
@@ -814,6 +855,11 @@ export default function TestSessionScreen() {
       });
 
       const filteredSubjects = allSubjects.filter((subject) => {
+        if (
+          isAudioVocabMode &&
+          !createAudioVocabCard(subject, undefined, config.audioSource)
+        )
+          return false;
         if (
           !subjectMatchesExtraStudySrsStage(
             subject.id,
@@ -892,7 +938,9 @@ export default function TestSessionScreen() {
       if (filteredSubjects.length === 0) {
         Alert.alert(
           "No Matching Items",
-          "No learned items match your selected criteria. Try expanding subject types or SRS stages.",
+          isAudioVocabMode
+            ? `No learned vocabulary with ${config.audioSource === "sentence" ? "context sentences" : "WaniKani audio"} matches your filters. Try expanding the level range or SRS stages.`
+            : "No learned items match your selected criteria. Try expanding subject types or SRS stages.",
           [{ text: "OK", onPress: () => router.back() }],
         );
         return;
@@ -951,6 +999,11 @@ export default function TestSessionScreen() {
         }
 
         const filteredSubjects = (allSubjectsRaw as ApiSubject[]).filter((subject) => {
+          if (
+            isAudioVocabMode &&
+            !createAudioVocabCard(subject, undefined, config.audioSource)
+          )
+            return false;
           const inLevelRange = subjectMatchesExtraStudyLevel(
             subject.data?.level,
             {
@@ -1015,7 +1068,9 @@ export default function TestSessionScreen() {
         });
 
         if (filteredSubjects.length === 0) {
-          Alert.alert("No Matching Items", "No cached items match your selected criteria.", [
+          Alert.alert("No Matching Items", isAudioVocabMode
+            ? `No cached vocabulary with ${config.audioSource === "sentence" ? "context sentences" : "WaniKani audio"} matches your filters.`
+            : "No cached items match your selected criteria.", [
             { text: "OK", onPress: () => router.back() },
           ]);
           return;
@@ -1068,6 +1123,8 @@ export default function TestSessionScreen() {
     backToBackQuestions,
     config,
     isAuthLoading,
+    isAudioVocabMode,
+    isMeaningOnlyVocabMode,
     isHiraganaVocabMeaningMode,
     preferredQuestionType,
     reviewQuestionOrderEnabled,
@@ -1245,9 +1302,11 @@ export default function TestSessionScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.secondary} />
           <Text style={[styles.loadingText, { color: theme.textColor }]}>
-            {isHiraganaVocabMeaningMode
-              ? "Preparing your hiragana vocab quiz..."
-              : "Preparing your test..."}
+            {isAudioVocabMode
+              ? "Preparing your audio vocab quiz..."
+              : isHiraganaVocabMeaningMode
+                ? "Preparing your hiragana vocab quiz..."
+                : "Preparing your test..."}
           </Text>
         </View>
       </SafeAreaView>
@@ -1356,6 +1415,22 @@ export default function TestSessionScreen() {
       completedCount={sessionProgress.completedCount}
       correctAnswersCount={sessionProgress.correctAnswersCount}
       forceDisableAnkiGrouping={!shouldUseGroupedQuestions}
+      audioPrompt={
+        isAudioVocabMode ? (
+          <AudioVocabPrompt
+            key={currentQuestion.id}
+            subject={currentQuestion.subject}
+            autoPlay={config?.autoPlayAudio !== false}
+            sentence={
+              createAudioVocabCard(
+                currentQuestion.subject,
+                undefined,
+                config?.audioSource,
+              )?.sentence?.ja
+            }
+          />
+        ) : undefined
+      }
       overridePromptText={hiraganaMeaningPrompt}
       overridePromptUsesJapaneseFont={Boolean(hiraganaMeaningPrompt)}
       contextSentencesHint={hiraganaMeaningContextHints}

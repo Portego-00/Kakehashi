@@ -91,6 +91,14 @@ function LessonHarness({ initialFilters, subjects, assignments, lists = [], onSt
 afterEach(() => vi.restoreAllMocks());
 
 describe("native-parity study configuration", () => {
+  it("offers original word recordings or context sentence speech for audio vocabulary", () => {
+    const onChange = vi.fn();
+    renderConfig(<StudyConfig mode="audio-vocab" filters={getModeDefaultFilters("audio-vocab", 5)} subjects={[]} lists={[]} userLevel={5} onChange={onChange} onStart={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Words" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Context sentences" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Context sentences" }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ audioVocabSource: "sentence" }));
+  });
   it("uses a subject-first custom review picker with reading search and a direct start action", () => {
     const cat = reviewSubject(1, "vocabulary", "猫", "Cat", "ねこ", 2);
     const end = reviewSubject(2, "kanji", "末", "End", "まつ", 3);

@@ -663,6 +663,9 @@ export class AzureSpeechService {
       this.assertPlaybackCurrent(playbackGeneration, signal);
 
       this.currentSound = sound;
+      // Cleanup ownership transfers to the service once the sound is current.
+      // A later stop may detach it while this playback's abort handler runs.
+      createdSound = null;
 
       await new Promise<void>((resolve, reject) => {
         let settled = false;
@@ -700,7 +703,6 @@ export class AzureSpeechService {
     } catch (error) {
       if (
         createdSound &&
-        createdSound !== this.currentSound &&
         typeof createdSound.unloadAsync === 'function'
       ) {
         try {
@@ -727,24 +729,29 @@ export class AzureSpeechService {
   }
 
   private async stopPlaybackResources(): Promise<void> {
+    const playbackGeneration = this.playbackGeneration;
+    const sound = this.currentSound;
+    this.currentSound = null;
+
     try {
       await Speech.stop();
     } catch (error) {
       console.error('Error stopping expo speech fallback:', error);
     }
 
-    if (this.currentSound) {
+    if (sound) {
       try {
-        await this.currentSound.stopAsync();
-        await this.currentSound.unloadAsync();
-        this.currentSound = null;
+        await sound.stopAsync();
+        await sound.unloadAsync();
         console.log('Azure Speech: Stopped and unloaded current audio');
       } catch (error) {
         console.error('Error stopping Azure speech audio:', error);
       }
     }
 
-    this.isSpeaking = false;
+    if (playbackGeneration === this.playbackGeneration) {
+      this.isSpeaking = false;
+    }
   }
 
   async stop(): Promise<void> {

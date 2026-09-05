@@ -1,5 +1,5 @@
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
-import { advanceStudySession, answerStudyQuestion, checkAnswer, createStudySession, DEFAULT_STUDY_FILTERS, filterStudySubjects, generateQuestions, getSessionSummary, getStudyItemProgress, normalizeMeaning, normalizeReading, recentLessonSubjectIds, resolveStudyAnswerStatus, unlockedLessonSubjects } from "./engine";
+import { advanceStudySession, answerStudyQuestion, checkAnswer, createStudySession, DEFAULT_STUDY_FILTERS, filterStudySubjects, generateQuestions, getSessionSummary, getStudyItemProgress, normalizeMeaning, normalizeReading, recentLessonSubjectIds, resolveStudyAnswerStatus, sanitizeStudyFilters, unlockedLessonSubjects } from "./engine";
 import type { StudyFilters, StudyQuestion } from "./types";
 
 function subject(id: number, object: SubjectType, characters: string, meaning: string, reading = ""): Subject {
@@ -25,6 +25,43 @@ const assignments = subjects.map((item) => ({ ...assignment(item.id), data: { ..
 const filters: StudyFilters = { ...DEFAULT_STUDY_FILTERS, count: 20, subjectTypes: ["kanji", "vocabulary"], srsGroups: ["apprentice"], minLevel: 1, maxLevel: 5, selectedSubjectIds: [], questionKinds: ["meaning", "reading"] };
 
 describe("study question engine", () => {
+  it("builds audio-only meaning cards from recorded vocabulary and keeps empty lists empty", () => {
+    const noAudio = { ...subject(10, "vocabulary", "犬", "Dog", "いぬ"), data: { ...subject(10, "vocabulary", "犬", "Dog", "いぬ").data, pronunciation_audios: [] } };
+    const dataset = { subjects: [...subjects, noAudio], assignments: [...assignments, assignment(10)] };
+    const questions = generateQuestions("audio-vocab", dataset, filters);
+    expect(questions).toHaveLength(1);
+    expect(questions[0]).toMatchObject({ kind: "audio-vocab", prompt: "Listen", displayAnswer: "Cat", reading: "ねこ" });
+    expect(questions[0].choices).toBeUndefined();
+    expect(generateQuestions("audio-vocab", dataset, { ...filters, selectedListIds: ["empty"], selectedSubjectIds: [] })).toHaveLength(0);
+    expect(generateQuestions("audio-vocab", { subjects, assignments: [] }, { ...filters, selectedListIds: ["cats"], selectedSubjectIds: [1] })).toHaveLength(1);
+  });
+
+  it("builds sentence audio questions without recordings and grades the target word's meaning", () => {
+    const cat = subject(1, "vocabulary", "猫", "Cat", "ねこ");
+    const sentenceOnly = { ...cat, data: { ...cat.data, pronunciation_audios: [], context_sentences: [{ ja: "  ", en: "" }, { ja: "  猫が好きです。  ", en: "I like cats." }] } };
+    const [question] = generateQuestions("audio-vocab", { subjects: [sentenceOnly], assignments: [assignment(1)] }, { ...filters, audioVocabSource: "sentence", listeningAutoPlayAudio: false });
+
+    expect(question).toMatchObject({ kind: "audio-vocab", prompt: "Listen", audioVocabSentence: "猫が好きです。", reading: "ねこ", acceptedAnswers: ["Cat"], displayAnswer: "Cat", autoPlayAudio: false });
+    expect(question.audioUrl).toBeUndefined();
+    expect(question.choices).toBeUndefined();
+    expect(checkAnswer(question, "cat")).toBe(true);
+    expect(checkAnswer(question, "I like cats.")).toBe(false);
+    expect(generateQuestions("audio-vocab", { subjects: [sentenceOnly], assignments: [assignment(1)] }, { ...filters, audioVocabSource: "word" })).toHaveLength(0);
+  });
+
+  it("excludes words with no usable Japanese sentence from the sentence source", () => {
+    const cat = subject(1, "vocabulary", "猫", "Cat", "ねこ");
+    const missing = { ...cat, data: { ...cat.data, context_sentences: [] } };
+    const blank = { ...cat, id: 10, data: { ...cat.data, context_sentences: [{ ja: " \n ", en: "An English-only sentence." }] } };
+    expect(generateQuestions("audio-vocab", { subjects: [missing, blank], assignments: [assignment(1), assignment(10)] }, { ...filters, audioVocabSource: "sentence" })).toHaveLength(0);
+  });
+
+  it("defaults old audio configurations to word recordings and preserves a sentence selection", () => {
+    expect(DEFAULT_STUDY_FILTERS.audioVocabSource).toBe("word");
+    expect(sanitizeStudyFilters({ count: 10 }).audioVocabSource).toBe("word");
+    expect(sanitizeStudyFilters({ audioVocabSource: "sentence" }).audioVocabSource).toBe("sentence");
+  });
+
   it("normalizes English and kana answers without accepting blanks", () => {
     expect(normalizeMeaning("  To RUN! ")).toBe("run");
     expect(normalizeReading("neko")).toBe("ねこ");

@@ -1,11 +1,23 @@
 import {
   EXTRA_STUDY_MODE_DEFINITIONS,
   getAvailableExtraStudyModes,
+  normalizeHomeExtraStudyModeOrder,
   RESUMABLE_EXTRA_STUDY_MODE_SESSION_KEYS,
 } from "../extraStudyModes";
 import { EXTRA_STUDY_SESSION_STORAGE_KEYS } from "../extraStudySessionPersistence";
 
 describe("extraStudyModes", () => {
+  it("makes Audio Vocab available in every account's home order", () => {
+    const modes = getAvailableExtraStudyModes("another-user");
+    expect(modes.some((mode) => mode.id === "audio-vocab")).toBe(true);
+    expect(
+      normalizeHomeExtraStudyModeOrder(["audio-vocab"], modes),
+    ).toContain("audio-vocab");
+    expect(
+      getAvailableExtraStudyModes(" portEGO ").map((mode) => mode.id),
+    ).toContain("audio-vocab");
+  });
+
   it("publishes the JLPT quiz in Extra Study", () => {
     expect(
       EXTRA_STUDY_MODE_DEFINITIONS.find((mode) => mode.id === "jlpt-quiz"),

@@ -9,6 +9,7 @@ export type ExtraStudyModeId =
   | "similar-kanji"
   | "kana-kanji-test"
   | "listening-practice"
+  | "audio-vocab"
   | "context-sentence-practice"
   | "jlpt-quiz"
   | "text-analysis"
@@ -75,6 +76,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     subtitle: "Read kana prompts and answer in kanji",
     icon: "swap-horizontal",
     route: "/kana-kanji-config",
+  },
+  {
+    id: "audio-vocab",
+    title: "Audio Vocab",
+    subtitle: "Listen to a word and recall its English meaning",
+    icon: "volume-high",
+    route: "/audio-vocab",
   },
   {
     id: "listening-practice",
@@ -173,6 +181,7 @@ export const DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER: ExtraStudyModeId[] =
 export const RESUMABLE_EXTRA_STUDY_MODE_SESSION_KEYS: Partial<
   Record<ExtraStudyModeId, string>
 > = {
+  "audio-vocab": EXTRA_STUDY_SESSION_STORAGE_KEYS.AUDIO_VOCAB,
   "random-test": EXTRA_STUDY_SESSION_STORAGE_KEYS.RANDOM_TEST,
   "reading-test": EXTRA_STUDY_SESSION_STORAGE_KEYS.MEANING_READING,
   "hiragana-vocab-meaning":

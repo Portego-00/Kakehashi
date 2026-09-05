@@ -130,7 +130,9 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
           backToBackQuestions: webSettings.study.backToBackQuestions,
           maxQuestionGap: 10,
         })
-        : generateQuestions(mode, dataset, generationFilters);
+        : mode === "audio-vocab"
+          ? generateQuestions(mode, dataset, generationFilters, { audioVocabVoice: webSettings.study.vocabularyAudioVoice })
+          : generateQuestions(mode, dataset, generationFilters);
       if (mode === "listening") {
         const controller = new AbortController();
         listeningAbortRef.current = controller;
@@ -171,7 +173,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
           return;
         }
       }
-      if (!questions.length) { setStartError("No matching questions were found. Try more SRS stages, subject types, levels, or a different recent window."); setPreparing(false); return; }
+      if (!questions.length) { setStartError(mode === "audio-vocab" ? effectiveFilters.audioVocabSource === "sentence" ? "No vocabulary with Japanese context sentences matches these filters. Try more levels, SRS stages, or another list." : "No vocabulary with WaniKani audio matches these filters. Try more levels, SRS stages, or another list." : "No matching questions were found. Try more SRS stages, subject types, levels, or a different recent window."); setPreparing(false); return; }
       const session = createStudySession(mode, questions);
       saveStudySession(scope, session); setActiveSession(session); setPreparing(false); return;
     }

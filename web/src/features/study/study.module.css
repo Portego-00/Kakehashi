@@ -336,6 +336,9 @@
 .itemDetailsHeader { min-height: 4.25rem; display: flex; justify-content: space-between; gap: var(--space-md); align-items: center; padding: var(--space-md); }
 .itemDetailsHeader h3 { font-size: var(--text-md); }
 .itemDetailsHeader p { margin-block-start: var(--space-3xs); color: var(--color-muted); font-size: var(--text-xs); text-transform: capitalize; }
+.itemDetailsIdentity { min-width: 0; display: flex; align-items: center; gap: var(--space-md); }
+.itemDetailsIdentity > div { flex-shrink: 0; }
+.itemDetailsCharacter { min-width: 0; max-width: 14rem; color: var(--color-ink); font: 600 clamp(1.5rem, 4vw, 2.25rem) var(--font-japanese); line-height: 1.3; overflow-wrap: anywhere; }
 .itemDetailsLink { min-height: 2.25rem; display: inline-flex; align-items: center; gap: var(--space-xs); border-block-end: 1px solid var(--color-rule); color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 700; white-space: nowrap; }
 .choiceFeedback { min-height: 3.25rem; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-md); padding-block: var(--space-sm); border-block-end: 1px solid var(--color-rule-2); }
 .choiceFeedback .primaryButton { margin-block-start: 0; }

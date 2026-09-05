@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const EXTRA_STUDY_CONFIG_STORAGE_KEYS = {
+  AUDIO_VOCAB: "extra_study_config:audio_vocab",
   CUSTOM_REVIEW: "extra_study_config:custom_review",
   TEST: "extra_study_config:test",
   KANA_KANJI: "extra_study_config:kana_kanji",

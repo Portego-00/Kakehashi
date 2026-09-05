@@ -3,8 +3,7 @@
 import { ArrowRight, Check, ChevronLeft, ChevronRight, RotateCcw, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { srsStageLabel } from "@/components/SrsStageIcon";
+import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "@/features/core-study/answer-checker";
@@ -21,6 +20,7 @@ import { composeKanaInput } from "@/lib/kana";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
+import { CustomSrsProgressionToast, type CustomSrsProgression } from "./CustomSrsProgressionToast";
 import { customLessonWords, customReviewWords, nextCustomReviewAt } from "./model";
 import { nextCustomSrsStage } from "./scheduler";
 import { customAssignmentToWaniKani, customWordToSubject, customWordUsesKanji } from "./subject-adapter";
@@ -33,12 +33,6 @@ type SessionPhase = "teaching" | "quiz" | "results";
 type CustomQuestion = {
   word: CustomVocabularyWord;
   kind: QuestionKind;
-};
-
-type SrsProgression = {
-  startingStage: CustomSrsStage;
-  endingStage: CustomSrsStage;
-  nextReviewInterval: string;
 };
 
 const DEFAULT_LESSON_BATCH_SIZE = 5;
@@ -113,14 +107,6 @@ export function createCustomCompletionEventId() {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
-}
-
-function SrsProgressionNotice({ progression, mode }: { progression: SrsProgression; mode: "normal" | "compact" }) {
-  return <aside className={coreStyles.srsProgression} data-mode={mode} data-correct={progression.endingStage > progression.startingStage} role="status" aria-label="SRS progression">
-    {mode === "normal" ? <span>{srsStageLabel(progression.startingStage)} →</span> : null}
-    <strong>{srsStageLabel(progression.endingStage)}</strong>
-    <small>{progression.endingStage >= 9 ? "Burned" : `Next review ${progression.nextReviewInterval}`}</small>
-  </aside>;
 }
 
 function CustomLessonTeaching({
@@ -381,14 +367,15 @@ function ReadyCustomSrsSession({
   submitReview: ReturnType<typeof useCustomSrs>["submitReview"];
   hookSaving: boolean;
 }) {
-  const [startedAt] = useState(() => new Date());
+  const [startedAt, setStartedAt] = useState(() => new Date());
   const packsByWordId = useMemo(() => {
     const result = new Map<string, CustomVocabularyPack>();
     for (const pack of packs) for (const word of pack.words) result.set(word.id, pack);
     return result;
   }, [packs]);
-  const [sessionWords] = useState(() => mode === "lessons"
-    ? customLessonWords(state, packs).slice(0, Math.max(1, Math.trunc(lessonBatchSize)))
+  const batchSize = Number.isFinite(lessonBatchSize) ? Math.max(1, Math.trunc(lessonBatchSize)) : DEFAULT_LESSON_BATCH_SIZE;
+  const [sessionWords, setSessionWords] = useState(() => mode === "lessons"
+    ? customLessonWords(state, packs).slice(0, batchSize)
     : customReviewWords(state, packs, startedAt));
   const [queue, setQueue] = useState(() => createCustomQuestionQueue(sessionWords, state, mode, studySettings));
   const [phase, setPhase] = useState<SessionPhase>(() => mode === "lessons" && sessionWords.length ? "teaching" : sessionWords.length ? "quiz" : "results");
@@ -401,10 +388,12 @@ function ReadyCustomSrsSession({
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState("");
-  const [lastProgression, setLastProgression] = useState<SrsProgression | null>(null);
+  const [lastProgression, setLastProgression] = useState<CustomSrsProgression | null>(null);
+  const dismissProgression = useCallback(() => setLastProgression(null), []);
   const inputRef = useRef<HTMLInputElement>(null);
   const committingRef = useRef(false);
   const committedWordsRef = useRef(new Set<string>());
+  const [committedWordIds, setCommittedWordIds] = useState<ReadonlySet<string>>(() => new Set());
   const eventIdsRef = useRef(new Map<string, string>());
   const currentQuestion = queue[0];
   const currentWord = currentQuestion?.word;
@@ -414,6 +403,30 @@ function ReadyCustomSrsSession({
   const total = sessionWords.length;
   const displayedCurrent = Math.min(total, completedCount + 1);
   const itemProgress = total ? displayedCurrent / total : 0;
+  // Keep successful completions excluded even while the shared snapshot catches up.
+  const remainingLessons = mode === "lessons"
+    ? customLessonWords(state, packs).filter((word) => !committedWordIds.has(word.id))
+    : [];
+  const nextBatchCount = Math.min(batchSize, remainingLessons.length);
+
+  function startNextLessonBatch() {
+    if (mode !== "lessons" || phase !== "results" || committingRef.current || hookSaving) return;
+    const nextWords = remainingLessons.slice(0, batchSize);
+    if (!nextWords.length) return;
+
+    setSessionWords(nextWords);
+    setQueue(createCustomQuestionQueue(nextWords, state, mode, studySettings));
+    setStartedAt(new Date());
+    setCompletedAt(null);
+    setCompletedCount(0);
+    setCorrectAnswerCount(0);
+    setIncorrectByWord({});
+    setLastProgression(null);
+    resetForNextQuestion();
+    setLessonIndex(0);
+    setPhase("teaching");
+    window.requestAnimationFrame(() => document.getElementById("custom-lesson-title")?.closest("header")?.scrollIntoView({ block: "start" }));
+  }
 
   const startQuiz = () => {
     setPhase("quiz");
@@ -429,12 +442,6 @@ function ReadyCustomSrsSession({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [currentKind, currentWord?.id, feedback, phase]);
-
-  useEffect(() => {
-    if (!lastProgression) return;
-    const timer = window.setTimeout(() => setLastProgression(null), 3_000);
-    return () => window.clearTimeout(timer);
-  }, [lastProgression]);
 
   function submitAnswer(event: FormEvent) {
     event.preventDefault();
@@ -496,6 +503,7 @@ function ReadyCustomSrsSession({
       if (nextState === null) throw new Error("Your custom SRS progress could not be saved in this browser.");
 
       committedWordsRef.current.add(currentWord.id);
+      setCommittedWordIds((current) => new Set(current).add(currentWord.id));
       const expectedEndingStage = mode === "lessons" ? 1 : nextCustomSrsStage(startingStage, incorrectAnswers);
       const nextAssignment = nextState.assignments[currentWord.id];
       const endingStage = (nextAssignment?.stage ?? expectedEndingStage) as CustomSrsStage;
@@ -539,9 +547,11 @@ function ReadyCustomSrsSession({
     const minutes = completedCount && completedAt ? Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000)) : 0;
     const nextReview = mode === "reviews" ? nextCustomReviewAt(state, packs) : null;
     const emptyTitle = mode === "lessons" ? "No custom lessons waiting" : "No custom reviews waiting";
-    const completeTitle = mode === "lessons" ? "Custom lessons complete" : "Custom reviews complete";
+    const completeTitle = mode === "lessons"
+      ? nextBatchCount ? "Lesson batch complete" : "Custom lessons complete"
+      : "Custom reviews complete";
     return <div className={coreStyles.stage}>
-      {lastProgression && studySettings.srsProgressionCardDisplayMode !== "hidden" ? <SrsProgressionNotice progression={lastProgression} mode={studySettings.srsProgressionCardDisplayMode} /> : null}
+      <CustomSrsProgressionToast progression={lastProgression} mode={studySettings.srsProgressionCardDisplayMode} onDismiss={dismissProgression} />
       <section className={coreStyles.results}>
         <Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden />
         <div><h1>{completedCount ? completeTitle : emptyTitle}</h1><p>{completedCount
@@ -553,7 +563,12 @@ function ReadyCustomSrsSession({
           <div><div className={coreStyles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div>
           <div><div className={coreStyles.resultNumber}>{minutes}</div><span>minutes studied</span></div>
         </div> : null}
-        <div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/custom-vocabulary" tone="primary">Vocabulary Packs</ButtonLink>{completedCount && mode === "lessons" ? <ButtonLink href="/custom-vocabulary/reviews" tone="ghost">Review Due Items</ButtonLink> : null}</div>
+        {nextBatchCount ? <p>{remainingLessons.length} {remainingLessons.length === 1 ? "lesson" : "lessons"} remaining.</p> : null}
+        <div className="cluster" style={{ justifyContent: "center" }}>
+          {nextBatchCount ? <Button tone="primary" onClick={startNextLessonBatch} disabled={committing || hookSaving}>Next batch ({nextBatchCount})<ArrowRight size={17} aria-hidden /></Button> : null}
+          <ButtonLink href="/custom-vocabulary" tone={nextBatchCount ? "ghost" : "primary"}>Vocabulary Packs</ButtonLink>
+          {completedCount && mode === "lessons" ? <ButtonLink href="/custom-vocabulary/reviews" tone="ghost">Review Due Items</ButtonLink> : null}
+        </div>
       </section>
     </div>;
   }
@@ -576,6 +591,7 @@ function ReadyCustomSrsSession({
     data-type={customWordUsesKanji(currentWord) ? "vocabulary" : "kana_vocabulary"}
     aria-labelledby="question-prompt"
   >
+    <CustomSrsProgressionToast progression={lastProgression} mode={studySettings.srsProgressionCardDisplayMode} onDismiss={dismissProgression} />
     <div className={studyStyles.quizTopbar}>
       <span className={studyStyles.numeric}>{displayedCurrent} / {total}</span>
       <div className={studyStyles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={total}>

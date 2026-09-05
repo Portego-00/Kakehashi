@@ -71,6 +71,18 @@ describe("study session layout", () => {
     engineMocks.generateQuestions.mockClear();
   });
 
+  it.each([
+    ["word", "No vocabulary with WaniKani audio matches these filters."],
+    ["sentence", "No vocabulary with Japanese context sentences matches these filters."],
+  ] as const)("explains missing content for the %s audio source", async (audioVocabSource, message) => {
+    window.localStorage.setItem(configKey("user-1", "audio-vocab"), JSON.stringify({ audioVocabSource }));
+    engineMocks.generateQuestions.mockReturnValueOnce([]);
+    render(<StudyModeClient mode="audio-vocab" />);
+    fireEvent.click(screen.getByRole("button", { name: "Start test session" }));
+    expect(await screen.findByText(`${message} Try more levels, SRS stages, or another list.`)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Active study session" })).not.toBeInTheDocument();
+  });
+
   it("removes the mode masthead and activates the full-page surface after starting", async () => {
     const { container } = render(<StudyModeClient mode="recent-lessons" />);
 

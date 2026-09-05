@@ -715,7 +715,7 @@ export default function StudyTab() {
         const regularSessionStates = await Promise.all(
           RESUMABLE_EXTRA_STUDY_MODE_SESSION_ENTRIES.map(
             async ([modeId, storageKey]) => {
-              if (modeId === "context-sentence-practice") {
+              if (modeId === "context-sentence-practice" || modeId === "audio-vocab") {
                 if (!userData?.id) {
                   return [modeId, false] as const;
                 }

@@ -26,6 +26,7 @@ import { clearStudySession, saveStudySession } from "../storage";
 import type { StudyAnswer, StudyAnswerStatus, StudyQuestion, StudySession } from "../types";
 import type { StudyStorageScope } from "../storage";
 import { pickPreferredPronunciationAudios } from "../../../../../src/utils/pronunciationAudio";
+import { AudioVocabPrompt, type AudioVocabPlayer } from "./audio-vocab-prompt";
 import styles from "../study.module.css";
 
 const StudySubjectDetails = dynamic(
@@ -77,12 +78,17 @@ async function playAudioSequence(
   }
 }
 
-function speakJapanese(value?: string) {
-  if (!value || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+function speakJapanese(value?: string, onStopped?: () => void) {
+  if (!value || typeof window === "undefined" || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== "function") return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(value);
   utterance.lang = "ja-JP";
+  if (onStopped) {
+    utterance.onend = onStopped;
+    utterance.onerror = onStopped;
+  }
   window.speechSynthesis.speak(utterance);
+  return utterance;
 }
 
 function passthroughImageLoader({ src }: { src: string }) {
@@ -112,7 +118,7 @@ function subjectTypeLabel(question: StudyQuestion) {
 }
 
 export function promptTypePresentation(question: StudyQuestion): { label: string; tone: PromptTone } {
-  if (["meaning", "kana-to-meaning", "listening", "listening-meaning"].includes(question.kind)) return { label: "Meaning", tone: "meaning" };
+  if (["meaning", "kana-to-meaning", "listening", "listening-meaning", "audio-vocab"].includes(question.kind)) return { label: "Meaning", tone: "meaning" };
   if (["reading", "meaning-to-reading"].includes(question.kind)) return { label: "Reading", tone: "reading" };
   if (["kana-to-kanji", "similar-kanji"].includes(question.kind)) return { label: "Kanji", tone: "other" };
   if (question.kind === "listening-characters") return { label: "Vocabulary", tone: question.subjectType === "kana_vocabulary" ? "reading" : "other" };
@@ -136,7 +142,7 @@ function questionUsesAnswerStopPreferences(question: StudyQuestion, mode: StudyS
 }
 
 export function reviewKindForStudyQuestion(question: StudyQuestion): ReviewQuestionKind | null {
-  if (["meaning", "kana-to-meaning", "listening", "listening-meaning"].includes(question.kind)) return "meaning";
+  if (["meaning", "kana-to-meaning", "listening", "listening-meaning", "audio-vocab"].includes(question.kind)) return "meaning";
   if (["reading", "meaning-to-reading"].includes(question.kind)) return "reading";
   return null;
 }
@@ -179,6 +185,20 @@ function resultSubjectPresentation(group: ResultSubjectGroup) {
 }
 
 function SessionResults({ scope, session, subjects, showListeningTranslation, onExit }: { scope: StudyStorageScope; session: StudySession; subjects: Subject[]; showListeningTranslation: boolean; onExit: () => void }) {
+  const sentencePlaybackRef = useRef<object | null>(null);
+  useEffect(() => () => {
+    if (!sentencePlaybackRef.current) return;
+    sentencePlaybackRef.current = null;
+    window.speechSynthesis?.cancel();
+  }, []);
+  const playResultSentence = (text?: string) => {
+    const playback = {};
+    sentencePlaybackRef.current = playback;
+    const utterance = speakJapanese(text, () => {
+      if (sentencePlaybackRef.current === playback) sentencePlaybackRef.current = null;
+    });
+    if (!utterance) sentencePlaybackRef.current = null;
+  };
   const summary = getSessionSummary(session);
   const groups = resultSubjectGroups(session, subjects);
   return (
@@ -195,13 +215,15 @@ function SessionResults({ scope, session, subjects, showListeningTranslation, on
         <ol className={styles.resultSubjectList}>
           {groups.map((group) => {
             const presentation = resultSubjectPresentation(group);
-            const media = group.responses.find(({ question }) => question.imageUrl || question.audioUrl || question.sentence)?.question;
+            const media = group.responses.find(({ question }) => question.imageUrl || question.audioUrl || question.sentence || question.audioVocabSentence)?.question;
+            const sentenceAudio = media?.audioVocabSentence ?? (media?.sentenceAudioEnabled ? media.sentence?.ja : undefined);
+            const sentenceAudioText = media?.audioVocabSentence && (media.reading || media.characters) ? `${media.reading || media.characters}。${sentenceAudio}` : sentenceAudio;
             const correct = group.responses.every(({ answer }) => answer.correct);
             const listening = group.responses.some(({ question }) => isListeningQuestion(question));
             return <li key={group.subjectId}><article className={styles.resultSubject} data-correct={correct}>
               <header className={styles.resultSubjectHeader}>
                 <div className={styles.resultSubjectIdentity}>{group.subject ? <SubjectCharacter subject={group.subject} fallbackText={presentation.characters} className={styles.resultSubjectCharacters} data-type={group.responses[0]?.question.subjectType} imageSize="2.5rem" /> : <span className={styles.resultSubjectCharacters} data-type={group.responses[0]?.question.subjectType} lang="ja">{presentation.characters}</span>}<div><h4>{presentation.primaryMeaning}</h4><p>{group.subject ? `Level ${group.subject.data.level} · ` : ""}{presentation.type}</p></div></div>
-                <div className={styles.resultSubjectActions}>{media?.audioUrl ? <button type="button" className={styles.resultReplayButton} onClick={() => playAudio(media.audioUrl)} aria-label={`Replay audio for ${presentation.characters}`}><Volume2 size={16} aria-hidden /> Replay</button> : media?.sentenceAudioEnabled && media.sentence ? <button type="button" className={styles.resultReplayButton} onClick={() => speakJapanese(media.sentence?.ja)} aria-label={`Play sentence for ${presentation.characters}`}><Volume2 size={16} aria-hidden /> Play sentence</button> : null}<Link className={styles.resultSubjectLink} href={`/subjects/${group.subjectId}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${presentation.characters} subject details`}>View subject <ExternalLink size={14} aria-hidden /></Link></div>
+                <div className={styles.resultSubjectActions}>{media?.audioUrl ? <button type="button" className={styles.resultReplayButton} onClick={() => playAudio(media.audioUrl)} aria-label={`Replay audio for ${presentation.characters}`}><Volume2 size={16} aria-hidden /> Replay</button> : sentenceAudio ? <button type="button" className={styles.resultReplayButton} onClick={() => playResultSentence(sentenceAudioText)} aria-label={`Play sentence for ${presentation.characters}`}><Volume2 size={16} aria-hidden /> Play sentence</button> : null}<Link className={styles.resultSubjectLink} href={`/subjects/${group.subjectId}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${presentation.characters} subject details`}>View subject <ExternalLink size={14} aria-hidden /></Link></div>
               </header>
 
               {media?.imageUrl || media?.sentence ? <div className={styles.resultMedia}>{media.imageUrl ? <Image className={styles.resultScene} src={media.imageUrl} alt={`Scene from ${media.sourceTitle ?? "the listening example"}`} width={320} height={180} sizes="(max-width: 42rem) 90vw, 18rem" loader={passthroughImageLoader} unoptimized /> : null}{media.sentence ? <div className={styles.resultSentence}><p lang="ja">{media.sentence.ja}</p>{(!listening || showListeningTranslation) && media.sentence.en ? <p>{media.sentence.en}</p> : null}{media.sourceTitle ? <span>{media.sourceTitle}</span> : null}</div> : null}</div> : null}
@@ -303,7 +325,7 @@ function QuizSessionWithStudyMaterials(props: QuizSessionProps) {
 }
 
 export function QuizSession(props: QuizSessionProps) {
-  const needsStudyMaterials = props.acceptUserSynonymsAsAnswers || (props.initialSession.mode === "custom-review" && (props.reviewPreferences?.ankiShowOtherAcceptedAnswersAndUserSynonyms || props.reviewPreferences?.showAddSynonymButton));
+  const needsStudyMaterials = props.acceptUserSynonymsAsAnswers || ((props.initialSession.mode === "custom-review" || props.initialSession.mode === "audio-vocab") && (props.reviewPreferences?.ankiShowOtherAcceptedAnswersAndUserSynonyms || props.reviewPreferences?.showAddSynonymButton));
   if (!needsStudyMaterials || props.studyMaterials !== undefined) return <QuizSessionContent {...props} />;
   return <QuizSessionWithStudyMaterials {...props} />;
 }
@@ -324,6 +346,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const [answerWarning, setAnswerWarning] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const autoPlayedQuestionRef = useRef<string | null>(null);
+  const audioVocabPlayerRef = useRef<AudioVocabPlayer>(null);
   const vocabularyAudioAbortRef = useRef<AbortController | null>(null);
   const advanceTimerRef = useRef<number | null>(null);
   const advancingQuestionRef = useRef(false);
@@ -351,8 +374,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const currentSubject = question ? subjects.find((subject) => subject.id === question.subjectId) : undefined;
   const currentAssignment = currentSubject ? assignments.find((assignment) => assignment.data.subject_id === currentSubject.id) : undefined;
   // Prompt extras mirror the mobile review question screen across quiz modes.
-  // Self-assessment and review controls remain scoped to custom review below.
-  const customReviewPreferences = session.mode === "custom-review" ? reviewPreferences : undefined;
+  // Audio vocab uses the same answer settings as custom review.
+  const customReviewPreferences = session.mode === "custom-review" || session.mode === "audio-vocab" ? reviewPreferences : undefined;
   const reviewKind = question ? reviewKindForStudyQuestion(question) : null;
   const ankiEnabled = Boolean(customReviewPreferences && reviewKind && usesSelfAssessment(reviewKind, customReviewPreferences));
   const studyMaterialBySubjectId = useMemo(() => new Map([...studyMaterials, ...savedStudyMaterials].map((material) => [material.data.subject_id, material])), [savedStudyMaterials, studyMaterials]);
@@ -613,12 +636,12 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   }, [canShowSubjectDetails]);
 
   useEffect(() => {
-    if (question?.autoPlayAudio && autoPlayedQuestionRef.current !== question.id) {
+    if (question?.kind !== "audio-vocab" && question?.autoPlayAudio && autoPlayedQuestionRef.current !== question.id) {
       autoPlayedQuestionRef.current = question.id;
       playAudio(question.audioUrl);
     }
     if (question?.autoPlaySentenceAudio) speakJapanese(question.sentence?.ja);
-  }, [question?.audioUrl, question?.autoPlayAudio, question?.autoPlaySentenceAudio, question?.id, question?.sentence?.ja]);
+  }, [question?.kind, question?.audioUrl, question?.autoPlayAudio, question?.autoPlaySentenceAudio, question?.id, question?.sentence?.ja]);
 
   useEffect(() => {
     if (!answer || answerPaused) return;
@@ -643,9 +666,16 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
     return () => window.cancelAnimationFrame(frame);
   }, [detailsExpanded, question?.id]);
 
+  const hasQuestionAudio = Boolean(question?.audioUrl || question?.audioVocabSentence);
   const onStudyKeyDown = useEffectEvent((event: KeyboardEvent) => {
-      const detailsShortcutFromAnsweredInput = event.key.toLocaleLowerCase() === "d" && event.target === inputRef.current && inputRef.current?.readOnly === true;
-      if (event.defaultPrevented || (!detailsShortcutFromAnsweredInput && event.target instanceof Element && event.target.closest(studyShortcutInteractiveSelector))) return;
+      const shortcutFromAnsweredInput = ["d", "r"].includes(event.key.toLocaleLowerCase()) && event.target === inputRef.current && inputRef.current?.readOnly === true;
+      if (event.defaultPrevented || (!shortcutFromAnsweredInput && event.target instanceof Element && event.target.closest(studyShortcutInteractiveSelector))) return;
+      if (event.key.toLocaleLowerCase() === "r" && hasQuestionAudio) {
+        event.preventDefault();
+        if (question?.kind === "audio-vocab") void audioVocabPlayerRef.current?.play();
+        else playAudio(question?.audioUrl);
+        return;
+      }
       if (!answer && ankiEnabled) {
         if (event.key === "Enter" && !ankiRevealed) {
           event.preventDefault();
@@ -666,7 +696,6 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         const choice = question.choices[Number(event.key) - 1];
         if (choice) commit(choice);
       }
-      if (event.key.toLocaleLowerCase() === "r" && question?.audioUrl) playAudio(question.audioUrl);
       if (event.key.toLocaleLowerCase() === "d" && detailsAvailable && !advancingQuestionRef.current) {
         event.preventDefault();
         toggleDetails();
@@ -689,10 +718,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const reviewCharacterSize = customReviewPreferences ? `clamp(${2.75 * reviewCharacterScale}rem, ${9 * reviewCharacterScale}vw, ${6.5 * reviewCharacterScale}rem)` : undefined;
   const jitaiFamily = customReviewPreferences ? resolveJitaiFontFamily(customReviewPreferences, question.id) : undefined;
   const contextSentences = currentSubject?.data.context_sentences?.filter((sentence) => sentence.ja.trim()).slice(0, 3) ?? [];
-  const showContextHint = Boolean(reviewPreferences?.showVocabContextSentencesInReviews && reviewKind && (currentSubject?.object === "vocabulary" || currentSubject?.object === "kana_vocabulary") && contextSentences.length);
+  const showContextHint = question.kind !== "audio-vocab" && Boolean(reviewPreferences?.showVocabContextSentencesInReviews && reviewKind && (currentSubject?.object === "vocabulary" || currentSubject?.object === "kana_vocabulary") && contextSentences.length);
   const showReviewMetadata = Boolean(reviewPreferences?.showReviewItemLevelAndSrsStage && currentSubject);
   const showVocabularyFrequency = Boolean(reviewPreferences?.showVocabularyFrequency && currentSubject);
-  const showReviewPromptExtras = showVocabularyFrequency || showReviewMetadata;
+  const showReviewPromptExtras = question.kind !== "audio-vocab" && (showVocabularyFrequency || showReviewMetadata);
   const searchQuery = currentSubject?.data.characters || currentSubject?.data.slug || question.prompt;
   const canSkipQuestion = Boolean(customReviewPreferences?.allowSkippingReviews && !answer && session.questions.slice(session.currentIndex + 1).some((candidate) => candidate.subjectId !== question.subjectId && !session.answers.some((candidateAnswer) => candidateAnswer.questionId === candidate.id)));
   const currentStudyMaterial = currentSubject ? studyMaterialBySubjectId.get(currentSubject.id) : undefined;
@@ -724,7 +753,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       <div className={styles.questionCard} data-type={question.subjectType}>
         {question.imageUrl ? <div className={styles.sceneFrame}><Image className={styles.contextImage} src={question.imageUrl} alt={`Scene from ${question.sourceTitle ?? "the listening example"}`} width={560} height={315} sizes="(max-width: 42rem) 90vw, 28rem" loader={passthroughImageLoader} unoptimized /></div> : null}
         {listeningQuestion && question.sentence ? <><div className={styles.sentencePromptSlot}><p className={styles.sentencePrompt} data-visible={!listeningSentenceRevealed} aria-hidden={listeningSentenceRevealed} lang="ja">{question.sentence.masked}</p><p className={styles.sentencePrompt} data-visible={listeningSentenceRevealed} aria-hidden={!listeningSentenceRevealed} lang="ja">{listeningSentenceRevealed ? <HighlightedListeningSentence sentence={question.sentence.ja} target={question.characters ?? currentSubject?.data.characters} /> : question.sentence.ja}</p></div>{showListeningTranslation ? <div className={styles.translationReveal}><p className={styles.sentenceTranslation} data-visible={translationRevealed} aria-hidden={!translationRevealed}>{question.sentence.en}</p><button className={styles.textButton} type="button" onClick={() => setTranslationRevealed((current) => !current)}>{translationRevealed ? "Hide translation" : "Show translation"}</button></div> : null}</> : null}
-        {question.audioUrl ? <button id="question-prompt" className={styles.audioButton} type="button" onClick={() => playAudio(question.audioUrl)} aria-label={`Replay listening clip${question.sourceTitle ? ` from ${question.sourceTitle}` : ""}`}><Volume2 size={29} /><span>{question.sourceTitle ? `Play ${question.sourceTitle} clip` : "Play pronunciation"}</span><kbd>R</kbd></button> : <h2 id="question-prompt" data-question-kind={question.kind} data-character-scale={customReviewPreferences ? reviewCharacterScale : undefined} lang={question.kind === "meaning-to-reading" ? "en" : currentSubject?.object === "radical" && !currentSubject.data.characters ? undefined : "ja"} style={{ fontFamily: jitaiFamily, fontSize: reviewCharacterSize }}>{currentSubject?.object === "radical" && !currentSubject.data.characters ? <SubjectCharacter subject={currentSubject} fallbackText={question.prompt} eager /> : question.prompt}</h2>}
+        {question.kind === "audio-vocab" ? <AudioVocabPrompt key={question.id} ref={audioVocabPlayerRef} question={question} /> : question.audioUrl ? <button id="question-prompt" className={styles.audioButton} type="button" onClick={() => playAudio(question.audioUrl)} aria-label={`Replay listening clip${question.sourceTitle ? ` from ${question.sourceTitle}` : ""}`}><Volume2 size={29} /><span>{question.sourceTitle ? `Play ${question.sourceTitle} clip` : "Play pronunciation"}</span><kbd>R</kbd></button> : <h2 id="question-prompt" data-question-kind={question.kind} data-character-scale={customReviewPreferences ? reviewCharacterScale : undefined} lang={question.kind === "meaning-to-reading" ? "en" : currentSubject?.object === "radical" && !currentSubject.data.characters ? undefined : "ja"} style={{ fontFamily: jitaiFamily, fontSize: reviewCharacterSize }}>{currentSubject?.object === "radical" && !currentSubject.data.characters ? <SubjectCharacter subject={currentSubject} fallbackText={question.prompt} eager /> : question.prompt}</h2>}
         {showReviewPromptExtras && currentSubject ? <div className={styles.reviewPromptExtras}>
           {showVocabularyFrequency ? <VocabularyFrequencyBadge className={styles.reviewPromptFrequency} subject={currentSubject} enabled /> : null}
           {showReviewMetadata ? <div className={styles.reviewPromptMetadata} aria-label="Question status"><span>Level {currentSubject.data.level}</span>{currentAssignment ? <span><SrsStageIcon stage={currentAssignment.data.srs_stage} size={16} />{srsStageLabel(currentAssignment.data.srs_stage)}</span> : null}</div> : null}
@@ -761,10 +790,14 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
             showWaniKaniGrammarTags={customReviewPreferences.ankiShowWaniKaniGrammarTags}
             showPitchAccentNumbers={customReviewPreferences.ankiShowPitchAccentNumbers}
             showPitchAccentGraph={customReviewPreferences.ankiShowPitchAccentGraph}
-            showReplayAudioButton={customReviewPreferences.ankiShowReplayAudioButton && Boolean(currentSubject?.data.pronunciation_audios?.length)}
+            showReplayAudioButton={customReviewPreferences.ankiShowReplayAudioButton && (question.kind === "audio-vocab" ? hasQuestionAudio : Boolean(currentSubject?.data.pronunciation_audios?.length))}
             buttonlessMode={customReviewPreferences.ankiButtonlessMode}
             onReveal={revealAnkiAnswer}
             onReplayAudio={() => {
+              if (question.kind === "audio-vocab") {
+                void audioVocabPlayerRef.current?.play();
+                return;
+              }
               if (!currentSubject) return;
               const audios = pickPreferredPronunciationAudios(currentSubject.data.pronunciation_audios, currentSubject.data.readings, vocabularyAudioVoice, { preferredContentType: "audio/mpeg" });
               playVocabularyAudio(audios.map((audio) => audio.url));
@@ -805,7 +838,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         </div>
 
         {(question.choices || ankiEnabled) && questionCanPause ? <div className={styles.choiceActions} data-choice-actions data-visible={answerPaused} aria-hidden={!answerPaused} inert={!answerPaused ? true : undefined}><button className={styles.primaryButton} onClick={next} disabled={!answerPaused || waitingForNextQuestion || advancingQuestion} tabIndex={answerPaused ? 0 : -1}>{waitingForNextQuestion ? <><LoaderCircle className={styles.spinner} size={17} /> Finding next clip</> : <>Next <ArrowRight size={17} /></>}</button></div> : null}
-        {keyboardShortcuts ? ankiEnabled ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>Enter</kbd> to continue</> : ankiRevealed ? <>Press <kbd>1</kbd> for wrong · <kbd>2</kbd> for correct</> : <>Press <kbd>Enter</kbd> to reveal</>}{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : question.choices ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>Enter</kbd> to continue</> : <>Press <kbd>1</kbd>–<kbd>{Math.min(question.choices.length, 4)}</kbd> to answer</>}{question.audioUrl ? <> · <kbd>R</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : question.audioUrl ? <p className={styles.keyboardHint}><Headphones size={15} /> Press <kbd>R</kbd> to replay{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : <p className={styles.keyboardHint}>Press <kbd>Enter</kbd> to {closeAnswerNeedsResolution ? "mark correct" : answer ? "continue" : "check"}{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : null}
+        {keyboardShortcuts ? ankiEnabled ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>Enter</kbd> to continue</> : ankiRevealed ? <>Press <kbd>1</kbd> for wrong · <kbd>2</kbd> for correct</> : <>Press <kbd>Enter</kbd> to reveal</>}{hasQuestionAudio ? <> · <kbd>R</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : question.choices ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>Enter</kbd> to continue</> : <>Press <kbd>1</kbd>–<kbd>{Math.min(question.choices.length, 4)}</kbd> to answer</>}{hasQuestionAudio ? <> · <kbd>R</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : hasQuestionAudio ? <p className={styles.keyboardHint}><Headphones size={15} /> Press <kbd>R</kbd> to replay{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : <p className={styles.keyboardHint}>Press <kbd>Enter</kbd> to {closeAnswerNeedsResolution ? "mark correct" : answer ? "continue" : "check"}{detailsAvailable ? <> · <kbd>D</kbd> toggles details</> : null}</p> : null}
       </div>
     </section>
   );

@@ -521,6 +521,7 @@ type SettingsState = {
   reviewQuestionOrderEnabled: boolean; // Force meaning/reading order when available
   skipKanjiReadings: boolean;
   minimizeReviewPenalty: boolean;
+  reviewMultipleChoiceEnabled: boolean; // Offer answer choices for questions not using Anki
   ankiCardMode: boolean;
   ankiGroupQuestions: boolean;
   ankiCardModeScope: "both" | "meaning" | "reading";
@@ -704,6 +705,7 @@ type SettingsState = {
   setReviewQuestionOrderEnabled: (enabled: boolean) => void;
   setSkipKanjiReadings: (skip: boolean) => void;
   setMinimizeReviewPenalty: (minimize: boolean) => void;
+  setReviewMultipleChoiceEnabled: (enabled: boolean) => void;
   setAnkiCardMode: (ankiMode: boolean) => void;
   setAnkiGroupQuestions: (group: boolean) => void;
   setAnkiCardModeScope: (scope: "both" | "meaning" | "reading") => void;
@@ -867,6 +869,7 @@ export const useSettingsStore = create<SettingsState>()(
       reviewQuestionOrderEnabled: false, // Default to disabled - keep legacy random/back-to-back behavior
       skipKanjiReadings: false,
       minimizeReviewPenalty: true,
+      reviewMultipleChoiceEnabled: false,
       ankiCardMode: false, // Default to disabled (traditional WaniKani mode)
       ankiGroupQuestions: false, // Default to disabled (show questions separately)
       ankiCardModeScope: "both", // Default to Anki behavior for both meaning and reading
@@ -1080,6 +1083,7 @@ export const useSettingsStore = create<SettingsState>()(
       setSkipKanjiReadings: (skip) => set({ skipKanjiReadings: skip }),
       setMinimizeReviewPenalty: (minimize) =>
         set({ minimizeReviewPenalty: minimize }),
+      setReviewMultipleChoiceEnabled: (enabled) => set({ reviewMultipleChoiceEnabled: enabled }),
       setAnkiCardMode: (ankiMode) => set({ ankiCardMode: ankiMode }),
       setAnkiGroupQuestions: (group) => set({ ankiGroupQuestions: group }),
       setAnkiCardModeScope: (scope) => set({ ankiCardModeScope: scope }),

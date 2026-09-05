@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const EXTRA_STUDY_SESSION_STORAGE_KEYS = {
+  AUDIO_VOCAB: "extra_study_session:audio_vocab",
   CUSTOM_REVIEW: "extra_study_session:custom_review",
   MEANING_READING: "extra_study_session:meaning_reading",
   HIRAGANA_VOCAB_MEANING: "extra_study_session:hiragana_vocab_meaning",

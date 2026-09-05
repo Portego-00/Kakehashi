@@ -323,7 +323,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
   );
 }
 
-const LIST_ENABLED_MODES = new Set<StudyModeId>(["random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "kanji-writing", "crossword", "word-search", "kana-wordle", "custom-review", "custom-lessons"]);
+const LIST_ENABLED_MODES = new Set<StudyModeId>(["audio-vocab", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "kanji-writing", "crossword", "word-search", "kana-wordle", "custom-review", "custom-lessons"]);
 
 function SettingGroup({ title, detail, children, layout = "row", accessibleTitle }: { title: string; detail?: string; children: ReactNode; layout?: "row" | "stacked"; accessibleTitle?: string }) {
   const titleId = useId();
@@ -433,6 +433,25 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
               ))}
             </div>
           </SettingGroup>
+        ) : null}
+
+        {mode === "audio-vocab" ? (
+          <>
+          <SettingGroup title="Audio source" detail="Practice a word alone or hear it followed by a context sentence.">
+            <div className={styles.optionRow}>
+              {([["word", "Words"], ["sentence", "Context sentences"]] as const).map(([value, label]) => (
+                <button type="button" className={styles.optionButton} data-active={filters.audioVocabSource === value} aria-pressed={filters.audioVocabSource === value} key={value} onClick={() => set("audioVocabSource", value)}>{label}</button>
+              ))}
+            </div>
+            <p>{filters.audioVocabSource === "sentence" ? "Uses Japanese text-to-speech. Answer the target word’s meaning." : "Uses original WaniKani vocabulary recordings."}</p>
+          </SettingGroup>
+          <SettingGroup title="Playback" detail="Listen and answer using your review settings.">
+            <label className={styles.checkOption} data-active={filters.listeningAutoPlayAudio}>
+              <input type="checkbox" checked={filters.listeningAutoPlayAudio} onChange={() => set("listeningAutoPlayAudio", !filters.listeningAutoPlayAudio)} />
+              <span>Auto-play audio</span>
+            </label>
+          </SettingGroup>
+          </>
         ) : null}
 
         {mode === "listening" ? (

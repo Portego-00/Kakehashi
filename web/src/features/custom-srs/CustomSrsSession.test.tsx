@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import { CUSTOM_SRS_POLICY } from "./scheduler";
@@ -108,9 +108,9 @@ function withAssignment(current: CustomSrsState, wordId: string, stage: CustomSr
   return { ...current, assignments: { ...current.assignments, [wordId]: { ...current.assignments[wordId], stage, availableAt } } };
 }
 
-function renderSession(mode: "lessons" | "reviews", packs: CustomVocabularyPack[]) {
+function renderSession(mode: "lessons" | "reviews", packs: CustomVocabularyPack[], lessonBatchSize?: number) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return render(<QueryClientProvider client={client}><CustomSrsSession mode={mode} packs={packs} /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><CustomSrsSession mode={mode} packs={packs} lessonBatchSize={lessonBatchSize} /></QueryClientProvider>);
 }
 
 describe("custom vocabulary lesson and review sessions", () => {
@@ -191,7 +191,7 @@ describe("custom vocabulary lesson and review sessions", () => {
     hook.state = initial;
     hook.completeLesson.mockResolvedValue(withAssignment(initial, cat.id, 1, "2026-08-31T12:00:00.000Z"));
 
-    renderSession("lessons", [pack]);
+    const view = renderSession("lessons", [pack]);
 
     expect(screen.getByRole("tablist", { name: "Subject details" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
@@ -239,6 +239,9 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(hook.completeLesson.mock.calls[0][0]).toBe(cat.id);
     expect(hook.completeLesson.mock.calls[0][1]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(screen.getByLabelText("SRS progression")).toHaveTextContent("Apprentice I");
+    expect(view.container).not.toContainElement(screen.getByLabelText("SRS progression"));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss SRS progression" }));
+    expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument();
   });
 
   it("uses a default lesson batch of five", () => {
@@ -250,6 +253,54 @@ describe("custom vocabulary lesson and review sessions", () => {
 
     expect(screen.getByRole("button", { name: "Lesson 5: Word 5" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Lesson 6: Word 6" })).not.toBeInTheDocument();
+  });
+
+  it("continues a sixteen-word pack in batches of five, five, five, and one without repeating completed lessons", async () => {
+    const words = Array.from({ length: 16 }, (_, index) => ({ ...cat, id: `batch-word-${index + 1}`, characters: `こと${index + 1}`, meanings: [`Word ${index + 1}`] }));
+    const pack: CustomVocabularyPack = { id: "sixteen-words", title: "Sixteen words", description: "Batch fixture", script: "hiragana", words };
+    hook.state = stateFor(pack, {});
+    let savedState = hook.state;
+    hook.completeLesson.mockImplementation(async (wordId: string) => {
+      savedState = withAssignment(savedState, wordId, 1, "2999-01-01T00:00:00.000Z");
+      return savedState;
+    });
+
+    renderSession("lessons", [pack]);
+    const wordsByCharacters = new Map(words.map((word) => [word.characters, word]));
+    let completed = 0;
+    for (const batchSize of [5, 5, 5, 1]) {
+      expect(screen.getAllByRole("button", { name: /^Lesson \d+:/ })).toHaveLength(batchSize);
+      expect(screen.getByRole("heading", { name: `Word ${completed + 1}` })).toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: "Vocabulary Meaning" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: `Lesson ${batchSize}: Word ${completed + batchSize}` }));
+      fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
+      for (let index = 0; index < batchSize; index += 1) {
+        const prompt = screen.getByRole("heading", { level: 2 });
+        const current = wordsByCharacters.get(prompt.textContent ?? "")!;
+        fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: current.meanings[0] } });
+        fireEvent.click(screen.getByRole("button", { name: "Check" }));
+        fireEvent.click(screen.getByRole("button", { name: "Next" }));
+        completed += 1;
+        await waitFor(() => expect(hook.completeLesson).toHaveBeenCalledTimes(completed));
+        await waitFor(() => expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument());
+      }
+
+      const remaining = words.length - completed;
+      expect(await screen.findByRole("heading", { name: remaining ? "Lesson batch complete" : "Custom lessons complete" })).toBeInTheDocument();
+      expect(screen.getByText("items completed").previousElementSibling).toHaveTextContent(String(batchSize));
+      expect(screen.getByText("100%", { exact: true })).toBeInTheDocument();
+      expect(screen.getByText("incorrect attempts").previousElementSibling).toHaveTextContent("0");
+      if (remaining) {
+        expect(screen.getByText(`${remaining} ${remaining === 1 ? "lesson" : "lessons"} remaining.`)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: `Next batch (${Math.min(5, remaining)})` }));
+        expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument();
+      } else {
+        expect(screen.queryByRole("button", { name: /Next batch/ })).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Vocabulary Packs" })).toBeInTheDocument();
+      }
+    }
+    expect(new Set(hook.completeLesson.mock.calls.map(([wordId]) => wordId)).size).toBe(16);
+    expect(new Set(hook.completeLesson.mock.calls.map(([, eventId]) => eventId)).size).toBe(16);
   });
 
   it("requires both meaning and reading before completing a kanji vocabulary lesson", async () => {
@@ -286,6 +337,68 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(hook.completeLesson).toHaveBeenCalledOnce();
     expect(hook.completeLesson).toHaveBeenCalledWith(footsteps.id, expect.any(String));
     expect(screen.getByText("100%", { exact: true })).toBeInTheDocument();
+  });
+
+  it("respects a custom batch size and resets mistakes and accuracy for the following batch", async () => {
+    const bird = { ...cat, id: "kana-bird", characters: "とり", reading: "とり", meanings: ["Bird"] };
+    const pack: CustomVocabularyPack = { id: "three-animals", title: "Animals", description: "Batch fixture", script: "hiragana", words: [cat, dog, bird] };
+    hook.state = stateFor(pack, {});
+    let savedState = hook.state;
+    hook.completeLesson.mockImplementation(async (wordId: string) => {
+      savedState = withAssignment(savedState, wordId, 1, "2999-01-01T00:00:00.000Z");
+      return savedState;
+    });
+    renderSession("lessons", [pack], 2);
+    expect(screen.getAllByRole("button", { name: /^Lesson \d+:/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Lesson 2: Dog" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "banana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    for (let completed = 1; completed <= 2; completed += 1) {
+      const prompt = screen.getByRole("heading", { level: 2 }).textContent;
+      fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: prompt === cat.characters ? "cat" : "dog" } });
+      fireEvent.click(screen.getByRole("button", { name: "Check" }));
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      await waitFor(() => expect(hook.completeLesson).toHaveBeenCalledTimes(completed));
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument());
+    }
+    expect(await screen.findByRole("heading", { name: "Lesson batch complete" })).toBeInTheDocument();
+    expect(screen.getByText("67%", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("incorrect attempts").previousElementSibling).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next batch (1)" }));
+    expect(screen.getByRole("heading", { name: "Bird" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Lesson \d+:/ })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "bird" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByRole("heading", { name: "Custom lessons complete" })).toBeInTheDocument();
+    expect(screen.getByText("100%", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("incorrect attempts").previousElementSibling).toHaveTextContent("0");
+    expect(screen.getByText("items completed").previousElementSibling).toHaveTextContent("1");
+  });
+
+  it("does not offer the next lesson batch until the current batch saves successfully", async () => {
+    const pack: CustomVocabularyPack = { id: "save-retry", title: "Save retry", description: "Batch fixture", script: "hiragana", words: [cat, dog] };
+    const initial = stateFor(pack, {});
+    hook.state = initial;
+    hook.completeLesson.mockRejectedValueOnce(new Error("Unable to save this lesson."))
+      .mockResolvedValueOnce(withAssignment(initial, cat.id, 1, "2999-01-01T00:00:00.000Z"));
+    renderSession("lessons", [pack], 1);
+    fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save this lesson.");
+    expect(screen.queryByRole("button", { name: /Next batch/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry Save" }));
+    expect(await screen.findByRole("heading", { name: "Lesson batch complete" })).toBeInTheDocument();
+    expect(hook.completeLesson.mock.calls[0][1]).toBe(hook.completeLesson.mock.calls[1][1]);
+    fireEvent.click(screen.getByRole("button", { name: "Next batch (1)" }));
+    expect(screen.getByRole("heading", { name: "Dog" })).toBeInTheDocument();
   });
 
   it("interleaves both sides of a larger kanji review batch within the normal question gap", () => {

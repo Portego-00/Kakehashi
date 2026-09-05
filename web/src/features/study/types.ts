@@ -8,6 +8,7 @@ export type StudyModeId =
   | "similar-kanji"
   | "kana-to-kanji"
   | "listening"
+  | "audio-vocab"
   | "context-sentences"
   | "text-analysis"
   | "kanji-writing"
@@ -24,6 +25,7 @@ export type QuizModeId = Exclude<
 >;
 
 export type QuestionKind =
+  | "audio-vocab"
   | "meaning"
   | "reading"
   | "meaning-to-reading"
@@ -63,6 +65,7 @@ export interface StudyFilters {
   listeningSource: ListeningSource;
   animeSources: string[];
   listeningAutoPlayAudio: boolean;
+  audioVocabSource: "word" | "sentence";
   writingMode: WritingPracticeMode;
   strokeLeniency: number;
   wordLength: number;
@@ -106,8 +109,10 @@ export interface StudyQuestion {
   choices?: string[];
   characters?: string | null;
   meaning?: string;
+  reading?: string;
   sentence?: { ja: string; en: string; masked: string; tokens?: StudyTokenDetail[] };
   audioUrl?: string;
+  audioVocabSentence?: string;
   sourceTitle?: string;
   imageUrl?: string;
   autoPlayAudio?: boolean;

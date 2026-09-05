@@ -163,6 +163,140 @@ describe("extra-study quiz interaction", () => {
     vi.unstubAllGlobals();
   });
 
+  function renderAudioQuiz(ankiMode: "off" | "both" | "reading" | "meaning" = "off") {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const question = makeQuestion({
+      kind: "audio-vocab", prompt: "Listen", characters: "防ぐ", reading: "ふせぐ",
+      audioUrl: "https://example.com/fusegu.mp3", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent",
+    });
+    return renderQuiz({
+      scope: "audio-vocab-test", initialSession: { ...makeSession(question), mode: "audio-vocab" },
+      subjects: [makeSubject()], studyMaterials: [],
+      reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, ankiMode },
+      pauseOnCorrect: true, pauseOnWrong: true, answerFeedbackSoundEnabled: false, onExit: vi.fn(),
+    });
+  }
+
+  it.each(["off", "meaning"] as const)("replays sentence audio from the keyboard with Anki mode %s", (ankiMode) => {
+    const speak = vi.fn();
+    vi.stubGlobal("speechSynthesis", { speak, cancel: vi.fn(), getVoices: () => [] });
+    vi.stubGlobal("SpeechSynthesisUtterance", class {
+      constructor(public text: string) {}
+    });
+    const question = makeQuestion({ kind: "audio-vocab", prompt: "Listen", characters: "防ぐ", reading: "ふせぐ", audioVocabSentence: "事故を防ぐ。", autoPlayAudio: false, acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" });
+    const record = makeSubject();
+    record.data.pronunciation_audios = [];
+    renderQuiz({ scope: "sentence-audio-test", initialSession: { ...makeSession(question), mode: "audio-vocab" }, subjects: [record], studyMaterials: [], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, ankiMode, ankiShowReplayAudioButton: true }, autoplayVocabularyAudio: false, pauseOnCorrect: true, answerFeedbackSoundEnabled: false, onExit: vi.fn() });
+
+    expect(speak).not.toHaveBeenCalled();
+    expect(screen.getByText(/replay/, { selector: "p[class*='keyboardHint']" })).toHaveTextContent("R");
+    fireEvent.keyDown(window, { key: "r" });
+    expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "ふせぐ。事故を防ぐ。", lang: "ja-JP" }));
+
+    if (ankiMode === "meaning") {
+      fireEvent.click(screen.getByRole("button", { name: "Reveal answer" }));
+      fireEvent.click(screen.getByRole("button", { name: "Replay vocabulary audio" }));
+      expect(speak).toHaveBeenCalledTimes(2);
+    } else {
+      const input = screen.getByRole("textbox", { name: "Vocabulary Meaning" });
+      fireEvent.keyDown(input, { key: "r" });
+      expect(speak).toHaveBeenCalledTimes(1);
+      fireEvent.change(input, { target: { value: "prevent" } });
+      fireEvent.click(screen.getByRole("button", { name: "Check" }));
+      fireEvent.keyDown(input, { key: "r" });
+      expect(speak).toHaveBeenCalledTimes(2);
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      fireEvent.click(screen.getByRole("button", { name: "Play sentence for 防ぐ" }));
+      expect(speak).toHaveBeenCalledTimes(3);
+      expect(speak).toHaveBeenLastCalledWith(expect.objectContaining({ text: "ふせぐ。事故を防ぐ。" }));
+    }
+  });
+
+  it.each(["playing", "finished", "interrupted", "unused"] as const)("only cancels its own active sentence when leaving results (%s)", (playbackState) => {
+    const cancel = vi.fn();
+    const speak = vi.fn<(utterance: { onend?: () => void; onerror?: () => void }) => void>();
+    vi.stubGlobal("speechSynthesis", { speak, cancel });
+    vi.stubGlobal("SpeechSynthesisUtterance", class {
+      constructor(public text: string) {}
+    });
+    const question = makeQuestion({ kind: "audio-vocab", prompt: "Listen", characters: "防ぐ", reading: "ふせぐ", audioVocabSentence: "事故を防ぐ。", autoPlayAudio: false, acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" });
+    const { unmount } = renderQuiz({
+      scope: "sentence-results-test",
+      initialSession: {
+        ...makeSession(question), mode: "audio-vocab", complete: true,
+        answers: [{ questionId: question.id, value: "Prevent", correct: true, status: "correct", answeredAt: "2026-09-03T10:00:00Z" }],
+      },
+      subjects: [makeSubject()],
+      studyMaterials: [],
+      onExit: vi.fn(),
+    });
+    if (playbackState !== "unused") {
+      fireEvent.click(screen.getByRole("button", { name: "Play sentence for 防ぐ" }));
+      expect(speak).toHaveBeenCalledTimes(1);
+      if (playbackState === "finished") act(() => speak.mock.calls[0][0].onend?.());
+      if (playbackState === "interrupted") act(() => speak.mock.calls[0][0].onerror?.());
+    }
+    cancel.mockClear();
+    unmount();
+    expect(cancel).toHaveBeenCalledTimes(playbackState === "playing" ? 1 : 0);
+  });
+
+  it("checks typed audio meanings through the normal review flow", () => {
+    renderAudioQuiz();
+    expect(screen.queryByText("防ぐ")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prevent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "prevent" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByText("Correct", { selector: "strong" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
+  });
+
+  it("finishes an audio set after a wrong answer without scheduling a repeat", () => {
+    renderAudioQuiz();
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByText("Incorrect", { selector: "strong" })).toBeInTheDocument();
+    expect(loadStudySession("audio-vocab-test", "audio-vocab")?.questions).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
+    expect(loadStudySession("audio-vocab-test", "audio-vocab")).toBeNull();
+    expect(wkRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps audio meanings typed when Anki is enabled only for readings", () => {
+    renderAudioQuiz("reading");
+    expect(screen.getByRole("textbox", { name: "Vocabulary Meaning" })).toBeInTheDocument();
+  });
+
+  it("identifies the audio vocabulary in subject details across every tab", async () => {
+    renderAudioQuiz();
+    expect(screen.queryByText("防ぐ", { exact: true })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: /Show subject details/ }));
+    await screen.findByRole("tablist", { name: "Subject details" });
+    const details = await screen.findByRole("region", { name: "Subject details" });
+    for (const tab of ["Meaning", "Reading", "Context"]) {
+      fireEvent.click(within(details).getByRole("tab", { name: tab }));
+      expect(within(details.querySelector("header")!).getByText("防ぐ", { exact: true })).toBeVisible();
+    }
+  });
+
+  it.each(["both", "meaning"] as const)("respects the existing %s Anki setting for audio meanings", (ankiMode) => {
+    renderAudioQuiz(ankiMode);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reveal answer" }));
+    expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("Prevent");
+    expect(screen.getByRole("button", { name: /Wrong$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Again" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Correct$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
+  });
+
   it("puts the differentiated question type on the answer control", () => {
     expect(promptTypePresentation(makeQuestion())).toEqual({ label: "Reading", tone: "reading" });
     expect(promptTypePresentation(makeQuestion({ kind: "meaning" }))).toEqual({ label: "Meaning", tone: "meaning" });
@@ -718,6 +852,8 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByRole("tablist", { name: "Subject details" })).toBeInTheDocument();
+    const detailsHeader = screen.getByRole("region", { name: "Subject details" }).querySelector("header")!;
+    expect(within(detailsHeader).getByText("防ぐ", { exact: true })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Reading" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Readings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reading mnemonic" })).toBeInTheDocument();

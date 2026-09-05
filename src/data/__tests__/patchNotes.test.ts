@@ -1,14 +1,15 @@
 import { PATCH_NOTES, getCurrentPatchNotesVersion } from "../patchNotes";
 
 describe("patch notes", () => {
-  it("announces JLPT quizzes in the current release", () => {
-    expect(getCurrentPatchNotesVersion()).toBe("1.4.8");
+  it("keeps the latest release current and preserves the JLPT announcement", () => {
+    expect(getCurrentPatchNotesVersion()).toBe("1.4.9");
     expect(PATCH_NOTES[0]).toMatchObject({
-      version: "1.4.8",
-      date: "2026-08-31",
+      version: "1.4.9",
+      date: "2026-09-03",
     });
+    const jlptRelease = PATCH_NOTES.find((note) => note.version === "1.4.8");
     expect(
-      PATCH_NOTES[0]?.changes.find((change) => change.title === "JLPT Quizzes"),
+      jlptRelease?.changes.find((change) => change.title === "JLPT Quizzes"),
     ).toMatchObject({
       type: "feature",
       link: {
@@ -18,13 +19,14 @@ describe("patch notes", () => {
     });
   });
 
-  it("preserves the Word Search announcement in the previous release", () => {
-    expect(PATCH_NOTES[1]).toMatchObject({
+  it("preserves the Word Search announcement in its original release", () => {
+    const wordSearchRelease = PATCH_NOTES.find((note) => note.version === "1.4.7");
+    expect(wordSearchRelease).toMatchObject({
       version: "1.4.7",
       date: "2026-08-30",
     });
     expect(
-      PATCH_NOTES[1]?.changes.find((change) => change.title === "Word Search"),
+      wordSearchRelease?.changes.find((change) => change.title === "Word Search"),
     ).toMatchObject({
       type: "feature",
       link: {

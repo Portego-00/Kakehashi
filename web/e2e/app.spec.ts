@@ -737,7 +737,7 @@ test("enrolls a kana pack and persists custom lessons and reviews without WaniKa
     await page.getByRole("button", { name: "Next" }).click();
     previousPrompt = prompt ?? "";
   }
-  await expect(page.getByRole("heading", { name: "Custom lessons complete" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lesson batch complete" })).toBeVisible();
 
   const browserState = await page.evaluate(() => {
     const key = "kakehashi:custom-srs:v1:account:1";
@@ -759,6 +759,104 @@ test("enrolls a kana pack and persists custom lessons and reviews without WaniKa
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("kakehashi:custom-srs:v1:account:1") || "null").assignments["conversation-douzo"].stage)).toBe(2);
   expect(waniKaniMutations).toEqual([]);
 });
+
+for (const theme of ["dark", "light"] as const) {
+  test(`continues custom lesson batches without shifting the ${theme} results layout`, async ({ page }, testInfo) => {
+    await page.addInitScript((selectedTheme) => window.localStorage.setItem("kakehashi-web-theme", selectedTheme), theme);
+    await mockApp(page);
+    await page.goto("/custom-vocabulary");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.getByRole("button", { name: "Add Conversation Glue pack" }).click();
+    await page.getByRole("link", { name: /Start lessons/i }).click();
+
+    const firstBatch = new Map([
+      ["どうぞ", "please"],
+      ["やっぱり", "as expected"],
+      ["ゆっくり", "slowly"],
+      ["じゃあ", "well then"],
+      ["どうも", "thanks"],
+    ]);
+    const batchItems = page.getByRole("list", { name: "Lessons in this batch" }).getByRole("button");
+    await expect(batchItems).toHaveText([...firstBatch.keys()]);
+    for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson" }).click();
+    await page.getByRole("button", { name: "Start lesson quiz" }).click();
+    await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeHidden();
+    const firstQuizFrame = await quizFrameClasses(page);
+
+    const completedPrompts = new Set<string>();
+    const progression = page.getByRole("status", { name: "SRS progression" });
+    for (let index = 0; index < firstBatch.size; index += 1) {
+      const prompt = page.locator("#question-prompt");
+      await expect(prompt).toBeVisible();
+      const characters = (await prompt.textContent())?.trim() ?? "";
+      expect(completedPrompts.has(characters), "a completed word must not be repeated within a batch").toBe(false);
+      expect(firstBatch.has(characters), `unexpected lesson prompt: ${characters}`).toBe(true);
+      await page.getByRole("textbox", { name: "Vocabulary Meaning" }).fill(firstBatch.get(characters)!);
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await expect(page.getByText("Correct", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      completedPrompts.add(characters);
+      await expect(progression).toBeVisible();
+      await expect(progression).toContainText("Apprentice I");
+      await expect(progression).toContainText(/Next review in \d+h/);
+
+      if (index < firstBatch.size - 1) await expect(prompt).not.toHaveText(characters);
+      if (index === 0) {
+        expect(await progression.evaluate((toast) => ({
+          position: getComputedStyle(toast).position,
+          parent: toast.parentElement?.tagName,
+        })), "SRS feedback must be a body-level fixed overlay, outside the review layout").toEqual({ position: "fixed", parent: "BODY" });
+        await expect(page.getByRole("textbox", { name: "Vocabulary Meaning" })).toBeFocused();
+        const promptWithToast = await prompt.boundingBox();
+        await progression.getByRole("button", { name: "Dismiss SRS progression" }).click();
+        await expect(progression).toHaveCount(0);
+        expect(await prompt.boundingBox(), "dismissing SRS feedback must not move the question").toEqual(promptWithToast);
+      } else if (index === 1) {
+        // Let the real three-second timer run: no click or question change should be needed.
+        await expect(progression).toHaveCount(0, { timeout: 4_500 });
+        await expect(page.getByRole("textbox", { name: "Vocabulary Meaning" })).toBeFocused();
+      }
+    }
+
+    const resultsHeading = page.getByRole("heading", { name: "Lesson batch complete" });
+    await expect(resultsHeading).toBeVisible();
+    await expect(page.getByText("11 lessons remaining.", { exact: true })).toBeVisible();
+    const nextBatch = page.getByRole("button", { name: "Next batch (5)", exact: true });
+    await expect(nextBatch).toBeVisible();
+    await expect(progression).toBeVisible();
+    const results = resultsHeading.locator("xpath=ancestor::section[1]");
+    const withToast = { heading: await resultsHeading.boundingBox(), results: await results.boundingBox() };
+    const screenshotPath = testInfo.outputPath(`custom-lesson-batch-${theme}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+    await testInfo.attach(`custom-lesson-batch-${theme}`, { path: screenshotPath, contentType: "image/png" });
+    await progression.getByRole("button", { name: "Dismiss SRS progression" }).click();
+    await expect(progression).toHaveCount(0);
+    expect({ heading: await resultsHeading.boundingBox(), results: await results.boundingBox() }, "dismissing the popup must not move any results content").toEqual(withToast);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "the results and popup should fit the viewport").toBe(true);
+
+    await nextBatch.click();
+    await expect(page.getByRole("heading", { name: "No Way", exact: true })).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "Lesson progress" })).toHaveAttribute("aria-valuenow", "1");
+    await expect(batchItems).toHaveText(["まさか", "そろそろ", "ちゃんと", "なるべく", "なんで"]);
+    await expect(page.getByRole("button", { name: "Previous lesson" })).toBeDisabled();
+    await expect(page.getByRole("link", { name: "Pause", exact: true })).toHaveCount(0);
+    await expect(progression).toHaveCount(0);
+
+    const savedStages = await page.evaluate(() => {
+      const state = JSON.parse(localStorage.getItem("kakehashi:custom-srs:v1:account:1") || "null") as { assignments: Record<string, { stage: number }> };
+      return Object.values(state.assignments).map((assignment) => assignment.stage);
+    });
+    expect(savedStages.filter((stage) => stage === 1)).toHaveLength(5);
+    expect(savedStages.filter((stage) => stage === 0)).toHaveLength(11);
+
+    for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson" }).click();
+    await page.getByRole("button", { name: "Start lesson quiz" }).click();
+    await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeHidden();
+    await expect(page.getByRole("textbox", { name: "Vocabulary Meaning" })).toBeVisible();
+    expect(await quizFrameClasses(page)).toEqual(firstQuizFrame);
+    expect(completedPrompts.has((await page.locator("#question-prompt").textContent())?.trim() ?? ""), "the next quiz must contain only the new batch").toBe(false);
+  });
+}
 
 test("keeps an idle review question within the desktop viewport", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop viewport assertion");
@@ -1010,7 +1108,7 @@ test("keeps a custom vocabulary lesson session labelled and keyboard operable", 
     ["やっぱり", "as expected"],
     ["ゆっくり", "slowly"],
     ["じゃあ", "well then"],
-    ["ありがとう", "thanks"],
+    ["どうも", "thanks"],
   ].find(([characters]) => promptText?.includes(characters))?.[1];
   expect(promptAnswer, `unexpected shuffled lesson prompt: ${promptText}`).toBeTruthy();
   await answer.fill(promptAnswer!);
