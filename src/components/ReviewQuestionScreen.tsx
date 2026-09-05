@@ -232,6 +232,7 @@ interface ReviewQuestionProps {
   overridePromptText?: string;
   // Replaces the written prompt with recording controls for audio-only recall.
   audioPrompt?: React.ReactNode;
+  audioPromptReading?: string;
   // Optional subtext shown below the override prompt (e.g., alternative meanings)
   overridePromptSubtext?: string;
   // Optional style hint when override prompt is Japanese text (e.g., kana prompt).
@@ -1095,6 +1096,7 @@ export default function ReviewQuestionScreen({
   isLessonFlow = false,
   overridePromptText,
   audioPrompt,
+  audioPromptReading,
   overridePromptSubtext,
   overridePromptUsesJapaneseFont = false,
   overridePausedCorrectAnswerText,
@@ -3897,15 +3899,15 @@ export default function ReviewQuestionScreen({
   };
 
   const renderPausedDetailsCorrectAnswer = () => {
-    if (!isPausedOnWrong && !isPausedOnCloseAnswer) {
+    if (!isPausedOnWrong && !isPausedOnCloseAnswer && !(audioPrompt && isPausedOnCorrect)) {
       return null;
     }
 
     const isCloseAnswer = isPausedOnCloseAnswer;
-    const accentColor = isCloseAnswer ? "#ff9800" : "#f44336";
+    const accentColor = isCloseAnswer ? "#ff9800" : isPausedOnCorrect ? "#4caf50" : "#f44336";
     const label = isCloseAnswer ? "Accepted" : "Correct";
     const iconName: React.ComponentProps<typeof Ionicons>["name"] =
-      isCloseAnswer ? "warning" : "close-circle";
+      isCloseAnswer ? "warning" : isPausedOnCorrect ? "checkmark-circle" : "close-circle";
 
     return (
       <View
@@ -3933,17 +3935,20 @@ export default function ReviewQuestionScreen({
             {label}
           </Text>
         </View>
-        <Text
-          selectable
-          numberOfLines={2}
-          style={[
-            styles.pausedDetailsCorrectAnswerText,
-            { color: theme.textColor },
-            questionType === "reading" && fontStyles.japaneseText,
-          ]}
-        >
-          {pausedCorrectAnswerText}
-        </Text>
+        <View style={styles.pausedDetailsAnswerContent}>
+          <Text
+            selectable
+            numberOfLines={2}
+            style={[
+              styles.pausedDetailsCorrectAnswerText,
+              { color: theme.textColor },
+              questionType === "reading" && fontStyles.japaneseText,
+            ]}
+          >
+            {pausedCorrectAnswerText}
+          </Text>
+          {renderAudioAnswerReading("details")}
+        </View>
       </View>
     );
   };
@@ -4847,6 +4852,24 @@ export default function ReviewQuestionScreen({
       ])[0] ?? ""
     );
   }, [acceptedReadingAnswerOptions, item.subject.data.readings]);
+
+  const audioAnswerReading = audioPrompt
+    ? audioPromptReading?.trim() || primaryReadingAnswer || item.subject.data.characters
+    : undefined;
+  const renderAudioAnswerReading = (appearance: "paused" | "details" | "anki" = "paused") => audioAnswerReading ? (
+    <Text
+      testID="audio-answer-reading"
+      selectable
+      style={[
+        styles.audioAnswerReading,
+        fontStyles.japaneseText,
+        { color: appearance === "paused" ? "#ffffff" : theme.textColor },
+        appearance === "details" && styles.audioAnswerReadingCompact,
+      ]}
+    >
+      {audioAnswerReading}
+    </Text>
+  ) : null;
 
   const otherAcceptedMeaningAnswers = useMemo(() => {
     const primaryMeaningKey = normalizeAnswerKey(primaryMeaningAnswer);
@@ -6075,6 +6098,7 @@ export default function ReviewQuestionScreen({
                           </Text>
                         );
                       })()}
+                      {isCurrentQuestionAnkiRevealed && renderAudioAnswerReading("anki")}
                       {isCurrentQuestionAnkiRevealed &&
                         ankiSupplementaryAnswerRows.length > 0 && (
                           <View style={styles.ankiSupplementaryAnswersContainer}>
@@ -6397,6 +6421,7 @@ export default function ReviewQuestionScreen({
                   >
                     {pausedCorrectAnswerText}
                   </Text>
+                  {renderAudioAnswerReading()}
                 </View>
 
                 <View style={styles.pausedPrimaryActions}>
@@ -6517,6 +6542,7 @@ export default function ReviewQuestionScreen({
                   >
                     {pausedCorrectAnswerText}
                   </Text>
+                  {renderAudioAnswerReading()}
                 </View>
 
                 <View style={styles.pausedPrimaryActions}>
@@ -6613,6 +6639,7 @@ export default function ReviewQuestionScreen({
                   >
                     {pausedCorrectAnswerText}
                   </Text>
+                  {renderAudioAnswerReading()}
                 </View>
 
                 <View style={styles.pausedSecondaryActions}>
@@ -7424,10 +7451,24 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   pausedDetailsCorrectAnswerText: {
-    flex: 1,
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 18,
+  },
+  pausedDetailsAnswerContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  audioAnswerReading: {
+    fontSize: 20,
+    lineHeight: 28,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  audioAnswerReadingCompact: {
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: "left",
   },
   pausedSubjectDetailsPanel: {
     alignSelf: "stretch",

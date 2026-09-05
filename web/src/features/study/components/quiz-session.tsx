@@ -781,7 +781,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
             questionKind={reviewKind ?? "meaning"}
             groupQuestions={groupedAnkiQuestions}
             meaningAnswer={ankiMeaningAnswer}
-            readingAnswer={ankiReadingAnswer}
+            readingAnswer={question.kind === "audio-vocab" ? question.reading || ankiReadingAnswer || question.characters || undefined : ankiReadingAnswer}
+            showReadingWithMeaning={question.kind === "audio-vocab"}
             otherMeaningAnswers={otherMeaningAnswers}
             otherReadingAnswers={otherReadingAnswers}
             userSynonyms={currentSubject ? studyMaterialBySubjectId.get(currentSubject.id)?.data.meaning_synonyms : undefined}
@@ -817,7 +818,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
         <div className={styles.answerStopReveal} data-answer-stop data-visible={answerStopAccessible} aria-hidden={!answerStopAccessible} inert={!answerStopAccessible ? true : undefined}>
           <div className={styles.answerStopContent}>
-            {answerWarning && !answer ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-warning="true"><RotateCcw size={18} aria-hidden /><strong>Try another answer</strong></span><span>{answerWarning}</span></div> : answer && !question.choices ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-correct={answer.correct} data-warning={currentAnswerStatus === "close" || undefined}>{answer.correct ? <Check size={18} /> : <X size={18} />}<strong>{currentAnswerStatus === "close" ? "Accepted with a typo" : answer.correct ? "Correct" : "Incorrect"}</strong></span>{currentAnswerStatus === "close" ? <span>Correct, with a small typo.</span> : !answer.correct ? <span className={styles.correctAnswer}><small>Correct answer</small><strong lang={kanaComposition ? "ja" : undefined}>{question.displayAnswer}</strong></span> : null}</div> : null}
+            {answerWarning && !answer ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-warning="true"><RotateCcw size={18} aria-hidden /><strong>Try another answer</strong></span><span>{answerWarning}</span></div> : answer && !question.choices ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-correct={answer.correct} data-warning={currentAnswerStatus === "close" || undefined}>{answer.correct ? <Check size={18} /> : <X size={18} />}<strong>{currentAnswerStatus === "close" ? "Accepted with a typo" : answer.correct ? "Correct" : "Incorrect"}</strong></span>{question.kind === "audio-vocab" ? <span className={styles.audioVocabAnswer}>
+                <strong>{question.displayAnswer}</strong>
+                <span lang="ja">{question.reading || ankiReadingAnswer || question.characters}</span>
+              </span> : currentAnswerStatus === "close" ? <span>Correct, with a small typo.</span> : !answer.correct ? <span className={styles.correctAnswer}><small>Correct answer</small><strong lang={kanaComposition ? "ja" : undefined}>{question.displayAnswer}</strong></span> : null}</div> : null}
 
             {closeAnswerNeedsResolution ? <div className={styles.closeAnswerActions} aria-label="Close answer result">
               <button type="button" className={styles.dangerButton} disabled={advancingQuestion} onClick={() => resolveCloseAnswer("incorrect")}><X size={17} aria-hidden /> Mark Incorrect</button>
