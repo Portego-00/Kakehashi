@@ -17,6 +17,7 @@ export type AnkiAnswerContentProps = {
   groupQuestions?: boolean;
   meaningAnswer: string;
   readingAnswer?: string;
+  showReadingWithMeaning?: boolean;
   otherMeaningAnswers?: readonly string[];
   otherReadingAnswers?: readonly string[];
   userSynonyms?: readonly string[];
@@ -75,9 +76,10 @@ function PrimaryAnswers({
   meaningAnswer,
   questionKind,
   readingAnswer,
+  showReadingWithMeaning,
 }: Pick<
   AnkiAnswerContentProps,
-  "groupQuestions" | "meaningAnswer" | "questionKind" | "readingAnswer"
+  "groupQuestions" | "meaningAnswer" | "questionKind" | "readingAnswer" | "showReadingWithMeaning"
 >) {
   if (groupQuestions) {
     return (
@@ -105,6 +107,12 @@ function PrimaryAnswers({
           {isReading ? readingAnswer || "—" : meaningAnswer}
         </strong>
       </div>
+      {showReadingWithMeaning && !isReading && readingAnswer ? (
+        <div className={styles.primaryAnswer}>
+          <span>Reading</span>
+          <strong lang="ja">{readingAnswer}</strong>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -228,6 +236,7 @@ export function AnkiAnswerContent({
   groupQuestions = false,
   meaningAnswer,
   readingAnswer,
+  showReadingWithMeaning = false,
   otherMeaningAnswers,
   otherReadingAnswers,
   userSynonyms,
@@ -357,6 +366,7 @@ export function AnkiAnswerContent({
       meaningAnswer={meaningAnswer}
       questionKind={questionKind}
       readingAnswer={readingAnswer}
+      showReadingWithMeaning={revealed && showReadingWithMeaning}
     />
   );
 

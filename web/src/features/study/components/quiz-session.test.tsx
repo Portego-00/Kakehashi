@@ -246,10 +246,12 @@ describe("extra-study quiz interaction", () => {
     renderAudioQuiz();
     expect(screen.queryByText("防ぐ")).not.toBeInTheDocument();
     expect(screen.queryByText("Prevent")).not.toBeInTheDocument();
+    expect(screen.queryByText("ふせぐ")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "prevent" } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(screen.getByText("Correct", { selector: "strong" })).toBeInTheDocument();
+    expect(within(document.getElementById("study-answer-status")!).getByText("ふせぐ")).toHaveAttribute("lang", "ja");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
   });
@@ -259,6 +261,7 @@ describe("extra-study quiz interaction", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(screen.getByText("Incorrect", { selector: "strong" })).toBeInTheDocument();
+    expect(within(document.getElementById("study-answer-status")!).getByText("ふせぐ")).toHaveAttribute("lang", "ja");
     expect(loadStudySession("audio-vocab-test", "audio-vocab")?.questions).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
@@ -288,8 +291,10 @@ describe("extra-study quiz interaction", () => {
   it.each(["both", "meaning"] as const)("respects the existing %s Anki setting for audio meanings", (ankiMode) => {
     renderAudioQuiz(ankiMode);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("ふせぐ")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reveal answer" }));
     expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("Prevent");
+    expect(within(screen.getByTestId("anki-answer-content")).getByText("ふせぐ")).toHaveAttribute("lang", "ja");
     expect(screen.getByRole("button", { name: /Wrong$/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Again" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Correct$/ }));

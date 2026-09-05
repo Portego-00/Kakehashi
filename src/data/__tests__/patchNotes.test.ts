@@ -2,10 +2,10 @@ import { PATCH_NOTES, getCurrentPatchNotesVersion } from "../patchNotes";
 
 describe("patch notes", () => {
   it("keeps the latest release current and preserves the JLPT announcement", () => {
-    expect(getCurrentPatchNotesVersion()).toBe("1.4.9");
+    expect(getCurrentPatchNotesVersion()).toBe("1.4.10");
     expect(PATCH_NOTES[0]).toMatchObject({
-      version: "1.4.9",
-      date: "2026-09-03",
+      version: "1.4.10",
+      date: "2026-09-05",
     });
     const jlptRelease = PATCH_NOTES.find((note) => note.version === "1.4.8");
     expect(

@@ -333,6 +333,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.ankiCardModeScope = "both";
     mockSettings.ankiHideAnswerCompletely = false;
     mockSettings.disableAutoProgressOnWrong = false;
+    mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
   });
 
@@ -590,6 +591,27 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getByTestId("answer-input")).toBeTruthy();
   });
 
+  it.each([
+    [false, "sushi"],
+    [true, "sushi"],
+    [false, "cat"],
+    [true, "cat"],
+  ] as const)("reveals the reading with the meaning (details: %s, answer: %s)", async (showDetails, answer) => {
+    mockSettings.showAnswerStopSubjectDetails = showDetails;
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    const screen = renderAudioQuestion();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.queryByText("ねこ")).toBeNull();
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, answer);
+    fireEvent(input, "submitEditing");
+    await waitFor(() => expect(screen.getByTestId("audio-answer-reading").props.children).toBe("ねこ"));
+    expect(screen.getByText("Cat")).toBeTruthy();
+  });
+
   it("uses the existing reveal and correct/wrong controls when meaning Anki mode is on", async () => {
     mockSettings.ankiCardMode = true;
     mockSettings.ankiHideAnswerCompletely = true;
@@ -597,7 +619,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
     const screen = renderAudioQuestion(onAnswer);
     expect(screen.queryByTestId("answer-input")).toBeNull();
     expect(screen.queryByText("Cat")).toBeNull();
+    expect(screen.queryByText("ねこ")).toBeNull();
     fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+    expect(screen.getByText("Cat")).toBeTruthy();
+    expect(screen.getByTestId("audio-answer-reading").props.children).toBe("ねこ");
     expect(screen.getByText("Wrong")).toBeTruthy();
     fireEvent.press(screen.getByText("Correct"));
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));

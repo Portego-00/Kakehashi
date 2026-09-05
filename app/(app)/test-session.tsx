@@ -491,6 +491,7 @@ function TestSessionScreen() {
     backToBackQuestions,
     reviewQuestionOrderEnabled,
     meaningFirst,
+    vocabularyAudioVoice,
   } = useSettingsStore();
   const preferredQuestionType: QuestionType = meaningFirst ? "meaning" : "reading";
 
@@ -1351,6 +1352,9 @@ function TestSessionScreen() {
   }
 
   const currentQuestion = testQuestions[currentQuestionIndex];
+  const audioVocabCard = isAudioVocabMode
+    ? createAudioVocabCard(currentQuestion.subject, vocabularyAudioVoice, config?.audioSource)
+    : null;
   const shouldUseGroupedQuestions =
     ankiCardMode &&
     ankiGroupQuestions &&
@@ -1415,19 +1419,14 @@ function TestSessionScreen() {
       completedCount={sessionProgress.completedCount}
       correctAnswersCount={sessionProgress.correctAnswersCount}
       forceDisableAnkiGrouping={!shouldUseGroupedQuestions}
+      audioPromptReading={audioVocabCard?.reading}
       audioPrompt={
         isAudioVocabMode ? (
           <AudioVocabPrompt
             key={currentQuestion.id}
             subject={currentQuestion.subject}
             autoPlay={config?.autoPlayAudio !== false}
-            sentence={
-              createAudioVocabCard(
-                currentQuestion.subject,
-                undefined,
-                config?.audioSource,
-              )?.sentence?.ja
-            }
+            sentence={audioVocabCard?.sentence?.ja}
           />
         ) : undefined
       }

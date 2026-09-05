@@ -56,8 +56,8 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: "1.4.9",
-    date: "2026-09-03",
+    version: "1.4.10",
+    date: "2026-09-05",
     changes: [
       {
         type: "feature",
@@ -65,6 +65,18 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Enable Multiple Choice in Review Settings to choose from similar readings and related meanings instead of typing.",
       },
+      {
+        type: "improvement",
+        title: "Audio Vocab Answers",
+        description:
+          "Audio Vocab quizzes now reveal the English meaning and Japanese reading together on mobile and web.",
+      },
+    ],
+  },
+  {
+    version: "1.4.9",
+    date: "2026-09-03",
+    changes: [
       {
         type: "feature",
         title: "Audio Vocab",
