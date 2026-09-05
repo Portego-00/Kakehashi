@@ -5,7 +5,7 @@ describe("extra-study catalog", () => {
   it("contains every web-supported mobile mode exactly once", () => {
     expect(STUDY_MODES.map((mode) => mode.id)).toEqual([
       "recent-lessons", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji",
-      "listening", "context-sentences", "text-analysis", "kanji-writing", "crossword", "word-search", "kana-wordle",
+      "audio-vocab", "listening", "context-sentences", "text-analysis", "kanji-writing", "crossword", "word-search", "kana-wordle",
       "custom-review", "custom-lessons", "subject-lists",
     ]);
     expect(new Set(STUDY_MODES.map((mode) => mode.id)).size).toBe(STUDY_MODES.length);

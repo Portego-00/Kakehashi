@@ -695,7 +695,9 @@ describe("JapaneseReader inspector", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     render(<QueryClientProvider client={client}><JapaneseReader text="川" /></QueryClientProvider>);
 
-    fireEvent.click(await screen.findByRole("button", { name: /川, Locked WaniKani item/ }));
+    // The WaniKani fallback has the same label but is replaced when JPDB analysis finishes.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped"));
+    fireEvent.click(screen.getByRole("button", { name: /川, Locked WaniKani item/ }));
 
     expect(await screen.findByLabelText("Vocabulary frequency #777")).toHaveTextContent("#777");
     expect(frequencyRequests).toEqual([{ expression: "川", readings: ["かわ"] }]);
