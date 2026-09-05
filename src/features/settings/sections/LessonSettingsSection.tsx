@@ -70,6 +70,12 @@ function LessonThresholdInput({
 }
 
 export function LessonSettingsSection() {
+  const lessonSearchButtonEnabled = useSettingsStore(
+    (state) => state.lessonSearchButtonEnabled,
+  );
+  const setLessonSearchButtonEnabled = useSettingsStore(
+    (state) => state.setLessonSearchButtonEnabled,
+  );
   const apprenticeLessonThreshold = useSettingsStore(
     (state) => state.apprenticeLessonThreshold,
   );
@@ -504,6 +510,32 @@ export function LessonSettingsSection() {
           <Switch
             value={singlePageLessonView}
             onValueChange={setSinglePageLessonView}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons
+            name="search"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Lesson Search Button
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Search from lesson cards without leaving your lesson session
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Lesson Search Button"
+            value={lessonSearchButtonEnabled}
+            onValueChange={setLessonSearchButtonEnabled}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
           />

@@ -4562,6 +4562,7 @@ export default function LessonDetailScreen({
   const {
     appTextSizeScale,
     singlePageLessonView,
+    lessonSearchButtonEnabled,
     autoplayLessonReadingAudio,
     vocabularyAudioVoice,
   } = useSettingsStore();
@@ -5158,6 +5159,11 @@ export default function LessonDetailScreen({
     return subjectColors.getColorForType(item.subject.object);
   };
 
+  const handleOpenLessonSearch = () => {
+    Keyboard.dismiss();
+    router.push("/review-search");
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <KeyboardExtendedBaseView
@@ -5251,6 +5257,19 @@ export default function LessonDetailScreen({
                 showsVerticalScrollIndicator
                 testID="lesson-subject-summary"
               >
+                {lessonSearchButtonEnabled && (
+                  <TouchableOpacity
+                    style={styles.lessonSearchButton}
+                    onPress={handleOpenLessonSearch}
+                    hitSlop={CLOSE_BUTTON_HIT_SLOP}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open search"
+                    accessibilityHint="Look up subjects, then go back to continue this lesson"
+                  >
+                    <Ionicons name="search" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+
                 {onAddSubjectToList && (
                   <TouchableOpacity
                     style={styles.addToListButton}
@@ -5662,6 +5681,18 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     subjectDisplayEndMarker: {
       width: 1,
       height: 1,
+    },
+    lessonSearchButton: {
+      position: "absolute",
+      top: 16,
+      left: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: "rgba(0,0,0,0.2)",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 20,
     },
     addToListButton: {
       position: "absolute",

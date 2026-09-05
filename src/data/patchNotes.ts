@@ -66,6 +66,12 @@ export const PATCH_NOTES: PatchNote[] = [
           "Enable Multiple Choice in Review Settings to choose from similar readings and related meanings instead of typing.",
       },
       {
+        type: "feature",
+        title: "Lesson Search Button",
+        description:
+          "Look up subjects from lesson cards without losing your place. Enable in advanced Lesson Settings; off by default.",
+      },
+      {
         type: "improvement",
         title: "Audio Vocab Answers",
         description:
