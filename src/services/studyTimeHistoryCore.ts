@@ -9,7 +9,9 @@ export const STUDY_TIME_HISTORY_CACHE_VERSION = 1;
 // total may exceed 24 hours. A 100-device ceiling is intentionally far above
 // legitimate simultaneous-device sums while rejecting hostile values.
 export const MAX_AGGREGATE_MS_PER_DAY = 100 * 24 * 60 * 60 * 1000;
-const MAX_HISTORY_DAY_COUNT = 430;
+// The server accepts the union of every timezone's 430-local-day window:
+// UTC today-430 through tomorrow can contain at most 432 distinct date keys.
+const MAX_HISTORY_DAY_COUNT = 432;
 
 export type OtherDeviceStudyTimeDay = {
   day: string;

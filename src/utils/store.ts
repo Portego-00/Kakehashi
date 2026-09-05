@@ -152,7 +152,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 17;
+const SETTINGS_STORE_SCHEMA_VERSION = 18;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -521,6 +521,7 @@ type SettingsState = {
   reviewQuestionOrderEnabled: boolean; // Force meaning/reading order when available
   skipKanjiReadings: boolean;
   minimizeReviewPenalty: boolean;
+  reviewMultipleChoiceEnabled: boolean; // Offer answer choices for questions not using Anki
   ankiCardMode: boolean;
   ankiGroupQuestions: boolean;
   ankiCardModeScope: "both" | "meaning" | "reading";
@@ -614,6 +615,7 @@ type SettingsState = {
   // Reading settings
   newsSourcePreference: NewsSourcePreference;
   newsDefaultStudyMode: StudyModePreference;
+  hideNewsFuriganaByDefault: boolean;
   hideVocabularyTooltipMeanings: boolean;
   hideVocabularyTooltipReadings: boolean;
 
@@ -703,6 +705,7 @@ type SettingsState = {
   setReviewQuestionOrderEnabled: (enabled: boolean) => void;
   setSkipKanjiReadings: (skip: boolean) => void;
   setMinimizeReviewPenalty: (minimize: boolean) => void;
+  setReviewMultipleChoiceEnabled: (enabled: boolean) => void;
   setAnkiCardMode: (ankiMode: boolean) => void;
   setAnkiGroupQuestions: (group: boolean) => void;
   setAnkiCardModeScope: (scope: "both" | "meaning" | "reading") => void;
@@ -790,6 +793,7 @@ type SettingsState = {
   setListeningAutoPlayAudio: (autoplay: boolean) => void;
   setNewsSourcePreference: (source: NewsSourcePreference) => void;
   setNewsDefaultStudyMode: (mode: StudyModePreference) => void;
+  setHideNewsFuriganaByDefault: (hide: boolean) => void;
   setHideVocabularyTooltipMeanings: (hide: boolean) => void;
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
   setSongsMusicSource: (source: "spotify" | "apple") => void;
@@ -865,6 +869,7 @@ export const useSettingsStore = create<SettingsState>()(
       reviewQuestionOrderEnabled: false, // Default to disabled - keep legacy random/back-to-back behavior
       skipKanjiReadings: false,
       minimizeReviewPenalty: true,
+      reviewMultipleChoiceEnabled: false,
       ankiCardMode: false, // Default to disabled (traditional WaniKani mode)
       ankiGroupQuestions: false, // Default to disabled (show questions separately)
       ankiCardModeScope: "both", // Default to Anki behavior for both meaning and reading
@@ -957,6 +962,7 @@ export const useSettingsStore = create<SettingsState>()(
       listeningAutoPlayAudio: true, // Default to true - auto-play audio when moving between questions
       newsSourcePreference: "easy", // Keep the existing beginner-friendly feed until users opt in
       newsDefaultStudyMode: "none", // Default to the rendered article view
+      hideNewsFuriganaByDefault: false, // Preserve the existing behavior of showing article furigana
       hideVocabularyTooltipMeanings: false, // Default to showing tooltip meanings immediately
       hideVocabularyTooltipReadings: false, // Default to showing tooltip readings immediately
       songsMusicSource: "spotify", // Default to Spotify for backwards compatibility
@@ -1077,6 +1083,7 @@ export const useSettingsStore = create<SettingsState>()(
       setSkipKanjiReadings: (skip) => set({ skipKanjiReadings: skip }),
       setMinimizeReviewPenalty: (minimize) =>
         set({ minimizeReviewPenalty: minimize }),
+      setReviewMultipleChoiceEnabled: (enabled) => set({ reviewMultipleChoiceEnabled: enabled }),
       setAnkiCardMode: (ankiMode) => set({ ankiCardMode: ankiMode }),
       setAnkiGroupQuestions: (group) => set({ ankiGroupQuestions: group }),
       setAnkiCardModeScope: (scope) => set({ ankiCardModeScope: scope }),
@@ -1229,6 +1236,8 @@ export const useSettingsStore = create<SettingsState>()(
       setNewsSourcePreference: (source) =>
         set({ newsSourcePreference: normalizeNewsSourcePreference(source) }),
       setNewsDefaultStudyMode: (mode) => set({ newsDefaultStudyMode: mode }),
+      setHideNewsFuriganaByDefault: (hide) =>
+        set({ hideNewsFuriganaByDefault: hide }),
       setHideVocabularyTooltipMeanings: (hide) =>
         set({ hideVocabularyTooltipMeanings: hide }),
       setHideVocabularyTooltipReadings: (hide) =>
@@ -1374,6 +1383,7 @@ export const useSettingsStore = create<SettingsState>()(
           reviewCharacterFontScale?: unknown;
           reviewInputFontScale?: unknown;
           appTextSizeScale?: unknown;
+          hideNewsFuriganaByDefault?: unknown;
           hideVocabularyTooltipMeanings?: unknown;
           hideVocabularyTooltipReadings?: unknown;
           songsPlaybackSource?: unknown;
@@ -1484,6 +1494,12 @@ export const useSettingsStore = create<SettingsState>()(
         migratedRecord.appTextSizeScale = normalizeAppTextSizeScale(
           migratedRecord.appTextSizeScale
         );
+        if (
+          version < 18 ||
+          typeof migratedRecord.hideNewsFuriganaByDefault !== "boolean"
+        ) {
+          migratedRecord.hideNewsFuriganaByDefault = false;
+        }
         if (
           version < 11 ||
           typeof migratedRecord.hideVocabularyTooltipMeanings !== "boolean"

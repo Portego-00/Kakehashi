@@ -18,4 +18,21 @@ describe("UserAvatar", () => {
     expect(container.querySelector('img[src*="gravatar.com"]')).not.toBeInTheDocument();
     expect(container.querySelector('img[src*="kakehashi-mark.png"]')).toBeInTheDocument();
   });
+
+  it("shows a public Gravatar image from its hash without needing the email", () => {
+    const hash = "0bc83cb571cd1c50ba6f3e8a78ef1346";
+    const { container } = render(<UserAvatar hash={hash} />);
+
+    expect(container.querySelector<HTMLImageElement>(`img[src*="${hash}"]`)).toBeInTheDocument();
+  });
+
+  it("uses a caller-provided fallback when a Gravatar cannot load", () => {
+    const { container } = render(<UserAvatar hash="0bc83cb571cd1c50ba6f3e8a78ef1346" fallback="P" />);
+    const gravatar = container.querySelector<HTMLImageElement>('img[src*="gravatar.com"]');
+
+    fireEvent.error(gravatar!);
+
+    expect(container).toHaveTextContent("P");
+    expect(container.querySelector('img[src*="kakehashi-mark.png"]')).not.toBeInTheDocument();
+  });
 });

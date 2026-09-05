@@ -2,6 +2,15 @@ import type { SubtitleCue, TimedLyricLine } from "./types";
 
 const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\u3005\u3006\u303bｦ-ﾟ]/;
 const SUBTITLE_DECORATION_RE = /[~\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2b00-\u2bff\u2669-\u266f\u301c\u3030\u303d\uff5e\u{1f3b5}\u{1f3b6}↵⏎]/gu;
+const LEADING_TIMESTAMP_RE = /^\s*(\d{1,2}:\d{2}:\d{2}(?:[.,]\d{1,3})?|\d{1,3}:\d{2}(?:[.,]\d{1,3})?)\s+(?:[-–—]\s*)?(.+?)\s*$/;
+
+export type LyricsTextFormat = "plain" | "lrc" | "srt" | "webvtt" | "timestamped";
+
+export interface ParsedLyricsText {
+  lines: TimedLyricLine[];
+  timed: boolean;
+  format: LyricsTextFormat;
+}
 
 function decodeEntities(value: string) {
   if (typeof document === "undefined") {
@@ -49,15 +58,16 @@ export function parseSrt(input: string): SubtitleCue[] {
 export function parseLrc(input: string): TimedLyricLine[] {
   const staged: Array<{ startMs: number; text: string }> = [];
   for (const rawLine of input.replace(/^\uFEFF/, "").split(/\r?\n/)) {
-    const timestamps = [...rawLine.matchAll(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
+    const timestamps = [...rawLine.matchAll(/\[(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
     const text = rawLine.replace(/\[[^\]]+\]/g, "").trim();
     if (!text) continue;
     for (const timestamp of timestamps) {
-      const minutes = Number(timestamp[1]);
-      const seconds = Number(timestamp[2]);
-      const fraction = timestamp[3] ?? "0";
+      const hours = Number(timestamp[1] ?? 0);
+      const minutes = Number(timestamp[2]);
+      const seconds = Number(timestamp[3]);
+      const fraction = timestamp[4] ?? "0";
       const milliseconds = fraction.length === 1 ? Number(fraction) * 100 : fraction.length === 2 ? Number(fraction) * 10 : Number(fraction.slice(0, 3));
-      staged.push({ startMs: (minutes * 60 + seconds) * 1000 + milliseconds, text });
+      staged.push({ startMs: (hours * 3600 + minutes * 60 + seconds) * 1000 + milliseconds, text });
     }
   }
   staged.sort((left, right) => left.startMs - right.startMs);
@@ -76,6 +86,47 @@ export function plainLyricsToLines(input: string): TimedLyricLine[] {
     endMs: (index + 1) * 5000,
     text,
   }));
+}
+
+function parseLeadingTimestampLines(input: string): TimedLyricLine[] {
+  const staged = input.replace(/^\uFEFF/, "").split(/\r?\n/).flatMap((rawLine) => {
+    const match = rawLine.match(LEADING_TIMESTAMP_RE);
+    if (!match) return [];
+    const startMs = parseTimestamp(match[1]);
+    const text = match[2].trim();
+    return startMs === null || !text ? [] : [{ startMs, text }];
+  }).sort((left, right) => left.startMs - right.startMs);
+
+  return staged.map((line, index) => ({
+    id: `timestamped-${index}-${line.startMs}`,
+    startMs: line.startMs,
+    endMs: staged[index + 1]?.startMs ?? line.startMs + 5000,
+    text: line.text,
+  }));
+}
+
+export function parseLyricsText(input: string): ParsedLyricsText {
+  const normalized = input.replace(/^\uFEFF/, "").trim();
+  if (!normalized) return { lines: [], timed: false, format: "plain" };
+
+  if (normalized.includes("-->")) {
+    const subtitles = parseSrt(normalized);
+    if (subtitles.length) {
+      return {
+        lines: subtitles,
+        timed: true,
+        format: /^WEBVTT(?:\s|$)/i.test(normalized) ? "webvtt" : "srt",
+      };
+    }
+  }
+
+  const lrc = parseLrc(normalized);
+  if (lrc.length) return { lines: lrc, timed: true, format: "lrc" };
+
+  const timestamped = parseLeadingTimestampLines(normalized);
+  if (timestamped.length) return { lines: timestamped, timed: true, format: "timestamped" };
+
+  return { lines: plainLyricsToLines(normalized), timed: false, format: "plain" };
 }
 
 export function findCueAt(cues: SubtitleCue[], timeMs: number) {

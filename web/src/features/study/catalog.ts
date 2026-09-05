@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   AudioLines,
+  Volume2,
   BookOpen,
   BrainCircuit,
   Brush,
@@ -14,6 +15,7 @@ import {
   MessageSquareText,
   Puzzle,
   Repeat2,
+  Search,
 } from "lucide-react";
 import type { StudyModeId } from "./types";
 
@@ -37,11 +39,13 @@ export const STUDY_MODES: StudyModeDefinition[] = [
   { id: "hiragana-meaning", title: "Hiragana vocab", description: "Read a kana prompt and recall its English meaning.", group: "Language skills", icon: FileText, accent: "vocabulary", resumable: true },
   { id: "similar-kanji", title: "Similar kanji", description: "Pair lookalike kanji with their meanings using Niai or WaniKani groups.", group: "Language skills", icon: Puzzle, accent: "kanji", resumable: true },
   { id: "kana-to-kanji", title: "Kana to kanji", description: "Turn a vocabulary reading back into its written form.", group: "Language skills", icon: Repeat2, accent: "kanji", resumable: true },
-  { id: "listening", title: "Listening practice", description: "Study vocabulary in anime scenes or WaniKani audio, by choice or typing.", group: "Language skills", icon: AudioLines, accent: "vocabulary", resumable: true, shortcut: "L" },
+  { id: "audio-vocab", title: "Audio vocab", description: "Listen to WaniKani vocabulary and recall its English meaning.", group: "Language skills", icon: Volume2, accent: "vocabulary", resumable: true },
+  { id: "listening", title: "Listening practice", description: "Study vocabulary in anime scenes, by choice or typing.", group: "Language skills", icon: AudioLines, accent: "vocabulary", resumable: true, shortcut: "L" },
   { id: "context-sentences", title: "Context sentences", description: "Restore vocabulary, then inspect the sentence's words and grammar cues.", group: "Language skills", icon: MessageSquareText, accent: "vocabulary", resumable: true },
   { id: "text-analysis", title: "Japanese text", description: "Analyze pasted Japanese with library matches, grammar cues, and translation.", group: "Games & tools", icon: BrainCircuit, accent: "radical", resumable: false },
   { id: "kanji-writing", title: "Kanji writing", description: "Practice guided stroke order or freehand kanji recall.", group: "Language skills", icon: Brush, accent: "kanji", resumable: true },
   { id: "crossword", title: "Crossword", description: "Solve English clues on an intersecting hiragana grid.", group: "Games & tools", icon: Grid3X3, accent: "vocabulary", resumable: true },
+  { id: "word-search", title: "Word search", description: "Find kana from kanji clues, or written vocabulary from its reading.", group: "Games & tools", icon: Search, accent: "vocabulary", resumable: true },
   { id: "kana-wordle", title: "Kana Wordle", description: "Find a vocabulary reading using positional kana clues.", group: "Games & tools", icon: ListChecks, accent: "vocabulary", resumable: true },
   { id: "custom-review", title: "Custom review", description: "Select exactly which subjects to quiz and how to quiz them.", group: "Your library", icon: ListChecks, accent: "review", resumable: true },
   { id: "custom-lessons", title: "Custom lessons", description: "Build a focused lesson batch from any available subjects.", group: "Your library", icon: BookOpen, accent: "lesson", resumable: true },

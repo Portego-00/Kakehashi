@@ -574,6 +574,7 @@ export type Subject = {
         }[]
       | null;
     parts_of_speech: string[] | null;
+    context_sentences?: { ja: string; en: string }[] | null;
     component_subject_ids: number[] | null;
     amalgamation_subject_ids: number[] | null;
     visually_similar_subject_ids: number[] | null;

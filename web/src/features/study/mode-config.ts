@@ -21,6 +21,7 @@ export function activeStrokeLeniencyPreset(value: number) {
 }
 
 export const QUIZ_MODES = new Set<StudyModeId>([
+  "audio-vocab",
   "recent-lessons", "random-test", "vocab-reading", "hiragana-meaning", "similar-kanji", "kana-to-kanji", "listening", "context-sentences", "custom-review",
 ]);
 
@@ -29,7 +30,9 @@ export function isQuizMode(mode: StudyModeId): mode is QuizModeId {
 }
 
 export function fixedSubjectTypes(mode: StudyModeId): SubjectType[] | null {
+  if (mode === "audio-vocab") return ["vocabulary", "kana_vocabulary"];
   if (mode === "kana-to-kanji") return ["vocabulary"];
+  if (mode === "word-search") return ["vocabulary"];
   if (mode === "crossword") return ["vocabulary", "kana_vocabulary"];
   if (mode === "similar-kanji" || mode === "kanji-writing") return ["kanji"];
   return null;
@@ -43,7 +46,7 @@ export function getModeDefaultFilters(mode: StudyModeId, maxLevel: number): Stud
           : [...DEFAULT_STUDY_FILTERS.subjectTypes]);
   return {
     ...DEFAULT_STUDY_FILTERS,
-    count: mode === "listening" || mode === "kanji-writing" ? 10 : mode === "context-sentences" ? 15 : 20,
+    count: mode === "listening" || mode === "kanji-writing" || mode === "word-search" ? 10 : mode === "context-sentences" ? 15 : 20,
     subjectTypes: types,
     srsGroups: mode === "listening" || mode === "context-sentences"
       ? ["apprentice", "guru", "master", "enlightened"]

@@ -73,6 +73,23 @@ describe("core answer checker", () => {
     });
   });
 
+  it("recognizes the characters as the reading for kana vocabulary without a readings field", () => {
+    const kanaVocabulary = buildSubject({
+      characters: "メモ",
+      readings: undefined,
+      meanings: [{ meaning: "Note", primary: true, accepted_answer: true }],
+    }, "kana_vocabulary");
+
+    expect(checkAnswer(kanaVocabulary, "meaning", "メモ")).toMatchObject({
+      status: "blocked",
+      message: "You entered the reading, but we want the meaning.",
+    });
+    expect(checkAnswer(kanaVocabulary, "meaning", "memo")).toMatchObject({
+      status: "blocked",
+      message: "You entered the reading, but we want the meaning.",
+    });
+  });
+
   it.each([
     ["a kana reading on a meaning question", buildSubject(), "meaning", "かわ", "You entered the reading, but we want the meaning."],
     ["a romaji reading on a meaning question", buildSubject(), "meaning", "kawa", "You entered the reading, but we want the meaning."],

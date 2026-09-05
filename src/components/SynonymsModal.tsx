@@ -409,11 +409,16 @@ const styles = StyleSheet.create({
   synonymsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    minWidth: 0,
+    maxWidth: "100%",
     gap: 10,
   },
   synonymChip: {
     flexDirection: "row",
     alignItems: "center",
+    minWidth: 0,
+    maxWidth: "100%",
+    flexShrink: 1,
     paddingVertical: 8,
     paddingLeft: 14,
     paddingRight: 10,
@@ -421,6 +426,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   synonymText: {
+    minWidth: 0,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: "500",
   },

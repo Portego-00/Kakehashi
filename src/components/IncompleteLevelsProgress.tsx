@@ -299,15 +299,18 @@ const styles = StyleSheet.create({
   cardLeft: {
     alignItems: "center",
     justifyContent: "center",
-    width: 48,
+    minWidth: 48,
     marginRight: 12,
+    flexShrink: 0,
   },
   levelBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    minWidth: 36,
+    minHeight: 36,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
   },
   levelNumber: {
     fontSize: 16,
@@ -316,6 +319,7 @@ const styles = StyleSheet.create({
 
   cardMiddle: {
     flex: 1,
+    minWidth: 0,
   },
   statsRow: {
     flexDirection: "row",
@@ -329,6 +333,7 @@ const styles = StyleSheet.create({
   },
   statPill: {
     flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -340,6 +345,7 @@ const styles = StyleSheet.create({
   },
   statContent: {
     flex: 1,
+    minWidth: 0,
   },
   statLabel: {
     fontSize: 9,

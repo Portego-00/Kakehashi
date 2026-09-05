@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { readBoundedJson } from "@/features/content/server-security";
 import { unsealToken } from "@/lib/server/session-crypto";
+import { normalizeGravatarEmail } from "@/lib/gravatar";
 import { canManageIssueAuthor, resolveCommunityModeFromEnvironment } from "./security-model";
 import { applyLocalLikeToggle, findMutationReceipt } from "./repository-model";
 import { identityFromUserPayload, type CommunityUserPayload } from "./identity-model";
@@ -51,7 +52,7 @@ function readLocalStore() { try { const value = JSON.parse(readFileSync(localFil
 function writeLocalStore(store: LocalStore) { mkdirSync(localDirectory, { recursive: true }); const next = `${localFile}.next`; writeFileSync(next, JSON.stringify(store, null, 2), { mode: 0o600 }); renameSync(next, localFile); }
 function localRows(table: Exclude<keyof LocalStore, "mutation_receipts">, url: URL, store: LocalStore) {
   let rows = [...store[table]];
-  for (const field of ["id", "issue_id", "comment_id", "user_id", "status"] as const) {
+  for (const field of ["id", "issue_id", "comment_id", "user_id", "status", "is_active"] as const) {
     const value = url.searchParams.get(field);
     if (value?.startsWith("eq.")) rows = rows.filter((row) => String(row[field] ?? "") === decodeURIComponent(value.slice(3)));
     if (value?.startsWith("in.(") && value.endsWith(")")) { const ids = new Set(value.slice(4, -1).split(",")); rows = rows.filter((row) => ids.has(String(row[field]))); }
@@ -77,18 +78,18 @@ function localCommunityRequest(path: string, init?: RequestInit) {
   throw new Error("Unsupported community method.");
 }
 
-export async function communityIdentity() {
+export async function communityIdentity(gravatarEmail?: unknown) {
   const sealed = (await cookies()).get("kakehashi_wk_session")?.value;
   if (!sealed) throw new Error("Sign in to participate in the community.");
   const token = unsealToken(sealed);
   const response = await fetch("https://api.wanikani.com/v2/user", { headers: { Authorization: `Bearer ${token}`, "Wanikani-Revision": "20170710", Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
   const payload = await readBoundedJson(response, 256_000).catch(() => null) as CommunityUserPayload | null;
-  const identity = identityFromUserPayload(payload);
+  const identity = identityFromUserPayload(payload, gravatarEmail);
   if (!response.ok || !identity) throw new Error("Your WaniKani identity could not be verified.");
   return identity satisfies CommunityIdentity;
 }
 
-export async function communityIdentityOrNull() { try { return await communityIdentity(); } catch { return null; } }
+export async function communityIdentityOrNull(gravatarEmail?: unknown) { try { return await communityIdentity(gravatarEmail); } catch { return null; } }
 
 export function canManageCommunityIssue(issue: JsonRecord, identity: CommunityIdentity) {
   return canManageIssueAuthor(issue, identity, (process.env.COMMUNITY_ADMIN_USER_IDS || "").split(","));
@@ -104,6 +105,35 @@ export async function supabaseRequest(path: string, init?: RequestInit) {
   const payload = response.status === 204 ? null : await readBoundedJson(response, 1_000_000).catch(() => null);
   if (!response.ok) { const record = payload && typeof payload === "object" ? payload as JsonRecord : null; throw new Error(typeof record?.message === "string" ? record.message : `Community service returned HTTP ${response.status}.`); }
   return payload;
+}
+
+export async function communitySupporterUsernames(): Promise<ReadonlySet<string>> {
+  const usernames = new Set<string>();
+  let rows: unknown;
+  try {
+    rows = await supabaseRequest("patreon_supporters?select=wanikani_username&is_active=eq.true");
+  } catch {
+    return usernames;
+  }
+  if (!Array.isArray(rows)) return usernames;
+  rows.forEach((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+    const username = (entry as JsonRecord).wanikani_username;
+    const normalized = typeof username === "string" ? username.trim().toLowerCase() : "";
+    if (normalized) usernames.add(normalized);
+  });
+  return usernames;
+}
+
+export async function syncCommunityAuthorEmail(identity: CommunityIdentity) {
+  const email = normalizeGravatarEmail(identity.email);
+  if (!email || email.endsWith("@users.noreply.local")) return;
+  const userId = encodeURIComponent(identity.id);
+  const body = JSON.stringify({ user_email: email });
+  await Promise.allSettled([
+    supabaseRequest(`issues?user_id=eq.${userId}`, { method: "PATCH", body }),
+    supabaseRequest(`issue_comments?user_id=eq.${userId}`, { method: "PATCH", body }),
+  ]);
 }
 
 async function supabaseRpc(name: string, body: JsonRecord) {

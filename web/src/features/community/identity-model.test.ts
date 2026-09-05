@@ -15,4 +15,10 @@ describe("community identity", () => {
     expect(identityFromUserPayload({ data: { username: "KakeLearner", level: "not-a-level" } })).toMatchObject({ id: "kakelearner", username: "KakeLearner", level: 0 });
     expect(identityFromUserPayload({ data: { username: "   " } })).toBeNull();
   });
+
+  it("uses a normalized valid Gravatar email when the browser supplies one", () => {
+    const payload = { data: { id: "wk-user", username: "KakeLearner", level: 12 } };
+    expect(identityFromUserPayload(payload, " MyEmailAddress@example.com ")?.email).toBe("myemailaddress@example.com");
+    expect(identityFromUserPayload(payload, "not-an-email")?.email).toBe("KakeLearner@users.noreply.local");
+  });
 });

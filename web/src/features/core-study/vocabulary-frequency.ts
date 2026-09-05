@@ -9,7 +9,7 @@ export const VOCABULARY_FREQUENCY_API_PATH = "/api/study/vocabulary-frequency";
 export const VOCABULARY_FREQUENCY_STALE_TIME_MS = 24 * 24 * 60 * 60 * 1_000;
 export const VOCABULARY_FREQUENCY_FOUND_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 export const VOCABULARY_FREQUENCY_NOT_FOUND_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
-const VOCABULARY_FREQUENCY_CACHE_PREFIX = "kakehashi-web:vocabulary-frequency:v1:";
+const VOCABULARY_FREQUENCY_CACHE_PREFIX = "kakehashi-web:vocabulary-frequency:v2:";
 
 export interface VocabularyFrequencySubject {
   id: number;
@@ -55,6 +55,26 @@ export class VocabularyFrequencyApiError extends Error {
   }
 }
 
+export function normalizeVocabularyFrequencyRequest(
+  request: VocabularyFrequencyRequest,
+): VocabularyFrequencyRequest | null {
+  const expression = typeof request.expression === "string"
+    ? normalizeVocabularyExpression(request.expression)
+    : "";
+  if (!expression) return null;
+
+  const readings = Array.isArray(request.readings)
+    ? request.readings
+      .map((reading) => typeof reading === "string" ? normalizeVocabularyReading(reading) : "")
+      .filter(Boolean)
+    : [];
+
+  return {
+    expression,
+    readings: [...new Set(readings)].sort(),
+  };
+}
+
 export function vocabularyFrequencyRequestForSubject(
   subject: VocabularyFrequencySubject,
 ): VocabularyFrequencyRequest | null {
@@ -70,20 +90,26 @@ export function vocabularyFrequencyRequestForSubject(
       .filter(Boolean)
     : [];
 
-  return {
+  return normalizeVocabularyFrequencyRequest({
     expression,
-    readings: [...new Set(readings)].sort(),
-  };
+    readings,
+  });
+}
+
+export function vocabularyFrequencyQueryKeyForRequest(request: VocabularyFrequencyRequest) {
+  const normalized = normalizeVocabularyFrequencyRequest(request);
+  return [
+    "vocabulary-frequency",
+    normalized?.expression ?? "",
+    normalized?.readings ?? [],
+  ] as const;
 }
 
 export function vocabularyFrequencyQueryKey(subject: VocabularyFrequencySubject) {
   const request = vocabularyFrequencyRequestForSubject(subject);
-  return [
-    "vocabulary-frequency",
-    subject.id,
-    request ? normalizeVocabularyExpression(request.expression) : "",
-    request?.readings.join(",") ?? "",
-  ] as const;
+  return request
+    ? vocabularyFrequencyQueryKeyForRequest(request)
+    : ["vocabulary-frequency", "", []] as const;
 }
 
 function parseRetryAfterMs(value: string | null) {
@@ -123,19 +149,23 @@ function browserStorage() {
   }
 }
 
-function vocabularyFrequencyCacheKey(subject: VocabularyFrequencySubject, request: VocabularyFrequencyRequest) {
-  return `${VOCABULARY_FREQUENCY_CACHE_PREFIX}${subject.id}:${encodeURIComponent(normalizeVocabularyExpression(request.expression))}:${encodeURIComponent(request.readings.join(","))}`;
+function vocabularyFrequencyCacheKey(request: VocabularyFrequencyRequest) {
+  return `${VOCABULARY_FREQUENCY_CACHE_PREFIX}${encodeURIComponent(JSON.stringify([
+    request.expression,
+    request.readings,
+  ]))}`;
 }
 
-function readCachedVocabularyFrequency(subject: VocabularyFrequencySubject, request: VocabularyFrequencyRequest): VocabularyFrequencyCacheRow | null {
+function readCachedVocabularyFrequency(request: VocabularyFrequencyRequest): VocabularyFrequencyCacheRow | null {
   const storage = browserStorage();
   if (!storage) return null;
   try {
-    const raw = storage.getItem(vocabularyFrequencyCacheKey(subject, request));
+    const cacheKey = vocabularyFrequencyCacheKey(request);
+    const raw = storage.getItem(cacheKey);
     if (!raw) return null;
     const row = JSON.parse(raw) as Partial<VocabularyFrequencyCacheRow>;
     if (!Number.isFinite(row.fetchedAt) || Number(row.fetchedAt) <= 0 || (row.result !== null && !isVocabularyFrequencyResult(row.result))) {
-      storage.removeItem(vocabularyFrequencyCacheKey(subject, request));
+      storage.removeItem(cacheKey);
       return null;
     }
     return { fetchedAt: Number(row.fetchedAt), result: row.result ?? null };
@@ -144,11 +174,11 @@ function readCachedVocabularyFrequency(subject: VocabularyFrequencySubject, requ
   }
 }
 
-function writeCachedVocabularyFrequency(subject: VocabularyFrequencySubject, request: VocabularyFrequencyRequest, result: VocabularyFrequencyResult | null) {
+function writeCachedVocabularyFrequency(request: VocabularyFrequencyRequest, result: VocabularyFrequencyResult | null) {
   const storage = browserStorage();
   if (!storage) return;
   try {
-    storage.setItem(vocabularyFrequencyCacheKey(subject, request), JSON.stringify({ fetchedAt: Date.now(), result } satisfies VocabularyFrequencyCacheRow));
+    storage.setItem(vocabularyFrequencyCacheKey(request), JSON.stringify({ fetchedAt: Date.now(), result } satisfies VocabularyFrequencyCacheRow));
   } catch {
     // Frequency lookup still succeeds when browser storage is unavailable or full.
   }
@@ -162,14 +192,14 @@ async function readResponsePayload(response: Response) {
   }
 }
 
-export async function fetchVocabularyFrequency(
-  subject: VocabularyFrequencySubject,
+export async function fetchVocabularyFrequencyForRequest(
+  request: VocabularyFrequencyRequest,
   signal?: AbortSignal,
 ): Promise<VocabularyFrequencyResult | null> {
-  const request = vocabularyFrequencyRequestForSubject(subject);
-  if (!request) return null;
+  const normalized = normalizeVocabularyFrequencyRequest(request);
+  if (!normalized) return null;
 
-  const cached = readCachedVocabularyFrequency(subject, request);
+  const cached = readCachedVocabularyFrequency(normalized);
   const cacheTtl = cached?.result ? VOCABULARY_FREQUENCY_FOUND_CACHE_TTL_MS : VOCABULARY_FREQUENCY_NOT_FOUND_CACHE_TTL_MS;
   if (cached && Date.now() - cached.fetchedAt <= cacheTtl) return cached.result;
 
@@ -177,7 +207,7 @@ export async function fetchVocabularyFrequency(
     const response = await fetch(VOCABULARY_FREQUENCY_API_PATH, {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(request),
+      body: JSON.stringify(normalized),
       credentials: "same-origin",
       cache: "no-store",
       signal,
@@ -199,16 +229,24 @@ export async function fetchVocabularyFrequency(
       throw new VocabularyFrequencyApiError("Vocabulary frequency lookup returned an unexpected response.", 502, null);
     }
     if (payload.result === null) {
-      writeCachedVocabularyFrequency(subject, request, null);
+      writeCachedVocabularyFrequency(normalized, null);
       return null;
     }
     if (!isVocabularyFrequencyResult(payload.result)) {
       throw new VocabularyFrequencyApiError("Vocabulary frequency lookup returned an unexpected result.", 502, null);
     }
-    writeCachedVocabularyFrequency(subject, request, payload.result);
+    writeCachedVocabularyFrequency(normalized, payload.result);
     return payload.result;
   } catch (error) {
     if (cached) return cached.result;
     throw error;
   }
+}
+
+export async function fetchVocabularyFrequency(
+  subject: VocabularyFrequencySubject,
+  signal?: AbortSignal,
+): Promise<VocabularyFrequencyResult | null> {
+  const request = vocabularyFrequencyRequestForSubject(subject);
+  return request ? fetchVocabularyFrequencyForRequest(request, signal) : null;
 }

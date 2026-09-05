@@ -17,6 +17,7 @@ import { useStudyDataset } from "../use-study-dataset";
 import { QuizSession } from "./quiz-session";
 import { StudyConfig } from "./study-config";
 import { CrosswordGame, CustomLessons, KanaWordle, SimilarKanjiMatching, SubjectLists, TextAnalysis, WritingPractice } from "./special-modes";
+import { WordSearchGame } from "./word-search-game";
 import styles from "../study.module.css";
 
 const noopSubscribe = () => () => {};
@@ -129,7 +130,9 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
           backToBackQuestions: webSettings.study.backToBackQuestions,
           maxQuestionGap: 10,
         })
-        : generateQuestions(mode, dataset, generationFilters);
+        : mode === "audio-vocab"
+          ? generateQuestions(mode, dataset, generationFilters, { audioVocabVoice: webSettings.study.vocabularyAudioVoice })
+          : generateQuestions(mode, dataset, generationFilters);
       if (mode === "listening") {
         const controller = new AbortController();
         listeningAbortRef.current = controller;
@@ -170,7 +173,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
           return;
         }
       }
-      if (!questions.length) { setStartError("No matching questions were found. Try more SRS stages, subject types, levels, or a different recent window."); setPreparing(false); return; }
+      if (!questions.length) { setStartError(mode === "audio-vocab" ? effectiveFilters.audioVocabSource === "sentence" ? "No vocabulary with Japanese context sentences matches these filters. Try more levels, SRS stages, or another list." : "No vocabulary with WaniKani audio matches these filters. Try more levels, SRS stages, or another list." : "No matching questions were found. Try more SRS stages, subject types, levels, or a different recent window."); setPreparing(false); return; }
       const session = createStudySession(mode, questions);
       saveStudySession(scope, session); setActiveSession(session); setPreparing(false); return;
     }
@@ -194,6 +197,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
   else if (preparingListening) content = <ListeningPreparation />;
   else if (activeFilters && mode === "kanji-writing") content = <WritingPractice dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "crossword") content = <CrosswordGame dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
+  else if (activeFilters && mode === "word-search") content = <WordSearchGame dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "kana-wordle") content = <KanaWordle dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "similar-kanji") content = <SimilarKanjiMatching dataset={dataset} filters={activeFilters} scope={scope} onExit={exit} />;
   else if (activeFilters && mode === "custom-lessons") content = <CustomLessons dataset={dataset} filters={activeFilters} scope={scope} subjectDetailSettings={webSettings.subjectDetails} immersionSources={webSettings.study.immersionKitAnimeSources} onExit={exit} />;

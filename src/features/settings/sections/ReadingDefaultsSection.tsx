@@ -9,9 +9,11 @@ export function ReadingDefaultsSection() {
   const {
     handleBlockedFullModeSelection,
     hasStoredJpdbApiKey,
+    hideNewsFuriganaByDefault,
     hideVocabularyTooltipMeanings,
     hideVocabularyTooltipReadings,
     newsDefaultStudyMode,
+    setHideNewsFuriganaByDefault,
     setHideVocabularyTooltipMeanings,
     setHideVocabularyTooltipReadings,
     setNewsDefaultStudyMode,
@@ -118,6 +120,40 @@ export function ReadingDefaultsSection() {
               );
             })}
           </View>
+        </View>
+
+        <View
+          style={[
+            styles.settingItem,
+            {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: theme.border,
+            },
+          ]}
+        >
+          <Ionicons
+            name="text-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Hide Furigana by Default
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Start News articles without furigana when No Study Mode is
+              selected.
+            </Text>
+          </View>
+          <Switch
+            value={hideNewsFuriganaByDefault}
+            onValueChange={setHideNewsFuriganaByDefault}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
         </View>
 
         <View

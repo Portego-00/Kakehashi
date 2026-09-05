@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const EXTRA_STUDY_CONFIG_STORAGE_KEYS = {
+  AUDIO_VOCAB: "extra_study_config:audio_vocab",
+  CUSTOM_REVIEW: "extra_study_config:custom_review",
   TEST: "extra_study_config:test",
   KANA_KANJI: "extra_study_config:kana_kanji",
   MEANING_READING: "extra_study_config:meaning_reading",
@@ -11,6 +13,7 @@ export const EXTRA_STUDY_CONFIG_STORAGE_KEYS = {
   WRITING_PRACTICE: "extra_study_config:writing_practice",
   CROSSWORD: "extra_study_config:crossword",
   WORDLE: "extra_study_config:wordle",
+  WORD_SEARCH: "extra_study_config:word_search",
 } as const;
 
 export async function loadExtraStudyConfig<T extends object>(

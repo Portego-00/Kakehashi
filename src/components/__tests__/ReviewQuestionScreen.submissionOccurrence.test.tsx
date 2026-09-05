@@ -1,9 +1,29 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
+import { Text } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 
+const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
+  async () => null,
+);
+const mockRenderedDetailSubjects: number[] = [];
+const mockGetAllSubjects = jest.fn(async (): Promise<unknown[]> => []);
+
+jest.mock("../../utils/cache", () => ({
+  getSubjectById: (id: number) => mockGetSubjectById(id),
+  getAllSubjects: () => mockGetAllSubjects(),
+  clearStudyMaterialsCache: jest.fn(async () => {}),
+}));
+
+const mockAuthState: { apiToken: null; userData: { username: string } | null } = {
+  apiToken: null,
+  userData: { username: "Portego" },
+};
+
 const mockSettings = {
+  reviewMultipleChoiceEnabled: false,
+  setReviewMultipleChoiceEnabled: jest.fn(),
   ankiCardMode: false,
   ankiGroupQuestions: false,
   ankiCardModeScope: "both",
@@ -40,9 +60,8 @@ const mockSettings = {
 
 jest.mock("@expo/vector-icons", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { Text } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
 
   return {
     Ionicons: ({ name }: { name: string }) =>
@@ -51,9 +70,8 @@ jest.mock("@expo/vector-icons", () => {
 });
 
 jest.mock("expo-blur", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { BlurView: View };
 });
 
@@ -81,9 +99,9 @@ jest.mock("../../utils/expoAvCompat", () => ({
 }));
 
 jest.mock("react-native-reanimated", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   const transition = {
     duration: () => transition,
     easing: () => transition,
@@ -110,7 +128,7 @@ jest.mock("react-native-reanimated", () => {
       return outputRange.at(index) ?? outputRange[0];
     },
     useAnimatedStyle: (factory: () => object) => factory(),
-    useSharedValue: (value: unknown) => ({ value }),
+    useSharedValue: (value: unknown) => React.useRef({ value }).current,
     withDelay: (_delay: number, value: unknown) => value,
     withSequence: (...values: unknown[]) => values.at(-1),
     withTiming: (
@@ -130,9 +148,8 @@ jest.mock("react-native-worklets", () => ({
 }));
 
 jest.mock("react-native-svg", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { SvgXml: View };
 });
 
@@ -153,7 +170,7 @@ jest.mock("../../utils/radicalSvg", () => ({
 }));
 
 jest.mock("../../utils/store", () => ({
-  useAuthStore: () => ({ apiToken: null, userData: null }),
+  useAuthStore: () => mockAuthState,
   useSettingsStore: () => mockSettings,
 }));
 
@@ -179,52 +196,56 @@ jest.mock("../../utils/theme", () => ({
 }));
 
 jest.mock("../KanjiDetails", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
 
 jest.mock("../RadicalDetails", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
 
 jest.mock("../VocabularyDetails", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
-  return { __esModule: true, default: View };
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    __esModule: true,
+    default: (props: { vocabulary: { id: number } }) => {
+      mockRenderedDetailSubjects.push(props.vocabulary.id);
+      return React.createElement(
+        Text,
+        { testID: "paused-vocabulary-details" },
+        `Details for ${props.vocabulary.id}`,
+      );
+    },
+  };
 });
 
 jest.mock("../SrsLevelIcon", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
 
 jest.mock("../PitchAccentVisualization", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
 
 jest.mock("../VocabularyFrequencyBadge", () => {
-  const { View } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };
 });
 
 jest.mock("../TextToKanaInput", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { TextInput } = jest.requireActual<typeof import("react-native")>(
-    "react-native",
-  );
+  const { TextInput } =
+    jest.requireActual<typeof import("react-native")>("react-native");
 
   const MockKanaInput = React.forwardRef(
     (
@@ -271,9 +292,7 @@ const radicalItem = {
     object: "radical" as const,
     data: {
       characters: "一",
-      meanings: [
-        { meaning: "ground", primary: true, accepted_answer: true },
-      ],
+      meanings: [{ meaning: "ground", primary: true, accepted_answer: true }],
     },
   },
 };
@@ -301,7 +320,287 @@ function renderQuestion(options?: {
 
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
+    mockAuthState.userData = { username: "Portego" };
+    mockGetSubjectById.mockReset();
+    mockGetSubjectById.mockResolvedValue(null);
+    mockRenderedDetailSubjects.length = 0;
+    mockSettings.reviewMultipleChoiceEnabled = false;
+    mockSettings.setReviewMultipleChoiceEnabled.mockReset();
+    mockGetAllSubjects.mockReset();
+    mockGetAllSubjects.mockResolvedValue([]);
     mockSettings.allowSkippingReviews = false;
+    mockSettings.ankiCardMode = false;
+    mockSettings.ankiCardModeScope = "both";
+    mockSettings.ankiHideAnswerCompletely = false;
+    mockSettings.disableAutoProgressOnWrong = false;
+    mockSettings.showAnswerStopSubjectDetails = false;
+  });
+
+  const audioItem = {
+    id: 2,
+    subject: {
+      id: 2,
+      object: "vocabulary" as const,
+      data: {
+        characters: "猫",
+        meanings: [{ meaning: "Cat", primary: true, accepted_answer: true }],
+        readings: [{ reading: "ねこ", primary: true, accepted_answer: true }],
+      },
+    },
+  };
+
+  function renderAudioQuestion(onAnswer = jest.fn()) {
+    return render(
+      <ReviewQuestionScreen
+        item={audioItem}
+        questionType="meaning"
+        audioPrompt={<Text>Play recording</Text>}
+        onAnswer={onAnswer}
+        showHeader={false}
+        totalItems={1}
+        currentItem={0}
+        completedCount={0}
+        correctAnswersCount={0}
+        forceDisableAnkiGrouping
+      />,
+    );
+  }
+
+  it.each(["another-user", null])(
+    "makes multiple choice available with a saved enabled preference for %s",
+    async (username) => {
+      mockAuthState.userData = username ? { username } : null;
+      mockSettings.reviewMultipleChoiceEnabled = true;
+      const screen = render(
+        <ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />,
+      );
+      await screen.findByRole("button", { name: /\d\. ねこ$/ });
+      expect(screen.getAllByRole("button").filter((button) => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4);
+      expect(screen.queryByTestId("answer-input")).toBeNull();
+      expect(screen.getByLabelText("Switch to typing")).toBeTruthy();
+    },
+  );
+
+  it("keeps multiple choice enabled when switching accounts", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const question = <ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />;
+    const screen = render(question);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    mockAuthState.userData = { username: "another-user" };
+    screen.rerender(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />);
+    expect(await screen.findByRole("button", { name: /\d\. ねこ$/ })).toBeTruthy();
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    expect(screen.getByLabelText("Switch to typing")).toBeTruthy();
+    expect(mockSettings.reviewMultipleChoiceEnabled).toBe(true);
+    expect(mockSettings.setReviewMultipleChoiceEnabled).not.toHaveBeenCalled();
+  });
+
+  it("submits a reading choice once and accepts the next occurrence of the same question", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} showHeader={false} />);
+    const correct = await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    fireEvent.press(correct);
+    fireEvent.press(correct);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenLastCalledWith(audioItem, "reading", true, false, false);
+    const next = await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    await waitFor(() => expect(next.props.accessibilityState.disabled).toBe(false));
+    fireEvent.press(next);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
+  });
+
+  it("counts a close reading distractor as wrong without offering a typing retry", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} showHeader={false} />);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    const wrong = screen.getAllByRole("button").find((button) => /^\d\. /.test(button.props.accessibilityLabel) && !button.props.accessibilityLabel.endsWith("ねこ"));
+    expect(wrong).toBeDefined();
+    fireEvent.press(wrong!);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false);
+  });
+
+  it("shows the existing correction actions after a wrong choice", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    mockSettings.disableAutoProgressOnWrong = true;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} showHeader={false} />);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    const wrong = screen.getAllByRole("button").find((button) => /^\d\. /.test(button.props.accessibilityLabel) && !button.props.accessibilityLabel.endsWith("ねこ"));
+    fireEvent.press(wrong!);
+    await screen.findByText("Incorrect");
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByText("Mark Incorrect"));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false));
+  });
+
+  it("keeps Anki reveal controls when multiple choice is also enabled", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    mockSettings.ankiCardMode = true;
+    const screen = renderAudioQuestion();
+    expect(screen.queryByLabelText("Switch to typing")).toBeNull();
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    expect(mockGetAllSubjects).not.toHaveBeenCalled();
+    expect(screen.getByText("Tap anywhere to see the answer")).toBeTruthy();
+  });
+
+  it("falls back to typing when meaning choices cannot be generated", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const screen = renderQuestion();
+    expect(await screen.findByTestId("answer-input")).toBeTruthy();
+    expect(screen.getByText("Not enough distinct choices for this question. Type your answer.")).toBeTruthy();
+  });
+
+  it("uses the normal typed meaning answer for an audio prompt", async () => {
+    const onAnswer = jest.fn();
+    const screen = renderAudioQuestion(onAnswer);
+    expect(screen.queryByText("猫")).toBeNull();
+    expect(screen.queryByText("Cat")).toBeNull();
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "cat");
+    fireEvent(input, "submitEditing");
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(
+      audioItem,
+      "meaning",
+      true,
+      false,
+      false,
+    );
+  });
+
+  it("does not reload paused details when the parent recreates the same question object", async () => {
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = true;
+    const onAnswer = jest.fn();
+    function QuestionHarness({ presentation }: { presentation: number }) {
+      const [subjectId, setSubjectId] = React.useState(audioItem.subject.id);
+      return (
+        <ReviewQuestionScreen
+          item={{
+            ...audioItem,
+            id: subjectId,
+            subject: {
+              ...audioItem.subject,
+              id: subjectId,
+              data: { ...audioItem.subject.data },
+            },
+          }}
+          questionType="meaning"
+          audioPrompt={<Text>Play recording {subjectId}</Text>}
+          onAnswer={(...args) => {
+            onAnswer(...args);
+            setSubjectId(3);
+          }}
+          showHeader={false}
+          totalItems={2}
+          currentItem={subjectId === audioItem.subject.id ? 0 : 1}
+          correctAnswersCount={presentation}
+          forceDisableAnkiGrouping
+        />
+      );
+    }
+    const screen = render(<QuestionHarness presentation={0} />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(mockGetSubjectById).not.toHaveBeenCalled();
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "dog");
+    fireEvent(input, "submitEditing");
+    await waitFor(() =>
+      expect(screen.getByTestId("paused-vocabulary-details")).toBeTruthy(),
+    );
+    const loadsAtPause = mockGetSubjectById.mock.calls.length;
+    expect(loadsAtPause).toBeGreaterThan(0);
+
+    screen.rerender(<QuestionHarness presentation={1} />);
+    await act(async () => {});
+    expect(screen.getByTestId("paused-vocabulary-details")).toBeTruthy();
+    expect(mockGetSubjectById).toHaveBeenCalledTimes(loadsAtPause);
+    fireEvent.press(screen.getByText("Mark Wrong"));
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("paused-vocabulary-details")).toBeNull();
+    expect(screen.getByText("Play recording 3")).toBeTruthy();
+    expect(mockRenderedDetailSubjects).not.toContain(3);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+    expect(screen.queryByTestId("paused-vocabulary-details")).toBeNull();
+  });
+
+  it("abandons an old details lookup after advancing to the next audio question", async () => {
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = true;
+    let finishOldLookup: (value: unknown) => void = () => {};
+    mockGetSubjectById.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOldLookup = resolve;
+        }),
+    );
+    function QuestionHarness() {
+      const [subjectId, setSubjectId] = React.useState(audioItem.subject.id);
+      return (
+        <ReviewQuestionScreen
+          item={{
+            ...audioItem,
+            id: subjectId,
+            subject: { ...audioItem.subject, id: subjectId },
+          }}
+          questionType="meaning"
+          audioPrompt={<Text>Play recording {subjectId}</Text>}
+          onAnswer={() => setSubjectId(3)}
+          showHeader={false}
+          currentItem={subjectId === audioItem.subject.id ? 0 : 1}
+          forceDisableAnkiGrouping
+        />
+      );
+    }
+    const screen = render(<QuestionHarness />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "dog");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    await waitFor(() =>
+      expect(screen.getByTestId("paused-vocabulary-details")).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByText("Mark Wrong"));
+    expect(screen.getByText("Play recording 3")).toBeTruthy();
+    await act(async () => {
+      finishOldLookup({
+        ...audioItem.subject,
+        data: { ...audioItem.subject.data, component_subject_ids: [9, 10, 11] },
+      });
+    });
+    expect(mockGetSubjectById).toHaveBeenCalledTimes(1);
+    expect(mockGetSubjectById).toHaveBeenCalledWith(audioItem.subject.id);
+    expect(screen.queryByTestId("paused-vocabulary-details")).toBeNull();
+    expect(mockRenderedDetailSubjects).not.toContain(3);
+  });
+
+  it("keeps audio meaning answers typed when Anki applies only to readings", () => {
+    mockSettings.ankiCardMode = true;
+    mockSettings.ankiCardModeScope = "reading";
+    const screen = renderAudioQuestion();
+    expect(screen.getByTestId("answer-input")).toBeTruthy();
+  });
+
+  it("uses the existing reveal and correct/wrong controls when meaning Anki mode is on", async () => {
+    mockSettings.ankiCardMode = true;
+    mockSettings.ankiHideAnswerCompletely = true;
+    const onAnswer = jest.fn();
+    const screen = renderAudioQuestion(onAnswer);
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    expect(screen.queryByText("Cat")).toBeNull();
+    fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+    expect(screen.getByText("Wrong")).toBeTruthy();
+    fireEvent.press(screen.getByText("Correct"));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
   });
 
   it("accepts an identical question again after a terminal wrong answer", async () => {

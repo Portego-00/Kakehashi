@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -13,6 +19,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { WrappedSubjectStat } from "../../../hooks/useWrappedData";
 import { getSubjectTypeColor } from "../../../utils/subjectColors";
+import { useSettingsStore } from "../../../utils/store";
 import { RadialGlow } from "../RadialGlow";
 
 interface StarSlideProps {
@@ -21,6 +28,9 @@ interface StarSlideProps {
 }
 
 export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const { fontScale } = useWindowDimensions();
+  const usesLargeText = appTextSizeScale > 1 || fontScale > 1;
   const starScale = useSharedValue(0.4);
   const starOpacity = useSharedValue(0);
   const shimmer = useSharedValue(0);
@@ -37,17 +47,22 @@ export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
     : "#fff";
 
   // Is star performer a vocab with long text?
-  const isStarLong = starPerformer ? starPerformer.characters.length > 2 : false;
+  const isStarLong = starPerformer
+    ? starPerformer.characters.length > 2
+    : false;
 
   useEffect(() => {
     // Star character scale in with gentle overshoot
-    starOpacity.value = withDelay(300, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
+    starOpacity.value = withDelay(
+      300,
+      withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }),
+    );
     starScale.value = withDelay(
       300,
       withSequence(
         withTiming(1.06, { duration: 500, easing: Easing.out(Easing.cubic) }),
-        withTiming(1, { duration: 300, easing: Easing.inOut(Easing.quad) })
-      )
+        withTiming(1, { duration: 300, easing: Easing.inOut(Easing.quad) }),
+      ),
     );
 
     // Shimmer
@@ -56,17 +71,23 @@ export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
       withRepeat(
         withSequence(
           withTiming(1, { duration: 1500 }),
-          withTiming(0, { duration: 1500 })
+          withTiming(0, { duration: 1500 }),
         ),
         -1,
-        true
-      )
+        true,
+      ),
     );
 
     // Fastest to guru — fade + slide
-    fastestOpacity.value = withDelay(1400, withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) }));
-    fastestTranslateY.value = withDelay(1400, withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) }));
-  }, []);
+    fastestOpacity.value = withDelay(
+      1400,
+      withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) }),
+    );
+    fastestTranslateY.value = withDelay(
+      1400,
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) }),
+    );
+  }, [fastestOpacity, fastestTranslateY, shimmer, starOpacity, starScale]);
 
   const starStyle = useAnimatedStyle(() => ({
     transform: [{ scale: starScale.value }],
@@ -90,13 +111,29 @@ export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
         end={{ x: 1, y: 1 }}
         style={styles.container}
       >
-        <View style={styles.content}>
-          <Ionicons name="star" size={40} color="#fbbf24" style={styles.headerIcon} />
-          <Text style={styles.headerText}>Keep studying!</Text>
-          <Text style={styles.noDataText}>
-            Complete more reviews to see your star performers.
-          </Text>
-        </View>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            usesLargeText && styles.scrollContentLargeText,
+          ]}
+          showsVerticalScrollIndicator={usesLargeText}
+          directionalLockEnabled
+          nestedScrollEnabled
+        >
+          <View style={styles.content}>
+            <Ionicons
+              name="star"
+              size={40}
+              color="#fbbf24"
+              style={styles.headerIcon}
+            />
+            <Text style={styles.headerText}>Keep studying!</Text>
+            <Text style={styles.noDataText}>
+              Complete more reviews to see your star performers.
+            </Text>
+          </View>
+        </ScrollView>
       </LinearGradient>
     );
   }
@@ -110,7 +147,9 @@ export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
   };
 
   // Is fastest to guru a vocab with long text?
-  const isFastestLong = fastestToGuru ? fastestToGuru.characters.length > 2 : false;
+  const isFastestLong = fastestToGuru
+    ? fastestToGuru.characters.length > 2
+    : false;
 
   return (
     <LinearGradient
@@ -124,96 +163,122 @@ export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
         <RadialGlow size={300} color="#fbbf24" intensity={0.55} />
       </Animated.View>
 
-      <View style={styles.content}>
-        <Ionicons name="star" size={36} color="#fbbf24" style={styles.headerIcon} />
-        <Text style={styles.headerText}>Star performer</Text>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          usesLargeText && styles.scrollContentLargeText,
+        ]}
+        showsVerticalScrollIndicator={usesLargeText}
+        directionalLockEnabled
+        nestedScrollEnabled
+      >
+        <View style={styles.content}>
+          <Ionicons
+            name="star"
+            size={36}
+            color="#fbbf24"
+            style={styles.headerIcon}
+          />
+          <Text style={styles.headerText}>Star performer</Text>
 
-        <Animated.View style={starStyle}>
-          <View style={[styles.starCard, { borderColor: typeColor }]}>
+          <Animated.View style={[usesLargeText && styles.fullWidth, starStyle]}>
             <View
               style={[
-                styles.starCharacterBg,
-                { backgroundColor: typeColor },
-                isStarLong && styles.starCharacterBgWide,
+                styles.starCard,
+                { borderColor: typeColor },
+                usesLargeText && styles.starCardLargeText,
               ]}
             >
-              <Text
-                style={[
-                  styles.starCharacter,
-                  isStarLong && styles.starCharacterSmall,
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.4}
-              >
-                {starPerformer.characters}
-              </Text>
-            </View>
-
-            <Text style={styles.starMeaning}>
-              {starPerformer.primaryMeaning}
-            </Text>
-            {starPerformer.primaryReading && (
-              <Text style={styles.starReading}>
-                {starPerformer.primaryReading}
-              </Text>
-            )}
-
-            <View style={styles.streakBadge}>
-              <Ionicons name="flame" size={16} color="#fbbf24" />
-              <Text style={styles.streakText}>
-                {starPerformer.maxStreak} streak
-              </Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        {fastestToGuru && fastestToGuru.timeToGuru && (
-          <Animated.View style={[styles.fastestCard, fastestStyle]}>
-            <Text style={styles.fastestLabel}>Fastest to Guru</Text>
-            <View style={styles.fastestRow}>
               <View
                 style={[
-                  styles.fastestCharBadge,
-                  {
-                    backgroundColor:
-                      fastestToGuru.subjectType === "radical" ||
-                      fastestToGuru.subjectType === "kanji" ||
-                      fastestToGuru.subjectType === "vocabulary" ||
-                      fastestToGuru.subjectType === "kana_vocabulary"
-                        ? getSubjectTypeColor(fastestToGuru.subjectType)
-                        : getSubjectTypeColor("vocabulary"),
-                  },
-                  isFastestLong && styles.fastestCharBadgeWide,
+                  styles.starCharacterBg,
+                  { backgroundColor: typeColor },
+                  isStarLong && styles.starCharacterBgWide,
                 ]}
               >
                 <Text
                   style={[
-                    styles.fastestChar,
-                    isFastestLong && styles.fastestCharSmall,
+                    styles.starCharacter,
+                    isStarLong && styles.starCharacterSmall,
                   ]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.4}
                 >
-                  {fastestToGuru.characters}
+                  {starPerformer.characters}
                 </Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fastestMeaning}>
-                  {fastestToGuru.primaryMeaning}
+
+              <Text style={styles.starMeaning}>
+                {starPerformer.primaryMeaning}
+              </Text>
+              {starPerformer.primaryReading && (
+                <Text style={styles.starReading}>
+                  {starPerformer.primaryReading}
                 </Text>
-                <View style={styles.fastestTimeRow}>
-                  <Ionicons name="flash" size={14} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.fastestTime}>
-                    {formatGuruTime(fastestToGuru.timeToGuru)}
-                  </Text>
-                </View>
+              )}
+
+              <View style={styles.streakBadge}>
+                <Ionicons name="flame" size={16} color="#fbbf24" />
+                <Text style={styles.streakText}>
+                  {starPerformer.maxStreak} streak
+                </Text>
               </View>
             </View>
           </Animated.View>
-        )}
-      </View>
+
+          {fastestToGuru && fastestToGuru.timeToGuru && (
+            <Animated.View style={[styles.fastestCard, fastestStyle]}>
+              <Text style={styles.fastestLabel}>Fastest to Guru</Text>
+              <View
+                style={[
+                  styles.fastestRow,
+                  usesLargeText && styles.fastestRowLargeText,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.fastestCharBadge,
+                    {
+                      backgroundColor:
+                        fastestToGuru.subjectType === "radical" ||
+                        fastestToGuru.subjectType === "kanji" ||
+                        fastestToGuru.subjectType === "vocabulary" ||
+                        fastestToGuru.subjectType === "kana_vocabulary"
+                          ? getSubjectTypeColor(fastestToGuru.subjectType)
+                          : getSubjectTypeColor("vocabulary"),
+                    },
+                    isFastestLong && styles.fastestCharBadgeWide,
+                    usesLargeText && styles.fastestCharBadgeLargeText,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.fastestChar,
+                      isFastestLong && styles.fastestCharSmall,
+                    ]}
+                  >
+                    {fastestToGuru.characters}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.fastestMeaning}>
+                    {fastestToGuru.primaryMeaning}
+                  </Text>
+                  <View style={styles.fastestTimeRow}>
+                    <Ionicons
+                      name="flash"
+                      size={14}
+                      color="rgba(255,255,255,0.6)"
+                    />
+                    <Text style={styles.fastestTime}>
+                      {formatGuruTime(fastestToGuru.timeToGuru)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+          )}
+        </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
@@ -221,8 +286,20 @@ export function StarSlide({ starPerformer, fastestToGuru }: StarSlideProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    alignItems: "center",
+  },
+  scrollView: {
+    flex: 1,
+    width: "100%",
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  scrollContentLargeText: {
+    paddingTop: 112,
+    paddingBottom: 112,
   },
   content: {
     alignItems: "center",
@@ -230,6 +307,9 @@ const styles = StyleSheet.create({
     zIndex: 2,
     width: "100%",
     overflow: "visible",
+  },
+  fullWidth: {
+    width: "100%",
   },
   glowOrb: {
     position: "absolute",
@@ -262,24 +342,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     minWidth: 200,
+    maxWidth: "100%",
+    flexShrink: 1,
     marginBottom: 32,
+  },
+  starCardLargeText: {
+    width: "100%",
+    minWidth: 0,
   },
   starCharacterBg: {
     minWidth: 80,
-    height: 80,
+    minHeight: 80,
+    maxWidth: "100%",
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
     paddingHorizontal: 12,
+    paddingVertical: 12,
   },
   starCharacterBgWide: {
     paddingHorizontal: 20,
   },
   starCharacter: {
+    minWidth: 0,
+    maxWidth: "100%",
     fontSize: 40,
     fontWeight: "bold",
     color: "#fff",
+    textAlign: "center",
   },
   starCharacterSmall: {
     fontSize: 26,
@@ -289,16 +380,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
     marginBottom: 4,
+    textAlign: "center",
   },
   starReading: {
     fontSize: 16,
     fontWeight: "500",
     color: "rgba(255,255,255,0.6)",
     marginBottom: 12,
+    textAlign: "center",
   },
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
+    maxWidth: "100%",
+    flexShrink: 1,
     backgroundColor: "rgba(251,191,36,0.2)",
     borderRadius: 12,
     paddingHorizontal: 14,
@@ -306,6 +401,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   streakText: {
+    minWidth: 0,
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: "700",
     color: "#fbbf24",
@@ -331,21 +428,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  fastestRowLargeText: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
   fastestCharBadge: {
     minWidth: 44,
-    height: 44,
+    minHeight: 44,
+    maxWidth: "100%",
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 6,
+    paddingVertical: 10,
+    flexShrink: 1,
   },
   fastestCharBadgeWide: {
     paddingHorizontal: 12,
   },
+  fastestCharBadgeLargeText: {
+    alignSelf: "flex-start",
+    flexShrink: 0,
+  },
   fastestChar: {
+    minWidth: 0,
+    maxWidth: "100%",
     fontSize: 20,
     fontWeight: "bold",
     color: "#fff",
+    textAlign: "center",
   },
   fastestCharSmall: {
     fontSize: 15,

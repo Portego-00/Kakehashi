@@ -44,8 +44,13 @@ export default function AppLayout() {
         name="listening-practice-session"
         options={INTENTIONAL_EXIT_SCREEN_OPTIONS}
       />
+      <Stack.Screen name="jlpt-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen
         name="crossword-session"
+        options={INTENTIONAL_EXIT_SCREEN_OPTIONS}
+      />
+      <Stack.Screen
+        name="word-search-session"
         options={INTENTIONAL_EXIT_SCREEN_OPTIONS}
       />
       <Stack.Screen

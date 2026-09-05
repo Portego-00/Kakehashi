@@ -32,6 +32,21 @@ class AzureSpeechHttpError extends Error {
   }
 }
 
+function createAbortError(): Error {
+  const error = new Error('Speech playback was cancelled.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    error.name === 'AbortError'
+  );
+}
+
 export interface AzureVoice {
   name: string;
   displayName: string;
@@ -128,6 +143,8 @@ export class AzureSpeechService {
   private hasLoadedSelectedVoice = false;
   private selectedVoiceLoadPromise: Promise<void> | null = null;
   private activeKeyLoadPromise: Promise<void> | null = null;
+  private playbackGeneration = 0;
+  private activeSynthesisController: AbortController | null = null;
 
   constructor() {
     this.config = {
@@ -231,8 +248,21 @@ export class AzureSpeechService {
     this.config.keyVersion = activeKey.version;
   }
 
-  private async getAccessToken(): Promise<string> {
+  private assertPlaybackCurrent(
+    generation: number,
+    signal: AbortSignal,
+  ): void {
+    if (signal.aborted || generation !== this.playbackGeneration) {
+      throw createAbortError();
+    }
+  }
+
+  private async getAccessToken(signal?: AbortSignal): Promise<string> {
     await this.ensureActiveKeyLoaded();
+
+    if (signal?.aborted) {
+      throw createAbortError();
+    }
 
     if (!this.config.subscriptionKey) {
       throw new Error('Azure Speech key is not configured.');
@@ -243,6 +273,7 @@ export class AzureSpeechService {
     try {
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
+        ...(signal ? { signal } : {}),
         headers: {
           'Ocp-Apim-Subscription-Key': this.config.subscriptionKey,
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -270,7 +301,9 @@ export class AzureSpeechService {
 
       return await response.text();
     } catch (error) {
-      console.error('Error getting access token:', error);
+      if (!isAbortError(error)) {
+        console.error('Error getting access token:', error);
+      }
       throw error;
     }
   }
@@ -295,28 +328,53 @@ export class AzureSpeechService {
   ): Promise<void> {
     let playbackCompleted = false;
     let hasStartedPlayback = false;
+    const playbackGeneration = this.playbackGeneration + 1;
+    this.playbackGeneration = playbackGeneration;
+    this.activeSynthesisController?.abort();
+    this.activeSynthesisController = null;
+    await this.stopPlaybackResources();
+    if (playbackGeneration !== this.playbackGeneration) {
+      return;
+    }
+
+    const synthesisController = new AbortController();
+    this.activeSynthesisController = synthesisController;
+    const { signal } = synthesisController;
 
     try {
       await this.initialize();
+      this.assertPlaybackCurrent(playbackGeneration, signal);
 
       console.log(
-        `Azure Speech: Starting to speak "${text}" with voice ${this.config.selectedVoice}`
+        `Azure Speech: Starting playback with voice ${this.config.selectedVoice}`
       );
-
-      // Stop any currently playing audio
-      await this.stop();
 
       onStart?.();
       hasStartedPlayback = true;
       this.isSpeaking = true;
 
-      await this.synthesizeWithRotationRetry(text, options);
+      await this.synthesizeWithRotationRetry(
+        text,
+        options,
+        playbackGeneration,
+        signal,
+      );
+      this.assertPlaybackCurrent(playbackGeneration, signal);
       playbackCompleted = true;
     } catch (error) {
+      if (
+        isAbortError(error) ||
+        signal.aborted ||
+        playbackGeneration !== this.playbackGeneration
+      ) {
+        return;
+      }
+
       console.error('Azure Speech Error. Falling back to expo-speech:', error);
 
       try {
-        await this.stop();
+        await this.stopPlaybackResources();
+        this.assertPlaybackCurrent(playbackGeneration, signal);
 
         if (!hasStartedPlayback) {
           onStart?.();
@@ -325,29 +383,52 @@ export class AzureSpeechService {
 
         this.isSpeaking = true;
         await this.speakWithExpoFallback(text, options);
+        this.assertPlaybackCurrent(playbackGeneration, signal);
         playbackCompleted = true;
       } catch (fallbackError) {
+        if (
+          isAbortError(fallbackError) ||
+          signal.aborted ||
+          playbackGeneration !== this.playbackGeneration
+        ) {
+          return;
+        }
         console.error('Expo speech fallback failed:', fallbackError);
         onError?.(fallbackError);
       }
     } finally {
-      this.isSpeaking = false;
+      if (playbackGeneration === this.playbackGeneration) {
+        if (this.activeSynthesisController === synthesisController) {
+          this.activeSynthesisController = null;
+        }
+        this.isSpeaking = false;
 
-      if (playbackCompleted) {
-        console.log('TTS playback completed');
-        onEnd?.();
+        if (playbackCompleted) {
+          console.log('TTS playback completed');
+          onEnd?.();
+        }
       }
     }
   }
 
   private async synthesizeWithRotationRetry(
     text: string,
-    options?: AzureSpeechOptions
+    options: AzureSpeechOptions | undefined,
+    playbackGeneration: number,
+    signal: AbortSignal,
   ): Promise<void> {
     try {
-      await this.synthesizeAndPlay(text, options);
+      await this.synthesizeAndPlay(
+        text,
+        options,
+        playbackGeneration,
+        signal,
+      );
       return;
     } catch (error) {
+      if (isAbortError(error) || signal.aborted) {
+        throw error;
+      }
       if (!this.isQuotaExceededError(error)) {
         throw error;
       }
@@ -363,6 +444,7 @@ export class AzureSpeechService {
         observedVersion,
         failedKeyId
       );
+      this.assertPlaybackCurrent(playbackGeneration, signal);
 
       const keyChanged =
         rotateResult.key.keyId !== failedKeyId ||
@@ -380,7 +462,12 @@ export class AzureSpeechService {
         `Azure Speech quota exceeded. Rotated key to ${rotateResult.key.keyId} (version ${rotateResult.key.version}). Retrying synthesis.`
       );
 
-      await this.synthesizeAndPlay(text, options);
+      await this.synthesizeAndPlay(
+        text,
+        options,
+        playbackGeneration,
+        signal,
+      );
     }
   }
 
@@ -399,19 +486,22 @@ export class AzureSpeechService {
 
   private async synthesizeAndPlay(
     text: string,
-    options?: AzureSpeechOptions
+    options: AzureSpeechOptions | undefined,
+    playbackGeneration: number,
+    signal: AbortSignal,
   ): Promise<void> {
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken(signal);
+    this.assertPlaybackCurrent(playbackGeneration, signal);
     console.log('Azure Speech: Access token obtained');
 
     const ssml = this.buildSsml(text, options);
-    console.log('Azure Speech: Generated SSML:', ssml);
 
     const speechEndpoint =
       `https://${this.config.region}.tts.speech.microsoft.com/cognitiveservices/v1`;
 
     const response = await fetch(speechEndpoint, {
       method: 'POST',
+      signal,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/ssml+xml',
@@ -420,6 +510,7 @@ export class AzureSpeechService {
       },
       body: ssml,
     });
+    this.assertPlaybackCurrent(playbackGeneration, signal);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -434,8 +525,10 @@ export class AzureSpeechService {
     console.log('Azure Speech: Speech synthesis successful');
 
     const audioBlob = await response.blob();
+    this.assertPlaybackCurrent(playbackGeneration, signal);
     const base64Audio = await this.blobToBase64(audioBlob);
-    await this.playAudio(base64Audio);
+    this.assertPlaybackCurrent(playbackGeneration, signal);
+    await this.playAudio(base64Audio, playbackGeneration, signal);
   }
 
   private getClampedSpeechRate(options?: AzureSpeechOptions): number {
@@ -497,12 +590,18 @@ export class AzureSpeechService {
     const clampedRate = this.getClampedSpeechRate(options);
     const ratePercentage = Math.round((clampedRate - 1) * 100);
     const rateValue = `${ratePercentage >= 0 ? '+' : ''}${ratePercentage}%`;
+    const escapedText = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
 
     return `
         <speak version='1.0' xml:lang='ja-JP'>
           <voice xml:lang='ja-JP' xml:gender='Female' name='${this.config.selectedVoice}'>
             <prosody rate='${rateValue}' pitch='0%'>
-              ${text}
+              ${escapedText}
             </prosody>
           </voice>
         </speak>
@@ -522,15 +621,27 @@ export class AzureSpeechService {
     });
   }
 
-  private async playAudio(base64Audio: string): Promise<void> {
+  private async playAudio(
+    base64Audio: string,
+    playbackGeneration: number,
+    signal: AbortSignal,
+  ): Promise<void> {
+    let createdSound: any = null;
+
     try {
+      this.assertPlaybackCurrent(playbackGeneration, signal);
+
       if (Platform.OS === 'ios') {
         try {
           await AudioSessionManager.overrideSpeaker();
+          this.assertPlaybackCurrent(playbackGeneration, signal);
           console.log(
             'Audio session overridden to use speaker before Azure TTS playback'
           );
         } catch (error) {
+          if (isAbortError(error)) {
+            throw error;
+          }
           console.warn('Failed to override audio session:', error);
         }
       }
@@ -542,29 +653,67 @@ export class AzureSpeechService {
         playThroughEarpieceAndroid: false,
         staysActiveInBackground: false,
       });
+      this.assertPlaybackCurrent(playbackGeneration, signal);
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: `data:audio/mp3;base64,${base64Audio}` },
-        { shouldPlay: true }
+        { shouldPlay: false }
       );
+      createdSound = sound;
+      this.assertPlaybackCurrent(playbackGeneration, signal);
 
       this.currentSound = sound;
+      // Cleanup ownership transfers to the service once the sound is current.
+      // A later stop may detach it while this playback's abort handler runs.
+      createdSound = null;
 
-      return new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const settle = (operation: () => void) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          signal.removeEventListener('abort', handleAbort);
+          operation();
+        };
+        const handleAbort = () => settle(() => reject(createAbortError()));
+
+        signal.addEventListener('abort', handleAbort, { once: true });
+        if (signal.aborted) {
+          handleAbort();
+          return;
+        }
         sound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded) {
             if (status.didJustFinish) {
               console.log('Azure Speech: Audio playback finished');
-              resolve();
+              settle(resolve);
             }
           } else if (!status.isLoaded && status.error) {
             console.error('Azure Speech: Audio playback error:', status.error);
-            reject(new Error(status.error));
+            settle(() => reject(new Error(status.error)));
           }
+        });
+
+        void sound.playAsync().catch((error: unknown) => {
+          settle(() => reject(error));
         });
       });
     } catch (error) {
-      console.error('Azure Speech: Audio playback error:', error);
+      if (
+        createdSound &&
+        typeof createdSound.unloadAsync === 'function'
+      ) {
+        try {
+          await createdSound.unloadAsync();
+        } catch {
+          // Best-effort cleanup for a sound cancelled while it was loading.
+        }
+      }
+      if (!isAbortError(error)) {
+        console.error('Azure Speech: Audio playback error:', error);
+      }
       throw error;
     }
   }
@@ -579,25 +728,37 @@ export class AzureSpeechService {
     }
   }
 
-  async stop(): Promise<void> {
+  private async stopPlaybackResources(): Promise<void> {
+    const playbackGeneration = this.playbackGeneration;
+    const sound = this.currentSound;
+    this.currentSound = null;
+
     try {
       await Speech.stop();
     } catch (error) {
       console.error('Error stopping expo speech fallback:', error);
     }
 
-    if (this.currentSound) {
+    if (sound) {
       try {
-        await this.currentSound.stopAsync();
-        await this.currentSound.unloadAsync();
-        this.currentSound = null;
+        await sound.stopAsync();
+        await sound.unloadAsync();
         console.log('Azure Speech: Stopped and unloaded current audio');
       } catch (error) {
         console.error('Error stopping Azure speech audio:', error);
       }
     }
 
-    this.isSpeaking = false;
+    if (playbackGeneration === this.playbackGeneration) {
+      this.isSpeaking = false;
+    }
+  }
+
+  async stop(): Promise<void> {
+    this.playbackGeneration += 1;
+    this.activeSynthesisController?.abort();
+    this.activeSynthesisController = null;
+    await this.stopPlaybackResources();
   }
 
   isCurrentlySpeaking(): boolean {

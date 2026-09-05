@@ -289,13 +289,14 @@ describe('aggregation', () => {
       context_sentence: 1,
       listening_practice: 1,
       crossword: 1,
+      word_search: 1,
       wordle: 1,
       news: 1,
       songs: 1,
       epub: 1,
       video: 1,
     });
-    expect(summary.studyMs).toBe(21);
+    expect(summary.studyMs).toBe(22);
   });
 });
 

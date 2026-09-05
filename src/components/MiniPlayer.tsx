@@ -2080,11 +2080,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   openAppleButtonText: {
     color: "white",
     fontSize: 12,
     fontWeight: "600",
+    flexShrink: 1,
   },
   sliderContainer: {
     flexDirection: "row",
@@ -2128,9 +2132,12 @@ const styles = StyleSheet.create({
   // Tooltip & Chip Styles
   inlineChipWrapper: {
     // Wrapper to keep chip inline in text flow
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipWrapperWithBadge: {
-    marginRight: 6,
+    marginRight: 2,
   },
   inlineChip: {
     paddingHorizontal: 8,
@@ -2149,21 +2156,23 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     flexDirection: "row",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipText: {
     color: "white",
     fontWeight: "700",
     fontSize: 18,
     textAlignVertical: "center",
+    flexShrink: 1,
   },
   levelBadgeChip: {
     marginLeft: 4,
-    top: -5,
-    right: -5,
-    position: "absolute",
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 18,
+    minHeight: 18,
+    flexShrink: 0,
+    borderRadius: 999,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,

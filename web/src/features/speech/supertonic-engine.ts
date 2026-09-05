@@ -215,26 +215,26 @@ export class SupertonicJapaneseEngine {
     return this.config.ae.sample_rate;
   }
 
-  async synthesize(text: string, onProgress: ProgressCallback) {
+  async synthesize(text: string, onProgress: ProgressCallback, speed = 1) {
     const chunks = splitJapaneseText(text);
     const parts: Float32Array[] = [];
     for (let index = 0; index < chunks.length; index += 1) {
       parts.push(await this.synthesizeChunk(chunks[index], (step, message) => {
         const overall = Math.round(((index + step / 100) / chunks.length) * 100);
         onProgress(overall, message);
-      }));
+      }, speed));
     }
     return concatenateAudio(parts, this.sampleRate);
   }
 
-  private async synthesizeChunk(text: string, onProgress: ProgressCallback) {
+  private async synthesizeChunk(text: string, onProgress: ProgressCallback, speed: number) {
     const { ids, mask } = encodeText(text, this.indexer);
     const durationOutput = await this.sessions.durationPredictor.run({
       text_ids: ids,
       style_dp: this.style.dp,
       text_mask: mask,
     });
-    const duration = Number(tensorFloatData(durationOutput.duration)[0]) / SPEECH_SPEED;
+    const duration = Number(tensorFloatData(durationOutput.duration)[0]) / (SPEECH_SPEED * speed);
     if (!Number.isFinite(duration) || duration <= 0) throw new Error("The Japanese voice could not determine the sentence length.");
 
     const textEncoderOutput = await this.sessions.textEncoder.run({

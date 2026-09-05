@@ -40,7 +40,7 @@ async function handleRequest(request: JapaneseVoiceWorkerRequest) {
       type: "progress",
       progress,
       message,
-    }));
+    }), request.speed);
     const audioBuffer = new ArrayBuffer(samples.byteLength);
     new Float32Array(audioBuffer).set(samples);
     post({ id: request.id, type: "audio", samples: audioBuffer, sampleRate: engine.sampleRate }, [audioBuffer]);

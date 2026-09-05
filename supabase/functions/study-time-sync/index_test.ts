@@ -100,6 +100,32 @@ Deno.test("sync validation accepts the exact mobile contract and recomputes tota
   assert(validated.days[0].activityMs.bunpro_reviews === 30_000);
 });
 
+Deno.test("sync validation accepts word search as extra study time", () => {
+  const body = validBody();
+  const activityMs = body.days[0].activityMs as Record<string, number>;
+  for (const activity of Object.keys(activityMs)) delete activityMs[activity];
+  activityMs.word_search = 45_000;
+  body.days[0].studyTotalMs = 45_000;
+
+  const validated = validateStudyTimeSyncPayload(body, NOW);
+
+  assert(validated);
+  assertEquals(validated.days[0].activityMs, { word_search: 45_000 });
+});
+
+Deno.test("sync validation accepts JLPT practice as extra study time", () => {
+  const body = validBody();
+  const activityMs = body.days[0].activityMs as Record<string, number>;
+  for (const activity of Object.keys(activityMs)) delete activityMs[activity];
+  activityMs.jlpt = 75_000;
+  body.days[0].studyTotalMs = 75_000;
+
+  const validated = validateStudyTimeSyncPayload(body, NOW);
+
+  assert(validated);
+  assertEquals(validated.days[0].activityMs, { jlpt: 75_000 });
+});
+
 Deno.test("sync validation rejects untrusted identity fields, bad dates, duplicates, and excess rows", () => {
   const identityInjection = { ...validBody(), userId: "attacker" };
   assertEquals(validateStudyTimeSyncPayload(identityInjection, NOW), null);
@@ -113,11 +139,11 @@ Deno.test("sync validation rejects untrusted identity fields, bad dates, duplica
   assertEquals(validateStudyTimeSyncPayload(oldDate, NOW), null);
 
   const earliestDate = validBody();
-  earliestDate.days[0].day = "2025-06-24";
+  earliestDate.days[0].day = "2025-06-22";
   assert(validateStudyTimeSyncPayload(earliestDate, NOW));
 
   const justBeforeWindow = validBody();
-  justBeforeWindow.days[0].day = "2025-06-23";
+  justBeforeWindow.days[0].day = "2025-06-21";
   assertEquals(validateStudyTimeSyncPayload(justBeforeWindow, NOW), null);
 
   const latestDate = validBody();
@@ -358,7 +384,7 @@ Deno.test("sync negatively caches WaniKani authentication and upstream failures"
   assertEquals(upstreamCalls, 1);
 });
 
-Deno.test("sync rate-limits repeated valid-token writes", async () => {
+Deno.test("sync allows a 31-batch backfill and rate-limits the 41st write", async () => {
   clearStudyTimeSyncIdentityCacheForTests();
   let waniKaniCalls = 0;
   let rpcCalls = 0;
@@ -373,7 +399,7 @@ Deno.test("sync rate-limits repeated valid-token writes", async () => {
     return Promise.resolve(new Response(null, { status: 204 }));
   }) as typeof fetch;
 
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     const response = await handleStudyTimeSyncRequest(
       syncRequest(undefined, { "x-wanikani-token": "valid-sync-rate-token" }),
       { env: env(), fetch: fakeFetch, now: () => NOW },
@@ -388,7 +414,7 @@ Deno.test("sync rate-limits repeated valid-token writes", async () => {
   assertEquals(limited.status, 429);
   assertEquals(await limited.json(), { error: "Too many requests" });
   assertEquals(waniKaniCalls, 1);
-  assertEquals(rpcCalls, 30);
+  assertEquals(rpcCalls, 40);
 });
 
 Deno.test("sync accepts top-level WaniKani identity and caches it by token digest", async () => {

@@ -20,9 +20,12 @@ MyAnimeList sync reuses `EXPO_PUBLIC_MAL_CLIENT_ID` from the Expo app. Keep that
 
 For Songs, add server-only `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `YOUTUBE_API_KEY` values. Spotify supplies catalog results and track metadata, YouTube supplies embeddable playback, and LRCLIB supplies exact or best-matched synced lyrics. None of these credentials are sent to the browser.
 
+The Video workspace can import timed captions for a pasted YouTube URL through youtube-transcript.ai's no-key fair-use endpoint. This works only for public videos with available captions and remains subject to that provider's usage limits; commercial or sustained high-volume deployments should arrange appropriate service terms or replace the adapter.
+
 ## Included
 
 - Dashboard, lessons, reviews, assignments, forecasts, and formal WaniKani review submission
+- Curated kana and level-banded kanji vocabulary packs outside WaniKani, with FSRS scheduling, familiar SRS stages, and dedicated lesson/review sessions
 - Progress analytics, kanji grids, level wrap-ups, item search, subject details, constellations, lists, and customization
 - Fifteen extra study modes: recent lessons, random test, vocabulary reading, hiragana-to-meaning, similar kanji, kana-to-kanji, listening, context cloze, Japanese analysis, kanji writing, crossword, Kana Wordle, custom review, custom lessons, and subject lists
 - NHK Easier news with article imagery, text/URL reader, local EPUB/TXT/HTML library, local single-image-page EPUB/CBZ/ZIP/PDF/image manga reader with on-device bubble OCR and JPDB/WaniKani vocabulary analysis, local video with SRT subtitles, Spotify song discovery with embedded YouTube and LRCLIB lyrics, translation, and the shared native/web Kakehashi issue community
@@ -41,6 +44,14 @@ This runs linting, strict TypeScript checking, 206 unit and integration tests, a
 ## Community deployment
 
 Development can use the ignored `web/.data/community.json` store or the native app's Supabase URL and anonymous key. Production supports read-only community access with an anonymous key; posting requires `SUPABASE_SERVICE_ROLE_KEY` and `supabase/migrations/20260807000000_community_atomic_mutations.sql`. See `docs/community-security.md` for the RLS and write-boundary requirements.
+
+## Custom vocabulary deployment
+
+The reviewed source catalogs plus complete WaniKani vocabulary and kanji-level snapshots live in `../research/data`. Refresh those snapshots with `WANIKANI_API_TOKEN=... npm run refresh:custom-vocabulary-wanikani`; accepted WaniKani meanings are pinned with the forms, readings, and levels so ordinary offline syncs also catch same-lexeme spelling variants and validate component glosses. Run `npm run sync:custom-vocabulary` after an editorial update to verify at least 500 unique words across 30 packs, reject WaniKani overlap, enforce exact five-level kanji bands, and regenerate the web-owned catalog. The same command checks every reading against the pinned official JMdict evidence snapshot, proves that no custom item resolves to the same JMdict entry as any WaniKani form-reading pair, verifies that lexical fields and pack membership have not changed since that audit, validates complete hidden `readingMap` coverage, and rejects pronunciation drills or invalid mnemonic markup in learner-facing stories. Kanji meaning mnemonics must cover every written component with semantic `<kanji>` cues, land on a `<vocabulary>` payoff, and include a separate usage or nuance paragraph. The current authoring and independent-review requirements are documented in `../research/custom-vocabulary-story-mnemonic-standard.md`; the live WaniKani markup and composition research is in `../research/wanikani-mnemonic-markup-and-style.md`.
+
+For release-time checks against the current API, run `WANIKANI_API_TOKEN=... npm run audit:custom-vocabulary-composition` and `WANIKANI_API_TOKEN=... npm run audit:custom-vocabulary-live`. The composition audit verifies every tagged component gloss, its written order, its five-level range, and its accepted meaning payoff against live WaniKani kanji. The catalog audit checks exact, honorific/`する`-variant, and same-reading/same-meaning lexical overlap plus live kanji levels. Both keep the token and WaniKani content in memory and persist neither.
+
+Account-synced custom SRS progress requires a server-only Supabase service key and `supabase/migrations/20260831010000_custom_srs_states.sql`. The migration keeps state private and exposes only a service-role compare-and-set function so concurrent browser tabs cannot silently overwrite one another. When that private backend is not configured, the web app explicitly stores progress in account-scoped browser storage instead.
 
 ## Architecture
 

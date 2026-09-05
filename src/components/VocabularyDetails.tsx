@@ -50,7 +50,12 @@ import { getAllSubjects } from "../utils/cache";
 import type { Subject } from "../utils/api";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
+import {
+  CustomContextSentencesSection,
+  type CustomContextSentencesSectionHandle,
+} from "./CustomContextSentencesSection";
 import { FormattedNoteText } from "./formatted-note";
+import { NoteFieldContainer } from "./note-field-container";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
@@ -318,6 +323,8 @@ export default function VocabularyDetails({
     [subjectColors.kanji, subjectColors.radical, subjectColors.vocabulary]
   );
   const mainCharacterRef = useRef<View>(null);
+  const customContextSentencesRef =
+    useRef<CustomContextSentencesSectionHandle>(null);
   const {
     containerRef,
     tooltipVisible,
@@ -1644,88 +1651,116 @@ export default function VocabularyDetails({
     );
   };
 
-  // Render context sentences (both regular and media) - used in both tabs
-  const renderContextSections = () => (
-    <>
-      {/* Context Sentences Section */}
-      {vocabulary.contextSentences &&
-        vocabulary.contextSentences.some((s) => s.ja && s.en) && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-              Context Sentences
-            </Text>
-            <View
-              style={[
-                styles.infoBox,
-                { backgroundColor: theme.cardBackground },
-              ]}
-            >
-              {vocabulary.contextSentences
-                .filter((sentence) => sentence.ja && sentence.en)
-                .map((sentence, index, filteredArray) => {
-                  const sentenceId = `wk-${index}`;
-                  return (
-                    <View
-                      key={index}
-                      style={[
-                        styles.sentenceContainer,
-                        { borderBottomColor: theme.border },
-                        index === filteredArray.length - 1 && {
-                          borderBottomWidth: 0,
-                          marginBottom: 0,
-                          paddingBottom: 0,
-                        },
-                      ]}
-                    >
-                      <View style={styles.sentenceRow}>
-                        <Text
-                          selectable
-                          style={[
-                            styles.japaneseSentence,
-                            { color: theme.textColor, flex: 1 },
-                          ]}
-                        >
-                          {sentence.ja}
-                        </Text>
-                        <TouchableOpacity
-                          style={[
-                            styles.sentencePlayButton,
-                            playingContextSentence === sentenceId &&
-                              styles.sentencePlayButtonActive,
-                          ]}
-                          onPress={() =>
-                            playContextSentence(sentence.ja, sentenceId)
-                          }
-                        >
-                          <Ionicons
-                            name={
-                              playingContextSentence === sentenceId
-                                ? "stop"
-                                : "play"
-                            }
-                            size={16}
-                            color={
-                              playingContextSentence === sentenceId
-                                ? "#fff"
-                                : subjectColors.vocabulary
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      {renderTranslation(
-                        sentence.en,
-                        sentenceId,
-                        [styles.englishSentence, { color: theme.textSecondary }]
-                      )}
-                      {renderSentenceSpeedControl(sentenceId)}
-                    </View>
-                  );
-                })}
-            </View>
-          </View>
-        )}
-    </>
-  );
+  // Render context sentences (both regular and personal) in one section.
+  const renderContextSections = () => {
+    const contextSentences =
+      vocabulary.contextSentences?.filter((sentence) => sentence.ja && sentence.en) ??
+      [];
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.contextSectionHeader}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              styles.contextSectionTitle,
+              { color: theme.textColor },
+            ]}
+          >
+            Context Sentences
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Add context sentence"
+            activeOpacity={0.55}
+            hitSlop={8}
+            onPress={() =>
+              customContextSentencesRef.current?.openNewEditor()
+            }
+            style={styles.contextSentenceAddButton}
+          >
+            <Ionicons
+              name="add"
+              size={18}
+              color={subjectColors.vocabulary}
+            />
+          </TouchableOpacity>
+        </View>
+        <View
+          style={[
+            styles.infoBox,
+            { backgroundColor: theme.cardBackground },
+          ]}
+        >
+          {contextSentences.map((sentence, index) => {
+            const sentenceId = `wk-${index}`;
+            return (
+              <View
+                key={sentenceId}
+                style={[
+                  styles.sentenceContainer,
+                  { borderBottomColor: theme.border },
+                  index === contextSentences.length - 1 && {
+                    borderBottomWidth: 0,
+                    marginBottom: 0,
+                    paddingBottom: 0,
+                  },
+                ]}
+              >
+                <View style={styles.sentenceRow}>
+                  <Text
+                    selectable
+                    style={[
+                      styles.japaneseSentence,
+                      { color: theme.textColor, flex: 1 },
+                    ]}
+                  >
+                    {sentence.ja}
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.sentencePlayButton,
+                      playingContextSentence === sentenceId &&
+                        styles.sentencePlayButtonActive,
+                    ]}
+                    onPress={() =>
+                      playContextSentence(sentence.ja, sentenceId)
+                    }
+                  >
+                    <Ionicons
+                      name={
+                        playingContextSentence === sentenceId ? "stop" : "play"
+                      }
+                      size={16}
+                      color={
+                        playingContextSentence === sentenceId
+                          ? "#fff"
+                          : subjectColors.vocabulary
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+                {renderTranslation(sentence.en, sentenceId, [
+                  styles.englishSentence,
+                  { color: theme.textSecondary },
+                ])}
+                {renderSentenceSpeedControl(sentenceId)}
+              </View>
+            );
+          })}
+          <CustomContextSentencesSection
+            ref={customContextSentencesRef}
+            subjectId={vocabulary.id}
+            subjectCharacters={vocabulary.characters}
+            subjectReadings={vocabulary.readings.map(
+              (reading) => reading.reading,
+            )}
+            accentColor={subjectColors.vocabulary}
+          />
+        </View>
+      </View>
+    );
+  };
 
   const renderSimilarVocabularySection = (
     title: string,
@@ -2615,22 +2650,34 @@ export default function VocabularyDetails({
                 ]}
               >
                 {activeTab === "meaning" ? (
-                  <TouchableOpacity
+                  <NoteFieldContainer
+                    addAccessibilityLabel="Add meaning note"
+                    hasContent={Boolean(vocabulary.meaningNote)}
+                    onAdd={() => vocabulary.onEditNote?.("meaning")}
                     style={styles.noteContainer}
-                    onPress={() => vocabulary.onEditNote?.("meaning")}
                   >
                     <View style={styles.noteHeader}>
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                         Meaning Note
                       </Text>
-                      <View style={styles.editButton}>
+                      <TouchableOpacity
+                        accessible={Boolean(vocabulary.meaningNote)}
+                        accessibilityLabel="Edit meaning note"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          vocabulary.onEditNote?.("meaning");
+                        }}
+                        style={styles.editButton}
+                      >
                         <Ionicons
                           name="pencil"
                           size={16}
                           color={theme.textSecondary}
                           style={{ fontWeight: "bold" }}
                         />
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     {vocabulary.meaningNote ? (
                       <FormattedNoteText
@@ -2642,24 +2689,36 @@ export default function VocabularyDetails({
                         Click to add meaning note
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </NoteFieldContainer>
                 ) : (
-                  <TouchableOpacity
+                  <NoteFieldContainer
+                    addAccessibilityLabel="Add reading note"
+                    hasContent={Boolean(vocabulary.readingNote)}
+                    onAdd={() => vocabulary.onEditNote?.("reading")}
                     style={styles.noteContainer}
-                    onPress={() => vocabulary.onEditNote?.("reading")}
                   >
                     <View style={styles.noteHeader}>
                       <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                         Reading Note
                       </Text>
-                      <View style={styles.editButton}>
+                      <TouchableOpacity
+                        accessible={Boolean(vocabulary.readingNote)}
+                        accessibilityLabel="Edit reading note"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          vocabulary.onEditNote?.("reading");
+                        }}
+                        style={styles.editButton}
+                      >
                         <Ionicons
                           name="pencil"
                           size={16}
                           color={theme.textSecondary}
                           style={{ fontWeight: "bold" }}
                         />
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     {vocabulary.readingNote ? (
                       <FormattedNoteText
@@ -2671,7 +2730,7 @@ export default function VocabularyDetails({
                         Click to add reading note
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </NoteFieldContainer>
                 )}
               </View>
             </View>
@@ -3166,23 +3225,29 @@ export default function VocabularyDetails({
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          {onAddToList && (
-            <TouchableOpacity
-              onPress={onAddToList}
-              style={styles.addToListButton}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isBookmarked ? "Edit saved lists" : "Add to saved lists"
-              }
-              accessibilityState={{ selected: isBookmarked }}
-            >
-              <Ionicons
-                name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                size={20}
-                color="#fff"
-              />
-            </TouchableOpacity>
-          )}
+          <View style={styles.headerActions}>
+            {onAddToList && (
+              <TouchableOpacity
+                onPress={onAddToList}
+                style={styles.addToListButton}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isBookmarked ? "Edit saved lists" : "Add to saved lists"
+                }
+                accessibilityState={{ selected: isBookmarked }}
+              >
+                <Ionicons
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  size={20}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{vocabulary.level}</Text>
+            </View>
+          </View>
 
           {onOpenConstellation && vocabulary.object !== "kana_vocabulary" && (
             <TouchableOpacity
@@ -3192,10 +3257,6 @@ export default function VocabularyDetails({
               <Ionicons name="planet-outline" size={24} color="#fff" />
             </TouchableOpacity>
           )}
-
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{vocabulary.level}</Text>
-          </View>
 
           <TouchableOpacity
             ref={mainCharacterRef}
@@ -3423,9 +3484,12 @@ const createStyles = (subjectColors: SubjectColors) =>
   },
   stickyLevelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
@@ -3461,11 +3525,16 @@ const createStyles = (subjectColors: SubjectColors) =>
     alignItems: "center",
     zIndex: 10,
   },
-  addToListButton: {
+  headerActions: {
     position: "absolute",
     top: HEADER_TOP_OFFSET,
-    right: 56,
+    right: 16,
     zIndex: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  addToListButton: {
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -3475,14 +3544,14 @@ const createStyles = (subjectColors: SubjectColors) =>
   },
   levelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
-    position: "absolute",
-    top: HEADER_TOP_OFFSET,
-    right: 16,
   },
   levelText: {
     color: "white",
@@ -3566,6 +3635,22 @@ const createStyles = (subjectColors: SubjectColors) =>
     fontWeight: "bold",
     color: "#333",
     marginBottom: 8,
+  },
+  contextSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  contextSectionTitle: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  contextSentenceAddButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoBox: {
     backgroundColor: "white",
@@ -4267,9 +4352,12 @@ const createStyles = (subjectColors: SubjectColors) =>
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.kanji,
     justifyContent: "center",
     alignItems: "center",
@@ -4285,9 +4373,12 @@ const createStyles = (subjectColors: SubjectColors) =>
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.vocabulary,
     justifyContent: "center",
     alignItems: "center",

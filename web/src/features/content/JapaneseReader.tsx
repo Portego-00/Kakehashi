@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { autoUpdate, flip, offset, shift, size, useFloating } from "@floating-ui/react-dom";
 import { ArrowRight, Download, ExternalLink, Languages, LoaderCircle, LockKeyhole, Square, Volume2 } from "lucide-react";
 import { SrsStageIcon } from "@/components/SrsStageIcon";
+import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
+import { vocabularyFrequencyRequestForSubject, type VocabularyFrequencyRequest } from "@/features/core-study/vocabulary-frequency";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -28,6 +30,7 @@ const EMPTY_ANALYSIS: JapaneseReaderAnalysis = { status: "idle", sourceText: "",
 const JPDB_ANALYSIS_CHUNK_MAX_CHARACTERS = 30_000;
 const JPDB_ANALYSIS_CONCURRENCY = 2;
 const JPDB_ANALYSIS_CACHE_CHUNKS = 6;
+const READER_INLINE_MEANING_MAX_CHARACTERS = 56;
 
 export type JapaneseReaderBlock =
   | { type: "text"; text: string; furigana?: readonly FuriganaRange[] }
@@ -208,7 +211,8 @@ export interface JapaneseReaderProps {
   analysisContext?: JapaneseReaderAnalysisContext;
   ariaLabel?: string;
   onProgress?: (progress: number) => void;
-  appearance?: "default" | "compact";
+  appearance?: "default" | "compact" | "inline";
+  tokenDecoration?: "annotated" | "plain";
   inspectorMode?: "inline" | "floating";
   onSelectionChange?: (open: boolean) => void;
   inspectorActive?: boolean;
@@ -312,6 +316,19 @@ function isInteractiveAnnotation(annotation: ReaderAnnotation) {
   return annotation.source !== "wanikani" || Boolean(annotation.subject);
 }
 
+function vocabularyFrequencyRequestForAnnotation(annotation: ReaderAnnotation): VocabularyFrequencyRequest | null {
+  const subjectRequest = annotation.subject
+    ? vocabularyFrequencyRequestForSubject(annotation.subject)
+    : null;
+  if (subjectRequest) return subjectRequest;
+  if (annotation.source !== "jpdb" || annotation.tokenType === "grammar") return null;
+
+  const expression = (annotation.spelling || annotation.text).trim();
+  if (!expression) return null;
+  const reading = annotation.reading.trim();
+  return { expression, readings: reading ? [reading] : [] };
+}
+
 function waniKaniPronunciationAudio(annotation: ReaderAnnotation, preferredVoiceActorId?: number) {
   const subject = annotation.subject;
   if (!subject || (subject.object !== "vocabulary" && subject.object !== "kana_vocabulary")) return undefined;
@@ -347,7 +364,7 @@ function renderAnnotationFurigana(annotation: ReaderAnnotation, enabled: boolean
   return <ruby>{annotation.text}<rt>{reading}</rt></ruby>;
 }
 
-export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, appearance = "default", inspectorMode = "inline", onSelectionChange, inspectorActive, subjectReturnTo, showFurigana = false, onShowFuriganaChange, supplement, selectionRequest, inspectorOnly = false, onSelectionResolved }: JapaneseReaderProps) {
+export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Japanese reading text", onProgress, appearance = "default", tokenDecoration = "annotated", inspectorMode = "inline", onSelectionChange, inspectorActive, subjectReturnTo, showFurigana = false, onShowFuriganaChange, supplement, selectionRequest, inspectorOnly = false, onSelectionResolved }: JapaneseReaderProps) {
   const { user, dataset, loading } = useStudyDataset();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
   const voice = useJapaneseVoice();
@@ -355,12 +372,14 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   const detailsInteraction = settings.reader.detailsInteraction;
   const jpdbRecognitionEnabled = settings.reader.recognitionMode === "wk-jpdb";
   const jpdbAnalysisEnabled = jpdbRecognitionEnabled && Boolean(jpdbApiKey);
+  const showVocabularyFrequency = settings.study?.showVocabularyFrequency ?? false;
   const [localAnalysis, setLocalAnalysis] = useState<JapaneseReaderAnalysis>(EMPTY_ANALYSIS);
   const [selectedToken, setSelectedToken] = useState<ReaderAnnotation | null>(null);
   const [voicePromptTokenId, setVoicePromptTokenId] = useState<string | null>(null);
   const [waniKaniAudioState, setWaniKaniAudioState] = useState<{ url: string; text: string; status: "loading" | "playing" } | null>(null);
   const voicePromptId = useId();
   const waniKaniAudioRef = useRef<HTMLAudioElement | null>(null);
+  const cancelledWaniKaniAudioRef = useRef(new WeakSet<HTMLAudioElement>());
   const tokenRefs = useRef(new Map<string, HTMLButtonElement>());
   const inspectorRef = useRef<HTMLElement | null>(null);
   const resolvedSelectionRef = useRef("");
@@ -432,6 +451,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
 
   useEffect(() => () => {
     if (waniKaniAudioRef.current) {
+      cancelledWaniKaniAudioRef.current.add(waniKaniAudioRef.current);
       waniKaniAudioRef.current.onended = null;
       waniKaniAudioRef.current.onerror = null;
       waniKaniAudioRef.current.onpause = null;
@@ -493,6 +513,15 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     ));
     return replacements.length === 1 ? replacements[0] : null;
   }, [inspectorActive, renderedAnnotations, requestedAnnotation, selectedToken, selectionRequest]);
+  const selectedFrequencyRequest = useMemo(
+    () => selected ? vocabularyFrequencyRequestForAnnotation(selected) : null,
+    [selected],
+  );
+  const selectedReading = selected ? annotationReading(selected) : "";
+  const selectedMeaning = selected ? annotationMeanings(selected).slice(0, 4).join(" · ") : "";
+  const primaryFactsLayout = selectedReading && selectedMeaning.length <= READER_INLINE_MEANING_MAX_CHARACTERS
+    ? "columns"
+    : "stacked";
   const pieceCount = renderedBlocks.reduce((total, block) => total + (block.type === "text" ? block.pieces.length : 0), 0);
 
   useEffect(() => {
@@ -582,6 +611,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     const audio = waniKaniAudioRef.current;
     waniKaniAudioRef.current = null;
     if (audio) {
+      cancelledWaniKaniAudioRef.current.add(audio);
       audio.onended = null;
       audio.onerror = null;
       audio.onpause = null;
@@ -589,6 +619,14 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
     }
     setWaniKaniAudioState(null);
   }, []);
+
+  useEffect(() => {
+    if (voice.activity !== "synthesizing" && voice.activity !== "playing") return;
+    const audio = waniKaniAudioRef.current;
+    if (!audio) return;
+    cancelledWaniKaniAudioRef.current.add(audio);
+    audio.pause();
+  }, [voice.activity]);
 
   async function speak() {
     if (!selected) return;
@@ -616,7 +654,10 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
       };
       audio.onended = resetAudio;
       audio.onerror = resetAudio;
-      audio.onpause = resetAudio;
+      audio.onpause = () => {
+        cancelledWaniKaniAudioRef.current.add(audio);
+        resetAudio();
+      };
       setWaniKaniAudioState({ url: waniKaniAudio.url, text: selectedText, status: "loading" });
       try {
         await audio.play();
@@ -624,8 +665,9 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
           setWaniKaniAudioState({ url: waniKaniAudio.url, text: selectedText, status: "playing" });
         }
       } catch {
+        const canFallbackToTts = !cancelledWaniKaniAudioRef.current.has(audio);
         resetAudio();
-        if (voice.downloaded) await voice.play(selectedText);
+        if (canFallbackToTts && voice.downloaded) await voice.play(selectedText);
       }
       return;
     }
@@ -711,13 +753,19 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
       <>
         <div className={styles.readerInspectorHeader}>
           <strong className={styles.lookupTerm} lang="ja">{selected.text}</strong>
-          <span className={styles.readerInspectorMeta}>
-            <span>{selected.subject ? `Lv ${selected.subject.data.level}` : selected.source === "jpdb" ? "JPDB" : "Lookup"}</span>
-            {selected.subject ? typeof selected.srsStage === "number" && selected.srsStage > 0
-              ? <SrsStageIcon stage={selected.srsStage} size={18} title={srsStageLabel(selected.srsStage)} />
-              : <LockKeyhole size={16} role="img" aria-label={srsStageLabel(selected.srsStage)} />
-            : null}
-          </span>
+          <div className={styles.readerInspectorBadges}>
+            <span className={styles.readerInspectorMeta}>
+              <span>{selected.subject ? `Lv ${selected.subject.data.level}` : selected.source === "jpdb" ? "JPDB" : "Lookup"}</span>
+              {selected.subject ? typeof selected.srsStage === "number" && selected.srsStage > 0
+                ? <SrsStageIcon stage={selected.srsStage} size={18} title={srsStageLabel(selected.srsStage)} />
+                : <LockKeyhole size={16} role="img" aria-label={srsStageLabel(selected.srsStage)} />
+              : null}
+            </span>
+            {showVocabularyFrequency && selectedFrequencyRequest ? <span
+              className={styles.readerInspectorFrequencyChip}
+              title="Jiten frequency rank; lower is more common"
+            ><VocabularyFrequencyBadge className={styles.readerInspectorFrequencyValue} request={selectedFrequencyRequest} enabled variant="details" /></span> : null}
+          </div>
           {selectedWaniKaniAudio || voice.downloaded ? <button
             type="button"
             className={styles.readerInspectorSpeak}
@@ -772,9 +820,9 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
             </button>
           </div> : null}
           <div className={styles.readerFacts}>
-            <dl className={styles.readerPrimaryFacts} data-reader-primary-facts aria-label="Reading and meaning">
-              {annotationReading(selected) ? <div><dt>Reading</dt><dd lang="ja">{annotationReading(selected)}</dd></div> : null}
-              <div><dt>Meaning</dt><dd>{annotationMeanings(selected).slice(0, 4).join(" · ")}</dd></div>
+            <dl className={styles.readerPrimaryFacts} data-reader-primary-facts data-layout={primaryFactsLayout} aria-label="Reading and meaning">
+              {selectedReading ? <div><dt>Reading</dt><dd lang="ja">{selectedReading}</dd></div> : null}
+              <div><dt>Meaning</dt><dd>{selectedMeaning}</dd></div>
             </dl>
             <dl className={styles.readerSecondaryFacts}>
               {(selected.spelling || selected.subject?.data.characters) && (selected.spelling || selected.subject?.data.characters) !== selected.text ? <div><dt>Dictionary</dt><dd lang="ja">{selected.spelling || selected.subject?.data.characters}</dd></div> : null}
@@ -800,6 +848,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   if (inspectorOnly) return <div
     className={styles.readerGrid}
     data-appearance={appearance}
+    data-token-decoration={tokenDecoration}
     data-inspector-mode={inspectorMode}
     data-details-interaction={detailsInteraction}
     data-has-selection={selected ? "true" : "false"}
@@ -807,7 +856,7 @@ export function JapaneseReader({ text, blocks, analysisContext, ariaLabel = "Jap
   >{positionedInspector}</div>;
 
   return (
-    <div className={styles.readerGrid} data-appearance={appearance} data-inspector-mode={inspectorMode} data-details-interaction={detailsInteraction} data-has-selection={selected ? "true" : "false"}>
+    <div className={styles.readerGrid} data-appearance={appearance} data-token-decoration={tokenDecoration} data-inspector-mode={inspectorMode} data-details-interaction={detailsInteraction} data-has-selection={selected ? "true" : "false"}>
       <div className={styles.readerColumn}>
         {appearance === "default" ? <div className={styles.readerAnnotationBar} aria-label="Annotation key">
           <span data-token-kind="vocabulary"><i aria-hidden="true" />Vocabulary</span>

@@ -1,13 +1,12 @@
-import { Ionicons } from '@expo/vector-icons';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
-  Dimensions,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -16,36 +15,40 @@ import {
   LayoutAnimation,
   Linking,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   UIManager,
+  useWindowDimensions,
   View,
-} from 'react-native';
-import WaniKaniWebClient from '../../src/modules/WaniKaniWebClient';
-import { getUserData, validateApiToken } from '../../src/utils/api';
-import { getCacheStatus } from '../../src/utils/cache';
-import { useAuthStore, useSettingsStore } from '../../src/utils/store';
-import { useSession } from '../../src/contexts/AuthContext';
-import PrivacyPolicyModal from '../../src/components/PrivacyPolicyModal';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import WaniKaniWebClient from "../../src/modules/WaniKaniWebClient";
+import { getUserData, validateApiToken } from "../../src/utils/api";
+import { getCacheStatus } from "../../src/utils/cache";
+import { useAuthStore, useSettingsStore } from "../../src/utils/store";
+import { useSession } from "../../src/contexts/AuthContext";
+import PrivacyPolicyModal from "../../src/components/PrivacyPolicyModal";
 
-type LoginMethod = 'email' | 'token';
+type LoginMethod = "email" | "token";
 
 const EMAIL_PASSWORD_LOGIN_ENABLED = false;
-const LOGIN_METHODS: LoginMethod[] = EMAIL_PASSWORD_LOGIN_ENABLED ? ['token', 'email'] : ['token'];
+const LOGIN_METHODS: LoginMethod[] = EMAIL_PASSWORD_LOGIN_ENABLED
+  ? ["token", "email"]
+  : ["token"];
 const LOGIN_METHOD_LABELS: Record<LoginMethod, string> = {
-  token: 'API Token',
-  email: 'Email Login',
+  token: "API Token",
+  email: "Email Login",
 };
 
 export default function Login() {
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('token');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("token");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [apiToken, setApiToken] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [apiToken, setApiToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -53,6 +56,8 @@ export default function Login() {
   const [androidFormLayoutHeight, setAndroidFormLayoutHeight] = useState(0);
   const { signIn } = useSession();
   const { setUserData, setNeedsPostLoginCaching } = useAuthStore();
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const safeAreaInsets = useSafeAreaInsets();
 
   // Refs for keyboard navigation
   const passwordInputRef = useRef<TextInput>(null);
@@ -63,13 +68,21 @@ export default function Login() {
   const formContentOpacity = useRef(new Animated.Value(1)).current;
 
   // Screen dimensions for responsive design
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const {
+    width: screenWidth,
+    height: screenHeight,
+    fontScale,
+  } = useWindowDimensions();
   const isTablet = screenWidth > 768;
-  const isIOS = Platform.OS === 'ios';
+  const isIOS = Platform.OS === "ios";
+  const usesLargeText = appTextSizeScale > 1 || fontScale > 1;
 
   // Enable LayoutAnimation on Android
   useEffect(() => {
-    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
@@ -81,10 +94,13 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== "android") return;
 
     const handleKeyboardDidShow = (event: KeyboardEvent) => {
-      const nextHeight = Math.max(0, Math.round(event.endCoordinates?.height ?? 0));
+      const nextHeight = Math.max(
+        0,
+        Math.round(event.endCoordinates?.height ?? 0),
+      );
       setAndroidKeyboardHeight(nextHeight);
     };
 
@@ -92,8 +108,14 @@ export default function Login() {
       setAndroidKeyboardHeight(0);
     };
 
-    const showSubscription = Keyboard.addListener('keyboardDidShow', handleKeyboardDidShow);
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', handleKeyboardDidHide);
+    const showSubscription = Keyboard.addListener(
+      "keyboardDidShow",
+      handleKeyboardDidShow,
+    );
+    const hideSubscription = Keyboard.addListener(
+      "keyboardDidHide",
+      handleKeyboardDidHide,
+    );
 
     return () => {
       showSubscription.remove();
@@ -102,29 +124,32 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== "android") return;
     if (androidKeyboardHeight > 0 || androidFormLayoutHeight <= 0) return;
     androidBaselineFormHeightRef.current = Math.max(
       androidBaselineFormHeightRef.current,
-      androidFormLayoutHeight
+      androidFormLayoutHeight,
     );
   }, [androidKeyboardHeight, androidFormLayoutHeight]);
 
   const handleFormContainerLayout = (event: LayoutChangeEvent) => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== "android") return;
     const nextHeight = Math.round(event.nativeEvent.layout.height);
     setAndroidFormLayoutHeight((currentHeight) =>
-      currentHeight === nextHeight ? currentHeight : nextHeight
+      currentHeight === nextHeight ? currentHeight : nextHeight,
     );
   };
 
   const syncAndroidKeyboardMetrics = () => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== "android") return;
 
     const syncMetrics = () => {
       if (!mountedRef.current) return;
       const keyboardMetrics = Keyboard.metrics();
-      const measuredHeight = Math.max(0, Math.round(keyboardMetrics?.height ?? 0));
+      const measuredHeight = Math.max(
+        0,
+        Math.round(keyboardMetrics?.height ?? 0),
+      );
       if (measuredHeight > 0) {
         setAndroidKeyboardHeight(measuredHeight);
       }
@@ -135,23 +160,26 @@ export default function Login() {
   };
 
   const androidAppliedKeyboardResize =
-    Platform.OS === 'android' &&
+    Platform.OS === "android" &&
     androidKeyboardHeight > 0 &&
     androidBaselineFormHeightRef.current > 0
-      ? Math.max(0, androidBaselineFormHeightRef.current - androidFormLayoutHeight)
+      ? Math.max(
+          0,
+          androidBaselineFormHeightRef.current - androidFormLayoutHeight,
+        )
       : 0;
   const androidKeyboardFallbackLift =
-    Platform.OS === 'android' && androidKeyboardHeight > 0
+    Platform.OS === "android" && androidKeyboardHeight > 0
       ? Math.max(0, androidKeyboardHeight - androidAppliedKeyboardResize)
       : 0;
   const androidKeyboardLift = Math.min(
     androidKeyboardFallbackLift,
-    Math.round(screenHeight * 0.6)
+    Math.round(screenHeight * 0.6),
   );
 
   // Handle tab change with smooth animation
   const handleTabChange = (index: number) => {
-    const method = LOGIN_METHODS[index] ?? 'token';
+    const method = LOGIN_METHODS[index] ?? "token";
 
     // First, fade out form content only
     Animated.timing(formContentOpacity, {
@@ -159,13 +187,13 @@ export default function Login() {
       duration: 150,
       useNativeDriver: true,
     }).start(() => {
-              // Configure smooth layout animation for card height change
-        LayoutAnimation.configureNext({
-          duration: 300,
-          update: {
-            type: LayoutAnimation.Types.easeInEaseOut,
-          },
-        });
+      // Configure smooth layout animation for card height change
+      LayoutAnimation.configureNext({
+        duration: 300,
+        update: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+        },
+      });
 
       // Change content (this will trigger the height animation)
       setLoginMethod(method);
@@ -182,7 +210,7 @@ export default function Login() {
 
   const handleEmailLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      Alert.alert("Error", "Please enter both email and password");
       return;
     }
 
@@ -208,31 +236,37 @@ export default function Login() {
 
         // Navigation is handled by AuthContext
       } else {
-        Alert.alert('Error', 'Login succeeded but API token is invalid. Please try again.');
+        Alert.alert(
+          "Error",
+          "Login succeeded but API token is invalid. Please try again.",
+        );
       }
     } catch (error: any) {
-      let errorMessage = 'Failed to authenticate. Please try again later.';
+      let errorMessage = "Failed to authenticate. Please try again later.";
 
-      if (error.code === 'WANIKANI_ERROR') {
+      if (error.code === "WANIKANI_ERROR") {
         switch (error.message) {
-          case 'CSRF token not found':
-            errorMessage = 'Authentication failed. Please try again.';
+          case "CSRF token not found":
+            errorMessage = "Authentication failed. Please try again.";
             break;
-          case 'Incorrect email or password':
-            errorMessage = 'Incorrect email or password. Please check your credentials.';
+          case "Incorrect email or password":
+            errorMessage =
+              "Incorrect email or password. Please check your credentials.";
             break;
-          case 'Account is in hibernation mode':
-            errorMessage = 'Your account is in hibernation mode. Please reactivate it on the WaniKani website.';
+          case "Account is in hibernation mode":
+            errorMessage =
+              "Your account is in hibernation mode. Please reactivate it on the WaniKani website.";
             break;
-          case 'API token not found':
-            errorMessage = 'Login failed. Please check your email and password.';
+          case "API token not found":
+            errorMessage =
+              "Login failed. Please check your email and password.";
             break;
           default:
             errorMessage = error.message || errorMessage;
         }
       }
 
-      Alert.alert('Error', errorMessage);
+      Alert.alert("Error", errorMessage);
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -241,7 +275,7 @@ export default function Login() {
 
   const handleTokenLogin = async () => {
     if (!apiToken.trim()) {
-      Alert.alert('Error', 'Please enter your API token');
+      Alert.alert("Error", "Please enter your API token");
       return;
     }
 
@@ -262,10 +296,10 @@ export default function Login() {
 
         // Navigation is handled by AuthContext
       } else {
-        Alert.alert('Error', 'Invalid API token. Please check and try again.');
+        Alert.alert("Error", "Invalid API token. Please check and try again.");
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to authenticate. Please try again later.');
+      Alert.alert("Error", "Failed to authenticate. Please try again later.");
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -273,7 +307,7 @@ export default function Login() {
   };
 
   const handleLogin = () => {
-    if (loginMethod === 'email') {
+    if (loginMethod === "email") {
       handleEmailLogin();
     } else {
       handleTokenLogin();
@@ -281,33 +315,49 @@ export default function Login() {
   };
 
   const openWaniKaniWebsite = () => {
-    if (loginMethod === 'token') {
-      Linking.openURL('https://www.wanikani.com/settings/personal_access_tokens');
+    if (loginMethod === "token") {
+      Linking.openURL(
+        "https://www.wanikani.com/settings/personal_access_tokens",
+      );
     } else {
-      Linking.openURL('https://www.wanikani.com/login');
+      Linking.openURL("https://www.wanikani.com/login");
     }
   };
 
   return (
     <LinearGradient
-      colors={['#667eea', '#764ba2', '#f093fb']}
+      colors={["#667eea", "#764ba2", "#f093fb"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.fullScreenGradient}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.container}>
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            usesLargeText && styles.scrollContentLargeText,
+            {
+              paddingTop: Math.max(safeAreaInsets.top, 20),
+              paddingBottom: Math.max(safeAreaInsets.bottom, 20),
+            },
+          ]}
+          contentInsetAdjustmentBehavior="never"
+          keyboardDismissMode={isIOS ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={usesLargeText}
+        >
           <StatusBar style="light" />
 
           <View style={styles.headerContainer}>
             <Image
-              source={require('../../assets/images/login.png')}
+              source={require("../../assets/images/login.png")}
               style={[
                 styles.loginImage,
                 {
                   width: isTablet ? screenWidth * 0.6 : screenWidth * 0.8,
                   height: isTablet ? 160 : 120,
-                }
+                },
               ]}
               resizeMode="contain"
             />
@@ -318,17 +368,21 @@ export default function Login() {
           <KeyboardAvoidingView
             style={[
               styles.formContainer,
-              Platform.OS === 'android' &&
-                androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift },
+              Platform.OS === "android" &&
+                androidKeyboardLift > 0 && {
+                  paddingBottom: androidKeyboardLift,
+                },
             ]}
-            behavior={isIOS ? 'padding' : 'height'}
+            behavior={isIOS ? "padding" : "height"}
             keyboardVerticalOffset={isIOS ? 60 : 0}
             onLayout={handleFormContainerLayout}
           >
             <View style={styles.card}>
               {LOGIN_METHODS.length > 1 && (
                 <SegmentedControl
-                  values={LOGIN_METHODS.map((method) => LOGIN_METHOD_LABELS[method])}
+                  values={LOGIN_METHODS.map(
+                    (method) => LOGIN_METHOD_LABELS[method],
+                  )}
                   selectedIndex={selectedIndex}
                   onChange={(event) => {
                     handleTabChange(event.nativeEvent.selectedSegmentIndex);
@@ -336,8 +390,12 @@ export default function Login() {
                   style={styles.segmentedControl}
                   tintColor="#00A3FF"
                   backgroundColor="#f5f5f5"
-                  fontStyle={{ color: '#666', fontSize: 16 }}
-                  activeFontStyle={{ color: 'white', fontSize: 16, fontWeight: '600' }}
+                  fontStyle={{ color: "#666", fontSize: 16 }}
+                  activeFontStyle={{
+                    color: "white",
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
                 />
               )}
 
@@ -346,10 +404,10 @@ export default function Login() {
                   styles.formContent,
                   {
                     opacity: formContentOpacity,
-                  }
+                  },
                 ]}
               >
-                {loginMethod === 'email' ? (
+                {loginMethod === "email" ? (
                   <>
                     <Text style={styles.label}>Email</Text>
                     <TextInput
@@ -391,7 +449,7 @@ export default function Login() {
                         onPress={() => setShowPassword(!showPassword)}
                       >
                         <Ionicons
-                          name={showPassword ? 'eye-off' : 'eye'}
+                          name={showPassword ? "eye-off" : "eye"}
                           size={24}
                           color="#666"
                         />
@@ -425,17 +483,18 @@ export default function Login() {
                   {isLoading ? (
                     <ActivityIndicator color="white" />
                   ) : (
-                    <Text style={styles.buttonText}>
-                      Login
-                    </Text>
+                    <Text style={styles.buttonText}>Login</Text>
                   )}
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={openWaniKaniWebsite} style={styles.link}>
+                <TouchableOpacity
+                  onPress={openWaniKaniWebsite}
+                  style={styles.link}
+                >
                   <Text style={styles.linkText}>
-                    {loginMethod === 'token'
-                      ? 'Get your API token from WaniKani settings'
-                      : 'Or get your API token from WaniKani settings'}
+                    {loginMethod === "token"
+                      ? "Get your API token from WaniKani settings"
+                      : "Or get your API token from WaniKani settings"}
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -448,8 +507,8 @@ export default function Login() {
               <Text style={styles.privacyLinkText}>Privacy Policy</Text>
             </TouchableOpacity>
           </KeyboardAvoidingView>
-        </View>
-      </TouchableWithoutFeedback>
+        </ScrollView>
+      </View>
 
       <PrivacyPolicyModal
         visible={showPrivacyPolicy}
@@ -462,11 +521,20 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 20,
-    justifyContent: 'center',
+    justifyContent: "center",
+  },
+  scrollContentLargeText: {
+    justifyContent: "flex-start",
   },
   headerContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 40,
   },
   loginImage: {
@@ -474,29 +542,31 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 42,
-    fontWeight: 'bold',
-    color: 'white',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    fontWeight: "bold",
+    color: "white",
+    maxWidth: "100%",
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 18,
     marginTop: 8,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
+    color: "rgba(255, 255, 255, 0.9)",
+    textAlign: "center",
   },
   formContainer: {
-    width: '100%',
+    width: "100%",
   },
   fullScreenGradient: {
     flex: 1,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 10,
@@ -507,30 +577,30 @@ const styles = StyleSheet.create({
   },
   segmentedControl: {
     marginBottom: 24,
-    height: 44,
+    minHeight: 44,
   },
   formContent: {
     // This container will have animated opacity
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
-    color: '#333',
+    color: "#333",
   },
   input: {
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     marginBottom: 20,
-    backgroundColor: 'white',
-    color: '#333',
+    backgroundColor: "white",
+    color: "#333",
   },
   passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
   },
   passwordInput: {
@@ -539,25 +609,25 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     paddingRight: 50,
-    backgroundColor: 'white',
-    color: '#333',
+    backgroundColor: "white",
+    color: "#333",
   },
   passwordToggle: {
-    position: 'absolute',
+    position: "absolute",
     right: 15,
     padding: 5,
   },
   button: {
-    backgroundColor: '#00A3FF',
+    backgroundColor: "#00A3FF",
     borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 10,
-    height: 54,
-    justifyContent: 'center',
-    shadowColor: '#00A3FF',
+    minHeight: 54,
+    justifyContent: "center",
+    shadowColor: "#00A3FF",
     shadowOffset: {
       width: 0,
       height: 4,
@@ -567,31 +637,31 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   buttonDisabled: {
-    backgroundColor: '#87CEEB',
+    backgroundColor: "#87CEEB",
     shadowOpacity: 0.1,
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   link: {
     marginTop: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   linkText: {
     fontSize: 14,
-    color: '#00A3FF',
-    textAlign: 'center',
+    color: "#00A3FF",
+    textAlign: "center",
   },
   privacyLink: {
     marginTop: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   privacyLinkText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    textDecorationLine: 'underline',
+    color: "rgba(255, 255, 255, 0.8)",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
 });

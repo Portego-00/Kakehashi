@@ -195,7 +195,9 @@ Deno.test("history aggregates every mobile activity and web category alias witho
           writing_freehand: 10,
           context_sentence: 10,
           listening_practice: 10,
+          jlpt: 10,
           crossword: 10,
+          word_search: 10,
           wordle: 10,
         },
       },
@@ -239,7 +241,7 @@ Deno.test("history aggregates every mobile activity and web category alias witho
         byCategoryMs: {
           reviews: 305,
           lessons: 706,
-          extra_study: 145,
+          extra_study: 165,
           news: 9,
           songs: 10,
           epub: 23,
@@ -277,7 +279,7 @@ Deno.test("history aggregates every mobile activity and web category alias witho
     "not.is.null",
   );
   assertEquals(captured.storageUrl.searchParams.getAll("day"), [
-    "gte.2025-06-24",
+    "gte.2025-06-22",
     "lte.2026-08-27",
   ]);
   assertEquals(

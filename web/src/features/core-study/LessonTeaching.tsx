@@ -61,6 +61,7 @@ export function LessonTeaching({
   const subject = subjects[currentIndex];
   const heroRef = useRef<HTMLElement>(null);
   const activeBatchItemRef = useRef<HTMLButtonElement>(null);
+  const [preserveViewportAfterSubjectChange, setPreserveViewportAfterSubjectChange] = useState(false);
   const [focusTabAfterSubjectChange, setFocusTabAfterSubjectChange] = useState(false);
   const previousSubjectIdRef = useRef(subject?.id);
   const assignmentBySubjectId = useMemo(() => new Map(assignments.map((assignment) => [assignment.data.subject_id, assignment])), [assignments]);
@@ -98,11 +99,13 @@ export function LessonTeaching({
   useEffect(() => {
     if (!subject || previousSubjectIdRef.current === subject.id) return;
     previousSubjectIdRef.current = subject.id;
-    heroRef.current?.scrollIntoView({ block: "start" });
+    if (!preserveViewportAfterSubjectChange) {
+      heroRef.current?.scrollIntoView({ block: "start" });
+    }
     if (!focusTabAfterSubjectChange) return;
-    const frame = window.requestAnimationFrame(() => document.getElementById(`lesson-subject-${subject.id}-tab-meaning`)?.focus());
+    const frame = window.requestAnimationFrame(() => document.getElementById(`lesson-subject-${subject.id}-tab-meaning`)?.focus({ preventScroll: true }));
     return () => window.cancelAnimationFrame(frame);
-  }, [focusTabAfterSubjectChange, subject]);
+  }, [focusTabAfterSubjectChange, preserveViewportAfterSubjectChange, subject]);
 
   useEffect(() => {
     activeBatchItemRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -115,7 +118,8 @@ export function LessonTeaching({
   const primaryReading = subject.data.readings?.filter((reading) => reading.primary).map((reading) => reading.reading).join(" · ") || subject.data.readings?.[0]?.reading;
   const characterCount = Array.from(subject.data.characters || meaning).length;
   const lessonProgress = subjects.length ? (currentIndex + 1) / subjects.length : 0;
-  const goToSubject = (index: number, focusTab = false) => {
+  const goToSubject = (index: number, preserveViewport = false, focusTab = false) => {
+    setPreserveViewportAfterSubjectChange(preserveViewport);
     setFocusTabAfterSubjectChange(focusTab);
     onActiveTabChange("meaning");
     onCurrentIndexChange(index);
@@ -124,9 +128,9 @@ export function LessonTeaching({
     heroRef.current?.scrollIntoView({ block: "start" });
     onStartReview();
   };
-  const goPrevious = currentIndex > 0 ? () => goToSubject(currentIndex - 1, true) : undefined;
-  const goNext = () => {
-    if (currentIndex < subjects.length - 1) goToSubject(currentIndex + 1, true);
+  const goPrevious = currentIndex > 0 ? (focusTab: boolean) => goToSubject(currentIndex - 1, true, focusTab) : undefined;
+  const goNext = (focusTab: boolean) => {
+    if (currentIndex < subjects.length - 1) goToSubject(currentIndex + 1, true, focusTab);
     else startReview();
   };
 
@@ -175,7 +179,7 @@ export function LessonTeaching({
       </div>
 
       <nav className={styles.lessonFooter} aria-label="Lesson navigation">
-        <button type="button" className={styles.lessonFooterArrow} aria-label="Previous lesson" disabled={!goPrevious} onClick={goPrevious}>
+        <button type="button" className={styles.lessonFooterArrow} aria-label="Previous lesson" disabled={!goPrevious} onClick={() => goPrevious?.(false)}>
           <ChevronLeft size={20} aria-hidden /><span>Previous</span>
         </button>
         <div className={styles.lessonBatchItems} role="list" aria-label="Lessons in this batch">
@@ -195,7 +199,7 @@ export function LessonTeaching({
             ><SubjectCharacter subject={batchSubject} imageSize="1.35rem" imageTone="subject" /></button></span>;
           })}
         </div>
-        <button type="button" className={styles.lessonFooterArrow} aria-label={currentIndex === subjects.length - 1 ? "Start lesson review" : "Next lesson"} onClick={goNext}>
+        <button type="button" className={styles.lessonFooterArrow} aria-label={currentIndex === subjects.length - 1 ? "Start lesson review" : "Next lesson"} onClick={() => goNext(false)}>
           <span>{currentIndex === subjects.length - 1 ? "Start review" : "Next"}</span><ChevronRight size={20} aria-hidden />
         </button>
       </nav>

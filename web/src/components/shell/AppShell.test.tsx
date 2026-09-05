@@ -228,7 +228,9 @@ describe("AppShell session bootstrap", () => {
     expect(within(allDestinations).getByRole("link", { name: "News" })).toHaveAttribute("href", "/news");
     expect(within(allDestinations).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
     expect(within(allDestinations).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
+    expect(within(allDestinations).getByRole("link", { name: "Custom vocabulary" })).toHaveAttribute("href", "/custom-vocabulary");
     expect(within(allDestinations).getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
+    expect(within(allDestinations).getByRole("link", { name: "JLPT" })).toHaveAttribute("href", "/jlpt");
   });
 
   it("morphs the desktop app bar after the deliberate scroll threshold", async () => {
@@ -316,9 +318,21 @@ describe("AppShell contextual back navigation", () => {
     ["/community/new", "/community"],
     ["/progress/kanji", "/progress"],
     ["/progress/wrapped/21", "/progress"],
+    ["/custom-vocabulary/lessons", "/custom-vocabulary"],
+    ["/custom-vocabulary/reviews", "/custom-vocabulary"],
+    ["/custom-vocabulary/words/conversation-douzo", "/custom-vocabulary"],
     ["/study/random-test", "/study"],
   ])("maps %s to its logical parent", (pathname, parent) => {
     expect(backTargetForPathname(pathname)).toBe(parent);
+  });
+
+  it("keeps Custom vocabulary active on a word detail route", () => {
+    mocks.pathname = "/custom-vocabulary/words/conversation-douzo";
+    render(<AppShell><p>Custom subject detail</p></AppShell>);
+
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    const allDestinations = screen.getByRole("navigation", { name: "All destinations" });
+    expect(within(allDestinations).getByRole("link", { name: "Custom vocabulary" })).toHaveAttribute("aria-current", "page");
   });
 
   it("animates in on a direct detail route and uses its logical parent fallback", () => {

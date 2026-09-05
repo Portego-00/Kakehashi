@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import {
   Assignment,
-  LevelProgression,
   ReviewStatistic,
   Subject,
 } from "../utils/api";
+import { buildResetAwareLevelTimingData } from "../utils/levelProgress";
 import { useAuthStore } from "../utils/store";
 import { useDashboardData } from "./useDashboardData";
 
@@ -92,6 +92,8 @@ export function useWrappedData(level: number): WrappedData {
       assignments,
       reviewStatistics,
       levelProgressions,
+      resets,
+      currentLevel,
     } = dashboardData;
 
     const username = storedUserData?.username || "";
@@ -131,17 +133,20 @@ export function useWrappedData(level: number): WrappedData {
     }
 
     // ── Level timing ────────────────────────────────────────────────
-    const progression = (levelProgressions as LevelProgression[]).find(
-      (lp) => lp.data.level === level
+    const levelTimingData = buildResetAwareLevelTimingData(
+      levelProgressions,
+      resets,
+      currentLevel,
     );
+    const progression = levelTimingData.find((entry) => entry.level === level);
 
     let timeMs = 0;
     let startedAt: string | null = null;
     let passedAt: string | null = null;
 
     if (progression) {
-      startedAt = progression.data.unlocked_at || progression.data.started_at;
-      passedAt = progression.data.passed_at;
+      startedAt = progression.startedAt;
+      passedAt = progression.passedAt;
       if (startedAt && passedAt) {
         timeMs = new Date(passedAt).getTime() - new Date(startedAt).getTime();
       }
@@ -153,23 +158,16 @@ export function useWrappedData(level: number): WrappedData {
     );
 
     // ── Average level time ──────────────────────────────────────────
-    const completedProgressions = (levelProgressions as LevelProgression[]).filter(
-      (lp) =>
-        (lp.data.unlocked_at || lp.data.started_at) &&
-        lp.data.passed_at &&
-        lp.data.level !== level
+    const completedProgressions = levelTimingData.filter(
+      (entry) => entry.isComplete && entry.level !== level,
     );
 
     let avgTimeMs = 0;
     if (completedProgressions.length > 0) {
-      const total = completedProgressions.reduce((sum, lp) => {
-        const start = lp.data.unlocked_at || lp.data.started_at!;
-        return (
-          sum +
-          (new Date(lp.data.passed_at!).getTime() -
-            new Date(start).getTime())
-        );
-      }, 0);
+      const total = completedProgressions.reduce(
+        (sum, entry) => sum + entry.timeInDays * 1000 * 60 * 60 * 24,
+        0,
+      );
       avgTimeMs = total / completedProgressions.length;
     }
 

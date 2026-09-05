@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useMemo, type AnchorHTMLAttributes, type ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,9 +38,11 @@ const fixtures = vi.hoisted(() => {
   };
   return {
     assignment,
+    dataset: { subjects: [subject] as Subject[], assignments: [assignment] as Assignment[] },
     subject,
     user,
     reader: { detailsInteraction: "click" as "click" | "hover", recognitionMode: "wk-jpdb" as "wk" | "wk-jpdb" },
+    study: { showVocabularyFrequency: false },
     voice: { checked: true, supported: true, downloaded: false, activity: "idle" as "idle" | "downloading" | "synthesizing" | "playing", activeSentence: null as string | null, progress: null, message: null, error: null, download: vi.fn(), cancelDownload: vi.fn(), play: vi.fn(), stop: vi.fn() },
   };
 });
@@ -49,11 +52,11 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("@/features/study/use-study-dataset", () => ({
-  useStudyDataset: () => ({ user: fixtures.user, dataset: { subjects: [fixtures.subject], assignments: [fixtures.assignment] }, loading: false }),
+  useStudyDataset: () => ({ user: fixtures.user, dataset: fixtures.dataset, loading: false }),
 }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
-  useWebSettings: () => ({ integrations: { jpdbApiKey: "configured-test-key" }, reader: fixtures.reader }),
+  useWebSettings: () => ({ integrations: { jpdbApiKey: "configured-test-key" }, reader: fixtures.reader, study: fixtures.study }),
 }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({
@@ -73,6 +76,10 @@ describe("JapaneseReader inspector", () => {
   beforeEach(() => {
     fixtures.reader.detailsInteraction = "click";
     fixtures.reader.recognitionMode = "wk-jpdb";
+    fixtures.study.showVocabularyFrequency = false;
+    fixtures.dataset.subjects = [fixtures.subject];
+    fixtures.dataset.assignments = [fixtures.assignment];
+    window.localStorage.clear();
     Object.assign(fixtures.voice, { checked: true, supported: true, downloaded: false, activity: "idle", activeSentence: null, progress: null, message: null, error: null });
     fixtures.voice.download.mockClear();
     fixtures.voice.cancelDownload.mockClear();
@@ -101,6 +108,21 @@ describe("JapaneseReader inspector", () => {
     expect(screen.getByLabelText("Annotation key")).toHaveTextContent("VocabularyVerbsGrammar");
     expect(screen.getByRole("complementary")).toHaveTextContent("Word details");
     expect(screen.getByRole("complementary")).toHaveTextContent("Hover only highlights it");
+  });
+
+  it("supports undecorated inline tokens for tooltip-only surfaces", () => {
+    const { container } = render(
+      <JapaneseReader
+        text="学校"
+        appearance="inline"
+        tokenDecoration="plain"
+        inspectorMode="floating"
+      />,
+    );
+
+    const reader = container.querySelector('[data-appearance="inline"]');
+    expect(reader).toHaveAttribute("data-token-decoration", "plain");
+    expect(screen.getByRole("article", { name: "Japanese reading text" })).toHaveTextContent("学校");
   });
 
   it("renders source furigana semantically and lets the parent turn it off", () => {
@@ -288,6 +310,7 @@ describe("JapaneseReader inspector", () => {
     const primaryFacts = inspector.querySelector("[data-reader-primary-facts]");
     expect(primaryFacts).not.toBeNull();
     expect(primaryFacts?.tagName).toBe("DL");
+    expect(primaryFacts).toHaveAttribute("data-layout", "columns");
     expect(inspector.querySelectorAll("dl")).toHaveLength(2);
     expect(within(primaryFacts as HTMLElement).getByText("Reading")).toBeInTheDocument();
     expect(within(primaryFacts as HTMLElement).getByText("Meaning")).toBeInTheDocument();
@@ -306,6 +329,42 @@ describe("JapaneseReader inspector", () => {
     fireEvent.click(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
     fireEvent.pointerDown(screen.getByRole("button", { name: "Outside reader" }));
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+  });
+
+  it("gives a long meaning its own full-width row", async () => {
+    const meaning = "indicates possessive · nominalizes verbs and adjectives · substitutes for ga in subordinate phrases · at sentence-end, falling tone indicates a confident conclusion";
+    render(<JapaneseReader
+      text="の"
+      appearance="compact"
+      inspectorMode="floating"
+      analysisContext={{
+        text: "の",
+        start: 0,
+        analysis: {
+          status: "ready",
+          sourceText: "の",
+          tokens: [{
+            start: 0,
+            end: 1,
+            surface: "の",
+            spelling: "の",
+            reading: "の",
+            meaning,
+            meanings: [meaning],
+            alternativeSpellings: [],
+            partsOfSpeech: ["prt"],
+            tokenType: "grammar",
+          }],
+          message: "JPDB parsing mapped against your WaniKani library.",
+        },
+      }}
+    />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /の, JPDB term/ }));
+
+    const primaryFacts = screen.getByRole("complementary").querySelector("[data-reader-primary-facts]");
+    expect(primaryFacts).toHaveAttribute("data-layout", "stacked");
+    expect(primaryFacts).toHaveTextContent(meaning);
   });
 
   it("treats focus entering an embedded player as an outside interaction", async () => {
@@ -419,6 +478,50 @@ describe("JapaneseReader inspector", () => {
     expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("title", "Play WaniKani pronunciation");
   });
 
+  it("stops WaniKani pronunciation when shared Japanese TTS starts", async () => {
+    const pause = vi.fn();
+    const audioConstructor = vi.fn().mockImplementation(function AudioMock() {
+      const audio = { play: vi.fn().mockResolvedValue(undefined), pause, onended: null, onerror: null, onpause: null as (() => void) | null };
+      pause.mockImplementation(() => queueMicrotask(() => audio.onpause?.()));
+      return audio;
+    });
+    vi.stubGlobal("Audio", audioConstructor);
+    const view = render(<JapaneseReader text="学校" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped"));
+    fireEvent.click(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Speak 学校" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop speaking 学校" })).toBeInTheDocument());
+
+    Object.assign(fixtures.voice, { activity: "synthesizing", activeSentence: "猫です" });
+    view.rerender(<JapaneseReader text="学校" />);
+
+    await waitFor(() => expect(pause).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("data-state", "idle");
+  });
+
+  it("does not replace shared Japanese TTS when it interrupts WaniKani audio startup", async () => {
+    fixtures.voice.downloaded = true;
+    let rejectPlay: ((reason?: unknown) => void) | undefined;
+    const playPromise = new Promise<void>((_resolve, reject) => { rejectPlay = reject; });
+    const pause = vi.fn(() => rejectPlay?.(new DOMException("Playback interrupted.", "AbortError")));
+    const audioConstructor = vi.fn().mockImplementation(function AudioMock() {
+      return { play: vi.fn(() => playPromise), pause, onended: null, onerror: null, onpause: null };
+    });
+    vi.stubGlobal("Audio", audioConstructor);
+    const view = render(<JapaneseReader text="学校" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped"));
+    fireEvent.click(screen.getByRole("button", { name: /学校, Guru II WaniKani item/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Speak 学校" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel speaking 学校" })).toHaveAttribute("data-state", "loading"));
+
+    Object.assign(fixtures.voice, { activity: "synthesizing", activeSentence: "猫です" });
+    view.rerender(<JapaneseReader text="学校" />);
+
+    await waitFor(() => expect(pause).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Speak 学校" })).toHaveAttribute("data-state", "idle"));
+    expect(fixtures.voice.play).not.toHaveBeenCalled();
+  });
+
   it("shows and stops downloaded TTS after WaniKani audio fails", async () => {
     fixtures.voice.downloaded = true;
     const audioConstructor = vi.fn().mockImplementation(function AudioMock() {
@@ -487,6 +590,147 @@ describe("JapaneseReader inspector", () => {
     fireEvent.click(within(prompt).getByRole("button", { name: "Download voice · about 400 MB" }));
     expect(fixtures.voice.download).toHaveBeenCalledOnce();
     expect(screen.queryByRole("button", { name: "Speak 猫" })).not.toBeInTheDocument();
+  });
+
+  it("shows Jiten frequency beside JPDB and looks up an inflected verb by its dictionary form", async () => {
+    fixtures.study.showVocabularyFrequency = true;
+    const frequencyRequests: Array<{ expression: string; readings: string[] }> = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url === "/news/analyze") {
+        return new Response(JSON.stringify({
+          tokens: [{
+            start: 0,
+            end: 5,
+            surface: "触れさせて",
+            spelling: "触れる",
+            reading: "ふれる",
+            surfaceReading: "ふれさせて",
+            meaning: "to make touch",
+            meanings: ["to make touch"],
+            alternativeSpellings: [],
+            partsOfSpeech: ["v1", "vt"],
+            tokenType: "verb",
+          }],
+        }), { status: 200 });
+      }
+      if (url === "/api/study/vocabulary-frequency") {
+        const request = JSON.parse(String(init?.body)) as { expression: string; readings: string[] };
+        frequencyRequests.push(request);
+        return new Response(JSON.stringify({ result: {
+          provider: "jiten",
+          frequencyRank: 1_500,
+          wordId: 25,
+          readingIndex: 0,
+          matchedText: "触れる",
+          matchedReading: "ふれる",
+          sourceUrl: "https://jiten.moe/search?query=%E8%A7%A6%E3%82%8C%E3%82%8B",
+        } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ error: `Unexpected request: ${url}` }), { status: 500 });
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><JapaneseReader text="触れさせて" /></QueryClientProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /触れさせて, JPDB term/ }));
+    const inspector = screen.getByRole("complementary");
+    const provider = within(inspector).getByText("JPDB", { exact: true });
+    const frequency = await within(inspector).findByLabelText("Vocabulary frequency #1,500");
+
+    expect(frequency).toHaveTextContent("#1,500");
+    expect(provider.parentElement?.parentElement).toContainElement(frequency);
+    expect(frequency.closest("[title]")).toHaveAttribute("title", "Jiten frequency rank; lower is more common");
+    expect(frequencyRequests).toEqual([{ expression: "触れる", readings: ["ふれる"] }]);
+  });
+
+  it("keeps JPDB word frequency when the closest WaniKani match is a kanji subject", async () => {
+    fixtures.study.showVocabularyFrequency = true;
+    fixtures.dataset.subjects = [{
+      id: 11,
+      object: "kanji",
+      url: "",
+      data_updated_at: "",
+      data: {
+        level: 5,
+        created_at: "",
+        slug: "川",
+        document_url: "",
+        hidden_at: null,
+        characters: "川",
+        meanings: [{ meaning: "River", primary: true, accepted_answer: true }],
+        auxiliary_meanings: [],
+        readings: [{ reading: "かわ", primary: true, accepted_answer: true, type: "kunyomi" }],
+      },
+    }];
+    fixtures.dataset.assignments = [];
+    const frequencyRequests: Array<{ expression: string; readings: string[] }> = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url === "/news/analyze") {
+        return new Response(JSON.stringify({ tokens: [{
+          start: 0,
+          end: 1,
+          surface: "川",
+          spelling: "川",
+          reading: "かわ",
+          meaning: "river",
+          meanings: ["river"],
+          alternativeSpellings: [],
+          partsOfSpeech: ["n"],
+          tokenType: "vocabulary",
+        }] }), { status: 200 });
+      }
+      const request = JSON.parse(String(init?.body)) as { expression: string; readings: string[] };
+      frequencyRequests.push(request);
+      return new Response(JSON.stringify({ result: {
+        provider: "jiten",
+        frequencyRank: 777,
+        wordId: 26,
+        readingIndex: 0,
+        matchedText: "川",
+        matchedReading: "かわ",
+        sourceUrl: "https://jiten.moe/search?query=%E5%B7%9D",
+      } }), { status: 200 });
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><JapaneseReader text="川" /></QueryClientProvider>);
+
+    // The WaniKani fallback has the same label but is replaced when JPDB analysis finishes.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("JPDB parsing mapped"));
+    fireEvent.click(screen.getByRole("button", { name: /川, Locked WaniKani item/ }));
+
+    expect(await screen.findByLabelText("Vocabulary frequency #777")).toHaveTextContent("#777");
+    expect(frequencyRequests).toEqual([{ expression: "川", readings: ["かわ"] }]);
+  });
+
+  it("does not show or request word frequency for grammar tokens", async () => {
+    fixtures.study.showVocabularyFrequency = true;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url === "/news/analyze") {
+        return new Response(JSON.stringify({ tokens: [{
+          start: 0,
+          end: 1,
+          surface: "は",
+          spelling: "は",
+          reading: "は",
+          meaning: "topic marker",
+          meanings: ["topic marker"],
+          alternativeSpellings: [],
+          partsOfSpeech: ["prt"],
+          tokenType: "grammar",
+        }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ error: `Unexpected request: ${url}` }), { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><JapaneseReader text="は" /></QueryClientProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /は, JPDB term/ }));
+
+    expect(within(screen.getByRole("complementary")).queryByLabelText(/Vocabulary frequency/)).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
   });
 
   it("opens mapped and JPDB-only details on click without changing them on hover", async () => {

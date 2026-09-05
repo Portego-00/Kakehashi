@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ReactNode } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PreparedMangaImport } from "./manga-import";
 import type { ContentRecord } from "./types";
@@ -16,6 +16,20 @@ const fixtures = vi.hoisted(() => ({
   prepareMangaImport: vi.fn(),
   recognizeMangaSelection: vi.fn(),
   requestFullscreen: vi.fn(),
+  voice: {
+    checked: true,
+    supported: true,
+    downloaded: true,
+    activity: "idle" as "idle" | "downloading" | "synthesizing" | "playing",
+    activeSentence: null as string | null,
+    progress: null as number | null,
+    message: null as string | null,
+    error: null as string | null,
+    download: vi.fn(),
+    cancelDownload: vi.fn(),
+    play: vi.fn(),
+    stop: vi.fn(),
+  },
 }));
 
 vi.mock("next/link", () => ({
@@ -32,11 +46,28 @@ vi.mock("@/lib/session", () => ({
   useSession: () => ({ user: { data: { username: "reader-test" } } }),
 }));
 
-vi.mock("./JapaneseReader", () => ({
-  JapaneseReader: ({ text, appearance, ariaLabel, supplement }: { text: string; appearance?: string; ariaLabel?: string; supplement?: ReactNode }) => (
-    <div data-testid="japanese-reader-shell"><div data-testid="japanese-reader" aria-label={ariaLabel} data-appearance={appearance}>{text}</div>{supplement}</div>
-  ),
+vi.mock("@/features/speech/use-japanese-voice", () => ({
+  useJapaneseVoice: () => fixtures.voice,
 }));
+
+vi.mock("./JapaneseReader", async () => {
+  const { useState } = await vi.importActual<typeof import("react")>("react");
+  return {
+    JapaneseReader: ({ text, analysisContext, appearance, ariaLabel, supplement }: { text: string; analysisContext?: { text: string }; appearance?: string; ariaLabel?: string; supplement?: ReactNode }) => {
+      const [inspectorOpen, setInspectorOpen] = useState(false);
+      return <div data-testid="japanese-reader-shell">
+        <div data-testid="japanese-reader" aria-label={ariaLabel} data-analysis-text={analysisContext?.text} data-appearance={appearance}>
+          <button type="button" aria-label={`Inspect ${text}`} onClick={() => setInspectorOpen(true)}>{text}</button>
+        </div>
+        {inspectorOpen ? <aside aria-label="Word details">Recognized word details</aside> : null}
+        {supplement}
+      </div>;
+    },
+    useJapaneseReaderAnalysisContexts: (sources: Array<{ id: string; text: string }>) => new Map(
+      sources.map((source) => [source.id, { text: source.text, start: 0 }]),
+    ),
+  };
+});
 
 vi.mock("./MangaPageSelector", () => ({
   MangaPageSelector: ({ alt, disabled, onSelectionComplete, tooltip }: {
@@ -197,6 +228,16 @@ describe("manga library and reader", () => {
     fixtures.handles.clear();
     fixtures.jpdbApiKey = "";
     vi.clearAllMocks();
+    Object.assign(fixtures.voice, {
+      checked: true,
+      supported: true,
+      downloaded: true,
+      activity: "idle",
+      activeSentence: null,
+      progress: null,
+      message: null,
+      error: null,
+    });
     fixtures.decodeMangaImage.mockResolvedValue(undefined);
     vi.mocked(loadAsset).mockImplementation(async (assetId: string) => fixtures.assets.get(assetId) ?? null);
     vi.mocked(saveAsset).mockImplementation(async (assetId: string, asset: Blob) => { fixtures.assets.set(assetId, asset); });
@@ -1192,6 +1233,62 @@ describe("manga library and reader", () => {
     expect(screen.queryByText("Text recognized.")).not.toBeInTheDocument();
   });
 
+  it("plays the complete recognized Japanese text with the local voice and exposes cancel and stop states", async () => {
+    seedReader();
+    saveMangaOcrPage("manga-reader-test", 1, "既存テキスト");
+
+    const view = render(<MangaReader mangaId="manga-reader-test" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Play recognized Japanese text aloud" }));
+
+    expect(fixtures.voice.play).toHaveBeenCalledOnce();
+    expect(fixtures.voice.play).toHaveBeenCalledWith("既存テキスト");
+
+    Object.assign(fixtures.voice, { activity: "synthesizing", activeSentence: "既存テキスト" });
+    view.rerender(<MangaReader mangaId="manga-reader-test" />);
+    expect(screen.getByRole("button", { name: "Cancel recognized Japanese audio" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Cancel recognized Japanese audio" })).toHaveAttribute("data-state", "synthesizing");
+
+    Object.assign(fixtures.voice, { activity: "playing", activeSentence: "既存テキスト" });
+    view.rerender(<MangaReader mangaId="manga-reader-test" />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop recognized Japanese audio" }));
+    expect(fixtures.voice.stop).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Japanese voice setup beside the OCR result until the model is downloaded", async () => {
+    Object.assign(fixtures.voice, { downloaded: false });
+    seedReader();
+    saveMangaOcrPage("manga-reader-test", 1, "猫です");
+
+    render(<MangaReader mangaId="manga-reader-test" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Set up Japanese voice to read recognized text aloud" }));
+
+    const prompt = screen.getByRole("group", { name: "Download Japanese voice?" });
+    expect(prompt).toHaveTextContent("Download Supertonic 3 · F3 once and keep it in this browser (about 400 MB).");
+    fireEvent.click(screen.getByRole("button", { name: "Download voice · about 400 MB" }));
+    expect(fixtures.voice.download).toHaveBeenCalledOnce();
+    expect(fixtures.voice.play).not.toHaveBeenCalled();
+  });
+
+  it("shows voice recovery guidance when saved TTS assets were removed", async () => {
+    seedReader();
+    saveMangaOcrPage("manga-reader-test", 1, "猫です");
+    fixtures.voice.play.mockImplementationOnce(async () => {
+      Object.assign(fixtures.voice, {
+        downloaded: false,
+        error: "The saved Japanese voice is no longer available. Download it again.",
+      });
+      return false;
+    });
+
+    const view = render(<MangaReader mangaId="manga-reader-test" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Play recognized Japanese text aloud" }));
+    await act(async () => { await Promise.resolve(); });
+    view.rerender(<MangaReader mangaId="manga-reader-test" />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("The saved Japanese voice is no longer available. Download it again.");
+    expect(screen.getByRole("button", { name: "Set up Japanese voice to read recognized text aloud" })).toBeEnabled();
+  });
+
   it("automatically translates recognized text with the saved JPDB key", async () => {
     seedReader();
     fixtures.jpdbApiKey = "configured-jpdb-key";
@@ -1509,9 +1606,14 @@ describe("manga library and reader", () => {
     expect(progressTooltip).toHaveAttribute("data-busy", "true");
 
     await act(async () => { resolveRecognition?.("猫です"); });
-    await waitFor(() => expect(screen.getByTestId("selection-tooltip-よつばと！, page 1")).toHaveTextContent("猫です"));
-    expect(screen.getByTestId("selection-tooltip-よつばと！, page 1")).toHaveAttribute("data-busy", "false");
-    expect(screen.getByTestId("japanese-reader")).toHaveAttribute("data-appearance", "compact");
+    const resultTooltip = await screen.findByTestId("selection-tooltip-よつばと！, page 1");
+    await waitFor(() => expect(resultTooltip).toHaveTextContent("猫です"));
+    expect(resultTooltip).toHaveAttribute("data-busy", "false");
+    const fullscreenReader = within(resultTooltip).getByTestId("japanese-reader");
+    expect(fullscreenReader).toHaveAttribute("data-appearance", "compact");
+    expect(fullscreenReader).toHaveAttribute("data-analysis-text", "猫です");
+    fireEvent.click(within(resultTooltip).getByRole("button", { name: "Inspect 猫です" }));
+    expect(within(resultTooltip).getByRole("complementary", { name: "Word details" })).toHaveTextContent("Recognized word details");
 
     fireEvent.click(screen.getByRole("button", { name: "Close OCR result" }));
     expect(screen.queryByTestId("selection-tooltip-よつばと！, page 1")).not.toBeInTheDocument();

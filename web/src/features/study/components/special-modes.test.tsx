@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Assignment, Subject } from "@/types/wanikani";
 import { filterStudySubjects } from "../engine";
@@ -200,8 +200,10 @@ describe("Custom Lessons", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Rib Cage radical" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/rib-cage.svg");
+    const heading = screen.getByRole("heading", { name: "Rib Cage radical" });
+    expect(within(heading).getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/rib-cage.svg");
+    const details = screen.getByRole("region", { name: "Subject details" });
+    expect(within(details).getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/rib-cage.svg");
   });
 });
 

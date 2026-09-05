@@ -56,6 +56,78 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.9",
+    date: "2026-09-03",
+    changes: [
+      {
+        type: "feature",
+        title: "Multiple Choice Reviews",
+        description:
+          "Enable Multiple Choice in Review Settings to choose from similar readings and related meanings instead of typing.",
+      },
+      {
+        type: "feature",
+        title: "Audio Vocab",
+        description:
+          "Listen to WaniKani recordings or text-to-speech context sentences and recall the target word’s English meaning in Extra Study.",
+        link: {
+          route: "/audio-vocab",
+          label: "Open Audio Vocab",
+        },
+      },
+      {
+        type: "fix",
+        title: "JLPT Quiz Results",
+        description:
+          "Fixed a crash when finishing JLPT quizzes in the mobile app.",
+      },
+    ],
+  },
+  {
+    version: "1.4.8",
+    date: "2026-08-31",
+    changes: [
+      {
+        type: "feature",
+        title: "JLPT Quizzes",
+        description:
+          "Practice N5 through N1 with quick mixed-skill quizzes or timed mock exams, including listening, detailed results, and weak-area review.",
+        link: {
+          route: "/jlpt",
+          label: "Open JLPT Quizzes",
+        },
+      },
+      {
+        type: "feature",
+        title: "Personal Context Sentences",
+        description:
+          "Add your own Japanese and English examples from the + button in Context Sentences, with automatic translation, kana, audio, and dedicated review practice. Sentences are saved locally on this device.",
+      },
+      {
+        type: "feature",
+        title: "News Furigana Default",
+        description:
+          "News articles can now open with furigana hidden by default when using No Study Mode.",
+      },
+    ],
+  },
+  {
+    version: "1.4.7",
+    date: "2026-08-30",
+    changes: [
+      {
+        type: "feature",
+        title: "Word Search",
+        description:
+          "Find Japanese vocabulary hidden in a grid by matching kanji clues to kana readings, or kana clues to written words.",
+        link: {
+          route: "/word-search-config",
+          label: "Play Word Search",
+        },
+      },
+    ],
+  },
+  {
     version: "1.3.1",
     date: "2026-08-23",
     changes: [

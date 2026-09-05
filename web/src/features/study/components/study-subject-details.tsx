@@ -7,6 +7,7 @@ import { ExternalLink } from "lucide-react";
 import { DEFAULT_WEB_SETTINGS, type WebSettings } from "@/features/settings/settings";
 import { fetchImmersionExamples } from "@/features/study/immersion";
 import { SubjectDetailPanels, type SubjectDetailInitialTab } from "@/features/subjects/components/SubjectDetail";
+import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { wkCollection } from "@/lib/wanikani/client";
 import type { Assignment, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
@@ -79,9 +80,12 @@ export function StudySubjectDetails({
   return (
     <section id="study-item-details" className={styles.itemDetails} aria-labelledby="study-item-details-title">
       <header className={styles.itemDetailsHeader}>
-        <div>
-          <h3 id="study-item-details-title">Subject details</h3>
-          <p>Level {record.data.level} · {record.object.replace("_", " ")}</p>
+        <div className={styles.itemDetailsIdentity}>
+          <SubjectCharacter subject={record} className={styles.itemDetailsCharacter} imageTone="subject" eager />
+          <div>
+            <h3 id="study-item-details-title">Subject details</h3>
+            <p>Level {record.data.level} · {record.object.replace("_", " ")}</p>
+          </div>
         </div>
         <Link className={styles.itemDetailsLink} href={`/subjects/${record.id}`} target="_blank" rel="noopener noreferrer">
           <span>Open full subject</span>

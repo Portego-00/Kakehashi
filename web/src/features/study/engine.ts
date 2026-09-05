@@ -1,4 +1,6 @@
 import { toHiragana } from "wanakana";
+import { createAudioVocabCard } from "../../../../src/utils/audioVocabStudy";
+import type { PronunciationAudioVoicePreference } from "../../../../src/utils/pronunciationAudio";
 import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 import type { QuestionOrder, ReviewOrderSetting, ReviewTypeOrderSetting } from "@/features/settings/settings";
 import niaiData from "./data/niai-similar-kanji.json";
@@ -23,6 +25,7 @@ const SRS_INTERVAL_HOURS: Record<number, number> = { 1: 4, 2: 8, 3: 23, 4: 47, 5
 const HOUR_MS = 60 * 60 * 1000;
 
 export interface StudyQuestionGenerationOptions {
+  audioVocabVoice?: PronunciationAudioVoicePreference;
   random?: () => number;
   now?: Date;
   customReviewOrder?: ReviewOrderSetting;
@@ -52,6 +55,7 @@ export const DEFAULT_STUDY_FILTERS: StudyFilters = {
   listeningSource: "anime",
   animeSources: [ALL_ANIME_SOURCE],
   listeningAutoPlayAudio: true,
+  audioVocabSource: "word",
   writingMode: "guided",
   strokeLeniency: 1.5,
   wordLength: 5,
@@ -72,6 +76,7 @@ export const DEFAULT_STUDY_FILTERS: StudyFilters = {
   crosswordClueMode: "english",
   crosswordShowKanjiSolutions: false,
   crosswordPlayAudioOnCorrect: true,
+  wordSearchDirection: "kanji-to-kana",
 };
 
 export function normalizeMeaning(value: string): string {
@@ -90,7 +95,7 @@ export function normalizeReading(value: string): string {
 }
 
 export function checkAnswer(question: StudyQuestion, value: string): boolean {
-  const normalize = question.kind === "meaning" || question.kind === "kana-to-meaning" || question.kind === "listening" || question.kind === "listening-meaning"
+  const normalize = question.kind === "audio-vocab" || question.kind === "meaning" || question.kind === "kana-to-meaning" || question.kind === "listening" || question.kind === "listening-meaning"
     ? normalizeMeaning
     : question.kind === "similar-kanji" || question.kind === "kana-to-kanji" || question.kind === "context"
       ? (answer: string) => answer.normalize("NFKC").trim()
@@ -320,6 +325,29 @@ export function generateQuestions(mode: QuizModeId, dataset: StudyDataset, filte
   const random = options.random ?? Math.random;
   const now = options.now ?? legacyNow;
   if (mode === "custom-review") return generateCustomReviewQuestions(dataset, filters, options, random, now);
+  if (mode === "audio-vocab") {
+    const assignments = assignmentMap(dataset.assignments);
+    const selected = new Set(filters.selectedSubjectIds);
+    const candidates = filters.selectedListIds.length
+      ? shuffle(dataset.subjects.filter((subject) => {
+        if (!selected.has(subject.id) || subject.data.hidden_at) return false;
+        if (filters.useCustomLevelRange && (subject.data.level < filters.minLevel || subject.data.level > filters.maxLevel)) return false;
+        const assignment = assignments.get(subject.id);
+        if (assignment?.data.hidden) return false;
+        const group = srsGroupForStage(assignment?.data.srs_stage ?? 0);
+        return !group || filters.srsGroups.includes(group);
+      }), random)
+      : subjectsForMode(mode, dataset, filters, random, now);
+    return candidates.flatMap<StudyQuestion>((subject) => {
+      const card = createAudioVocabCard(subject, options.audioVocabVoice, filters.audioVocabSource);
+      return card ? [{
+        id: card.id, subjectId: card.subjectId, subjectType: subject.object, kind: "audio-vocab",
+        prompt: "Listen", promptLabel: "What does this word mean?", characters: card.characters,
+        reading: card.reading, acceptedAnswers: card.meanings, displayAnswer: card.meanings.join(", "),
+        audioUrl: card.audio?.url, audioVocabSentence: card.sentence?.ja, autoPlayAudio: filters.listeningAutoPlayAudio,
+      }] : [];
+    }).slice(0, filters.count);
+  }
 
   const questions: StudyQuestion[] = [];
   const subjects = subjectsForMode(mode, dataset, filters, random, now);
@@ -541,6 +569,7 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
     listeningSource: source.listeningSource === "anime" ? "anime" : "wanikani",
     animeSources: animeSources.length ? animeSources : [ALL_ANIME_SOURCE],
     listeningAutoPlayAudio: source.listeningAutoPlayAudio !== false,
+    audioVocabSource: source.audioVocabSource === "sentence" ? "sentence" : "word",
     writingMode: source.writingMode === "freehand" ? "freehand" : "guided",
     strokeLeniency: Number.isFinite(source.strokeLeniency)
       ? Math.min(2.5, Math.max(0.8, source.strokeLeniency!))
@@ -563,5 +592,6 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
     crosswordClueMode: source.crosswordClueMode === "kanji" || source.crosswordClueMode === "english_kanji" ? source.crosswordClueMode : "english",
     crosswordShowKanjiSolutions: source.crosswordShowKanjiSolutions === true,
     crosswordPlayAudioOnCorrect: source.crosswordPlayAudioOnCorrect !== false,
+    wordSearchDirection: source.wordSearchDirection === "kana-to-kanji" ? "kana-to-kanji" : "kanji-to-kana",
   };
 }

@@ -201,6 +201,7 @@ export default function NewsDetailScreen() {
   const subjectColors = useSubjectColors();
   const { userData } = useAuthStore();
   const {
+    hideNewsFuriganaByDefault,
     hideVocabularyTooltipMeanings,
     hideVocabularyTooltipReadings,
     newsDefaultStudyMode,
@@ -209,10 +210,12 @@ export default function NewsDetailScreen() {
   const soundRef = useRef<AudioSound | null>(null);
   const audioPlaybackRequestIdRef = useRef(0);
   const isScreenActiveRef = useRef(true);
+  const hasUserToggledFuriganaRef = useRef(false);
+  const showFuriganaRef = useRef(!hideNewsFuriganaByDefault);
   const hasUserSelectedStudyModeRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
-  const [showFurigana, setShowFurigana] = useState(true);
+  const [showFurigana, setShowFurigana] = useState(showFuriganaRef.current);
   const [studyMode, setStudyMode] =
     useState<StudyModePreference>(newsDefaultStudyMode);
   const [hasStoredJpdbApiKey, setHasStoredJpdbApiKey] = useState(false);
@@ -356,6 +359,15 @@ export default function NewsDetailScreen() {
       isActive = false;
     };
   }, [id, source]);
+
+  useEffect(() => {
+    if (hasUserToggledFuriganaRef.current) {
+      return;
+    }
+    const defaultVisibility = !hideNewsFuriganaByDefault;
+    showFuriganaRef.current = defaultVisibility;
+    setShowFurigana(defaultVisibility);
+  }, [hideNewsFuriganaByDefault]);
 
   useEffect(() => {
     if (hasUserSelectedStudyModeRef.current) {
@@ -978,15 +990,21 @@ export default function NewsDetailScreen() {
     await cleanupSound();
   };
 
-  const toggleFurigana = () => {
-    const newState = !showFurigana;
-    setShowFurigana(newState);
+  const applyFuriganaVisibilityToWebView = (visible: boolean) => {
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`
-            document.body.classList.toggle('hide-furigana', ${!newState});
+            document.body.classList.toggle('hide-furigana', ${!visible});
             true;
         `);
     }
+  };
+
+  const toggleFurigana = () => {
+    hasUserToggledFuriganaRef.current = true;
+    const nextVisibility = !showFuriganaRef.current;
+    showFuriganaRef.current = nextVisibility;
+    setShowFurigana(nextVisibility);
+    applyFuriganaVisibilityToWebView(nextVisibility);
   };
 
   const openJpdbApiKeySettings = useCallback(() => {
@@ -1941,7 +1959,7 @@ export default function NewsDetailScreen() {
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>${css}</style>
       </head>
-      <body>
+      <body class="${hideNewsFuriganaByDefault ? "hide-furigana" : ""}">
         <h1>${escapeHtml(item.title)}</h1>
         ${htmlContent}
       </body>
@@ -2214,7 +2232,10 @@ export default function NewsDetailScreen() {
           originWhitelist={["*"]}
           source={{ html }}
           style={{ flex: 1, backgroundColor: "transparent" }}
-          onLoadEnd={() => setIsWebViewLoaded(true)}
+          onLoadEnd={() => {
+            setIsWebViewLoaded(true);
+            applyFuriganaVisibilityToWebView(showFuriganaRef.current);
+          }}
         />
       )}
 
@@ -2600,9 +2621,12 @@ const styles = StyleSheet.create({
   },
   inlineChipWrapper: {
     position: "relative",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipWrapperWithBadge: {
-    marginRight: 6,
+    marginRight: 2,
   },
   inlineChip: {
     position: "relative",
@@ -2613,6 +2637,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
     justifyContent: "center",
     alignItems: "center",
+    flexDirection: "row",
     borderWidth: 1.5,
     borderColor: "rgba(255, 255, 255, 0.4)",
     shadowColor: "rgba(0,0,0,0.3)",
@@ -2621,6 +2646,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     overflow: "visible",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipTitle: {
     minHeight: 38,
@@ -2633,6 +2661,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     includeFontPadding: false,
     textAlignVertical: "center",
+    flexShrink: 1,
   },
   inlineChipJapaneseText: {
     fontWeight: "normal",
@@ -2642,12 +2671,11 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
   levelBadgeChip: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 18,
+    minHeight: 18,
+    marginLeft: 4,
+    flexShrink: 0,
+    borderRadius: 999,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
@@ -2731,11 +2759,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     marginLeft: 8,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   tooltipLevelBadgeText: {
     color: "white",
     fontSize: 11,
     fontWeight: "bold",
+    flexShrink: 1,
   },
   tooltipPopupContent: {
     padding: 16,
@@ -2770,10 +2801,13 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   tooltipKanjiChipText: {
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 1,
   },
   tooltipPopupInflectionNote: {
     fontSize: 12,

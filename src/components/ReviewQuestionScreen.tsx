@@ -72,6 +72,8 @@ import {
   type DownloadedJitaiFont,
 } from "../utils/jitaiFonts";
 import { pickPreferredPronunciationAudios } from "../utils/pronunciationAudio";
+import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
+import { useIsNoteSubjectPreviewOpen } from "../utils/note-subject-preview-state";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
 import {
@@ -100,14 +102,22 @@ import {
 } from "../utils/reviewSubmissionGuard";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
+import {
+  createReviewAnswerChoices,
+  type ReviewAnswerChoice,
+} from "../utils/review-multiple-choice";
 import KanjiDetails from "./KanjiDetails";
+import ReviewAnswerChoices from "./review-answer-choices";
 import RadicalDetails from "./RadicalDetails";
 import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
 import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
-import { FormattedNoteEditor } from "./formatted-note";
+import {
+  FormattedNoteEditor,
+  type FormattedNoteEditorHandle,
+} from "./formatted-note";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -220,6 +230,8 @@ interface ReviewQuestionProps {
   isLessonFlow?: boolean;
   // When provided, overrides the central prompt display text (e.g., show meaning instead of characters)
   overridePromptText?: string;
+  // Replaces the written prompt with recording controls for audio-only recall.
+  audioPrompt?: React.ReactNode;
   // Optional subtext shown below the override prompt (e.g., alternative meanings)
   overridePromptSubtext?: string;
   // Optional style hint when override prompt is Japanese text (e.g., kana prompt).
@@ -1082,6 +1094,7 @@ export default function ReviewQuestionScreen({
   forceDisableAnkiGrouping = false,
   isLessonFlow = false,
   overridePromptText,
+  audioPrompt,
   overridePromptSubtext,
   overridePromptUsesJapaneseFont = false,
   overridePausedCorrectAnswerText,
@@ -1109,6 +1122,8 @@ export default function ReviewQuestionScreen({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { apiToken, userData } = useAuthStore();
   const {
+    reviewMultipleChoiceEnabled,
+    setReviewMultipleChoiceEnabled,
     ankiCardMode,
     ankiGroupQuestions,
     ankiCardModeScope,
@@ -1175,6 +1190,38 @@ export default function ReviewQuestionScreen({
       ankiGroupQuestions;
   const effectiveAnkiButtonlessMode =
     effectiveAnkiCardMode && ankiButtonlessMode;
+  const supportsMultipleChoice =
+    questionType === "meaning" ||
+    (!acceptCharactersAsCorrectForReading &&
+      !requireSubjectCharactersForReading &&
+      !customAcceptedReadingAnswers?.length);
+  const usesMultipleChoice = Boolean(
+    reviewMultipleChoiceEnabled &&
+      !effectiveAnkiCardMode &&
+      supportsMultipleChoice,
+  );
+  const [choiceSubjects, setChoiceSubjects] = useState<WKSubject[] | null>(null);
+  const [choiceSeed] = useState(() => String(Math.random()));
+  const [selectedChoice, setSelectedChoice] = useState<{
+    questionKey: string;
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!usesMultipleChoice || choiceSubjects !== null) return;
+    let cancelled = false;
+    void getAllSubjects()
+      .then((subjects) => {
+        if (!cancelled) setChoiceSubjects(subjects);
+      })
+      .catch(() => {
+        if (!cancelled) setChoiceSubjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [usesMultipleChoice, choiceSubjects]);
+
   const [userAnswer, setUserAnswer] = useState("");
   const [answered, setAnswered] = useState(false);
   const [answerResult, setAnswerResult] = useState<AnswerCheckerResult | null>(
@@ -1214,6 +1261,10 @@ export default function ReviewQuestionScreen({
     useState("");
   const [studyMaterialNoteModalVisible, setStudyMaterialNoteModalVisible] =
     useState(false);
+  const studyMaterialNoteEditorRef =
+    useRef<FormattedNoteEditorHandle>(null);
+  const isScreenFocused = useOptionalScreenIsFocused();
+  const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
   const [localStudyMaterials, setLocalStudyMaterials] = useState<
@@ -1299,25 +1350,38 @@ export default function ReviewQuestionScreen({
     };
   }, []);
 
+  // Session parents recreate subject wrappers during progress updates. Keep the
+  // fallback current without restarting paused-detail hydration for the same ID.
+  const latestReviewSubjectRef = useRef(item.subject);
+  useEffect(() => {
+    latestReviewSubjectRef.current = item.subject;
+  }, [item.subject]);
+  const needsPausedReviewDetails =
+    effectiveShowAnswerStopSubjectDetails &&
+    !effectiveAnkiCardMode &&
+    (isPausedOnWrong || isPausedOnCloseAnswer || isPausedOnCorrect);
+
   useEffect(() => {
     let cancelled = false;
 
     setReviewDetailSubject(null);
     setReviewDetailRelatedSubjects(EMPTY_REVIEW_DETAIL_RELATED_SUBJECTS);
 
-    if (!effectiveShowAnswerStopSubjectDetails) {
+    if (!needsPausedReviewDetails) {
       return () => {
         cancelled = true;
       };
     }
 
     const loadReviewDetailRelatedSubjects = async () => {
+      const currentSubject = latestReviewSubjectRef.current;
       const cachedSubject = normalizeCachedSubject(
-        await getSubjectById(item.subject.id),
+        await getSubjectById(currentSubject.id),
       );
-      const detailSubject = cachedSubject ?? item.subject;
+      if (cancelled) return;
+      const detailSubject = cachedSubject ?? latestReviewSubjectRef.current;
 
-      if (!cancelled && cachedSubject) {
+      if (cachedSubject) {
         setReviewDetailSubject(cachedSubject);
       }
 
@@ -1334,6 +1398,7 @@ export default function ReviewQuestionScreen({
         loadCachedSubjectsByIds(componentIds),
         loadCachedSubjectsByIds(amalgamationIds),
       ]);
+      if (cancelled) return;
 
       let visuallySimilarSubjects: WKSubject[] = [];
       if (detailSubject.object === "kanji") {
@@ -1371,9 +1436,8 @@ export default function ReviewQuestionScreen({
       cancelled = true;
     };
   }, [
-    item.subject,
     item.subject.id,
-    effectiveShowAnswerStopSubjectDetails,
+    needsPausedReviewDetails,
     visuallySimilarKanjiSource,
   ]);
 
@@ -1538,6 +1602,26 @@ export default function ReviewQuestionScreen({
       ? "Meaning & Reading"
       : questionTypeDisplayLabel;
   const currentQuestionKey = `${item.id}:${questionType}:${currentItem}:${questionOccurrenceId}`;
+  const answerChoices = useMemo(
+    () => usesMultipleChoice && choiceSubjects !== null
+      ? createReviewAnswerChoices({
+          subject,
+          questionType,
+          subjects: choiceSubjects,
+          meaningSynonyms: localStudyMaterials?.meaning_synonyms,
+          seed: `${choiceSeed}:${currentQuestionKey}`,
+        })
+      : [],
+    [usesMultipleChoice, choiceSubjects, subject, questionType,
+      localStudyMaterials?.meaning_synonyms, choiceSeed, currentQuestionKey],
+  );
+  const showMultipleChoiceAnswers = usesMultipleChoice && answerChoices.length === 4;
+  const isLoadingChoices = usesMultipleChoice && choiceSubjects === null;
+  const hideTypedAnswerInput = showMultipleChoiceAnswers || isLoadingChoices;
+  const currentSelectedChoice = selectedChoice?.questionKey === currentQuestionKey
+    ? selectedChoice.text
+    : undefined;
+
   const finishQuestionOccurrence = useCallback(() => {
     if (
       !tryAdvanceQuestionOccurrence(
@@ -1606,7 +1690,7 @@ export default function ReviewQuestionScreen({
     () => (contextSentencesHint ?? []).slice(0, contextHintMaxItems),
     [contextHintMaxItems, contextSentencesHint],
   );
-  const hasContextHint = displayedContextSentencesHint.length > 0;
+  const hasContextHint = !audioPrompt && displayedContextSentencesHint.length > 0;
   const isContextHintVisible =
     hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
   const shouldShowReviewItemMetadataInLayout =
@@ -2152,9 +2236,9 @@ export default function ReviewQuestionScreen({
     isVoiceSubmittingRef.current = false;
     isVoiceRetryPendingRef.current = false;
     latestVoiceResultsRef.current = [];
-    if (effectiveAnkiCardMode) {
-      // When transitioning from keyboard mode -> Anki mode, explicitly dismiss
-      // any focused text input so the first Anki tap is not consumed by blur.
+    if (effectiveAnkiCardMode || usesMultipleChoice) {
+      // Dismiss the keyboard before switching to tap-based answers so the first
+      // answer tap is not consumed by blur.
       pausedShortcutInputRef.current?.blur();
       Keyboard.dismiss();
     }
@@ -2173,6 +2257,7 @@ export default function ReviewQuestionScreen({
     setTimeout(() => {
       if (!mountedRef.current) return;
       setUserAnswer("");
+      setSelectedChoice(null);
       setAnswered(false);
       setAnswerResult(null);
       setRetryCount(0);
@@ -2210,7 +2295,7 @@ export default function ReviewQuestionScreen({
         kanaInputRef.current.clearInput();
       }
       // Restore focus to avoid keyboard flicker
-      if (wasFocused && !effectiveAnkiCardMode) {
+      if (wasFocused && !effectiveAnkiCardMode && !usesMultipleChoice) {
         const focusDelay = Platform.OS === "android" ? ANDROID_AUTOFOCUS_DELAY_MS : 0;
         if (focusDelay > 0) {
           setTimeout(() => {
@@ -2231,6 +2316,7 @@ export default function ReviewQuestionScreen({
     currentQuestionKey,
     isVoiceReviewEnabled,
     effectiveAnkiCardMode,
+    usesMultipleChoice,
     shakeAnimation,
     feedbackOpacity,
     ankiContainerHeight,
@@ -2312,13 +2398,14 @@ export default function ReviewQuestionScreen({
   );
 
   useEffect(() => {
-    if (navigatingToDetail) {
+    if (!isScreenFocused || navigatingToDetail) {
       pausedShortcutInputRef.current?.blur();
       return;
     }
 
     if (
       studyMaterialNoteModalVisible ||
+      noteSubjectPreviewOpen ||
       (!isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect)
     ) {
       pausedShortcutInputRef.current?.blur();
@@ -2340,14 +2427,18 @@ export default function ReviewQuestionScreen({
     isPausedOnWrong,
     isPausedOnCloseAnswer,
     isPausedOnCorrect,
+    isScreenFocused,
     navigatingToDetail,
+    noteSubjectPreviewOpen,
     studyMaterialNoteModalVisible,
   ]);
 
   useEffect(() => {
     if (
       !effectiveAnkiCardMode ||
+      !isScreenFocused ||
       navigatingToDetail ||
+      noteSubjectPreviewOpen ||
       studyMaterialNoteModalVisible
     ) {
       ankiShortcutInputRef.current?.blur();
@@ -2367,7 +2458,9 @@ export default function ReviewQuestionScreen({
   }, [
     currentQuestionKey,
     effectiveAnkiCardMode,
+    isScreenFocused,
     navigatingToDetail,
+    noteSubjectPreviewOpen,
     studyMaterialNoteModalVisible,
   ]);
 
@@ -2727,7 +2820,10 @@ export default function ReviewQuestionScreen({
     pausedShortcutInputRef.current?.blur();
   }, []);
 
-  const handleSubmitAnswer = async (providedAnswer?: string) => {
+  const handleSubmitAnswer = async (
+    providedAnswer?: string,
+    choice?: ReviewAnswerChoice,
+  ) => {
     if (answered || !mountedRef.current) return;
     if (
       !tryStartQuestionSubmission(
@@ -2738,6 +2834,10 @@ export default function ReviewQuestionScreen({
       return;
     }
 
+    if (choice) {
+      setSelectedChoice({ questionKey: currentQuestionKey, text: choice.text });
+      setUserAnswer(choice.text);
+    }
     const isVoiceSubmission = typeof providedAnswer === "string";
     let shouldRefocusInput = !isVoiceSubmission;
 
@@ -2775,34 +2875,38 @@ export default function ReviewQuestionScreen({
     }
 
     // Needed for the single-kanji vocabulary warning when users input a kanji reading.
-    if (questionType === "reading" && isSingleKanjiVocabularySubject(item.subject)) {
+    if (!choice && questionType === "reading" && isSingleKanjiVocabularySubject(item.subject)) {
       await ensureVoiceReadingLookupLoaded();
     }
 
-    // Check answer using the answer checker
-    let result = checkAnswerWithDetails(
-      answer,
-      item.subject,
-      questionType,
-      answerCheckStudyMaterials,
-      questionType === "reading"
-        ? {
-            singleKanjiReadings:
-              voiceReadingLookupRef.current?.singleKanjiReadings,
-            acceptAnyKanjiOnyomiReading,
-          }
-        : undefined
-    );
+    // Choices have exact grading: a deliberately similar distractor is not a typo.
+    let result = choice
+      ? (choice.isCorrect ? AnswerCheckerResult.Precise : AnswerCheckerResult.Incorrect)
+      : checkAnswerWithDetails(
+          answer,
+          item.subject,
+          questionType,
+          answerCheckStudyMaterials,
+          questionType === "reading"
+            ? {
+                singleKanjiReadings:
+                  voiceReadingLookupRef.current?.singleKanjiReadings,
+                acceptAnyKanjiOnyomiReading,
+              }
+            : undefined,
+        );
 
-    result = resolveReadingModeResult({
-      result,
-      answer,
-      questionType,
-      acceptCharactersAsCorrectForReading,
-      requireSubjectCharactersForReading,
-      subjectCharacters: item.subject.data.characters,
-      acceptedReadingAnswers: customAcceptedReadingAnswers,
-    });
+    if (!choice) {
+      result = resolveReadingModeResult({
+        result,
+        answer,
+        questionType,
+        acceptCharactersAsCorrectForReading,
+        requireSubjectCharactersForReading,
+        subjectCharacters: item.subject.data.characters,
+        acceptedReadingAnswers: customAcceptedReadingAnswers,
+      });
+    }
 
     // Remove legacy override that was incorrectly marking vocabulary readings as correct for kanji
 
@@ -3405,21 +3509,33 @@ export default function ReviewQuestionScreen({
     setStudyMaterialNoteModalVisible(false);
   }, [isSavingStudyMaterialNote]);
 
+  const handleStudyMaterialNoteModalRequestClose = useCallback(() => {
+    if (studyMaterialNoteEditorRef.current?.closeLinkPicker()) return;
+    closeStudyMaterialNoteModal();
+  }, [closeStudyMaterialNoteModal]);
+
   const handleSaveStudyMaterialNote = useCallback(async () => {
     if (!apiToken || isSavingStudyMaterialNote) {
       return;
     }
 
-    const subjectId = item.subject.id;
-    const updates =
-      editingStudyMaterialNoteType === "meaning"
-        ? { meaning_note: editingStudyMaterialNoteText }
-        : { reading_note: editingStudyMaterialNoteText };
-
     setIsSavingStudyMaterialNote(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
+      const currentNoteText =
+        (await studyMaterialNoteEditorRef.current?.flush()) ??
+        editingStudyMaterialNoteText;
+      if (currentNoteText !== editingStudyMaterialNoteText) {
+        setEditingStudyMaterialNoteText(currentNoteText);
+      }
+
+      const subjectId = item.subject.id;
+      const updates =
+        editingStudyMaterialNoteType === "meaning"
+          ? { meaning_note: currentNoteText }
+          : { reading_note: currentNoteText };
+
       const studyMaterialsResponse = await getStudyMaterials(
         apiToken,
         { subject_ids: [subjectId] },
@@ -3463,7 +3579,7 @@ export default function ReviewQuestionScreen({
       onStudyMaterialNoteUpdated?.(
         subjectId,
         editingStudyMaterialNoteType,
-        editingStudyMaterialNoteText,
+        currentNoteText,
       );
       setStudyMaterialNoteModalVisible(false);
     } catch (error) {
@@ -3837,7 +3953,7 @@ export default function ReviewQuestionScreen({
       visible={studyMaterialNoteModalVisible}
       transparent
       animationType="fade"
-      onRequestClose={closeStudyMaterialNoteModal}
+      onRequestClose={handleStudyMaterialNoteModalRequestClose}
     >
       <KeyboardAvoidingView
         style={styles.studyMaterialNoteModalOverlay}
@@ -3880,6 +3996,7 @@ export default function ReviewQuestionScreen({
           </View>
 
           <FormattedNoteEditor
+            ref={studyMaterialNoteEditorRef}
             key={`${editingStudyMaterialNoteType}:${studyMaterialNoteModalVisible}`}
             style={[
               styles.studyMaterialNoteInput,
@@ -4128,6 +4245,9 @@ export default function ReviewQuestionScreen({
 
   const tryHandlePausedShortcutKey = (pressedKey: string): boolean => {
     if (
+      !isScreenFocused ||
+      noteSubjectPreviewOpen ||
+      studyMaterialNoteModalVisible ||
       (!isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect) ||
       navigatingToDetail
     ) {
@@ -4450,7 +4570,9 @@ export default function ReviewQuestionScreen({
   const tryHandleAnkiShortcutKey = (pressedKey: string): boolean => {
     if (
       !effectiveAnkiCardMode ||
+      !isScreenFocused ||
       navigatingToDetail ||
+      noteSubjectPreviewOpen ||
       studyMaterialNoteModalVisible ||
       pendingAnkiSubmitCallbackRef.current
     ) {
@@ -4570,7 +4692,10 @@ export default function ReviewQuestionScreen({
   };
 
   const canToggleJitaiFont =
-    jitaiEnabled && !overridePromptText && Boolean(subject.data.characters);
+    jitaiEnabled &&
+    !audioPrompt &&
+    !overridePromptText &&
+    Boolean(subject.data.characters);
   const showReviewSearchButton = reviewSearchButtonEnabled && !isLessonFlow;
   const showWrapUpButton = isWrapUpAvailable && !isLessonFlow && !isWrapUpMode;
   const showWrapUpIndicator = isWrapUpMode && !isLessonFlow;
@@ -5608,7 +5733,7 @@ export default function ReviewQuestionScreen({
         {/* Character display (or overridden prompt) */}
         <ScrollView
           key={currentQuestionKey}
-          style={styles.characterScrollView}
+          style={[styles.characterScrollView, hideTypedAnswerInput && !isPausedOnAnswer && { minHeight: Math.max(110, windowHeight * 0.17) }]}
           contentContainerStyle={[
             styles.characterWrapper,
             isContextHintVisible && styles.characterWrapperWithOpenHint,
@@ -5622,7 +5747,9 @@ export default function ReviewQuestionScreen({
           showsVerticalScrollIndicator={isContextHintVisible}
         >
           <View style={styles.characterContainer}>
-            {overridePromptText ? (
+            {audioPrompt ? (
+              audioPrompt
+            ) : overridePromptText ? (
               <>
                 <Text
                   style={[
@@ -5653,7 +5780,8 @@ export default function ReviewQuestionScreen({
             )}
           </View>
 
-          {!isLessonFlow &&
+          {!audioPrompt &&
+            !isLessonFlow &&
             (subject.object === "vocabulary" ||
               subject.object === "kana_vocabulary") && (
               <VocabularyFrequencyBadge subject={subject} />
@@ -6163,6 +6291,7 @@ export default function ReviewQuestionScreen({
             }
             style={[
               styles.answerContainer,
+              hideTypedAnswerInput && !isPausedOnAnswer && { flexShrink: 1 },
               Platform.OS === "android" &&
                 androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift },
               shouldShowPausedSubjectDetails && [
@@ -6222,6 +6351,26 @@ export default function ReviewQuestionScreen({
                   </View>
                 </TouchableOpacity>
               </Animated.View>
+            )}
+
+            {supportsMultipleChoice && !isPausedOnAnswer && (
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingBottom: 8 }}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={usesMultipleChoice ? "Switch to typing" : "Use multiple choice"}
+                  disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setReviewMultipleChoiceEnabled(!reviewMultipleChoiceEnabled);
+                  }}
+                  style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12 }}
+                >
+                  <Ionicons name={usesMultipleChoice ? "keypad-outline" : "list-outline"} size={18} color={showBackgroundColor ? "white" : theme.textColor} />
+                  <Text style={{ color: showBackgroundColor ? "white" : theme.textColor, fontSize: 14, fontWeight: "600" }}>
+                    {usesMultipleChoice ? "Type instead" : "Multiple choice"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {!shouldUsePausedSubjectDetailsMode &&
@@ -6513,12 +6662,13 @@ export default function ReviewQuestionScreen({
             <Animated.View
               style={[
                 styles.inputContainer,
+                hideTypedAnswerInput && !isPausedOnAnswer && { flexShrink: 1 },
                 shakeStyle,
                 shouldShowPausedSubjectDetails &&
                   styles.pausedAnswerControlArea,
               ]}
             >
-              <Animated.View style={[styles.inputGlowContainer, inputGlowStyle]}>
+              <Animated.View style={[styles.inputGlowContainer, inputGlowStyle, hideTypedAnswerInput && !isPausedOnAnswer && { flexShrink: 1 }]}>
                 <View
                   style={[
                     styles.banner,
@@ -6554,6 +6704,30 @@ export default function ReviewQuestionScreen({
                   </Text>
                 </View>
 
+                {hideTypedAnswerInput && !isPausedOnAnswer ? (
+                  <View
+                    style={[
+                      styles.multipleChoiceContentContainer,
+                      theme.isDark && { backgroundColor: "#000000" },
+                    ]}
+                  >
+                    {isLoadingChoices ? (
+                      <Text style={{ padding: 20, textAlign: "center", color: theme.textSecondary }}>
+                        Preparing choices…
+                      </Text>
+                    ) : (
+                      <ReviewAnswerChoices
+                        choices={answerChoices}
+                        selectedAnswer={currentSelectedChoice}
+                        disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}
+                        isReading={questionType === "reading"}
+                        fontSize={Math.max(18, reviewAnswerInputFontSize)}
+                        maxHeight={Math.max(160, windowHeight * 0.42)}
+                        onSelect={(choice) => { void handleSubmitAnswer(choice.text, choice); }}
+                      />
+                    )}
+                  </View>
+                ) : (
                 <View style={styles.inputWrapper}>
                   <KanaInput
                     ref={kanaInputRef}
@@ -6675,27 +6849,36 @@ export default function ReviewQuestionScreen({
                     />
                   </TouchableOpacity>
                 </View>
+                )}
               </Animated.View>
+              {usesMultipleChoice && !isLoadingChoices && !showMultipleChoiceAnswers && !isPausedOnAnswer && (
+                <Text style={{ paddingTop: 8, color: showBackgroundColor ? "white" : theme.textSecondary, fontSize: 13, textAlign: "center" }}>
+                  Not enough distinct choices for this question. Type your answer.
+                </Text>
+              )}
 
               {shouldShowPausedSubjectDetails && renderPausedDetailsCorrectAnswer()}
 
               {shouldShowPausedSubjectDetails && renderPausedDetailsActions()}
 
-              {isPausedOnAnswer && !studyMaterialNoteModalVisible && (
-                <TextInput
-                  ref={pausedShortcutInputRef}
-                  value=""
-                  onChangeText={() => {}}
-                  onKeyPress={handlePausedShortcutKeyPress}
-                  onSubmitEditing={handleInputSubmitEditing}
-                  style={styles.hiddenPausedShortcutInput}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  blurOnSubmit={false}
-                  showSoftInputOnFocus={false}
-                  caretHidden
-                />
-              )}
+              {isPausedOnAnswer &&
+                isScreenFocused &&
+                !noteSubjectPreviewOpen &&
+                !studyMaterialNoteModalVisible && (
+                  <TextInput
+                    ref={pausedShortcutInputRef}
+                    value=""
+                    onChangeText={() => {}}
+                    onKeyPress={handlePausedShortcutKeyPress}
+                    onSubmitEditing={handleInputSubmitEditing}
+                    style={styles.hiddenPausedShortcutInput}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    blurOnSubmit={false}
+                    showSoftInputOnFocus={false}
+                    caretHidden
+                  />
+                )}
 
               {isVoiceReviewEnabled &&
                 (isVoiceRecognizing || voiceError || voiceInterimTranscript) && (
@@ -6782,24 +6965,26 @@ export default function ReviewQuestionScreen({
             />
           )}
 
-        {effectiveAnkiCardMode && (
-          <TextInput
-            ref={ankiShortcutInputRef}
-            value=""
-            onChangeText={() => {}}
-            onKeyPress={handleAnkiShortcutKeyPress}
-            onSubmitEditing={handleAnkiShortcutSubmitEditing}
-            style={styles.hiddenPausedShortcutInput}
-            autoCorrect={false}
-            autoCapitalize="none"
-            blurOnSubmit={false}
-            showSoftInputOnFocus={false}
-            caretHidden
-            accessible={false}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-        )}
+        {effectiveAnkiCardMode &&
+          isScreenFocused &&
+          !noteSubjectPreviewOpen && (
+            <TextInput
+              ref={ankiShortcutInputRef}
+              value=""
+              onChangeText={() => {}}
+              onKeyPress={handleAnkiShortcutKeyPress}
+              onSubmitEditing={handleAnkiShortcutSubmitEditing}
+              style={styles.hiddenPausedShortcutInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              blurOnSubmit={false}
+              showSoftInputOnFocus={false}
+              caretHidden
+              accessible={false}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+          )}
       </KeyboardAvoidingView>
       {renderStudyMaterialNoteModal()}
     </SafeAreaView>
@@ -7021,6 +7206,14 @@ const styles = StyleSheet.create({
         elevation: 15,
       },
     }),
+  },
+  multipleChoiceContentContainer: {
+    flexShrink: 1,
+    backgroundColor: "white",
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    overflow: "hidden",
+    marginTop: -1,
   },
   submitButtonInside: {
     position: "absolute",
@@ -7276,6 +7469,8 @@ const styles = StyleSheet.create({
   studyMaterialNoteModalContent: {
     width: "100%",
     maxWidth: 460,
+    maxHeight: "90%",
+    flexShrink: 1,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,

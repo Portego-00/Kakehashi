@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createListRepository } from "@/features/subjects/lists";
 import type { StudyMaterial, Subject } from "@/types/wanikani";
 import { ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
 
@@ -19,6 +20,11 @@ const voiceMock = vi.hoisted(() => ({
   play: vi.fn(),
   stop: vi.fn(),
 }));
+
+afterEach(() => {
+  window.localStorage.clear();
+  vi.unstubAllGlobals();
+});
 
 vi.mock("@/lib/wanikani/client", () => ({
   wkCollection: wkCollectionMock,
@@ -94,6 +100,23 @@ const audioSubject: Subject = {
     ],
   },
 };
+
+const kanaVocabularySubject = {
+  ...audioSubject,
+  id: 89,
+  object: "kana_vocabulary",
+  data: {
+    ...audioSubject.data,
+    slug: "おはよう",
+    characters: "おはよう",
+    meanings: [{ meaning: "Good Morning", primary: true, accepted_answer: true }],
+    readings: [{ reading: "おはよう", primary: true, accepted_answer: true }],
+    meaning_mnemonic: "From <reading>Ohio</reading>, you shout <vocabulary>good morning</vocabulary>.",
+    reading_mnemonic: "This internal reading note should not create a separate tab.",
+    context_sentences: [{ ja: "おはよう、よく眠れた？", en: "Good morning, did you sleep well?" }],
+    pronunciation_audios: [],
+  },
+} as Subject;
 
 const imageRadical = {
   id: 876,
@@ -219,6 +242,105 @@ describe("subject detail media buttons", () => {
     expect(container.querySelector("audio[controls]")).not.toBeInTheDocument();
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
+
+  it("keeps kana vocabulary to Meaning and Context even when reading data exists", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={kanaVocabularySubject}
+      materialLoading={false}
+      materialsKey={["study-material", kanaVocabularySubject.id]}
+      relatedSubjects={[]}
+      pitchAccents={[]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: true, showImmersionExamples: false, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/subjects"
+      initialTab="reading"
+    /></QueryClientProvider>);
+
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Meaning", "Context"]);
+    expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: "Reading" })).not.toBeInTheDocument();
+  });
+
+  it("renders WaniKani mnemonic tags and numeric entities on ordinary subject pages", () => {
+    const taggedSubject = {
+      ...audioSubject,
+      data: {
+        ...audioSubject.data,
+        meaning_mnemonic: "&#x41;&#x20;<radical>sun</radical> enters the <kanji>heart</kanji> and creates <vocabulary>enthusiasm</vocabulary>. It is <em>intense</em> &amp; has <meaning>purpose</meaning>.\n\n<ja>熱心</ja> appears in <a href=\"https://www.wanikani.com/vocabulary/熱心\" onclick=\"ignored()\">ordinary use</a>; <a href=\"javascript:ignored()\">unsafe links stay text</a>, as does <future-tag>future markup</future-tag>.",
+        reading_mnemonic: "A <ja><reading>NET—SHIN</reading></ja> catches the <i>feeling</i>.",
+      },
+    } as Subject;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const { container } = render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={taggedSubject}
+      materialLoading={false}
+      materialsKey={["study-material", taggedSubject.id]}
+      relatedSubjects={[]}
+      pitchAccents={[]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: false, showImmersionExamples: false, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/subjects"
+    /></QueryClientProvider>);
+
+    const mnemonic = screen.getByRole("heading", { name: "Mnemonic" }).closest("section")!;
+    expect(mnemonic).toHaveTextContent("A sun enters the heart and creates enthusiasm. It is intense & has purpose.");
+    expect(mnemonic.querySelector('[data-mnemonic-kind="radical"]')).toHaveTextContent("sun");
+    expect(mnemonic.querySelector('[data-mnemonic-kind="kanji"]')).toHaveTextContent("heart");
+    expect(mnemonic.querySelector('[data-mnemonic-kind="vocabulary"]')).toHaveTextContent("enthusiasm");
+    expect(mnemonic.querySelector('[data-mnemonic-kind="meaning"]')).toHaveTextContent("purpose");
+    expect(within(mnemonic).getByText("intense", { selector: "em" })).toBeInTheDocument();
+    expect(within(mnemonic).getByText("熱心")).toHaveAttribute("lang", "ja");
+    expect(within(mnemonic).getByRole("link", { name: "ordinary use" })).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(mnemonic).queryByRole("link", { name: "unsafe links stay text" })).not.toBeInTheDocument();
+    expect(mnemonic).toHaveTextContent("unsafe links stay text");
+    expect(mnemonic).toHaveTextContent("future markup");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
+    expect(container.querySelector('[data-mnemonic-kind="reading"]')).toHaveTextContent("NET—SHIN");
+    expect(within(screen.getByRole("heading", { name: "Reading mnemonic" }).closest("section")!).getByText("NET—SHIN").closest("span")).toHaveAttribute("lang", "ja");
+    expect(screen.getByText("feeling", { selector: "em" })).toBeInTheDocument();
+  });
+});
+
+describe("subject detail vocabulary frequency", () => {
+  it("shows the formatted frequency rank in the vocabulary Name section when enabled", async () => {
+    window.localStorage.clear();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ result: {
+      provider: "jiten",
+      frequencyRank: 1_500,
+      wordId: 1390020,
+      readingIndex: 0,
+      matchedText: "熱心",
+      matchedReading: "ねっしん",
+      sourceUrl: "https://jiten.moe/search?query=%E7%86%B1%E5%BF%83",
+    } }), { status: 200 })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+
+    render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={audioSubject}
+      materialLoading={false}
+      materialsKey={["study-material", audioSubject.id]}
+      relatedSubjects={[]}
+      pitchAccents={[]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: false, showImmersionExamples: false, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      showVocabularyFrequency
+      returnTo="/subjects"
+    /></QueryClientProvider>);
+
+    expect(screen.getByText("Frequency")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Vocabulary frequency #1,500")).toHaveTextContent("#1,500");
+  });
 });
 
 describe("image-only radical identity", () => {
@@ -268,6 +390,30 @@ describe("image-only radical identity", () => {
     /></QueryClientProvider>);
 
     expect(screen.getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/rib-cage.svg");
+  });
+});
+
+describe("subject detail saved-list action", () => {
+  beforeEach(() => {
+    wkCollectionMock.mockReset().mockResolvedValue([]);
+    wkRequestMock.mockReset().mockResolvedValue(imageRadical);
+  });
+
+  it("shows existing membership and opens the mobile-style list picker", async () => {
+    const repository = createListRepository(window.localStorage, "anonymous");
+    const saved = repository.create("Saved subjects");
+    repository.addSubject(saved.id, imageRadical.id);
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (_input, init) => new Response(JSON.stringify(init?.method === "PUT" ? {} : { lists: [] }), { status: 200 })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+
+    render(<QueryClientProvider client={client}><SubjectDetail id={imageRadical.id} /></QueryClientProvider>);
+
+    const action = await screen.findByRole("button", { name: "Edit saved lists" });
+    expect(action).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(action);
+
+    const dialog = screen.getByRole("dialog", { name: "Add to Lists" });
+    expect(within(dialog).getByRole("checkbox", { name: /Saved subjects/ })).toBeChecked();
   });
 });
 

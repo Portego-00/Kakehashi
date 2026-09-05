@@ -1,5 +1,16 @@
 [
   {
+    "date": "2026-08-31",
+    "scope": "custom-vocabulary-hub-dashboard-details",
+    "macrostructure": "Study Workbench / compact queue / flat pack catalog / lower-dashboard action widget / Focused Subject detail",
+    "theme": "studied-DNA (source: Kakehashi design.md + existing vocabulary subject pages)",
+    "enrichment": "restrained corporate motion for pack entry, state feedback, disclosure, and navigation cues",
+    "brief": "Modernize custom vocabulary, add one lower-dashboard widget for lessons, reviews, and packs, then make every kana word open a familiar subject detail page",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "vocabulary purple limited to semantic identity, progress, and counts; no gradients, nested cards, fabricated metrics, raw colors, transition-all, bounce, or layout-property animation; 80–220ms functional motion with complete reduced-motion spatial fallback; whole-row 4.5rem word links with visible focus and stable catalog URLs; subject-style Meaning, Reading, and Context panels; default dashboard placement immediately after Subject Lists; light and dark visual review; no horizontal overflow or wrapped custom actions at 320, 375, 414, 768, and 1280 pixels; contrast pairs 4.68:1 or higher; 106 focused unit tests; focused Playwright desktop and mobile; typecheck; lint with zero errors; production build; full suite 1,363 passing with one pre-existing unrelated Japanese Reader failure"
+  },
+  {
     "date": "2026-08-28",
     "scope": "authentication-compact-artwork",
     "macrostructure": "Split Studio / static brand-and-form diptych / compact supporting artwork",

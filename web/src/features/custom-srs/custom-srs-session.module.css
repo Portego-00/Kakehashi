@@ -1,0 +1,12 @@
+@keyframes customStudyReveal {
+  from { transform: translateY(.4rem); }
+}
+
+.contrastStableReveal {
+  /* Preserve the shared slide-in without fading accessible text toward its backdrop. */
+  animation-name: customStudyReveal !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contrastStableReveal { animation: none !important; }
+}
