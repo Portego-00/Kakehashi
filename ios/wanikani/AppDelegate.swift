@@ -77,9 +77,17 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
   ) {
-    // Use the WaniKaniBackgroundFetch module to perform background fetch
-    let backgroundFetch = WaniKaniBackgroundFetch()
-    backgroundFetch.performBackgroundFetch(completionHandler: completionHandler)
+    // Delegate to Expo background task system first so TaskManager tasks execute
+    super.application(application, performFetchWithCompletionHandler: { expoResult in
+      // Also perform native background fetch
+      let backgroundFetch = WaniKaniBackgroundFetch()
+      backgroundFetch.performBackgroundFetch { nativeResult in
+        let finalResult: UIBackgroundFetchResult =
+          (expoResult == .newData || nativeResult == .newData) ? .newData :
+          (expoResult == .failed && nativeResult == .failed) ? .failed : .noData
+        completionHandler(finalResult)
+      }
+    })
   }
   
   // MARK: - Badge and Notification Management
@@ -116,7 +124,7 @@ public class AppDelegate: ExpoAppDelegate {
     print("📱 AppDelegate: Updating widget with \(currentReviews) reviews from scheduled notification")
     
     // Update widget data in shared App Group
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
+    guard let sharedDefaults = UserDefaults(suiteName: "group.com.kakehashi.reviewdata") else {
       print("❌ AppDelegate: Failed to access App Group UserDefaults")
       return
     }
@@ -136,7 +144,7 @@ public class AppDelegate: ExpoAppDelegate {
     // Reload widget timelines
     DispatchQueue.main.async {
       WidgetCenter.shared.reloadAllTimelines()
-      WidgetCenter.shared.reloadTimelines(ofKind: "WaniKaniWidget")
+      WidgetCenter.shared.reloadTimelines(ofKind: "KakehashiHomeWidget")
       print("🔄 AppDelegate: Widget reload completed")
       NSLog("🔄 AppDelegate: Widget reload completed")
     }

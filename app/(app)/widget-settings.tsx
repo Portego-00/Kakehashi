@@ -7,11 +7,13 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import WaniKaniBackgroundFetch from "../../src/modules/WaniKaniBackgroundFetch";
 import {
   type WidgetContentMode,
   type WidgetStreakGradientPreset,
@@ -100,6 +102,8 @@ export default function WidgetSettings() {
     setWidgetContentMode,
     widgetStreakGradient,
     setWidgetStreakGradient,
+    widgetBackgroundRefreshEnabled,
+    setWidgetBackgroundRefreshEnabled,
   } = useSettingsStore();
   const isIOS = Platform.OS === "ios";
   const isPortegoDebugUser =
@@ -109,6 +113,23 @@ export default function WidgetSettings() {
   const [isWidgetDebugLoading, setIsWidgetDebugLoading] = useState(false);
   const [widgetDebugLastRefreshedAt, setWidgetDebugLastRefreshedAt] =
     useState<Date | null>(null);
+
+  const handleWidgetBackgroundRefreshChange = (enabled: boolean) => {
+    setWidgetBackgroundRefreshEnabled(enabled);
+    if (
+      Platform.OS === "ios" &&
+      WaniKaniBackgroundFetch &&
+      typeof WaniKaniBackgroundFetch.updateNotificationSettings === "function"
+    ) {
+      try {
+        WaniKaniBackgroundFetch.updateNotificationSettings({
+          widgetBackgroundRefreshEnabled: enabled,
+        });
+      } catch {
+        // Best effort
+      }
+    }
+  };
 
   const handleWidgetContentModeChange = (mode: WidgetContentMode) => {
     setWidgetContentMode(mode);
@@ -396,6 +417,57 @@ export default function WidgetSettings() {
                   );
                 })}
               </View>
+            </View>
+          </View>
+        ) : null}
+
+        {isIOS ? (
+          <View
+            style={[
+              styles.section,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: theme.textColor, borderBottomColor: theme.border },
+              ]}
+            >
+              Background Updates
+            </Text>
+
+            <View
+              style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+            >
+              <Ionicons
+                name="sync"
+                size={24}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Background Refresh
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Periodically check for external reviews and keep widget counts up to date when the app is closed
+                </Text>
+              </View>
+              <Switch
+                value={widgetBackgroundRefreshEnabled}
+                onValueChange={handleWidgetBackgroundRefreshChange}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
           </View>
         ) : null}

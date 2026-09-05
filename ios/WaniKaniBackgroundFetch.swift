@@ -40,6 +40,9 @@ class WaniKaniBackgroundFetch: NSObject {
     self.lastApiToken = apiToken
     // Store API token for background fetch
     UserDefaults.standard.set(apiToken, forKey: "wanikani_api_token")
+    if let sharedDefaults = UserDefaults(suiteName: "group.com.kakehashi.reviewdata") {
+      sharedDefaults.set(apiToken, forKey: "wanikani_api_token")
+    }
   }
   
   @objc
@@ -48,6 +51,9 @@ class WaniKaniBackgroundFetch: NSObject {
     UserDefaults.standard.set(settings["badgeEnabled"] as? Bool ?? true, forKey: "badge_notifications_enabled")
     UserDefaults.standard.set(settings["alertsEnabled"] as? Bool ?? false, forKey: "review_notifications_enabled")
     UserDefaults.standard.set(settings["soundsEnabled"] as? Bool ?? true, forKey: "notification_sounds_enabled")
+    if let widgetRefresh = settings["widgetBackgroundRefreshEnabled"] as? Bool {
+      UserDefaults.standard.set(widgetRefresh, forKey: "widget_background_refresh_enabled")
+    }
   }
   
   @objc
@@ -153,15 +159,20 @@ class WaniKaniBackgroundFetch: NSObject {
         
         // Wait for badge update to complete, then update widget and finish
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-          // Update widget with new review data on main queue
-          print("🔍 About to update widget with: currentReviews=\(data.reviewCount), upcomingReviews=\(data.upcomingReviews.reduce(0, +))")
-          NSLog("🔍 About to update widget with: currentReviews=%d, upcomingReviews=%d", data.reviewCount, data.upcomingReviews.reduce(0, +))
-          
-          self?.updateWidgetData(
-            currentReviews: data.reviewCount,
-            upcomingReviews: data.upcomingReviews,
-            upcomingReviewTimes: nil // Will be populated later if needed
-          )
+          let widgetRefreshEnabled = UserDefaults.standard.object(forKey: "widget_background_refresh_enabled") as? Bool ?? true
+          if widgetRefreshEnabled {
+            // Update widget with new review data on main queue
+            print("🔍 About to update widget with: currentReviews=\(data.reviewCount), upcomingReviews=\(data.upcomingReviews.reduce(0, +))")
+            NSLog("🔍 About to update widget with: currentReviews=%d, upcomingReviews=%d", data.reviewCount, data.upcomingReviews.reduce(0, +))
+            
+            self?.updateWidgetData(
+              currentReviews: data.reviewCount,
+              upcomingReviews: data.upcomingReviews,
+              upcomingReviewTimes: nil // Will be populated later if needed
+            )
+          } else {
+            print("⏭️ Background Fetch: Widget refresh disabled by user setting")
+          }
           
           // Wait a bit more for widget update to complete
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -497,7 +508,7 @@ class WaniKaniBackgroundFetch: NSObject {
     print("📱 updateWidgetData called at \(timestamp) with: currentReviews=\(currentReviews), upcoming=\(upcomingReviews.reduce(0, +))")
     NSLog("📱 updateWidgetData called at %@ with: currentReviews=%d, upcoming=%d", timestamp, currentReviews, upcomingReviews.reduce(0, +))
     
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
+    guard let sharedDefaults = UserDefaults(suiteName: "group.com.kakehashi.reviewdata") else {
       print("❌ Failed to access App Group UserDefaults")
       return
     }
@@ -532,9 +543,9 @@ class WaniKaniBackgroundFetch: NSObject {
         print("🔄 Requesting specific widget reload...")
         NSLog("🔄 Requesting specific widget reload...")
         
-        WidgetCenter.shared.reloadTimelines(ofKind: "WaniKaniWidget")
-        print("✅ WaniKani widgets reloaded with new review data")
-        NSLog("✅ WaniKani widgets reloaded with new review data")
+        WidgetCenter.shared.reloadTimelines(ofKind: "KakehashiHomeWidget")
+        print("✅ Kakehashi widgets reloaded with new review data")
+        NSLog("✅ Kakehashi widgets reloaded with new review data")
         
         // Another reload all as backup
         WidgetCenter.shared.reloadAllTimelines()
