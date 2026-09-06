@@ -1125,7 +1125,6 @@ export default function ReviewQuestionScreen({
   const { apiToken, userData } = useAuthStore();
   const {
     reviewMultipleChoiceEnabled,
-    setReviewMultipleChoiceEnabled,
     ankiCardMode,
     ankiGroupQuestions,
     ankiCardModeScope,
@@ -1192,10 +1191,11 @@ export default function ReviewQuestionScreen({
       ankiGroupQuestions;
   const effectiveAnkiButtonlessMode =
     effectiveAnkiCardMode && ankiButtonlessMode;
+  // Regular reviews may also accept kanji, but still support kana choices.
+  // Only exercises requiring characters or custom answer sets need typed input.
   const supportsMultipleChoice =
     questionType === "meaning" ||
-    (!acceptCharactersAsCorrectForReading &&
-      !requireSubjectCharactersForReading &&
+    (!requireSubjectCharactersForReading &&
       !customAcceptedReadingAnswers?.length);
   const usesMultipleChoice = Boolean(
     reviewMultipleChoiceEnabled &&
@@ -6375,26 +6375,6 @@ export default function ReviewQuestionScreen({
                   </View>
                 </TouchableOpacity>
               </Animated.View>
-            )}
-
-            {supportsMultipleChoice && !isPausedOnAnswer && (
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingBottom: 8 }}>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={usesMultipleChoice ? "Switch to typing" : "Use multiple choice"}
-                  disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setReviewMultipleChoiceEnabled(!reviewMultipleChoiceEnabled);
-                  }}
-                  style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12 }}
-                >
-                  <Ionicons name={usesMultipleChoice ? "keypad-outline" : "list-outline"} size={18} color={showBackgroundColor ? "white" : theme.textColor} />
-                  <Text style={{ color: showBackgroundColor ? "white" : theme.textColor, fontSize: 14, fontWeight: "600" }}>
-                    {usesMultipleChoice ? "Type instead" : "Multiple choice"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             )}
 
             {!shouldUsePausedSubjectDetailsMode &&
