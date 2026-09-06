@@ -367,6 +367,125 @@ describe("ReviewQuestionScreen question occurrences", () => {
     );
   }
 
+  it.each(["meaning", "reading"] as const)(
+    "hides the multiple choice toggle for %s questions when the setting is off",
+    async (questionType) => {
+      const screen = render(
+        <ReviewQuestionScreen item={audioItem} questionType={questionType} onAnswer={jest.fn()} />,
+      );
+      expect(await screen.findByTestId("answer-input")).toBeTruthy();
+      expect(screen.queryByLabelText("Use multiple choice")).toBeNull();
+      expect(screen.queryByLabelText("Switch to typing")).toBeNull();
+      expect(mockGetAllSubjects).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns to typing when multiple choice is turned off in settings", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const question = <ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />;
+    const screen = render(question);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+
+    expect(screen.queryByLabelText("Switch to typing")).toBeNull();
+    expect(screen.queryByText("Type instead")).toBeNull();
+    mockSettings.reviewMultipleChoiceEnabled = false;
+    screen.rerender(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />);
+
+    expect(screen.getByTestId("answer-input")).toBeTruthy();
+    expect(screen.queryByLabelText("Switch to typing")).toBeNull();
+    expect(screen.queryByLabelText("Use multiple choice")).toBeNull();
+    expect(screen.queryByRole("button", { name: /\d\. ねこ$/ })).toBeNull();
+  });
+
+  it.each([
+    { questionType: "reading", answer: "がっこう", correct: true },
+    { questionType: "reading", answer: "学校", correct: true },
+    { questionType: "reading", answer: "ねこ", correct: false },
+    { questionType: "meaning", answer: "school", correct: true },
+    { questionType: "meaning", answer: "cat", correct: false },
+  ] as const)(
+    "preserves normal typed $questionType grading for $answer with multiple choice off",
+    async ({ questionType, answer, correct }) => {
+      const item = {
+        ...audioItem,
+        subject: {
+          ...audioItem.subject,
+          data: {
+            characters: "学校",
+            meanings: [{ meaning: "School", primary: true, accepted_answer: true }],
+            readings: [{ reading: "がっこう", primary: true, accepted_answer: true }],
+          },
+        },
+      };
+      const onAnswer = jest.fn();
+      const screen = render(
+        <ReviewQuestionScreen
+          item={item}
+          questionType={questionType}
+          onAnswer={onAnswer}
+          acceptCharactersAsCorrectForReading
+        />,
+      );
+      const input = await screen.findByTestId("answer-input");
+      expect(mockGetAllSubjects).not.toHaveBeenCalled();
+      fireEvent.changeText(input, answer);
+      fireEvent(input, "submitEditing");
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      expect(onAnswer).toHaveBeenCalledWith(item, questionType, correct, !correct, false);
+    },
+  );
+
+  it.each(["meaning", "reading"] as const)(
+    "keeps regular review %s questions multiple choice when kanji answers are also accepted",
+    async (questionType) => {
+      mockSettings.reviewMultipleChoiceEnabled = true;
+      mockGetAllSubjects.mockResolvedValue(
+        ["Dog", "Bird", "Horse"].map((meaning, index) => ({
+          ...audioItem.subject,
+          id: index + 10,
+          data: {
+            ...audioItem.subject.data,
+            meanings: [{ meaning, primary: true, accepted_answer: true }],
+          },
+        })),
+      );
+      const onAnswer = jest.fn();
+      const screen = render(
+        <ReviewQuestionScreen
+          item={audioItem}
+          questionType={questionType}
+          onAnswer={onAnswer}
+          acceptCharactersAsCorrectForReading
+        />,
+      );
+      const answer = await screen.findByRole("button", {
+        name: questionType === "reading" ? /\d\. ねこ$/ : /\d\. Cat$/,
+      });
+      expect(screen.getAllByRole("button").filter((button) => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4);
+      expect(screen.queryByTestId("answer-input")).toBeNull();
+      fireEvent.press(answer);
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(audioItem, questionType, true, false, false));
+    },
+  );
+
+  it.each([
+    { requireSubjectCharactersForReading: true },
+    { customAcceptedReadingAnswers: ["ねこ", "猫", "こねこ"] },
+  ])("preserves typing for a custom reading exercise with %j", async (readingMode) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const screen = render(
+      <ReviewQuestionScreen
+        item={audioItem}
+        questionType="reading"
+        onAnswer={jest.fn()}
+        acceptCharactersAsCorrectForReading
+        {...readingMode}
+      />,
+    );
+    expect(await screen.findByTestId("answer-input")).toBeTruthy();
+    expect(mockGetAllSubjects).not.toHaveBeenCalled();
+  });
+
   it.each(["another-user", null])(
     "makes multiple choice available with a saved enabled preference for %s",
     async (username) => {
@@ -378,7 +497,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
       await screen.findByRole("button", { name: /\d\. ねこ$/ });
       expect(screen.getAllByRole("button").filter((button) => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4);
       expect(screen.queryByTestId("answer-input")).toBeNull();
-      expect(screen.getByLabelText("Switch to typing")).toBeTruthy();
+      expect(screen.queryByLabelText("Switch to typing")).toBeNull();
     },
   );
 
@@ -391,7 +510,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
     screen.rerender(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />);
     expect(await screen.findByRole("button", { name: /\d\. ねこ$/ })).toBeTruthy();
     expect(screen.queryByTestId("answer-input")).toBeNull();
-    expect(screen.getByLabelText("Switch to typing")).toBeTruthy();
+    expect(screen.queryByLabelText("Switch to typing")).toBeNull();
     expect(mockSettings.reviewMultipleChoiceEnabled).toBe(true);
     expect(mockSettings.setReviewMultipleChoiceEnabled).not.toHaveBeenCalled();
   });
