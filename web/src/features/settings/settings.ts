@@ -121,6 +121,9 @@ export interface WebSettings {
     hiddenDashboard: string[];
     dashboardWidths: Record<DashboardSectionId, DashboardSectionWidth>;
     dashboardRowStarts: DashboardSectionId[];
+    forecastViewMode: "chart" | "list";
+    forecastChartMode: "hourly" | "daily";
+    forecastBreakdown: "off" | "subject" | "srs";
   };
 }
 
@@ -162,11 +165,11 @@ export type DashboardSectionDefinition = {
 };
 export const DASHBOARD_SECTION_DEFINITIONS: DashboardSectionDefinition[] = [
   { id: "daily-study", label: "Lessons & Reviews", description: "Your live study queues and vacation status.", source: "Home", defaultWidth: 12, allowedWidths: [8, 12] },
-  { id: "custom-vocabulary", label: "Custom Vocabulary", description: "Custom lessons, due reviews, and vocabulary packs.", source: "Home", defaultWidth: 12, allowedWidths: [6, 8, 12] },
+  { id: "custom-vocabulary", label: "Custom Vocabulary", description: "Custom lessons, due and upcoming reviews, and vocabulary packs.", source: "Home", defaultWidth: 12, allowedWidths: [6, 8, 12] },
   { id: "srs", label: "Active Item Spread", description: "Stacked subject distribution across all nine SRS stages.", source: "Analytics", defaultWidth: 8, allowedWidths: [6, 8, 12] },
   { id: "level", label: "Level Progress", description: "Current-level Guru target, timing, radicals, and kanji.", source: "Level", defaultWidth: 12, allowedWidths: [6, 8, 12] },
   { id: "extra-study", label: "Extra Study", description: "Practice modes that do not affect SRS.", source: "Home", defaultWidth: 12, allowedWidths: [8, 12] },
-  { id: "forecast", label: "Review Forecast", description: "Upcoming review load by hour.", source: "Home", defaultWidth: 12, allowedWidths: [6, 8, 12] },
+  { id: "forecast", label: "Review Forecast", description: "Hourly and daily review schedules with subject and SRS breakdowns.", source: "Home", defaultWidth: 12, allowedWidths: [6, 8, 12] },
   { id: "study-pulse", label: "Review Stats", description: "Accuracy and reviewed-subject totals.", source: "Analytics", defaultWidth: 6, allowedWidths: [4, 6] },
   { id: "recent-mistakes", label: "Recent Mistakes", description: "Recently updated subjects with broken answer streaks.", source: "Home", defaultWidth: 6, allowedWidths: [6, 8, 12] },
   { id: "study-streak", label: "App Streak", description: "Current streak, recent rhythm, and best run in 14 weeks.", source: "Home", defaultWidth: 4, allowedWidths: [4, 6] },
@@ -195,8 +198,8 @@ export const DEFAULT_DASHBOARD_SECTION_ORDER: DashboardSectionId[] = [
   "level-timing",
   "today-study",
   "subject-lists",
-  "custom-vocabulary",
   "incomplete-levels",
+  "custom-vocabulary",
   "recent-unlocks",
   "critical-items",
   "burned-items",
@@ -210,6 +213,31 @@ type PreviousDashboardDefault = {
   widths: Partial<Record<DashboardSectionId, DashboardSectionWidth>>;
 };
 const PREVIOUS_DASHBOARD_DEFAULTS: readonly PreviousDashboardDefault[] = [
+  {
+    // The first custom-vocabulary default split a shared 4 + 8 column row.
+    order: ["daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "custom-vocabulary", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time"],
+    hidden: [],
+    widths: {
+      "daily-study": 12,
+      level: 12,
+      "extra-study": 12,
+      forecast: 12,
+      "recent-mistakes": 6,
+      "study-pulse": 6,
+      "review-heatmap": 12,
+      srs: 8,
+      "study-streak": 4,
+      "level-timing": 8,
+      "today-study": 4,
+      "subject-lists": 4,
+      "custom-vocabulary": 12,
+      "incomplete-levels": 8,
+      "recent-unlocks": 6,
+      "critical-items": 6,
+      "burned-items": 6,
+      "study-time": 6,
+    },
+  },
   {
     order: ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"],
     hidden: ["recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"],
@@ -332,7 +360,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     epubDailyGoalMinutes: 5,
     songsLyricsLineTranslationsEnabled: false,
   },
-  workspace: { navbarTabs: [...DEFAULT_NAVBAR_TABS], visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [] },
+  workspace: { navbarTabs: [...DEFAULT_NAVBAR_TABS], visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], forecastViewMode: "chart", forecastChartMode: "hourly", forecastBreakdown: "off" },
 };
 
 export const SUBJECT_COLOR_PRESETS = {
@@ -558,6 +586,9 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
           ? { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }
           : Object.fromEntries(DASHBOARD_SECTIONS.map((id) => [id, dashboardSectionWidth(id, parsed.workspace?.dashboardWidths?.[id])])) as Record<DashboardSectionId, DashboardSectionWidth>,
         dashboardRowStarts: migratePreviousDefaultDashboard ? [] : dashboardRowStarts,
+        forecastViewMode: parsed.workspace?.forecastViewMode === "list" ? "list" : "chart",
+        forecastChartMode: parsed.workspace?.forecastChartMode === "daily" ? "daily" : "hourly",
+        forecastBreakdown: parsed.workspace?.forecastBreakdown === "subject" || parsed.workspace?.forecastBreakdown === "srs" ? parsed.workspace.forecastBreakdown : "off",
       },
     };
   } catch {

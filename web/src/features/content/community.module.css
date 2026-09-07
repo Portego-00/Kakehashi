@@ -179,7 +179,7 @@
 .replyAction { width: fit-content; min-height: 2.25rem; border: 0; background: transparent; color: var(--color-accent); padding-inline: 0; cursor: pointer; }
 .replyContext { padding: var(--space-sm) var(--space-md); border-left: 3px solid var(--color-accent); background: var(--color-paper-2); color: var(--color-muted); }
 .replyContext span { font-size: var(--text-sm); font-weight: 700; }
-.replyContext p { margin-top: var(--space-2xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.replyContext p { margin-top: var(--space-2xs); white-space: pre-line; overflow-wrap: anywhere; }
 .replyBox { display: grid; gap: var(--space-sm); padding: var(--space-lg) 0; border-block: var(--rule-thin) solid var(--color-rule-2); background: var(--color-paper-2); }
 .replyBox textarea { min-height: 8rem; }
 .replyingTo { min-height: 2.5rem; display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); padding: var(--space-xs) var(--space-sm); border-left: 3px solid var(--color-accent); background: var(--color-surface); font-size: var(--text-sm); font-weight: 700; }

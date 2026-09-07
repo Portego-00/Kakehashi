@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { Text } from "react-native";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 
@@ -9,6 +10,9 @@ const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
 );
 const mockRenderedDetailSubjects: number[] = [];
 const mockGetAllSubjects = jest.fn(async (): Promise<unknown[]> => []);
+const mockSpeechListeners = new Map<string, (event: unknown) => void>();
+let mockUseRealKanaInput = false;
+let mockVoicePermissionsGranted = false;
 
 jest.mock("../../utils/cache", () => ({
   getSubjectById: (id: number) => mockGetSubjectById(id),
@@ -57,6 +61,8 @@ const mockSettings = {
   srsProgressionCardDisplayMode: "never",
   visuallySimilarKanjiSource: "wanikani",
 };
+const defaultSettings = { ...mockSettings };
+const mockReadReviewSettings = jest.fn(() => mockSettings);
 
 jest.mock("@expo/vector-icons", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -84,12 +90,17 @@ jest.mock("expo-router", () => {
 
 jest.mock("expo-speech-recognition", () => ({
   ExpoSpeechRecognitionModule: {
-    getPermissionsAsync: jest.fn(async () => ({ granted: false })),
+    isRecognitionAvailable: jest.fn(() => true),
+    supportsOnDeviceRecognition: jest.fn(() => false),
+    getPermissionsAsync: jest.fn(async () => ({ granted: mockVoicePermissionsGranted })),
     requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
     start: jest.fn(),
     stop: jest.fn(),
+    abort: jest.fn(),
   },
-  useSpeechRecognitionEvent: jest.fn(),
+  useSpeechRecognitionEvent: (name: string, listener: (event: unknown) => void) => {
+    mockSpeechListeners.set(name, listener);
+  },
 }));
 
 jest.mock("../../utils/expoAvCompat", () => ({
@@ -171,7 +182,7 @@ jest.mock("../../utils/radicalSvg", () => ({
 
 jest.mock("../../utils/store", () => ({
   useAuthStore: () => mockAuthState,
-  useSettingsStore: () => mockSettings,
+  useSettingsStore: () => mockReadReviewSettings(),
 }));
 
 jest.mock("../../utils/subjectColors", () => ({
@@ -246,25 +257,28 @@ jest.mock("../TextToKanaInput", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { TextInput } =
     jest.requireActual<typeof import("react-native")>("react-native");
+  const RealKanaInput =
+    jest.requireActual<typeof import("../TextToKanaInput")>("../TextToKanaInput").default;
 
   const MockKanaInput = React.forwardRef(
     (
-      props: {
-        onKanaChange: (text: string) => void;
-        onSubmitEditing: () => void;
-        resetSignal: string;
-      },
+      props: React.ComponentProps<typeof RealKanaInput>,
       ref,
     ) => {
       const [value, setValue] = React.useState("");
+      const latestValue = React.useRef("");
 
       React.useEffect(() => {
+        latestValue.current = "";
         setValue("");
       }, [props.resetSignal]);
 
       React.useImperativeHandle(ref, () => ({
-        clearInput: () => setValue(""),
-        flushKana: () => value,
+        clearInput: () => {
+          latestValue.current = "";
+          setValue("");
+        },
+        flushKana: () => latestValue.current,
       }));
 
       return (
@@ -272,8 +286,9 @@ jest.mock("../TextToKanaInput", () => {
           testID="answer-input"
           value={value}
           onChangeText={(text) => {
+            latestValue.current = text;
             setValue(text);
-            props.onKanaChange(text);
+            props.onKanaChange?.(text);
           }}
           onSubmitEditing={props.onSubmitEditing}
         />
@@ -281,8 +296,17 @@ jest.mock("../TextToKanaInput", () => {
     },
   );
   MockKanaInput.displayName = "MockKanaInput";
+  const KanaInputHarness = React.forwardRef<
+    React.ComponentRef<typeof RealKanaInput>,
+    React.ComponentProps<typeof RealKanaInput>
+  >((props, ref) =>
+    mockUseRealKanaInput
+      ? <RealKanaInput {...props} ref={ref} testID="answer-input" />
+      : <MockKanaInput {...props} ref={ref} />,
+  );
+  KanaInputHarness.displayName = "KanaInputHarness";
 
-  return { __esModule: true, default: MockKanaInput };
+  return { __esModule: true, default: KanaInputHarness };
 });
 
 const radicalItem = {
@@ -318,8 +342,20 @@ function renderQuestion(options?: {
   );
 }
 
+function getSubmitButton(screen: ReturnType<typeof render>) {
+  return screen.UNSAFE_getAllByType(TouchableOpacity).find(
+    (button) => ["arrow-forward", "chevron-forward"].includes(button.props.children?.props?.name),
+  )!;
+}
+
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
+    Object.assign(mockSettings, defaultSettings);
+    mockReadReviewSettings.mockClear();
+    mockSpeechListeners.clear();
+    mockUseRealKanaInput = false;
+    mockVoicePermissionsGranted = false;
+    jest.mocked(ExpoSpeechRecognitionModule.start).mockClear();
     mockAuthState.userData = { username: "Portego" };
     mockGetSubjectById.mockReset();
     mockGetSubjectById.mockResolvedValue(null);
@@ -335,6 +371,48 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnWrong = false;
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
+  });
+
+  it.each(["", "g"])(
+    "grades the complete native submit text when the last change reported %j",
+    async (lastChange) => {
+      const onAnswer = jest.fn();
+      const screen = renderQuestion({ onAnswer });
+      const input = screen.getByTestId("answer-input");
+
+      if (lastChange) fireEvent.changeText(input, lastChange);
+      fireEvent(input, "submitEditing", { nativeEvent: { text: "ground" } });
+
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      expect(onAnswer).toHaveBeenCalledWith(
+        radicalItem,
+        "meaning",
+        true,
+        false,
+        false,
+      );
+    },
+  );
+
+  it("submits the final meaning change even when React has not rendered it yet", async () => {
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "g");
+
+    act(() => {
+      input.props.onChangeText("ground");
+      input.props.onSubmitEditing();
+    });
+
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(
+      radicalItem,
+      "meaning",
+      true,
+      false,
+      false,
+    );
   });
 
   const audioItem = {
@@ -366,6 +444,477 @@ describe("ReviewQuestionScreen question occurrences", () => {
       />,
     );
   }
+
+  async function startVoiceCapture(screen: ReturnType<typeof render>) {
+    mockVoicePermissionsGranted = true;
+    await act(async () => {
+      fireEvent.press(screen.getByText("mic"));
+    });
+    expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled();
+    act(() => mockSpeechListeners.get("start")?.({}));
+  }
+
+  it.each(["meaning", "reading"] as const)(
+    "keeps a manually corrected voice %s answer correct when recognition delivers a late result",
+    async (questionType) => {
+      mockSettings.voiceReviewAnswersEnabled = true;
+      mockSettings.disableAutoProgressOnWrong = true;
+      mockGetAllSubjects.mockResolvedValue([audioItem.subject]);
+      const onAnswer = jest.fn();
+      const screen = render(
+        <ReviewQuestionScreen item={audioItem} questionType={questionType} onAnswer={onAnswer} />,
+      );
+      await startVoiceCapture(screen);
+      const wrongAnswer = questionType === "meaning" ? "sushi" : "すし";
+      const lateResult = {
+        isFinal: true,
+        results: [{ transcript: wrongAnswer, confidence: 1 }],
+      };
+
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(lateResult);
+      });
+      expect(screen.getByText("Mark Correct")).toBeTruthy();
+      expect(onAnswer).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText("Mark Correct"));
+      expect(onAnswer).toHaveBeenCalledWith(audioItem, questionType, true, false, false);
+
+      // Stopping a recognizer can still deliver a final result from the old word.
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(lateResult);
+      });
+      expect(screen.queryByText("Mark Correct")).toBeNull();
+      expect(getSubmitButton(screen).props.children.props.name).toBe("arrow-forward");
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+
+      act(() => mockSpeechListeners.get("end")?.({}));
+      await startVoiceCapture(screen);
+      await act(async () => {
+        mockSpeechListeners.get("result")?.({
+          isFinal: true,
+          results: [{ transcript: questionType === "meaning" ? "cat" : "ねこ", confidence: 1 }],
+        });
+        mockSpeechListeners.get("end")?.({});
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(2);
+      expect(onAnswer).toHaveBeenLastCalledWith(audioItem, questionType, true, false, false);
+      screen.unmount();
+    },
+  );
+
+  describe("voice capture lifecycle", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockSettings.voiceReviewAnswersEnabled = true;
+      mockVoicePermissionsGranted = true;
+    });
+
+    afterEach(() => {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    });
+
+    const result = (transcript: string, isFinal = true) => ({
+      isFinal,
+      results: [{ transcript, confidence: 1 }],
+    });
+
+    it("ignores recognition events without a requested capture", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await act(async () => {
+        mockSpeechListeners.get("start")?.({});
+        mockSpeechListeners.get("result")?.(result("sushi"));
+      });
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(screen.getByText("mic")).toBeTruthy();
+    });
+
+    it("waits for the old capture to end before starting the next word", async () => {
+      mockSettings.disableAutoProgressOnWrong = true;
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      await act(async () => mockSpeechListeners.get("result")?.(result("sushi")));
+      fireEvent.press(screen.getByText("Mark Correct"));
+
+      await act(async () => fireEvent.press(screen.getByText("mic")));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        mockSpeechListeners.get("start")?.({});
+        mockSpeechListeners.get("result")?.(result("sushi"));
+        mockSpeechListeners.get("error")?.({ error: "aborted" });
+      });
+      expect(screen.queryByText("Mark Correct")).toBeNull();
+
+      await act(async () => mockSpeechListeners.get("end")?.({}));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2);
+      act(() => mockSpeechListeners.get("start")?.({}));
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("cat"));
+        mockSpeechListeners.get("end")?.({});
+        jest.advanceTimersByTime(800);
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(2);
+      expect(onAnswer.mock.calls.every((call) => call[2] === true && call[3] === false)).toBe(true);
+    });
+
+    it.each([false, true])("keeps an accepted delayed answer after end (pause correct: %s)", async (pauseCorrect) => {
+      mockSettings.disableAutoProgressOnCorrect = pauseCorrect;
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("cat", false));
+        mockSpeechListeners.get("end")?.({});
+        mockSpeechListeners.get("result")?.(result("sushi"));
+        jest.advanceTimersByTime(800);
+      });
+      if (pauseCorrect) {
+        expect(onAnswer).not.toHaveBeenCalled();
+        expect(StyleSheet.flatten(getSubmitButton(screen).props.style).backgroundColor).toBe("#4caf50");
+        act(() => jest.advanceTimersByTime(350));
+        fireEvent.press(getSubmitButton(screen));
+      }
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      expect(onAnswer).toHaveBeenLastCalledWith(audioItem, "meaning", true, false, false);
+    });
+
+    it("cancels a delayed voice answer when a typed answer is manually corrected", async () => {
+      mockSettings.disableAutoProgressOnWrong = true;
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      act(() => mockSpeechListeners.get("result")?.(result("cat", false)));
+      await act(async () => {
+        fireEvent(screen.getByTestId("answer-input"), "submitEditing", { nativeEvent: { text: "sushi" } });
+      });
+      fireEvent.press(screen.getByText("Mark Correct"));
+      await act(async () => jest.advanceTimersByTime(1000));
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      expect(onAnswer).toHaveBeenCalledWith(audioItem, "meaning", true, false, false);
+      expect(getSubmitButton(screen).props.children.props.name).toBe("arrow-forward");
+    });
+
+    it("honors Mark Correct for a paused close voice answer", async () => {
+      mockSettings.disableAutoProgressOnCloseAnswer = true;
+      const onAnswer = jest.fn();
+      const screen = renderQuestion({ onAnswer });
+      await startVoiceCapture(screen);
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("grounf"));
+        jest.advanceTimersByTime(800);
+      });
+      expect(StyleSheet.flatten(getSubmitButton(screen).props.style).backgroundColor).toBe("#ff9800");
+      expect(onAnswer).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText("Mark Correct"));
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("sushi"));
+        mockSpeechListeners.get("end")?.({});
+        jest.advanceTimersByTime(1000);
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false);
+      expect(getSubmitButton(screen).props.children.props.name).toBe("arrow-forward");
+    });
+
+    it("retries only after end, ignoring the preceding aborted error and stale results", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      act(() => mockSpeechListeners.get("result")?.(result("cat", false)));
+      fireEvent.press(screen.getByText("refresh"));
+      await act(async () => {
+        mockSpeechListeners.get("error")?.({ error: "aborted" });
+        mockSpeechListeners.get("result")?.(result("sushi"));
+      });
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
+      await act(async () => mockSpeechListeners.get("end")?.({}));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2);
+      act(() => mockSpeechListeners.get("start")?.({}));
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("sushi"));
+        jest.advanceTimersByTime(1000);
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      expect(onAnswer).toHaveBeenCalledWith(audioItem, "meaning", false, true, false);
+    });
+
+    it.each(["question", "setting", "unmount"] as const)(
+      "cancels pending voice confirmation on %s change",
+      async (change) => {
+        const onAnswer = jest.fn();
+        const screen = renderAudioQuestion(onAnswer);
+        await startVoiceCapture(screen);
+        act(() => mockSpeechListeners.get("result")?.(result("cat", false)));
+        if (change === "unmount") {
+          screen.unmount();
+        } else {
+          if (change === "setting") mockSettings.voiceReviewAnswersEnabled = false;
+          screen.rerender(
+            <ReviewQuestionScreen item={change === "question" ? { ...audioItem, id: 3 } : audioItem} questionType="meaning" onAnswer={onAnswer} />,
+          );
+        }
+        await act(async () => jest.advanceTimersByTime(1000));
+        expect(onAnswer).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not start recognition after permissions resolve for an old question", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await act(async () => {});
+      const permissions = jest.mocked(ExpoSpeechRecognitionModule.getPermissionsAsync);
+      const permissionResult = await permissions();
+      let resolvePermissions!: (value: typeof permissionResult) => void;
+      permissions.mockImplementationOnce(() => new Promise((resolve) => { resolvePermissions = resolve; }));
+      await act(async () => fireEvent.press(screen.getByText("mic")));
+      screen.rerender(<ReviewQuestionScreen item={{ ...audioItem, id: 3 }} questionType="meaning" onAnswer={onAnswer} />);
+      await act(async () => resolvePermissions(permissionResult));
+      expect(ExpoSpeechRecognitionModule.start).not.toHaveBeenCalled();
+    });
+  });
+
+  it("grades the full native romaji snapshot through the real kana input", async () => {
+    mockUseRealKanaInput = true;
+    const item = {
+      ...audioItem,
+      subject: {
+        ...audioItem.subject,
+        data: {
+          characters: "気分",
+          meanings: [{ meaning: "feeling", primary: true, accepted_answer: true }],
+          readings: [{ reading: "きぶん", primary: true, accepted_answer: true }],
+        },
+      },
+    };
+    const onAnswer = jest.fn();
+    const screen = render(
+      <ReviewQuestionScreen item={item} questionType="reading" onAnswer={onAnswer} />,
+    );
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "kib");
+    fireEvent(input, "submitEditing", { nativeEvent: { text: "kibun" } });
+
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(item, "reading", true, false, false);
+  });
+
+  it("uses the native meaning snapshot through the real input in the same event batch", async () => {
+    mockUseRealKanaInput = true;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    const input = screen.getByTestId("answer-input");
+
+    act(() => {
+      input.props.onChangeText("g");
+      input.props.onSubmitEditing({ nativeEvent: { text: "ground" } });
+    });
+
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false);
+  });
+
+  it("keeps a real-input answer when submitting immediately after a question change", async () => {
+    mockUseRealKanaInput = true;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    screen.rerender(
+      <ReviewQuestionScreen
+        item={{ ...radicalItem, id: 2 }}
+        questionType="meaning"
+        onAnswer={onAnswer}
+      />,
+    );
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "g");
+    fireEvent(input, "submitEditing", { nativeEvent: { text: "ground" } });
+
+    await waitFor(() => expect(screen.getByDisplayValue("ground")).toBeTruthy());
+    expect(screen.getByDisplayValue("ground").props.editable).toBe(false);
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    "grades the full reading submit snapshot with automatic Japanese keyboard %s",
+    async (autoSwitchKeyboard) => {
+      mockSettings.autoSwitchKeyboard = autoSwitchKeyboard;
+      mockGetAllSubjects.mockResolvedValue([audioItem.subject]);
+      const onAnswer = jest.fn();
+      const screen = render(
+        <ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />,
+      );
+      const input = screen.getByTestId("answer-input");
+      fireEvent.changeText(input, "ね");
+      fireEvent(input, "submitEditing", { nativeEvent: { text: "ねこ" } });
+
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", true, false, false);
+    },
+  );
+
+  it.each([
+    { questionType: "meaning", partial: "c", answer: "cat" },
+    { questionType: "reading", partial: "ね", answer: "ねこ" },
+  ] as const)(
+    "the submit button uses the last $questionType change without waiting for a render",
+    async ({ questionType, partial, answer }) => {
+      mockGetAllSubjects.mockResolvedValue([audioItem.subject]);
+      const onAnswer = jest.fn();
+      const screen = render(
+        <ReviewQuestionScreen item={audioItem} questionType={questionType} onAnswer={onAnswer} />,
+      );
+      const input = screen.getByTestId("answer-input");
+      fireEvent.changeText(input, partial);
+
+      act(() => {
+        input.props.onChangeText(answer);
+        fireEvent.press(screen.getByText("arrow-forward"));
+      });
+
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      expect(onAnswer).toHaveBeenCalledWith(audioItem, questionType, true, false, false);
+    },
+  );
+
+  it.each([
+    { setting: "disableAutoProgressOnWrong", answer: "underground", color: "#f44336" },
+    { setting: "disableAutoProgressOnCorrect", answer: "ground", color: "#4caf50" },
+    { setting: "disableAutoProgressOnCloseAnswer", answer: "grounf", color: "#ff9800" },
+  ] as const)(
+    "preserves the full submitted answer when $setting is enabled",
+    async ({ setting, answer, color }) => {
+      mockSettings[setting] = true;
+      const onAnswer = jest.fn();
+      const screen = renderQuestion({ onAnswer });
+      const input = screen.getByTestId("answer-input");
+      fireEvent.changeText(input, "g");
+      fireEvent(input, "submitEditing", { nativeEvent: { text: answer } });
+
+      await waitFor(() => expect(screen.getByDisplayValue(answer)).toBeTruthy());
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(screen.getByDisplayValue(answer).props.editable).toBe(false);
+      expect(StyleSheet.flatten(getSubmitButton(screen).props.style).backgroundColor).toBe(color);
+      expect(getSubmitButton(screen).props.children.props.name).toBe("chevron-forward");
+    },
+  );
+
+  it.each([false, true])(
+    "treats an empty native submission as empty with skipping %s despite a stale answer",
+    async (allowSkippingReviews) => {
+      mockSettings.allowSkippingReviews = allowSkippingReviews;
+      const onAnswer = jest.fn();
+      const onSkip = jest.fn();
+      const screen = renderQuestion({ onAnswer, onSkip });
+      const input = screen.getByTestId("answer-input");
+      fireEvent.changeText(input, "ground");
+      fireEvent(input, "submitEditing", { nativeEvent: { text: "" } });
+
+      await act(async () => {});
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(onSkip).toHaveBeenCalledTimes(allowSkippingReviews ? 1 : 0);
+    },
+  );
+
+  it("does not rerender the review screen for each typed character", async () => {
+    const screen = renderQuestion();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    mockReadReviewSettings.mockClear();
+
+    for (const text of ["g", "gr", "gro", "grou", "groun", "ground"]) {
+      fireEvent.changeText(screen.getByTestId("answer-input"), text);
+    }
+
+    expect(mockReadReviewSettings).not.toHaveBeenCalled();
+    expect(screen.getByTestId("answer-input").props.value).toBe("ground");
+  });
+
+  it.each(["first", "next"])(
+    "keeps text entered immediately after the %s question appears",
+    async (presentation) => {
+      const onAnswer = jest.fn();
+      const screen = renderQuestion({ onAnswer });
+      if (presentation === "next") {
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+        screen.rerender(
+          <ReviewQuestionScreen
+            item={{ ...radicalItem, id: 2 }}
+            questionType="meaning"
+            onAnswer={onAnswer}
+          />,
+        );
+      }
+      fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+
+      expect(screen.getByTestId("answer-input").props.value).toBe("ground");
+      fireEvent.press(screen.getByText("arrow-forward"));
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      expect(onAnswer.mock.calls[0][2]).toBe(true);
+    },
+  );
+
+  it.each([false, true])(
+    "honors synonym acceptance %s when the native submit contains the complete synonym",
+    async (acceptUserSynonymsAsAnswers) => {
+      mockSettings.acceptUserSynonymsAsAnswers = acceptUserSynonymsAsAnswers;
+      const onAnswer = jest.fn();
+      const screen = render(
+        <ReviewQuestionScreen
+          item={radicalItem}
+          questionType="meaning"
+          studyMaterials={{ meaning_synonyms: ["earth"] }}
+          onAnswer={onAnswer}
+        />,
+      );
+      const input = screen.getByTestId("answer-input");
+      fireEvent.changeText(input, "e");
+      fireEvent(input, "submitEditing", { nativeEvent: { text: "earth" } });
+
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      expect(onAnswer).toHaveBeenCalledWith(
+        radicalItem,
+        "meaning",
+        acceptUserSynonymsAsAnswers,
+        !acceptUserSynonymsAsAnswers,
+        false,
+      );
+    },
+  );
+
+  it.each([
+    { answer: "cat", correct: true },
+    { answer: "sushi", correct: false },
+  ])("keeps the voice answer $answer separate from typed input", async ({ answer, correct }) => {
+    mockSettings.voiceReviewAnswersEnabled = true;
+    const onAnswer = jest.fn();
+    const screen = renderAudioQuestion(onAnswer);
+    await startVoiceCapture(screen);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "dog");
+
+    await act(async () => {
+      mockSpeechListeners.get("result")?.({
+        isFinal: true,
+        results: [{ transcript: answer, confidence: 1 }],
+      });
+      await new Promise((resolve) => setTimeout(resolve, correct ? 800 : 20));
+    });
+
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(audioItem, "meaning", correct, !correct, false);
+  });
 
   it.each(["meaning", "reading"] as const)(
     "hides the multiple choice toggle for %s questions when the setting is off",
@@ -779,6 +1328,61 @@ describe("ReviewQuestionScreen question occurrences", () => {
 
     screen.unmount();
   });
+
+  it.each([
+    { questionType: "meaning", earlierPausedWrong: false },
+    { questionType: "meaning", earlierPausedWrong: true },
+    { questionType: "reading", earlierPausedWrong: false },
+    { questionType: "reading", earlierPausedWrong: true },
+  ] as const)(
+    "keeps the next submit button neutral after a correct $questionType answer (earlier paused wrong: $earlierPausedWrong)",
+    async ({ questionType, earlierPausedWrong }) => {
+      jest.useFakeTimers();
+      mockSettings.disableAutoProgressOnWrong = true;
+      const onAnswer = jest.fn();
+      const item = questionType === "meaning" ? radicalItem : audioItem;
+      const answer = questionType === "meaning" ? "ground" : "ねこ";
+      const wrongAnswer = questionType === "meaning" ? "sushi" : "すし";
+      const screen = render(<ReviewQuestionScreen item={item} questionType={questionType} onAnswer={onAnswer} />);
+      const submitButton = () => getSubmitButton(screen);
+      const neutralColor = StyleSheet.flatten(submitButton().props.style).backgroundColor;
+
+      try {
+        if (earlierPausedWrong) {
+          await act(async () => {
+            fireEvent(screen.getByTestId("answer-input"), "submitEditing", { nativeEvent: { text: wrongAnswer } });
+          });
+          act(() => jest.advanceTimersByTime(350));
+          expect(StyleSheet.flatten(submitButton().props.style).backgroundColor).toBe("#f44336");
+          fireEvent.press(screen.getByText("Mark Incorrect"));
+          expect(onAnswer).toHaveBeenLastCalledWith(item, questionType, false, true, false);
+        }
+
+        await act(async () => {
+          fireEvent(screen.getByTestId("answer-input"), "submitEditing", { nativeEvent: { text: answer } });
+        });
+        expect(onAnswer).toHaveBeenLastCalledWith(item, questionType, true, false, false);
+        expect(StyleSheet.flatten(submitButton().props.style).backgroundColor).toBe(neutralColor);
+
+        // Feedback from the previous answer must not mark the new question as
+        // answered after its synchronous reset has already run.
+        act(() => jest.advanceTimersByTime(1000));
+        expect(StyleSheet.flatten(submitButton().props.style).backgroundColor).toBe(neutralColor);
+        expect(submitButton().props.children.props.name).toBe("arrow-forward");
+
+        // Enter must still grade the new answer, even before an onChange callback.
+        const answerCount = onAnswer.mock.calls.length;
+        await act(async () => {
+          fireEvent(screen.getByTestId("answer-input"), "submitEditing", { nativeEvent: { text: answer } });
+        });
+        expect(onAnswer).toHaveBeenCalledTimes(answerCount + 1);
+      } finally {
+        screen.unmount();
+        jest.clearAllTimers();
+        jest.useRealTimers();
+      }
+    },
+  );
 
   it("advances a sole skipped question once per presentation", async () => {
     mockSettings.allowSkippingReviews = true;

@@ -1568,7 +1568,6 @@ export default function WordleSessionScreen() {
                   setInputValue(clipped);
                 }}
                 useJapaneseKeyboard={autoSwitchKeyboard}
-                preferUncontrolledAndroidInput
                 placeholder={`${config.wordLength} kana`}
                 placeholderTextColor={theme.textSecondary}
                 style={[styles.input, fontStyles.japaneseText, { color: theme.textColor }]}

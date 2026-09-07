@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import { CUSTOM_SRS_POLICY } from "./scheduler";
@@ -471,6 +471,15 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(hook.submitReview.mock.calls[0][1]).toBe(1);
     expect(hook.submitReview.mock.calls[0][2]).toMatch(/^[0-9a-f-]{36}$/i);
     expect(screen.getByLabelText("SRS progression")).toHaveTextContent("Apprentice II");
+    const summary = screen.getByLabelText("Review summary");
+    expect(screen.getByRole("img", { name: "50% overall accuracy" })).toBeInTheDocument();
+    expect(within(summary).getByText("Meaning accuracy").nextElementSibling).toHaveTextContent("0%");
+    expect(within(summary).getByText("Reading accuracy").nextElementSibling).toHaveTextContent("N/A");
+    expect(screen.getByRole("tab", { name: "Mistakes (1)" })).toHaveAttribute("aria-selected", "true");
+    const result = screen.getByRole("article", { name: "ねこ review result" });
+    expect(result).toHaveTextContent("Apprentice III");
+    expect(result).toHaveTextContent("Apprentice II");
+    expect(within(result).getByText("Next review").nextElementSibling).not.toHaveTextContent("Scheduled");
   });
 
   it("reuses the same event UUID when a save is retried", async () => {
@@ -487,8 +496,10 @@ describe("custom vocabulary lesson and review sessions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Progress is temporarily unavailable.");
+    expect(screen.queryByRole("article", { name: "ねこ review result" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry Save" }));
     expect(await screen.findByRole("heading", { name: "Custom reviews complete" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "ねこ review result" })).toHaveTextContent("Apprentice II");
     expect(hook.submitReview).toHaveBeenCalledTimes(2);
     expect(hook.submitReview.mock.calls[0][2]).toBe(hook.submitReview.mock.calls[1][2]);
   });

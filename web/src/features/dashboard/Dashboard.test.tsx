@@ -33,6 +33,9 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({
     hiddenDashboard: [],
     dashboardWidths: {},
     dashboardRowStarts: [],
+    forecastViewMode: "chart",
+    forecastChartMode: "hourly",
+    forecastBreakdown: "off",
   }),
 }));
 

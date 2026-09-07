@@ -354,10 +354,11 @@ describe("Books library and reader", () => {
 
     render(<EpubReader bookId="book-1" />);
 
-    expect(await screen.findByText("Page 1")).toBeInTheDocument();
-    expect(screen.queryByText("1 / 1")).not.toBeInTheDocument();
-    expect(fixtures.updateRecordInPlace).toHaveBeenCalledWith(expect.objectContaining({
+    // "Page 1" is also the initial label, so wait for the rendition state to be persisted.
+    await waitFor(() => expect(fixtures.updateRecordInPlace).toHaveBeenCalledWith(expect.objectContaining({
       metadata: expect.objectContaining({ locationsReady: false }),
-    }));
+    })));
+    expect(screen.getByText("Page 1")).toBeInTheDocument();
+    expect(screen.queryByText("1 / 1")).not.toBeInTheDocument();
   });
 });

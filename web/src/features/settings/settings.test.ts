@@ -7,6 +7,20 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("persists shared forecast views and repairs old or unsupported preferences", () => {
+    const configured = loadWebSettings(storage({
+      ...DEFAULT_WEB_SETTINGS,
+      workspace: { ...DEFAULT_WEB_SETTINGS.workspace, forecastViewMode: "list", forecastChartMode: "daily", forecastBreakdown: "subject" },
+    }), "tester");
+    expect(configured.workspace).toMatchObject({ forecastViewMode: "list", forecastChartMode: "daily", forecastBreakdown: "subject" });
+    const saved = new Map<string, string>();
+    saveWebSettings({ setItem: (key, value) => saved.set(key, value) }, "tester", configured);
+    expect(loadWebSettings({ getItem: (key) => saved.get(key) ?? null }, "tester").workspace).toEqual(configured.workspace);
+    expect(loadWebSettings(storage({ workspace: { forecastViewMode: "pie", forecastChartMode: "monthly", forecastBreakdown: "unknown" } }), "tester").workspace)
+      .toMatchObject({ forecastViewMode: "chart", forecastChartMode: "hourly", forecastBreakdown: "off" });
+    expect(loadWebSettings(storage({ workspace: { forecastBreakdown: "srs" } }), "tester").workspace.forecastBreakdown).toBe("srs");
+  });
+
   it("defines every supported navbar tab and the default selection", () => {
     expect(NAVBAR_TAB_IDS).toEqual(["home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music"]);
     expect(DEFAULT_WEB_SETTINGS.workspace.navbarTabs).toEqual(["home", "level", "news", "video", "manga", "music"]);
@@ -435,8 +449,8 @@ describe("web settings persistence", () => {
       "level-timing",
       "today-study",
       "subject-lists",
-      "custom-vocabulary",
       "incomplete-levels",
+      "custom-vocabulary",
       "recent-unlocks",
       "critical-items",
       "burned-items",
@@ -478,7 +492,7 @@ describe("web settings persistence", () => {
     expect(loadWebSettings({ getItem: () => null }, "new-user").workspace).toEqual(DEFAULT_WEB_SETTINGS.workspace);
   });
 
-  it("migrates both untouched earlier dashboard defaults", () => {
+  it("migrates untouched earlier dashboard defaults", () => {
     const historicalOrder = ["daily-study", "srs", "level", "extra-study", "forecast", "study-pulse", "recent-mistakes", "study-streak", "subject-lists", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "review-heatmap", "level-timing", "today-study", "study-time"];
     const historicalDefaultWorkspace = {
       ...DEFAULT_WEB_SETTINGS.workspace,
@@ -532,7 +546,12 @@ describe("web settings persistence", () => {
       dashboardRowStarts: [],
     };
 
-    for (const workspace of [historicalDefaultWorkspace, currentSeventeenWidgetDefaultWorkspace]) {
+    const splitCustomVocabularyDefaultWorkspace = {
+      ...DEFAULT_WEB_SETTINGS.workspace,
+      dashboardOrder: ["daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "custom-vocabulary", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time"],
+    };
+
+    for (const workspace of [historicalDefaultWorkspace, currentSeventeenWidgetDefaultWorkspace, splitCustomVocabularyDefaultWorkspace]) {
       const migrated = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, workspace }), "tester");
       expect(migrated.workspace).toMatchObject({
         dashboardOrder: DEFAULT_DASHBOARD_SECTION_ORDER,
@@ -541,6 +560,18 @@ describe("web settings persistence", () => {
         dashboardRowStarts: [],
       });
     }
+  });
+
+  it("preserves deliberate changes to the previous custom-vocabulary layout", () => {
+    const previousOrder = ["daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "custom-vocabulary", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time"];
+    const workspace = {
+      ...DEFAULT_WEB_SETTINGS.workspace,
+      dashboardOrder: previousOrder,
+      dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS, "custom-vocabulary": 6 as const },
+      dashboardRowStarts: ["custom-vocabulary" as const],
+    };
+    const loaded = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, workspace }), "tester");
+    expect(loaded.workspace).toEqual(workspace);
   });
 
   it("preserves a customized dashboard while merging in custom vocabulary as visible", () => {

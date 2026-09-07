@@ -8,20 +8,19 @@ import React, {
   useState,
 } from "react";
 import {
-  NativeSyntheticEvent,
   Platform,
   TextInput,
   TextInputProps,
-  TextInputSelectionChangeEventData,
 } from "react-native";
 import * as wanakana from "wanakana";
 import KeyboardManager from "../modules/KeyboardManager";
+import { inferKanaInputEditEnd, type KanaInputSelection } from "../utils/kanaInputSelection";
 import { useTheme } from "../utils/theme";
 
 interface KanaInputProps
   extends Omit<TextInputProps, "onChangeText" | "value"> {
   /**
-   * Called every time valid kana is produced
+   * Reports text changes, including unfinished romaji while typing.
    */
   onKanaChange?: (kana: string) => void;
   initialValue?: string;
@@ -39,21 +38,15 @@ interface KanaInputProps
    * Useful to sync uncontrolled input with parent navigation changes.
    */
   resetSignal?: string | number;
-  /**
-   * Opt out of the Android controlled-input conversion path.
-   * This can reduce fast-typing cursor lag in some RN versions.
-   */
-  preferUncontrolledAndroidInput?: boolean;
 }
 
 export type KanaInputHandle = {
-  flushKana: () => string;
+  flushKana: (nativeText?: string) => string;
   clearInput: () => void;
   focus: () => void;
   setInputText?: (nextText: string) => void;
 };
 
-const ANDROID_IME_DUPLICATE_WINDOW_MS = 80;
 const SPACE_TO_LONG_VOWEL_MARK_MAPPING: Record<string, string> = {
   " ": "ー",
   "　": "ー",
@@ -64,25 +57,6 @@ const convertToKana = (value: string, IMEMode: boolean) =>
     IMEMode,
     customKanaMapping: SPACE_TO_LONG_VOWEL_MARK_MAPPING,
   });
-
-// Some Android IMEs occasionally emit an immediate "duplicate append" event
-// after JS transforms text in a controlled TextInput.
-const isLikelyAndroidImeDuplicateAppend = (
-  previousText: string,
-  nextText: string,
-  previousAcceptedAtMs: number,
-  nowMs: number
-) => {
-  if (!previousText) return false;
-  if (nextText.length !== previousText.length + 1) return false;
-  if (!nextText.startsWith(previousText)) return false;
-
-  const appendedChar = nextText[nextText.length - 1];
-  const previousLastChar = previousText[previousText.length - 1];
-  if (!appendedChar || appendedChar !== previousLastChar) return false;
-
-  return nowMs - previousAcceptedAtMs <= ANDROID_IME_DUPLICATE_WINDOW_MS;
-};
 
 const KanaInput = forwardRef<
   KanaInputHandle,
@@ -95,8 +69,8 @@ const KanaInput = forwardRef<
       enableKanaConversion = true,
       useJapaneseKeyboard = false,
       resetSignal,
-      preferUncontrolledAndroidInput = false,
       onFocus,
+      onSubmitEditing,
       onSelectionChange,
       caretHidden: caretHiddenProp,
       keyboardType: keyboardTypeProp,
@@ -106,10 +80,10 @@ const KanaInput = forwardRef<
   ) => {
     const [text, setText] = useState(initialValue);
     const inputRef = useRef<TextInput>(null);
-    const selectionRef = useRef({ start: 0, end: 0 });
-    const lastRawValue = useRef(initialValue);
-    const lastCommittedText = useRef(initialValue);
-    const lastCommittedAtMs = useRef(0);
+    const textRef = useRef(initialValue);
+    const previousRawTextRef = useRef(initialValue);
+    const selectionRef = useRef({ start: initialValue.length, end: initialValue.length });
+    const [selection, setSelection] = useState<KanaInputSelection>();
     const { theme } = useTheme();
 
     const interfaceIdiom = (
@@ -129,86 +103,67 @@ const KanaInput = forwardRef<
     // directly so we skip wanakana conversion.
     const shouldConvertWithWanakana =
       enableKanaConversion && !shouldUseNativeJapaneseKeyboard;
-    const shouldUseControlledAndroidInput =
-      Platform.OS === "android" &&
-      shouldConvertWithWanakana &&
-      !preferUncontrolledAndroidInput;
     const keyboardType = keyboardTypeProp ?? "default";
+    const [inputMode, setInputMode] = useState({
+      converts: shouldConvertWithWanakana,
+      defaultValue: initialValue,
+    });
+    if (inputMode.converts !== shouldConvertWithWanakana) {
+      // Changing value -> defaultValue must preserve the current answer. Keep
+      // that default fixed throughout native editing so composition stays native.
+      setInputMode({ converts: shouldConvertWithWanakana, defaultValue: text });
+    }
 
-    const updateRenderedText = useCallback((nextText: string) => {
-      // iOS stays truly uncontrolled while typing. The ref below remains the
-      // source of truth for answers, and Android still tracks state for the
-      // controlled IME path and empty-field caret workaround.
-      if (Platform.OS === "android") {
-        setText(nextText);
+    // Only transformed input is controlled. React Native applies value updates
+    // with its native event count, rejecting conversions after newer native
+    // change events. Native keyboards keep ownership of their composing text.
+    const updateText = useCallback((nextText: string) => {
+      textRef.current = nextText;
+      setText(nextText);
+    }, []);
+
+    const setInputText = useCallback((nextText: string) => {
+      updateText(nextText);
+      previousRawTextRef.current = nextText;
+      const nextSelection = { start: nextText.length, end: nextText.length };
+      selectionRef.current = nextSelection;
+      setSelection(shouldConvertWithWanakana ? nextSelection : undefined);
+      if (!shouldConvertWithWanakana) {
+        inputRef.current?.setNativeProps({ text: nextText, selection: nextSelection });
       }
+    }, [shouldConvertWithWanakana, updateText]);
+
+    const clearInput = useCallback(() => {
+      updateText("");
+      previousRawTextRef.current = "";
+      selectionRef.current = { start: 0, end: 0 };
+      setSelection(undefined);
+      // clear() also clears unfinished native text when the converted value
+      // was already empty, and keeps the existing field and keyboard focused.
+      inputRef.current?.clear();
+    }, [updateText]);
+
+    const focus = useCallback(() => {
+      inputRef.current?.focus();
     }, []);
 
-    const getConvertedSelection = useCallback(
-      (raw: string, processedText: string, previousText: string) => {
-        const endSelection = {
-          start: processedText.length,
-          end: processedText.length,
-        };
-        const currentSelection = selectionRef.current;
-        const isLikelyEndEdit =
-          raw.startsWith(previousText) ||
-          previousText.startsWith(raw) ||
-          currentSelection.start >= previousText.length;
+    const flushKana = useCallback((nativeText?: string) => {
+      // Enter carries the native field's complete snapshot, which can be ahead
+      // of the latest change callback. Buttons use the synchronous ref instead.
+      const currentText = nativeText ?? textRef.current;
+      const answer = shouldConvertWithWanakana
+        ? convertToKana(currentText, false)
+        : currentText;
+      updateText(answer);
+      return answer;
+    }, [shouldConvertWithWanakana, updateText]);
 
-        if (isLikelyEndEdit) {
-          return endSelection;
-        }
-
-        const convertSelectionOffset = (offset: number | undefined) => {
-          const clampedOffset = Math.max(
-            0,
-            Math.min(offset ?? raw.length, raw.length)
-          );
-          if (!shouldConvertWithWanakana) {
-            return Math.min(clampedOffset, processedText.length);
-          }
-
-          return Math.min(
-            convertToKana(raw.slice(0, clampedOffset), true).length,
-            processedText.length
-          );
-        };
-
-        return {
-          start: convertSelectionOffset(currentSelection.start),
-          end: convertSelectionOffset(currentSelection.end),
-        };
-      },
-      [shouldConvertWithWanakana]
-    );
-
-    const setNativeText = useCallback(
-      (
-        nextText: string,
-        selection = { start: nextText.length, end: nextText.length }
-      ) => {
-        if (!inputRef.current) return;
-
-        inputRef.current.setNativeProps({
-          text: nextText,
-          selection,
-        });
-        selectionRef.current = selection;
-      },
-      []
-    );
-
-    const resetCursorIfEmptyOnAndroid = useCallback(() => {
-      if (Platform.OS !== "android") return;
-      if (lastRawValue.current.length > 0) return;
-
-      requestAnimationFrame(() => {
-        inputRef.current?.setNativeProps({
-          selection: { start: 0, end: 0 },
-        });
-      });
-    }, []);
+    useImperativeHandle(ref, () => ({
+      flushKana,
+      clearInput,
+      focus,
+      setInputText,
+    }), [flushKana, clearInput, focus, setInputText]);
 
     const isInputFocused = useCallback(
       () => Boolean(inputRef.current && (inputRef.current as any).isFocused?.()),
@@ -241,219 +196,75 @@ const KanaInput = forwardRef<
       };
     }, [applyNativeKeyboardPreference, isInputFocused]);
 
-    // Convert final romaji to kana (e.g., きぶn to きぶん, KATA to カタ)
-    // This is important for cases like "n" which doesn't auto-convert to "ん" until
-    // followed by a non-n character or when input is submitted
-    const flushKana = useCallback(() => {
-      const currentText = lastCommittedText.current;
-      // Only convert when wanakana conversion is active (not when using native Japanese keyboard)
-      if (shouldConvertWithWanakana) {
-        // Force convert any trailing romaji to kana
-        const convertedText = convertToKana(currentText, false);
-        lastCommittedText.current = convertedText;
-        lastCommittedAtMs.current = Date.now();
-        updateRenderedText(convertedText);
-        // Update native text value when operating in uncontrolled mode
-        if (!shouldUseControlledAndroidInput && inputRef.current) {
-          setNativeText(convertedText);
-        }
-        return convertedText;
-      }
-
-      return currentText;
-    }, [
-      setNativeText,
-      shouldConvertWithWanakana,
-      shouldUseControlledAndroidInput,
-      updateRenderedText,
-    ]);
-
-    // Clear the input field completely
-    const clearInput = useCallback(() => {
-      // Reset the raw-value guard so pending conversion timeouts
-      // cannot re-apply stale text after a manual clear.
-      lastRawValue.current = "";
-      lastCommittedText.current = "";
-      lastCommittedAtMs.current = 0;
-      selectionRef.current = { start: 0, end: 0 };
-      updateRenderedText("");
-      if (!shouldUseControlledAndroidInput && inputRef.current?.clear) {
-        // Prefer the native clear() for reliability across platforms
-        inputRef.current.clear();
-      } else if (!shouldUseControlledAndroidInput && inputRef.current) {
-        setNativeText("");
-      }
-      resetCursorIfEmptyOnAndroid();
-    }, [
-      resetCursorIfEmptyOnAndroid,
-      setNativeText,
-      shouldUseControlledAndroidInput,
-      updateRenderedText,
-    ]);
-
-    // Focus the input field
-    const focus = useCallback(() => {
-      inputRef.current?.focus();
-      if (Platform.OS === "android") {
-        requestAnimationFrame(() => {
-          inputRef.current?.focus();
-          resetCursorIfEmptyOnAndroid();
-        });
-      }
-    }, [resetCursorIfEmptyOnAndroid]);
-
-    const setInputText = useCallback((nextText: string) => {
-      updateRenderedText(nextText);
-      lastRawValue.current = nextText;
-      lastCommittedText.current = nextText;
-      lastCommittedAtMs.current = Date.now();
-      selectionRef.current = { start: nextText.length, end: nextText.length };
-      if (!shouldUseControlledAndroidInput && inputRef.current) {
-        setNativeText(nextText, selectionRef.current);
-      }
-    }, [
-      setNativeText,
-      shouldUseControlledAndroidInput,
-      updateRenderedText,
-    ]);
-
-    // Expose methods to parent components
-    useImperativeHandle(ref, () => ({
-      flushKana,
-      clearInput,
-      focus,
-      setInputText,
-    }));
-
-    // Handle selection changes to preserve cursor position
-    const handleSelectionChange = useCallback(
-      (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
-        selectionRef.current = event.nativeEvent.selection;
-        onSelectionChange?.(event);
-      },
-      [onSelectionChange]
-    );
-
     const handleFocus = useCallback(
       (event: Parameters<NonNullable<TextInputProps["onFocus"]>>[0]) => {
         onFocus?.(event);
         applyNativeKeyboardPreference(true);
-        resetCursorIfEmptyOnAndroid();
       },
-      [applyNativeKeyboardPreference, onFocus, resetCursorIfEmptyOnAndroid]
+      [applyNativeKeyboardPreference, onFocus]
     );
 
-    const handleChange = useCallback(
-      (raw: string) => {
-        // Only do wanakana conversion if enabled and not using native Japanese keyboard
-        let processedText = raw;
-        if (shouldConvertWithWanakana) {
-          // IMEMode keeps unfinished chunks (e.g. lone 'n') in romaji
-          processedText = convertToKana(raw, true);
+    const handleChange = useCallback((raw: string) => {
+      const nextText = shouldConvertWithWanakana
+        ? convertToKana(raw, true)
+        : raw;
+      let nextSelection: KanaInputSelection | undefined;
+      if (Platform.OS === "android" && shouldConvertWithWanakana) {
+        const rawEnd = inferKanaInputEditEnd(textRef.current, raw, selectionRef.current, previousRawTextRef.current);
+        // Record the native edit's caret even before its selection event arrives.
+        // Keep raw offsets here: native may reject our converted replacement.
+        selectionRef.current = { start: rawEnd, end: rawEnd };
+        if (nextText !== raw) {
+          // Android's whole-text replacement can shift a middle caret. Send the
+          // converted caret with value, through RN's event-count-checked command.
+          const end = Math.min(convertToKana(raw.slice(0, rawEnd), true).length, nextText.length);
+          nextSelection = { start: end, end };
         }
+      }
+      setSelection(nextSelection);
+      previousRawTextRef.current = raw;
+      updateText(nextText);
+      onKanaChange?.(nextText);
+    }, [onKanaChange, shouldConvertWithWanakana, updateText]);
 
-        const nowMs = Date.now();
-        const previousText = lastCommittedText.current;
-        if (
-          shouldUseControlledAndroidInput &&
-          isLikelyAndroidImeDuplicateAppend(
-            previousText,
-            processedText,
-            lastCommittedAtMs.current,
-            nowMs
-          )
-        ) {
-          setNativeText(previousText);
-          return;
-        }
-
-        lastRawValue.current = raw;
-        lastCommittedText.current = processedText;
-        lastCommittedAtMs.current = nowMs;
-
-        // Update internal state
-        updateRenderedText(processedText);
-
-        // If the processed text is different from raw input, update the TextInput
-        // using setNativeProps to avoid triggering another render cycle.
-        // We use a timeout to give the native side time to process the input event,
-        // but we check lastRawValue to ensure we don't overwrite newer input (fixing cursor jumps).
-        if (
-          !shouldUseControlledAndroidInput &&
-          processedText !== raw &&
-          inputRef.current
-        ) {
-          const nextSelection = getConvertedSelection(
-            raw,
-            processedText,
-            previousText
-          );
-          setTimeout(() => {
-            if (lastRawValue.current === raw && inputRef.current) {
-              setNativeText(processedText, nextSelection);
-            }
-          }, 0);
-        }
-
-        onKanaChange?.(processedText);
-      },
-      [
-        getConvertedSelection,
-        onKanaChange,
-        setNativeText,
-        shouldConvertWithWanakana,
-        shouldUseControlledAndroidInput,
-        updateRenderedText,
-      ]
-    );
-
-    // When resetSignal changes, clear the input reliably without blurring
     useLayoutEffect(() => {
-      if (resetSignal === undefined) return;
-      const wasFocused = Boolean(
-        inputRef.current && (inputRef.current as any).isFocused?.()
-      );
-      if (!shouldUseControlledAndroidInput && inputRef.current?.clear) {
-        inputRef.current.clear();
-      } else if (!shouldUseControlledAndroidInput && inputRef.current) {
-        setNativeText("");
-      }
-      updateRenderedText("");
-      lastRawValue.current = "";
-      lastCommittedText.current = "";
-      lastCommittedAtMs.current = 0;
-      selectionRef.current = { start: 0, end: 0 };
-      resetCursorIfEmptyOnAndroid();
-      // Restore focus synchronously if it was focused
-      if (wasFocused) {
-        requestAnimationFrame(() => inputRef.current?.focus());
-      }
-    }, [
-      resetSignal,
-      resetCursorIfEmptyOnAndroid,
-      setNativeText,
-      shouldUseControlledAndroidInput,
-      updateRenderedText,
-    ]);
+      // TextInput's child layout effect has now sent the correction. Release it
+      // so later selection events or parent renders cannot pin the user's caret.
+      if (selection) setSelection(undefined);
+    }, [selection]);
 
-    const textInputValueProps = shouldUseControlledAndroidInput
-      ? { value: text }
-      : { defaultValue: initialValue };
+    const handleSubmitEditing: NonNullable<TextInputProps["onSubmitEditing"]> = (event) => {
+      const answer = flushKana(event.nativeEvent.text);
+      onSubmitEditing?.({
+        ...event,
+        nativeEvent: { ...event.nativeEvent, text: answer },
+      });
+    };
+
+    useLayoutEffect(() => {
+      if (resetSignal !== undefined) clearInput();
+    }, [resetSignal, clearInput]);
 
     return (
       <TextInput
         {...rest}
-        {...textInputValueProps}
+        {...(shouldConvertWithWanakana ? { value: text } : { defaultValue: inputMode.defaultValue })}
         ref={inputRef}
+        selection={selection ?? rest.selection}
+        onSelectionChange={(event) => {
+          selectionRef.current = event.nativeEvent.selection;
+          onSelectionChange?.(event);
+        }}
         onChangeText={handleChange}
         onFocus={handleFocus}
-        onSelectionChange={handleSelectionChange}
+        onSubmitEditing={handleSubmitEditing}
         caretHidden={
           Boolean(caretHiddenProp) ||
           (Platform.OS === "android" && text.length === 0)
         }
         autoCapitalize="none"
         autoCorrect={false}
+        spellCheck={false}
         keyboardType={keyboardType}
         keyboardAppearance={theme.isDark ? "dark" : "light"}
         style={[
