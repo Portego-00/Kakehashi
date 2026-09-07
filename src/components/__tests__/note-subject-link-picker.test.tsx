@@ -90,6 +90,7 @@ const bridgeSubject = {
     level: 5,
     meanings: [{ meaning: "Bridge", primary: true }],
     readings: [{ reading: "はし", primary: true }],
+    parts_of_speech: ["noun"],
   },
 };
 
@@ -101,6 +102,7 @@ const unrelatedSubject = {
     level: 2,
     meanings: [{ meaning: "River", primary: true }],
     readings: [{ reading: "かわ", primary: true }],
+    parts_of_speech: ["noun"],
   },
 };
 
@@ -229,5 +231,62 @@ describe("NoteSubjectLinkPicker", () => {
       expect(screen.getByLabelText("Link to 川, River")).toBeTruthy(),
     );
     expect(screen.queryByLabelText("Link to 橋, Bridge")).toBeNull();
+  });
+
+  it("filters before the result limit and clears the vocabulary selection", async () => {
+    const properNoun = {
+      ...bridgeSubject,
+      id: 999,
+      data: {
+        ...bridgeSubject.data,
+        characters: "東京橋",
+        level: 60,
+        meanings: [{ meaning: "Bridge Tokyo", primary: true }],
+        parts_of_speech: ["proper noun"],
+      },
+    };
+    (getAllSubjects as jest.Mock).mockResolvedValue([
+      ...Array.from({ length: 70 }, (_, index) => ({
+        ...bridgeSubject,
+        id: index + 1,
+      })),
+      properNoun,
+    ]);
+    const screen = render(
+      <NoteSubjectLinkPicker
+        initialQuery="bridge"
+        onCancel={jest.fn()}
+        onSelect={jest.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByLabelText("Link to 橋, Bridge")).toHaveLength(60));
+    expect(screen.queryByLabelText("Link to 東京橋, Bridge Tokyo")).toBeNull();
+
+    fireEvent.press(screen.getByLabelText("Vocabulary type filters"));
+    fireEvent.press(screen.getByLabelText("Proper noun vocabulary type"));
+    fireEvent.press(screen.getByLabelText("Close vocabulary type filters"));
+
+    expect(screen.getByLabelText("Link to 東京橋, Bridge Tokyo")).toBeTruthy();
+    expect(screen.queryByLabelText("Link to 橋, Bridge")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Vocabulary type filters, 1 selected"));
+    fireEvent.press(screen.getByLabelText("Clear vocabulary types"));
+    fireEvent.press(screen.getByLabelText("Close vocabulary type filters"));
+    expect(screen.getAllByLabelText("Link to 橋, Bridge")).toHaveLength(60);
+  });
+
+  it("supports browsing vocabulary types without entering a query", async () => {
+    const screen = render(
+      <NoteSubjectLinkPicker
+        initialQuery=""
+        onCancel={jest.fn()}
+        onSelect={jest.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Search for the subject this text should open.")).toBeTruthy());
+    fireEvent.press(screen.getByLabelText("Vocabulary type filters"));
+    fireEvent.press(screen.getByLabelText("Noun vocabulary type"));
+    fireEvent.press(screen.getByLabelText("Close vocabulary type filters"));
+    expect(screen.getByLabelText("Link to 橋, Bridge")).toBeTruthy();
+    expect(screen.getByLabelText("Link to 川, River")).toBeTruthy();
   });
 });

@@ -1,10 +1,12 @@
 import { toHiragana, toRomaji } from "wanakana";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
+import { matchesVocabularyTypes } from "./vocabulary-types";
 import { srsBucketForStage } from "@/features/progress/calculations";
 
 export interface SubjectSearchFilters {
   query: string;
   types: SubjectType[];
+  vocabularyTypes?: string[];
   minLevel: number;
   maxLevel: number;
   srs: string[];
@@ -73,6 +75,7 @@ export function searchSubjects(subjects: Subject[], assignments: Assignment[], f
   for (const subject of subjects) {
     if (subject.data.hidden_at || subject.data.level < filters.minLevel || subject.data.level > filters.maxLevel) continue;
     if (types.size > 0 && !types.has(subject.object)) continue;
+    if (!matchesVocabularyTypes(subject, filters.vocabularyTypes)) continue;
     const assignment = assignmentBySubject.get(subject.id);
     const bucket = srsBucketForStage(assignment?.data.srs_stage ?? 0).toLowerCase();
     if (srs.size > 0 && !srs.has(bucket)) continue;
@@ -99,6 +102,7 @@ export function searchSubjects(subjects: Subject[], assignments: Assignment[], f
 export const DEFAULT_SEARCH_FILTERS: SubjectSearchFilters = {
   query: "",
   types: [],
+  vocabularyTypes: [],
   minLevel: 1,
   maxLevel: 60,
   srs: [],

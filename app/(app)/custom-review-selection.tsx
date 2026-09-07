@@ -68,6 +68,7 @@ import {
 } from "../../src/utils/subjectSearch";
 import { formatLevelWithSrsStage } from "../../src/utils/srsStageLabel";
 import { useTheme } from "../../src/utils/theme";
+import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 import {
   getJLPTLevelForSubject,
   subjectMatchesJLPTLevels,
@@ -99,6 +100,8 @@ function searchFiltersAreEqual(left: SearchFilters, right: SearchFilters) {
     left.minLevel === right.minLevel &&
     left.maxLevel === right.maxLevel &&
     left.maxFrequencyRank === right.maxFrequencyRank &&
+    left.vocabularyTypes.length === right.vocabularyTypes.length &&
+    left.vocabularyTypes.every((type) => right.vocabularyTypes.includes(type)) &&
     setsAreEqual(left.types, right.types) &&
     setsAreEqual(left.srsStages, right.srsStages) &&
     setsAreEqual(left.jlptLevels, right.jlptLevels)
@@ -601,6 +604,9 @@ export default function CustomReviewSelectionScreen() {
       )
       .filter((subject) =>
         subjectMatchesJLPTLevels(subject, filters.jlptLevels),
+      )
+      .filter((subject) =>
+        matchesVocabularyTypes(subject, filters.vocabularyTypes),
       );
   }, [
     allSubjects,
@@ -610,6 +616,7 @@ export default function CustomReviewSelectionScreen() {
     filters.minLevel,
     filters.srsStages,
     filters.types,
+    filters.vocabularyTypes,
     selectedListIds,
     showVocabularyFrequency,
     subjectIdsFromSelectedLists,
@@ -887,6 +894,7 @@ export default function CustomReviewSelectionScreen() {
     filters.types.size < 4 ||
     filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
     filters.jlptLevels.size > 0 ||
+    filters.vocabularyTypes.length > 0 ||
     filters.maxFrequencyRank !== null ||
     selectedListIds.length > 0;
   const activeFilterOptionCount = [
@@ -894,6 +902,7 @@ export default function CustomReviewSelectionScreen() {
     filters.types.size < 4,
     filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length,
     filters.jlptLevels.size > 0,
+    filters.vocabularyTypes.length > 0,
     filters.maxFrequencyRank !== null,
   ].filter(Boolean).length;
   const filterAccessibilityHint =
@@ -1918,6 +1927,7 @@ export default function CustomReviewSelectionScreen() {
                       filters.types.size < 4 ||
                       filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
                       filters.jlptLevels.size > 0 ||
+                      filters.vocabularyTypes.length > 0 ||
                       filters.maxFrequencyRank !== null
                     ? "No subjects found matching your search and filters"
                     : "No subjects available"}
@@ -2099,6 +2109,7 @@ export default function CustomReviewSelectionScreen() {
       <SearchFilterModal
         visible={isFilterConfigHydrated && showFilters}
         currentFilters={filters}
+        subjects={allSubjects ?? undefined}
         onClose={handleCloseFilters}
         onApply={handleApplyFilters}
         showJlptFilters

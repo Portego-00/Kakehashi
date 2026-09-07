@@ -31,6 +31,7 @@ import { pickBestImage, useRemoteSvg } from "../../src/utils/radicalSvg";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
+import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
@@ -49,6 +50,11 @@ export default function CriticalItemsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [allCriticalItems, setAllCriticalItems] = useState<CriticalItem[]>([]);
   const [filter, setFilter] = useState<ItemType | "all">("all");
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
+  const vocabularySubjects = useMemo(() => allCriticalItems.map((item) => ({
+    object: item.type,
+    data: { parts_of_speech: item.partsOfSpeech },
+  })), [allCriticalItems]);
   const [appliedFilter, setAppliedFilter] = useState<ItemType | "all">("all");
   const [threshold, setThreshold] = useState<number>(DEFAULT_THRESHOLD);
   const [loadedThreshold, setLoadedThreshold] = useState<number>(DEFAULT_THRESHOLD);
@@ -63,9 +69,11 @@ export default function CriticalItemsScreen() {
 
   // Get filtered items
   const filteredItems = useMemo(() => {
-    if (appliedFilter === "all") return criticalItems;
-    return criticalItems.filter((item) => item.type === appliedFilter);
-  }, [criticalItems, appliedFilter]);
+    return criticalItems.filter((item) =>
+      (appliedFilter === "all" || item.type === appliedFilter) &&
+      matchesVocabularyTypes({ object: item.type, data: { parts_of_speech: item.partsOfSpeech } }, vocabularyTypes),
+    );
+  }, [criticalItems, appliedFilter, vocabularyTypes]);
 
   // Fetch critical items
   const fetchCriticalItems = useCallback(
@@ -183,6 +191,7 @@ export default function CriticalItemsScreen() {
               characters: subject.data.characters || "",
               meaning: subject.data.meanings[0].meaning,
               type: subject.object as ItemType,
+            partsOfSpeech: subject.data.parts_of_speech,
               percentage: stat.data.percentage_correct,
               meaningIncorrect: stat.data.meaning_incorrect,
               meaningCorrect: stat.data.meaning_correct,
@@ -299,6 +308,7 @@ export default function CriticalItemsScreen() {
 
   const handleApplyFilters = (values: Record<string, any>) => {
     setFilter(values.subjectType);
+    setVocabularyTypes(values.vocabularyTypes);
     setThreshold(values.threshold);
   };
 
@@ -524,8 +534,11 @@ export default function CriticalItemsScreen() {
         onApply={handleApplyFilters}
         currentValues={{
           subjectType: filter,
+          vocabularyTypes,
           threshold: threshold,
         }}
+        showVocabularyTypes
+        subjects={vocabularySubjects}
         sections={filterSections}
         title="Filter Critical Items"
       />

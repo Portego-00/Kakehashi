@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.11",
+    date: "2026-09-07",
+    changes: [
+      {
+        type: "feature",
+        title: "Vocabulary Type Filters",
+        description:
+          "Filter vocabulary by parts of speech, including proper nouns and verbal nouns, across Search, subject lists, and study pickers.",
+      },
+    ],
+  },
+  {
     version: "1.4.10",
     date: "2026-09-05",
     changes: [

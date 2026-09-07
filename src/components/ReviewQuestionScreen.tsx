@@ -5204,11 +5204,23 @@ export default function ReviewQuestionScreen({
     };
   });
 
+  const shouldPlaceSrsAboveMultipleChoice =
+    hideTypedAnswerInput &&
+    !isPausedOnWrong &&
+    !isPausedOnCloseAnswer &&
+    !isPausedOnCorrect;
+
   // Animation style for SRS card
   const srsCardStyle = useAnimatedStyle(() => {
     return {
       opacity: srsCardOpacity.value,
-      transform: [{ translateY: srsCardTranslateY.value }],
+      transform: [{
+        // Enter from above the choices; other modes keep their original motion.
+        translateY:
+          shouldPlaceSrsAboveMultipleChoice && srsProgressionCardDisplayMode !== "compact"
+            ? -srsCardTranslateY.value
+            : srsCardTranslateY.value,
+      }],
     };
   });
 
@@ -6364,13 +6376,17 @@ export default function ReviewQuestionScreen({
               srsProgression && (
               <Animated.View
                 style={[
-                  styles.srsProgressionCard,
+                  shouldPlaceSrsAboveMultipleChoice
+                    ? styles.srsProgressionCardInline
+                    : styles.srsProgressionCard,
                   {
                     backgroundColor: srsProgression.isCorrect
                       ? "#4caf50"
                       : "#f44336",
                   },
-                  srsCardPositionStyle,
+                  shouldPlaceSrsAboveMultipleChoice
+                    ? styles.multipleChoiceSrsPlacement
+                    : srsCardPositionStyle,
                   srsCardStyle,
                 ]}
                 pointerEvents="box-none"
@@ -7668,6 +7684,12 @@ const styles = StyleSheet.create({
   srsProgressionCardCompact: {
     width: SRS_CARD_COMPACT_WIDTH,
     borderRadius: 20,
+  },
+  multipleChoiceSrsPlacement: {
+    // Keep the badge in the layout so any answer-panel height is accounted for.
+    alignSelf: "center",
+    flexShrink: 0,
+    marginBottom: 12,
   },
   srsCardContent: {
     paddingVertical: 10,

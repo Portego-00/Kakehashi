@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +16,8 @@ import { useDashboardData } from '../../src/hooks/useDashboardData';
 import { getSubjectTypeColor } from '../../src/utils/subjectColors';
 import { useTheme } from '../../src/utils/theme';
 import { useRemoteSvg, pickBestImage } from '../../src/utils/radicalSvg';
+import { CommonFilterModal } from '../../src/components/CommonFilterModal';
+import { matchesVocabularyTypes } from '../../src/utils/vocabularyTypeFilter';
 
 // Comprehensive romaji to hiragana conversion
 function convertToKana(input: string): string {
@@ -149,6 +152,7 @@ interface SubjectItem {
   level: number;
   srs_stage: number;
   character_images?: any[];
+  parts_of_speech?: string[] | null;
 }
 
 export default function SrsSubjectsScreen() {
@@ -163,6 +167,9 @@ export default function SrsSubjectsScreen() {
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredSubjects, setFilteredSubjects] = useState<SubjectItem[]>([]);
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const filterValues = useMemo(() => ({ vocabularyTypes }), [vocabularyTypes]);
 
   useEffect(() => {
     if (!dashboardData.subjects || !dashboardData.assignments || !srsStage) return;
@@ -221,6 +228,7 @@ export default function SrsSubjectsScreen() {
         level: subject.data.level,
         srs_stage: subjectToSrsStage.get(subject.id) || stageNumber,
         character_images: subject.data.character_images,
+        parts_of_speech: subject.data.parts_of_speech,
       }))
       .sort((a, b) => {
         // Sort by SRS stage first, then level, then object type, then characters
@@ -242,15 +250,18 @@ export default function SrsSubjectsScreen() {
 
   // Filter subjects based on search query
   useEffect(() => {
+    const matchingSubjects = subjects.filter(subject =>
+      matchesVocabularyTypes({ object: subject.object, data: subject }, vocabularyTypes),
+    );
     if (!searchQuery.trim()) {
-      setFilteredSubjects(subjects);
+      setFilteredSubjects(matchingSubjects);
       return;
     }
 
     const query = searchQuery.toLowerCase().trim();
     const kanaQuery = convertToKana(query); // Convert romaji to hiragana
     
-    const filtered = subjects.filter(subject => {
+    const filtered = matchingSubjects.filter(subject => {
       // Search in meanings
       const meaningMatch = subject.meanings.some(meaning => 
         meaning.meaning.toLowerCase().includes(query)
@@ -270,7 +281,7 @@ export default function SrsSubjectsScreen() {
     });
 
     setFilteredSubjects(filtered);
-  }, [subjects, searchQuery]);
+  }, [subjects, searchQuery, vocabularyTypes]);
 
   const getSubjectColor = (object: string) => {
     if (
@@ -447,6 +458,24 @@ export default function SrsSubjectsScreen() {
               <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={vocabularyTypes.length > 0
+              ? `Vocabulary type filters, ${vocabularyTypes.length} selected`
+              : 'Vocabulary type filters'}
+            accessibilityState={{ selected: vocabularyTypes.length > 0 }}
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowFilters(true);
+            }}
+            style={styles.filterButton}
+          >
+            <Ionicons
+              name={vocabularyTypes.length > 0 ? 'options' : 'options-outline'}
+              size={20}
+              color={vocabularyTypes.length > 0 ? theme.primary : theme.textSecondary}
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -456,6 +485,22 @@ export default function SrsSubjectsScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            {searchQuery.trim() || vocabularyTypes.length > 0
+              ? 'No subjects match your search and filters.'
+              : 'No subjects at this SRS stage.'}
+          </Text>
+        }
+      />
+      <CommonFilterModal
+        visible={showFilters}
+        onClose={() => setShowFilters(false)}
+        onApply={(values) => setVocabularyTypes(values.vocabularyTypes ?? [])}
+        currentValues={filterValues}
+        sections={[]}
+        showVocabularyTypes
+        subjects={dashboardData.subjects}
       />
     </View>
   );
@@ -520,6 +565,17 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  filterButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    textAlign: 'center',
+    paddingVertical: 24,
+    fontSize: 14,
   },
   listContainer: {
     padding: 16,

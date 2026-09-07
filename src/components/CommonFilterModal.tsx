@@ -3,7 +3,10 @@ import { BlurView } from "expo-blur";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,6 +14,8 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../utils/theme";
+import type { VocabularyTypedSubject } from "../utils/vocabularyTypeFilter";
+import { VocabularyTypeFilter } from "./vocabulary-type-filter";
 
 export interface FilterOption {
   id: string | number;
@@ -31,6 +36,8 @@ interface CommonFilterModalProps {
   sections: FilterSection[];
   title?: string;
   applyButtonLabel?: string;
+  showVocabularyTypes?: boolean;
+  subjects?: readonly VocabularyTypedSubject[];
 }
 
 export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
@@ -41,6 +48,8 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
   sections,
   title = "Filters",
   applyButtonLabel = "Apply Filters",
+  showVocabularyTypes = false,
+  subjects,
 }) => {
   const { theme } = useTheme();
   const [pendingValues, setPendingValues] =
@@ -123,6 +132,12 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
         </TouchableWithoutFeedback>
       </Animated.View>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardContainer}
+        pointerEvents="box-none"
+      >
+        <View style={styles.keyboardContent} pointerEvents="box-none">
       <Animated.View
         style={[
           styles.panel,
@@ -168,52 +183,65 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {sections.map((section) => (
-            <View key={section.id} style={styles.section}>
-              <Text
-                style={[styles.sectionTitle, { color: theme.textSecondary }]}
-              >
-                {section.title}
-              </Text>
-              <View style={styles.optionsRow}>
-                {section.options.map((option) => {
-                  const isSelected = pendingValues[section.id] === option.id;
-                  return (
-                    <TouchableOpacity
-                      key={option.id}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: isSelected
-                            ? theme.primary
-                            : theme.isDark
-                            ? "rgba(255,255,255,0.05)"
-                            : "rgba(0,0,0,0.05)",
-                          borderColor: isSelected
-                            ? theme.primary
-                            : "transparent",
-                        },
-                      ]}
-                      onPress={() => handleOptionPress(section.id, option.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text
+          <ScrollView keyboardShouldPersistTaps="handled" style={styles.sections}>
+            {showVocabularyTypes ? (
+              <View style={styles.section}>
+                <VocabularyTypeFilter
+                  subjects={subjects}
+                  selected={pendingValues.vocabularyTypes ?? []}
+                  onChange={(vocabularyTypes) =>
+                    setPendingValues((previous) => ({ ...previous, vocabularyTypes }))
+                  }
+                />
+              </View>
+            ) : null}
+            {sections.map((section) => (
+              <View key={section.id} style={styles.section}>
+                <Text
+                  style={[styles.sectionTitle, { color: theme.textSecondary }]}
+                >
+                  {section.title}
+                </Text>
+                <View style={styles.optionsRow}>
+                  {section.options.map((option) => {
+                    const isSelected = pendingValues[section.id] === option.id;
+                    return (
+                      <TouchableOpacity
+                        key={option.id}
                         style={[
-                          styles.chipText,
+                          styles.chip,
                           {
-                            color: isSelected ? "white" : theme.textSecondary,
-                            fontWeight: isSelected ? "700" : "500",
+                            backgroundColor: isSelected
+                              ? theme.primary
+                              : theme.isDark
+                              ? "rgba(255,255,255,0.05)"
+                              : "rgba(0,0,0,0.05)",
+                            borderColor: isSelected
+                              ? theme.primary
+                              : "transparent",
                           },
                         ]}
+                        onPress={() => handleOptionPress(section.id, option.id)}
+                        activeOpacity={0.7}
                       >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <Text
+                          style={[
+                            styles.chipText,
+                            {
+                              color: isSelected ? "white" : theme.textSecondary,
+                              fontWeight: isSelected ? "700" : "500",
+                            },
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </ScrollView>
 
           <View style={styles.footer}>
             <TouchableOpacity
@@ -245,11 +273,20 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
           </View>
         </View>
       </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  keyboardContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+  },
+  keyboardContent: {
+    flex: 1,
+  },
   backdrop: {
     position: "absolute",
     top: 0,
@@ -279,6 +316,7 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   content: {
+    flexShrink: 1,
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 40,
@@ -306,6 +344,9 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
+  },
+  sections: {
+    flexShrink: 1,
   },
   sectionTitle: {
     fontSize: 14,

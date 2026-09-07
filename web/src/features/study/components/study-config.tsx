@@ -6,6 +6,7 @@ import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import { hasSelectedAnime } from "@/features/anime/types";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
+import { VocabularyTypeFilter } from "@/features/subjects/components/VocabularyTypeFilter";
 import { searchSubjects } from "@/features/subjects/search";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import { activeStrokeLeniencyPreset, CROSSWORD_SIZE_PRESETS, fixedSubjectTypes, STROKE_LENIENCY_PRESETS } from "../mode-config";
@@ -61,6 +62,7 @@ type CustomPickerMode = Extract<StudyModeId, "custom-review" | "custom-lessons">
 
 function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, userLevel, starting, onChange, onStart }: { mode: CustomPickerMode; subjects: Subject[]; assignments: Assignment[]; lists: SubjectList[]; filters: StudyFilters; userLevel: number; starting: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
   const [query, setQuery] = useState("");
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -87,6 +89,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
     return searchSubjects(subjects, assignments, {
       query: deferredQuery,
       types: filters.subjectTypes,
+      vocabularyTypes,
       minLevel: effectiveMinLevel,
       maxLevel: effectiveMaxLevel,
       srs: [],
@@ -95,13 +98,14 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
       const listMatches = !selectedListSubjectIds || selectedListSubjectIds.has(subject.id);
       return stageMatches && listMatches;
     });
-  }, [assignments, deferredQuery, effectiveMaxLevel, effectiveMinLevel, filters.selectedSrsStages, filters.subjectTypes, selectedListSubjectIds, subjects]);
+  }, [assignments, deferredQuery, effectiveMaxLevel, effectiveMinLevel, filters.selectedSrsStages, filters.subjectTypes, selectedListSubjectIds, subjects, vocabularyTypes]);
   const shown = matching.slice(0, 200);
   const allMatchingSelected = matching.length > 0 && matching.every(({ subject }) => selectedSet.has(subject.id));
   const activeFilterCount = Number(filters.subjectTypes.length !== SUBJECT_TYPES.length)
     + Number(filters.selectedSrsStages.length !== SRS_STAGES.length)
     + Number(filters.useCustomLevelRange)
-    + validSelectedListIds.length;
+    + validSelectedListIds.length
+    + vocabularyTypes.length;
   const hasActiveSearchOrFilters = Boolean(deferredQuery.trim() || activeFilterCount > 0);
   const matchingToggleLabel = allMatchingSelected
     ? (hasActiveSearchOrFilters ? "Deselect filtered" : "Deselect all")
@@ -129,6 +133,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
     set("selectedSubjectIds", [...next]);
   };
   const resetFilters = () => {
+    setVocabularyTypes([]);
     onChange({
       ...filters,
       subjectTypes: SUBJECT_TYPES.map((option) => option.value),
@@ -205,6 +210,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
                   </label>
                 ))}
               </div>
+              <VocabularyTypeFilter subjects={subjects} selected={vocabularyTypes} onChange={setVocabularyTypes} />
             </fieldset>
             <fieldset className={styles.reviewFilterGroup}>
               <legend>Levels</legend>

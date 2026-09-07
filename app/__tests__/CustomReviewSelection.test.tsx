@@ -9,6 +9,7 @@ import React from "react";
 
 import CustomReviewSelectionScreen from "../(app)/custom-review-selection";
 import { EXTRA_STUDY_CONFIG_STORAGE_KEYS } from "../../src/utils/extraStudyConfigPersistence";
+import { getAllSubjects } from "../../src/utils/cache";
 
 const mockSetShowVocabularyFrequency = jest.fn();
 type MockItemType =
@@ -24,6 +25,7 @@ type MockSearchFilters = {
   srsStages: Set<number>;
   jlptLevels: Set<MockJlptLevel>;
   maxFrequencyRank: number | null;
+  vocabularyTypes: string[];
 };
 type MockSearchFilterModalProps = {
   visible: boolean;
@@ -92,6 +94,7 @@ jest.mock("../../src/components/SearchFilterModal", () => {
     srsStages: new Set(ALL_SEARCH_SRS_STAGES),
     jlptLevels: new Set(),
     maxFrequencyRank: null,
+    vocabularyTypes: [],
   });
 
   const SearchFilterModal = (props: MockSearchFilterModalProps) => {
@@ -250,6 +253,7 @@ describe("Custom Review filter selection persistence", () => {
     mockNextAppliedFilters = null;
     mockedAsyncStorage.getItem.mockResolvedValue(null);
     mockedAsyncStorage.setItem.mockResolvedValue(undefined);
+    (getAllSubjects as jest.Mock).mockResolvedValue([]);
   });
 
   it("hydrates a remembered all-level filter instead of capping it to the user level", async () => {
@@ -305,6 +309,7 @@ describe("Custom Review filter selection persistence", () => {
       srsStages: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]),
       jlptLevels: new Set(["N2"]),
       maxFrequencyRank: 2500,
+      vocabularyTypes: ["proper noun"],
     };
     fireEvent.press(await openFilters(screen, "Filters, 1 active"));
 
@@ -323,7 +328,51 @@ describe("Custom Review filter selection persistence", () => {
       srsStages: [0, 1, 2, 3, 4, 5, 6, 7, 8],
       jlptLevels: ["N2"],
       maxFrequencyRank: 2500,
+      vocabularyTypes: ["proper noun"],
     });
+  });
+
+  it("applies a vocabulary type before the result limit and updates bulk selection", async () => {
+    (getAllSubjects as jest.Mock).mockResolvedValue([
+      ...Array.from({ length: 210 }, (_, index) => ({
+        id: index + 1,
+        object: "vocabulary",
+        data: {
+          characters: `名${index}`,
+          level: 1,
+          meanings: [{ meaning: `Name ${index}`, primary: true }],
+          readings: [],
+          parts_of_speech: ["noun"],
+        },
+      })),
+      {
+        id: 500,
+        object: "vocabulary",
+        data: {
+          characters: "東京",
+          level: 2,
+          meanings: [{ meaning: "Tokyo", primary: true }],
+          readings: [],
+          parts_of_speech: ["proper noun"],
+        },
+      },
+    ]);
+
+    const screen = render(<CustomReviewSelectionScreen />);
+    await waitFor(() =>
+      expect(latestSearchFilterModalProps()?.currentFilters.maxLevel).toBe(12),
+    );
+    mockNextAppliedFilters = {
+      ...latestSearchFilterModalProps()!.currentFilters,
+      vocabularyTypes: ["proper noun"],
+    };
+    fireEvent.press(await openFilters(screen));
+
+    await waitFor(() => expect(screen.getByText("Tokyo")).toBeTruthy());
+    expect(screen.queryByText("Name 0")).toBeNull();
+    expect(screen.getByLabelText("Select 1 ready subjects")).toBeTruthy();
+    expect(screen.getByLabelText("Filters, 2 active")).toBeTruthy();
+    expect(latestSavedCustomReviewConfig().vocabularyTypes).toEqual(["proper noun"]);
   });
 
   it("disables filter editing until delayed hydration restores the saved filters", async () => {

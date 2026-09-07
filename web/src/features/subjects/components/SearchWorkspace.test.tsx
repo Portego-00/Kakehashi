@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SearchWorkspace } from "./SearchWorkspace";
+import { DEFAULT_SEARCH_STATE } from "../search-state";
 
 vi.mock("../data", () => ({
   useSubjectCatalog: () => ({ subjects: [], assignments: [], statistics: [], isLoading: false, isError: false }),
@@ -46,5 +47,23 @@ describe("subject search workspace", () => {
     expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
+  });
+
+  it("restores vocabulary types from the URL and resets pagination when they change", async () => {
+    render(<SearchWorkspace initialState={{ ...DEFAULT_SEARCH_STATE, vocabularyTypes: ["proper noun"], visiblePages: 3 }} />);
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Vocab type, Proper noun" }));
+    const dialog = screen.getByRole("dialog", { name: "Vocabulary type" });
+    expect(within(dialog).getByRole("checkbox", { name: "Proper noun" })).toBeChecked();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Find vocabulary types" }), { target: { value: "verbal" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Verbal noun" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+
+    expect(screen.getByRole("button", { name: "Filters (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Vocab type, Proper noun, Verbal noun" })).toHaveFocus();
+    await waitFor(() => expect(window.location.search).toBe("?vocab=proper+noun%2Cverbal+noun"));
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByRole("button", { name: "Vocab type" })).toBeInTheDocument();
+    await waitFor(() => expect(window.location.search).toBe(""));
   });
 });

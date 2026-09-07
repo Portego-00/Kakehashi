@@ -34,6 +34,7 @@ import {
 import { getSubjectTypeColor } from "../utils/subjectColors";
 import { rankSubjectsByQuery } from "../utils/subjectSearch";
 import { useTheme } from "../utils/theme";
+import { matchesVocabularyTypes } from "../utils/vocabularyTypeFilter";
 
 export interface LessonPickerItem {
   id: number;
@@ -47,6 +48,7 @@ export interface LessonPickerItem {
       meanings: { meaning: string; primary?: boolean }[];
       readings?: { reading: string; primary?: boolean }[];
       level: number;
+      parts_of_speech?: string[] | null;
       character_images?: any[];
     };
   };
@@ -510,6 +512,7 @@ export default function LessonPicker({
   );
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
   const [collapsedLevels, setCollapsedLevels] = useState<Set<number>>(new Set());
   const [isBookmarkModalVisible, setIsBookmarkModalVisible] = useState(false);
   const [showListPickerModal, setShowListPickerModal] = useState(false);
@@ -517,7 +520,7 @@ export default function LessonPicker({
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [isLoadingLists, setIsLoadingLists] = useState(false);
   const [listLoadError, setListLoadError] = useState<string | null>(null);
-  const [showFrequencyFilterModal, setShowFrequencyFilterModal] =
+  const [showLessonFilters, setShowLessonFilters] =
     useState(false);
   const [frequencyFilter, setFrequencyFilter] =
     useState<LessonFrequencyFilter>("all");
@@ -533,12 +536,15 @@ export default function LessonPicker({
 
   // Filter lessons based on search query.
   const searchedLessons = useMemo(() => {
+    const matchingLessons = lessons.filter((lesson) =>
+      matchesVocabularyTypes(lesson.subject, vocabularyTypes),
+    );
     const query = searchQuery.trim();
     if (!query) {
-      return lessons;
+      return matchingLessons;
     }
 
-    const searchableLessons = lessons.map((lesson) => ({
+    const searchableLessons = matchingLessons.map((lesson) => ({
       id: lesson.id,
       object: lesson.subject.object,
       data: {
@@ -553,7 +559,9 @@ export default function LessonPicker({
     return rankSubjectsByQuery(searchableLessons, query).map(
       ({ subject }) => subject.lesson
     );
-  }, [lessons, searchQuery]);
+  }, [lessons, searchQuery, vocabularyTypes]);
+
+  const lessonSubjects = useMemo(() => lessons.map((lesson) => lesson.subject), [lessons]);
 
   const vocabularyLessons = useMemo(
     () =>
@@ -571,7 +579,6 @@ export default function LessonPicker({
     }
 
     setFrequencyFilter("all");
-    setShowFrequencyFilterModal(false);
   }, [showVocabularyFrequency]);
 
   useEffect(() => {
@@ -1217,50 +1224,47 @@ export default function LessonPicker({
           )}
         </View>
 
-        {showVocabularyFrequency && (
-          <TouchableOpacity
-            style={[
-              styles.frequencyFilterButton,
-              {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                borderColor: "rgba(255, 255, 255, 0.2)",
-              },
-            ]}
-            onPress={() => setShowFrequencyFilterModal(true)}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={`Vocabulary frequency filter: ${getLessonFrequencyFilterLabel(
-              frequencyFilter
-            )}`}
+        <TouchableOpacity
+          style={[
+            styles.frequencyFilterButton,
+            {
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              borderColor: "rgba(255, 255, 255, 0.2)",
+            },
+          ]}
+          onPress={() => setShowLessonFilters(true)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Lesson filters, ${vocabularyTypes.length} vocabulary types selected`}
+        >
+          <Ionicons
+            name={hasActiveFrequencyFilter || vocabularyTypes.length > 0 ? "funnel" : "funnel-outline"}
+            size={16}
+            color={theme.headerText}
+          />
+          <Text
+            style={[styles.frequencyFilterText, { color: theme.headerText }]}
           >
+            Filters{vocabularyTypes.length > 0 ? ` · ${vocabularyTypes.length} vocab type${vocabularyTypes.length === 1 ? "" : "s"}` : ""}
+            {hasActiveFrequencyFilter ? ` · ${getLessonFrequencyFilterLabel(frequencyFilter)}` : ""}
+          </Text>
+          {isLoadingFrequencyRanks && hasActiveFrequencyFilter ? (
+            <Text
+              style={[
+                styles.frequencyFilterProgress,
+                { color: theme.headerText },
+              ]}
+            >
+              {frequencyLoadProgress.completed}/{frequencyLoadProgress.total}
+            </Text>
+          ) : (
             <Ionicons
-              name={hasActiveFrequencyFilter ? "funnel" : "funnel-outline"}
+              name="chevron-down"
               size={16}
               color={theme.headerText}
             />
-            <Text
-              style={[styles.frequencyFilterText, { color: theme.headerText }]}
-            >
-              Frequency: {getLessonFrequencyFilterLabel(frequencyFilter)}
-            </Text>
-            {isLoadingFrequencyRanks && hasActiveFrequencyFilter ? (
-              <Text
-                style={[
-                  styles.frequencyFilterProgress,
-                  { color: theme.headerText },
-                ]}
-              >
-                {frequencyLoadProgress.completed}/{frequencyLoadProgress.total}
-              </Text>
-            ) : (
-              <Ionicons
-                name="chevron-down"
-                size={16}
-                color={theme.headerText}
-              />
-            )}
-          </TouchableOpacity>
-        )}
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.listContainer}>
@@ -1476,12 +1480,14 @@ export default function LessonPicker({
       </Modal>
 
       <CommonFilterModal
-        visible={showFrequencyFilterModal}
-        onClose={() => setShowFrequencyFilterModal(false)}
-        title="Vocabulary Frequency"
+        visible={showLessonFilters}
+        onClose={() => setShowLessonFilters(false)}
+        title="Lesson Filters"
         applyButtonLabel="Apply"
-        currentValues={{ frequency: frequencyFilter }}
-        sections={[
+        currentValues={{ frequency: frequencyFilter, vocabularyTypes }}
+        showVocabularyTypes
+        subjects={lessonSubjects}
+        sections={showVocabularyFrequency ? [
           {
             id: "frequency",
             title: "Frequency rank (lower is more common)",
@@ -1489,8 +1495,9 @@ export default function LessonPicker({
               ...option,
             })),
           },
-        ]}
+        ] : []}
         onApply={(values) => {
+          setVocabularyTypes(values.vocabularyTypes);
           const nextFilter = values.frequency;
           if (
             LESSON_FREQUENCY_FILTER_OPTIONS.some(

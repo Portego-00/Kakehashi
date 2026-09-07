@@ -8,6 +8,8 @@ import { ProgressTabs } from "@/features/progress/components/ProgressTabs";
 import type { Subject, SubjectType } from "@/types/wanikani";
 import { useSubjectCatalog } from "../data";
 import { useFirstSubjectReveal } from "../useFirstSubjectReveal";
+import { matchesVocabularyTypes } from "../vocabulary-types";
+import { VocabularyTypeFilter } from "./VocabularyTypeFilter";
 import { SubjectTile, SubjectTileSkeleton } from "./SubjectTile";
 import styles from "../subjects.module.css";
 
@@ -19,6 +21,7 @@ export function ItemsExplorer({ initialView = "unlocks" }: { initialView?: ItemV
   const firstResultsReveal = useFirstSubjectReveal();
   const [view, setView] = useState<ItemView>(initialView);
   const [query, setQuery] = useState("");
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
   const [type, setType] = useState<SubjectType | "all">("all");
   const [days, setDays] = useState(30);
   const [now] = useState(() => Date.now());
@@ -39,8 +42,8 @@ export function ItemsExplorer({ initialView = "unlocks" }: { initialView?: ItemV
       }).map((assignment) => ({ subject: subjectById.get(assignment.data.subject_id), sort: -(new Date(assignment.data[field]!).getTime()) })).filter((entry): entry is { subject: Subject; sort: number } => Boolean(entry.subject));
     }
     const normalized = query.trim().toLocaleLowerCase();
-    return selected.filter(({ subject }) => (type === "all" || subject.object === type) && (!normalized || subject.data.characters?.includes(normalized) || subject.data.meanings.some((meaning) => meaning.meaning.toLocaleLowerCase().includes(normalized)) || subject.data.readings?.some((reading) => reading.reading.includes(normalized)))).sort((a, b) => a.sort - b.sort).map((entry) => entry.subject);
-  }, [assignments, days, now, query, statistics, subjectById, type, view]);
+    return selected.filter(({ subject }) => (type === "all" || subject.object === type) && matchesVocabularyTypes(subject, vocabularyTypes) && (!normalized || subject.data.characters?.includes(normalized) || subject.data.meanings.some((meaning) => meaning.meaning.toLocaleLowerCase().includes(normalized)) || subject.data.readings?.some((reading) => reading.reading.includes(normalized)))).sort((a, b) => a.sort - b.sort).map((entry) => entry.subject);
+  }, [assignments, days, now, query, statistics, subjectById, type, view, vocabularyTypes]);
 
   return <main className={`page ${styles.page}`} data-compact-workspace>
     <ProgressTabs active="items" action={!isLoading ? <Badge>{rows.length.toLocaleString()} {rows.length === 1 ? "item" : "items"}</Badge> : null} />
@@ -48,6 +51,7 @@ export function ItemsExplorer({ initialView = "unlocks" }: { initialView?: ItemV
     <nav className={styles.tabs} aria-label="Item views">{VIEWS.map((item) => <button type="button" key={item.id} aria-current={view === item.id ? "page" : undefined} onClick={() => setView(item.id)}><item.icon size={17} />{item.label}</button>)}</nav>
     <section className={styles.itemToolbar} aria-label="Item filters">
       <label className={styles.compactSearch}><Search size={17} /><span className="sr-only">Filter visible items</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter visible items" /></label>
+      <VocabularyTypeFilter subjects={subjects} selected={vocabularyTypes} onChange={setVocabularyTypes} />
       <label><span>Type</span><select value={type} onChange={(event) => setType(event.target.value as SubjectType | "all")}><option value="all">All types</option><option value="radical">Radicals</option><option value="kanji">Kanji</option><option value="vocabulary">Vocabulary</option><option value="kana_vocabulary">Kana vocabulary</option></select></label>
       {view !== "critical" ? <label><span>Time range</span><select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option><option value={3650}>All time</option></select></label> : null}
     </section>
