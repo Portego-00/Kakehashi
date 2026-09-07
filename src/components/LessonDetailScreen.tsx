@@ -90,6 +90,7 @@ import {
 } from "../utils/pronunciationAudio";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveCustomVocabularyAudioForPlayback } from "../features/custom-srs/audio-cache";
 import {
   type SubjectColors,
   useSubjectColors,
@@ -2965,7 +2966,7 @@ const SubjectContent = ({
                                 )}
                                 <Text style={styles.audioButtonText}>
                                   {audio.metadata?.voice_actor_name || "Audio"}
-                                  {audio.metadata?.gender
+                                  {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                     ? ` (${audio.metadata.gender})`
                                     : ""}
                                 </Text>
@@ -3080,7 +3081,7 @@ const SubjectContent = ({
                                 )}
                                 <Text style={styles.audioButtonText}>
                                   {audio.metadata?.voice_actor_name || "Audio"}
-                                  {audio.metadata?.gender
+                                  {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                     ? ` (${audio.metadata.gender})`
                                     : ""}
                                 </Text>
@@ -3701,7 +3702,7 @@ const SubjectContent = ({
                                     <Text style={styles.audioButtonText}>
                                       {audio.metadata?.voice_actor_name ||
                                         "Audio"}
-                                      {audio.metadata?.gender
+                                      {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                         ? ` (${audio.metadata.gender})`
                                         : ""}
                                     </Text>
@@ -4083,7 +4084,7 @@ const SubjectContent = ({
                                     <Text style={styles.audioButtonText}>
                                       {audio.metadata?.voice_actor_name ||
                                         "Audio"}
-                                      {audio.metadata?.gender
+                                      {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                         ? ` (${audio.metadata.gender})`
                                         : ""}
                                     </Text>
@@ -4699,7 +4700,10 @@ export default function LessonDetailScreen({
 
       let playbackUri = audioUrl;
       if (typeof subjectId === "number" && Number.isFinite(subjectId)) {
-        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
+        const resolveAudio = subjectId < 0
+          ? resolveCustomVocabularyAudioForPlayback
+          : resolveOfflineVocabularyAudioUri;
+        const cachedAudioUri = await resolveAudio(
           subjectId,
           pronunciationAudio ?? { url: audioUrl }
         );
@@ -4751,18 +4755,20 @@ export default function LessonDetailScreen({
   }
 
   const maybeAutoplayLessonReadingTab = (subjectForPage: any, routeKey?: string) => {
-    if (!autoplayLessonReadingAudio || routeKey !== "reading") {
-      if (routeKey !== "reading") {
+    const isCustomKana = subjectForPage?.id < 0 && subjectForPage?.object === "kana_vocabulary";
+    const pronunciationTab = isCustomKana ? "meaning" : "reading";
+    if (!autoplayLessonReadingAudio || routeKey !== pronunciationTab) {
+      if (routeKey !== pronunciationTab) {
         lastLessonReadingAutoplayKeyRef.current = null;
       }
       return;
     }
 
-    if (subjectForPage?.object !== "vocabulary") {
+    if (subjectForPage?.object !== "vocabulary" && !isCustomKana) {
       return;
     }
 
-    const autoplayKey = `${subjectForPage.id}:reading`;
+    const autoplayKey = `${subjectForPage.id}:${pronunciationTab}`;
     if (lastLessonReadingAutoplayKeyRef.current === autoplayKey) {
       return;
     }
@@ -4848,6 +4854,14 @@ export default function LessonDetailScreen({
 
   // Setup state for TabView (tab index within current subject)
   const [index, setIndex] = useState(0);
+  const activeLessonSubject = batchItems[currentBatchIndex ?? 0]?.subject ?? item.subject;
+  useEffect(() => {
+    if (!isScreenFocused || noteSubjectPreviewOpen || index !== 0
+      || activeLessonSubject.id >= 0 || activeLessonSubject.object !== "kana_vocabulary") return;
+    maybeAutoplayLessonReadingTab(activeLessonSubject, "meaning");
+    // The ref inside the existing autoplay handler prevents replay on unrelated renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLessonSubject, autoplayLessonReadingAudio, index, isScreenFocused, noteSubjectPreviewOpen, vocabularyAudioVoice]);
   const [subjectDisplayContentHeights, setSubjectDisplayContentHeights] =
     useState<Record<number, number>>({});
   const recordSubjectDisplayContentHeight = useCallback(

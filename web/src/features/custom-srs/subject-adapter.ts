@@ -1,4 +1,5 @@
 import type { Assignment, Subject } from "@/types/wanikani";
+import { customVocabularyAudio } from "./audio";
 import type { CustomSrsAssignment, CustomVocabularyWord } from "./types";
 
 const CUSTOM_SUBJECT_BASE = 1_500_000_000;
@@ -44,7 +45,7 @@ export function customWordToSubject(word: CustomVocabularyWord): Subject {
       amalgamation_subject_ids: [],
       visually_similar_subject_ids: [],
       context_sentences: word.contextSentences,
-      pronunciation_audios: [],
+      pronunciation_audios: customVocabularyAudio(word.id),
       parts_of_speech: word.partsOfSpeech,
     },
   };

@@ -2,7 +2,7 @@ describe("offlineVocabularyAudioService", () => {
   const loadService = ({
     getDirectoryInfo,
     queueCandidates = [],
-    downloadAsync = jest.fn(async () => ({})),
+    downloadAsync = jest.fn(async () => ({ status: 200 })),
   }: {
     getDirectoryInfo: jest.Mock;
     queueCandidates?: any[];
@@ -25,13 +25,14 @@ describe("offlineVocabularyAudioService", () => {
     jest.doMock("react-native", () => ({
       Platform: { OS: "android" },
     }));
+    const deleteAsync = jest.fn(async () => {});
     jest.doMock("expo-file-system/legacy", () => ({
       documentDirectory: "file:///documents/",
       getInfoAsync,
       makeDirectoryAsync: jest.fn(async () => {}),
       readDirectoryAsync: jest.fn(async () => []),
       downloadAsync,
-      deleteAsync: jest.fn(async () => {}),
+      deleteAsync,
     }));
     jest.doMock("expo-sqlite", () => ({
       openDatabaseAsync: jest.fn(async () => db),
@@ -45,7 +46,7 @@ describe("offlineVocabularyAudioService", () => {
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const service = require("../offlineVocabularyAudioService");
-    return { service, getInfoAsync, downloadAsync };
+    return { service, getInfoAsync, downloadAsync, deleteAsync };
   };
 
   it("deduplicates matching queue requests before initialization completes", async () => {
@@ -103,5 +104,17 @@ describe("offlineVocabularyAudioService", () => {
 
     expect(downloadAsync).toHaveBeenCalledTimes(queueCandidates.length);
     expect(maximumActiveDownloads).toBe(2);
+  });
+
+  it("does not keep a failed HTTP response as a pronunciation recording", async () => {
+    const { service, downloadAsync, deleteAsync } = loadService({
+      getDirectoryInfo: jest.fn(async () => ({ exists: true, isDirectory: true })),
+      downloadAsync: jest.fn(async () => ({ status: 404 })),
+    });
+    const audio = { url: "https://audio.example/not-published.mp3" };
+    expect(await service.getCachedOrDownloadVocabularyAudioUri(-123, audio)).toBeNull();
+    expect(deleteAsync).toHaveBeenCalledWith(expect.stringContaining("a-123-"), { idempotent: true });
+    await service.getCachedOrDownloadVocabularyAudioUri(-123, audio);
+    expect(downloadAsync).toHaveBeenCalledTimes(2);
   });
 });

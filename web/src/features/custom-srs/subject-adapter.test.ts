@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PronunciationAudio } from "@/types/wanikani";
 import { checkAnswer } from "@/features/core-study/answer-checker";
 import { kindsForSubject } from "@/features/core-study/queue";
 import { customAssignmentToWaniKani, customSubjectId, customWordToSubject, customWordUsesKanji } from "./subject-adapter";
+
+const audioMock = vi.hoisted(() => vi.fn<() => PronunciationAudio[]>(() => []));
+vi.mock("./audio", () => ({ customVocabularyAudio: audioMock }));
 
 const word = {
   id: "pack:メモ",
@@ -15,6 +19,21 @@ const word = {
 };
 
 describe("custom vocabulary subject adapter", () => {
+  beforeEach(() => audioMock.mockReset().mockReturnValue([]));
+
+  it("attaches published pronunciation without adding kana reading metadata", () => {
+    const audio: PronunciationAudio = {
+      url: "https://example.supabase.co/storage/v1/object/public/custom-vocabulary-audio/memo.mp3",
+      content_type: "audio/mpeg",
+      metadata: { gender: "female", source_id: 15, pronunciation: "メモ", voice_actor_id: 15, voice_actor_name: "Shizuka", voice_description: "AI-generated" },
+    };
+    audioMock.mockReturnValue([audio]);
+    const subject = customWordToSubject(word);
+    expect(audioMock).toHaveBeenCalledWith(word.id);
+    expect(subject.data.pronunciation_audios).toEqual([audio]);
+    expect(subject.data.readings).toBeUndefined();
+  });
+
   it("builds a stable kana-vocabulary subject compatible with the shared answer checker", () => {
     const subject = customWordToSubject(word);
     expect(customSubjectId(word.id)).toBe(customSubjectId(word.id));

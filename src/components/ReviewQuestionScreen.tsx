@@ -84,6 +84,7 @@ import {
 } from "../utils/pitchAccent";
 import { shouldShowAnkiPitchAccent } from "../utils/ankiAnswerVisibility";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveCustomVocabularyAudioForPlayback } from "../features/custom-srs/audio-cache";
 import {
   type EnglishJapaneseAnswerOption,
   matchesAcceptedJapaneseAnswer,
@@ -1127,6 +1128,9 @@ export default function ReviewQuestionScreen({
   reviewPermissionWarning,
   onDismissReviewPermissionWarning,
 }: ReviewQuestionProps) {
+  // Kana has no reading question; reveal its pronunciation only after the meaning answer.
+  const isCustomKanaAudioQuestion = item.subject.id < 0 && item.subject.object === "kana_vocabulary";
+  const isPronunciationAnswerQuestion = questionType === "reading" || isCustomKanaAudioQuestion;
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { apiToken, userData } = useAuthStore();
   const {
@@ -2741,8 +2745,12 @@ export default function ReviewQuestionScreen({
           }
         }
 
-        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
-          customAudioSource?.subjectId ?? item.subject.id,
+        const audioSubjectId = customAudioSource?.subjectId ?? item.subject.id;
+        const resolveAudio = audioSubjectId < 0
+          ? resolveCustomVocabularyAudioForPlayback
+          : resolveOfflineVocabularyAudioUri;
+        const cachedAudioUri = await resolveAudio(
+          audioSubjectId,
           audioFile
         );
 
@@ -2957,7 +2965,7 @@ export default function ReviewQuestionScreen({
           if (kanaInputRef.current?.clearInput) {
             kanaInputRef.current.clearInput();
           }
-          if (questionType === "reading") {
+          if (isPronunciationAnswerQuestion) {
             playVocabularyAudio({ answer });
           }
           break;
@@ -2979,7 +2987,7 @@ export default function ReviewQuestionScreen({
           if (kanaInputRef.current?.clearInput) {
             kanaInputRef.current.clearInput();
           }
-          if (questionType === "reading") {
+          if (isPronunciationAnswerQuestion) {
             playVocabularyAudio({ answer });
           }
           break;
@@ -3013,8 +3021,8 @@ export default function ReviewQuestionScreen({
         }
         setInputResetNonce((nonce) => nonce + 1);
 
-        // Play vocabulary audio if this is a reading question
-        if (questionType === "reading") {
+        // Pronunciation is never played while the answer is still hidden.
+        if (isPronunciationAnswerQuestion) {
           playVocabularyAudio({ answer });
         }
 
@@ -3066,7 +3074,7 @@ export default function ReviewQuestionScreen({
           setWrongAnswerText(answer);
           setCloseAnswerText(null);
           setCorrectAnswerText(null);
-          if (questionType === "reading") {
+          if (isPronunciationAnswerQuestion) {
             playVocabularyAudio();
           }
           shouldRefocusInput = false;
@@ -4263,10 +4271,10 @@ export default function ReviewQuestionScreen({
       Array.isArray(pronunciationAudios) &&
       pronunciationAudios.length > 0);
   const canReplayPausedAudio =
-    questionType === "reading" && hasReplayableVocabularyAudio;
+    isPronunciationAnswerQuestion && hasReplayableVocabularyAudio;
   const canReplayAnkiAudio =
     hasReplayableVocabularyAudio &&
-    (questionType === "reading" || effectiveAnkiGroupQuestions);
+    (isPronunciationAnswerQuestion || effectiveAnkiGroupQuestions);
 
   const handlePausedShortcutKeyPress = (
     event: TextInputKeyPressEvent,
@@ -4454,7 +4462,7 @@ export default function ReviewQuestionScreen({
     setAnkiAnswerRevealed(true);
 
     // In Anki mode, autoplay vocabulary audio when the answer is revealed.
-    if (questionType === "reading" || effectiveAnkiGroupQuestions) {
+    if (isPronunciationAnswerQuestion || effectiveAnkiGroupQuestions) {
       void playVocabularyAudio();
     }
 

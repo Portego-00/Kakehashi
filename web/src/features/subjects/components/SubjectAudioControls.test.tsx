@@ -59,4 +59,31 @@ describe("subject audio controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Play Kyoko pronunciation" }));
     expect(await screen.findByRole("button", { name: "Retry Kyoko pronunciation" })).toHaveAttribute("data-state", "error");
   });
+
+  it("waits for an explicit autoplay request and does not restart on unrelated rerenders", async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    const button = <SubjectAudioButton audioKey="pronunciation:1" src="https://example.com/shizuka.mp3" label="Shizuka pronunciation" variant="pronunciation" />;
+    const { container, rerender } = render(<SubjectAudioProvider>{button}</SubjectAudioProvider>);
+    const player = container.querySelector("audio");
+    expect(player).toHaveAttribute("preload", "none");
+    expect(player).not.toHaveAttribute("src");
+    expect(play).not.toHaveBeenCalled();
+
+    rerender(<SubjectAudioProvider autoplay={{ audioKey: "pronunciation:1", src: "https://example.com/shizuka.mp3" }}>{button}</SubjectAudioProvider>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop Shizuka pronunciation" })).toBeInTheDocument());
+    rerender(<SubjectAudioProvider autoplay={{ audioKey: "pronunciation:1", src: "https://example.com/shizuka.mp3" }}>{button}</SubjectAudioProvider>);
+    expect(play).toHaveBeenCalledOnce();
+  });
+
+  it("stops and releases the current file on unmount, even after its DOM ref is cleared", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    const { container, unmount } = render(<SubjectAudioProvider autoplay={{ audioKey: "pronunciation:1", src: "https://example.com/shizuka.mp3" }}><SubjectAudioButton audioKey="pronunciation:1" src="https://example.com/shizuka.mp3" label="Shizuka pronunciation" variant="pronunciation" /></SubjectAudioProvider>);
+    await screen.findByRole("button", { name: "Stop Shizuka pronunciation" });
+    const player = container.querySelector("audio");
+    unmount();
+    expect(pause).toHaveBeenCalledOnce();
+    expect(player).not.toHaveAttribute("src");
+  });
 });

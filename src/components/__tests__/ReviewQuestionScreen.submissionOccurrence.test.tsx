@@ -4,6 +4,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
+import { Audio } from "../../utils/expoAvCompat";
 
 const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
   async () => null,
@@ -107,6 +108,9 @@ jest.mock("../../utils/expoAvCompat", () => ({
   Audio: {
     Sound: { createAsync: jest.fn() },
   },
+}));
+jest.mock("../../features/custom-srs/audio-cache", () => ({
+  resolveCustomVocabularyAudioForPlayback: jest.fn(async () => "file:///custom-audio.mp3"),
 }));
 
 jest.mock("react-native-reanimated", () => {
@@ -350,6 +354,7 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
+    jest.mocked(Audio.Sound.createAsync).mockReset();
     Object.assign(mockSettings, defaultSettings);
     mockReadReviewSettings.mockClear();
     mockSpeechListeners.clear();
@@ -427,6 +432,38 @@ describe("ReviewQuestionScreen question occurrences", () => {
       },
     },
   };
+
+  it.each([true, false])("keeps custom kana pronunciation hidden until an answer, with autoplay %s", async (autoplay) => {
+    mockSettings.autoplayVocabularyAudio = autoplay;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    mockSettings.vocabularyAudioVoice = "male"; // Existing preference logic falls back to the only available voice.
+    const clip = { url: "https://audio.example/shizuka.mp3", content_type: "audio/mpeg", metadata: { gender: "female", voice_actor_name: "Shizuka", pronunciation: "やっぱり" } };
+    jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: {
+      setOnPlaybackStatusUpdate: (callback: ((status: unknown) => void) | null) => callback?.({ isLoaded: true, didJustFinish: true }),
+      stopAsync: jest.fn(async () => {}), unloadAsync: jest.fn(async () => {}),
+    } } as never);
+    const item = {
+      id: -123,
+      subject: {
+        id: -123, object: "kana_vocabulary" as const,
+        data: { characters: "やっぱり", meanings: [{ meaning: "As Expected", primary: true, accepted_answer: true }], readings: [], pronunciation_audios: [clip] },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByText("Replay")).toBeNull();
+    expect(Audio.Sound.createAsync).not.toHaveBeenCalled();
+    fireEvent.changeText(screen.getByTestId("answer-input"), "as expected");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    await waitFor(() => expect(screen.getByText("Replay")).toBeTruthy());
+    if (autoplay) {
+      await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(1));
+    } else {
+      expect(Audio.Sound.createAsync).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText("Replay"));
+      await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(1));
+    }
+    expect(Audio.Sound.createAsync).toHaveBeenCalledWith({ uri: "file:///custom-audio.mp3" }, expect.objectContaining({ shouldPlay: true }));
+  });
 
   function renderAudioQuestion(onAnswer = jest.fn()) {
     return render(
