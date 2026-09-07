@@ -3,6 +3,7 @@ import {
   findVocabularyMatchesWithJpdbFirstPass,
   getVerbInflectionLabelsForMatch,
   getHighlightSegments,
+  type VocabularyMatch,
 } from "../textHighlighting";
 
 type MockSubject = {
@@ -530,6 +531,47 @@ describe("textHighlighting verb inflection matching", () => {
     expect(second).toEqual(first);
   });
 
+  it("refreshes cached highlights when JPDB surface candidates change", () => {
+    const text = "食べる。たべる。";
+    const match: VocabularyMatch = {
+      id: 800,
+      characters: "食べる",
+      meaning: "To Eat",
+      type: "vocabulary",
+      level: 6,
+      matchCandidates: ["食べる"],
+      disableConjugationExpansion: true,
+    };
+    getHighlightSegments(text, [match]);
+
+    const refreshed = getHighlightSegments(text, [{
+      ...match,
+      matchCandidates: ["食べる", "たべる"],
+    }]);
+
+    expect(refreshed).toContainEqual({
+      text: "たべる",
+      match: expect.objectContaining({ id: 800 }),
+    });
+  });
+
+  it("refreshes cached popup metadata when JPDB synthetic IDs are reused", () => {
+    const match: VocabularyMatch = {
+      id: -1,
+      characters: "あく",
+      meaning: "to open",
+      type: "vocabulary",
+      level: 0,
+      isWaniKaniSubject: false,
+      disableConjugationExpansion: true,
+    };
+    getHighlightSegments("あく。", [match]);
+
+    const refreshed = getHighlightSegments("あく。", [{ ...match, meaning: "to become empty" }]);
+
+    expect(refreshed[0].match?.meaning).toBe("to become empty");
+  });
+
   it("uses JPDB parse output as first pass and maps parsed verbs to WaniKani vocab", async () => {
     process.env.EXPO_PUBLIC_JPDB_API_KEY = "test-jpdb-key";
     global.fetch = jest.fn().mockResolvedValue({
@@ -595,7 +637,7 @@ describe("textHighlighting verb inflection matching", () => {
     expect(vocabularyMatches.map((match) => match.id)).toContain(802);
   });
 
-  it("maps kana-only adjective tokens to WaniKani kanji vocabulary when lexical meaning matches", async () => {
+  it("maps kana-only adjective tokens using an accepted alternate WaniKani reading", async () => {
     process.env.EXPO_PUBLIC_JPDB_API_KEY = "test-jpdb-key";
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -617,7 +659,7 @@ describe("textHighlighting verb inflection matching", () => {
         characters: "寂しい",
         meaning: "Lonely",
         partsOfSpeech: ["I-adjective"],
-        readings: ["さびしい"],
+        readings: ["さびしい", "さみしい"],
       }),
     ];
 
@@ -632,6 +674,46 @@ describe("textHighlighting verb inflection matching", () => {
     expect(
       segments.some((segment) => segment.match?.id === 910 && segment.text === "さみしい")
     ).toBe(true);
+  });
+
+  it("keeps どんな as JPDB vocabulary instead of mapping it to 主人 (issue #62)", async () => {
+    process.env.EXPO_PUBLIC_JPDB_API_KEY = "test-jpdb-issue-62";
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tokens: [[[0, 0, 3], [0, 7, 3]]],
+        vocabulary: [["どんな", "どんな", ["adj-pn"], [["what kind of", "whatever kind of"]]]],
+      }),
+    }) as any;
+
+    const sentence = "どんなときも。どんな日も。";
+    const subjects = [
+      createVocabularySubject({
+        id: 930,
+        characters: "主人",
+        meaning: "Head of Household",
+        partsOfSpeech: ["Noun", "No-adjective"],
+        readings: ["しゅじん"],
+      }),
+    ];
+
+    const result = await findVocabularyMatchesWithJpdbFirstPass(sentence, subjects);
+
+    expect(result.vocabularyMatches).toEqual([
+      expect.objectContaining({
+        characters: "どんな",
+        readings: [{ reading: "どんな", primary: true }],
+        isWaniKaniSubject: false,
+      }),
+    ]);
+    const selectedWords = getHighlightSegments(sentence, result.vocabularyMatches)
+      .filter((segment) => segment.text === "どんな");
+    expect(selectedWords).toHaveLength(2);
+    expect(selectedWords.every((segment) => segment.match?.characters === "どんな")).toBe(true);
+    expect(result.jpdbParsedTokens?.map((token) => token.mappedVocabularyId)).toEqual([
+      result.vocabularyMatches[0].id,
+      result.vocabularyMatches[0].id,
+    ]);
   });
 
   it("does not map JPDB adverb どう to unrelated WaniKani homophones like 〜道", async () => {

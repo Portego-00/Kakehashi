@@ -115,6 +115,7 @@ export interface UnlockItem {
   characters: string;
   meaning: string;
   type: WaniKaniItemType;
+  partsOfSpeech?: string[] | null;
   dateUnlocked: string;
   startedAt?: string | null;
   level?: number;
@@ -127,6 +128,7 @@ export interface CriticalItem {
   characters: string;
   meaning: string;
   type: WaniKaniItemType;
+  partsOfSpeech?: string[] | null;
   percentage: number;
   meaningCorrect?: number;
   meaningIncorrect?: number;
@@ -141,6 +143,7 @@ export interface BurnedItem {
   characters: string;
   meaning: string;
   type: WaniKaniItemType;
+  partsOfSpeech?: string[] | null;
   dateBurned: string;
   reading?: string;
   character_images?: any[];

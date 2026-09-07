@@ -1,5 +1,8 @@
 import { ArrowRight, BookOpen, CircleAlert, Cloud, FolderOpen, HardDrive, RotateCw } from "lucide-react";
 import Link from "next/link";
+import { ReviewForecast } from "./ReviewForecast";
+import type { ReviewForecast as ReviewForecastData } from "./review-forecast";
+import { REVIEW_FORECAST_PREVIEW_PREFERENCES, type useReviewForecastPreferences } from "./use-review-forecast-preferences";
 import styles from "./dashboard.module.css";
 
 type CustomVocabularyWidgetViewProps = {
@@ -7,6 +10,8 @@ type CustomVocabularyWidgetViewProps = {
   reviews: number | null;
   enrolledPacks: number | null;
   totalPacks: number | null;
+  forecast?: ReviewForecastData | null;
+  forecastPreferences?: ReturnType<typeof useReviewForecastPreferences>;
   storageMode?: "cloud" | "browser";
   loading?: boolean;
   unavailable?: boolean;
@@ -52,6 +57,8 @@ export function CustomVocabularyWidgetView({
   reviews,
   enrolledPacks,
   totalPacks,
+  forecast = null,
+  forecastPreferences = REVIEW_FORECAST_PREVIEW_PREFERENCES,
   storageMode = "cloud",
   loading = false,
   unavailable = false,
@@ -119,6 +126,15 @@ export function CustomVocabularyWidgetView({
         icon={FolderOpen}
       />
     </div>
+
+    {forecast ? <ReviewForecast
+        forecast={forecast}
+        title="Upcoming reviews"
+        embedded
+        {...forecastPreferences}
+        loading={loading}
+        unavailable={unavailable ? "Custom review schedule is unavailable." : undefined}
+    /> : <p className={styles.customVocabularyForecastUnavailable}>{loading ? "Loading custom review schedule…" : "Custom review schedule is unavailable."}</p>}
 
     {unavailable && !preview && onRetry ? <div className={styles.customVocabularyError}>
       <span>Custom progress could not be reached.</span>

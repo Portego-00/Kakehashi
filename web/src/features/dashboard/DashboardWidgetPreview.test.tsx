@@ -30,7 +30,7 @@ describe("dashboard widget previews", () => {
       "Active Item Spread",
       "Level — Progress",
       "Extra study",
-      "Next 12 hours",
+      "Review forecast",
       "Review stats",
       "Recent Mistakes",
       "App Streak",
@@ -56,13 +56,14 @@ describe("dashboard widget previews", () => {
     expect(unstartedSubject?.querySelectorAll('[class*="levelSubjectMeter"] b')).toHaveLength(5);
     expect(unstartedSubject?.querySelector('[class*="levelSubjectMeter"] [data-filled]')).toBeNull();
     expect(container.querySelectorAll('[data-widget-preview="study-streak"] [class*="streakDay"]')).toHaveLength(7);
-    expect(container.querySelectorAll('[data-widget-preview="forecast"] [class*="forecastCol"]')).toHaveLength(12);
+    expect(container.querySelectorAll('[data-widget-preview="forecast"] [aria-label="Hourly review forecast"] > li')).toHaveLength(24);
     expect(container.querySelectorAll('[data-widget-preview="recent-mistakes"] [class*="recentMistakeTile"]')).toHaveLength(3);
     expect(container.querySelector('[data-widget-preview="daily-study"] img[src*="Lessons.png"]')).not.toBeNull();
     expect(container.querySelector('[data-widget-preview="daily-study"] img[src*="Reviews.png"]')).not.toBeNull();
     expect(container.querySelector('[data-widget-preview="custom-vocabulary"] [data-subject-type="vocabulary"]')).toHaveTextContent("かな");
     expect(container.querySelector('[data-widget-preview="custom-vocabulary"]')).toHaveTextContent(/Lessons.*Reviews due.*Packs/);
     expect(container.querySelector('[data-widget-preview="custom-vocabulary"]')).toHaveTextContent("Curated lists available");
+    expect(container.querySelectorAll('[data-widget-preview="custom-vocabulary"] [aria-label="Hourly review forecast"] > li')).toHaveLength(24);
     expect(container.querySelector('[data-widget-preview="recent-unlocks"] [data-long="true"]')).toHaveTextContent("見当たる");
     expect(container.querySelectorAll('[data-widget-preview="incomplete-levels"] [class*="incompleteRingProgress"]')).toHaveLength(3);
     expect(container.querySelectorAll('[data-widget-preview="study-time"] [class*="studyChartColumn"]')).toHaveLength(14);

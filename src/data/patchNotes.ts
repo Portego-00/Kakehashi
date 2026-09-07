@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.11",
+    date: "2026-09-07",
+    changes: [
+      {
+        type: "feature",
+        title: "Vocabulary Type Filters",
+        description:
+          "Filter vocabulary by parts of speech, including proper nouns and verbal nouns, across Search, subject lists, and study pickers.",
+      },
+    ],
+  },
+  {
     version: "1.4.10",
     date: "2026-09-05",
     changes: [
@@ -64,6 +76,12 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Multiple Choice Reviews",
         description:
           "Enable Multiple Choice in Review Settings to choose from similar readings and related meanings instead of typing.",
+      },
+      {
+        type: "feature",
+        title: "Lesson Search Button",
+        description:
+          "Look up subjects from lesson cards without losing your place. Enable in advanced Lesson Settings; off by default.",
       },
       {
         type: "improvement",

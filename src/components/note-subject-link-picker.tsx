@@ -10,7 +10,11 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -30,8 +34,11 @@ import { useAuthStore } from "../utils/store";
 import {
   getDefaultSubjectSearchConfig,
   rankSubjectsByQuery,
+  sortSubjectsByLevelAndType,
 } from "../utils/subjectSearch";
 import { useTheme } from "../utils/theme";
+import { matchesVocabularyTypes } from "../utils/vocabularyTypeFilter";
+import { VocabularyTypeFilter } from "./vocabulary-type-filter";
 
 type NoteSubjectLinkPickerProps = {
   initialQuery: string;
@@ -110,6 +117,8 @@ export default function NoteSubjectLinkPicker({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
+  const [showVocabularyTypes, setShowVocabularyTypes] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,15 +160,24 @@ export default function NoteSubjectLinkPicker({
 
   const results = useMemo(() => {
     const trimmedQuery = deferredQuery.trim();
-    if (!trimmedQuery || subjects.length === 0) return [];
+    if (subjects.length === 0) return [];
+
+    const matchingSubjects = subjects.filter((subject) =>
+      matchesVocabularyTypes(subject, vocabularyTypes),
+    );
+    if (!trimmedQuery) {
+      return vocabularyTypes.length > 0
+        ? sortSubjectsByLevelAndType(matchingSubjects).slice(0, 60)
+        : [];
+    }
 
     const config = getDefaultSubjectSearchConfig(trimmedQuery.length);
-    return rankSubjectsByQuery(subjects, trimmedQuery, {
+    return rankSubjectsByQuery(matchingSubjects, trimmedQuery, {
       minScore: config.minScore,
     })
       .slice(0, Math.min(config.maxResults, 60))
       .map(({ subject }) => subject);
-  }, [deferredQuery, subjects]);
+  }, [deferredQuery, subjects, vocabularyTypes]);
 
   const renderSubject = useCallback(
     ({ item }: { item: Subject }) => {
@@ -293,6 +311,29 @@ export default function NoteSubjectLinkPicker({
         {isSearching ? (
           <ActivityIndicator size="small" color={theme.primary} />
         ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            vocabularyTypes.length > 0
+              ? `Vocabulary type filters, ${vocabularyTypes.length} selected`
+              : "Vocabulary type filters"
+          }
+          accessibilityState={{ selected: vocabularyTypes.length > 0 }}
+          onPress={() => {
+            Keyboard.dismiss();
+            setShowVocabularyTypes(true);
+          }}
+          style={({ pressed }) => [
+            styles.filterButton,
+            { opacity: pressed ? 0.55 : 1 },
+          ]}
+        >
+          <Ionicons
+            name={vocabularyTypes.length > 0 ? "options" : "options-outline"}
+            size={20}
+            color={vocabularyTypes.length > 0 ? theme.primary : theme.textSecondary}
+          />
+        </Pressable>
       </View>
 
       {isLoading ? (
@@ -316,7 +357,7 @@ export default function NoteSubjectLinkPicker({
             <Text style={[styles.retryText, { color: theme.primary }]}>Try again</Text>
           </Pressable>
         </View>
-      ) : !trimmedQuery ? (
+      ) : !trimmedQuery && vocabularyTypes.length === 0 ? (
         <View style={styles.centerState}>
           <Text style={[styles.stateText, { color: theme.textSecondary }]}>Search for the subject this text should open.</Text>
         </View>
@@ -338,6 +379,54 @@ export default function NoteSubjectLinkPicker({
           renderItem={renderSubject}
         />
       )}
+      {showVocabularyTypes ? (
+        <Modal
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowVocabularyTypes(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.filterKeyboardContainer}
+          >
+            <View style={styles.filterBackdrop}>
+              <View
+                accessibilityViewIsModal
+                style={[
+                  styles.filterDialog,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                ]}
+              >
+                <View style={[styles.header, { borderBottomColor: theme.border }]}>
+                  <Text style={[styles.title, { color: theme.textColor }]}>Filter subjects</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close vocabulary type filters"
+                    onPress={() => setShowVocabularyTypes(false)}
+                    style={styles.filterButton}
+                  >
+                    <Ionicons name="close" size={22} color={theme.textColor} />
+                  </Pressable>
+                </View>
+                <ScrollView
+                  style={styles.filterOptions}
+                  contentInsetAdjustmentBehavior="automatic"
+                  contentContainerStyle={styles.filterContent}
+                  keyboardDismissMode="on-drag"
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <VocabularyTypeFilter
+                    subjects={subjects}
+                    selected={vocabularyTypes}
+                    onChange={setVocabularyTypes}
+                    initiallyExpanded
+                  />
+                </ScrollView>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -394,6 +483,33 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingVertical: 8,
     fontSize: 15,
+  },
+  filterButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterKeyboardContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+  },
+  filterBackdrop: {
+    flex: 1,
+    padding: 24,
+    justifyContent: "center",
+  },
+  filterDialog: {
+    maxHeight: "80%",
+    borderWidth: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  filterContent: {
+    padding: 16,
+  },
+  filterOptions: {
+    flexShrink: 1,
   },
   resultRow: {
     minHeight: 62,

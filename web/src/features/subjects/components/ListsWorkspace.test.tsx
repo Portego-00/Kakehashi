@@ -22,6 +22,7 @@ vi.mock("../data", () => ({
         document_url: "https://www.wanikani.com/vocabulary/細かい",
         hidden_at: null,
         characters: "細かい",
+        parts_of_speech: ["i-adjective"],
         meanings: [{ meaning: "Detailed", primary: true, accepted_answer: true }],
         auxiliary_meanings: [],
         readings: [{ reading: "こまかい", primary: true, accepted_answer: true, type: "kunyomi" }],
@@ -38,6 +39,7 @@ vi.mock("../data", () => ({
         document_url: "https://www.wanikani.com/vocabulary/日本",
         hidden_at: null,
         characters: "日本",
+        parts_of_speech: ["proper noun"],
         meanings: [{ meaning: "Japan", primary: true, accepted_answer: true }],
         auxiliary_meanings: [],
         readings: [{ reading: "にほん", primary: true, accepted_answer: true, type: "kunyomi" }],
@@ -156,6 +158,33 @@ describe("subject list workspace", () => {
 
     expect(within(dialog).getByRole("button", { name: "Added" })).toBeDisabled();
     expect(screen.getAllByText("細かい")).toHaveLength(2);
+  });
+
+  it("filters saved list contents and the add-subject dialog by vocabulary type", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      lists: [{ id: "types", name: "Vocabulary practice", subjectIds: [440, 441], createdAt: "", updatedAt: "" }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    render(<ListsWorkspace />);
+    await screen.findByText("Japan");
+    fireEvent.click(screen.getByRole("button", { name: "Vocab type" }));
+    const types = screen.getByRole("dialog", { name: "Vocabulary type" });
+    fireEvent.click(within(types).getByRole("checkbox", { name: "Proper noun" }));
+    fireEvent.click(within(types).getByRole("button", { name: "Done" }));
+    expect(screen.queryByText("Detailed")).not.toBeInTheDocument();
+    expect(screen.getByText("Japan")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add subjects" }));
+    const add = screen.getByRole("dialog", { name: "Add subjects" });
+    fireEvent.click(within(add).getByRole("button", { name: "Filters" }));
+    fireEvent.click(within(add).getByRole("button", { name: "Vocab type" }));
+    const addTypes = within(add).getByRole("dialog", { name: "Vocabulary type" });
+    fireEvent.click(within(addTypes).getByRole("checkbox", { name: "I-adjective" }));
+    fireEvent.click(within(addTypes).getByRole("button", { name: "Done" }));
+    expect(add).toHaveAttribute("open");
+    expect(within(add).getByText("Detailed")).toBeInTheDocument();
+    expect(within(add).queryByText("Japan")).not.toBeInTheDocument();
+    fireEvent.click(within(add).getByRole("button", { name: "Clear filters" }));
+    expect(within(add).getByText("Japan")).toBeInTheDocument();
   });
 
   it("reorders subjects by dropping a row before or after another row", async () => {

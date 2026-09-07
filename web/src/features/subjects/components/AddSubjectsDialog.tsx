@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/States";
 import type { Assignment, ReviewStatistic, Subject, SubjectType } from "@/types/wanikani";
 import { DEFAULT_SEARCH_FILTERS, searchSubjects } from "../search";
+import { VocabularyTypeFilter } from "./VocabularyTypeFilter";
 import { SubjectTile } from "./SubjectTile";
 import styles from "../subjects.module.css";
 
@@ -42,6 +43,7 @@ export function AddSubjectsDialog({
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<SubjectType[]>([]);
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
   const [srs, setSrs] = useState<string[]>([]);
   const [minLevel, setMinLevel] = useState(1);
   const [maxLevel, setMaxLevel] = useState(60);
@@ -53,12 +55,13 @@ export function AddSubjectsDialog({
     ...DEFAULT_SEARCH_FILTERS,
     query: deferredQuery,
     types,
+    vocabularyTypes,
     srs,
     minLevel,
     maxLevel,
-  }) : [], [assignments, deferredQuery, maxLevel, minLevel, open, srs, subjects, types]);
+  }) : [], [assignments, deferredQuery, maxLevel, minLevel, open, srs, subjects, types, vocabularyTypes]);
   const results = allResults.slice(0, RESULT_LIMIT);
-  const activeFilters = types.length + srs.length + (minLevel > 1 ? 1 : 0) + (maxLevel < 60 ? 1 : 0);
+  const activeFilters = types.length + vocabularyTypes.length + srs.length + (minLevel > 1 ? 1 : 0) + (maxLevel < 60 ? 1 : 0);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -76,7 +79,7 @@ export function AddSubjectsDialog({
   const toggle = <T,>(value: T, current: T[], setCurrent: (next: T[]) => void) => {
     setCurrent(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
   };
-  const resetFilters = () => { setTypes([]); setSrs([]); setMinLevel(1); setMaxLevel(60); };
+  const resetFilters = () => { setTypes([]); setVocabularyTypes([]); setSrs([]); setMinLevel(1); setMaxLevel(60); };
 
   return <dialog
     ref={dialogRef}
@@ -100,7 +103,7 @@ export function AddSubjectsDialog({
       {showFilters ? <div id="add-subjects-filters" className={styles.addDialogFilters}>
         {activeFilters ? <div className={styles.filterHead}><Button tone="ghost" size="small" onClick={resetFilters}>Clear filters</Button></div> : null}
         <div className={styles.filterGrid}>
-          <div className={styles.filterGroup} role="group" aria-labelledby="add-subject-type-filter-title"><h3 id="add-subject-type-filter-title" className={styles.filterTitle}>Subject type</h3><div className={styles.checkGroup}>{TYPES.map((type) => <label key={type.value}><input type="checkbox" checked={types.includes(type.value)} onChange={() => toggle(type.value, types, setTypes)} /><span>{type.label}</span></label>)}</div></div>
+          <div className={styles.filterGroup} role="group" aria-labelledby="add-subject-type-filter-title"><h3 id="add-subject-type-filter-title" className={styles.filterTitle}>Subject type</h3><div className={styles.checkGroup}>{TYPES.map((type) => <label key={type.value}><input type="checkbox" checked={types.includes(type.value)} onChange={() => toggle(type.value, types, setTypes)} /><span>{type.label}</span></label>)}</div><VocabularyTypeFilter subjects={subjects} selected={vocabularyTypes} onChange={setVocabularyTypes} /></div>
           <div className={styles.filterGroup} role="group" aria-labelledby="add-subject-srs-filter-title"><h3 id="add-subject-srs-filter-title" className={styles.filterTitle}>SRS stage</h3><div className={styles.checkGroup}>{SRS.map((value) => <label key={value}><input type="checkbox" checked={srs.includes(value)} onChange={() => toggle(value, srs, setSrs)} />{value !== "locked" ? <SrsStageIcon level={value} size={18} /> : null}<span>{value[0].toUpperCase() + value.slice(1)}</span></label>)}</div></div>
           <div className={styles.filterGroup} role="group" aria-labelledby="add-subject-level-filter-title"><h3 id="add-subject-level-filter-title" className={styles.filterTitle}>WaniKani level</h3><div className={styles.levelInputs}><label>From <input type="number" min={1} max={maxLevel} value={minLevel} onChange={(event) => setMinLevel(Math.max(1, Math.min(maxLevel, Number(event.target.value))))} /></label><label>Through <input type="number" min={minLevel} max={60} value={maxLevel} onChange={(event) => setMaxLevel(Math.min(60, Math.max(minLevel, Number(event.target.value))))} /></label></div></div>
         </div>
@@ -117,7 +120,7 @@ export function AddSubjectsDialog({
             statistic={statisticBySubject.get(result.subject.id)}
             action={<Button type="button" size="small" state={added ? "success" : "idle"} disabled={added} onClick={() => onAdd(result.subject.id)}>{added ? "Added" : "Add"}</Button>}
           />;
-        })}</section> : <EmptyState title="No subjects found" description="Try a broader spelling, level range, subject type, or SRS stage." />}
+        })}</section> : <EmptyState title="No subjects found" description="Try a broader spelling, level range, subject type, vocabulary type, or SRS stage." />}
       </div>
     </div>
   </dialog>;

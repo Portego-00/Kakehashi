@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { memo, type CSSProperties, type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { LevelTimingChart } from "@/features/progress/components/AnalyticsOverview";
 import type { LevelTiming } from "@/features/progress/calculations";
 import { STUDY_MODES } from "@/features/study/catalog";
@@ -10,12 +10,27 @@ import { IncompleteLevelsWidget, ReviewStatsWidget, StudyTimeWidget } from "./Da
 import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, TodayStudyWidget } from "./DashboardNativeWidgets";
 import { RecentMistakesWidget } from "./RecentMistakesWidget";
 import { CustomVocabularyWidgetView } from "./CustomVocabularyWidgetView";
+import { ReviewForecast } from "./ReviewForecast";
+import { createReviewForecast } from "./review-forecast";
+import { REVIEW_FORECAST_PREVIEW_PREFERENCES } from "./use-review-forecast-preferences";
 import type { UsageStreakDay } from "./usage-streak";
 import { StudyQueueCard } from "./StudyQueueCard";
 import styles from "./dashboard.module.css";
 
 const SUBJECT_PREVIEW_IDS: DashboardSectionId[] = ["recent-unlocks", "critical-items", "burned-items"];
-const FORECAST_HEIGHTS = [34, 62, 48, 78, 56, 88, 44, 72, 38, 65, 52, 30];
+const FORECAST_PREVIEW_NOW = new Date(2026, 7, 25, 12);
+const FORECAST_PREVIEW = createReviewForecast(Array.from({ length: 84 }, (_, index) => ({
+  id: `forecast-preview-${index}`,
+  availableAt: new Date(2026, 7, 25, 11 + Math.floor(index / 3)).toISOString(),
+  subjectType: (["radical", "kanji", "vocabulary"] as const)[index % 3],
+  srsStage: index % 8 + 1,
+})), FORECAST_PREVIEW_NOW);
+const CUSTOM_FORECAST_PREVIEW = createReviewForecast(Array.from({ length: 14 }, (_, index) => ({
+  id: `custom-forecast-preview-${index}`,
+  availableAt: new Date(2026, 7, 25, 12 + index * 2).toISOString(),
+  subjectType: "kana_vocabulary" as const,
+  srsStage: index % 6 + 1,
+})), FORECAST_PREVIEW_NOW);
 const HEATMAP_LEVELS = Array.from({ length: 70 }, (_, index) => index % 9 === 0 ? 4 : index % 5 === 0 ? 3 : index % 3 === 0 ? 1 : 0);
 const SRS_PREVIEW_ROWS: SrsStageSpreadRow[] = [
   [1, "Apprentice I", "I", 0.06], [2, "Apprentice II", "II", 0], [3, "Apprentice III", "III", .12],
@@ -63,7 +78,7 @@ function DashboardWidgetPreviewComponent({ id, density = "canvas" }: { id: Dashb
   if (id === "daily-study") {
     preview = <section className={`${styles.section} ${styles.queueSection}`}><PreviewHeader title="Today" detail="Your live WaniKani queues" /><div className={styles.queue}><StudyQueueCard type="lesson" preview /><StudyQueueCard type="review" preview /></div></section>;
   } else if (id === "custom-vocabulary") {
-    preview = <CustomVocabularyWidgetView lessons={null} reviews={null} enrolledPacks={null} totalPacks={null} preview />;
+    preview = <CustomVocabularyWidgetView lessons={null} reviews={null} enrolledPacks={null} totalPacks={null} forecast={CUSTOM_FORECAST_PREVIEW} preview />;
   } else if (id === "srs") {
     preview = <SrsSpreadWidget rows={SRS_PREVIEW_ROWS} preview />;
   } else if (id === "level") {
@@ -73,7 +88,7 @@ function DashboardWidgetPreviewComponent({ id, density = "canvas" }: { id: Dashb
   } else if (id === "extra-study") {
     preview = <section className={`${styles.section} ${styles.sectionFlat}`}><PreviewHeader title="Extra study" detail="Practice without changing SRS progress" /><div className={styles.studyModeRail}>{STUDY_MODES.slice(0, 5).map((mode) => <StudyModeCard mode={mode} preview key={mode.id} />)}</div></section>;
   } else if (id === "forecast") {
-    preview = <section className={styles.section}><PreviewHeader title="Next 12 hours" detail="Reviews available at the top of each hour" /><div className={styles.forecast}>{FORECAST_HEIGHTS.map((height, index) => <div className={styles.forecastCol} key={index}><div className={styles.forecastBarTrack}><div className={styles.forecastBar} style={{ "--bar-height": `${height}%` } as CSSProperties} /></div><strong>·</strong><span>{index % 3 === 0 ? "Now" : "+1h"}</span></div>)}</div></section>;
+    preview = <section className={styles.section}><ReviewForecast forecast={FORECAST_PREVIEW} {...REVIEW_FORECAST_PREVIEW_PREFERENCES} /></section>;
   } else if (id === "study-pulse") {
     preview = <ReviewStatsWidget statistics={[]} preview />;
   } else if (id === "recent-mistakes") {

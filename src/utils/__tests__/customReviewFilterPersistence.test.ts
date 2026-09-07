@@ -18,6 +18,7 @@ const createFallbackFilters = (): CustomReviewFilterState => ({
   srsStages: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
   jlptLevels: new Set<JLPTLevel>(),
   maxFrequencyRank: null,
+  vocabularyTypes: [],
 });
 
 describe("custom review filter persistence", () => {
@@ -29,6 +30,7 @@ describe("custom review filter persistence", () => {
       srsStages: new Set([9, 1, 6]),
       jlptLevels: new Set(["N1", "N5"]),
       maxFrequencyRank: 3_471,
+      vocabularyTypes: ["verbal noun", "proper noun"],
     };
 
     const serialized = serializeCustomReviewFilters(filters);
@@ -41,6 +43,7 @@ describe("custom review filter persistence", () => {
       srsStages: [1, 6, 9],
       jlptLevels: ["N5", "N1"],
       maxFrequencyRank: 3_471,
+      vocabularyTypes: ["verbal noun", "proper noun"],
     });
 
     const restored = restoreCustomReviewFilters(
@@ -99,5 +102,24 @@ describe("custom review filter persistence", () => {
         createFallbackFilters(),
       ),
     ).toBeNull();
+  });
+
+  it("restores older saved filters with all vocabulary types", () => {
+    expect(
+      restoreCustomReviewFilters({ version: 1 }, createFallbackFilters())
+        ?.vocabularyTypes,
+    ).toEqual([]);
+  });
+
+  it("normalizes saved vocabulary types and preserves unknown catalog types", () => {
+    const stored = JSON.parse(
+      JSON.stringify({
+        version: 1,
+        vocabularyTypes: [" Proper  Noun ", "proper noun", null, 3, "", "custom type"],
+      }),
+    );
+    expect(
+      restoreCustomReviewFilters(stored, createFallbackFilters())?.vocabularyTypes,
+    ).toEqual(["proper noun", "custom type"]);
   });
 });

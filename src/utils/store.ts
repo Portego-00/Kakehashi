@@ -505,6 +505,7 @@ type SettingsState = {
   guruLessonThreshold: number; // Block home-page lessons above this Guru count (0 = disabled)
   lessonPickerViewMode: LessonPickerViewMode; // Default visual style for lesson picker subject selection
   singlePageLessonView: boolean; // Show all lesson content in a single scrollable page instead of tabs
+  lessonSearchButtonEnabled: boolean; // Show quick search on lesson details cards
   skipCustomLessonQuiz: boolean; // Skip custom lesson quiz and jump straight to batch completion
   excludeKanaVocabularyFromLessons: boolean; // Hide kana vocabulary from lesson queue and lesson counts
 
@@ -691,6 +692,7 @@ type SettingsState = {
   setGuruLessonThreshold: (threshold: number) => void;
   setLessonPickerViewMode: (mode: LessonPickerViewMode) => void;
   setSinglePageLessonView: (enabled: boolean) => void;
+  setLessonSearchButtonEnabled: (enabled: boolean) => void;
   setSkipCustomLessonQuiz: (enabled: boolean) => void;
   setExcludeKanaVocabularyFromLessons: (enabled: boolean) => void;
   setReviewBatchSizeEnabled: (enabled: boolean) => void;
@@ -855,6 +857,7 @@ export const useSettingsStore = create<SettingsState>()(
       guruLessonThreshold: 0, // 0 means no Guru threshold
       lessonPickerViewMode: "cards", // Default to card grid selection in lesson picker
       singlePageLessonView: false, // Default to tab-based view
+      lessonSearchButtonEnabled: false,
       skipCustomLessonQuiz: false, // Default to false - keep custom lesson review quiz enabled
       excludeKanaVocabularyFromLessons: false, // Default to disabled so kana vocabulary stays in lessons
       reviewBatchSizeEnabled: false, // Disabled by default - all reviews loaded
@@ -1054,6 +1057,8 @@ export const useSettingsStore = create<SettingsState>()(
       setLessonPickerViewMode: (mode) =>
         set({ lessonPickerViewMode: normalizeLessonPickerViewMode(mode) }),
       setSinglePageLessonView: (enabled) => set({ singlePageLessonView: enabled }),
+      setLessonSearchButtonEnabled: (enabled) =>
+        set({ lessonSearchButtonEnabled: enabled }),
       setSkipCustomLessonQuiz: (enabled) => set({ skipCustomLessonQuiz: enabled }),
       setExcludeKanaVocabularyFromLessons: (enabled) =>
         set({ excludeKanaVocabularyFromLessons: enabled }),

@@ -168,6 +168,7 @@ interface JpdbParsedToken {
   spelling: string;
   reading: string;
   meaning: string;
+  meanings: string[];
   partsOfSpeech: string[];
   isVerb: boolean;
   isGrammar: boolean;
@@ -193,13 +194,12 @@ interface IndexedVocabularySubject {
   normalizedCharacters: string;
   normalizedReadings: Set<string>;
   partsOfSpeech: string[];
-  primaryMeaningNormalized: string;
+  normalizedMeanings: Set<string>;
   verbConjugationKind: VerbConjugationKind;
   isLikelyVerb: boolean;
 }
 
 const ALL_KANA_PATTERN = /^[\u3040-\u30FFー]+$/;
-const ALL_KATAKANA_PATTERN = /^[\u30A0-\u30FFー]+$/;
 
 // Helper to escape special characters for Regex
 const escapeRegExp = (string: string) => {
@@ -259,28 +259,6 @@ function normalizeEnglishMeaning(value: string): string {
     .replace(/[^\p{L}\p{N}\s]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function meaningsOverlap(tokenMeaning: string, subjectMeaningNormalized: string): boolean {
-  const normalizedTokenMeaning = normalizeEnglishMeaning(tokenMeaning);
-  if (!normalizedTokenMeaning || !subjectMeaningNormalized) {
-    return false;
-  }
-
-  if (normalizedTokenMeaning === subjectMeaningNormalized) {
-    return true;
-  }
-
-  if (
-    subjectMeaningNormalized.includes(normalizedTokenMeaning) ||
-    normalizedTokenMeaning.includes(subjectMeaningNormalized)
-  ) {
-    return true;
-  }
-
-  const tokenParts = normalizedTokenMeaning.split(" ").filter(Boolean);
-  const subjectParts = subjectMeaningNormalized.split(" ").filter(Boolean);
-  return tokenParts.some((part) => subjectParts.includes(part));
 }
 
 function isLikelyVerbSubject(subject: any): boolean {
@@ -993,6 +971,12 @@ function normalizeLookupValue(value: string): string {
   return value.replace(/\s+/g, "").trim();
 }
 
+function normalizeLookupReading(value: string): string {
+  return normalizeLookupValue(value.normalize("NFKC")).replace(/[ァ-ヶ]/g, (kana) =>
+    String.fromCharCode(kana.charCodeAt(0) - 0x60)
+  );
+}
+
 function getNormalizedLookupValues(value: string): string[] {
   return getVocabMatchCandidates(value)
     .map((candidate) => normalizeLookupValue(candidate))
@@ -1043,25 +1027,24 @@ function getJpdbTokenKey(token: JpdbParsedToken): string {
   return `${token.start}:${token.end}:${token.surface}:${token.spelling}:${token.reading}`;
 }
 
-function getPrimaryJpdbMeaning(rawMeaningsChunks: unknown): string {
+function getJpdbMeanings(rawMeaningsChunks: unknown): string[] {
   if (!Array.isArray(rawMeaningsChunks)) {
-    return "";
+    return [];
   }
 
+  const meanings: string[] = [];
   for (const chunk of rawMeaningsChunks) {
     if (!Array.isArray(chunk)) {
       continue;
     }
-    const firstMeaning = chunk.find(
-      (meaningValue): meaningValue is string =>
-        typeof meaningValue === "string" && meaningValue.trim().length > 0
-    );
-    if (firstMeaning) {
-      return firstMeaning.trim();
+    for (const meaning of chunk) {
+      if (typeof meaning === "string" && meaning.trim()) {
+        meanings.push(meaning.trim());
+      }
     }
   }
 
-  return "";
+  return meanings;
 }
 
 function shouldExposeAsExternalJpdbVocabulary(token: JpdbParsedToken): boolean {
@@ -1197,7 +1180,7 @@ async function parseTextWithJpdb(text: string): Promise<JpdbParsedToken[] | null
             .map((value) => value.trim().toLowerCase())
             .filter(Boolean)
         : [];
-      const meaning = getPrimaryJpdbMeaning(vocabularyTuple[3]);
+      const meanings = getJpdbMeanings(vocabularyTuple[3]);
       const end = start + length;
       const surface = sourceText.slice(start, end);
 
@@ -1219,7 +1202,8 @@ async function parseTextWithJpdb(text: string): Promise<JpdbParsedToken[] | null
         surface,
         spelling,
         reading,
-        meaning,
+        meaning: meanings[0] ?? "",
+        meanings,
         partsOfSpeech,
         isVerb,
         isGrammar,
@@ -1249,23 +1233,32 @@ function buildIndexedVocabularyLookup(
     }
 
     const partsOfSpeech = getPartsOfSpeech(subject);
-    const primaryMeaningNormalized = normalizeEnglishMeaning(
-      getPrimaryMeaning(subject)
+    const normalizedMeanings = new Set<string>(
+      (Array.isArray(subject?.data?.meanings) ? subject.data.meanings : [])
+        .filter((meaning: any) =>
+          typeof meaning?.meaning === "string" && meaning.accepted_answer !== false
+        )
+        .map((meaning: any) => normalizeEnglishMeaning(meaning.meaning))
+        .filter(Boolean)
     );
     const verbConjugationKind = inferVerbConjugationKind(subject, characters);
     const normalizedCharacters = normalizeLookupValue(characters);
     const normalizedReadings = new Set<string>(
       getReadingCandidates(subject)
-        .map((readingCandidate) => normalizeLookupValue(readingCandidate))
+        .map(normalizeLookupReading)
         .filter(Boolean)
     );
+    // WaniKani kana vocabulary has no readings array: its characters are the reading.
+    if (subject.object === "kana_vocabulary" && ALL_KANA_PATTERN.test(characters)) {
+      normalizedReadings.add(normalizeLookupReading(characters));
+    }
     const entry: IndexedVocabularySubject = {
       subject,
       characters,
       normalizedCharacters,
       normalizedReadings,
       partsOfSpeech,
-      primaryMeaningNormalized,
+      normalizedMeanings,
       verbConjugationKind,
       isLikelyVerb: verbConjugationKind !== "none" || isLikelyVerbSubject(subject),
     };
@@ -1274,10 +1267,7 @@ function buildIndexedVocabularyLookup(
     getNormalizedLookupValues(characters).forEach((value) =>
       keyCandidates.add(value)
     );
-    getReadingCandidates(subject)
-      .map((value) => normalizeLookupValue(value))
-      .filter(Boolean)
-      .forEach((value) => keyCandidates.add(value));
+    normalizedReadings.forEach((value) => keyCandidates.add(value));
 
     for (const keyCandidate of keyCandidates) {
       const existingEntries = lookup.get(keyCandidate) ?? [];
@@ -1295,162 +1285,63 @@ function scoreIndexedSubjectForJpdbToken(
   entry: IndexedVocabularySubject,
   token: JpdbParsedToken
 ): number {
-  const normalizedSurface = normalizeLookupValue(token.surface);
-  const normalizedSpelling = normalizeLookupValue(token.spelling);
-  const normalizedReading = normalizeLookupValue(token.reading);
-  let score = 0;
-  const isSurfaceKanaOnly =
-    normalizedSurface.length > 0 && ALL_KANA_PATTERN.test(normalizedSurface);
-  const isSpellingKanaOnly =
-    normalizedSpelling.length > 0 && ALL_KANA_PATTERN.test(normalizedSpelling);
-  const isSurfaceKatakanaOnly =
-    normalizedSurface.length > 0 && ALL_KATAKANA_PATTERN.test(normalizedSurface);
-  const isSpellingKatakanaOnly =
-    normalizedSpelling.length > 0 && ALL_KATAKANA_PATTERN.test(normalizedSpelling);
-  const isReadingKatakanaOnly =
-    normalizedReading.length > 0 && ALL_KATAKANA_PATTERN.test(normalizedReading);
-  const tokenIsKatakanaOnly =
-    isSurfaceKatakanaOnly || isSpellingKatakanaOnly || isReadingKatakanaOnly;
-  const entryContainsKanji = JAPANESE_KANJI_PATTERN.test(entry.characters);
-  const hasExactSpellingMatch =
-    !!entry.normalizedCharacters &&
-    !!normalizedSpelling &&
-    entry.normalizedCharacters === normalizedSpelling;
-  const hasExactSurfaceMatch =
-    !!entry.normalizedCharacters &&
-    !!normalizedSurface &&
-    entry.normalizedCharacters === normalizedSurface;
-  const hasReadingMatch =
-    !!normalizedReading && entry.normalizedReadings.has(normalizedReading);
-  const hasSurfaceReadingMatch =
-    !!normalizedSurface && entry.normalizedReadings.has(normalizedSurface);
-  const tokenPartsOfSpeech = token.partsOfSpeech;
-  const kanaTokenLength = Math.max(
-    normalizedSurface.length,
-    normalizedSpelling.length,
-    normalizedReading.length
+  const spelling = normalizeLookupValue(token.spelling);
+  const surface = normalizeLookupValue(token.surface);
+  const reading = normalizeLookupReading(token.reading);
+  const hasReadingMatch = !!reading && entry.normalizedReadings.has(reading);
+  const hasMeaningMatch = token.meanings.some((meaning) =>
+    entry.normalizedMeanings.has(normalizeEnglishMeaning(meaning))
   );
-  const hasMeaningOverlap = meaningsOverlap(
-    token.meaning,
-    entry.primaryMeaningNormalized
-  );
+  const hasExactSpelling = entry.normalizedCharacters === (spelling || surface);
 
-  if (hasExactSpellingMatch) {
-    score += 120;
-  }
-
-  if (hasExactSurfaceMatch) {
-    score += 110;
-  }
-
-  if (hasReadingMatch) {
-    score += 95;
-  }
-
-  if (hasSurfaceReadingMatch) {
-    score += 65;
-  }
-
-  if (hasMeaningOverlap) {
-    score += 140;
-  }
-
-  if (!hasExactSpellingMatch && !hasExactSurfaceMatch) {
-    // Prevent reading-only homophone mappings for kana tokens to unrelated kanji
-    // entries, e.g. JPDB "どう" -> WK "~道".
-    if ((isSurfaceKanaOnly || isSpellingKanaOnly) && entryContainsKanji) {
-      const isShortKanaToken = kanaTokenLength > 0 && kanaTokenLength <= 2;
-      const isLikelyGrammarToken =
-        token.isGrammar ||
-        tokenPartsOfSpeech.includes("prt") ||
-        tokenPartsOfSpeech.includes("aux") ||
-        tokenPartsOfSpeech.includes("cop");
-
-      if (hasMeaningOverlap) {
-        score -= isShortKanaToken ? 90 : 30;
-      } else if (isLikelyGrammarToken || isShortKanaToken) {
-        score -= 260;
-      } else if (kanaTokenLength >= 4) {
-        // Longer kana lexical words (e.g. さみしい) can still legitimately map to
-        // WaniKani kanji spellings, even when written in kana in source text.
-        score -= 110;
-      } else {
-        score -= 180;
-      }
+  // JPDB's dictionary spelling and reading identify the word. A surface form
+  // or homophone must not override that identity, even with a similar gloss.
+  if (hasExactSpelling) {
+    if (reading && entry.normalizedReadings.size > 0 && !hasReadingMatch) {
+      return Number.NEGATIVE_INFINITY;
     }
-  }
-
-  // Katakana tokens are usually loanwords/proper nouns. Avoid mapping them to
-  // unrelated entries unless there is strong lexical evidence.
-  if (tokenIsKatakanaOnly && !hasExactSpellingMatch && !hasExactSurfaceMatch) {
-    if (!hasReadingMatch && !hasSurfaceReadingMatch) {
-      score -= 260;
+    if (
+      ALL_KANA_PATTERN.test(entry.characters) &&
+      token.meanings.length > 0 &&
+      entry.normalizedMeanings.size > 0 &&
+      !hasMeaningMatch
+    ) {
+      return Number.NEGATIVE_INFINITY;
     }
-    if (entryContainsKanji) {
-      score -= 240;
-    }
-    if (!hasMeaningOverlap) {
-      score -= 140;
-    }
+    return 300 + (hasReadingMatch ? 10 : 0) + (hasMeaningMatch ? 1 : 0);
   }
 
-  if (tokenPartsOfSpeech.some((partOfSpeech) => partOfSpeech.startsWith("adj"))) {
-    const supportsAdjective = entry.partsOfSpeech.some(
-      (partOfSpeech) =>
-        partOfSpeech.includes("adjective") || partOfSpeech.startsWith("adj")
-    );
-    if (supportsAdjective) {
-      score += 25;
-    } else {
-      score -= 60;
-    }
+  if (
+    JAPANESE_KANJI_PATTERN.test(spelling) &&
+    JAPANESE_KANJI_PATTERN.test(entry.characters)
+  ) {
+    return Number.NEGATIVE_INFINITY;
   }
 
-  if (tokenPartsOfSpeech.includes("adv")) {
-    const supportsAdverb =
-      entry.partsOfSpeech.some((partOfSpeech) => partOfSpeech.includes("adverb")) ||
-      entry.partsOfSpeech.some((partOfSpeech) => partOfSpeech.includes("adverbial"));
-    if (!supportsAdverb) {
-      score -= 90;
-    }
+  // Reading-only matches need a complete shared gloss. Shared English words
+  // (e.g. "of" in どんな and 主人) do not establish lexical equivalence.
+  if (!hasReadingMatch || !hasMeaningMatch || (token.isGrammar && !token.isVerb)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  if (token.isVerb && !entry.isLikelyVerb) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  if (
+    token.partsOfSpeech.some((part) => part.startsWith("adj")) &&
+    !entry.partsOfSpeech.some((part) =>
+      part.includes("adjective") || part.startsWith("adj")
+    )
+  ) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  if (
+    token.partsOfSpeech.includes("adv") &&
+    !entry.partsOfSpeech.some((part) => part.includes("adverb"))
+  ) {
+    return Number.NEGATIVE_INFINITY;
   }
 
-  if (tokenPartsOfSpeech.includes("prt")) {
-    const supportsParticle = entry.partsOfSpeech.some((partOfSpeech) =>
-      partOfSpeech.includes("particle")
-    );
-    if (!supportsParticle) {
-      score -= 120;
-    }
-  }
-
-  if (token.isGrammar && !token.isVerb) {
-    // Grammar tokens should not map through reading-only matches to unrelated
-    // lexical entries (e.g. "か" particle -> "蚊" WK vocabulary).
-    if (!hasExactSurfaceMatch) {
-      score -= 180;
-    } else {
-      score += 20;
-    }
-
-    if (isSurfaceKanaOnly && entryContainsKanji) {
-      score -= 220;
-    }
-  }
-
-  if (token.isVerb && entry.isLikelyVerb) {
-    score += 30;
-  }
-
-  if (!token.isVerb && entry.isLikelyVerb) {
-    score -= 5;
-  }
-
-  if (token.isGrammar && !token.isVerb && entry.isLikelyVerb) {
-    score -= 15;
-  }
-
-  return score;
+  return 100;
 }
 
 function pickBestIndexedSubject(
@@ -1459,30 +1350,24 @@ function pickBestIndexedSubject(
 ): IndexedVocabularySubject | null {
   let bestCandidate: IndexedVocabularySubject | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
+  let ambiguous = false;
 
   for (const candidate of candidates) {
     const score = scoreIndexedSubjectForJpdbToken(candidate, token);
+    if (!Number.isFinite(score)) {
+      continue;
+    }
     if (score > bestScore) {
       bestScore = score;
       bestCandidate = candidate;
-      continue;
-    }
-
-    if (
-      score === bestScore &&
-      bestCandidate &&
-      (candidate.subject?.data?.level ?? Number.MAX_SAFE_INTEGER) <
-        (bestCandidate.subject?.data?.level ?? Number.MAX_SAFE_INTEGER)
-    ) {
-      bestCandidate = candidate;
+      ambiguous = false;
+    } else if (score === bestScore) {
+      ambiguous = true;
     }
   }
 
-  if (!bestCandidate || bestScore < 25) {
-    return null;
-  }
-
-  return bestCandidate;
+  // WaniKani level/catalog order cannot disambiguate Japanese homophones.
+  return ambiguous ? null : bestCandidate;
 }
 
 function findVocabularyMatchesFromJpdbTokens(
@@ -1503,13 +1388,6 @@ function findVocabularyMatchesFromJpdbTokens(
   }
 
   const lookup = buildIndexedVocabularyLookup(vocabularySubjects);
-  const allIndexedEntriesById = new Map<number, IndexedVocabularySubject>();
-  for (const entries of lookup.values()) {
-    for (const entry of entries) {
-      allIndexedEntriesById.set(entry.subject.id, entry);
-    }
-  }
-  const allIndexedEntries = Array.from(allIndexedEntriesById.values());
   const matchesById = new Map<number, VocabularyMatch>();
   const matchCandidatesById = new Map<number, Set<string>>();
   const consumedTokenKeys = new Set<string>();
@@ -1519,7 +1397,7 @@ function findVocabularyMatchesFromJpdbTokens(
     const tokenLookupKeys = new Set<string>([
       ...getNormalizedLookupValues(token.surface),
       ...getNormalizedLookupValues(token.spelling),
-      ...getNormalizedLookupValues(token.reading),
+      normalizeLookupReading(token.reading),
     ]);
 
     if (tokenLookupKeys.size === 0) {
@@ -1535,83 +1413,12 @@ function findVocabularyMatchesFromJpdbTokens(
       entries.forEach((entry) => candidateEntriesById.set(entry.subject.id, entry));
     }
 
-    if (candidateEntriesById.size === 0) {
-      const normalizedSurface = normalizeLookupValue(token.surface);
-      const normalizedSpelling = normalizeLookupValue(token.spelling);
-      const normalizedMeaning = normalizeEnglishMeaning(token.meaning);
-      const tokenIsKanaOnly =
-        (normalizedSurface.length > 0 && ALL_KANA_PATTERN.test(normalizedSurface)) ||
-        (normalizedSpelling.length > 0 && ALL_KANA_PATTERN.test(normalizedSpelling));
-      const tokenIsHiraganaOnly =
-        (normalizedSurface.length > 0 && ALL_HIRAGANA_PATTERN.test(normalizedSurface)) ||
-        (normalizedSpelling.length > 0 && ALL_HIRAGANA_PATTERN.test(normalizedSpelling));
-      const kanaLength = Math.max(normalizedSurface.length, normalizedSpelling.length);
-      const tokenLooksAdjective = token.partsOfSpeech.some((partOfSpeech) =>
-        partOfSpeech.startsWith("adj")
-      );
-      const canUseMeaningFallback =
-        tokenIsKanaOnly &&
-        tokenIsHiraganaOnly &&
-        kanaLength >= 3 &&
-        !token.isGrammar &&
-        normalizedMeaning.length > 0;
-
-      if (canUseMeaningFallback) {
-        for (const entry of allIndexedEntries) {
-          if (!entry.primaryMeaningNormalized) {
-            continue;
-          }
-          if (!meaningsOverlap(token.meaning, entry.primaryMeaningNormalized)) {
-            continue;
-          }
-          if (token.isVerb && !entry.isLikelyVerb) {
-            continue;
-          }
-          if (tokenLooksAdjective) {
-            const supportsAdjective = entry.partsOfSpeech.some(
-              (partOfSpeech) =>
-                partOfSpeech.includes("adjective") || partOfSpeech.startsWith("adj")
-            );
-            if (!supportsAdjective) {
-              continue;
-            }
-          }
-          candidateEntriesById.set(entry.subject.id, entry);
-        }
-      }
-    }
-
-    if (candidateEntriesById.size === 0) {
-      continue;
-    }
-
     const bestEntry = pickBestIndexedSubject(
       Array.from(candidateEntriesById.values()),
       token
     );
     if (!bestEntry) {
       continue;
-    }
-
-    const normalizedSurface = normalizeLookupValue(token.surface);
-    const normalizedSpelling = normalizeLookupValue(token.spelling);
-    const normalizedReading = normalizeLookupValue(token.reading);
-    const tokenIsKatakanaOnly =
-      (normalizedSurface.length > 0 && ALL_KATAKANA_PATTERN.test(normalizedSurface)) ||
-      (normalizedSpelling.length > 0 && ALL_KATAKANA_PATTERN.test(normalizedSpelling)) ||
-      (normalizedReading.length > 0 && ALL_KATAKANA_PATTERN.test(normalizedReading));
-    if (tokenIsKatakanaOnly) {
-      const hasDirectKatakanaLexicalMatch =
-        (!!bestEntry.normalizedCharacters &&
-          ((!!normalizedSpelling &&
-            bestEntry.normalizedCharacters === normalizedSpelling) ||
-            (!!normalizedSurface &&
-              bestEntry.normalizedCharacters === normalizedSurface))) ||
-        (!!normalizedReading && bestEntry.normalizedReadings.has(normalizedReading)) ||
-        (!!normalizedSurface && bestEntry.normalizedReadings.has(normalizedSurface));
-      if (!hasDirectKatakanaLexicalMatch) {
-        continue;
-      }
     }
 
     if (
@@ -1687,7 +1494,7 @@ function findExternalJpdbVocabularyMatches(
 ): { vocabularyMatches: VocabularyMatch[]; tokenToVocabularyId: Map<string, number> } {
   const matches: VocabularyMatch[] = [];
   const tokenToVocabularyId = new Map<string, number>();
-  const seenKeys = new Set<string>();
+  const vocabularyIdByKey = new Map<string, number>();
   const kanjiSubjectsByCharacter = new Map<string, any>();
   for (const subject of kanjiSubjects) {
     const character =
@@ -1712,10 +1519,12 @@ function findExternalJpdbVocabularyMatches(
     }
 
     const dedupeKey = `${token.surface}|${token.spelling}|${token.reading}`;
-    if (seenKeys.has(dedupeKey)) {
+    const existingId = vocabularyIdByKey.get(dedupeKey);
+    if (existingId !== undefined) {
+      tokenToVocabularyId.set(tokenKey, existingId);
       continue;
     }
-    seenKeys.add(dedupeKey);
+    vocabularyIdByKey.set(dedupeKey, syntheticId);
 
     const verbConjugationKind = inferJpdbVerbConjugationKind(
       token.partsOfSpeech,
@@ -2016,23 +1825,9 @@ export const getHighlightSegments = (
   const sortedMatches = [...matches].sort(
     (a, b) => b.characters.length - a.characters.length
   );
-  const cacheKey = `${text}::${sortedMatches
-    .map((match) => {
-      const verbConjugationKind =
-        match.type === "vocabulary" || match.type === "kana_vocabulary"
-          ? (match as VocabularyMatch).disableConjugationExpansion
-            ? "none"
-            : (match as VocabularyMatch).verbConjugationKind ?? "none"
-          : "none";
-      const conjugationExpansionMode =
-        match.type === "vocabulary" || match.type === "kana_vocabulary"
-          ? (match as VocabularyMatch).disableConjugationExpansion
-            ? "jpdb-surface-only"
-            : "heuristic"
-          : "none";
-      return `${match.id}:${match.type}:${match.characters}:${verbConjugationKind}:${conjugationExpansionMode}`;
-    })
-    .join("|")}`;
+  // Cached segments retain the match object used by the popup. Include both
+  // surface candidates and metadata; JPDB synthetic IDs are reused per parse.
+  const cacheKey = JSON.stringify([text, sortedMatches]);
   const cachedSegments = HIGHLIGHT_SEGMENTS_CACHE.get(cacheKey);
   if (cachedSegments) {
     return cachedSegments;

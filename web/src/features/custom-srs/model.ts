@@ -8,6 +8,18 @@ import type {
 } from "./types";
 
 const MAX_REVIEW_LOGS = 2_000;
+const HOUR_IN_MS = 3_600_000;
+
+export type CustomReviewForecastRow = {
+  start: Date;
+  count: number;
+};
+
+export type CustomReviewForecast = {
+  rows: CustomReviewForecastRow[];
+  laterCount: number;
+  nextLaterReviewAt: Date | null;
+};
 
 export function createCustomSrsState(now = new Date()): CustomSrsState {
   return { version: 1, policy: CUSTOM_SRS_POLICY, enrolledPackIds: [], assignments: {}, reviewLog: [], updatedAt: now.toISOString() };
@@ -120,6 +132,46 @@ export function customReviewWords(state: CustomSrsState, packs: readonly CustomV
     .filter(({ assignment }) => assignment.stage > 0 && assignment.stage < 9 && Boolean(assignment.availableAt) && new Date(assignment.availableAt!) <= now)
     .sort((left, right) => new Date(left.assignment.availableAt!).getTime() - new Date(right.assignment.availableAt!).getTime())
     .map(({ word }) => word);
+}
+
+export function customReviewForecast(
+  state: CustomSrsState,
+  packs: readonly CustomVocabularyPack[],
+  now = new Date(),
+  hourCount = 12,
+): CustomReviewForecast {
+  const safeHourCount = Number.isFinite(hourCount) ? Math.max(1, Math.trunc(hourCount)) : 12;
+  const firstHour = new Date(now);
+  firstHour.setMinutes(0, 0, 0);
+  const rows = Array.from({ length: safeHourCount }, (_, index) => ({
+    start: new Date(firstHour.getTime() + index * HOUR_IN_MS),
+    count: 0,
+  }));
+  const enrolledPackIds = new Set(state.enrolledPackIds);
+  const activeWordIds = new Set(packs.flatMap((pack) => enrolledPackIds.has(pack.id) ? pack.words.map((word) => word.id) : []));
+  let laterCount = 0;
+  let nextLaterTimestamp = Number.POSITIVE_INFINITY;
+
+  for (const assignment of Object.values(state.assignments)) {
+    if (!activeWordIds.has(assignment.wordId) || assignment.stage < 1 || assignment.stage >= 9 || !assignment.availableAt) continue;
+    const timestamp = Date.parse(assignment.availableAt);
+    if (!Number.isFinite(timestamp)) continue;
+    const index = timestamp <= now.getTime()
+      ? 0
+      : Math.floor((timestamp - firstHour.getTime()) / HOUR_IN_MS);
+    if (index >= 0 && index < rows.length) {
+      rows[index].count += 1;
+    } else if (index >= rows.length) {
+      laterCount += 1;
+      nextLaterTimestamp = Math.min(nextLaterTimestamp, timestamp);
+    }
+  }
+
+  return {
+    rows,
+    laterCount,
+    nextLaterReviewAt: Number.isFinite(nextLaterTimestamp) ? new Date(nextLaterTimestamp) : null,
+  };
 }
 
 export function nextCustomReviewAt(state: CustomSrsState, packs: readonly CustomVocabularyPack[]) {

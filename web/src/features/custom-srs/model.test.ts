@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customLessonWords, customPackProgress, customReviewWords, completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview } from "./model";
+import { customLessonWords, customPackProgress, customReviewForecast, customReviewWords, completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview } from "./model";
 import { nextCustomSrsStage } from "./scheduler";
 import type { CustomVocabularyPack } from "./types";
 
@@ -67,5 +67,42 @@ describe("custom SRS model", () => {
     const enrolled = enrollCustomVocabularyPack(createCustomSrsState(lessonAt), pack, lessonAt);
     const learned = completeCustomLesson(enrolled, pack.words[0].id, lessonAt);
     expect(() => recordCustomReview(learned, pack.words[0].id, 0, new Date("2026-08-31T12:00:00Z"))).toThrow(/not due yet/);
+  });
+
+  it("buckets active custom reviews across the next twelve hours and reports the next later review", () => {
+    const now = new Date("2026-08-31T12:20:00Z");
+    const state = enrollCustomVocabularyPack(createCustomSrsState(now), pack, now);
+    const first = state.assignments[pack.words[0].id];
+    const second = state.assignments[pack.words[1].id];
+    state.assignments[pack.words[0].id] = { ...first, stage: 1, availableAt: "2026-08-31T12:45:00.000Z" };
+    state.assignments[pack.words[1].id] = { ...second, stage: 1, availableAt: "2026-09-01T00:00:00.000Z" };
+
+    const forecast = customReviewForecast(state, [pack], now);
+
+    expect(forecast.rows).toHaveLength(12);
+    expect(forecast.rows[0]).toMatchObject({ count: 1 });
+    expect(forecast.rows[0].start.toISOString()).toBe("2026-08-31T12:00:00.000Z");
+    expect(forecast.rows.slice(1).every((row) => row.count === 0)).toBe(true);
+    expect(customReviewWords(state, [pack], now)).toEqual([]);
+    expect(forecast.laterCount).toBe(1);
+    expect(forecast.nextLaterReviewAt?.toISOString()).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  it("excludes burned, unknown, and unenrolled assignments from the custom forecast", () => {
+    const now = new Date("2026-08-31T12:00:00Z");
+    const state = enrollCustomVocabularyPack(createCustomSrsState(now), pack, now);
+    state.assignments[pack.words[0].id] = { ...state.assignments[pack.words[0].id], stage: 9, availableAt: "2026-08-31T13:00:00.000Z" };
+    state.assignments.unknown = { ...state.assignments[pack.words[1].id], wordId: "unknown", stage: 1, availableAt: "2026-08-31T14:00:00.000Z" };
+
+    const forecast = customReviewForecast(state, [pack], now);
+
+    expect(forecast.rows.every((row) => row.count === 0)).toBe(true);
+    expect(forecast.laterCount).toBe(0);
+    expect(forecast.nextLaterReviewAt).toBeNull();
+
+    state.assignments[pack.words[0].id].stage = 1;
+    expect(customReviewForecast(state, [pack], now).rows[1].count).toBe(1);
+    state.enrolledPackIds = [];
+    expect(customReviewForecast(state, [pack], now).rows.every((row) => row.count === 0)).toBe(true);
   });
 });

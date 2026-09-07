@@ -7,7 +7,7 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -24,6 +24,7 @@ import {
   Text,
   TextInput,
   type TextInputKeyPressEvent,
+  type TextInputSubmitEditingEvent,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -307,6 +308,11 @@ const VOICE_READING_SCRIPT_MISMATCH_ERROR =
 interface VoiceReadingLookup {
   wordReadings: Record<string, string[]>;
   singleKanjiReadings: Record<string, string[]>;
+}
+
+interface VoiceCapture {
+  questionKey: string;
+  phase: "preparing" | "starting" | "listening" | "submitting";
 }
 
 type ReviewDetailProgressionStatus = "loading" | "success" | "offline";
@@ -1125,7 +1131,6 @@ export default function ReviewQuestionScreen({
   const { apiToken, userData } = useAuthStore();
   const {
     reviewMultipleChoiceEnabled,
-    setReviewMultipleChoiceEnabled,
     ankiCardMode,
     ankiGroupQuestions,
     ankiCardModeScope,
@@ -1192,10 +1197,11 @@ export default function ReviewQuestionScreen({
       ankiGroupQuestions;
   const effectiveAnkiButtonlessMode =
     effectiveAnkiCardMode && ankiButtonlessMode;
+  // Regular reviews may also accept kanji, but still support kana choices.
+  // Only exercises requiring characters or custom answer sets need typed input.
   const supportsMultipleChoice =
     questionType === "meaning" ||
-    (!acceptCharactersAsCorrectForReading &&
-      !requireSubjectCharactersForReading &&
+    (!requireSubjectCharactersForReading &&
       !customAcceptedReadingAnswers?.length);
   const usesMultipleChoice = Boolean(
     reviewMultipleChoiceEnabled &&
@@ -1224,7 +1230,8 @@ export default function ReviewQuestionScreen({
     };
   }, [usesMultipleChoice, choiceSubjects]);
 
-  const [userAnswer, setUserAnswer] = useState("");
+  // The input owns its text; keep only a synchronous fallback for submissions.
+  const userAnswerRef = useRef("");
   const [answered, setAnswered] = useState(false);
   const [answerResult, setAnswerResult] = useState<AnswerCheckerResult | null>(
     null,
@@ -1303,7 +1310,9 @@ export default function ReviewQuestionScreen({
   const voiceReadingLookupRef = useRef<VoiceReadingLookup | null>(
     voiceReadingLookupCache,
   );
-  const isVoiceSubmittingRef = useRef(false);
+  const voiceCaptureRef = useRef<VoiceCapture | null>(null);
+  const nativeVoiceStateRef = useRef<"inactive" | "active" | "stopping">("inactive");
+  const pendingVoiceStartRef = useRef<(() => void) | null>(null);
   const isVoiceRetryPendingRef = useRef(false);
   const skipCueHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAnkiSubmitCallbackRef = useRef<(() => void) | null>(null);
@@ -1319,6 +1328,27 @@ export default function ReviewQuestionScreen({
   const vocabularyAudioFinalizeRef = useRef<(() => void) | null>(null);
   const reviewSubmissionGuardRef = useRef(createReviewSubmissionGuard());
 
+  const cancelVoiceRecognition = useCallback((retry = false) => {
+    // Invalidate before asking native to cancel: queued results and delayed
+    // submissions must not become answers for the next question.
+    voiceCaptureRef.current = null;
+    pendingVoiceStartRef.current = null;
+    isVoiceRetryPendingRef.current = retry;
+    latestVoiceResultsRef.current = [];
+    if (nativeVoiceStateRef.current === "active") {
+      nativeVoiceStateRef.current = "stopping";
+      try {
+        ExpoSpeechRecognitionModule.abort();
+      } catch {
+        try {
+          ExpoSpeechRecognitionModule.stop();
+        } catch (error) {
+          console.error("Error cancelling speech recognition:", error);
+        }
+      }
+    }
+  }, []);
+
   useEffect(() => {
     setLocalStudyMaterials(studyMaterials);
   }, [item.subject.id, studyMaterials]);
@@ -1332,6 +1362,7 @@ export default function ReviewQuestionScreen({
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      cancelVoiceRecognition();
       vocabularyAudioRequestIdRef.current += 1;
       if (vocabularyAudioFinalizeRef.current) {
         vocabularyAudioFinalizeRef.current();
@@ -1350,7 +1381,7 @@ export default function ReviewQuestionScreen({
         pausedDetailsRevealTimerRef.current = null;
       }
     };
-  }, []);
+  }, [cancelVoiceRecognition]);
 
   // Session parents recreate subject wrappers during progress updates. Keep the
   // fallback current without restarting paused-detail hydration for the same ID.
@@ -1634,9 +1665,10 @@ export default function ReviewQuestionScreen({
       return false;
     }
 
+    cancelVoiceRecognition();
     setQuestionOccurrenceId((occurrenceId) => occurrenceId + 1);
     return true;
-  }, [currentQuestionKey]);
+  }, [cancelVoiceRecognition, currentQuestionKey]);
   const isCurrentQuestionAnkiRevealed =
     ankiAnswerRevealed && ankiRevealQuestionKey === currentQuestionKey;
   const emitAnswer = useCallback(
@@ -2052,58 +2084,76 @@ export default function ReviewQuestionScreen({
       isPausedOnWrong ||
       isPausedOnCloseAnswer ||
       isPausedOnCorrect ||
-      navigatingToDetail
+      navigatingToDetail ||
+      voiceCaptureRef.current
     ) {
       return;
     }
 
+    const capture: VoiceCapture = { questionKey: currentQuestionKey, phase: "preparing" };
+    voiceCaptureRef.current = capture;
+    const isCurrentCapture = () => mountedRef.current && voiceCaptureRef.current === capture;
     const isPermissionAlreadyGranted = await checkVoicePermissions();
+    if (!isCurrentCapture()) return;
     if (!isPermissionAlreadyGranted) {
       const granted = await requestVoicePermissions();
+      if (!isCurrentCapture()) return;
       if (!granted) {
+        voiceCaptureRef.current = null;
         return;
       }
     }
 
     if (questionType === "reading") {
       await ensureVoiceReadingLookupLoaded();
+      if (!isCurrentCapture()) return;
     }
 
-    try {
-      setVoiceError(null);
-      setVoiceInterimTranscript("");
-      isVoiceSubmittingRef.current = false;
-      isVoiceRetryPendingRef.current = false;
-      latestVoiceResultsRef.current = [];
-      const useOnDeviceRecognition = shouldUseOnDeviceVoiceRecognition();
-      await ExpoSpeechRecognitionModule.start({
-        lang: questionType === "reading" ? "ja-JP" : "en-US",
-        interimResults: true,
-        continuous: false,
-        maxAlternatives: 5,
-        contextualStrings: getVoiceContextualStrings(),
-        addsPunctuation: false,
-        iosTaskHint: questionType === "reading" ? "confirmation" : "search",
-        requiresOnDeviceRecognition: useOnDeviceRecognition,
-      });
-    } catch (error) {
-      console.error("Error starting speech recognition:", error);
-      setVoiceError("Failed to start voice recognition.");
+    const startCapture = () => {
+      if (!isCurrentCapture()) return;
+      try {
+        setVoiceError(null);
+        setVoiceInterimTranscript("");
+        isVoiceRetryPendingRef.current = false;
+        latestVoiceResultsRef.current = [];
+        const useOnDeviceRecognition = shouldUseOnDeviceVoiceRecognition();
+        capture.phase = "starting";
+        nativeVoiceStateRef.current = "active";
+        ExpoSpeechRecognitionModule.start({
+          lang: questionType === "reading" ? "ja-JP" : "en-US",
+          interimResults: true,
+          continuous: false,
+          maxAlternatives: 5,
+          contextualStrings: getVoiceContextualStrings(),
+          addsPunctuation: false,
+          iosTaskHint: questionType === "reading" ? "confirmation" : "search",
+          requiresOnDeviceRecognition: useOnDeviceRecognition,
+        });
+      } catch (error) {
+        voiceCaptureRef.current = null;
+        nativeVoiceStateRef.current = "inactive";
+        console.error("Error starting speech recognition:", error);
+        setVoiceError("Failed to start voice recognition.");
+      }
+    };
+
+    // Native stop/abort return before cancellation completes. Wait for end before
+    // starting another capture, since recognition events have no session IDs.
+    if (nativeVoiceStateRef.current !== "inactive") {
+      pendingVoiceStartRef.current = startCapture;
+    } else {
+      startCapture();
     }
   };
 
-  const stopVoiceRecognition = async () => {
-    try {
-      await ExpoSpeechRecognitionModule.stop();
-    } catch (error) {
-      console.error("Error stopping speech recognition:", error);
-    } finally {
-      setVoiceInterimTranscript("");
-    }
-  };
+  const stopVoiceRecognition = useCallback(() => {
+    cancelVoiceRecognition();
+    setIsVoiceRecognizing(false);
+    setVoiceInterimTranscript("");
+  }, [cancelVoiceRecognition]);
 
   const clearVoiceCapturedInput = () => {
-    setUserAnswer("");
+    userAnswerRef.current = "";
     setVoiceInterimTranscript("");
     setVoiceError(null);
     latestVoiceResultsRef.current = [];
@@ -2117,46 +2167,49 @@ export default function ReviewQuestionScreen({
     shouldStopRecognition: boolean,
     submissionDelayMs = 0,
   ) => {
+    const capture = voiceCaptureRef.current;
     if (
       !detectedAnswer ||
       !mountedRef.current ||
-      isVoiceSubmittingRef.current
+      !capture ||
+      capture.questionKey !== currentQuestionKey ||
+      capture.phase !== "listening"
     ) {
       return;
     }
 
-    isVoiceSubmittingRef.current = true;
+    capture.phase = "submitting";
     isVoiceRetryPendingRef.current = false;
     setVoiceError(null);
     setVoiceInterimTranscript(
       submissionDelayMs > 0 ? detectedAnswer : "",
     );
     latestVoiceResultsRef.current = [];
-    setUserAnswer(detectedAnswer);
+    userAnswerRef.current = detectedAnswer;
     kanaInputRef.current?.setInputText?.(detectedAnswer);
 
     if (shouldStopRecognition) {
       try {
+        nativeVoiceStateRef.current = "stopping";
         ExpoSpeechRecognitionModule.stop();
       } catch (error) {
+        nativeVoiceStateRef.current = "active";
         console.error("Error stopping speech recognition before submit:", error);
       }
     }
 
     if (submissionDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, submissionDelayMs));
-      if (!mountedRef.current) {
-        isVoiceSubmittingRef.current = false;
-        return;
-      }
     }
 
-    setVoiceInterimTranscript("");
-    await handleSubmitAnswer(detectedAnswer);
+    if (!mountedRef.current || voiceCaptureRef.current !== capture) return;
 
-    setTimeout(() => {
-      isVoiceSubmittingRef.current = false;
-    }, 200);
+    setVoiceInterimTranscript("");
+    await handleSubmitAnswer({ source: "voice", answer: detectedAnswer });
+
+    if (voiceCaptureRef.current === capture) {
+      voiceCaptureRef.current = null;
+    }
   };
 
   const handleRetryVoiceRecognition = () => {
@@ -2165,19 +2218,7 @@ export default function ReviewQuestionScreen({
     }
 
     clearVoiceCapturedInput();
-    isVoiceSubmittingRef.current = false;
-    isVoiceRetryPendingRef.current = true;
-
-    try {
-      ExpoSpeechRecognitionModule.abort();
-    } catch (abortError) {
-      console.error("Error aborting speech recognition:", abortError);
-      try {
-        ExpoSpeechRecognitionModule.stop();
-      } catch (stopError) {
-        console.error("Error stopping speech recognition:", stopError);
-      }
-    }
+    cancelVoiceRecognition(true);
   };
 
   const handleStopAndSubmitVoice = () => {
@@ -2212,7 +2253,7 @@ export default function ReviewQuestionScreen({
     }
 
     void checkVoicePermissions();
-  }, [isVoiceReviewEnabled, checkVoicePermissions]);
+  }, [isVoiceReviewEnabled, checkVoicePermissions, stopVoiceRecognition]);
 
   useEffect(() => {
     if (!isVoiceReviewEnabled || questionType !== "reading") {
@@ -2222,99 +2263,73 @@ export default function ReviewQuestionScreen({
     void ensureVoiceReadingLookupLoaded();
   }, [ensureVoiceReadingLookupLoaded, isVoiceReviewEnabled, questionType]);
 
-  useEffect(() => {
-    return () => {
-      try {
-        ExpoSpeechRecognitionModule.stop();
-      } catch {
-        // no-op
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    // Reset state when the question presentation changes.
+  useLayoutEffect(() => {
+    // Reset before the new question can accept typing. A deferred clear can erase
+    // characters entered immediately after advancing.
     if (!mountedRef.current) return;
-    isVoiceSubmittingRef.current = false;
-    isVoiceRetryPendingRef.current = false;
-    latestVoiceResultsRef.current = [];
+    cancelVoiceRecognition();
+    setIsVoiceRecognizing(false);
     if (effectiveAnkiCardMode || usesMultipleChoice) {
       // Dismiss the keyboard before switching to tap-based answers so the first
       // answer tap is not consumed by blur.
       pausedShortcutInputRef.current?.blur();
       Keyboard.dismiss();
     }
-    if (isVoiceReviewEnabled) {
-      try {
-        ExpoSpeechRecognitionModule.stop();
-      } catch {
-        // no-op
-      }
-    }
     const wasFocused = Boolean(
       kanaInputRef.current && (kanaInputRef.current as any).focus,
     );
 
-    // Defer state updates to avoid useInsertionEffect warning
-    setTimeout(() => {
-      if (!mountedRef.current) return;
-      setUserAnswer("");
-      setSelectedChoice(null);
-      setAnswered(false);
-      setAnswerResult(null);
-      setRetryCount(0);
-      setNavigatingToDetail(false);
-      setShowRetryFeedback(false);
-      setAnkiAnswerRevealed(false);
-      setAnkiRevealQuestionKey(null);
-      setIsPausedOnWrong(false);
-      setIsPausedOnCloseAnswer(false);
-      setIsPausedOnCorrect(false);
-      setPausedDetailsSheetVisible(false);
-      setWrongAnswerText(null);
-      setCloseAnswerText(null);
-      setCorrectAnswerText(null);
-      setIsReplayingAudio(false);
-      setAnswerFeedback(null);
-      setStudyMaterialNoteModalVisible(false);
-      setEditingStudyMaterialNoteText("");
-      setShowContextHint(false);
-      setShowContextHintTranslations(false);
-      setIsUsingDefaultJitaiFont(false);
-      setVoiceInterimTranscript("");
-      setVoiceError(null);
-      isVoiceSubmittingRef.current = false;
-      isVoiceRetryPendingRef.current = false;
-      latestVoiceResultsRef.current = [];
-      shakeAnimation.value = 0;
-      feedbackOpacity.value = 0;
-      // Note: Do NOT reset SRS card animation here - let it auto-dismiss via its own timer
-      // The SRS card shows for the PREVIOUS completed item and should stay visible
-      // Reset anki container animation
-      ankiContainerHeight.value = 0;
-      // Ensure input is visually cleared with uncontrolled TextInput
-      if (kanaInputRef.current?.clearInput) {
-        kanaInputRef.current.clearInput();
+    userAnswerRef.current = "";
+    setSelectedChoice(null);
+    setAnswered(false);
+    setAnswerResult(null);
+    setRetryCount(0);
+    setNavigatingToDetail(false);
+    setShowRetryFeedback(false);
+    setAnkiAnswerRevealed(false);
+    setAnkiRevealQuestionKey(null);
+    setIsPausedOnWrong(false);
+    setIsPausedOnCloseAnswer(false);
+    setIsPausedOnCorrect(false);
+    setPausedDetailsSheetVisible(false);
+    setWrongAnswerText(null);
+    setCloseAnswerText(null);
+    setCorrectAnswerText(null);
+    setIsReplayingAudio(false);
+    setAnswerFeedback(null);
+    setStudyMaterialNoteModalVisible(false);
+    setEditingStudyMaterialNoteText("");
+    setShowContextHint(false);
+    setShowContextHintTranslations(false);
+    setIsUsingDefaultJitaiFont(false);
+    setVoiceInterimTranscript("");
+    setVoiceError(null);
+    shakeAnimation.value = 0;
+    feedbackOpacity.value = 0;
+    // Note: Do NOT reset SRS card animation here - let it auto-dismiss via its own timer
+    // The SRS card shows for the PREVIOUS completed item and should stay visible
+    // Reset anki container animation
+    ankiContainerHeight.value = 0;
+    kanaInputRef.current?.clearInput();
+    // Restore focus to avoid keyboard flicker
+    if (wasFocused && !effectiveAnkiCardMode && !usesMultipleChoice) {
+      const focusDelay = Platform.OS === "android" ? ANDROID_AUTOFOCUS_DELAY_MS : 0;
+      if (focusDelay > 0) {
+        setTimeout(() => {
+          if (mountedRef.current) {
+            kanaInputRef.current?.focus?.();
+          }
+        }, focusDelay);
+      } else {
+        requestAnimationFrame(() => {
+          if (mountedRef.current) {
+            kanaInputRef.current?.focus?.();
+          }
+        });
       }
-      // Restore focus to avoid keyboard flicker
-      if (wasFocused && !effectiveAnkiCardMode && !usesMultipleChoice) {
-        const focusDelay = Platform.OS === "android" ? ANDROID_AUTOFOCUS_DELAY_MS : 0;
-        if (focusDelay > 0) {
-          setTimeout(() => {
-            if (mountedRef.current) {
-              kanaInputRef.current?.focus?.();
-            }
-          }, focusDelay);
-        } else {
-          requestAnimationFrame(() => {
-            if (mountedRef.current) {
-              kanaInputRef.current?.focus?.();
-            }
-          });
-        }
-      }
-    }, 0);
+    }
   }, [
+    cancelVoiceRecognition,
     currentQuestionKey,
     isVoiceReviewEnabled,
     effectiveAnkiCardMode,
@@ -2467,26 +2482,18 @@ export default function ReviewQuestionScreen({
   ]);
 
   const completeAnswer = (feedbackType: "correct" | "incorrect" | "close") => {
-    // Set answered state but don't animate the feedback overlay
     if (!mountedRef.current) return Promise.resolve();
 
-    // Defer state updates to avoid useInsertionEffect warning
-    setTimeout(() => {
-      if (!mountedRef.current) return;
-      setAnswered(true);
-
-      // Haptic feedback
-      if (feedbackType === "correct") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setAnswerFeedback("correct");
-      } else if (feedbackType === "close") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setAnswerFeedback("close");
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setAnswerFeedback("incorrect");
-      }
-    }, 0);
+    // The grading branch already set answered. Publish feedback before advancing;
+    // a deferred update here can incorrectly mark the next question as answered.
+    setAnswerFeedback(feedbackType);
+    Haptics.notificationAsync(
+      feedbackType === "correct"
+        ? Haptics.NotificationFeedbackType.Success
+        : feedbackType === "close"
+          ? Haptics.NotificationFeedbackType.Warning
+          : Haptics.NotificationFeedbackType.Error,
+    );
 
     // Show feedback briefly using Reanimated
     feedbackOpacity.value = withSequence(
@@ -2570,7 +2577,7 @@ export default function ReviewQuestionScreen({
         setAnswered(false);
         setAnswerResult(null);
       }
-      setUserAnswer(text);
+      userAnswerRef.current = text;
       // Hide retry feedback when user starts typing again
       if (showRetryFeedback) {
         setShowRetryFeedback(false);
@@ -2823,8 +2830,9 @@ export default function ReviewQuestionScreen({
   }, []);
 
   const handleSubmitAnswer = async (
-    providedAnswer?: string,
-    choice?: ReviewAnswerChoice,
+    submission?:
+      | { source: "keyboard" | "voice"; answer: string }
+      | { source: "choice"; answer: string; choice: ReviewAnswerChoice },
   ) => {
     if (answered || !mountedRef.current) return;
     if (
@@ -2836,22 +2844,21 @@ export default function ReviewQuestionScreen({
       return;
     }
 
+    const choice = submission?.source === "choice" ? submission.choice : undefined;
     if (choice) {
       setSelectedChoice({ questionKey: currentQuestionKey, text: choice.text });
-      setUserAnswer(choice.text);
+      userAnswerRef.current = choice.text;
     }
-    const isVoiceSubmission = typeof providedAnswer === "string";
-    let shouldRefocusInput = !isVoiceSubmission;
+    const isVoiceSubmission = submission?.source === "voice";
+    let shouldRefocusInput = !isVoiceSubmission && !choice;
 
-    // Ensure kana input is properly flushed (e.g., きぶn → きぶん)
-    let answer = (providedAnswer ?? userAnswer).trim();
-    if (
-      !isVoiceSubmission &&
-      questionType === "reading" &&
-      kanaInputRef.current?.flushKana
-    ) {
-      answer = kanaInputRef.current.flushKana();
-    }
+    // Keyboard submits carry the input's finalized native snapshot. Button submits
+    // read its synchronous ref, so neither path depends on a React render finishing.
+    const answer = (
+      submission?.answer ??
+      kanaInputRef.current?.flushKana() ??
+      userAnswerRef.current
+    ).trim();
 
     if (!answer) {
       // When skipping is enabled, an empty submit asks this item again later
@@ -2869,6 +2876,10 @@ export default function ReviewQuestionScreen({
         );
       }
       return;
+    }
+
+    if (!isVoiceSubmission) {
+      stopVoiceRecognition();
     }
 
     // Reset temporary default-font override after submitting this question.
@@ -2942,7 +2953,7 @@ export default function ReviewQuestionScreen({
           shouldRefocusInput = false;
           Keyboard.dismiss();
           // Keep behavior consistent with paused-wrong flow: clear the live input while paused.
-          setUserAnswer("");
+          userAnswerRef.current = "";
           if (kanaInputRef.current?.clearInput) {
             kanaInputRef.current.clearInput();
           }
@@ -2964,7 +2975,7 @@ export default function ReviewQuestionScreen({
           shouldRefocusInput = false;
           Keyboard.dismiss();
           // Keep behavior consistent with paused-wrong flow: clear the live input while paused.
-          setUserAnswer("");
+          userAnswerRef.current = "";
           if (kanaInputRef.current?.clearInput) {
             kanaInputRef.current.clearInput();
           }
@@ -2996,7 +3007,7 @@ export default function ReviewQuestionScreen({
         // Clear the input synchronously so the next question starts empty,
         // regardless of whether resetSignal changes (e.g. reading → meaning
         // for the same item) or races with pending IME/state updates.
-        setUserAnswer("");
+        userAnswerRef.current = "";
         if (kanaInputRef.current?.clearInput) {
           kanaInputRef.current.clearInput();
         }
@@ -3026,7 +3037,7 @@ export default function ReviewQuestionScreen({
         await animateShake();
         // Only clear input after animation
         if (!mountedRef.current) return;
-        setUserAnswer("");
+        userAnswerRef.current = "";
         if (kanaInputRef.current?.clearInput) {
           kanaInputRef.current.clearInput();
         }
@@ -3084,7 +3095,7 @@ export default function ReviewQuestionScreen({
         animateAnsweredItemBox();
 
         // Clear the input synchronously (see matching note in the correct branch).
-        setUserAnswer("");
+        userAnswerRef.current = "";
         if (kanaInputRef.current?.clearInput) {
           kanaInputRef.current.clearInput();
         }
@@ -3115,10 +3126,12 @@ export default function ReviewQuestionScreen({
   };
 
   useSpeechRecognitionEvent("start", () => {
-    if (!isVoiceReviewEnabled) {
+    const capture = voiceCaptureRef.current;
+    if (!isVoiceReviewEnabled || capture?.phase !== "starting") {
       return;
     }
 
+    capture.phase = "listening";
     setIsVoiceRecognizing(true);
     setVoiceInterimTranscript("");
     setVoiceError(null);
@@ -3126,16 +3139,23 @@ export default function ReviewQuestionScreen({
   });
 
   useSpeechRecognitionEvent("end", () => {
-    if (!isVoiceReviewEnabled) {
-      return;
+    nativeVoiceStateRef.current = "inactive";
+    const capture = voiceCaptureRef.current;
+    if (capture?.phase === "starting" || capture?.phase === "listening") {
+      voiceCaptureRef.current = null;
     }
 
     setIsVoiceRecognizing(false);
-    if (!isVoiceSubmittingRef.current) {
+    // A result accepted before end still owns its 750 ms confirmation delay.
+    if (capture?.phase !== "submitting") {
       setVoiceInterimTranscript("");
     }
 
-    if (isVoiceRetryPendingRef.current) {
+    const pendingStart = pendingVoiceStartRef.current;
+    pendingVoiceStartRef.current = null;
+    if (pendingStart) {
+      pendingStart();
+    } else if (isVoiceRetryPendingRef.current) {
       isVoiceRetryPendingRef.current = false;
       void startVoiceRecognition();
     }
@@ -3146,7 +3166,12 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    if (isVoiceRetryPendingRef.current || isVoiceSubmittingRef.current) {
+    const capture = voiceCaptureRef.current;
+    if (
+      !capture ||
+      capture.questionKey !== currentQuestionKey ||
+      capture.phase !== "listening"
+    ) {
       return;
     }
 
@@ -3205,16 +3230,18 @@ export default function ReviewQuestionScreen({
   });
 
   useSpeechRecognitionEvent("error", (event) => {
-    if (!isVoiceReviewEnabled) {
+    const capture = voiceCaptureRef.current;
+    if (
+      !isVoiceReviewEnabled ||
+      !capture ||
+      capture.phase === "preparing" ||
+      capture.phase === "submitting" ||
+      event.error === "aborted"
+    ) {
       return;
     }
 
-    if (isVoiceRetryPendingRef.current && event.error === "aborted") {
-      isVoiceRetryPendingRef.current = false;
-      void startVoiceRecognition();
-      return;
-    }
-
+    voiceCaptureRef.current = null;
     setIsVoiceRecognizing(false);
     setVoiceInterimTranscript("");
 
@@ -3262,7 +3289,7 @@ export default function ReviewQuestionScreen({
     }
 
     // Reset the state for the next question
-    setUserAnswer("");
+    userAnswerRef.current = "";
     setAnswered(false);
     setAnswerResult(null);
     setRetryCount(0);
@@ -3312,7 +3339,7 @@ export default function ReviewQuestionScreen({
     animateAnsweredItemBox();
 
     // Clear input and paused state
-    setUserAnswer("");
+    userAnswerRef.current = "";
     setWrongAnswerText(null);
     setCloseAnswerText(null);
     setCorrectAnswerText(null);
@@ -3362,7 +3389,7 @@ export default function ReviewQuestionScreen({
     animateAnsweredItemBox();
 
     // Clear input and paused-answer state
-    setUserAnswer("");
+    userAnswerRef.current = "";
     setWrongAnswerText(null);
     setCloseAnswerText(null);
     setCorrectAnswerText(null);
@@ -3397,7 +3424,7 @@ export default function ReviewQuestionScreen({
     releasePausedShortcutFocus();
 
     // Clear input and wrong answer state
-    setUserAnswer("");
+    userAnswerRef.current = "";
     setWrongAnswerText(null);
     setCloseAnswerText(null);
     setRetryCount(0);
@@ -4100,7 +4127,7 @@ export default function ReviewQuestionScreen({
     animateAnsweredItemBox();
 
     // Clear input and paused-answer state
-    setUserAnswer("");
+    userAnswerRef.current = "";
     setWrongAnswerText(null);
     setCloseAnswerText(null);
     setCorrectAnswerText(null);
@@ -4125,7 +4152,7 @@ export default function ReviewQuestionScreen({
     }, 100);
   };
 
-  const handleSubmitOrAdvance = () => {
+  const handleSubmitOrAdvance = (submittedText?: string) => {
     if (Date.now() < suppressSubmitUntilRef.current) {
       return;
     }
@@ -4150,7 +4177,11 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    void handleSubmitAnswer();
+    void handleSubmitAnswer(
+      submittedText === undefined
+        ? undefined
+        : { source: "keyboard", answer: submittedText },
+    );
   };
 
   // Handler for adding wrong answer as a synonym and marking correct
@@ -4388,7 +4419,7 @@ export default function ReviewQuestionScreen({
     return false;
   };
 
-  const handleInputSubmitEditing = () => {
+  const handleInputSubmitEditing = (event?: TextInputSubmitEditingEvent) => {
     if (Date.now() < suppressSubmitUntilRef.current) {
       return;
     }
@@ -4398,7 +4429,7 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    handleSubmitOrAdvance();
+    handleSubmitOrAdvance(event?.nativeEvent.text);
   };
 
   // Get the background color based on question type
@@ -5173,11 +5204,23 @@ export default function ReviewQuestionScreen({
     };
   });
 
+  const shouldPlaceSrsAboveMultipleChoice =
+    hideTypedAnswerInput &&
+    !isPausedOnWrong &&
+    !isPausedOnCloseAnswer &&
+    !isPausedOnCorrect;
+
   // Animation style for SRS card
   const srsCardStyle = useAnimatedStyle(() => {
     return {
       opacity: srsCardOpacity.value,
-      transform: [{ translateY: srsCardTranslateY.value }],
+      transform: [{
+        // Enter from above the choices; other modes keep their original motion.
+        translateY:
+          shouldPlaceSrsAboveMultipleChoice && srsProgressionCardDisplayMode !== "compact"
+            ? -srsCardTranslateY.value
+            : srsCardTranslateY.value,
+      }],
     };
   });
 
@@ -6333,13 +6376,17 @@ export default function ReviewQuestionScreen({
               srsProgression && (
               <Animated.View
                 style={[
-                  styles.srsProgressionCard,
+                  shouldPlaceSrsAboveMultipleChoice
+                    ? styles.srsProgressionCardInline
+                    : styles.srsProgressionCard,
                   {
                     backgroundColor: srsProgression.isCorrect
                       ? "#4caf50"
                       : "#f44336",
                   },
-                  srsCardPositionStyle,
+                  shouldPlaceSrsAboveMultipleChoice
+                    ? styles.multipleChoiceSrsPlacement
+                    : srsCardPositionStyle,
                   srsCardStyle,
                 ]}
                 pointerEvents="box-none"
@@ -6375,26 +6422,6 @@ export default function ReviewQuestionScreen({
                   </View>
                 </TouchableOpacity>
               </Animated.View>
-            )}
-
-            {supportsMultipleChoice && !isPausedOnAnswer && (
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingBottom: 8 }}>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={usesMultipleChoice ? "Switch to typing" : "Use multiple choice"}
-                  disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setReviewMultipleChoiceEnabled(!reviewMultipleChoiceEnabled);
-                  }}
-                  style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12 }}
-                >
-                  <Ionicons name={usesMultipleChoice ? "keypad-outline" : "list-outline"} size={18} color={showBackgroundColor ? "white" : theme.textColor} />
-                  <Text style={{ color: showBackgroundColor ? "white" : theme.textColor, fontSize: 14, fontWeight: "600" }}>
-                    {usesMultipleChoice ? "Type instead" : "Multiple choice"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             )}
 
             {!shouldUsePausedSubjectDetailsMode &&
@@ -6750,7 +6777,7 @@ export default function ReviewQuestionScreen({
                         isReading={questionType === "reading"}
                         fontSize={Math.max(18, reviewAnswerInputFontSize)}
                         maxHeight={Math.max(160, windowHeight * 0.42)}
-                        onSelect={(choice) => { void handleSubmitAnswer(choice.text, choice); }}
+                        onSelect={(choice) => { void handleSubmitAnswer({ source: "choice", answer: choice.text, choice }); }}
                       />
                     )}
                   </View>
@@ -6867,7 +6894,7 @@ export default function ReviewQuestionScreen({
                           ? styles.incorrectButton
                           : null,
                     ]}
-                    onPress={handleSubmitOrAdvance}
+                    onPress={() => handleSubmitOrAdvance()}
                   >
                     <Ionicons
                       name={submitIconName}
@@ -7657,6 +7684,12 @@ const styles = StyleSheet.create({
   srsProgressionCardCompact: {
     width: SRS_CARD_COMPACT_WIDTH,
     borderRadius: 20,
+  },
+  multipleChoiceSrsPlacement: {
+    // Keep the badge in the layout so any answer-panel height is accounted for.
+    alignSelf: "center",
+    flexShrink: 0,
+    marginBottom: 12,
   },
   srsCardContent: {
     paddingVertical: 10,

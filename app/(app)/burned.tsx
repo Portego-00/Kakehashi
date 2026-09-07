@@ -32,6 +32,7 @@ import { pickBestImage, useRemoteSvg } from "../../src/utils/radicalSvg";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
+import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 
 // Helper function to format date
 const formatDate = (dateString: string) => {
@@ -118,6 +119,11 @@ export default function BurnedItemsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [allBurnedItems, setAllBurnedItems] = useState<BurnedItem[]>([]);
   const [filter, setFilter] = useState<ItemType | "all">("all");
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
+  const vocabularySubjects = useMemo(() => allBurnedItems.map((item) => ({
+    object: item.type,
+    data: { parts_of_speech: item.partsOfSpeech },
+  })), [allBurnedItems]);
   const [timeRange, setTimeRange] = useState<number>(DEFAULT_TIME_RANGE_DAYS);
   const [loadedTimeRange, setLoadedTimeRange] = useState<number>(
     DEFAULT_TIME_RANGE_DAYS
@@ -141,10 +147,10 @@ export default function BurnedItemsScreen() {
   // Get filtered and sectioned items from the computed burnedItems
   const sectionedItems = useMemo(() => {
     // Filter by type if needed
-    const filteredItems =
-      appliedFilter === "all"
-        ? burnedItems
-        : burnedItems.filter((item) => item.type === appliedFilter);
+    const filteredItems = burnedItems.filter((item) =>
+      (appliedFilter === "all" || item.type === appliedFilter) &&
+      matchesVocabularyTypes({ object: item.type, data: { parts_of_speech: item.partsOfSpeech } }, vocabularyTypes),
+    );
 
     // Group by date
     const groupedByDate = filteredItems.reduce((acc, item) => {
@@ -178,7 +184,7 @@ export default function BurnedItemsScreen() {
           new Date(a.data[0].dateBurned).getTime()
         );
       });
-  }, [burnedItems, appliedFilter]);
+  }, [burnedItems, appliedFilter, vocabularyTypes]);
 
   // Transform sectioned data into flat list format with section headers included
   const flatListData = useMemo(() => {
@@ -325,6 +331,7 @@ export default function BurnedItemsScreen() {
             characters: subject.data.characters,
             meaning: subject.data.meanings[0].meaning,
             type: subject.object as WaniKaniItemType,
+            partsOfSpeech: subject.data.parts_of_speech,
             dateBurned: assignment.data.burned_at || "",
             character_images: subject.data.character_images,
             reading,
@@ -387,6 +394,7 @@ export default function BurnedItemsScreen() {
 
   const handleApplyFilters = (values: Record<string, any>) => {
     setFilter(values.subjectType);
+    setVocabularyTypes(values.vocabularyTypes);
     setTimeRange(values.timeRange);
   };
 
@@ -523,8 +531,11 @@ export default function BurnedItemsScreen() {
         onApply={handleApplyFilters}
         currentValues={{
           subjectType: filter,
+          vocabularyTypes,
           timeRange: timeRange,
         }}
+        showVocabularyTypes
+        subjects={vocabularySubjects}
         sections={filterSections}
         title="Filter Burned Items"
       />
@@ -557,7 +568,9 @@ export default function BurnedItemsScreen() {
             No burned items found
           </Text>
           <Text style={[styles.emptySubtext, { color: theme.textLight }]}>
-            No items have been burned in the last {timeRange} days.
+            {appliedFilter !== "all" || vocabularyTypes.length > 0
+              ? "No items match your current filters."
+              : `No items have been burned in the last ${timeRange} days.`}
           </Text>
         </View>
       ) : (

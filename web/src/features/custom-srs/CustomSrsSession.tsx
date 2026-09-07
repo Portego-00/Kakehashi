@@ -21,11 +21,13 @@ import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
 import { CustomSrsProgressionToast, type CustomSrsProgression } from "./CustomSrsProgressionToast";
+import { CustomSrsReviewResults, type CustomReviewOutcome, type CustomReviewQuestionMistakes } from "./CustomSrsReviewResults";
 import { customLessonWords, customReviewWords, nextCustomReviewAt } from "./model";
 import { nextCustomSrsStage } from "./scheduler";
 import { customAssignmentToWaniKani, customWordToSubject, customWordUsesKanji } from "./subject-adapter";
 import type { CustomSrsStage, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
 import { useCustomSrs } from "./use-custom-srs";
+import reviewResultsStyles from "./custom-srs-review-results.module.css";
 
 type CustomStudyMode = "lessons" | "reviews";
 type SessionPhase = "teaching" | "quiz" | "results";
@@ -383,6 +385,8 @@ function ReadyCustomSrsSession({
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
   const [incorrectByWord, setIncorrectByWord] = useState<Record<string, number>>({});
+  const [incorrectByQuestion, setIncorrectByQuestion] = useState<CustomReviewQuestionMistakes>({});
+  const [reviewOutcomesByWord, setReviewOutcomesByWord] = useState<Record<string, CustomReviewOutcome>>({});
   const [completedCount, setCompletedCount] = useState(0);
   const [correctAnswerCount, setCorrectAnswerCount] = useState(0);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
@@ -421,6 +425,8 @@ function ReadyCustomSrsSession({
     setCompletedCount(0);
     setCorrectAnswerCount(0);
     setIncorrectByWord({});
+    setIncorrectByQuestion({});
+    setReviewOutcomesByWord({});
     setLastProgression(null);
     resetForNextQuestion();
     setLessonIndex(0);
@@ -451,6 +457,13 @@ function ReadyCustomSrsSession({
     setCommitError("");
     if (result.status === "incorrect") {
       setIncorrectByWord((current) => ({ ...current, [currentWord!.id]: (current[currentWord!.id] ?? 0) + 1 }));
+      setIncorrectByQuestion((current) => ({
+        ...current,
+        [currentWord!.id]: {
+          ...current[currentWord!.id],
+          [currentKind]: (current[currentWord!.id]?.[currentKind] ?? 0) + 1,
+        },
+      }));
     }
   }
 
@@ -507,6 +520,16 @@ function ReadyCustomSrsSession({
       const expectedEndingStage = mode === "lessons" ? 1 : nextCustomSrsStage(startingStage, incorrectAnswers);
       const nextAssignment = nextState.assignments[currentWord.id];
       const endingStage = (nextAssignment?.stage ?? expectedEndingStage) as CustomSrsStage;
+      if (mode === "reviews") {
+        setReviewOutcomesByWord((current) => ({
+          ...current,
+          [currentWord.id]: {
+            startingStage,
+            endingStage,
+            nextReviewAt: nextAssignment?.availableAt ?? null,
+          },
+        }));
+      }
       setLastProgression({
         startingStage,
         endingStage,
@@ -541,6 +564,18 @@ function ReadyCustomSrsSession({
   }
 
   if (phase === "results" || !currentWord || !currentSubject) {
+    if (completedCount && mode === "reviews") {
+      return <div className={`${coreStyles.stage} ${reviewResultsStyles.reviewResultsStage}`}>
+        <CustomSrsProgressionToast progression={lastProgression} mode={studySettings.srsProgressionCardDisplayMode} onDismiss={dismissProgression} />
+        <CustomSrsReviewResults
+          words={sessionWords}
+          outcomesByWord={reviewOutcomesByWord}
+          mistakesByQuestion={incorrectByQuestion}
+          startedAt={startedAt}
+          completedAt={completedAt}
+        />
+      </div>;
+    }
     const incorrect = Object.values(incorrectByWord).reduce((sum, count) => sum + count, 0);
     const attempts = correctAnswerCount + incorrect;
     const accuracy = attempts ? Math.round((correctAnswerCount / attempts) * 100) : 0;

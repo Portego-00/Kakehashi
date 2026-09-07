@@ -1,8 +1,10 @@
+import { normalizeVocabularyTypes } from "./vocabulary-types";
 import type { SubjectType } from "@/types/wanikani";
 
 export type SearchState = {
   query: string;
   types: SubjectType[];
+  vocabularyTypes: string[];
   srs: string[];
   minLevel: number;
   maxLevel: number;
@@ -15,6 +17,7 @@ const SRS_STAGES = new Set(["apprentice", "guru", "master", "enlightened", "burn
 export const DEFAULT_SEARCH_STATE: SearchState = {
   query: "",
   types: [],
+  vocabularyTypes: [],
   srs: [],
   minLevel: 1,
   maxLevel: 60,
@@ -42,6 +45,7 @@ export function searchStateFromParams(params: Record<string, SearchParamValue>):
   return {
     query: first(params.q)?.slice(0, 200) ?? "",
     types: list(params.types).filter((value): value is SubjectType => SUBJECT_TYPES.has(value as SubjectType)),
+    vocabularyTypes: normalizeVocabularyTypes(list(params.vocab)),
     srs: list(params.srs).filter((value) => SRS_STAGES.has(value)),
     minLevel,
     maxLevel,
@@ -53,6 +57,7 @@ export function searchHref(state: SearchState) {
   const params = new URLSearchParams();
   if (state.query.trim()) params.set("q", state.query);
   if (state.types.length) params.set("types", state.types.join(","));
+  if (state.vocabularyTypes.length) params.set("vocab", normalizeVocabularyTypes(state.vocabularyTypes).join(","));
   if (state.srs.length) params.set("srs", state.srs.join(","));
   if (state.minLevel > 1) params.set("min", String(state.minLevel));
   if (state.maxLevel < 60) params.set("max", String(state.maxLevel));

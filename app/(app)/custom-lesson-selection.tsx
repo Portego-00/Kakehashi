@@ -50,6 +50,7 @@ import {
 } from "../../src/utils/subjectSearch";
 import { formatLevelWithSrsStage } from "../../src/utils/srsStageLabel";
 import { useTheme } from "../../src/utils/theme";
+import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 
 export default function CustomLessonSelectionScreen() {
   const { apiToken } = useAuthStore();
@@ -288,6 +289,9 @@ export default function CustomLessonSelectionScreen() {
       .filter((subject) =>
         filters.types.has(subject.object as WaniKaniItemType),
       )
+      .filter((subject) =>
+        matchesVocabularyTypes(subject, filters.vocabularyTypes),
+      )
       .filter(
         (subject) =>
           subject.data.level >= filters.minLevel &&
@@ -360,6 +364,7 @@ export default function CustomLessonSelectionScreen() {
     filters.minLevel > 1 ||
     filters.maxLevel < 60 ||
     filters.types.size < 4 ||
+    filters.vocabularyTypes.length > 0 ||
     filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length ||
     selectedListIds.length > 0;
 
@@ -746,6 +751,7 @@ export default function CustomLessonSelectionScreen() {
                 filters.minLevel > 1 ||
                 filters.maxLevel < 60 ||
                 filters.types.size < 4 ||
+                filters.vocabularyTypes.length > 0 ||
                 filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length
                   ? "No subjects found matching your search and filters"
                   : "No subjects available"}
@@ -942,6 +948,7 @@ export default function CustomLessonSelectionScreen() {
       <SearchFilterModal
         visible={showFilters}
         currentFilters={filters}
+        subjects={allSubjects ?? undefined}
         onClose={handleCloseFilters}
         onApply={handleApplyFilters}
       />

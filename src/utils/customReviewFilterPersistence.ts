@@ -1,5 +1,6 @@
 import type { WaniKaniItemType } from "../types/wanikani";
 import { JLPT_LEVELS, type JLPTLevel } from "./jlptClassification";
+import { normalizeVocabularyTypes } from "./vocabularyTypeFilter";
 
 const CUSTOM_REVIEW_FILTER_CONFIG_VERSION = 1 as const;
 const CUSTOM_REVIEW_ITEM_TYPES: readonly WaniKaniItemType[] = [
@@ -17,6 +18,7 @@ export interface CustomReviewFilterState {
   srsStages: Set<number>;
   jlptLevels: Set<JLPTLevel>;
   maxFrequencyRank: number | null;
+  vocabularyTypes: string[];
 }
 
 export interface PersistedCustomReviewFilters {
@@ -27,6 +29,7 @@ export interface PersistedCustomReviewFilters {
   srsStages: number[];
   jlptLevels: JLPTLevel[];
   maxFrequencyRank: number | null;
+  vocabularyTypes: string[];
 }
 
 function sanitizeLevel(value: unknown, fallback: number): number {
@@ -78,6 +81,7 @@ export function serializeCustomReviewFilters(
     ),
     jlptLevels: JLPT_LEVELS.filter((level) => filters.jlptLevels.has(level)),
     maxFrequencyRank: filters.maxFrequencyRank,
+    vocabularyTypes: normalizeVocabularyTypes(filters.vocabularyTypes),
   };
 }
 
@@ -116,5 +120,10 @@ export function restoreCustomReviewFilters(
       fallback.jlptLevels,
     ),
     maxFrequencyRank,
+    vocabularyTypes: Array.isArray(stored.vocabularyTypes)
+      ? normalizeVocabularyTypes(
+          stored.vocabularyTypes.filter((value) => typeof value === "string"),
+        )
+      : [...fallback.vocabularyTypes],
   };
 }

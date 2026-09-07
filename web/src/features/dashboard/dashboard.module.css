@@ -110,6 +110,8 @@
 .customVocabularyAction[aria-disabled="true"] { color: var(--color-muted); opacity: .72; cursor: not-allowed; }
 .customVocabularyAction:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); border-radius: var(--radius-sm); }
 .customVocabularyAction:active { color: var(--color-ink); }
+.customVocabularyForecastUnavailable { margin-block-start: var(--space-sm); color: var(--color-muted); font-size: var(--text-xs); }
+.customVocabularyForecastUnavailable { min-height: 6rem; display: flex; align-items: center; justify-content: center; margin-block-start: 0; text-align: center; }
 .customVocabularyError { min-height: var(--control-height); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); padding: var(--space-xs) var(--space-md); border-block-start: var(--rule-thin) solid var(--color-danger); color: var(--color-danger); font-size: var(--text-xs); }
 .customVocabularyError button { min-height: var(--control-height); padding-inline: var(--space-xs); border: 0; background: transparent; color: var(--color-danger); font-weight: 700; cursor: pointer; }
 .customVocabularyError button:disabled { opacity: .55; cursor: not-allowed; }
@@ -151,39 +153,9 @@ button.srsGroupControl:disabled { opacity: .55; cursor: not-allowed; }
 .srsSubjectLegend span::before { width: var(--space-xs); height: var(--space-xs); border-radius: var(--radius-sm); background: var(--color-radical); content: ""; }
 .srsSubjectLegend span[data-subject="kanji"]::before { background: var(--color-kanji); }
 .srsSubjectLegend span[data-subject="vocabulary"]::before { background: var(--color-vocabulary); }
-.forecast[data-first-reveal],
 .summaryList[data-first-reveal] { animation: dashboardRevealGate 1ms 580ms both; }
-.forecast[data-first-reveal] > .forecastCol,
 .summaryList[data-first-reveal] > div { animation: dashboardDataReveal var(--dur-short) var(--ease-out) both; }
 .summaryList[data-first-reveal] > :nth-child(2) { animation-delay: 24ms; }
-.forecast { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-2xs); align-items: end; padding-block-start: var(--space-sm); }
-.forecastCol { min-width: 0; display: grid; grid-template-rows: 7rem auto auto; gap: var(--space-xs); text-align: center; color: var(--color-muted); font-size: var(--text-xs); }
-.forecast[data-first-reveal] > :nth-child(2) { animation-delay: 12ms; }
-.forecast[data-first-reveal] > :nth-child(3) { animation-delay: 24ms; }
-.forecast[data-first-reveal] > :nth-child(4) { animation-delay: 36ms; }
-.forecast[data-first-reveal] > :nth-child(5) { animation-delay: 48ms; }
-.forecast[data-first-reveal] > :nth-child(6) { animation-delay: 60ms; }
-.forecast[data-first-reveal] > :nth-child(7) { animation-delay: 72ms; }
-.forecast[data-first-reveal] > :nth-child(8) { animation-delay: 84ms; }
-.forecast[data-first-reveal] > :nth-child(9) { animation-delay: 96ms; }
-.forecast[data-first-reveal] > :nth-child(10) { animation-delay: 108ms; }
-.forecast[data-first-reveal] > :nth-child(11) { animation-delay: 120ms; }
-.forecast[data-first-reveal] > :nth-child(12) { animation-delay: 132ms; }
-.forecastBarTrack { min-width: 0; height: 7rem; display: flex; align-items: flex-end; border-block-end: var(--rule-thin) solid var(--color-rule-2); }
-.forecastBar { width: 100%; min-height: .25rem; height: var(--bar-height); border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--color-review); transform-origin: bottom; }
-.forecast[data-first-reveal] .forecastBar:not([data-empty="true"]) { animation: dashboardColumnGrow var(--dur-long) var(--ease-out) both; }
-.forecast[data-first-reveal] > :nth-child(2) .forecastBar { animation-delay: 12ms; }
-.forecast[data-first-reveal] > :nth-child(3) .forecastBar { animation-delay: 24ms; }
-.forecast[data-first-reveal] > :nth-child(4) .forecastBar { animation-delay: 36ms; }
-.forecast[data-first-reveal] > :nth-child(5) .forecastBar { animation-delay: 48ms; }
-.forecast[data-first-reveal] > :nth-child(6) .forecastBar { animation-delay: 60ms; }
-.forecast[data-first-reveal] > :nth-child(7) .forecastBar { animation-delay: 72ms; }
-.forecast[data-first-reveal] > :nth-child(8) .forecastBar { animation-delay: 84ms; }
-.forecast[data-first-reveal] > :nth-child(9) .forecastBar { animation-delay: 96ms; }
-.forecast[data-first-reveal] > :nth-child(10) .forecastBar { animation-delay: 108ms; }
-.forecast[data-first-reveal] > :nth-child(11) .forecastBar { animation-delay: 120ms; }
-.forecast[data-first-reveal] > :nth-child(12) .forecastBar { animation-delay: 132ms; }
-.forecastBar[data-empty="true"] { min-height: 0; }
 .progressLabel { display: flex; justify-content: space-between; gap: var(--space-md); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 .levelWidgetHead { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); }
 .levelWidgetHead > div { min-width: 0; }
@@ -615,23 +587,17 @@ button.srsGroupControl:disabled { opacity: .55; cursor: not-allowed; }
 }
 
 @media (max-width: 40rem) {
-  .forecast { gap: var(--rule-thin); }
-  .forecastCol span { writing-mode: vertical-rl; max-height: 3.5rem; }
   .subjectRows a { grid-template-columns: max-content minmax(0, 1fr) auto; }
   .previewSubjectRow { grid-template-columns: max-content minmax(0, 1fr) auto; }
   .subjectValue { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .forecast[data-first-reveal],
   .summaryList[data-first-reveal],
-  .forecast[data-first-reveal] > .forecastCol,
   .summaryList[data-first-reveal] > div,
-  .forecast[data-first-reveal] .forecastBar,
   .incompleteRingProgress,
   .recentMistakesRail,
   .studyChartSlot i { animation: none; }
   .incompleteRingProgress { transition: none; }
-  .forecast[data-first-reveal] > .forecastCol,
   .summaryList[data-first-reveal] > div { opacity: 1; }
 }

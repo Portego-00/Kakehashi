@@ -37,7 +37,7 @@ async function fulfillJson(route: Route, json: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(json) });
 }
 
-async function seriousAccessibilityViolations(page: Page) {
+async function seriousAccessibilityViolations(page: Page, rootSelectors?: string[]) {
   await page.evaluate(async () => {
     const finiteAnimations = document.getAnimations().filter((animation) => {
       const endTime = animation.effect?.getComputedTiming().endTime;
@@ -47,11 +47,11 @@ async function seriousAccessibilityViolations(page: Page) {
   });
   const hasAxe = await page.evaluate(() => Boolean((window as typeof window & { axe?: unknown }).axe));
   if (!hasAxe) await page.addScriptTag({ path: resolve("node_modules/axe-core/axe.min.js") });
-  return page.evaluate(async () => {
-    const axe = (window as typeof window & { axe: { run: (root: Document, options: unknown) => Promise<{ violations: Array<{ id: string; impact: string | null; nodes: Array<{ target: string[]; failureSummary?: string }> }> }> } }).axe;
-    const result = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
+  return page.evaluate(async (selectors) => {
+    const axe = (window as typeof window & { axe: { run: (root: Document | { include: string[] }, options: unknown) => Promise<{ violations: Array<{ id: string; impact: string | null; nodes: Array<{ target: string[]; failureSummary?: string }> }> }> } }).axe;
+    const result = await axe.run(selectors?.length ? { include: selectors } : document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
     return result.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").map((violation) => ({ id: violation.id, impact: violation.impact, nodes: violation.nodes.map((node) => ({ target: node.target, failureSummary: node.failureSummary })) }));
-  });
+  }, rootSelectors);
 }
 
 async function cardMetrics(card: Locator) {
@@ -63,6 +63,51 @@ async function cardMetrics(card: Locator) {
       height: bounds.height,
       fits: element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight,
     };
+  });
+}
+
+type ForecastMotionEvent = { section: string; duration: number; transforms: string[]; opacities: string[] };
+
+async function observeForecastAnimations(page: Page) {
+  await page.addInitScript(() => {
+    const events: ForecastMotionEvent[] = [];
+    const seen = new WeakSet<Animation>();
+    (window as typeof window & { forecastMotionEvents: ForecastMotionEvent[] }).forecastMotionEvents = events;
+    const sample = () => {
+      const forecasts = document.querySelectorAll('[data-section="forecast"] section[aria-labelledby], [data-section="custom-vocabulary"] section[aria-labelledby]');
+      for (const forecast of forecasts) {
+        for (const animation of forecast.getAnimations({ subtree: true })) {
+          if (seen.has(animation)) continue;
+          seen.add(animation);
+          // Reduced-motion themes intentionally retain brief color fades.
+          if (animation instanceof CSSTransition && !["transform", "translate", "rotate", "scale", "height", "width"].includes(animation.transitionProperty)) continue;
+          const effect = animation.effect;
+          if (!(effect instanceof KeyframeEffect)) continue;
+          const duration = Number(effect.getTiming().duration);
+          if (!Number.isFinite(duration) || duration <= 0) continue;
+          const frames = effect.getKeyframes();
+          events.push({
+            section: forecast.closest("[data-section]")!.getAttribute("data-section")!,
+            duration,
+            transforms: frames.map((frame) => String(frame.transform ?? "")),
+            opacities: frames.map((frame) => String(frame.opacity ?? "")),
+          });
+        }
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+}
+
+async function forecastAnimations(page: Page, section: string) {
+  return page.evaluate((sectionId) => (window as typeof window & { forecastMotionEvents: ForecastMotionEvent[] }).forecastMotionEvents.filter((event) => event.section === sectionId), section);
+}
+
+async function finishForecastAnimations(forecast: Locator) {
+  await forecast.evaluate(async (element) => {
+    await new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())));
+    await Promise.allSettled(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
   });
 }
 
@@ -265,6 +310,75 @@ async function mockApp(page: Page, initiallyAuthenticated = true, mockedUser: Mo
     if (body.action === "toggleIssueLike" || body.action === "toggleCommentLike") return fulfillJson(route, { liked: true, likes_count: 3 });
     return fulfillJson(route, { ok: true });
   });
+}
+
+async function seedCustomReviewAssignments(page: Page, includeLongWord = false) {
+  await page.goto("/custom-vocabulary");
+  await page.getByRole("button", { name: "Add Conversation Glue pack" }).click();
+  await expect(page.getByText("Added", { exact: true }).first()).toBeVisible();
+  if (includeLongWord) {
+    await page.getByRole("button", { name: "Add Food & Eating Out pack" }).click();
+    await expect(page.getByRole("article", { name: "Food & Eating Out", exact: true }).getByText("Added", { exact: true })).toBeVisible();
+  }
+  await page.evaluate((longWord) => {
+    const key = "kakehashi:custom-srs:v1:account:1";
+    const state = JSON.parse(localStorage.getItem(key) || "null");
+    const currentTime = Date.now();
+    const reviewedAt = new Date(currentTime - 24 * 60 * 60_000).toISOString();
+    const scheduledWords = [
+      { id: "conversation-douzo", stage: 1, dueHours: -1 },
+      { id: "conversation-yappari", stage: 4, dueHours: -1 },
+      { id: longWord ? "food-gochisousama" : "conversation-yukkuri", stage: 8, dueHours: -1 },
+      { id: "conversation-jaa", stage: 2, dueHours: 2 },
+      { id: "conversation-doumo", stage: 3, dueHours: 25 },
+      { id: "conversation-masaka", stage: 5, dueHours: 14 * 24 },
+    ];
+    for (const { id, stage, dueHours } of scheduledWords) {
+      const due = new Date(currentTime + dueHours * 60 * 60_000).toISOString();
+      state.assignments[id] = {
+        ...state.assignments[id],
+        stage,
+        availableAt: due,
+        startedAt: reviewedAt,
+        updatedAt: reviewedAt,
+        card: {
+          due,
+          state: "Review",
+          stability: 10,
+          difficulty: 5,
+          elapsed_days: 1,
+          scheduled_days: 1,
+          learning_steps: 0,
+          reps: 3,
+          lapses: 0,
+          last_review: reviewedAt,
+        },
+      };
+    }
+    localStorage.setItem(key, JSON.stringify(state));
+  }, includeLongWord);
+}
+
+async function mockScheduledReviewForecast(page: Page) {
+  const currentTime = await page.evaluate(() => Date.now());
+  const dueHours = [-1, 2, 25, 3 * 24, 6 * 24, 9 * 24];
+  const scheduledAssignments = assignments.map((assignment, index) => ({
+    ...assignment,
+    data: {
+      ...assignment.data,
+      available_at: new Date(currentTime + dueHours[index] * 60 * 60_000).toISOString(),
+      srs_stage: [2, 4, 5, 7, 8, 5][index],
+    },
+  }));
+  await page.route("**/api/wanikani/assignments**", (route) => fulfillJson(route, collection(scheduledAssignments)));
+  await page.route("**/api/wanikani/summary", (route) => fulfillJson(route, {
+    object: "report", url: "", data_updated_at: now,
+    data: {
+      lessons: [],
+      reviews: scheduledAssignments.map((assignment) => ({ available_at: assignment.data.available_at, subject_ids: [assignment.data.subject_id] })),
+      next_reviews_at: scheduledAssignments[1].data.available_at,
+    },
+  }));
 }
 
 test("keeps subject details full-width, horizontal, typed, contextual, and animated", async ({ page }, testInfo) => {
@@ -607,7 +721,8 @@ test("keeps custom vocabulary low on the dashboard and opens a word's subject de
   const defaultSectionOrder = await page.locator("main [data-section]").evaluateAll((sections) => sections.map((section) => section.getAttribute("data-section")));
   const subjectListsIndex = defaultSectionOrder.indexOf("subject-lists");
   expect(subjectListsIndex).toBeGreaterThanOrEqual(0);
-  expect(defaultSectionOrder.indexOf("custom-vocabulary")).toBe(subjectListsIndex + 1);
+  expect(defaultSectionOrder.indexOf("incomplete-levels")).toBe(subjectListsIndex + 1);
+  expect(defaultSectionOrder.indexOf("custom-vocabulary")).toBe(subjectListsIndex + 2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom vocabulary dashboard widget overflows at 320px").toBe(true);
 
   await page.goto("/custom-vocabulary");
@@ -760,7 +875,274 @@ test("enrolls a kana pack and persists custom lessons and reviews without WaniKa
   expect(waniKaniMutations).toEqual([]);
 });
 
+for (const reducedMotion of [false, true]) {
+  test(`animates forecast changes with ${reducedMotion ? "reduced" : "normal"} motion preferences`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: testInfo.project.name === "desktop" ? 1000 : 390, height: 700 });
+    await page.emulateMedia({ reducedMotion: reducedMotion ? "reduce" : "no-preference" });
+    await page.clock.install({ time: new Date("2026-09-06T10:00:00.000Z") });
+    await observeForecastAnimations(page);
+    await mockApp(page);
+    await mockScheduledReviewForecast(page);
+    await seedCustomReviewAssignments(page);
+    await page.goto("/dashboard");
+
+    const normalForecast = page.locator('[data-section="forecast"]').getByRole("region", { name: "Review forecast", exact: true });
+    const customForecast = page.locator('[data-section="custom-vocabulary"]').getByRole("region", { name: "Upcoming reviews", exact: true });
+    for (const [forecast, section] of [[normalForecast, "forecast"], [customForecast, "custom-vocabulary"]] as const) {
+      await expect(forecast.getByRole("list", { name: "Hourly review forecast" })).toBeVisible();
+      await expect(forecast).not.toBeInViewport();
+      expect(await forecastAnimations(page, section), "forecast entrance should wait until it is on screen").toEqual([]);
+      await forecast.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+      await finishForecastAnimations(forecast);
+      const entrance = await forecastAnimations(page, section);
+      if (reducedMotion) {
+        expect(entrance).toEqual([]);
+      } else {
+        expect(entrance.length).toBeGreaterThan(0);
+        expect(entrance.some((event) => new Set(event.transforms.filter(Boolean)).size > 1), "entrance should actually grow or move the graph").toBe(true);
+        expect(entrance.every((event) => event.duration <= 500), "forecast motion should stay brief").toBe(true);
+      }
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await forecast.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+      await finishForecastAnimations(forecast);
+      expect(await forecastAnimations(page, section), "scrolling back should not replay the entrance").toEqual(entrance);
+    }
+
+    await normalForecast.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+    const hourlyScroll = normalForecast.getByRole("region", { name: "Scrollable hourly forecast chart" });
+    await hourlyScroll.evaluate((element) => { element.scrollLeft = 160; });
+    const previousScroll = await hourlyScroll.evaluate((element) => element.scrollLeft);
+    expect(previousScroll).toBeGreaterThan(0);
+
+    for (const [currentName, nextName] of [["Breakdown: Off", "Breakdown: Type"], ["Breakdown: Type", "Breakdown: SRS"], ["Daily", "Daily"], ["List view", "List view"]]) {
+      const before = await forecastAnimations(page, "forecast");
+      const control = normalForecast.getByRole("button", { name: currentName, exact: true });
+      await control.focus();
+      await control.press("Enter");
+      await expect(normalForecast.getByRole("button", { name: nextName, exact: true })).toBeFocused();
+      await finishForecastAnimations(normalForecast);
+      const after = await forecastAnimations(page, "forecast");
+      if (reducedMotion) expect(after).toEqual(before);
+      else expect(after.length, `${currentName} should animate the changed graph`).toBeGreaterThan(before.length);
+      if (currentName.startsWith("Breakdown:")) expect(await hourlyScroll.evaluate((element) => element.scrollLeft), "breakdown changes should preserve horizontal chart position").toBe(previousScroll);
+    }
+
+    const beforeRefresh = await forecastAnimations(page, "forecast");
+    await page.clock.fastForward(60_000);
+    await finishForecastAnimations(normalForecast);
+    expect(await forecastAnimations(page, "forecast"), "minute refreshes should not replay presentation animations").toEqual(beforeRefresh);
+    await page.evaluate(() => {
+      const key = "kakehashi-web:settings:webtester:v1";
+      const settings = JSON.parse(localStorage.getItem(key)!);
+      settings.study.autoplayAudio = !settings.study.autoplayAudio;
+      localStorage.setItem(key, JSON.stringify(settings));
+      window.dispatchEvent(new Event("kakehashi-web-settings-change"));
+    });
+    await finishForecastAnimations(normalForecast);
+    expect(await forecastAnimations(page, "forecast"), "unrelated settings should not replay the graph animation").toEqual(beforeRefresh);
+  });
+}
+
 for (const theme of ["dark", "light"] as const) {
+  test(`shows detailed custom review outcomes in the ${theme} theme`, async ({ page }, testInfo) => {
+    if (testInfo.project.name === "mobile") await page.setViewportSize({ width: 320, height: 844 });
+    await page.clock.setFixedTime(new Date("2026-09-06T10:00:00.000Z"));
+    await page.addInitScript((selectedTheme) => localStorage.setItem("kakehashi-web-theme", selectedTheme), theme);
+    await mockApp(page);
+    await seedCustomReviewAssignments(page, true);
+    await page.goto("/custom-vocabulary/reviews");
+
+    const answers = new Map([["どうぞ", "please"], ["やっぱり", "as expected"], ["ごちそうさま", "thank you for the meal"]]);
+    let madeMistake = false;
+    for (let index = 0; index < 4; index += 1) {
+      const prompt = page.locator("#question-prompt");
+      await expect(prompt).toBeVisible();
+      const characters = (await prompt.textContent())?.trim() ?? "";
+      expect(answers.has(characters), `unexpected custom review prompt: ${characters}`).toBe(true);
+      const incorrect = characters === "やっぱり" && !madeMistake;
+      if (incorrect) madeMistake = true;
+      await page.getByRole("textbox", { name: "Vocabulary Meaning" }).fill(incorrect ? "banana" : answers.get(characters)!);
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Next", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Next", exact: true })).toBeHidden();
+    }
+
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await expect(page.getByRole("heading", { name: "Custom reviews complete" })).toBeVisible();
+    const summary = page.getByRole("region", { name: "Review summary" });
+    await expect(summary).toBeVisible();
+    await expect(summary.getByLabel("75% overall accuracy")).toBeVisible();
+    await expect(summary).toContainText("Meaning accuracy");
+    await expect(summary).toContainText("67%");
+    await expect(summary).toContainText("Reading accuracy");
+    await expect(summary).toContainText("N/A");
+    await expect(page.getByRole("heading", { name: "Review breakdown" })).toBeVisible();
+    await page.getByRole("tab", { name: "Mistakes (1)", exact: true }).click();
+    const mistake = page.getByRole("article", { name: "やっぱり review result" });
+    await expect(mistake).toBeVisible();
+    await expect(mistake).toContainText("Apprentice IV");
+    await expect(mistake).toContainText("Apprentice III");
+    await expect(page.getByRole("article", { name: "どうぞ review result" })).toHaveCount(0);
+    await page.getByRole("tab", { name: "All items (3)", exact: true }).click();
+    await expect(page.getByRole("article", { name: /review result$/ })).toHaveCount(3);
+    const longWordResult = page.getByRole("article", { name: "ごちそうさま review result" });
+    await expect(longWordResult).toContainText("Burned");
+    const glyph = longWordResult.getByRole("link", { name: "Open ごちそうさま subject details", exact: true });
+    expect(await glyph.evaluate((element) => element.scrollWidth <= element.clientWidth), "long kana glyphs must retain their full text and padding").toBe(true);
+    const widestGlyphFits = await glyph.evaluate((element) => {
+      const original = element.textContent;
+      element.textContent = "クレジットカード";
+      const fits = element.scrollWidth <= element.clientWidth;
+      element.textContent = original;
+      return fits;
+    });
+    expect(widestGlyphFits, "the catalogue’s longest kana word must also fit without clipping").toBe(true);
+    await expect(page.getByRole("link", { name: "Back to Dashboard", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom review results must fit the viewport").toBe(true);
+    await expect(page.getByRole("status", { name: "SRS progression" })).toHaveCount(0, { timeout: 4_500 });
+    expect(await seriousAccessibilityViolations(page)).toEqual([]);
+    await page.getByRole("heading", { name: "Custom reviews complete" }).click();
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.screenshot({ path: testInfo.outputPath(`custom-review-results-${theme}.png`), fullPage: true, animations: "disabled" });
+
+    await mistake.getByRole("link").first().click();
+    await expect(page).toHaveURL(/\/custom-vocabulary\/words\/conversation-yappari$/);
+    await expect(page.getByRole("heading", { name: "As Expected", exact: true })).toBeVisible();
+  });
+
+  test(`matches mobile forecast controls and keeps custom reviews separate in the ${theme} theme`, async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.clock.setFixedTime(new Date("2026-09-06T10:00:00.000Z"));
+    await page.addInitScript((selectedTheme) => localStorage.setItem("kakehashi-web-theme", selectedTheme), theme);
+    await mockApp(page);
+    await mockScheduledReviewForecast(page);
+    await page.goto("/dashboard");
+    const normalForecast = page.locator('[data-section="forecast"]');
+    await expect(normalForecast.getByRole("heading", { name: "Review forecast" })).toBeVisible();
+    const hourlyBarCount = testInfo.project.name === "desktop" ? 48 : 24;
+    await expect(normalForecast.getByRole("list", { name: "Hourly review forecast" }).getByRole("listitem")).toHaveCount(hourlyBarCount);
+    await expect(normalForecast.getByRole("list", { name: "Hourly review forecast" }).getByRole("listitem").first()).toHaveAttribute("aria-label", /^Now: 1 total reviews,/);
+    const originalNormalForecast = await normalForecast.getByRole("list", { name: "Hourly review forecast" }).getByRole("listitem").evaluateAll((bars) => bars.map((bar) => bar.getAttribute("aria-label")));
+    await seedCustomReviewAssignments(page);
+    await page.goto("/dashboard");
+
+    const subjectLists = page.locator('[data-section="subject-lists"]');
+    const incompleteLevels = page.locator('[data-section="incomplete-levels"]');
+    const customWidget = page.locator('[data-section="custom-vocabulary"]');
+    const customForecastRegion = customWidget.getByRole("region", { name: "Upcoming reviews", exact: true });
+    await expect(customWidget.getByRole("heading", { name: "Upcoming reviews" })).toBeVisible();
+    await expect(normalForecast.getByRole("list", { name: "Hourly review forecast" }).getByRole("listitem").first()).toHaveAttribute("aria-label", /^Now: 1 total reviews,/);
+    expect(await normalForecast.getByRole("list", { name: "Hourly review forecast" }).getByRole("listitem").evaluateAll((bars) => bars.map((bar) => bar.getAttribute("aria-label")))).toEqual(originalNormalForecast);
+    for (const [widget, dueCount] of [[normalForecast, 1], [customWidget, 3]] as const) {
+      const chart = widget.getByRole("list", { name: "Hourly review forecast" });
+      await expect(chart.getByRole("listitem")).toHaveCount(hourlyBarCount);
+      await expect(chart.getByRole("listitem").first()).toHaveAttribute("aria-label", new RegExp(`^Now: ${dueCount} total reviews,`));
+      await expect(widget.getByRole("button", { name: "Chart view", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(widget.getByRole("button", { name: "Hourly", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(widget.getByRole("button", { name: "Breakdown: Off", exact: true })).toBeVisible();
+    }
+    await normalForecast.screenshot({ path: testInfo.outputPath(`normal-forecast-hourly-${theme}.png`), animations: "disabled" });
+
+    await normalForecast.getByRole("button", { name: "Daily", exact: true }).click();
+    for (const [widget, expectedTotals] of [[normalForecast, [2, 3, 3, 4, 4, 4, 5]], [customWidget, [4, 5, 5, 5, 5, 5, 5]]] as const) {
+      const bars = widget.getByRole("list", { name: "Daily review forecast" }).getByRole("listitem");
+      await expect(bars).toHaveCount(7);
+      const totals = await bars.evaluateAll((items) => items.map((item) => Number(item.getAttribute("aria-label")?.match(/: (\d+) total reviews,/)?.[1])));
+      expect(totals).toEqual(expectedTotals);
+      await expect(widget.getByRole("button", { name: "Daily", exact: true })).toHaveAttribute("aria-pressed", "true");
+    }
+    await customWidget.getByRole("button", { name: "Breakdown: Off", exact: true }).click();
+    for (const widget of [normalForecast, customWidget]) {
+      await expect(widget.getByRole("button", { name: "Breakdown: Type", exact: true })).toBeVisible();
+      await expect(widget.getByText("Type", { exact: true })).toBeVisible();
+    }
+    await normalForecast.screenshot({ path: testInfo.outputPath(`normal-forecast-daily-type-${theme}.png`), animations: "disabled" });
+    await normalForecast.getByRole("button", { name: "Breakdown: Type", exact: true }).click();
+    for (const widget of [normalForecast, customWidget]) {
+      await expect(widget.getByRole("button", { name: "Breakdown: SRS", exact: true })).toBeVisible();
+      await expect(widget.getByText("SRS", { exact: true })).toBeVisible();
+    }
+    await customForecastRegion.screenshot({ path: testInfo.outputPath(`custom-vocabulary-forecast-daily-srs-${theme}.png`), animations: "disabled" });
+
+    await normalForecast.getByRole("button", { name: "List view", exact: true }).click();
+    for (const widget of [normalForecast, customWidget]) {
+      await expect(widget.getByRole("button", { name: "List view", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(widget.getByRole("button", { name: "Hourly", exact: true })).toHaveCount(0);
+      await expect(widget.getByRole("button", { name: /^Today\b/ })).toHaveAttribute("aria-expanded", "true");
+      await expect(widget.getByRole("button", { name: /^Tomorrow\b/ })).toHaveAttribute("aria-expanded", "false");
+      await expect(widget.getByRole("list", { name: "Today hourly reviews" }).getByText("Now", { exact: true })).toBeVisible();
+    }
+    await normalForecast.getByRole("button", { name: /^Tomorrow\b/ }).click();
+    await expect(normalForecast.getByRole("button", { name: /^Tomorrow\b/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(customWidget.getByRole("button", { name: /^Tomorrow\b/ })).toHaveAttribute("aria-expanded", "false");
+    await customWidget.getByRole("button", { name: /^Today\b/ }).click();
+    await expect(customWidget.locator('ol[aria-label="Today hourly reviews"]').getByText("Now", { exact: true })).toBeHidden();
+    await customWidget.getByRole("button", { name: /^Today\b/ }).click();
+    if (testInfo.project.name === "mobile") await page.setViewportSize({ width: 390, height: 1200 });
+    await customForecastRegion.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+    await customForecastRegion.screenshot({ path: testInfo.outputPath(`custom-vocabulary-forecast-list-${theme}.png`), animations: "disabled" });
+
+    await page.reload();
+    for (const widget of [normalForecast, customWidget]) {
+      await expect(widget.getByRole("button", { name: "List view", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(widget.getByRole("button", { name: "Breakdown: SRS", exact: true })).toBeVisible();
+    }
+    await customWidget.getByRole("button", { name: "Chart view", exact: true }).click();
+    for (const widget of [normalForecast, customWidget]) {
+      await expect(widget.getByRole("list", { name: "Daily review forecast" }).getByRole("listitem")).toHaveCount(7);
+    }
+    await customWidget.getByRole("button", { name: "Breakdown: SRS", exact: true }).click();
+    for (const widget of [normalForecast, customWidget]) {
+      await expect(widget.getByRole("button", { name: "Breakdown: Off", exact: true })).toBeVisible();
+      await expect(widget.getByText("SRS", { exact: true })).toHaveCount(0);
+    }
+
+    const order = await page.locator("main [data-section]").evaluateAll((sections) => sections.map((section) => section.getAttribute("data-section")));
+    const subjectListIndex = order.indexOf("subject-lists");
+    expect(order.slice(subjectListIndex, subjectListIndex + 3)).toEqual(["subject-lists", "incomplete-levels", "custom-vocabulary"]);
+
+    if (testInfo.project.name === "desktop") {
+      const [listsBox, levelsBox, customBox] = await Promise.all([subjectLists.boundingBox(), incompleteLevels.boundingBox(), customWidget.boundingBox()]);
+      expect(listsBox).not.toBeNull();
+      expect(levelsBox).not.toBeNull();
+      expect(customBox).not.toBeNull();
+      expect(listsBox!.y).toBeCloseTo(levelsBox!.y, 0);
+      expect(listsBox!.x + listsBox!.width).toBeLessThan(levelsBox!.x);
+      expect(customBox!.y).toBeGreaterThanOrEqual(levelsBox!.y + levelsBox!.height);
+      expect(customBox!.x).toBeCloseTo(listsBox!.x, 0);
+      expect(customBox!.x + customBox!.width).toBeCloseTo(levelsBox!.x + levelsBox!.width, 0);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "custom vocabulary forecast must fit the viewport").toBe(true);
+    if (testInfo.project.name === "mobile") {
+      for (const width of [320, 375, 414, 768]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const widget of [normalForecast, customWidget]) {
+          await expect(widget.getByRole("button", { name: "Daily", exact: true })).toBeVisible();
+          await expect(widget.getByRole("button", { name: "Breakdown: Off", exact: true })).toBeVisible();
+          const chart = widget.getByRole("region", { name: "Seven-day forecast chart" });
+          expect(await chart.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `all seven days must fit within the forecast at ${width}px`).toBe(true);
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `both forecast widgets must fit at ${width}px`).toBe(true);
+      }
+      await page.setViewportSize({ width: 320, height: 900 });
+      await normalForecast.screenshot({ path: testInfo.outputPath(`normal-forecast-320-${theme}.png`), animations: "disabled" });
+      await customForecastRegion.screenshot({ path: testInfo.outputPath(`custom-vocabulary-forecast-320-${theme}.png`), animations: "disabled" });
+      await page.goto("/settings");
+      await page.getByRole("radiogroup", { name: "Text size" }).getByRole("radio", { name: /Extra large/ }).click();
+      await page.goto("/dashboard");
+      await expect(customWidget.getByRole("list", { name: "Daily review forecast" }).getByRole("listitem")).toHaveCount(7);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "forecast widgets must fit at 320px with extra-large text").toBe(true);
+      await customWidget.getByRole("button", { name: "List view", exact: true }).click();
+      for (const widget of [normalForecast, customWidget]) await expect(widget.getByRole("button", { name: /^Today\b/ })).toHaveAttribute("aria-expanded", "true");
+      await page.setViewportSize({ width: 320, height: 1200 });
+      await customForecastRegion.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+      await customForecastRegion.screenshot({ path: testInfo.outputPath(`custom-vocabulary-forecast-large-text-${theme}.png`), animations: "disabled" });
+    }
+    expect(await seriousAccessibilityViolations(page, ['[data-section="forecast"]', '[data-section="custom-vocabulary"] section[aria-labelledby]']), "forecast controls and graphs have serious accessibility violations").toEqual([]);
+  });
+
   test(`continues custom lesson batches without shifting the ${theme} results layout`, async ({ page }, testInfo) => {
     await page.addInitScript((selectedTheme) => window.localStorage.setItem("kakehashi-web-theme", selectedTheme), theme);
     await mockApp(page);
@@ -1434,10 +1816,10 @@ test("reorders dashboard previews and keeps every optional section responsive", 
   const visibleWidgets = visibleSections.locator(":scope > li");
   await expect(visibleWidgets).toHaveCount(18);
   expect(await visibleWidgets.evaluateAll((widgets) => widgets.map((widget) => widget.getAttribute("data-editor-section")))).toEqual([
-    "daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "custom-vocabulary", "incomplete-levels", "recent-unlocks", "critical-items", "burned-items", "study-time",
+    "daily-study", "level", "extra-study", "forecast", "recent-mistakes", "study-pulse", "review-heatmap", "srs", "study-streak", "level-timing", "today-study", "subject-lists", "incomplete-levels", "custom-vocabulary", "recent-unlocks", "critical-items", "burned-items", "study-time",
   ]);
   expect(await visibleWidgets.evaluateAll((widgets) => widgets.map((widget) => Number(widget.getAttribute("data-editor-width"))))).toEqual([
-    12, 12, 12, 12, 6, 6, 12, 8, 4, 8, 4, 4, 12, 8, 6, 6, 6, 6,
+    12, 12, 12, 12, 6, 6, 12, 8, 4, 8, 4, 4, 8, 12, 6, 6, 6, 6,
   ]);
   expect(await visibleWidgets.evaluateAll((widgets) => widgets.every((widget) => !widget.hasAttribute("data-editor-row-start")))).toBe(true);
   await expect(page.locator("[data-widget-preview]")).toHaveCount(18);

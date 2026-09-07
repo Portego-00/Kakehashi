@@ -130,6 +130,28 @@ describe("native-parity study configuration", () => {
     expect(onStart).toHaveBeenCalledOnce();
   });
 
+  it.each(["custom-review", "custom-lessons"] as const)("narrows %s bulk selection to the selected vocabulary types", (mode) => {
+    const japan = reviewSubject(1, "vocabulary", "日本", "Japan", "にほん", 2);
+    japan.data.parts_of_speech = ["proper noun"];
+    const study = reviewSubject(2, "vocabulary", "勉強", "Study", "べんきょう", 2);
+    study.data.parts_of_speech = ["noun", "verbal noun"];
+    const kanji = reviewSubject(3, "kanji", "日", "Sun", "にち", 1);
+    const Harness = mode === "custom-review" ? ReviewHarness : LessonHarness;
+    renderConfig(<Harness initialFilters={getModeDefaultFilters(mode, 5)} subjects={[japan, study, kanji]} assignments={[]} onStart={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Vocab type" }));
+    const dialog = screen.getByRole("dialog", { name: "Vocabulary type" });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Verbal noun" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("button", { name: /Choose 日本/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Choose 日, Sun/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Select filtered" }));
+    expect(screen.getByRole("button", { name: /Choose 勉強/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(screen.getByRole("button", { name: /Choose 日本/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Choose 勉強/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("keeps filters disclosed and consolidates saved-list and bulk selection", async () => {
     const subjects = [
       reviewSubject(1, "vocabulary", "猫", "Cat", "ねこ", 2),

@@ -111,6 +111,7 @@ export default function LessonPickerScreen() {
             id: subject.id,
             object: subject.object,
             data: {
+              parts_of_speech: subject.data.parts_of_speech,
               characters: subject.data.characters,
               meanings: subject.data.meanings,
               readings: subject.data.readings ?? undefined,
