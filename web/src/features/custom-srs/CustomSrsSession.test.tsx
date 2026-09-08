@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
+import { DEFAULT_WEB_SETTINGS, settingsStorageKey } from "@/features/settings/settings";
+import type { PronunciationAudio } from "@/types/wanikani";
 import { CUSTOM_SRS_POLICY } from "./scheduler";
 import type { CustomSrsAssignment, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
 import { createCustomQuestionQueue, CustomSrsSession } from "./CustomSrsSession";
@@ -18,6 +19,9 @@ const hook = vi.hoisted(() => ({
 
 const fetchImmersionExamplesMock = vi.hoisted(() => vi.fn());
 const scrollIntoViewMock = vi.fn();
+const customAudioMock = vi.hoisted(() => vi.fn<(id: string) => PronunciationAudio[]>(() => []));
+
+vi.mock("./audio", () => ({ customVocabularyAudio: customAudioMock }));
 
 vi.mock("@/lib/session", () => ({
   useSession: () => ({ user: { id: 42, data: { username: "custom-study-test" } } }),
@@ -121,6 +125,8 @@ describe("custom vocabulary lesson and review sessions", () => {
   });
 
   beforeEach(() => {
+    window.localStorage.clear();
+    customAudioMock.mockReset().mockReturnValue([]);
     hook.completeLesson.mockReset();
     hook.submitReview.mockReset();
     hook.refresh.mockReset();
@@ -136,7 +142,92 @@ describe("custom vocabulary lesson and review sessions", () => {
     }]);
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function enablePublishedAudio(autoplayAudio = true) {
+    window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      study: { ...DEFAULT_WEB_SETTINGS.study, autoplayAudio, reviewQuestionOrder: "meaning-first", reviewQuestionOrderEnabled: true, backToBackQuestions: true },
+    }));
+    customAudioMock.mockImplementation((id) => [{
+      url: `https://example.supabase.co/storage/v1/object/public/custom-vocabulary-audio/${id}.mp3`,
+      content_type: "audio/mpeg",
+      metadata: { gender: "female", source_id: 1, pronunciation: id === cat.id ? cat.reading : footsteps.reading, voice_actor_id: 1, voice_actor_name: "Shizuka", voice_description: "AI-generated" },
+    }]);
+    return {
+      play: vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined),
+      pause: vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined),
+    };
+  }
+
+  it("autoplays revealed lessons with the existing setting and stops the previous word", async () => {
+    const { play, pause } = enablePublishedAudio();
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat, dog] };
+    hook.state = stateFor(pack, {});
+    const { container } = renderSession("lessons", [pack]);
+    await screen.findByRole("button", { name: "Stop Shizuka pronunciation" });
+    expect(play).toHaveBeenCalledOnce();
+    expect(container.querySelectorAll("audio")).toHaveLength(1);
+    const oldPlayer = container.querySelector("audio");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next lesson" }));
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+    expect(pause).toHaveBeenCalledOnce();
+    expect(oldPlayer).not.toHaveAttribute("src");
+    expect(container.querySelectorAll("audio")).toHaveLength(1);
+  });
+
+  it("does not load recordings when autoplay is disabled and offers manual playback", async () => {
+    const { play } = enablePublishedAudio(false);
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, {});
+    const { container } = renderSession("lessons", [pack]);
+    expect(play).not.toHaveBeenCalled();
+    expect(container.querySelector("audio")).not.toHaveAttribute("src");
+    fireEvent.click(screen.getByRole("button", { name: "Play Shizuka pronunciation" }));
+    await screen.findByRole("button", { name: "Stop Shizuka pronunciation" });
+    expect(play).toHaveBeenCalledOnce();
+  });
+
+  it("only reveals kana review audio after an answer, not after a blocked wrong-mode response", async () => {
+    const { play, pause } = enablePublishedAudio();
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    const { container, unmount } = renderSession("reviews", [pack]);
+    expect(play).not.toHaveBeenCalled();
+    expect(container.querySelector("audio")).not.toHaveAttribute("src");
+    expect(screen.queryByRole("button", { name: /Shizuka pronunciation/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "ねこ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(play).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Shizuka pronunciation/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await screen.findByRole("button", { name: "Stop Shizuka pronunciation" });
+    expect(play).toHaveBeenCalledOnce();
+    unmount();
+    expect(pause).toHaveBeenCalledOnce();
+  });
+
+  it("keeps kanji audio hidden through the meaning answer until its reading is revealed", async () => {
+    const { play } = enablePublishedAudio();
+    const pack: CustomVocabularyPack = { id: "level-6-10", title: "Level 6–10", description: "Common words", script: "mixed", words: [footsteps] };
+    hook.state = stateFor(pack, { [footsteps.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    renderSession("reviews", [pack]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "footsteps" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(play).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Shizuka pronunciation/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Reading" }), { target: { value: "あしおと" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await screen.findByRole("button", { name: "Stop Shizuka pronunciation" });
+    expect(play).toHaveBeenCalledOnce();
+  });
 
   it("keeps the page position when arrow keys switch lesson detail tabs", async () => {
     const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };

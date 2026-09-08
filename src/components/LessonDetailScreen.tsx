@@ -90,6 +90,7 @@ import {
 } from "../utils/pronunciationAudio";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveCustomVocabularyAudioForPlayback } from "../features/custom-srs/audio-cache";
 import {
   type SubjectColors,
   useSubjectColors,
@@ -1203,6 +1204,8 @@ const SubjectContent = ({
       meaning_note?: string;
       reading_note?: string;
     }) => {
+      // Negative IDs belong to custom SRS, never to the WaniKani API.
+      if (subject.id <= 0) throw new Error("Custom vocabulary does not use WaniKani notes");
       if (!apiToken) throw new Error("Missing API token");
 
       if (studyMaterialId) {
@@ -1236,7 +1239,7 @@ const SubjectContent = ({
 
   // Fetch study materials for user synonyms and notes
   useEffect(() => {
-    if (!apiToken || !subject.id || !shouldLoadStudyMaterials) {
+    if (!apiToken || subject.id <= 0 || !shouldLoadStudyMaterials) {
       return deferStateUpdate(() => applyStudyMaterialState(null));
     }
 
@@ -1272,6 +1275,11 @@ const SubjectContent = ({
     setEditingNoteType(type);
     setEditingNoteText(type === "meaning" ? meaningNote : readingNote);
     setNoteModalVisible(true);
+  };
+
+  const handleCloseNote = () => {
+    if (noteEditorRef.current?.closeLinkPicker()) return;
+    setNoteModalVisible(false);
   };
 
   const handleSaveNote = async () => {
@@ -2100,6 +2108,7 @@ const SubjectContent = ({
     renderHintSection("Reading Hint", subject.data?.reading_hint);
 
   const renderNoteCard = (type: "meaning" | "reading") => {
+    if (subject.id <= 0) return null;
     const noteValue = type === "meaning" ? meaningNote : readingNote;
     const noteLabel = type === "meaning" ? "Meaning Note" : "Reading Note";
     return (
@@ -2235,7 +2244,7 @@ const SubjectContent = ({
     );
   };
 
-  const renderCustomContextSentences = () => (
+  const renderCustomContextSentences = () => subject.id > 0 ? (
     <CustomContextSentencesSection
       ref={customContextSentencesRef}
       subjectId={subject.id}
@@ -2247,14 +2256,14 @@ const SubjectContent = ({
       subjectReadings={Array.from(subjectReadingSet)}
       accentColor={subjectColors.vocabulary}
     />
-  );
+  ) : null;
 
   const renderContextSentencesHeader = () => (
     <View style={styles.contextSentencesHeader}>
       <Text style={[styles.sectionTitle, styles.contextSentencesTitle]}>
         Context Sentences
       </Text>
-      <TouchableOpacity
+      {subject.id > 0 && <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel="Add context sentence"
         activeOpacity={0.55}
@@ -2263,7 +2272,7 @@ const SubjectContent = ({
         style={styles.contextSentenceAddButton}
       >
         <Ionicons name="add" size={18} color={subjectColors.vocabulary} />
-      </TouchableOpacity>
+      </TouchableOpacity>}
     </View>
   );
 
@@ -2272,7 +2281,7 @@ const SubjectContent = ({
     const subjectType = subject.object;
 
     // Helper to render user synonyms section
-    const renderUserSynonyms = () => (
+    const renderUserSynonyms = () => subject.id > 0 ? (
       <View style={styles.infoSection}>
         <Text style={styles.sectionTitle}>User Synonyms</Text>
         <View style={styles.synonymsRow}>
@@ -2293,7 +2302,7 @@ const SubjectContent = ({
           </TouchableOpacity>
         </View>
       </View>
-    );
+    ) : null;
 
     // Helper to render context sentences (for vocabulary)
     const renderContextSentences = () => (
@@ -2965,7 +2974,7 @@ const SubjectContent = ({
                                 )}
                                 <Text style={styles.audioButtonText}>
                                   {audio.metadata?.voice_actor_name || "Audio"}
-                                  {audio.metadata?.gender
+                                  {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                     ? ` (${audio.metadata.gender})`
                                     : ""}
                                 </Text>
@@ -3080,7 +3089,7 @@ const SubjectContent = ({
                                 )}
                                 <Text style={styles.audioButtonText}>
                                   {audio.metadata?.voice_actor_name || "Audio"}
-                                  {audio.metadata?.gender
+                                  {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                     ? ` (${audio.metadata.gender})`
                                     : ""}
                                 </Text>
@@ -3175,7 +3184,7 @@ const SubjectContent = ({
                   {renderReadingHintSection()}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3345,7 +3354,7 @@ const SubjectContent = ({
                   {renderNoteCard("meaning")}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3587,7 +3596,7 @@ const SubjectContent = ({
                   {renderNoteCard("meaning")}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3701,7 +3710,7 @@ const SubjectContent = ({
                                     <Text style={styles.audioButtonText}>
                                       {audio.metadata?.voice_actor_name ||
                                         "Audio"}
-                                      {audio.metadata?.gender
+                                      {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                         ? ` (${audio.metadata.gender})`
                                         : ""}
                                     </Text>
@@ -4083,7 +4092,7 @@ const SubjectContent = ({
                                     <Text style={styles.audioButtonText}>
                                       {audio.metadata?.voice_actor_name ||
                                         "Audio"}
-                                      {audio.metadata?.gender
+                                      {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                         ? ` (${audio.metadata.gender})`
                                         : ""}
                                     </Text>
@@ -4112,7 +4121,7 @@ const SubjectContent = ({
                   {renderReadingHintSection()}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -4458,10 +4467,7 @@ const SubjectContent = ({
         visible={noteModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => {
-          if (noteEditorRef.current?.closeLinkPicker()) return;
-          setNoteModalVisible(false);
-        }}
+        onRequestClose={handleCloseNote}
       >
         <KeyboardAvoidingView
           style={styles.noteModalOverlay}
@@ -4497,7 +4503,7 @@ const SubjectContent = ({
             <View style={styles.noteModalButtons}>
               <TouchableOpacity
                 style={styles.noteModalButton}
-                onPress={() => setNoteModalVisible(false)}
+                onPress={handleCloseNote}
                 disabled={isSavingNote}
               >
                 <Text style={styles.noteModalButtonText}>Cancel</Text>
@@ -4699,7 +4705,10 @@ export default function LessonDetailScreen({
 
       let playbackUri = audioUrl;
       if (typeof subjectId === "number" && Number.isFinite(subjectId)) {
-        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
+        const resolveAudio = subjectId < 0
+          ? resolveCustomVocabularyAudioForPlayback
+          : resolveOfflineVocabularyAudioUri;
+        const cachedAudioUri = await resolveAudio(
           subjectId,
           pronunciationAudio ?? { url: audioUrl }
         );
@@ -4751,18 +4760,20 @@ export default function LessonDetailScreen({
   }
 
   const maybeAutoplayLessonReadingTab = (subjectForPage: any, routeKey?: string) => {
-    if (!autoplayLessonReadingAudio || routeKey !== "reading") {
-      if (routeKey !== "reading") {
+    const isCustomKana = subjectForPage?.id < 0 && subjectForPage?.object === "kana_vocabulary";
+    const pronunciationTab = isCustomKana ? "meaning" : "reading";
+    if (!autoplayLessonReadingAudio || routeKey !== pronunciationTab) {
+      if (routeKey !== pronunciationTab) {
         lastLessonReadingAutoplayKeyRef.current = null;
       }
       return;
     }
 
-    if (subjectForPage?.object !== "vocabulary") {
+    if (subjectForPage?.object !== "vocabulary" && !isCustomKana) {
       return;
     }
 
-    const autoplayKey = `${subjectForPage.id}:reading`;
+    const autoplayKey = `${subjectForPage.id}:${pronunciationTab}`;
     if (lastLessonReadingAutoplayKeyRef.current === autoplayKey) {
       return;
     }
@@ -4848,6 +4859,14 @@ export default function LessonDetailScreen({
 
   // Setup state for TabView (tab index within current subject)
   const [index, setIndex] = useState(0);
+  const activeLessonSubject = batchItems[currentBatchIndex ?? 0]?.subject ?? item.subject;
+  useEffect(() => {
+    if (!isScreenFocused || noteSubjectPreviewOpen || index !== 0
+      || activeLessonSubject.id >= 0 || activeLessonSubject.object !== "kana_vocabulary") return;
+    maybeAutoplayLessonReadingTab(activeLessonSubject, "meaning");
+    // The ref inside the existing autoplay handler prevents replay on unrelated renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLessonSubject, autoplayLessonReadingAudio, index, isScreenFocused, noteSubjectPreviewOpen, vocabularyAudioVoice]);
   const [subjectDisplayContentHeights, setSubjectDisplayContentHeights] =
     useState<Record<number, number>>({});
   const recordSubjectDisplayContentHeight = useCallback(
@@ -5288,12 +5307,12 @@ export default function LessonDetailScreen({
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
+                {pageSubject.id > 0 && <TouchableOpacity
                   style={styles.constellationButton}
                   onPress={() => handleConstellationPress(pageSubject.id)}
                 >
                   <Ionicons name="planet-outline" size={24} color="#fff" />
-                </TouchableOpacity>
+                </TouchableOpacity>}
 
                 <View
                   ref={(node) => {

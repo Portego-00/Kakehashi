@@ -246,7 +246,7 @@ describe("subject detail media buttons", () => {
   it("keeps kana vocabulary to Meaning and Context even when reading data exists", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     render(<QueryClientProvider client={client}><SubjectDetailPanels
-      record={kanaVocabularySubject}
+      record={{ ...kanaVocabularySubject, data: { ...kanaVocabularySubject.data, pronunciation_audios: audioSubject.data.pronunciation_audios } }}
       materialLoading={false}
       materialsKey={["study-material", kanaVocabularySubject.id]}
       relatedSubjects={[]}
@@ -263,6 +263,8 @@ describe("subject detail media buttons", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Meaning", "Context"]);
     expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("tab", { name: "Reading" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("tabpanel", { name: "Meaning" })).getByRole("heading", { name: "Pronunciation" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play Kyoko pronunciation" })).toBeInTheDocument();
   });
 
   it("renders WaniKani mnemonic tags and numeric entities on ordinary subject pages", () => {

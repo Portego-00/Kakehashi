@@ -47,6 +47,7 @@ import type {
   NoteVisualEditorCommand,
   NoteVisualEditorRun,
   NoteVisualEditorSelection,
+  NoteVisualEditorSelectionRange,
   NoteVisualEditorSourceSnapshot,
   NoteVisualEditorSubjectTypes,
   NoteVisualEditorValueSnapshot,
@@ -205,6 +206,7 @@ type NoteLinkPickerContext =
     }
   | {
       editorMode: "visual";
+      selection?: NoteVisualEditorSelectionRange;
       initialQuery: string;
       linkedSubjectId?: number;
     };
@@ -258,6 +260,7 @@ export const FormattedNoteEditor = React.forwardRef<
   const shouldRestoreFocusRef = useRef(false);
   const visualCommandNonceRef = useRef(0);
   const pendingVisualLinkRequestNonceRef = useRef<number | null>(null);
+  const pendingVisualLinkActionRef = useRef<"change" | "toggle">("change");
   const pendingSourceRequestNonceRef = useRef<number | null>(null);
   const pendingVisualValueRequestsRef = useRef(
     new Map<number, PendingVisualValueRequest>(),
@@ -431,9 +434,10 @@ export const FormattedNoteEditor = React.forwardRef<
     ],
   );
 
-  const handleLinkPress = useCallback(() => {
+  const handleLinkPress = useCallback((action: "change" | "toggle" = "change") => {
     if (!editorIsEditable) return;
     if (editorMode === "visual") {
+      pendingVisualLinkActionRef.current = action;
       pendingVisualLinkRequestNonceRef.current = issueVisualCommand({
         type: "capture-selection",
       });
@@ -451,12 +455,12 @@ export const FormattedNoteEditor = React.forwardRef<
 
   const closeLinkPicker = useCallback(() => {
     if (linkPickerContext?.editorMode === "visual") {
-      issueVisualCommand({ type: "focus" });
+      issueVisualCommand({ type: "focus", selection: linkPickerContext.selection });
     } else {
       shouldRestoreFocusRef.current = true;
     }
     setLinkPickerContext(null);
-  }, [issueVisualCommand, linkPickerContext?.editorMode]);
+  }, [issueVisualCommand, linkPickerContext]);
 
   useImperativeHandle(
     forwardedRef,
@@ -488,6 +492,7 @@ export const FormattedNoteEditor = React.forwardRef<
           type: "set-link",
           subjectId: subject.id,
           fallbackLabel,
+          selection: linkPickerContext.selection,
         });
         setLinkPickerContext(null);
         return;
@@ -517,7 +522,11 @@ export const FormattedNoteEditor = React.forwardRef<
     if (!editorIsEditable || !linkPickerContext) return;
 
     if (linkPickerContext.editorMode === "visual") {
-      issueVisualCommand({ type: "remove-link" });
+      issueVisualCommand({
+        type: "remove-link",
+        scope: "link",
+        selection: linkPickerContext.selection,
+      });
       setLinkPickerContext(null);
       return;
     }
@@ -535,24 +544,27 @@ export const FormattedNoteEditor = React.forwardRef<
     value,
   ]);
 
-  const handleRemoveSelectedLink = useCallback(() => {
-    if (!editorIsEditable) return;
-    if (editorMode === "visual") {
-      issueVisualCommand({ type: "remove-link" });
-      return;
-    }
+  const handleRemoveSelectedLink = useCallback(
+    (scope: "selection" | "link") => {
+      if (!editorIsEditable) return;
+      if (editorMode === "visual") {
+        issueVisualCommand({ type: "remove-link", scope });
+        return;
+      }
 
-    const result = removeNoteSubjectLink(value, selection);
-    commitValue(result.text);
-    setSelection(result.selection);
-  }, [
-    commitValue,
-    editorIsEditable,
-    editorMode,
-    issueVisualCommand,
-    selection,
-    value,
-  ]);
+      const result = removeNoteSubjectLink(value, selection);
+      commitValue(result.text);
+      setSelection(result.selection);
+    },
+    [
+      commitValue,
+      editorIsEditable,
+      editorMode,
+      issueVisualCommand,
+      selection,
+      value,
+    ],
+  );
 
   const handleVisualRunsChange = useCallback(
     async (nextRuns: NoteVisualEditorRun[]) => {
@@ -575,14 +587,26 @@ export const FormattedNoteEditor = React.forwardRef<
         requestNonce === pendingVisualLinkRequestNonceRef.current
       ) {
         pendingVisualLinkRequestNonceRef.current = null;
+        if (
+          pendingVisualLinkActionRef.current === "toggle" &&
+          selectionSnapshot.subjectId
+        ) {
+          issueVisualCommand({
+            type: "remove-link",
+            scope: "selection",
+            selection: selectionSnapshot.selection,
+          });
+          return;
+        }
         setLinkPickerContext({
           editorMode: "visual",
+          selection: selectionSnapshot.selection,
           initialQuery: selectionSnapshot.text,
           linkedSubjectId: selectionSnapshot.subjectId,
         });
       }
     },
-    [],
+    [issueVisualCommand],
   );
 
   const handleVisualSourceReady = useCallback(
@@ -667,6 +691,8 @@ export const FormattedNoteEditor = React.forwardRef<
   const selectedLinkColor = selectedLinkType
     ? subjectColors.getColorForType(selectedLinkType)
     : theme.textColor;
+  const canUnlinkSelection =
+    editorMode === "visual" && Boolean(selectedLinkSubjectId);
 
   return (
     <View style={[styles.editorContainer, containerStyle]}>
@@ -685,8 +711,146 @@ export const FormattedNoteEditor = React.forwardRef<
 
       <View
         pointerEvents={linkPickerContext ? "none" : "auto"}
-        style={linkPickerContext ? styles.hiddenEditorControls : undefined}
+        style={[
+          styles.editorControls,
+          linkPickerContext && styles.hiddenEditorControls,
+        ]}
       >
+        <View
+          style={styles.toolbar}
+          accessibilityRole="toolbar"
+          accessibilityLabel="Note formatting"
+        >
+          {FORMAT_BUTTONS.map(({ format, label, accessibilityLabel }) => {
+            const selected =
+              editorMode === "visual"
+                ? visualSelection.formats.includes(format)
+                : selectionHasNoteFormat(value, selection, format);
+            return (
+              <Pressable
+                key={format}
+                accessibilityRole="button"
+                accessibilityLabel={accessibilityLabel}
+                accessibilityHint={`Formats the selected note text as ${accessibilityLabel.toLocaleLowerCase("en-US")}`}
+                accessibilityState={{ disabled: !editorIsEditable, selected }}
+                disabled={!editorIsEditable}
+                onPress={() => handleFormatPress(format)}
+                style={({ pressed }) => [
+                  styles.formatButton,
+                  {
+                    borderColor: selected ? theme.primary : theme.border,
+                    backgroundColor: selected
+                      ? theme.headerSurface
+                      : theme.cardBackground,
+                    opacity: !editorIsEditable ? 0.45 : pressed ? 0.65 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.formatButtonText,
+                    FORMAT_TEXT_STYLES[format],
+                    { color: selected ? theme.primary : theme.textColor },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          <Pressable
+            accessibilityHint={
+              canUnlinkSelection
+                ? "Removes the link from the selected text, or the current link at the cursor"
+                : "Searches for a WaniKani subject to link from the selected note text"
+            }
+            accessibilityLabel={
+              canUnlinkSelection ? "Unlink selected text" : "Link to subject"
+            }
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled: !editorIsEditable,
+              selected: Boolean(selectedLinkSubjectId),
+            }}
+            disabled={!editorIsEditable}
+            onPress={() => handleLinkPress("toggle")}
+            style={({ pressed }) => [
+              styles.formatButton,
+              {
+                borderColor: selectedLinkSubjectId
+                  ? selectedLinkColor
+                  : theme.border,
+                backgroundColor: selectedLinkSubjectId
+                  ? withAlpha(selectedLinkColor, 0.14)
+                  : theme.cardBackground,
+                opacity: !editorIsEditable ? 0.45 : pressed ? 0.65 : 1,
+              },
+            ]}
+          >
+            <Ionicons
+              name="link"
+              size={17}
+              color={
+                selectedLinkSubjectId ? selectedLinkColor : theme.textColor
+              }
+            />
+          </Pressable>
+        </View>
+
+        {selectedLinkSubjectId ? (
+          <View
+            style={[
+              styles.linkActions,
+              {
+                borderColor: theme.border,
+                backgroundColor: theme.cardBackground,
+              },
+            ]}
+          >
+            <View style={styles.linkActionsLabel}>
+              <Ionicons name="link" size={15} color={selectedLinkColor} />
+              <Text
+                numberOfLines={1}
+                style={[styles.linkActionsText, { color: selectedLinkColor }]}
+              >
+                {selectedLinkText || "Linked subject"}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Change subject link"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !editorIsEditable }}
+              disabled={!editorIsEditable}
+              onPress={() => handleLinkPress("change")}
+              style={({ pressed }) => [
+                styles.linkActionButton,
+                { opacity: pressed ? 0.55 : 1 },
+              ]}
+            >
+              <Text style={[styles.linkActionText, { color: theme.primary }]}>
+                Change
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Remove subject link"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !editorIsEditable }}
+              disabled={!editorIsEditable}
+              accessibilityHint="Removes the whole subject link and keeps its text"
+              onPress={() => handleRemoveSelectedLink("link")}
+              style={({ pressed }) => [
+                styles.linkActionButton,
+                { opacity: pressed ? 0.55 : 1 },
+              ]}
+            >
+              <Text style={[styles.linkActionText, { color: theme.error }]}>
+                Remove
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View
           accessibilityLabel="Note editor mode"
           accessibilityRole="tablist"
@@ -734,6 +898,8 @@ export const FormattedNoteEditor = React.forwardRef<
         <View
           style={[
             visualEditorFrameStyle,
+            styles.editorSurface,
+            { height: visualEditorHeight },
             styles.visualEditorFrame,
             editorMode !== "visual" && styles.hiddenEditorSurface,
           ]}
@@ -836,7 +1002,13 @@ export const FormattedNoteEditor = React.forwardRef<
             editorMode === "source" && Boolean(textInputProps.autoFocus)
           }
           multiline
-          style={[style, editorMode !== "source" && styles.hiddenEditorSurface]}
+          scrollEnabled
+          style={[
+            style,
+            styles.editorSurface,
+            { height: visualEditorHeight },
+            editorMode !== "source" && styles.hiddenEditorSurface,
+          ]}
           value={value}
           onChangeText={commitValue}
           onBlur={onBlur}
@@ -846,141 +1018,6 @@ export const FormattedNoteEditor = React.forwardRef<
             setSelection(event.nativeEvent.selection)
           }
         />
-
-        <View
-          style={styles.toolbar}
-          accessibilityRole="toolbar"
-          accessibilityLabel="Note formatting"
-        >
-          <Text style={[styles.toolbarLabel, { color: theme.textSecondary }]}>
-            Format
-          </Text>
-          {FORMAT_BUTTONS.map(({ format, label, accessibilityLabel }) => {
-            const selected =
-              editorMode === "visual"
-                ? visualSelection.formats.includes(format)
-                : selectionHasNoteFormat(value, selection, format);
-            return (
-              <Pressable
-                key={format}
-                accessibilityRole="button"
-                accessibilityLabel={accessibilityLabel}
-                accessibilityHint={`Formats the selected note text as ${accessibilityLabel.toLocaleLowerCase("en-US")}`}
-                accessibilityState={{ disabled: !editorIsEditable, selected }}
-                disabled={!editorIsEditable}
-                hitSlop={6}
-                onPress={() => handleFormatPress(format)}
-                style={({ pressed }) => [
-                  styles.formatButton,
-                  {
-                    borderColor: selected ? theme.primary : theme.border,
-                    backgroundColor: selected
-                      ? theme.headerSurface
-                      : theme.cardBackground,
-                    opacity: !editorIsEditable ? 0.45 : pressed ? 0.65 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.formatButtonText,
-                    FORMAT_TEXT_STYLES[format],
-                    { color: selected ? theme.primary : theme.textColor },
-                  ]}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-
-          <Pressable
-            accessibilityHint="Searches for a WaniKani subject to link from the selected note text"
-            accessibilityLabel="Link to subject"
-            accessibilityRole="button"
-            accessibilityState={{
-              disabled: !editorIsEditable,
-              selected: Boolean(selectedLinkSubjectId),
-            }}
-            disabled={!editorIsEditable}
-            hitSlop={6}
-            onPress={handleLinkPress}
-            style={({ pressed }) => [
-              styles.formatButton,
-              {
-                borderColor: selectedLinkSubjectId
-                  ? selectedLinkColor
-                  : theme.border,
-                backgroundColor: selectedLinkSubjectId
-                  ? withAlpha(selectedLinkColor, 0.14)
-                  : theme.cardBackground,
-                opacity: !editorIsEditable ? 0.45 : pressed ? 0.65 : 1,
-              },
-            ]}
-          >
-            <Ionicons
-              name="link"
-              size={17}
-              color={
-                selectedLinkSubjectId ? selectedLinkColor : theme.textColor
-              }
-            />
-          </Pressable>
-        </View>
-
-        {selectedLinkSubjectId ? (
-          <View
-            style={[
-              styles.linkActions,
-              {
-                borderColor: theme.border,
-                backgroundColor: theme.cardBackground,
-              },
-            ]}
-          >
-            <View style={styles.linkActionsLabel}>
-              <Ionicons name="link" size={15} color={selectedLinkColor} />
-              <Text
-                numberOfLines={1}
-                style={[styles.linkActionsText, { color: selectedLinkColor }]}
-              >
-                {selectedLinkText || "Linked subject"}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityLabel="Change subject link"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !editorIsEditable }}
-              disabled={!editorIsEditable}
-              hitSlop={6}
-              onPress={handleLinkPress}
-              style={({ pressed }) => [
-                styles.linkActionButton,
-                { opacity: pressed ? 0.55 : 1 },
-              ]}
-            >
-              <Text style={[styles.linkActionText, { color: theme.primary }]}>
-                Change
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Remove subject link"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !editorIsEditable }}
-              disabled={!editorIsEditable}
-              hitSlop={6}
-              onPress={handleRemoveSelectedLink}
-              style={({ pressed }) => [
-                styles.linkActionButton,
-                { opacity: pressed ? 0.55 : 1 },
-              ]}
-            >
-              <Text style={[styles.linkActionText, { color: theme.error }]}>
-                Remove
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
       </View>
     </View>
   );
@@ -995,13 +1032,22 @@ const styles = StyleSheet.create({
   hiddenEditorControls: {
     display: "none",
   },
+  editorControls: {
+    minHeight: 0,
+    flexShrink: 1,
+  },
+  editorSurface: {
+    minHeight: 64,
+    flexShrink: 1,
+    marginTop: 8,
+  },
   modeSwitcher: {
     alignSelf: "flex-start",
     flexDirection: "row",
     borderWidth: 1,
     borderRadius: 10,
     padding: 2,
-    marginBottom: 8,
+    marginTop: 8,
   },
   modeButton: {
     minWidth: 72,
@@ -1024,19 +1070,15 @@ const styles = StyleSheet.create({
     display: "none",
   },
   toolbar: {
-    minHeight: 40,
-    paddingTop: 8,
+    minHeight: 44,
+    flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  toolbarLabel: {
-    fontSize: 13,
-    marginRight: 2,
-  },
   formatButton: {
-    width: 36,
-    height: 32,
+    width: 44,
+    height: 44,
     borderWidth: 1,
     borderRadius: 8,
     alignItems: "center",
@@ -1072,7 +1114,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   linkActionButton: {
-    minHeight: 36,
+    minHeight: 44,
     justifyContent: "center",
     paddingHorizontal: 8,
   },

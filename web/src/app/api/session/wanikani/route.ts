@@ -5,6 +5,8 @@ import { clientAddress, isTrustedMutationOrigin } from "@/lib/server/request-sec
 import { opaqueRateLimitKey, takeRateLimit, type RateLimitResult } from "@/lib/server/rate-limit";
 import { clearWkCache } from "@/lib/server/wk-cache";
 import { getWaniKaniSessionUser, SessionUpstreamError, WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
+import { DEMO_SESSION_COOKIE } from "@/features/demo/constants";
+import { DEMO_USER } from "@/features/demo/runtime";
 
 const loginSchema = z.object({ token: z.string().trim().min(20).max(256) });
 export const runtime = "nodejs";
@@ -22,6 +24,9 @@ function rateLimited(result: RateLimitResult) {
 }
 
 export async function GET(request: NextRequest) {
+  if (request.cookies.get(DEMO_SESSION_COOKIE)?.value === "1") {
+    return NextResponse.json({ user: DEMO_USER, demo: true }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   const sealed = request.cookies.get(WANIKANI_SESSION_COOKIE)?.value;
   if (!sealed) return NextResponse.json({ error: "No active session." }, { status: 401 });
   const limit = takeRateLimit(opaqueRateLimitKey("session-read", sealed), 180, 60_000);
@@ -60,6 +65,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getWaniKaniSessionUser(parsed.data.token);
     const response = NextResponse.json({ user });
+    response.cookies.delete(DEMO_SESSION_COOKIE);
     response.cookies.set(WANIKANI_SESSION_COOKIE, sealToken(parsed.data.token), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -86,5 +92,6 @@ export async function DELETE(request: NextRequest) {
   }
   const response = NextResponse.json({ ok: true });
   response.cookies.delete(WANIKANI_SESSION_COOKIE);
+  response.cookies.delete(DEMO_SESSION_COOKIE);
   return response;
 }

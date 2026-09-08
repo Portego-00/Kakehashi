@@ -8,6 +8,7 @@ import { ReviewActivityHeatmap } from "@/components/ReviewActivityHeatmap";
 import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
 import { VacationModeControls } from "@/features/core-study/VacationModeControls";
+import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "@/features/core-study/vacation";
 import { dashboardSectionWidth, type DashboardSectionId } from "@/features/settings/settings";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
@@ -26,7 +27,7 @@ import { AppStreakWidget, DashboardLevelWidget, SrsSpreadWidget, StudyModeCard, 
 import { CustomVocabularyWidget } from "./CustomVocabularyWidget";
 import { SubjectListsWidget } from "./SubjectListsWidget";
 import { RecentMistakesWidget } from "./RecentMistakesWidget";
-import { fetchUsageStreak } from "./usage-streak";
+import { useUsageStreak } from "./use-usage-streak";
 import { ReviewForecast } from "./ReviewForecast";
 import { createReviewForecast, wanikaniReviewForecastEntries } from "./review-forecast";
 import { useReviewForecastPreferences } from "./use-review-forecast-preferences";
@@ -58,15 +59,17 @@ export function SubjectRows({ items, empty, value, limit }: { items: DashboardSu
 
 function SubjectListsSection({ username, subjects }: { username: string; subjects: Subject[] }) {
   const { lists, syncing, syncError } = useSubjectLists(username);
-  return <SubjectListsWidget lists={lists} subjects={subjects} syncing={syncing} syncError={syncError} />;
+  const { isDemo } = useSession();
+  return <SubjectListsWidget demo={isDemo} lists={lists} subjects={subjects} syncing={syncing} syncError={syncError} />;
 }
 
 export function Dashboard() {
-  const { user } = useSession();
+  const { user, isDemo } = useSession();
   const username = user?.data.username ?? "anonymous";
   const workspace = useWorkspacePreferences(username);
   const forecastPreferences = useReviewForecastPreferences(username);
-  const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id));
+  const customSrsAllowed = !isDemo && canAccessCustomSrs(username);
+  const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id) && (id !== "custom-vocabulary" || customSrsAllowed));
   const needsDailyStudy = visibleSections.includes("daily-study");
   const needsSubjectCatalog = visibleSections.some((id) => SUBJECT_CATALOG_SECTIONS.has(id));
   const needsLevelTiming = visibleSections.includes("level-timing");
@@ -82,11 +85,16 @@ export function Dashboard() {
   const currentSubjects = useQuery(subjectsQuery(`levels=${currentLevel}`));
   const allSubjects = useQuery({ ...subjectsQuery(), enabled: needsSubjectCatalog });
   const levelProgressions = useQuery({ ...levelProgressionsQuery(), enabled: needsLevelTiming });
-  const appStreak = useQuery({ queryKey: ["analytics", "app-streak", userId, username], queryFn: () => fetchUsageStreak({ userId, username }), staleTime: 5 * 60_000, enabled: visibleSections.includes("study-streak"), retry: 1 });
   const [now, setNow] = useState(() => new Date());
+  const appStreak = useUsageStreak({ userId, username, now, enabled: visibleSections.includes("study-streak") });
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
+    const refreshClock = () => setNow(new Date());
+    const timer = window.setInterval(refreshClock, 60_000);
+    window.addEventListener("focus", refreshClock);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshClock);
+    };
   }, []);
   const assignmentRows = assignments.data || [];
   const statisticRows = statistics.data || [];
@@ -110,7 +118,7 @@ export function Dashboard() {
   const formatShortDate = (value?: string) => value ? new Date(value).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
   const sections: Record<string, React.ReactNode> = {
-    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail="Your live WaniKani queues"><VacationModeControls active={false} refresh={currentUser.refetch} showRefresh={false} className={styles.vacationHeaderAction} /></SectionHeader><div className={styles.queue}><StudyQueueCard type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
+    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"}>{!isDemo ? <VacationModeControls active={false} refresh={currentUser.refetch} showRefresh={false} className={styles.vacationHeaderAction} /> : null}</SectionHeader><div className={styles.queue}><StudyQueueCard demo={isDemo} type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard demo={isDemo} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
     "custom-vocabulary": <CustomVocabularyWidget scope={userId || "anonymous"} username={username} />,
     srs: assignments.isLoading ? <section className={styles.section}><SectionHeader title="Active Item Spread" detail="Radicals, kanji, and vocabulary across SRS stages" /><Skeleton height="15rem" /></section> : <SrsSpreadWidget rows={srsSpread} />,
     level: currentSubjects.isLoading ? <section className={styles.section}><SectionHeader title={`Level ${currentLevel} Progress`} detail="Your current level, from lesson to Guru" /><Skeleton height="18rem" /></section> : <DashboardLevelWidget currentLevel={currentLevel} progress={progress} subjects={levelSubjects} />,

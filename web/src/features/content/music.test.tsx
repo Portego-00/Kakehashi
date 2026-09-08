@@ -68,6 +68,7 @@ import { MusicWorkspace } from "./music";
 import { saveSongLyricTranslations } from "./music-translations";
 import { parseLrc } from "./parsers";
 import { loadLibrary, saveLibrary } from "./storage";
+import { setDemoMode } from "@/features/demo/runtime";
 
 const track = {
   id: "spotify-id",
@@ -170,6 +171,7 @@ function importResponse(selectedLyrics: typeof lyrics) {
 
 describe("music workspace provider flow", () => {
   beforeEach(() => {
+    setDemoMode(false);
     window.localStorage.clear();
     shellBack.current = null;
     webSettingsMocks.jpdbApiKey = "";
@@ -182,7 +184,31 @@ describe("music workspace provider flow", () => {
     routerMocks.replace.mockReset();
     vi.stubGlobal("scrollTo", vi.fn());
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { setDemoMode(false); vi.unstubAllGlobals(); });
+
+  it.each([200, 503])("ignores a pending demo song match after switching sessions (status %s)", async (status) => {
+    saveSongFixture("Personal lyrics");
+    const personalSong = loadLibrary("song")[0];
+    setDemoMode(true);
+    saveSongFixture(lyrics.syncedLyrics);
+    const demoSong = loadLibrary("song")[0];
+    let finishImport!: (response: Response) => void;
+    const pendingImport = new Promise<Response>((resolve) => { finishImport = resolve; });
+    const fetchMock = vi.fn<typeof fetch>(async (input) => String(input) === "/music/import"
+      ? pendingImport
+      : response({ sections: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MusicWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Open アイドル by YOASOBI" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/music/import")).toBe(true));
+    await act(async () => {
+      setDemoMode(false);
+      finishImport(status === 200 ? importResponse(lyrics) : response({ error: "Unavailable" }, status));
+    });
+    expect(loadLibrary("song")[0]).toEqual(personalSong);
+    setDemoMode(true);
+    expect(loadLibrary("song")[0]).toEqual(demoSong);
+  });
 
   it("uses the standard song card for history while keeping remove and undo actions", async () => {
     saveLibrary("song", [{

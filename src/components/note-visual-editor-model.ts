@@ -144,6 +144,27 @@ export function getNoteVisualEditorText(
   return runs.map((run) => run.text).join("");
 }
 
+/** Slices visible UTF-16 text offsets while retaining supported formatting. */
+export function sliceNoteVisualEditorRuns(
+  runs: readonly NoteVisualEditorRun[],
+  start: number,
+  end: number,
+): NoteVisualEditorRun[] {
+  let offset = 0;
+  const slicedRuns: NoteVisualEditorRun[] = [];
+  for (const run of runs) {
+    const runEnd = offset + run.text.length;
+    const text = run.text.slice(
+      Math.max(0, start - offset),
+      Math.max(0, Math.min(run.text.length, end - offset)),
+    );
+    if (text) slicedRuns.push({ ...run, text });
+    offset = runEnd;
+    if (offset >= end) break;
+  }
+  return normalizeNoteVisualEditorRuns(slicedRuns);
+}
+
 export function getNoteVisualEditorRunsSignature(
   runs: readonly NoteVisualEditorRun[],
 ): string {

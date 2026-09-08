@@ -4,7 +4,7 @@ Kakehashi Web is the browser companion to the existing mobile app. It keeps the 
 
 ## Run locally
 
-Requirements: Node.js 20.9 or newer and a WaniKani personal access token.
+Requirements: Node.js 20.9 or newer. A WaniKani personal access token is needed only to connect your own account; the demo works without one. Run these commands from `web/`:
 
 ```sh
 npm install
@@ -12,9 +12,9 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`, enter the token on the sign-in screen, and Kakehashi stores it in an encrypted, HttpOnly, same-origin session cookie. It is never placed in browser storage or exposed through a `NEXT_PUBLIC_*` variable.
+Open `http://localhost:3000` and choose **Explore the demo** to explore the app immediately. To connect your own account, enter a WaniKani token on the sign-in screen. Kakehashi stores that token in an encrypted, HttpOnly, same-origin session cookie. It is never placed in browser storage or exposed through a `NEXT_PUBLIC_*` variable.
 
-Set `SESSION_SECRET` in `.env.local` to at least 32 random characters. `WANIKANI_API_TOKEN` is optional and is only for local server-side smoke testing.
+Set `SESSION_SECRET` in `.env.local` to at least 32 random characters before connecting real accounts. The demo does not require that secret. `WANIKANI_API_TOKEN` is optional and is only for local server-side smoke testing. Set the server-only `JPDB_DEMO_API_KEY` to enable demo word analysis and Japanese-to-English translations; see [Demo deployment](#demo-deployment).
 
 MyAnimeList sync reuses `EXPO_PUBLIC_MAL_CLIENT_ID` from the Expo app. Keep that accepted-client value in the EAS environment and start the web app with `npm run dev:expo-env` to inject the production EAS environment without copying it into `web/.env.local`. A non-EAS deployment must expose the same variable to its Next.js server process.
 
@@ -22,12 +22,28 @@ For Songs, add server-only `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `YO
 
 The Video workspace can import timed captions for a pasted YouTube URL through youtube-transcript.ai's no-key fair-use endpoint. This works only for public videos with available captions and remains subject to that provider's usage limits; commercial or sustained high-volume deployments should arrange appropriate service terms or replace the adapter.
 
+## Demo
+
+The demo opens a mock level-21 account, `demo-level-21`, with all navigation tabs visible. Bundled WaniKani subject facts and generated assignments, review statistics, and forecasts populate the dashboard and all 17 extra study modes. Lessons, reviews, notes, and synonyms operate on the demo's local state; no WaniKani API token or real review submission is involved. Audio, immersion examples, and other remote learning resources still require their normal network services.
+
+The seeded reading library includes a Frieren manga test excerpt, an original Japanese story, and two Japanese-learning YouTube videos with verified timed caption excerpts. Opening a sample video imports its available full Japanese captions through the normal importer. See [Demo reading samples](docs/demo-media.md) for the source material, attribution, and caption verification details.
+
+Demo content uses separate browser storage keys and a separate IndexedDB database. Study progress, lists, custom vocabulary progress, and settings use the demo identity. Returning to the demo preserves its local progress and edits without overwriting existing real-account imports or restoring samples the visitor deliberately removed. Entering the demo removes any real WaniKani session cookie; connecting a real account removes the demo cookie and clears cached account queries. Account changes are also announced to other open tabs. Demo progress does not transfer to a connected WaniKani account.
+
+## Demo deployment
+
+Configure `JPDB_DEMO_API_KEY` in the Next.js server's environment, including the production hosting environment. The ignored local `.env.local` file is not deployment configuration. Never prefix this variable with `NEXT_PUBLIC_`, put its value in fixtures, or save it in browser settings. The client sends only a public demo marker; the server resolves the credential after checking the demo cookie and rejecting requests that also carry a real WaniKani session cookie. Regular accounts continue to use their own JPDB settings.
+
+The shared demo credential is used only by the fixed JPDB `parse` and `ja2en` endpoints for analysis and translation. It cannot modify the owner's JPDB account or decks. Same-origin checks, bounded request and response bodies, upstream timeouts, and private response headers apply. Without this configuration, the mock account and local study modes remain available, while JPDB requests return a temporary-unavailability message.
+
+Demo upstream usage is limited to 120 calls per client per minute, 300 calls across clients per minute, and 5,000 calls across clients per 24-hour window. Each translated line consumes one call; cached lines supplied by the browser do not. Existing endpoint request limits also apply. Analysis accepts at most 12,000 characters per request, manga translation 4,000, and song/video translation 12,000 in total. These limits are maintained per running server instance and reset on restart; deployments with multiple instances need deployment-wide quotas at the hosting layer or a shared limiter. Shared provider budgets are kept separately from the evictable client-bucket cache.
+
 ## Included
 
 - Dashboard, lessons, reviews, assignments, forecasts, and formal WaniKani review submission
 - Curated kana and level-banded kanji vocabulary packs outside WaniKani, with FSRS scheduling, familiar SRS stages, and dedicated lesson/review sessions
 - Progress analytics, kanji grids, level wrap-ups, item search, subject details, constellations, lists, and customization
-- Fifteen extra study modes: recent lessons, random test, vocabulary reading, hiragana-to-meaning, similar kanji, kana-to-kanji, listening, context cloze, Japanese analysis, kanji writing, crossword, Kana Wordle, custom review, custom lessons, and subject lists
+- Seventeen extra study modes: recent lessons, random test, vocabulary reading, hiragana-to-meaning, similar kanji, kana-to-kanji, audio vocabulary, listening, context sentences, Japanese analysis, kanji writing, crossword, word search, Kana Wordle, custom review, custom lessons, and subject lists
 - NHK Easier news with article imagery, text/URL reader, local EPUB/TXT/HTML library, local single-image-page EPUB/CBZ/ZIP/PDF/image manga reader with on-device bubble OCR and JPDB/WaniKani vocabulary analysis, local video with SRT subtitles, Spotify song discovery with embedded YouTube and LRCLIB lyrics, translation, and the shared native/web Kakehashi issue community
 - Light, dark, sepia, and midnight themes; configurable subject colors, density, navigation, dashboard cards, and accessibility-conscious motion
 
@@ -39,7 +55,7 @@ Camera capture, Bunpro, and direct Spotify/Apple Music account playback are inte
 npm run test:all
 ```
 
-This runs linting, strict TypeScript checking, 206 unit and integration tests, a 56-page production generation pass, and 14 Playwright scenarios across desktop and mobile. The 28 browser cases cover authentication, all 15 study routes, the principal content/progress routes, account-scoped storage, live preference changes, focus containment, custom-font migration, community creation, vacation blocking, review-answer concealment, NHK images, accessibility, and mobile overflow. The current matrix passes 26 cases with two intentional project-specific skips.
+This runs linting, strict TypeScript checking, unit and integration tests, a production build, and Playwright scenarios across desktop and mobile. Coverage includes authentication and demo isolation, study modes, content/progress routes, account-scoped storage, live preference changes, focus containment, custom-font migration, community creation, vacation blocking, review-answer concealment, NHK images, accessibility, and mobile overflow. Demo JPDB tests also verify that credentials stay server-side, real accounts cannot borrow the demo credential, and individual translated lines obey the shared budgets.
 
 ## Community deployment
 

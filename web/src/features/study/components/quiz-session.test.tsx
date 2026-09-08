@@ -16,6 +16,8 @@ vi.mock("@/lib/wanikani/client", () => ({
   wkRequest: wkRequestMock,
 }));
 
+vi.mock("@/features/notebooks/use-notebooks", () => ({ useNotebooks: () => ({ state: { version: 1, pages: [], sentences: [] }, available: false, isLoading: false, error: "" }) }));
+
 vi.mock("@/features/speech/use-japanese-voice", () => ({
   useJapaneseVoice: () => ({
     checked: true,

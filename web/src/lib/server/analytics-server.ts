@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import packageJson from "../../../package.json";
+import { readAppSessionActiveDays as readActiveDays } from "@/features/dashboard/usage-streak-reader";
 import { readBoundedJson } from "@/features/content/server-security";
 import { unsealToken } from "@/lib/server/session-crypto";
 import { getWaniKaniSessionUser } from "@/lib/server/wanikani-session";
@@ -179,63 +180,35 @@ async function postAnalyticsRequest(path: string, body: JsonRecord, key: string)
   throw new Error(`Analytics service rejected the write: ${message}`);
 }
 
-async function analyticsRequest(path: string, body: JsonRecord) {
-  if (!analyticsBackendConfigured()) return false;
-  return postAnalyticsRequest(path, body, supabaseKey);
-}
-
 async function privateAnalyticsRequest(path: string, body: JsonRecord) {
   if (!analyticsPrivateBackendConfigured()) return false;
   return postAnalyticsRequest(path, body, supabaseServiceKey);
 }
 
-export async function readAppSessionStartedAt(userId: string, limit = 30_000) {
-  if (!analyticsBackendConfigured()) return [];
-  const maximum = Math.max(1, Math.min(30_000, Math.floor(limit)));
-  const pageSize = 1_000;
-  const sessions: string[] = [];
-  let offset = 0;
-  while (offset < maximum) {
-    const requested = Math.min(pageSize, maximum - offset);
-    const url = new URL(`${supabaseUrl}/rest/v1/app_sessions`);
-    url.searchParams.set("select", "session_started_at");
-    url.searchParams.set("user_id", `eq.${userId}`);
-    url.searchParams.set("order", "session_started_at.desc");
-    url.searchParams.set("limit", String(requested));
-    url.searchParams.set("offset", String(offset));
-    const response = await fetch(url, {
-      headers: supabaseRequestHeaders(supabaseKey, {
-        Accept: "application/json",
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
-    });
-    const payload = await readBoundedJson(response, 2_000_000).catch(() => null);
-    if (!response.ok) {
-      const message = payload && typeof payload === "object" && !Array.isArray(payload) && typeof (payload as JsonRecord).message === "string"
-        ? String((payload as JsonRecord).message)
-        : `HTTP ${response.status}`;
-      throw new Error(`Analytics service rejected the read: ${message}`);
-    }
-    if (!Array.isArray(payload)) break;
-    offset += payload.length;
-    sessions.push(...payload.flatMap((row) => {
-      if (!row || typeof row !== "object" || typeof (row as JsonRecord).session_started_at !== "string") return [];
-      return [String((row as JsonRecord).session_started_at)];
-    }));
-    if (payload.length < requested) break;
-  }
-  return sessions.slice(0, maximum);
+export async function readAppSessionActiveDays(userId: string, timezone: string, signal?: AbortSignal) {
+  if (!analyticsBackendConfigured()) throw new Error("The analytics backend is not configured.");
+  return readActiveDays({ url: supabaseUrl, key: supabaseKey }, userId, timezone, signal);
 }
 
-export function recordWebAppSession(identity: AnalyticsIdentity) {
-  return analyticsRequest("app_sessions", {
-    user_id: identity.id,
-    user_name: identity.username,
-    user_level: identity.level,
-    app_version: packageJson.version,
-    platform: "web",
+export async function recordWebAppSession(identity: AnalyticsIdentity): Promise<string | null> {
+  if (!analyticsBackendConfigured()) return null;
+  const response = await fetch(`${supabaseUrl}/rest/v1/app_sessions?select=session_started_at`, {
+    method: "POST",
+    headers: supabaseRequestHeaders(supabaseKey, { Accept: "application/json", "Content-Type": "application/json", Prefer: "return=representation" }),
+    body: JSON.stringify({
+      user_id: identity.id,
+      user_name: identity.username,
+      user_level: identity.level,
+      app_version: packageJson.version,
+      platform: "web",
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
   });
+  const payload = await readBoundedJson(response, 64_000);
+  const timestamp = Array.isArray(payload) && payload.length === 1 ? payload[0]?.session_started_at : null;
+  if (!response.ok || typeof timestamp !== "string" || !Number.isFinite(Date.parse(timestamp))) throw new Error("The app session could not be confirmed.");
+  return timestamp;
 }
 
 export function syncWebStudyTime(identity: AnalyticsIdentity, deviceId: string, days: WebStudyTimeUploadDay[]) {

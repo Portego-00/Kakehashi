@@ -127,7 +127,7 @@ export interface WebSettings {
   };
 }
 
-export const NAVBAR_TAB_IDS = ["home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music"] as const;
+export const NAVBAR_TAB_IDS = ["home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music", "notebooks"] as const;
 export type NavbarTabId = (typeof NAVBAR_TAB_IDS)[number];
 export const REQUIRED_NAVBAR_TAB_IDS = ["home", "level"] as const satisfies readonly NavbarTabId[];
 export const DEFAULT_NAVBAR_TABS = ["home", "level", "news", "video", "manga", "music"] as const satisfies readonly NavbarTabId[];

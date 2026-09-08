@@ -26,13 +26,12 @@ import { YouTubePlayer, type YouTubePlayerHandle } from "./YouTubePlayer";
 import { transcodeMpegToMp4 } from "./mpeg-converter";
 import { findCueAt, parseLyricsText } from "./parsers";
 import { ContentPage, EmptyState, UndoNotice, formatTime } from "./ui";
-import { createLocalId, deleteRecord, loadAsset, loadLibrary, removeFileHandle, saveFileHandle, saveLibrary, upsertRecord } from "./storage";
+import { captureContentScope, createLocalId, loadAsset, loadLibrary, upsertRecord } from "./storage";
 import type { ContentRecord, SubtitleCue } from "./types";
 import { useDelayedDeletion } from "./useDelayedDeletion";
 import { useFirstContentReveal } from "./useFirstContentReveal";
 import {
   loadVideoTranscriptTranslations,
-  removeVideoTranscriptTranslations,
   saveVideoTranscriptTranslations,
 } from "./video-translations";
 import styles from "./content.module.css";
@@ -257,6 +256,7 @@ function SavedVideoThumbnail({ record, localVideoUrl }: { record: ContentRecord;
 }
 
 export function VideoWorkspace() {
+  const [contentScope] = useState(captureContentScope);
   const { user } = useSession();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
   const jpdbApiKey = settings.integrations.jpdbApiKey;
@@ -359,8 +359,8 @@ export function VideoWorkspace() {
 
   const deletion = useDelayedDeletion<ContentRecord>({
     onCommit: async (record) => {
-      await deleteRecord(record);
-      removeVideoTranscriptTranslations(record.id);
+      await contentScope.deleteRecord(record);
+      contentScope.removeLocal(`video-transcript-translations:${encodeURIComponent(record.id)}`);
       const media = localMedia.current.get(record.id);
       if (media) URL.revokeObjectURL(media.url);
       localMedia.current.delete(record.id);
@@ -486,6 +486,7 @@ export function VideoWorkspace() {
     }
 
     const controller = new AbortController();
+    const translationScope = captureContentScope();
     translationAbortRef.current = controller;
     let current = true;
     void (async () => {
@@ -514,7 +515,7 @@ export function VideoWorkspace() {
           }),
           signal: controller.signal,
         }), ({ source, translation }) => {
-          if (!current || controller.signal.aborted || !allowedLines.has(source)) return;
+          if (!current || controller.signal.aborted || !translationScope.isCurrent() || !allowedLines.has(source)) return;
           const nextTranslations = sanitizeLyricLineTranslations({
             ...accumulatedTranslations,
             [source]: translation,
@@ -531,7 +532,7 @@ export function VideoWorkspace() {
             ? { ...state, status: "loading", translations: accumulatedTranslations }
             : state);
         });
-        if (!current || controller.signal.aborted) return;
+        if (!current || controller.signal.aborted || !translationScope.isCurrent()) return;
         saveVideoTranscriptTranslations(
           activeId,
           transcriptSourceText,
@@ -600,9 +601,14 @@ export function VideoWorkspace() {
     setLocalVideoAccess(null);
     lastSavedSecond.current = -1;
     setActiveId(record.id);
+    if (record.metadata?.demoCaptionExcerpt === true) {
+      const youtubeId = youtubeIdForRecord(record);
+      if (youtubeId) void requestYoutubeTranscript(record, youtubeId);
+    }
   }
 
   async function importVideo(files: File[], handles: Array<FileSystemFileHandle | null> = []) {
+    const { saveFileHandle, removeFileHandle, saveLibrary, loadLibrary } = captureContentScope();
     if (!files.length) return;
     setMessage("");
     if (files.some((file) => !isSupportedLocalVideo(file))) {
@@ -729,6 +735,7 @@ export function VideoWorkspace() {
   }
 
   async function requestYoutubeTranscript(record: ContentRecord, youtubeId: string) {
+    const { isCurrent, loadLibrary, upsertRecord } = captureContentScope();
     setYoutubeTranscriptRequest({ videoId: record.id, status: "loading" });
     setMessage("");
     try {
@@ -750,7 +757,13 @@ export function VideoWorkspace() {
       const parsed = parseLyricsText(payload.transcript);
       if (!parsed.lines.length || !parsed.timed) throw new Error("No usable timed captions were found for this YouTube video.");
 
-      const stored = loadLibrary("video").find((item) => item.id === record.id) ?? record;
+      if (!isCurrent()) return;
+
+      const stored = loadLibrary("video").find((item) => item.id === record.id);
+      if (!stored || stored.text !== record.text) {
+        setYoutubeTranscriptRequest(null);
+        return;
+      }
       const oldSubtitleAssetId = metadataText(stored, "subtitleAssetId");
       const updated: ContentRecord = {
         ...stored,
@@ -764,6 +777,7 @@ export function VideoWorkspace() {
           transcriptFormat: parsed.format,
           transcriptSource: "youtube",
           transcriptLanguage: typeof payload.language === "string" ? payload.language : null,
+          demoCaptionExcerpt: false,
         },
         updatedAt: new Date().toISOString(),
       };
@@ -781,6 +795,7 @@ export function VideoWorkspace() {
   }
 
   async function reconnectVideo(files: File[], handles: Array<FileSystemFileHandle | null> = []) {
+    const { saveFileHandle, removeFileHandle, upsertRecord } = captureContentScope();
     const file = files[0];
     if (!file || !activeVideo) return;
     if (!isSupportedLocalVideo(file)) {
@@ -824,6 +839,7 @@ export function VideoWorkspace() {
   }
 
   async function importSubtitles(event: ChangeEvent<HTMLInputElement>) {
+    const { upsertRecord } = captureContentScope();
     const file = event.target.files?.[0];
     if (!file || !activeVideo) return;
     setMessage("");
@@ -836,7 +852,7 @@ export function VideoWorkspace() {
         ...activeVideo,
         text,
         assetIds: activeVideo.assetIds.filter((id) => id !== oldSubtitleAssetId),
-        metadata: { ...activeVideo.metadata, subtitleAssetId: null, subtitleFileName: file.name, transcriptFormat: parsed.format, transcriptSource: "file" },
+        metadata: { ...activeVideo.metadata, subtitleAssetId: null, subtitleFileName: file.name, transcriptFormat: parsed.format, transcriptSource: "file", demoCaptionExcerpt: false },
         updatedAt: new Date().toISOString(),
       };
       setVideos(upsertRecord(updated));
@@ -864,6 +880,7 @@ export function VideoWorkspace() {
         subtitleFileName: null,
         transcriptFormat: parsed.format,
         transcriptSource: "custom",
+        demoCaptionExcerpt: false,
       },
       updatedAt: new Date().toISOString(),
     };
@@ -1118,6 +1135,7 @@ export function VideoWorkspace() {
                 <div>
                   <h2 id="video-transcript-title">Transcript</h2>
                   <p>{cues.length ? transcript.timed ? `${cues.length} synchronized ${cues.length === 1 ? "cue" : "cues"}` : `${cues.length} plain ${cues.length === 1 ? "line" : "lines"}` : activeYoutubeTranscriptRequest?.status === "loading" ? "Getting available YouTube captions…" : "Add plain or timed text"}</p>
+                  {activeVideo.metadata?.demoCaptionExcerpt === true ? <p role="status">{activeYoutubeTranscriptRequest?.status === "loading" ? "Loading the full Japanese captions. A short verified excerpt is ready to try." : "Showing a short verified excerpt. Get YouTube captions to load the full transcript."}</p> : null}
                   {transcriptTranslationStateMatches && transcriptTranslation.status === "loading" ? <p className={styles.lyricsTranslationStatus} role="status">Translating transcript lines…</p> : null}
                   {transcriptTranslationStateMatches && transcriptTranslation.status !== "loading" && visibleTranscriptTranslationMessage ? <div className={styles.lyricsTranslationFeedback}>
                     <p className={transcriptTranslation.status === "error" ? styles.lyricsTranslationError : styles.lyricsTranslationStatus} role={transcriptTranslation.status === "error" ? "alert" : "status"}>{visibleTranscriptTranslationMessage}</p>
@@ -1131,7 +1149,7 @@ export function VideoWorkspace() {
                     : "No Japanese transcript lines are eligible for translation."}</p> : null}
                 </div>
                 <div className={styles.lyricsPanelActions}>
-                  {activeSourceType === "youtube" && !cues.length ? <button
+                  {activeSourceType === "youtube" && (!cues.length || activeVideo.metadata?.demoCaptionExcerpt === true) ? <button
                     className={styles.secondaryButton}
                     type="button"
                     disabled={activeYoutubeTranscriptRequest?.status === "loading"}

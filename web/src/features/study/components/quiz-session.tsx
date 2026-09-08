@@ -10,6 +10,7 @@ import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { LoadingState } from "@/components/ui/States";
 import { AnkiAnswerContent, type AnkiAnswerContentProps } from "@/features/core-study/AnkiAnswerContent";
 import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
+import { NotebookCaptureButton } from "@/features/notebooks/NotebookCaptureDialog";
 import { checkAnswer as checkReviewAnswer, type QuestionKind as ReviewQuestionKind } from "@/features/core-study/answer-checker";
 import { canonicalAnswer, usesSelfAssessment } from "@/features/core-study/study-preferences";
 import { installCustomJitaiFonts, resolveJitaiFontFamily } from "@/features/settings/jitai";
@@ -829,6 +830,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
             </div> : null}
 
             {canAddSynonym && currentSubject ? <AddMeaningSynonymButton subject={currentSubject} synonym={synonymCandidate} existingMaterial={currentStudyMaterial} disabled={advancingQuestion} onSaved={acceptSavedSynonym} /> : null}
+
+            {answer && question.sentence && currentSubject ? <NotebookCaptureButton subject={currentSubject} sentence={{ japanese: question.sentence.ja, english: question.sentence.en }} label="Add this sentence to notebook" /> : null}
 
             {detailsAvailable && currentSubject ? <div className={styles.itemDetailsRegion} data-open={detailsOpen}>
               <div className={styles.itemDetailsDisclosure}>

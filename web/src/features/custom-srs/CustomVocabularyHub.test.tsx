@@ -4,6 +4,7 @@ import { createCustomSrsState, enrollCustomVocabularyPack } from "./model";
 import type { CustomSrsState, CustomVocabularyPack } from "./types";
 import { CustomVocabularyHub } from "./CustomVocabularyHub";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
+import { loadWebSettings } from "@/features/settings/settings";
 
 const { hubTestState } = vi.hoisted(() => ({
   hubTestState: {
@@ -13,7 +14,7 @@ const { hubTestState } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { id: 42 } }) }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { id: 42, data: { username: "tester" } } }) }));
 
 vi.mock("./catalog", () => {
   const word = (id: string, characters: string, meaning: string) => ({
@@ -80,6 +81,7 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   hubTestState.enrollPack.mockReset();
   hubTestState.enrollPack.mockResolvedValue(undefined);
   hubTestState.refresh.mockReset();
@@ -95,6 +97,53 @@ afterEach(() => {
 });
 
 describe("custom vocabulary pack hub", () => {
+  it("keeps the study cards and forecast in sync as scheduled custom reviews become due", () => {
+    const pack = CUSTOM_VOCABULARY_PACKS[2];
+    const state = enrollCustomVocabularyPack(createCustomSrsState(), pack);
+    const [dueWord, futureWord] = pack.words;
+    state.assignments[dueWord.id] = { ...state.assignments[dueWord.id], stage: 1, startedAt: "2026-08-31T09:00:00Z", availableAt: "2026-08-31T11:00:00Z" };
+    state.assignments[futureWord.id] = { ...state.assignments[futureWord.id], stage: 2, startedAt: "2026-08-31T09:00:00Z", availableAt: "2026-08-31T12:00:30Z" };
+    setHookState(state);
+
+    render(<CustomVocabularyHub />);
+
+    const lessons = screen.getByRole("article", { name: "Custom lessons study queue" });
+    const reviews = screen.getByRole("article", { name: "Custom reviews study queue" });
+    expect(within(lessons).getByText("3")).toBeInTheDocument();
+    expect(within(reviews).getByText("1")).toBeInTheDocument();
+    expect(within(lessons).getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/custom-vocabulary/lessons");
+    expect(within(reviews).getByRole("link", { name: "Review due" })).toHaveAttribute("href", "/custom-vocabulary/reviews");
+    expect(screen.getByRole("heading", { name: "Review forecast" })).toBeInTheDocument();
+    const forecast = screen.getByRole("list", { name: "Hourly review forecast" });
+    expect(within(forecast).getByRole("listitem", { name: "Now: 1 total reviews, 0 new reviews" })).toBeInTheDocument();
+    expect(within(forecast).getByRole("listitem", { name: /2 total reviews, 1 new reviews/ })).toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(within(reviews).getByText("2")).toBeInTheDocument();
+    expect(within(forecast).getByRole("listitem", { name: "Now: 2 total reviews, 0 new reviews" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Daily" }));
+    fireEvent.click(screen.getByRole("button", { name: "List view" }));
+    expect(screen.getByRole("list", { name: "Today hourly reviews" })).toBeVisible();
+    expect(loadWebSettings(window.localStorage, "tester").workspace).toMatchObject({ forecastViewMode: "list", forecastChartMode: "daily" });
+  });
+
+  it.each([
+    { isLoading: true, isUnavailable: false, message: "Loading review forecast…" },
+    { isLoading: false, isUnavailable: true, message: "Custom review schedule is unavailable." },
+  ])("disables study and withholds the forecast while loading=$isLoading and unavailable=$isUnavailable", ({ message, ...status }) => {
+    const state = enrollCustomVocabularyPack(createCustomSrsState(), CUSTOM_VOCABULARY_PACKS[0]);
+    setHookState(state, status);
+    render(<CustomVocabularyHub />);
+
+    const lessons = screen.getByRole("article", { name: "Custom lessons study queue" });
+    expect(within(lessons).queryByText("1")).not.toBeInTheDocument();
+    expect(within(lessons).getByRole("button", { name: "Start lessons" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Review due" })).toBeDisabled();
+    expect(screen.queryByRole("list", { name: "Hourly review forecast" })).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
   it("groups kana and level-based kanji pack previews with persistence, queue counts, and runnable routes", () => {
     const pack = CUSTOM_VOCABULARY_PACKS[0];
     const enrolled = enrollCustomVocabularyPack(createCustomSrsState(new Date("2026-08-31T09:00:00Z")), pack, new Date("2026-08-31T09:00:00Z"));
@@ -108,7 +157,7 @@ describe("custom vocabulary pack hub", () => {
     expect(screen.getByRole("heading", { name: "Vocabulary packs" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Kana & everyday language" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Kanji by WaniKani level" })).toBeInTheDocument();
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(within(screen.getByRole("region", { name: "Vocabulary packs" })).getAllByRole("article")).toHaveLength(4);
     expect(screen.getByText("もしもし")).toBeInTheDocument();
     expect(screen.getByText("メモ")).toBeInTheDocument();
     expect(screen.getByText("よろしく")).toBeInTheDocument();
@@ -136,13 +185,13 @@ describe("custom vocabulary pack hub", () => {
     expect(container.querySelectorAll('[data-subject-type="vocabulary"]')).not.toHaveLength(0);
     expect(screen.getByRole("link", { name: "JMdict/EDICT project" })).toHaveAttribute("href", "https://www.edrdg.org/jmdict/j_jmdict.html");
 
-    const firstPack = screen.getAllByRole("article")[0];
-    const secondPack = screen.getAllByRole("article")[1];
+    const firstPack = screen.getByRole("article", { name: "Everyday Hiragana" });
+    const secondPack = screen.getByRole("article", { name: "Everyday Katakana" });
     expect(within(firstPack).getByText("due now").parentElement).toHaveTextContent("1 due now");
     expect(within(firstPack).getByText("Apprentice I")).toBeInTheDocument();
     expect(within(secondPack).queryByRole("progressbar")).not.toBeInTheDocument();
     expect(within(secondPack).queryByLabelText("Everyday Katakana SRS stages")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Start lessons/i })).toHaveAttribute("href", "/custom-vocabulary/lessons");
+    expect(screen.getByRole("button", { name: /Start lessons/i })).toBeDisabled();
     expect(screen.getByRole("link", { name: /Review due/i })).toHaveAttribute("href", "/custom-vocabulary/reviews");
     expect(screen.getByRole("link", { name: /Review due/i })).not.toHaveAttribute("aria-disabled", "true");
   });
@@ -263,7 +312,7 @@ describe("custom vocabulary pack hub", () => {
     render(<CustomVocabularyHub />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("Cloud progress is unavailable.");
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(within(screen.getByRole("region", { name: "Vocabulary packs" })).getAllByRole("article")).toHaveLength(4);
     expect(screen.getByRole("button", { name: "Add Everyday Hiragana pack" })).toBeEnabled();
   });
 

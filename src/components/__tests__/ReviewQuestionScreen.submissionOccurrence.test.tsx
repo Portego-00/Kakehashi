@@ -1,9 +1,11 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
+import { Audio } from "../../utils/expoAvCompat";
+import { buildReviewQuestionQueue } from "../../utils/reviewOrdering";
 
 const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
   async () => null,
@@ -107,6 +109,9 @@ jest.mock("../../utils/expoAvCompat", () => ({
   Audio: {
     Sound: { createAsync: jest.fn() },
   },
+}));
+jest.mock("../../features/custom-srs/audio-cache", () => ({
+  resolveCustomVocabularyAudioForPlayback: jest.fn(async () => "file:///custom-audio.mp3"),
 }));
 
 jest.mock("react-native-reanimated", () => {
@@ -213,9 +218,47 @@ jest.mock("../KanjiDetails", () => {
 });
 
 jest.mock("../RadicalDetails", () => {
-  const { View } =
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { TouchableOpacity, Text } =
     jest.requireActual<typeof import("react-native")>("react-native");
-  return { __esModule: true, default: View };
+  return {
+    __esModule: true,
+    default: ({ radical }: { radical: { onEditNote?: () => void } }) => (
+      <TouchableOpacity onPress={radical.onEditNote}>
+        <Text>Edit meaning note</Text>
+      </TouchableOpacity>
+    ),
+  };
+});
+
+jest.mock("../formatted-note", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { TextInput, TouchableOpacity, Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  const Editor = React.forwardRef<
+    { closeLinkPicker: () => boolean },
+    React.ComponentProps<typeof TextInput>
+  >((props, ref) => {
+    const [pickerOpen, setPickerOpen] = React.useState(false);
+    React.useImperativeHandle(ref, () => ({
+      closeLinkPicker: () => {
+        if (!pickerOpen) return false;
+        setPickerOpen(false);
+        return true;
+      },
+    }));
+    return (
+      <>
+        <TextInput {...props} />
+        <TouchableOpacity onPress={() => setPickerOpen(true)}>
+          <Text>Insert subject link</Text>
+        </TouchableOpacity>
+        {pickerOpen && <Text>Subject link picker</Text>}
+      </>
+    );
+  });
+  Editor.displayName = "MockNoteEditor";
+  return { FormattedNoteEditor: Editor, FormattedNoteText: () => null };
 });
 
 jest.mock("../VocabularyDetails", () => {
@@ -350,6 +393,7 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
+    jest.mocked(Audio.Sound.createAsync).mockReset();
     Object.assign(mockSettings, defaultSettings);
     mockReadReviewSettings.mockClear();
     mockSpeechListeners.clear();
@@ -372,6 +416,40 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
   });
+
+  it.each(["Cancel", "close button", "request close"])(
+    "dismisses the subject picker before the review note editor through %s",
+    async (dismissAction) => {
+      mockSettings.disableAutoProgressOnCorrect = true;
+      mockSettings.showAnswerStopSubjectDetails = true;
+      const screen = renderQuestion();
+      fireEvent(screen.getByTestId("answer-input"), "submitEditing", {
+        nativeEvent: { text: "ground" },
+      });
+      await waitFor(() => expect(screen.getByText("Edit meaning note")).toBeTruthy());
+      fireEvent.press(screen.getByText("Edit meaning note"));
+      fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My unsaved note");
+      fireEvent.press(screen.getByText("Insert subject link"));
+      expect(screen.getByText("Subject link picker")).toBeTruthy();
+
+      const dismiss = () => {
+        if (dismissAction === "Cancel") {
+          fireEvent.press(screen.getByText("Cancel"));
+        } else if (dismissAction === "close button") {
+          fireEvent.press(screen.getByLabelText("Close note editor"));
+        } else {
+          fireEvent(screen.UNSAFE_getAllByType(Modal).find((modal) => modal.props.visible)!, "requestClose");
+        }
+      };
+      dismiss();
+
+      expect(screen.queryByText("Subject link picker")).toBeNull();
+      expect(screen.getByLabelText("Meaning note text").props.value).toBe("My unsaved note");
+
+      dismiss();
+      expect(screen.queryByLabelText("Meaning note text")).toBeNull();
+    },
+  );
 
   it.each(["", "g"])(
     "grades the complete native submit text when the last change reported %j",
@@ -427,6 +505,38 @@ describe("ReviewQuestionScreen question occurrences", () => {
       },
     },
   };
+
+  it.each([true, false])("keeps custom kana pronunciation hidden until an answer, with autoplay %s", async (autoplay) => {
+    mockSettings.autoplayVocabularyAudio = autoplay;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    mockSettings.vocabularyAudioVoice = "male"; // Existing preference logic falls back to the only available voice.
+    const clip = { url: "https://audio.example/shizuka.mp3", content_type: "audio/mpeg", metadata: { gender: "female", voice_actor_name: "Shizuka", pronunciation: "やっぱり" } };
+    jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: {
+      setOnPlaybackStatusUpdate: (callback: ((status: unknown) => void) | null) => callback?.({ isLoaded: true, didJustFinish: true }),
+      stopAsync: jest.fn(async () => {}), unloadAsync: jest.fn(async () => {}),
+    } } as never);
+    const item = {
+      id: -123,
+      subject: {
+        id: -123, object: "kana_vocabulary" as const,
+        data: { characters: "やっぱり", meanings: [{ meaning: "As Expected", primary: true, accepted_answer: true }], readings: [], pronunciation_audios: [clip] },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByText("Replay")).toBeNull();
+    expect(Audio.Sound.createAsync).not.toHaveBeenCalled();
+    fireEvent.changeText(screen.getByTestId("answer-input"), "as expected");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    await waitFor(() => expect(screen.getByText("Replay")).toBeTruthy());
+    if (autoplay) {
+      await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(1));
+    } else {
+      expect(Audio.Sound.createAsync).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText("Replay"));
+      await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(1));
+    }
+    expect(Audio.Sound.createAsync).toHaveBeenCalledWith({ uri: "file:///custom-audio.mp3" }, expect.objectContaining({ shouldPlay: true }));
+  });
 
   function renderAudioQuestion(onAnswer = jest.fn()) {
     return render(
@@ -1080,6 +1190,47 @@ describe("ReviewQuestionScreen question occurrences", () => {
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
   });
 
+  it.each(["meaning", "reading"] as const)(
+    "answers both back-to-back multiple-choice questions with %s first",
+    async (firstType) => {
+      mockSettings.reviewMultipleChoiceEnabled = true;
+      const animals = ["Dog", "Bird", "Horse"].map((meaning, index) => ({
+        ...audioItem.subject, id: index + 10,
+        data: { ...audioItem.subject.data, meanings: [{ meaning, primary: true, accepted_answer: true }] },
+      }));
+      mockGetAllSubjects.mockResolvedValue([audioItem.subject, ...animals]);
+      const items = [audioItem, { id: animals[0].id, subject: animals[0] }];
+      const onAnswer = jest.fn();
+      const queue = buildReviewQuestionQueue(items, {
+        backToBack: true, questionTypeOrderEnabled: true, questionTypeOrder: firstType,
+      });
+      expect(queue.map(question => question.itemId)).toEqual([audioItem.id, audioItem.id, 10, 10]);
+      function BackToBackReview() {
+        const [index, setIndex] = React.useState(0);
+        const question = queue[index];
+        if (!question) return <Text>Session complete</Text>;
+        const item = items.find(item => item.id === question.itemId)!;
+        return <ReviewQuestionScreen
+          item={item} questionType={question.type} currentItem={index}
+          acceptCharactersAsCorrectForReading
+          onAnswer={(...args) => { onAnswer(...args); setIndex(value => value + 1); }}
+        />;
+      }
+      const screen = render(<BackToBackReview />);
+      for (const question of queue) {
+        const item = items.find(item => item.id === question.itemId)!;
+        const name = question.type === "reading" ? /\d\. ねこ$/ : new RegExp(`\\d\\. ${item.subject.data.meanings[0].meaning}$`);
+        const answer = await screen.findByRole("button", { name });
+        expect(screen.queryByTestId("answer-input")).toBeNull();
+        await waitFor(() => expect(answer.props.accessibilityState.disabled).toBe(false));
+        fireEvent.press(answer);
+        await waitFor(() => expect(onAnswer).toHaveBeenLastCalledWith(item, question.type, true, false, false));
+      }
+      expect(await screen.findByText("Session complete")).toBeTruthy();
+      expect(onAnswer).toHaveBeenCalledTimes(4);
+    },
+  );
+
   it("counts a close reading distractor as wrong without offering a typing retry", async () => {
     mockSettings.reviewMultipleChoiceEnabled = true;
     const onAnswer = jest.fn();
@@ -1123,6 +1274,28 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getByText("Not enough distinct choices for this question. Type your answer.")).toBeTruthy();
   });
 
+  it("submits a radical name using four choices instead of requiring typing", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const gun = {
+      ...radicalItem,
+      subject: { ...radicalItem.subject, data: {
+        characters: "𠂉", level: 1,
+        meanings: [{ meaning: "Gun", primary: true, accepted_answer: true }],
+      } },
+    };
+    mockGetAllSubjects.mockResolvedValue(["Slide", "Lid", "Barb"].map((meaning, index) => ({
+      ...gun.subject, id: index + 10,
+      data: { level: 1, meanings: [{ meaning, primary: true, accepted_answer: true }] },
+    })));
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={gun} questionType="meaning" onAnswer={onAnswer} />);
+    const answer = await screen.findByRole("button", { name: /\d\. Gun$/ });
+    expect(screen.getAllByRole("button").filter(button => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4);
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    fireEvent.press(answer);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(gun, "meaning", true, false, false));
+  });
+
   it("uses the normal typed meaning answer for an audio prompt", async () => {
     const onAnswer = jest.fn();
     const screen = renderAudioQuestion(onAnswer);
@@ -1139,6 +1312,33 @@ describe("ReviewQuestionScreen question occurrences", () => {
       false,
       false,
     );
+  });
+
+  it("opens custom vocabulary details without offering WaniKani synonym writes", async () => {
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAddSynonymButton = true;
+    const onViewSubjectDetails = jest.fn();
+    const item = { ...audioItem, id: -123, subject: { ...audioItem.subject, id: -123 } };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} onViewSubjectDetails={onViewSubjectDetails} />);
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "dog");
+    fireEvent(input, "submitEditing");
+    await waitFor(() => expect(screen.getByText("Details")).toBeTruthy());
+    expect(screen.queryByText("Synonym")).toBeNull();
+    fireEvent.press(screen.getByText("Details"));
+    expect(onViewSubjectDetails).toHaveBeenCalledWith(-123);
+  });
+
+  it("shows custom paused details without looking up a WaniKani subject", async () => {
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = true;
+    const item = { ...audioItem, id: -123, subject: { ...audioItem.subject, id: -123 } };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "dog");
+    fireEvent(input, "submitEditing");
+    await screen.findByText("Details for -123");
+    expect(mockGetSubjectById).not.toHaveBeenCalledWith(-123);
   });
 
   it("does not reload paused details when the parent recreates the same question object", async () => {

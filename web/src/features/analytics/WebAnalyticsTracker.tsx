@@ -11,7 +11,7 @@ import {
   studyTimeCategoryForPathname,
   type RemoteStudyTimeDay,
 } from "@/features/dashboard/study-time";
-import { browserTimezone, recordLocalUsageDay } from "@/features/dashboard/usage-streak";
+import { recordConfirmedUsageSession } from "@/features/dashboard/usage-streak";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 
@@ -22,7 +22,7 @@ const STUDY_TIME_SYNC_INTERVAL_MS = 5 * 60_000;
 const STUDY_TIME_INITIAL_SYNC_DELAY_MS = 10_000;
 const STUDY_TIME_REMOTE_REFRESH_INTERVAL_MS = 5 * 60_000;
 
-let sessionRequest: Promise<void> | null = null;
+const sessionRequests = new Map<string, Promise<void>>();
 const studyTimeRequests = new Map<string, Promise<void>>();
 
 function normalizedUsername(username: string) {
@@ -55,23 +55,26 @@ export function shouldRecordWebSession(storage: Pick<Storage, "getItem">, userna
     && now - lastAttempted >= SESSION_RETRY_COOLDOWN_MS;
 }
 
-export async function maybeRecordWebSession(storage: Pick<Storage, "getItem" | "setItem">, username: string, now = Date.now()) {
-  recordLocalUsageDay(storage, username, new Date(now), browserTimezone());
-  if (!shouldRecordWebSession(storage, username, now) || sessionRequest) return;
+export async function maybeRecordWebSession(storage: Pick<Storage, "getItem" | "setItem">, username: string, now = Date.now(), userId?: string) {
+  const scope = userId || username;
+  if (!shouldRecordWebSession(storage, username, now) || sessionRequests.has(scope)) return;
   storage.setItem(sessionAttemptedKey(username), String(now));
-  sessionRequest = fetch("/api/analytics/session", {
+  const sessionRequest = fetch("/api/analytics/session", {
     method: "POST",
     cache: "no-store",
     keepalive: true,
   }).then(async (response) => {
-    const payload = await response.json().catch(() => null) as { recorded?: boolean } | null;
+    const payload = await response.json().catch(() => null) as { recorded?: boolean; sessionStartedAt?: string; userId?: string } | null;
     if (response.ok && payload?.recorded) {
+      if (userId && payload.userId !== userId) return;
+      if (userId && typeof payload.sessionStartedAt === "string") recordConfirmedUsageSession(storage, userId, payload.sessionStartedAt);
       storage.setItem(sessionLoggedKey(username), String(now));
       storage.setItem(sessionAttemptedKey(username), "0");
     }
   }).catch(() => undefined).finally(() => {
-    sessionRequest = null;
+    sessionRequests.delete(scope);
   });
+  sessionRequests.set(scope, sessionRequest);
   await sessionRequest;
 }
 
@@ -134,7 +137,7 @@ export function WebAnalyticsTracker() {
   useEffect(() => {
     if (!username) return;
     const recordSession = () => {
-      if (document.visibilityState === "visible") void maybeRecordWebSession(window.localStorage, username);
+      if (document.visibilityState === "visible") void maybeRecordWebSession(window.localStorage, username, Date.now(), userId);
     };
     const onVisibilityChange = () => recordSession();
     const timer = window.setTimeout(recordSession, 0);
@@ -145,7 +148,7 @@ export function WebAnalyticsTracker() {
       window.removeEventListener("focus", recordSession);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [username]);
+  }, [username, userId]);
 
   useEffect(() => {
     if (!userId) return;

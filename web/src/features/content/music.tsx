@@ -60,7 +60,7 @@ import {
 import { formatTrackDuration, type LyricsPayload, type MusicTrack, type YouTubeVideo } from "./music-providers";
 import { parseLrc, parseLyricsText } from "./parsers";
 import { ContentPage, Progress, UndoNotice, formatTime } from "./ui";
-import { createLocalId, loadLibrary, saveLibrary, upsertRecord } from "./storage";
+import { captureContentScope, createLocalId, loadLibrary, saveLibrary, upsertRecord } from "./storage";
 import type { ContentRecord, TimedLyricLine } from "./types";
 import { YouTubePlayer, type YouTubePlayerHandle } from "./YouTubePlayer";
 import styles from "./content.module.css";
@@ -327,6 +327,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
     }
 
     const controller = new AbortController();
+    const translationScope = captureContentScope();
     translationAbortRef.current = controller;
     let current = true;
     void (async () => {
@@ -355,7 +356,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
           }),
           signal: controller.signal,
         }), ({ source, translation }) => {
-          if (!current || controller.signal.aborted || !allowedLines.has(source)) return;
+          if (!current || controller.signal.aborted || !translationScope.isCurrent() || !allowedLines.has(source)) return;
           const nextTranslations = sanitizeLyricLineTranslations({
             ...accumulatedTranslations,
             [source]: translation,
@@ -371,7 +372,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
             }
             : state);
         });
-        if (!current || controller.signal.aborted) return;
+        if (!current || controller.signal.aborted || !translationScope.isCurrent()) return;
         saveSongLyricTranslations(activeId, activeSongText, translatableLyricLines, accumulatedTranslations);
         setLyricsTranslation({
           sourceKey: translationSourceKey,
@@ -491,6 +492,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
       videoQuery?: string;
     },
   ) => {
+    const scope = captureContentScope();
     importAbortRef.current?.abort();
     const controller = new AbortController();
     const source = options.source ?? "all";
@@ -512,6 +514,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
         body: JSON.stringify(body),
         signal: controller.signal,
       }));
+      if (!scope.isCurrent() || controller.signal.aborted || importAbortRef.current !== controller) return;
       const lyricMatches = payload.lyricsResults?.length ? payload.lyricsResults : payload.lyrics ? [payload.lyrics] : [];
       if (source !== "video") setLyricsCandidates(lyricMatches);
       if (source !== "lyrics") setVideoCandidates(payload.videos ?? []);
@@ -542,6 +545,7 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
       setFeedback(warnings.length ? { tone: "notice", text: warnings.join(" ") } : null);
       setResolutionState("ready");
     } catch (error) {
+      if (!scope.isCurrent() || controller.signal.aborted || importAbortRef.current !== controller) return;
       if (error instanceof DOMException && error.name === "AbortError") return;
       updateSong(songId, (stored) => ({ ...stored, metadata: { ...stored.metadata, resolutionStatus: "error" } }));
       setResolutionState("error");

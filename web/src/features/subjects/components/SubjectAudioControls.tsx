@@ -27,7 +27,10 @@ interface SubjectAudioButtonProps {
 const IDLE_AUDIO_STATE: SubjectAudioState = { key: null, status: "idle" };
 const SubjectAudioContext = createContext<SubjectAudioContextValue | null>(null);
 
-export function SubjectAudioProvider({ children }: { children: ReactNode }) {
+export function SubjectAudioProvider({ children, autoplay }: {
+  children: ReactNode;
+  autoplay?: { audioKey: string; src: string };
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const requestIdRef = useRef(0);
   const playbackRef = useRef<SubjectAudioState>(IDLE_AUDIO_STATE);
@@ -71,15 +74,24 @@ export function SubjectAudioProvider({ children }: { children: ReactNode }) {
     });
   }, [clearPlayer, updatePlayback]);
 
-  useEffect(() => () => {
-    requestIdRef.current += 1;
-    const current = playbackRef.current;
-    playbackRef.current = IDLE_AUDIO_STATE;
+  useEffect(() => {
+    // Capture the element while mounted: React clears DOM refs before passive cleanup.
     const player = audioRef.current;
-    if (!player) return;
-    if (current.key) player.pause();
-    player.removeAttribute("src");
+    return () => {
+      requestIdRef.current += 1;
+      const current = playbackRef.current;
+      playbackRef.current = IDLE_AUDIO_STATE;
+      if (!player) return;
+      if (current.key) player.pause();
+      player.removeAttribute("src");
+    };
   }, []);
+
+  const autoplayKey = autoplay?.audioKey;
+  const autoplaySrc = autoplay?.src;
+  useEffect(() => {
+    if (autoplayKey && autoplaySrc) toggle(autoplayKey, autoplaySrc);
+  }, [autoplayKey, autoplaySrc, toggle]);
 
   return <SubjectAudioContext value={{ playback, toggle }}>
     {children}

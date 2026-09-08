@@ -266,8 +266,9 @@ function toQuestion(subject: Subject, kind: StudyQuestion["kind"], subjects: Sub
     };
   }
   if (kind === "context" && characters && subject.data.context_sentences?.length) {
-    const sentence = subject.data.context_sentences[Math.floor(random() * subject.data.context_sentences.length)];
-    if (!sentence.ja.includes(characters)) return null;
+    const candidates = subject.data.context_sentences.filter((sentence) => sentence.ja.includes(characters));
+    if (!candidates.length) return null;
+    const sentence = candidates[Math.floor(random() * candidates.length)];
     const masked = sentence.ja.replaceAll(characters, "＿＿");
     const choices = filters.answerMode === "multiple-choice" ? shuffle([characters, ...distractors(subjects.filter((candidate) => candidate.object === "vocabulary" || candidate.object === "kana_vocabulary"), subject, "characters", 3, random)], random) : undefined;
     return {

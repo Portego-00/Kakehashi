@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import styles from "./dashboard.module.css";
 
 type StudyQueueCardProps = {
@@ -6,6 +7,7 @@ type StudyQueueCardProps = {
   count?: number;
   loading?: boolean;
   preview?: boolean;
+  demo?: boolean;
 };
 
 const QUEUE_ART = {
@@ -19,12 +21,12 @@ const QUEUE_ART = {
   },
 } as const;
 
-export function StudyQueueCard({ type, count = 0, loading = false, preview = false }: StudyQueueCardProps) {
+export function StudyQueueCard({ type, count = 0, loading = false, preview = false, demo = false }: StudyQueueCardProps) {
   const lessons = type === "lesson";
   const displayCount = Math.max(0, count);
   const ready = preview || loading || displayCount > 0;
   const title = lessons ? "Lessons" : "Reviews";
-  const subtitle = lessons
+  const subtitle = demo ? "Practice with sample progress saved in this browser." : lessons
     ? "Main lessons are coming to the web app."
     : "Main reviews are coming to the web app.";
   const art = QUEUE_ART[type][ready ? "ready" : "empty"];
@@ -33,9 +35,9 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
     <article
       className={styles.queueRow}
       data-kind={type}
-      data-state="coming-soon"
+      data-state={demo ? "demo" : "coming-soon"}
       aria-busy={loading || undefined}
-      aria-label={`${title} study queue, coming soon`}
+      aria-label={`${title} study queue${demo ? ", demo" : ", coming soon"}`}
     >
       <Image
         className={styles.queueArtwork}
@@ -59,7 +61,7 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
         <p className={styles.queueSubtitle}>{subtitle}</p>
 
         <div className={styles.queueBottom}>
-          {preview
+          {demo && !preview ? <Link className={styles.queueAction} href={lessons ? "/lessons" : "/reviews"}>{lessons ? "Try lessons" : "Try reviews"}</Link> : preview
             ? <span className={styles.queueAction} aria-disabled="true">Coming soon</span>
             : <button className={styles.queueAction} type="button" disabled>Coming soon</button>}
         </div>

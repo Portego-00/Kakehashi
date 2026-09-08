@@ -9,9 +9,9 @@ import {
   type DayRecord,
 } from "./timeTrackingCore";
 import {
-  isStudyTimeEdgeConfigured,
-  postStudyTimeEdge,
-} from "./studyTimeEdgeClient";
+  isStudyTimeRpcConfigured,
+  syncStudyTimeDaysRpc,
+} from "./studyTimeRpcClient";
 import {
   getUserPushedSumsKey,
   isValidStudyTimeDeviceId,
@@ -154,7 +154,7 @@ function buildActivityMs(record: DayRecord): Partial<Record<ActivityKey, number>
 }
 
 async function syncNow(): Promise<void> {
-  if (!isStudyTimeEdgeConfigured()) {
+  if (!isStudyTimeRpcConfigured()) {
     setSyncStatus("skipped", "Supabase is not configured in this build");
     return;
   }
@@ -224,7 +224,7 @@ async function syncNow(): Promise<void> {
     // Await each acknowledgement before advancing. If a later request fails,
     // markers for every acknowledged batch remain durable and retries resume
     // from the first unacknowledged day.
-    await postStudyTimeEdge("study-time-sync", apiToken, { deviceId, days });
+    await syncStudyTimeDaysRpc(apiToken, userId, deviceId, days);
     for (const { dateKey, record } of batch) {
       nextPushedSums[dateKey] = recordSum(record);
     }

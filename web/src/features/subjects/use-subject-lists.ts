@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createListRepository, subscribeSubjectLists, type ListStorage, type SubjectList } from "./lists";
+import { DEMO_USERNAME } from "@/features/demo/runtime";
 
 export const browserSubjectListStorage: ListStorage = {
   getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key),
@@ -24,7 +25,8 @@ export function mergeSubjectLists(local: SubjectList[], remote: SubjectList[]) {
   return [...merged, ...remote.filter((list) => remoteById.has(list.id))];
 }
 
-async function readCloudLists() {
+async function readCloudLists(username: string) {
+  if (username === DEMO_USERNAME) return [];
   const response = await fetch("/api/subjects/lists", { cache: "no-store" });
   const payload = await response.json().catch(() => null) as { lists?: SubjectList[]; error?: string } | null;
   if (!response.ok || !Array.isArray(payload?.lists)) throw new Error(payload?.error || "Subject lists could not be loaded.");
@@ -34,6 +36,7 @@ async function readCloudLists() {
 const uploadQueues = new Map<string, Promise<void>>();
 
 function queueCloudWrite(username: string, lists: SubjectList[]) {
+  if (username === DEMO_USERNAME) return Promise.resolve();
   const previous = uploadQueues.get(username) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(async () => {
     const response = await fetch("/api/subjects/lists", {
@@ -71,7 +74,7 @@ export function useSubjectLists(username: string, storage: ListStorage = browser
     hydrated.current = false;
     void (async () => {
       try {
-        const remote = await readCloudLists();
+        const remote = await readCloudLists(username);
         if (cancelled) return;
         const merged = mergeSubjectLists(repository.load(), remote);
         if (JSON.stringify(merged) !== JSON.stringify(repository.load())) repository.replace(merged);

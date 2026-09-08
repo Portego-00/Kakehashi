@@ -27,18 +27,20 @@ export function SubjectListsWidget({
   subjects,
   syncing,
   syncError,
+  demo = false,
 }: {
   lists: SubjectList[];
   subjects: Subject[];
   syncing: boolean;
   syncError: string;
+  demo?: boolean;
 }) {
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const totalSubjects = lists.reduce((sum, list) => sum + list.subjectIds.length, 0);
 
   return <section className={`${styles.section} ${styles.subjectListsWidget}`}>
     <div className={styles.widgetHeader}>
-      <div><h2>Subject lists</h2><p>{syncError ? "Saved locally; account sync is temporarily unavailable" : "Synced with your Kakehashi mobile app"}</p></div>
+      <div><h2>Subject lists</h2><p>{demo ? "Saved in this demo browser" : syncError ? "Saved locally; account sync is temporarily unavailable" : "Synced with your Kakehashi mobile app"}</p></div>
       <ButtonLink aria-label="Manage subject lists" className={styles.subjectListsAction} href="/lists" title="Manage subject lists" tone="ghost" size="small"><ArrowRight size={18} aria-hidden /></ButtonLink>
     </div>
     {syncing && !lists.length ? <Skeleton height="4rem" /> : <>

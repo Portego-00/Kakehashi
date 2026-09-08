@@ -61,6 +61,13 @@ npm run lint
 npm test
 ```
 
+## Connecting Spotify
+
+The mobile app includes a personal Spotify setup guide in **Settings → Music
+Playback → Spotify connection**. See the [Spotify setup guide](docs/spotify-personal-setup.md)
+for Premium requirements, developer app settings, and the Client ID setup.
+Song search uses the app’s catalog credentials independently of account linking.
+
 ## Contributing
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)

@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   next: "/dashboard",
   replace: vi.fn(),
   signIn: vi.fn(),
+  startDemo: vi.fn(),
+  isDemo: false,
   status: "anonymous",
 }));
 
@@ -17,7 +19,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ status: mocks.status, signIn: mocks.signIn }),
+  useSession: () => ({ status: mocks.status, isDemo: mocks.isDemo, signIn: mocks.signIn, startDemo: mocks.startDemo }),
 }));
 
 describe("login feedback", () => {
@@ -26,6 +28,8 @@ describe("login feedback", () => {
     mocks.status = "anonymous";
     mocks.replace.mockReset();
     mocks.signIn.mockReset();
+    mocks.startDemo.mockReset();
+    mocks.isDemo = false;
   });
 
   it("uses one brand mark and the compact phone-login artwork in a static composition", () => {
@@ -120,6 +124,20 @@ describe("login feedback", () => {
     render(<LoginFallback />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Checking for an existing secure session…");
+  });
+
+  it("opens a demo without an API token and still allows a demo user to connect", async () => {
+    mocks.startDemo.mockResolvedValue(undefined);
+    const { rerender } = render(<LoginForm />);
+    fireEvent.click(screen.getByRole("button", { name: "Explore the demo" }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/dashboard"));
+    expect(mocks.signIn).not.toHaveBeenCalled();
+    mocks.replace.mockClear();
+    mocks.status = "authenticated";
+    mocks.isDemo = true;
+    rerender(<LoginForm />);
+    expect(screen.getByLabelText("API token")).toBeInTheDocument();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("uses static session-checking feedback without a progress reel", () => {

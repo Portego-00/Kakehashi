@@ -14,6 +14,7 @@ import type { WebSettings } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
+import { SubjectAudioButton, SubjectAudioProvider } from "@/features/subjects/components/SubjectAudioControls";
 import { fetchImmersionExamples } from "@/features/study/immersion";
 import studyStyles from "@/features/study/study.module.css";
 import { composeKanaInput } from "@/lib/kana";
@@ -117,6 +118,7 @@ function CustomLessonTeaching({
   state,
   detailSettings,
   immersionSources,
+  autoplayAudio,
   currentIndex,
   onCurrentIndexChange,
   onStartQuiz,
@@ -126,6 +128,7 @@ function CustomLessonTeaching({
   state: CustomSrsState;
   detailSettings: WebSettings["subjectDetails"];
   immersionSources: string[];
+  autoplayAudio: boolean;
   currentIndex: number;
   onCurrentIndexChange: (index: number) => void;
   onStartQuiz: () => void;
@@ -234,6 +237,7 @@ function CustomLessonTeaching({
           onActiveTabChange={setActiveTab}
           sequentialNavigation={{ previous, next }}
           allowStudyMaterialEditing={false}
+          autoplayPronunciation={autoplayAudio}
         />
       </div>
 
@@ -557,6 +561,7 @@ function ReadyCustomSrsSession({
       state={state}
       detailSettings={detailSettings}
       immersionSources={studySettings.immersionKitAnimeSources}
+      autoplayAudio={studySettings.autoplayAudio}
       currentIndex={lessonIndex}
       onCurrentIndexChange={setLessonIndex}
       onStartQuiz={startQuiz}
@@ -619,8 +624,17 @@ function ReadyCustomSrsSession({
   const reviewInputScale = studySettings.reviewInputFontScale ?? 1;
   const reviewCharacterSize = `clamp(${2.75 * reviewCharacterScale}rem, ${9 * reviewCharacterScale}vw, ${6.5 * reviewCharacterScale}rem)`;
   const acceptedAnswer = feedback?.canonical ?? (isReadingQuestion ? currentWord.reading : currentWord.meanings[0]);
+  // Kanji meaning comes before an unrevealed reading in many queue orders.
+  // Keep its audio hidden until the reading itself has been answered.
+  const canPlayPronunciation = feedback && feedback.status !== "blocked"
+    && (isReadingQuestion || !customWordUsesKanji(currentWord));
+  const pronunciation = canPlayPronunciation ? currentSubject.data.pronunciation_audios?.[0] : undefined;
+  const pronunciationKey = `pronunciation:${currentWord.id}`;
 
-  return <section
+  return <SubjectAudioProvider
+    key={`${currentWord.id}:${currentKind}:${canPlayPronunciation ? "revealed" : "question"}`}
+    autoplay={studySettings.autoplayAudio && pronunciation ? { audioKey: pronunciationKey, src: pronunciation.url } : undefined}
+  ><section
     className={studyStyles.quizShell}
     data-study-session="active"
     data-type={customWordUsesKanji(currentWord) ? "vocabulary" : "kana_vocabulary"}
@@ -703,10 +717,11 @@ function ReadyCustomSrsSession({
             {feedback.status === "incorrect" ? <span className={studyStyles.correctAnswer}><small>Correct answer</small><strong lang={isReadingQuestion ? "ja" : undefined}>{acceptedAnswer}</strong></span> : feedback.status === "blocked" || feedback.status === "close" ? <span>{feedback.message}</span> : null}
           </div> : null}
           {commitError ? <p className={coreStyles.error} role="alert">{commitError}</p> : null}
+          {pronunciation ? <SubjectAudioButton audioKey={pronunciationKey} src={pronunciation.url} label={`${pronunciation.metadata.voice_actor_name} pronunciation`} variant="pronunciation"><span>{pronunciation.metadata.voice_actor_name} · AI-generated</span></SubjectAudioButton> : null}
         </div>
       </div>
 
       {studySettings.keyboardShortcuts ? <p className={studyStyles.keyboardHint}>Press <kbd>Enter</kbd> to {feedback?.status === "blocked" ? "try again" : feedback ? "continue" : "check"}</p> : null}
     </div>
-  </section>;
+  </section></SubjectAudioProvider>;
 }

@@ -60,6 +60,7 @@ export function useSpotifyPlayerController({
     null,
   );
   const appStateRef = useRef(AppState.currentState);
+  const remoteSyncGenerationRef = useRef(0);
 
   useEffect(() => {
     trackIdRef.current = trackId;
@@ -111,6 +112,7 @@ export function useSpotifyPlayerController({
   }, []);
 
   const clearCommandState = useCallback(() => {
+    remoteSyncGenerationRef.current += 1;
     queuedPlayingRef.current = null;
     startedTrackIdRef.current = null;
     clearCommandSettle();
@@ -240,8 +242,26 @@ export function useSpotifyPlayerController({
   );
 
   const syncFromRemote = useCallback(async () => {
+    const expectedTrackId = trackIdRef.current;
+    const generation = remoteSyncGenerationRef.current;
+    if (
+      !expectedTrackId ||
+      appStateRef.current === "background" ||
+      appStateRef.current === "inactive"
+    ) {
+      return;
+    }
+
     try {
       const snapshot = await spotifyService.getCurrentPlayback();
+      // A response from before an app switch, track change, or closed player
+      // must not overwrite the current player (including another provider).
+      if (
+        generation !== remoteSyncGenerationRef.current ||
+        trackIdRef.current !== expectedTrackId
+      ) {
+        return;
+      }
       applyPlaybackSnapshot(snapshot);
     } catch (error) {
       console.error("Error reading Spotify playback state:", error);
@@ -498,10 +518,8 @@ export function useSpotifyPlayerController({
 
     void syncFromRemote();
 
-    if (!isPlaying) {
-      return;
-    }
-
+    // Spotify can resume outside Kakehashi, so a local pause must not stop
+    // observing the remote player. Otherwise one stale pause freezes the UI.
     const interval = setInterval(() => {
       void syncFromRemote();
     }, 1000);
@@ -509,7 +527,7 @@ export function useSpotifyPlayerController({
     return () => {
       clearInterval(interval);
     };
-  }, [isPlaying, syncFromRemote, trackId]);
+  }, [syncFromRemote, trackId]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -517,6 +535,9 @@ export function useSpotifyPlayerController({
         appStateRef.current === "inactive" ||
         appStateRef.current === "background";
       appStateRef.current = nextState;
+      if (nextState !== "active") {
+        remoteSyncGenerationRef.current += 1;
+      }
 
       if (nextState === "active" && wasAway && trackIdRef.current) {
         void syncFromRemote();

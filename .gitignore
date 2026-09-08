@@ -42,6 +42,12 @@ yarn-error.*
 *.tsbuildinfo
 web/.data/
 
+# Local proof screenshots, previews, exports, audio, and operator/QA records.
+/output/
+
+# Local Supabase CLI project metadata.
+/supabase/.temp/
+
 # python
 __pycache__/
 *.py[cod]

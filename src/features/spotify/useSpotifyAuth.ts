@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   SPOTIFY_DISCOVERY,
+  isSpotifyClientIdValid,
   spotifyService,
   type SpotifyUserProfile,
 } from "../../services/spotifyService";
@@ -11,69 +12,75 @@ import { useSettingsStore } from "../../utils/store";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type SpotifyAuthError = Error | null;
-
-function getSpotifyAuthorizationError(
-  result: AuthSession.AuthSessionResult
-): Error {
-  if (result.type !== "error") {
-    return new Error("Spotify authorization failed.");
-  }
-
-  const errorCode =
-    result.error?.code ||
-    result.errorCode ||
-    result.params?.error;
-  const providerMessage = result.params?.error_description;
-
-  if (errorCode === "server_error") {
+function getSpotifyConnectionError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/403|forbidden|server_error/i.test(message)) {
     return new Error(
-      providerMessage ||
-        "Spotify returned a server error during authorization. Confirm this Spotify app has Web API enabled and this Spotify account is added in Users Management, then try again."
+      "Spotify could not grant access. In your developer app, enable Web API and check that your Spotify account is listed in Users Management. The app owner must have an active Spotify Premium subscription."
     );
   }
+  if (/invalid_client/i.test(message)) {
+    return new Error("Spotify did not recognize this Client ID. Copy the Client ID from your developer app's Settings, save it here, then connect again.");
+  }
+  if (/invalid_grant/i.test(message)) {
+    return new Error("Your Spotify authorization expired. Connect Spotify again.");
+  }
+  return error instanceof Error ? error : new Error(message);
+}
 
-  return new Error(
-    providerMessage ||
-      result.error?.message ||
-      (errorCode
-        ? `Spotify authorization failed (${errorCode}).`
-        : "Spotify authorization failed.")
-  );
+function getSpotifyAuthorizationError(result: AuthSession.AuthSessionResult): Error {
+  if (result.type !== "error") return new Error("Spotify authorization failed.");
+  const code = result.error?.code || result.errorCode || result.params?.error;
+  if (code === "access_denied") {
+    return new Error("Spotify access was declined. Connect again and allow access to link your account.");
+  }
+  return getSpotifyConnectionError(new Error(
+    code === "server_error"
+      ? code
+      : result.params?.error_description || result.error?.message ||
+        (code ? `Spotify authorization failed (${code}).` : "Spotify authorization failed.")
+  ));
 }
 
 export function useSpotifyAuth() {
-  const {
-    setSpotifyAuthStatus,
-    setSpotifyDisplayName,
-  } = useSettingsStore();
+  const clientId = useSettingsStore((state) => state.spotifyClientId);
+  const setSpotifyAuthStatus = useSettingsStore((state) => state.setSpotifyAuthStatus);
+  const setSpotifyDisplayName = useSettingsStore((state) => state.setSpotifyDisplayName);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [error, setError] = useState<SpotifyAuthError>(null);
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const [profile, setProfile] = useState<SpotifyUserProfile | null>(null);
-  const lastHandledCodeRef = useRef<string | null>(null);
-
+  const attemptRef = useRef(0);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
   const redirectUri = spotifyService.getRedirectUri();
-  const available = spotifyService.isAuthConfigured();
+  const available = isSpotifyClientIdValid(clientId);
 
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    available
-      ? {
-          clientId: spotifyService.getClientId(),
-          scopes: spotifyService.getScopes(),
-          redirectUri,
-          responseType: AuthSession.ResponseType.Code,
-          usePKCE: true,
-        }
-      : {
-          clientId: "spotify-client-id-missing",
-          redirectUri,
-          responseType: AuthSession.ResponseType.Code,
-          usePKCE: true,
-        },
+  const [request, , promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: available ? clientId : "spotify-client-id-missing",
+      scopes: spotifyService.getScopes(),
+      redirectUri,
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: true,
+    },
     SPOTIFY_DISCOVERY
   );
 
-  const refreshStatus = useCallback(async () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      attemptRef.current += 1;
+    };
+  }, []);
+
+  const isCurrentAttempt = useCallback((attempt: number, expectedClientId: string) =>
+    mountedRef.current && attemptRef.current === attempt &&
+    spotifyService.getClientId() === expectedClientId, []);
+
+  const refreshStatus = useCallback(async (reportError = false) => {
+    const attempt = attemptRef.current;
     if (!available) {
       setProfile(null);
       setSpotifyDisplayName(null);
@@ -83,169 +90,120 @@ export function useSpotifyAuth() {
 
     try {
       const nextProfile = await spotifyService.getUserProfile();
+      if (!isCurrentAttempt(attempt, clientId)) return null;
       setProfile(nextProfile);
       setSpotifyDisplayName(nextProfile?.displayName ?? null);
       setSpotifyAuthStatus(nextProfile ? "authorized" : "notConnected");
+      if (reportError && nextProfile) setError(null);
       return nextProfile;
-    } catch {
+    } catch (statusError) {
+      if (!isCurrentAttempt(attempt, clientId)) return null;
       setProfile(null);
       setSpotifyDisplayName(null);
       setSpotifyAuthStatus("notConnected");
+      if (reportError) setError(getSpotifyConnectionError(statusError));
       return null;
     }
-  }, [available, setSpotifyAuthStatus, setSpotifyDisplayName]);
+  }, [available, clientId, isCurrentAttempt, setSpotifyAuthStatus, setSpotifyDisplayName]);
 
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus]);
 
-  useEffect(() => {
-    const completeAuthorization = async () => {
-      if (response?.type !== "success") {
-        if (response?.type === "error") {
-          const nextError = getSpotifyAuthorizationError(response);
-          setError(nextError);
-          setIsAuthenticating(false);
-        }
-        return;
-      }
-
-      const code = response.params?.code;
-      if (!code || !request?.codeVerifier || lastHandledCodeRef.current === code) {
-        return;
-      }
-
-      lastHandledCodeRef.current = code;
-      setIsAuthenticating(true);
-      setError(null);
-
-      try {
-        const tokenResponse = await AuthSession.exchangeCodeAsync(
-          {
-            clientId: spotifyService.getClientId(),
-            code,
-            redirectUri,
-            extraParams: {
-              code_verifier: request.codeVerifier,
-            },
-          },
-          SPOTIFY_DISCOVERY
-        );
-
-        await spotifyService.saveAuthTokenResponse(tokenResponse);
-        await refreshStatus();
-      } catch (authorizationError) {
-        const nextError =
-          authorizationError instanceof Error
-            ? authorizationError
-            : new Error("Spotify authorization failed.");
-        setError(nextError);
-        setSpotifyAuthStatus("notConnected");
-        setSpotifyDisplayName(null);
-      } finally {
-        setIsAuthenticating(false);
-      }
-    };
-
-    void completeAuthorization();
-  }, [
-    redirectUri,
-    refreshStatus,
-    request?.codeVerifier,
-    response,
-    setSpotifyAuthStatus,
-    setSpotifyDisplayName,
-  ]);
-
   const requestAuthorization = useCallback(async () => {
+    if (busyRef.current) return null;
     if (!available) {
-      const nextError = new Error(
-        "Spotify client ID is not configured. Set EXPO_PUBLIC_SPOTIFY_CLIENT_ID."
-      );
-      setError(nextError);
+      setError(new Error("Add your personal Spotify Client ID in Music Playback settings, then connect Spotify."));
       setSpotifyAuthStatus("notConfigured");
       return null;
     }
-
-    if (!request) {
-      const nextError = new Error("Spotify authorization is still loading.");
-      setError(nextError);
+    // Expo briefly retains the previous request while building a new PKCE request.
+    if (!request || request.clientId !== clientId || !request.codeVerifier) {
+      setError(new Error("Spotify authorization is still loading. Try Connect Spotify again in a moment."));
       return null;
     }
 
+    const attempt = ++attemptRef.current;
+    busyRef.current = true;
     setIsAuthenticating(true);
     setError(null);
-
     try {
       const result = await promptAsync();
+      if (!isCurrentAttempt(attempt, clientId)) return null;
       if (result.type !== "success") {
-        setIsAuthenticating(false);
-        if (result.type === "error") {
-          const nextError = getSpotifyAuthorizationError(result);
-          setError(nextError);
-        }
+        if (result.type === "error") setError(getSpotifyAuthorizationError(result));
         return result;
       }
-
       const code = result.params?.code;
-      if (!code || !request.codeVerifier) {
-        const nextError = new Error("Spotify authorization response was incomplete.");
-        setError(nextError);
-        setIsAuthenticating(false);
-        return result;
-      }
+      if (!code) throw new Error("Spotify authorization response was incomplete. Connect again.");
 
-      lastHandledCodeRef.current = code;
-      const tokenResponse = await AuthSession.exchangeCodeAsync(
-        {
-          clientId: spotifyService.getClientId(),
-          code,
-          redirectUri,
-          extraParams: {
-            code_verifier: request.codeVerifier,
-          },
-        },
-        SPOTIFY_DISCOVERY
-      );
-
-      await spotifyService.saveAuthTokenResponse(tokenResponse);
-      await refreshStatus();
-      setIsAuthenticating(false);
-      return result;
+      // Handle the result in one place so a code is exchanged only once.
+      const tokenResponse = await AuthSession.exchangeCodeAsync({
+        clientId,
+        code,
+        redirectUri,
+        extraParams: { code_verifier: request.codeVerifier },
+      }, SPOTIFY_DISCOVERY);
+      if (!isCurrentAttempt(attempt, clientId)) return null;
+      await spotifyService.saveAuthTokenResponse(tokenResponse, clientId);
+      if (!isCurrentAttempt(attempt, clientId)) return null;
+      const nextProfile = await refreshStatus(true);
+      return nextProfile ? result : null;
     } catch (authError) {
-      const nextError =
-        authError instanceof Error
-          ? authError
-          : new Error("Spotify authorization failed.");
-      setError(nextError);
-      setIsAuthenticating(false);
+      if (isCurrentAttempt(attempt, clientId)) {
+        setError(getSpotifyConnectionError(authError));
+        setProfile(null);
+        setSpotifyAuthStatus("notConnected");
+        setSpotifyDisplayName(null);
+      }
       return null;
+    } finally {
+      if (attemptRef.current === attempt) {
+        busyRef.current = false;
+        if (mountedRef.current) setIsAuthenticating(false);
+      }
     }
-  }, [
-    available,
-    promptAsync,
-    redirectUri,
-    refreshStatus,
-    request,
-    setSpotifyAuthStatus,
-  ]);
+  }, [available, clientId, isCurrentAttempt, promptAsync, redirectUri, refreshStatus,
+    request, setSpotifyAuthStatus, setSpotifyDisplayName]);
+
+  const saveClientId = useCallback(async (value: string) => {
+    if (value.trim() === spotifyService.getClientId()) return;
+    if (busyRef.current) throw new Error("Finish connecting Spotify before changing the Client ID.");
+    busyRef.current = true;
+    attemptRef.current += 1;
+    setIsConfiguring(true);
+    try {
+      await spotifyService.setClientId(value);
+      setProfile(null);
+      setError(null);
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setIsConfiguring(false);
+    }
+  }, []);
 
   const disconnect = useCallback(async () => {
-    await spotifyService.clearUserToken();
-    setProfile(null);
-    setError(null);
-    setSpotifyDisplayName(null);
-    setSpotifyAuthStatus(available ? "notConnected" : "notConfigured");
-  }, [available, setSpotifyAuthStatus, setSpotifyDisplayName]);
+    const attempt = ++attemptRef.current;
+    busyRef.current = true;
+    setIsAuthenticating(false);
+    setIsConfiguring(true);
+    try {
+      await spotifyService.clearUserToken();
+      if (!mountedRef.current || attemptRef.current !== attempt) return;
+      setProfile(null);
+      setError(null);
+      setSpotifyDisplayName(null);
+      setSpotifyAuthStatus(spotifyService.isAuthConfigured() ? "notConnected" : "notConfigured");
+    } finally {
+      if (attemptRef.current === attempt) {
+        busyRef.current = false;
+        if (mountedRef.current) setIsConfiguring(false);
+      }
+    }
+  }, [setSpotifyAuthStatus, setSpotifyDisplayName]);
 
   return {
-    available,
-    disconnect,
-    error,
-    isAuthenticating,
-    profile,
-    redirectUri,
-    refreshStatus,
-    requestAuthorization,
+    available, clientId, disconnect, error, isAuthenticating, isConfiguring,
+    profile, redirectUri, refreshStatus, requestAuthorization, saveClientId,
   };
 }

@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { TextAreaField } from "@/components/ui/Field";
 import { EmptyState, Skeleton } from "@/components/ui/States";
 import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
+import { SubjectNotebookSection } from "@/features/notebooks/SubjectNotebookSection";
 import type { WebSettings } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL } from "@/features/speech/japanese-voice-assets";
@@ -509,6 +510,7 @@ interface SubjectDetailPanelsProps {
   };
   allowStudyMaterialEditing?: boolean;
   showVocabularyFrequency?: boolean;
+  autoplayPronunciation?: boolean;
 }
 
 export function SubjectDetailPanels({
@@ -535,6 +537,7 @@ export function SubjectDetailPanels({
   sequentialNavigation,
   allowStudyMaterialEditing = true,
   showVocabularyFrequency = false,
+  autoplayPronunciation = false,
 }: SubjectDetailPanelsProps) {
   const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SubjectDetailTab>(initialTab);
   const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
@@ -551,6 +554,8 @@ export function SubjectDetailPanels({
   const readingMnemonic = mnemonicParagraphs(record.data.reading_mnemonic);
   const characters = record.data.characters || meaning;
   const isVocabulary = record.object === "vocabulary" || record.object === "kana_vocabulary";
+  const pronunciationAudios = uniqueAudio(record);
+  const firstPronunciation = pronunciationAudios[0];
   const hasReadingTab = record.object !== "kana_vocabulary" && Boolean(record.data.readings?.length);
   const tone = record.object === "kana_vocabulary" ? "vocabulary" : record.object;
   const hasContextContent = Boolean(
@@ -592,7 +597,7 @@ export function SubjectDetailPanels({
     if (!sequentialNavigation) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
-      if (event.target instanceof Element && event.target.closest('input, textarea, select, audio, video, [role="slider"], [role="tablist"] [role="tab"], [contenteditable]:not([contenteditable="false"])')) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, dialog, audio, video, [role="slider"], [role="tablist"] [role="tab"], [contenteditable]:not([contenteditable="false"])')) return;
       event.preventDefault();
       navigateSequentially(event.key === "ArrowLeft" ? -1 : 1, false);
     };
@@ -600,7 +605,7 @@ export function SubjectDetailPanels({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigateSequentially, sequentialNavigation]);
 
-  return <SubjectAudioProvider><div className={`${styles.subjectDetailPanels}${embedded ? ` ${styles.embeddedSubjectDetails}` : ""}`} data-subject-detail-type={tone}>
+  return <SubjectAudioProvider key={record.id} autoplay={autoplayPronunciation && firstPronunciation ? { audioKey: `pronunciation:${firstPronunciation.metadata.source_id}`, src: firstPronunciation.url } : undefined}><div className={`${styles.subjectDetailPanels}${embedded ? ` ${styles.embeddedSubjectDetails}` : ""}`} data-subject-detail-type={tone}>
     <nav className={`${styles.detailTabs}${embedded ? ` ${styles.embeddedDetailTabs}` : ""}`} data-count={tabs.length} data-sequential-navigation={sequentialNavigation ? "true" : undefined} role="tablist" aria-label="Subject details">
       {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={tabId(tab.id)} aria-selected={resolvedActiveTab === tab.id} aria-controls={panelId(tab.id)} tabIndex={resolvedActiveTab === tab.id ? 0 : -1} onClick={() => selectTab(tab.id)} onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -622,6 +627,7 @@ export function SubjectDetailPanels({
         <section id={panelId("meaning")} role="tabpanel" aria-labelledby={tabId("meaning")} aria-hidden={resolvedActiveTab !== "meaning"} inert={resolvedActiveTab !== "meaning" ? true : undefined} data-tab-position={tabPosition("meaning")} className={styles.detailPanelStack} style={tabPagerStyle("meaning")}>
           <DetailSection title="Name" icon={<BookOpen size={19} aria-hidden />}><dl className={styles.nameDetails}><div><dt>Primary</dt><dd>{primaryMeaning}</dd></div>{alternativeMeanings.length ? <div><dt>Alternative</dt><dd>{alternativeMeanings.join(", ")}</dd></div> : null}{material?.data.meaning_synonyms.length ? <div><dt>User synonyms</dt><dd>{material.data.meaning_synonyms.join(", ")}</dd></div> : null}{record.data.parts_of_speech?.length ? <div><dt>Part of speech</dt><dd>{record.data.parts_of_speech.map((part) => part.replaceAll("_", " ")).join(", ")}</dd></div> : null}{isVocabulary && showVocabularyFrequency ? <div><dt>Frequency</dt><dd><VocabularyFrequencyBadge subject={record} enabled variant="details" /></dd></div> : null}</dl></DetailSection>
           {meaningMnemonic.length ? <DetailSection title="Mnemonic"><Mnemonic paragraphs={meaningMnemonic} />{record.object === "radical" ? <RadicalMnemonicIllustration key={record.data.document_url} documentUrl={record.data.document_url} meaning={primaryMeaning} /> : null}{record.data.meaning_hint ? <p className={styles.subjectHint}>{record.data.meaning_hint}</p> : null}</DetailSection> : null}
+          {record.object === "kana_vocabulary" && pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
           {allowStudyMaterialEditing ? <StudyMaterialEditor key={`${record.id}:${material?.id ?? "new"}`} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : null}
           <RelationSection title="Components" ids={record.data.component_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
           <RelationSection title="Visually similar" ids={record.data.visually_similar_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
@@ -634,7 +640,7 @@ export function SubjectDetailPanels({
           <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} /></DetailSection>
           {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{record.data.reading_hint ? <p className={styles.subjectHint}>{record.data.reading_hint}</p> : null}</DetailSection> : null}
           {record.object === "kanji" && settings.showKanjiReadingExamples && amalgamationSubjects.length ? <KanjiReadingExamples kanji={record} vocabulary={amalgamationSubjects} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
-          {record.data.pronunciation_audios?.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{uniqueAudio(record).map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
+          {pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
         </section> : null}
 
         {record.object === "kanji" && settings.showStrokeOrder ? <section id={panelId("stroke")} role="tabpanel" aria-labelledby={tabId("stroke")} aria-hidden={resolvedActiveTab !== "stroke"} inert={resolvedActiveTab !== "stroke" ? true : undefined} data-tab-position={tabPosition("stroke")} className={styles.detailPanelStack} style={tabPagerStyle("stroke")}>
@@ -647,6 +653,7 @@ export function SubjectDetailPanels({
           {settings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
         </section> : null}
       </DetailPager>
+      <SubjectNotebookSection key={record.id} subject={record} />
     </div>
   </div></SubjectAudioProvider>;
 }

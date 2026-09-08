@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { GlassButton } from "../../../src/components/GlassButton";
 import HomeDashboardWidget from "../../../src/components/HomeDashboardWidget";
+import CustomSrsDashboardCard from "../../../src/features/custom-srs/CustomSrsDashboardCard";
 import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
 import OpenSourceModal from "../../../src/components/OpenSourceModal";
 import { BunproSwitchIcon } from "../../../src/components/SwitchModeIcons";
@@ -1386,6 +1387,7 @@ export default function StudyTab() {
               </TouchableOpacity>
             )}
           {renderHomeWidgets()}
+          {isPortegoUsername(userData?.username) && <CustomSrsDashboardCard />}
         </View>
       </ScrollView>
     </View>

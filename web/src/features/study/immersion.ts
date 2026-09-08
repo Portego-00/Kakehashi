@@ -1,4 +1,5 @@
 import type { StudyFilters, StudyQuestion } from "./types";
+import { isDemoMode } from "@/features/demo/runtime";
 import {
   buildImmersionExamples,
   IMMERSION_KIT_API_BASE,
@@ -142,6 +143,10 @@ export async function fetchImmersionExamples(characters: string, sources: string
   const selectedSources = sources.slice(0, 100);
   if (selectedSources.includes("!")) return [];
   if (signal?.aborted) throw abortReason(signal);
+  if (isDemoMode()) {
+    const { demoImmersionExamples } = await import("@/features/demo/study");
+    return demoImmersionExamples(query, selectedSources);
+  }
   try {
     return await fetchImmersionExamplesDirect(query, selectedSources, signal);
   } catch (error) {

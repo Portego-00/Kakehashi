@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  captureContentScope,
   deleteRecord,
   loadAsset,
   loadFileHandle,
@@ -9,6 +10,8 @@ import {
   saveLibrary,
 } from "../storage";
 import type { ContentRecord } from "../types";
+import { setDemoMode } from "@/features/demo/runtime";
+import { DEMO_MANGA_ID } from "@/features/demo/media-assets";
 
 type EventHandler = ((event: Event) => void) | null;
 
@@ -103,7 +106,66 @@ function fileHandle(name: string) {
 
 describe("linked file handle storage", () => {
   beforeEach(() => window.localStorage.clear());
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { setDemoMode(false); vi.unstubAllGlobals(); });
+
+  it("loads a bundled demo page into a separate database and leaves personal asset reads alone", async () => {
+    const { open } = installIndexedDbMock();
+    const sample = new Blob(["demo-page"], { type: "image/jpeg" });
+    const fetchMock = vi.fn(async () => ({ ok: true, blob: async () => sample }));
+    vi.stubGlobal("fetch", fetchMock);
+    const assetId = `${DEMO_MANGA_ID}-page-1`;
+    await expect(loadAsset(assetId)).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    setDemoMode(true);
+    await expect(loadAsset(assetId)).resolves.toBe(sample);
+    expect(fetchMock).toHaveBeenCalledWith("/demo/frieren/page-01.jpg");
+    expect(open).toHaveBeenLastCalledWith("kakehashi-content-v1-demo", 2);
+    await expect(loadAsset(assetId)).resolves.toBe(sample);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not save an in-flight demo download after the demo session ends", async () => {
+    const { open, stores } = installIndexedDbMock();
+    const sample = new Blob(["demo-page"]);
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      setDemoMode(false);
+      return { ok: true, blob: async () => sample };
+    }));
+    setDemoMode(true);
+    await expect(loadAsset(`${DEMO_MANGA_ID}-page-1`)).resolves.toBe(sample);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith("kakehashi-content-v1-demo", 2);
+    expect(stores.get("assets")?.size).toBe(0);
+  });
+
+  it("rejects stale import writes, including after leaving and re-entering demo, and cleans only the origin database", async () => {
+    const { open } = installIndexedDbMock();
+    setDemoMode(true);
+    const scope = captureContentScope();
+    await scope.saveAsset("partial-import", new Blob(["page"]));
+    setDemoMode(false);
+    expect(() => scope.saveLibrary("manga", [])).toThrow("session changed");
+    await scope.removeAsset("partial-import");
+    expect(open).toHaveBeenLastCalledWith("kakehashi-content-v1-demo", 2);
+    setDemoMode(true);
+    expect(() => scope.saveAsset("next-page", new Blob(["page"]))).toThrow("session changed");
+  });
+
+  it("commits an already-requested demo deletion in its original library after switching accounts", async () => {
+    installIndexedDbMock();
+    const record: ContentRecord = { id: "same-id", kind: "manga", title: "Personal manga", assetIds: [], createdAt: "2026-01-01", updatedAt: "2026-01-01", progress: 0.8 };
+    saveLibrary("manga", [record]);
+    setDemoMode(true);
+    const scope = captureContentScope();
+    scope.saveLibrary("manga", [{ ...record, title: "Demo manga" }]);
+    scope.saveMangaOcrPage(record.id, 1, "日本語");
+    setDemoMode(false);
+    await scope.deleteRecord(record);
+    expect(loadLibrary("manga")).toEqual([record]);
+    expect(scope.loadLibrary("manga")).toEqual([]);
+    expect(window.localStorage.getItem(`kakehashi:content:v1:demo:manga-ocr:${record.id}`)).toBeNull();
+  });
 
   it("upgrades the database without replacing existing assets", async () => {
     const { open, stores } = installIndexedDbMock();

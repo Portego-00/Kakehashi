@@ -84,6 +84,7 @@ import {
 } from "../utils/pitchAccent";
 import { shouldShowAnkiPitchAccent } from "../utils/ankiAnswerVisibility";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveCustomVocabularyAudioForPlayback } from "../features/custom-srs/audio-cache";
 import {
   type EnglishJapaneseAnswerOption,
   matchesAcceptedJapaneseAnswer,
@@ -215,6 +216,8 @@ interface ReviewQuestionProps {
   onAskAgain?: (item: ReviewItem, questionType: QuestionType) => void;
   onSkip?: (item: ReviewItem, questionType: QuestionType) => void;
   onExit?: () => void;
+  // Custom subjects open their own detail route, not a WaniKani subject ID.
+  onViewSubjectDetails?: (subjectId: number) => void;
   showHeader?: boolean;
   showBackgroundColor?: boolean;
   // Progress stats
@@ -1090,6 +1093,7 @@ export default function ReviewQuestionScreen({
   onAskAgain,
   onSkip,
   onExit,
+  onViewSubjectDetails,
   showHeader = true,
   showBackgroundColor = true,
   totalItems = 0,
@@ -1127,6 +1131,9 @@ export default function ReviewQuestionScreen({
   reviewPermissionWarning,
   onDismissReviewPermissionWarning,
 }: ReviewQuestionProps) {
+  // Kana has no reading question; reveal its pronunciation only after the meaning answer.
+  const isCustomKanaAudioQuestion = item.subject.id < 0 && item.subject.object === "kana_vocabulary";
+  const isPronunciationAnswerQuestion = questionType === "reading" || isCustomKanaAudioQuestion;
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { apiToken, userData } = useAuthStore();
   const {
@@ -1408,9 +1415,9 @@ export default function ReviewQuestionScreen({
 
     const loadReviewDetailRelatedSubjects = async () => {
       const currentSubject = latestReviewSubjectRef.current;
-      const cachedSubject = normalizeCachedSubject(
-        await getSubjectById(currentSubject.id),
-      );
+      const cachedSubject = currentSubject.id > 0
+        ? normalizeCachedSubject(await getSubjectById(currentSubject.id))
+        : null;
       if (cancelled) return;
       const detailSubject = cachedSubject ?? latestReviewSubjectRef.current;
 
@@ -1710,7 +1717,8 @@ export default function ReviewQuestionScreen({
     [currentQuestionKey, finishQuestionOccurrence, item, onAnswer],
   );
   const reviewSubjectLevel =
-    typeof subject.data.level === "number" ? subject.data.level : null;
+    typeof subject.data.level === "number" && subject.data.level > 0
+      ? subject.data.level : null;
   const reviewSrsStage =
     typeof item.srsStage === "number" ? item.srsStage : null;
   const reviewSrsStageInfo =
@@ -1718,7 +1726,7 @@ export default function ReviewQuestionScreen({
   const shouldShowReviewItemMetadata =
     showReviewItemLevelAndSrsStage &&
     !isLessonFlow &&
-    reviewSubjectLevel !== null &&
+    (reviewSubjectLevel !== null || subject.id <= 0) &&
     reviewSrsStageInfo !== null;
   const displayedContextSentencesHint = useMemo(
     () => (contextSentencesHint ?? []).slice(0, contextHintMaxItems),
@@ -2741,8 +2749,12 @@ export default function ReviewQuestionScreen({
           }
         }
 
-        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
-          customAudioSource?.subjectId ?? item.subject.id,
+        const audioSubjectId = customAudioSource?.subjectId ?? item.subject.id;
+        const resolveAudio = audioSubjectId < 0
+          ? resolveCustomVocabularyAudioForPlayback
+          : resolveOfflineVocabularyAudioUri;
+        const cachedAudioUri = await resolveAudio(
+          audioSubjectId,
           audioFile
         );
 
@@ -2957,7 +2969,7 @@ export default function ReviewQuestionScreen({
           if (kanaInputRef.current?.clearInput) {
             kanaInputRef.current.clearInput();
           }
-          if (questionType === "reading") {
+          if (isPronunciationAnswerQuestion) {
             playVocabularyAudio({ answer });
           }
           break;
@@ -2979,7 +2991,7 @@ export default function ReviewQuestionScreen({
           if (kanaInputRef.current?.clearInput) {
             kanaInputRef.current.clearInput();
           }
-          if (questionType === "reading") {
+          if (isPronunciationAnswerQuestion) {
             playVocabularyAudio({ answer });
           }
           break;
@@ -3013,8 +3025,8 @@ export default function ReviewQuestionScreen({
         }
         setInputResetNonce((nonce) => nonce + 1);
 
-        // Play vocabulary audio if this is a reading question
-        if (questionType === "reading") {
+        // Pronunciation is never played while the answer is still hidden.
+        if (isPronunciationAnswerQuestion) {
           playVocabularyAudio({ answer });
         }
 
@@ -3066,7 +3078,7 @@ export default function ReviewQuestionScreen({
           setWrongAnswerText(answer);
           setCloseAnswerText(null);
           setCorrectAnswerText(null);
-          if (questionType === "reading") {
+          if (isPronunciationAnswerQuestion) {
             playVocabularyAudio();
           }
           shouldRefocusInput = false;
@@ -3266,6 +3278,11 @@ export default function ReviewQuestionScreen({
     setNavigatingToDetail(true);
     Keyboard.dismiss();
 
+    if (previousAnswerItem.id <= 0) {
+      onViewSubjectDetails?.(previousAnswerItem.id);
+      return;
+    }
+
     // Navigate to the subject details page of the previous item
     setTimeout(() => {
       router.push({
@@ -3460,6 +3477,11 @@ export default function ReviewQuestionScreen({
   const handleViewDetails = () => {
     setNavigatingToDetail(true);
     Keyboard.dismiss();
+    if (onViewSubjectDetails) {
+      onViewSubjectDetails(item.subject.id);
+      return;
+    }
+    if (item.subject.id <= 0) return;
     router.push({
       pathname: "/subject/[id]",
       params: {
@@ -3472,6 +3494,10 @@ export default function ReviewQuestionScreen({
 
   const handleEmbeddedSubjectPress = useCallback(
     (subjectId: number) => {
+      if (subjectId <= 0) {
+        onViewSubjectDetails?.(subjectId);
+        return;
+      }
       setNavigatingToDetail(true);
       Keyboard.dismiss();
       router.push({
@@ -3483,12 +3509,12 @@ export default function ReviewQuestionScreen({
         },
       });
     },
-    [questionType],
+    [questionType, onViewSubjectDetails],
   );
 
   const handleReviewDetailSynonymsChange = useCallback(
     async (synonyms: string[]) => {
-      if (!apiToken) {
+      if (!apiToken || item.subject.id <= 0) {
         throw new Error("Missing API token");
       }
 
@@ -3531,6 +3557,7 @@ export default function ReviewQuestionScreen({
   );
 
   const closeStudyMaterialNoteModal = useCallback(() => {
+    if (studyMaterialNoteEditorRef.current?.closeLinkPicker()) return;
     if (isSavingStudyMaterialNote) {
       return;
     }
@@ -3538,13 +3565,8 @@ export default function ReviewQuestionScreen({
     setStudyMaterialNoteModalVisible(false);
   }, [isSavingStudyMaterialNote]);
 
-  const handleStudyMaterialNoteModalRequestClose = useCallback(() => {
-    if (studyMaterialNoteEditorRef.current?.closeLinkPicker()) return;
-    closeStudyMaterialNoteModal();
-  }, [closeStudyMaterialNoteModal]);
-
   const handleSaveStudyMaterialNote = useCallback(async () => {
-    if (!apiToken || isSavingStudyMaterialNote) {
+    if (!apiToken || item.subject.id <= 0 || isSavingStudyMaterialNote) {
       return;
     }
 
@@ -3804,7 +3826,7 @@ export default function ReviewQuestionScreen({
         onSubjectPress={handleEmbeddedSubjectPress}
         initialTab={questionType}
         userLevel={userData?.level}
-        onSynonymsChange={handleReviewDetailSynonymsChange}
+        onSynonymsChange={subject.id > 0 ? handleReviewDetailSynonymsChange : undefined}
       />
     );
   };
@@ -3908,7 +3930,7 @@ export default function ReviewQuestionScreen({
       );
     }
 
-    if (showAddSynonymButton && isPausedOnWrong && questionType === "meaning") {
+    if (item.subject.id > 0 && showAddSynonymButton && isPausedOnWrong && questionType === "meaning") {
       buttons.push(
         renderPausedDetailsActionButton({
           label: isAddingSynonym ? "Adding" : "Synonym",
@@ -3985,7 +4007,7 @@ export default function ReviewQuestionScreen({
       visible={studyMaterialNoteModalVisible}
       transparent
       animationType="fade"
-      onRequestClose={handleStudyMaterialNoteModalRequestClose}
+      onRequestClose={closeStudyMaterialNoteModal}
     >
       <KeyboardAvoidingView
         style={styles.studyMaterialNoteModalOverlay}
@@ -4186,7 +4208,7 @@ export default function ReviewQuestionScreen({
 
   // Handler for adding wrong answer as a synonym and marking correct
   const handleAddAsSynonym = async () => {
-    if (!apiToken || !wrongAnswerText || isAddingSynonym) return;
+    if (!apiToken || item.subject.id <= 0 || !wrongAnswerText || isAddingSynonym) return;
 
     setIsAddingSynonym(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -4263,10 +4285,10 @@ export default function ReviewQuestionScreen({
       Array.isArray(pronunciationAudios) &&
       pronunciationAudios.length > 0);
   const canReplayPausedAudio =
-    questionType === "reading" && hasReplayableVocabularyAudio;
+    isPronunciationAnswerQuestion && hasReplayableVocabularyAudio;
   const canReplayAnkiAudio =
     hasReplayableVocabularyAudio &&
-    (questionType === "reading" || effectiveAnkiGroupQuestions);
+    (isPronunciationAnswerQuestion || effectiveAnkiGroupQuestions);
 
   const handlePausedShortcutKeyPress = (
     event: TextInputKeyPressEvent,
@@ -4454,7 +4476,7 @@ export default function ReviewQuestionScreen({
     setAnkiAnswerRevealed(true);
 
     // In Anki mode, autoplay vocabulary audio when the answer is revealed.
-    if (questionType === "reading" || effectiveAnkiGroupQuestions) {
+    if (isPronunciationAnswerQuestion || effectiveAnkiGroupQuestions) {
       void playVocabularyAudio();
     }
 
@@ -5439,10 +5461,10 @@ export default function ReviewQuestionScreen({
         style={[styles.reviewMetadataStack, inRow && styles.reviewMetadataStackInRow]}
         pointerEvents="none"
       >
-        <View style={styles.reviewMetadataPill}>
+        {reviewSubjectLevel !== null && <View style={styles.reviewMetadataPill}>
           <Ionicons name="school-outline" size={13} color="white" />
-          <Text style={styles.reviewMetadataText}>{`Level ${reviewSubjectLevel}`}</Text>
-        </View>
+          <Text style={styles.reviewMetadataText}>{`Level ${reviewSubjectLevel}${subject.id <= 0 ? "+" : ""}`}</Text>
+        </View>}
         <View style={styles.reviewMetadataPill}>
           <View style={styles.reviewMetadataSrsIcon}>
             <SrsLevelIcon level={reviewSrsStageInfo.iconLevel} size={14} color="white" />
@@ -6524,7 +6546,7 @@ export default function ReviewQuestionScreen({
                     </Text>
                   </TouchableOpacity>
 
-                  {showAddSynonymButton && questionType === "meaning" && (
+                  {item.subject.id > 0 && showAddSynonymButton && questionType === "meaning" && (
                     <TouchableOpacity
                       style={[styles.pausedSecondaryAction, styles.pausedButtonSynonym]}
                       onPress={handleAddAsSynonym}
@@ -7686,9 +7708,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   multipleChoiceSrsPlacement: {
-    // Keep the badge in the layout so any answer-panel height is accounted for.
+    // Follow the panel's height without resizing it when the badge appears.
+    position: "absolute",
+    bottom: "100%",
     alignSelf: "center",
-    flexShrink: 0,
     marginBottom: 12,
   },
   srsCardContent: {

@@ -21,6 +21,7 @@ import {
   Moon,
   Music2,
   Newspaper,
+  NotebookPen,
   Search,
   Settings,
   Sparkles,
@@ -36,6 +37,7 @@ import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/States";
 import { WebAnalyticsTracker } from "@/features/analytics/WebAnalyticsTracker";
+import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { SettingsApplicator } from "@/features/settings/components/SettingsApplicator";
 import { DEFAULT_NAVBAR_TABS, type NavbarTabId } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
@@ -70,6 +72,8 @@ const analytics: Destination = { href: "/analytics", label: "Analytics", icon: C
 const items: Destination = { href: "/items", label: "Items", icon: Library, preference: "items" };
 const books: Destination = { href: "/epubs", label: "Books", icon: BookOpen, preference: "epubs" };
 const video: Destination = { href: "/video", label: "Video", icon: Clapperboard, preference: "video" };
+const notebooks: Destination = { href: "/notebooks", label: "Notebooks", icon: NotebookPen };
+const demoNavigation = [home, level, news, books, video, manga, songs];
 
 const navbarDestinationById: Record<NavbarTabId, Destination> = {
   home,
@@ -81,6 +85,7 @@ const navbarDestinationById: Record<NavbarTabId, Destination> = {
   video,
   manga,
   music: songs,
+  notebooks,
 };
 const NAVBAR_TAB_VARIANTS = {
   initial: { opacity: 0, x: -6 },
@@ -95,6 +100,7 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
       { href: "/reviews", label: "Reviews", icon: Brain, comingSoon: true },
       { href: "/custom-vocabulary", label: "Custom vocabulary", icon: BookOpen },
       { href: "/study", label: "Extra study", icon: Sparkles },
+      notebooks,
       { href: "/jlpt", label: "JLPT", icon: ClipboardCheck },
     ],
   },
@@ -153,7 +159,9 @@ export function backTargetForPathname(pathname: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { status, user, error, signOut, refresh } = useSession();
+  const { status, user, isDemo, error, signOut, refresh } = useSession();
+  const customSrsAllowed = !isDemo && canAccessCustomSrs(user?.data.username);
+  const customSrsBlocked = isActive(pathname, "/custom-vocabulary") && !customSrsAllowed;
   const { resolvedTheme, setTheme } = useTheme();
   const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const workspace = webSettings.workspace;
@@ -189,7 +197,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (status === "anonymous") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-  }, [status, pathname, router]);
+    else if (status === "authenticated" && customSrsBlocked) router.replace("/dashboard");
+  }, [status, pathname, router, customSrsBlocked]);
 
   useEffect(() => {
     if (previousPathRef.current !== pathname) setHasInternalHistory(true);
@@ -257,7 +266,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (status === "unavailable") {
     return <div className={styles.loading} role="alert"><div className={styles.sessionError}><strong>Your session could not be checked</strong><span>{error}</span><Button onClick={() => void refresh()}>Try Again</Button></div></div>;
   }
-  if (status !== "authenticated" || !user) {
+  if (status !== "authenticated" || !user || customSrsBlocked) {
     return (
       <main className={styles.bootstrap} aria-label="Kakehashi is starting">
         <div className={styles.bootstrapBrand} aria-hidden="true">
@@ -286,15 +295,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (hasInternalHistory) router.back();
     else router.replace(backTarget);
   };
-  const visiblePrimaryNavigation = (workspace.navbarTabs ?? DEFAULT_NAVBAR_TABS).map((id) => navbarDestinationById[id]);
+  const visiblePrimaryNavigation = isDemo
+    ? demoNavigation
+    : (workspace.navbarTabs ?? DEFAULT_NAVBAR_TABS).map((id) => navbarDestinationById[id]);
   const learnedKanjiLabel = learnedKanji.data?.toLocaleString() ?? (learnedKanji.isError ? "—" : "…");
 
-  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell}>
+  const notebookWorkspace = isActive(pathname, "/notebooks");
+
+  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell} data-demo={isDemo || undefined} data-workspace={notebookWorkspace ? "notebooks" : undefined}>
     <SettingsApplicator />
-    <WebAnalyticsTracker />
+    {!isDemo ? <WebAnalyticsTracker /> : null}
     <a className={styles.skipLink} href="#main-content" inert={moreOpen ? true : undefined}>Skip to main content</a>
 
-    <header className={styles.topbar} data-floating={floatingNav || undefined} inert={moreOpen ? true : undefined}>
+    <header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreOpen ? true : undefined}>
       <div className={styles.appbar}>
         <div className={styles.identityArea} data-has-back={hasBack ? "true" : undefined}>
           <button type="button" className={styles.backButton} data-visible={hasBack ? "true" : undefined} aria-label={pageBackAction?.label ?? "Back"} aria-hidden={!hasBack} tabIndex={hasBack ? 0 : -1} disabled={!hasBack} onClick={goBack}>
@@ -303,7 +316,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className={styles.identity} aria-label={`Kakehashi home for ${user.data.username}`}>
             <UserAvatar className={styles.brandMark} email={webSettings.profile.gravatarEmail} />
             <span className={styles.identityCopy}>
-              <strong>{user.data.username}</strong>
+              <strong>{isDemo ? "Demo account" : user.data.username}</strong>
               <span className={styles.identityStats}>
                 <span className={styles.identityStat}><BarChart3 size={13} aria-hidden />Lvl {user.data.level}</span>
                 <span className={styles.identityStat}><BookOpen size={13} aria-hidden />{learnedKanjiLabel} Kanji</span>
@@ -333,6 +346,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </header>
 
+    {isDemo ? <aside className={styles.demoBanner} aria-label="Demo account" inert={moreOpen ? true : undefined}><span><strong>Demo · Level 21</strong> Sample progress. Your practice stays in this browser.</span><Link href={`/login?next=${encodeURIComponent(pathname)}`}>Connect your account</Link></aside> : null}
     {signOutError || error ? <div className={styles.topError} role="alert"><span>{signOutError || error}</span>{error ? <Button size="small" tone="ghost" onClick={() => void refresh()}>Retry session check</Button> : null}</div> : null}
     <div className={styles.content} id="main-content" tabIndex={-1} inert={moreOpen ? true : undefined}>{children}</div>
 
@@ -346,7 +360,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div ref={moreDialogRef} className={styles.moreSheet} id="more-navigation" role="dialog" aria-modal="true" aria-labelledby="more-title">
         <div className={styles.moreHeader}><h2 id="more-title">All destinations</h2><Button className={styles.iconButton} tone="ghost" aria-label="Close More menu" onClick={closeMore}><X size={18} aria-hidden /></Button></div>
         <nav className={styles.moreNav} aria-label="All destinations">
-          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => isVisible(destination, workspace.visibleNav)).map((destination) => destination.comingSoon
+          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !isDemo
             ? <button key={destination.href} type="button" className={styles.moreLink} aria-label={`${destination.label}, coming soon`} disabled><destination.icon size={18} aria-hidden /><span>{destination.label}</span><span className={styles.moreStatus}>Coming soon</span></button>
             : <Link key={destination.href} href={destination.href} className={cn(styles.moreLink, isActive(pathname, destination.href) && styles.moreLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined} onClick={closeMore}><destination.icon size={18} aria-hidden /><span>{destination.label}</span></Link>)}</div></section>)}
           <section><h3>Account</h3><div><Link href="/settings" className={cn(styles.moreLink, isActive(pathname, "/settings") && styles.moreLinkActive)} onClick={closeMore}><Settings size={18} aria-hidden /><span>Settings</span></Link><button type="button" className={styles.moreLink} onClick={() => { setSignOutError(""); void signOut().then(() => router.replace("/login")).catch((cause) => setSignOutError(cause instanceof Error ? cause.message : "Kakehashi could not sign out.")); }}><LogOut size={18} aria-hidden /><span>Sign out</span></button></div></section>

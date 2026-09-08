@@ -17,6 +17,7 @@ const voiceMock = vi.hoisted(() => ({
 }));
 const sessionMock = vi.hoisted(() => ({
   user: { data: { username: "Tester" } },
+  isDemo: false,
   signOut: vi.fn<() => Promise<void>>(),
 }));
 const routerMock = vi.hoisted(() => ({
@@ -38,6 +39,8 @@ vi.mock("@/features/dashboard/DashboardWidgetPreview", () => ({ DashboardWidgetP
 vi.mock("@/features/speech/use-japanese-voice", () => ({ useJapaneseVoice: () => voiceMock }));
 
 beforeEach(() => {
+  sessionMock.user.data.username = "Tester";
+  sessionMock.isDemo = false;
   Object.assign(voiceMock, {
     checked: true,
     supported: true,
@@ -51,6 +54,15 @@ beforeEach(() => {
   voiceMock.cancelDownload.mockReset();
   sessionMock.signOut.mockReset().mockResolvedValue(undefined);
   routerMock.replace.mockReset();
+});
+
+it("includes JPDB tools in the demo without showing a personal credential field", async () => {
+  window.localStorage.clear();
+  sessionMock.isDemo = true;
+  render(<SettingsWorkspace />);
+  expect(screen.getByText("JPDB included in the demo")).toBeInTheDocument();
+  expect(screen.queryByPlaceholderText("Paste JPDB key")).not.toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: /English lyric translations/ })).toBeEnabled();
 });
 
 function dataTransfer() {
@@ -156,9 +168,9 @@ describe("navbar tab preferences", () => {
       if (checkbox) navbarCheckboxes.push(checkbox);
       row = row.nextElementSibling;
     }
-    expect(navbarCheckboxes).toHaveLength(9);
-    const [home, level, items, analytics, news, books, video, manga, songs] = navbarCheckboxes;
-    for (const [checkbox, name] of navbarCheckboxes.map((checkbox, index) => [checkbox, ["Home", "Level", "Items", "Analytics", "News", "Books", "Video", "Manga", "Songs"][index]] as const)) {
+    expect(navbarCheckboxes).toHaveLength(10);
+    const [home, level, items, analytics, news, books, video, manga, songs, notebooks] = navbarCheckboxes;
+    for (const [checkbox, name] of navbarCheckboxes.map((checkbox, index) => [checkbox, ["Home", "Level", "Items", "Analytics", "News", "Books", "Video", "Manga", "Songs", "Notebooks"][index]] as const)) {
       expect(checkbox).toHaveAccessibleName(new RegExp(`^${name}`));
     }
     for (const required of [home, level]) {
@@ -166,14 +178,14 @@ describe("navbar tab preferences", () => {
       expect(required).toBeDisabled();
     }
     for (const selected of [news, video, manga, songs]) expect(selected).toBeChecked();
-    for (const optional of [items, analytics, books]) {
+    for (const optional of [items, analytics, books, notebooks]) {
       expect(optional).not.toBeChecked();
       expect(optional).toBeEnabled();
       fireEvent.click(optional);
       expect(optional).toBeChecked();
     }
     expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace.navbarTabs).toEqual([
-      "home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music",
+      "home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music", "notebooks",
     ]);
   });
 
@@ -395,6 +407,60 @@ describe("reader integrations", () => {
   });
 });
 
+describe("custom vocabulary dashboard access", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("lets Portego manage the custom vocabulary widget in both dashboard lists", () => {
+    sessionMock.user.data.username = "Portego";
+    const { container } = render(<SettingsWorkspace />);
+
+    expect(container.querySelector('[data-editor-section="custom-vocabulary"]')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hide Custom Vocabulary" }));
+    expect(container.querySelector('[data-editor-section="custom-vocabulary"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-available-section="custom-vocabulary"]')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Custom Vocabulary" }));
+    expect(container.querySelector('[data-editor-section="custom-vocabulary"]')).toBeInTheDocument();
+  });
+
+  it.each([
+    { username: "Tester", isDemo: false, hidden: false },
+    { username: "Tester", isDemo: false, hidden: true },
+    { username: "Portego", isDemo: true, hidden: false },
+    { username: "Portego", isDemo: true, hidden: true },
+  ])("hides the widget and preserves saved preferences for $username (demo: $isDemo, hidden: $hidden)", async ({ username, isDemo, hidden }) => {
+    sessionMock.user.data.username = username;
+    sessionMock.isDemo = isDemo;
+    const dashboardOrder = ["srs", "custom-vocabulary", ...DASHBOARD_SECTIONS.filter((id) => id !== "srs" && id !== "custom-vocabulary")];
+    const key = settingsStorageKey(username);
+    window.localStorage.setItem(key, JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      workspace: {
+        ...DEFAULT_WEB_SETTINGS.workspace,
+        dashboardOrder,
+        hiddenDashboard: hidden ? ["custom-vocabulary"] : [],
+        dashboardWidths: { ...DEFAULT_WEB_SETTINGS.workspace.dashboardWidths, "custom-vocabulary": 8 },
+        dashboardRowStarts: hidden ? [] : ["custom-vocabulary"],
+      },
+    }));
+    const { container } = render(<SettingsWorkspace />);
+    const list = screen.getByRole("list", { name: "Visible dashboard sections" });
+    await waitFor(() => expect(list.firstElementChild).toHaveAttribute("data-editor-section", "srs"));
+
+    expect(screen.queryByText("Custom Vocabulary")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-widget-preview="custom-vocabulary"]')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hide Active Item Spread" }));
+
+    const saved = JSON.parse(window.localStorage.getItem(key) ?? "{}").workspace;
+    expect(saved.dashboardOrder.indexOf("custom-vocabulary")).toBe(1);
+    expect(saved.hiddenDashboard.includes("custom-vocabulary")).toBe(hidden);
+    expect(saved.dashboardWidths["custom-vocabulary"]).toBe(8);
+    expect(saved.dashboardRowStarts.includes("custom-vocabulary")).toBe(!hidden);
+    expect(saved.hiddenDashboard).toContain("srs");
+    expect(screen.queryByText("Custom Vocabulary")).not.toBeInTheDocument();
+  });
+});
+
 describe("dashboard layout drag targets", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -470,6 +536,20 @@ describe("dashboard layout drag targets", () => {
     expect(container.querySelector('[data-editor-section="study-pulse"]')).toHaveAttribute("data-editor-row-start", "true");
   });
 
+  it("ignores drag payloads for the restricted custom vocabulary widget", async () => {
+    const { container, list } = await renderLayout();
+    const transfer = dataTransfer();
+    transfer.setData("text/plain", "custom-vocabulary");
+    const key = settingsStorageKey("Tester");
+    const savedBefore = window.localStorage.getItem(key);
+
+    fireDrag(list, "drop", 1000, 155, transfer);
+    fireEvent.drop(screen.getByText("Drop here to place a widget last"), { dataTransfer: transfer });
+
+    expect(container.querySelector('[data-editor-section="custom-vocabulary"]')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(key)).toBe(savedBefore);
+  });
+
   it("restores the full dashboard layout as the default", async () => {
     render(<SettingsWorkspace />);
     const list = await screen.findByRole("list", { name: "Visible dashboard sections" });
@@ -477,7 +557,8 @@ describe("dashboard layout drag targets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Restore dashboard" }));
 
-    await waitFor(() => expect(list.querySelectorAll(":scope > li")).toHaveLength(18));
+    await waitFor(() => expect(list.querySelectorAll(":scope > li")).toHaveLength(17));
+    expect(list.querySelector('[data-editor-section="custom-vocabulary"]')).not.toBeInTheDocument();
     const savedWorkspace = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace;
     expect(savedWorkspace).toMatchObject(DEFAULT_WEB_SETTINGS.workspace);
   });

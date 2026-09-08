@@ -561,6 +561,9 @@ export function useSettingsController() {
     error: spotifyAuthError,
     profile: spotifyProfile,
     redirectUri: spotifyRedirectUri,
+    clientId: spotifyClientId,
+    saveClientId: saveSpotifyClientId,
+    isConfiguring: isSpotifyConfiguring,
   } = useSpotifyAuth();
   const [selectedVoice, setSelectedVoice] =
     useState<string>("ja-JP-NanamiNeural");
@@ -1672,7 +1675,7 @@ export function useSettingsController() {
       setSpotifyAuthStatus("notConfigured");
       Alert.alert(
         "Spotify Setup Required",
-        `Add EXPO_PUBLIC_SPOTIFY_CLIENT_ID and register ${spotifyRedirectUri} exactly as a redirect URI in your Spotify app settings.`,
+        "Open Spotify setup in Music Playback settings. Follow the guide to create your personal developer app, then save its Client ID.",
       );
       return;
     }
@@ -1689,15 +1692,15 @@ export function useSettingsController() {
       }
 
       setSongsPlaybackSource("spotify");
-      if (profile.product !== "premium") {
+      if (profile.product && profile.product !== "premium") {
         Alert.alert(
           "Spotify Connected",
-          "Your Spotify account is connected. Spotify playback control usually requires Premium; playlist import will still work.",
+          "Your account is linked, but Spotify playback and personal developer apps require an active Spotify Premium subscription.",
         );
         return;
       }
 
-      Alert.alert("Connected", "Spotify playback is now ready.");
+      Alert.alert("Connected", "Your Spotify account is linked. Open Spotify and play a song once, then return to Kakehashi to control playback.");
     } catch (error) {
       console.error("Spotify login failed:", error);
       Alert.alert(
@@ -1726,7 +1729,7 @@ export function useSettingsController() {
       if (!isSpotifyAuthAvailable) {
         Alert.alert(
           "Spotify Setup Required",
-          `Add EXPO_PUBLIC_SPOTIFY_CLIENT_ID and register ${spotifyRedirectUri} exactly as a redirect URI in your Spotify app settings.`,
+          "Open Spotify setup in Music Playback settings. Follow the guide to create your personal developer app, then save its Client ID.",
         );
         return;
       }
@@ -3255,6 +3258,9 @@ export function useSettingsController() {
     spotifyAuthStatus,
     spotifyDisplayName,
     spotifyRedirectUri,
+    spotifyClientId,
+    saveSpotifyClientId,
+    isSpotifyConfiguring,
     SRS_PROGRESSION_CARD_MODE_OPTIONS,
     srsProgressionCardDisplayMode,
     STOP_DETAILS_PREVIEW_IMAGE,

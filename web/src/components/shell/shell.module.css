@@ -48,6 +48,8 @@
 .iconActionActive { border-color: var(--color-rule-2); background: var(--color-surface); color: var(--color-accent); }
 .iconAction:active { transform: translateY(1px); }
 .content { min-width: 0; }
+/* Keep the notebook canvas clear while preserving focus indicators on its controls. */
+.content:has([data-notebook-workspace="true"]):focus-visible { outline: none; }
 .topError { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm); padding: var(--space-sm) clamp(var(--space-md), 2.5vw, var(--space-xl)); border-block-end: var(--rule-thin) solid var(--color-danger); color: var(--color-danger); font-size: var(--text-sm); }
 .loading { min-height: 100dvh; display: grid; place-items: center; }
 .loading > span { color: var(--color-muted); }
@@ -145,4 +147,49 @@
   .topbar[data-floating="true"] .brandMark,
   .topbar[data-floating="true"] .identityCopy > strong,
   .topbar[data-floating="true"] .identityStats { transform: none; }
+}
+
+.demoBanner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm); padding: var(--space-sm) clamp(var(--space-md), 2.5vw, var(--space-xl)); border-block-end: var(--rule-thin) solid var(--color-rule); background: var(--color-surface); font-size: var(--text-sm); color: var(--color-ink-2); }
+.demoBanner strong { margin-inline-end: var(--space-sm); color: var(--color-ink); }
+.demoBanner a { color: var(--color-accent); font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+.shell[data-demo] .topbar { height: auto; min-height: 0; padding-block: var(--space-sm); background: var(--color-paper); }
+.shell[data-demo] .appbar { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-xs); min-inline-size: 0; inline-size: calc(100% - 2rem); min-height: 0; border-radius: var(--radius-md); transform: none; }
+.shell[data-demo] .primaryNav { display: flex; grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; gap: 0 var(--space-md); }
+.shell[data-demo] .primaryLink { width: auto; }
+.shell[data-demo] .primaryLink span { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+.shell[data-demo] .primaryIcon { display: none; }
+.shell[data-demo] .topActions { grid-column: 2; grid-row: 1; }
+
+/* Notebook chrome stays flush with the page browser, including during scroll. */
+:global(html):has(.shell[data-workspace="notebooks"]),
+:global(body):has(.shell[data-workspace="notebooks"]) { overscroll-behavior-y: none; }
+.shell[data-workspace="notebooks"] { --workspace-header-height: 3.5rem; }
+.shell[data-workspace="notebooks"] .topbar {
+  height: auto;
+  min-height: var(--workspace-header-height);
+  padding-block: 0;
+  align-items: stretch;
+  border-block-end: var(--rule-thin) solid var(--color-rule-2);
+  background: var(--color-surface);
+  pointer-events: auto;
+}
+.shell[data-workspace="notebooks"] .appbar {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: none;
+  min-height: var(--workspace-header-height);
+  margin: 0;
+  padding-inline: var(--space-md);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transform: none;
+  transition: none;
+}
+.shell[data-workspace="notebooks"] .brandMark { --profile-avatar-size: 1.875rem; }
+.shell[data-workspace="notebooks"] .moreSheet { inset-block-start: calc(var(--workspace-header-height) + var(--space-sm)); }
+@media (max-width: 53.999rem) {
+  .shell[data-workspace="notebooks"] .moreSheet { inset-block-start: auto; }
 }

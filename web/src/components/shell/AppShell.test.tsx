@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     status: "loading" as "loading" | "authenticated" | "anonymous" | "unavailable",
     user: null as WKUser | null,
     error: "",
+    isDemo: false,
     signOut: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   },
 }));
@@ -77,6 +78,7 @@ describe("AppShell session bootstrap", () => {
     mocks.session.status = "loading";
     mocks.session.user = null;
     mocks.session.error = "";
+    mocks.session.isDemo = false;
     mocks.refresh.mockClear();
     mocks.back.mockClear();
     mocks.push.mockClear();
@@ -144,6 +146,7 @@ describe("AppShell session bootstrap", () => {
     expect(screen.getByRole("link", { name: "Support Kakehashi on Patreon" })).toHaveAttribute("rel", "noopener noreferrer");
     const mainNavigation = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(mainNavigation).queryByRole("link", { name: "Search" })).not.toBeInTheDocument();
+    expect(within(mainNavigation).queryByRole("link", { name: "Notebooks" })).not.toBeInTheDocument();
     const subjectSearch = screen.getByRole("link", { name: "Search subjects" });
     expect(subjectSearch).toHaveAttribute("href", "/search");
     expect(subjectSearch).not.toHaveTextContent("Search");
@@ -190,7 +193,7 @@ describe("AppShell session bootstrap", () => {
     mocks.pathname = "/items";
     mocks.visibleNav = ["analytics", "items", "search", "lists", "news", "reader", "epubs", "music", "video", "manga", "translator", "community"];
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
-    mocks.navbarTabs = ["home", "level", "items", "analytics", "video", "music"];
+    mocks.navbarTabs = ["home", "level", "items", "analytics", "video", "music", "notebooks"];
     mocks.session.status = "authenticated";
     mocks.session.user = {
       id: 1,
@@ -218,7 +221,8 @@ describe("AppShell session bootstrap", () => {
     const { container } = render(<AppShell><p>Items content</p></AppShell>);
 
     const mainNavigation = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(mainNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "Level", "Items", "Analytics", "Video", "Songs"]);
+    expect(within(mainNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "Level", "Items", "Analytics", "Video", "Songs", "Notebooks"]);
+    expect(within(mainNavigation).getByRole("link", { name: "Notebooks" })).toHaveAttribute("href", "/notebooks");
     expect(container.querySelector('[data-navbar-density="dense"]')).not.toBeInTheDocument();
     expect(within(mainNavigation).getByRole("link", { name: "Items" })).toHaveAttribute("aria-current", "page");
     expect(within(mainNavigation).queryByRole("link", { name: "News" })).not.toBeInTheDocument();
@@ -228,8 +232,9 @@ describe("AppShell session bootstrap", () => {
     expect(within(allDestinations).getByRole("link", { name: "News" })).toHaveAttribute("href", "/news");
     expect(within(allDestinations).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
     expect(within(allDestinations).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
-    expect(within(allDestinations).getByRole("link", { name: "Custom vocabulary" })).toHaveAttribute("href", "/custom-vocabulary");
+    expect(within(allDestinations).queryByRole("link", { name: "Custom vocabulary" })).not.toBeInTheDocument();
     expect(within(allDestinations).getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
+    expect(within(allDestinations).getByRole("link", { name: "Notebooks" })).toHaveAttribute("href", "/notebooks");
     expect(within(allDestinations).getByRole("link", { name: "JLPT" })).toHaveAttribute("href", "/jlpt");
   });
 
@@ -277,6 +282,7 @@ describe("AppShell session bootstrap", () => {
 
 describe("AppShell contextual back navigation", () => {
   beforeEach(() => {
+    mocks.session.isDemo = false;
     Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
     mocks.pathname = "/dashboard";
     mocks.session.status = "authenticated";
@@ -327,12 +333,68 @@ describe("AppShell contextual back navigation", () => {
   });
 
   it("keeps Custom vocabulary active on a word detail route", () => {
+    mocks.session.user!.data.username = "Portego";
     mocks.pathname = "/custom-vocabulary/words/conversation-douzo";
     render(<AppShell><p>Custom subject detail</p></AppShell>);
 
     fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
     const allDestinations = screen.getByRole("navigation", { name: "All destinations" });
     expect(within(allDestinations).getByRole("link", { name: "Custom vocabulary" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it.each([
+    "/custom-vocabulary",
+    "/custom-vocabulary/lessons",
+    "/custom-vocabulary/reviews",
+    "/custom-vocabulary/words/conversation-douzo",
+  ])("does not mount restricted content on %s for another account", (pathname) => {
+    mocks.pathname = pathname;
+    const mountContent = vi.fn();
+    function RestrictedContent() {
+      mountContent();
+      return <p>Custom vocabulary content</p>;
+    }
+    render(<AppShell><RestrictedContent /></AppShell>);
+
+    expect(mountContent).not.toHaveBeenCalled();
+    expect(mocks.replace).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("removes restricted content when switching away from Portego", () => {
+    mocks.pathname = "/custom-vocabulary";
+    mocks.session.user!.data.username = "Portego";
+    const { rerender } = render(<AppShell><p>Custom vocabulary content</p></AppShell>);
+    expect(screen.getByText("Custom vocabulary content")).toBeInTheDocument();
+
+    mocks.session.user!.data.username = "Pozab";
+    rerender(<AppShell><p>Custom vocabulary content</p></AppShell>);
+    expect(screen.queryByText("Custom vocabulary content")).not.toBeInTheDocument();
+    expect(mocks.replace).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("does not expose custom vocabulary through the demo navigation", () => {
+    mocks.session.isDemo = true;
+    mocks.session.user!.data.username = "Portego";
+    render(<AppShell><p>Dashboard content</p></AppShell>);
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+
+    expect(screen.queryByRole("link", { name: "Custom vocabulary" })).not.toBeInTheDocument();
+  });
+
+  it("keeps demo content tabs in the header and extra study, items, and analytics in More", () => {
+    mocks.session.isDemo = true;
+    render(<AppShell><p>Dashboard content</p></AppShell>);
+
+    const mainNavigation = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(mainNavigation).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Home", "Level", "News", "Books", "Video", "Manga", "Songs",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    const allDestinations = screen.getByRole("navigation", { name: "All destinations" });
+    for (const [name, href] of [["Extra study", "/study"], ["Items", "/items"], ["Analytics", "/analytics"], ["Notebooks", "/notebooks"]]) {
+      expect(within(allDestinations).getByRole("link", { name })).toHaveAttribute("href", href);
+    }
   });
 
   it("animates in on a direct detail route and uses its logical parent fallback", () => {

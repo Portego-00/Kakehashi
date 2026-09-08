@@ -38,6 +38,7 @@ import {
 } from "../utils/pronunciationAudio";
 import { azureSpeechService } from "../utils/azureSpeech";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveCustomVocabularyAudioForPlayback } from "../features/custom-srs/audio-cache";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
 import {
   type SubjectColors,
@@ -276,7 +277,9 @@ export default function VocabularyDetails({
   embedded = false,
 }: VocabularyDetailsProps) {
   const [activeTab, setActiveTab] = useState<"meaning" | "reading" | "context">(
-    initialTab
+    vocabulary.object === "kana_vocabulary" && initialTab === "reading"
+      ? "meaning"
+      : initialTab
   );
   const navigation = useNavigation();
   const [sound, setSound] = useState<AudioSound | null>(null);
@@ -963,7 +966,10 @@ export default function VocabularyDetails({
 
       setLoadingAudioId(id);
 
-      const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
+      const resolveAudio = vocabulary.id < 0
+        ? resolveCustomVocabularyAudioForPlayback
+        : resolveOfflineVocabularyAudioUri;
+      const cachedAudioUri = await resolveAudio(
         vocabulary.id,
         pronunciationAudio ?? { url: audioUrl }
       );
@@ -1669,7 +1675,7 @@ export default function VocabularyDetails({
           >
             Context Sentences
           </Text>
-          <TouchableOpacity
+          {vocabulary.id > 0 && <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Add context sentence"
             activeOpacity={0.55}
@@ -1684,7 +1690,7 @@ export default function VocabularyDetails({
               size={18}
               color={subjectColors.vocabulary}
             />
-          </TouchableOpacity>
+          </TouchableOpacity>}
         </View>
         <View
           style={[
@@ -1748,7 +1754,7 @@ export default function VocabularyDetails({
               </View>
             );
           })}
-          <CustomContextSentencesSection
+          {vocabulary.id > 0 && <CustomContextSentencesSection
             ref={customContextSentencesRef}
             subjectId={vocabulary.id}
             subjectCharacters={vocabulary.characters}
@@ -1756,7 +1762,7 @@ export default function VocabularyDetails({
               (reading) => reading.reading,
             )}
             accentColor={subjectColors.vocabulary}
-          />
+          />}
         </View>
       </View>
     );
@@ -2034,7 +2040,10 @@ export default function VocabularyDetails({
   const shouldStaggerComponents =
     displayComponentItems && displayComponentItems.length <= 30;
 
-  const tabOrder = ["meaning", "reading", "context"] as const;
+  const tabOrder: readonly ("meaning" | "reading" | "context")[] =
+    vocabulary.object === "kana_vocabulary"
+      ? ["meaning", "context"]
+      : ["meaning", "reading", "context"];
 
   const getTabIndex = (tab: "meaning" | "reading" | "context") =>
     tabOrder.indexOf(tab);
@@ -2107,6 +2116,7 @@ export default function VocabularyDetails({
                 <View
                   style={[
                     styles.row,
+                    vocabulary.id <= 0 && { display: "none" },
                     {
                       marginBottom:
                         vocabulary.partsOfSpeech &&
@@ -2183,6 +2193,30 @@ export default function VocabularyDetails({
                 />
               </View>
             </View>
+
+            {vocabulary.object === "kana_vocabulary" && orderedMpegAudioFiles.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Pronunciation</Text>
+                <View style={[styles.infoBox, { backgroundColor: theme.cardBackground }]}>
+                  <View style={styles.audioButtonsContainer}>
+                    {orderedMpegAudioFiles.map((audio, audioIndex) => {
+                      const audioId = `audio-${audio.metadata?.voice_actor_id ?? audioIndex}`;
+                      return <TouchableOpacity
+                        key={audioId}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Play ${audio.metadata?.voice_actor_name || "vocabulary"} pronunciation`}
+                        style={[styles.audioButton, (playingAudioId === audioId || loadingAudioId === audioId) && styles.audioButtonPlaying]}
+                        onPress={() => playAudio(audio.url, audioId, audio)}
+                        disabled={loadingAudioId === audioId}
+                      >
+                        {loadingAudioId === audioId ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name={playingAudioId === audioId ? "stop" : "play"} size={20} color="white" />}
+                        <Text style={styles.audioButtonText}>{audio.metadata?.voice_actor_name || "Audio"}{vocabulary.id < 0 ? " · AI-generated" : audio.metadata?.gender ? ` (${audio.metadata.gender})` : ""}</Text>
+                      </TouchableOpacity>;
+                    })}
+                  </View>
+                </View>
+              </View>
+            ) : null}
 
             {/* Mnemonic Section */}
             {vocabulary.meaningMnemonic && (
@@ -2325,7 +2359,7 @@ export default function VocabularyDetails({
                             )}
                             <Text style={styles.audioButtonText}>
                               {audio.metadata?.voice_actor_name || "Audio"}
-                              {audio.metadata?.gender
+                              {vocabulary.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                 ? ` (${audio.metadata.gender})`
                                 : ""}
                             </Text>
@@ -2638,7 +2672,7 @@ export default function VocabularyDetails({
         {activeTab !== "context" && (
           <>
             {/* Notes Section */}
-            <View style={styles.section}>
+            {vocabulary.id > 0 && <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
                 Notes
               </Text>
@@ -2735,6 +2769,7 @@ export default function VocabularyDetails({
               </View>
             </View>
 
+            }
             {/* Vocabulary Composition Section */}
             {sortedComponentSubjects.length > 0 && (
               <View style={styles.section}>
@@ -2992,11 +3027,12 @@ export default function VocabularyDetails({
                       <View
                         style={[
                           styles.divider,
+                          vocabulary.id <= 0 && { display: "none" },
                           { backgroundColor: theme.border },
                         ]}
                       />
 
-                      <View style={styles.statsContainer}>
+                      <View style={[styles.statsContainer, vocabulary.id <= 0 && { display: "none" }]}>
                         <View style={styles.statColumn}>
                           <Text
                             style={[
@@ -3244,9 +3280,9 @@ export default function VocabularyDetails({
               </TouchableOpacity>
             )}
 
-            <View style={styles.levelBadge}>
+            {vocabulary.level > 0 && <View style={styles.levelBadge}>
               <Text style={styles.levelText}>{vocabulary.level}</Text>
-            </View>
+            </View>}
           </View>
 
           {onOpenConstellation && vocabulary.object !== "kana_vocabulary" && (
@@ -3311,7 +3347,7 @@ export default function VocabularyDetails({
               Meaning
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          {vocabulary.object !== "kana_vocabulary" && <TouchableOpacity
             style={[styles.tab, activeTab === "reading" && styles.activeTab]}
             onPress={() => changeTab("reading")}
           >
@@ -3324,7 +3360,7 @@ export default function VocabularyDetails({
             >
               Reading
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity>}
           <TouchableOpacity
             style={[styles.tab, activeTab === "context" && styles.activeTab]}
             onPress={() => changeTab("context")}
@@ -3348,7 +3384,7 @@ export default function VocabularyDetails({
           onPageSelected={onTabPageSelected}
         >
           {renderPage("meaning", meaningScrollRef)}
-          {renderPage("reading", readingScrollRef)}
+          {vocabulary.object !== "kana_vocabulary" && renderPage("reading", readingScrollRef)}
           {renderPage("context", contextScrollRef)}
         </PagerView>
       </View>

@@ -45,68 +45,16 @@
 .errorNotice svg { flex: 0 0 auto; }
 .errorNotice > span { flex: 1 1 16rem; }
 
-.queue {
+.study {
   min-width: 0;
   display: grid;
-  margin-block-start: var(--space-md);
-  overflow: hidden;
-  border: var(--rule-thin) solid var(--color-rule-2);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-floating);
-}
-
-.queueIntro {
-  min-width: 0;
-  display: flex;
-  align-items: center;
   gap: var(--space-md);
-  padding: var(--space-md);
-  border-block-end: var(--rule-thin) solid var(--color-rule-2);
+  margin-block-start: var(--space-md);
 }
 
-.queueSubjectMark {
-  width: max-content;
-  min-width: 4rem;
-  min-height: 3.5rem;
-  display: grid;
-  place-items: center;
-  padding-inline: var(--space-sm);
-  border-radius: var(--radius-sm);
-  background: var(--color-vocabulary);
-  color: var(--color-subject-text);
-  font: 750 var(--text-lg) var(--font-japanese);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.queueCopy { min-width: 0; }
-.queueCopy h2,
 .sectionHeading h2,
 .schedulingBody h2 { font-size: var(--text-md); }
-.queueCopy p,
 .sectionHeading > div > p { margin-block-start: var(--space-2xs); color: var(--color-muted); font-size: var(--text-sm); }
-
-.queueWorkspace { min-width: 0; display: grid; gap: var(--space-md); padding: var(--space-md); }
-.queueCounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
-.queueCounts > div { min-width: 0; padding-inline: var(--space-sm); }
-.queueCounts > div:first-child { padding-inline-start: 0; }
-.queueCounts > div:last-child { padding-inline-end: 0; }
-.queueCounts > div + div { border-inline-start: var(--rule-thin) solid var(--color-rule-2); }
-.queueCounts dt { color: var(--color-muted); font-size: var(--text-xs); line-height: 1.25; }
-.queueCounts dd {
-  margin: var(--space-3xs) 0 0;
-  color: var(--color-vocabulary-ink);
-  font-size: var(--text-xl);
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-.queueActions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-xs); }
-.queueActions > a { width: 100%; white-space: nowrap; }
-.queueActions > a > svg:last-child { transition: transform var(--dur-micro) var(--ease-out); }
-.queueActions > a:focus-visible > svg:last-child { transform: translateX(var(--space-3xs)); }
 
 .packs { margin-block-start: var(--space-xl); }
 .sectionHeading {
@@ -352,17 +300,11 @@
   .sectionHeading { align-items: baseline; justify-content: space-between; flex-direction: row; gap: var(--space-md); }
   .packHeader { align-items: flex-start; justify-content: space-between; flex-direction: row; gap: var(--space-lg); }
   .packHeader > button { width: auto; }
-  .queueActions { display: flex; flex-wrap: wrap; }
-  .queueActions > a { width: auto; }
   .stageCounts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .wordList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-md); }
 }
 
 @media (min-width: 50rem) {
-  .queue { grid-template-columns: minmax(15rem, .72fr) minmax(0, 1.28fr); }
-  .queueIntro { border-block-end: 0; border-inline-end: var(--rule-thin) solid var(--color-rule-2); }
-  .queueWorkspace { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-  .queueActions { justify-content: flex-end; }
   .packProgress { grid-template-columns: minmax(16rem, 1fr) minmax(24rem, 1.3fr); align-items: end; gap: var(--space-xl); }
   .schedulingBody { grid-template-columns: minmax(16rem, .75fr) minmax(0, 1.25fr); gap: var(--space-xl); }
 }
@@ -377,7 +319,6 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .queueActions > a:not([aria-disabled="true"]):hover > svg:last-child { transform: translateX(var(--space-3xs)); }
   .wordLink:hover .wordMeaning { color: var(--color-ink); }
   .wordLink:hover .wordCue { color: var(--color-vocabulary-ink); transform: translateX(var(--space-3xs)); }
   .wordDisclosure summary:hover,
@@ -459,13 +400,10 @@
   .pack,
   .wordLink,
   .wordMeaning,
-  .wordCue,
-  .queueActions > a > svg:last-child { transition-duration: var(--dur-micro); }
+  .wordCue { transition-duration: var(--dur-micro); }
   .wordLink:active,
   .wordLink:focus-visible .wordCue,
-  .wordLink:hover .wordCue,
-  .queueActions > a:focus-visible > svg:last-child,
-  .queueActions > a:not([aria-disabled="true"]):hover > svg:last-child { transform: none; }
+  .wordLink:hover .wordCue { transform: none; }
   .wordDisclosure summary > svg,
   .scheduling > summary svg { transition: none; }
   .packShelf[data-receiving="true"] { animation: packShelfReduced 150ms var(--ease-out) both; }

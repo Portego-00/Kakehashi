@@ -255,6 +255,9 @@ export function createReviewAnswerChoices({
   const characters = new Set(subject.data.characters ?? "");
   const components = new Set(subject.data.component_subject_ids ?? []);
   const similarIds = new Set(subject.data.visually_similar_subject_ids ?? []);
+  const isRadicalName =
+    subject.object === "radical" && questionType === "meaning";
+  const amalgamations = new Set(subject.data.amalgamation_subject_ids ?? []);
   const targetParts = partsOfSpeech(subject);
   const targetWords = words(meanings.map((entry) => entry.meaning).join(" "));
   const targetFamilies = MEANING_FAMILIES.filter(
@@ -285,7 +288,16 @@ export function createReviewAnswerChoices({
     const related =
       commonCharacters * 12 +
       commonComponents * 4 +
-      (similarIds.has(candidate.id) ? 20 : 0);
+      (similarIds.has(candidate.id) ? 20 : 0) +
+      (isRadicalName
+        ? Math.min(
+            overlap(
+              amalgamations,
+              new Set(candidate.data.amalgamation_subject_ids ?? []),
+            ),
+            3,
+          ) * 16
+        : 0);
     const levelGap = Math.abs(
       (candidate.data.level ?? 1) - (subject.data.level ?? 1),
     );
@@ -324,7 +336,11 @@ export function createReviewAnswerChoices({
       );
       const commonWords = overlap(targetWords, candidateWords);
       const sharedPart = overlap(targetParts, partsOfSpeech(candidate)) > 0;
-      if (!semantic && !related && !commonWords && !sharedPart) continue;
+      const hasMeaningRelation =
+        semantic || related > 0 || commonWords > 0 || sharedPart;
+      // Radical mnemonics often have no semantic family or parts of speech.
+      // Prefer related radicals, then other radical names from nearby levels.
+      if (!hasMeaningRelation && !isRadicalName) continue;
       const entry =
         candidate.data.meanings.find(
           (meaning) => meaning.primary && meaning.accepted_answer !== false,
@@ -339,6 +355,7 @@ export function createReviewAnswerChoices({
             (semantic ? 40 : 0) +
             commonWords * 12 +
             (sharedPart ? 10 : 0) -
+            (hasMeaningRelation ? 0 : 40) -
             Math.min(levelGap, 20),
         );
     }

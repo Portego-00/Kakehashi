@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview } from "./model";
 import { customSrsSnapshot, customSrsStorageKey, loadCustomSrsState, saveCustomSrsState, subscribeCustomSrs, withCustomSrsStorageLock } from "./storage";
 import type { CustomSrsState, CustomVocabularyPack } from "./types";
+import { isDemoMode } from "@/features/demo/runtime";
 
 type RemoteStateResponse = {
   available: boolean;
@@ -69,10 +70,12 @@ async function parseResponse(response: Response) {
 }
 
 export async function fetchCustomSrsState(signal?: AbortSignal) {
+  if (isDemoMode()) return { available: false, state: null, revision: 0 };
   return parseResponse(await fetch("/api/custom-srs", { cache: "no-store", signal }));
 }
 
 export async function mutateCustomSrs(payload: MutationPayload) {
+  if (isDemoMode()) return { available: false, state: null, revision: 0 };
   return parseResponse(await fetch("/api/custom-srs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
