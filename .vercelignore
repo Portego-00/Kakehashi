@@ -18,6 +18,7 @@ web/.vercel/**
 web/node_modules/**
 web/playwright-report/**
 web/test-results/**
+web/src/features/notebooks/mobile-editor-compatibility.test.tsx
 !assets
 !assets/pitch
 !assets/pitch/wanikani_pitch_accents.json

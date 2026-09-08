@@ -22,7 +22,9 @@ for (const account of ["anonymous", "demo"] as const) {
 
     for (const path of restrictedPages) {
       const response = await request.get(path);
-      expect(response.status(), path).toBe(404);
+      // Next.js can start streaming with HTTP 200 before the account check
+      // finishes; the server's not-found error is then carried in that stream.
+      expect(await response.text(), path).toContain("NEXT_HTTP_ERROR_FALLBACK;404");
     }
 
     for (const path of ["/api/notebooks", "/api/custom-srs"]) {
