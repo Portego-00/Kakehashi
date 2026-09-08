@@ -184,7 +184,6 @@ export default function LessonsScreen() {
     ? "meaning"
     : "reading";
   const { selectedLessonIds } = useLocalSearchParams();
-  const hasSelectedLessonFilterParam = selectedLessonIds !== undefined;
   const [isLoading, setIsLoading] = useState(true);
   const [allLessons, setAllLessons] = useState<LessonItem[]>([]);
   const [lessonBatches, setLessonBatches] = useState<LessonBatch[]>([]);
@@ -381,7 +380,6 @@ export default function LessonsScreen() {
   useEffect(() => {
     if (
       isLoading ||
-      hasSelectedLessonFilterParam ||
       allLessons.length === 0 ||
       lessonBatches.length === 0
     ) {
@@ -424,7 +422,6 @@ export default function LessonsScreen() {
     currentBatchIndex,
     currentItemIndex,
     currentQuestion,
-    hasSelectedLessonFilterParam,
     isFinalBatchComplete,
     isLoading,
     lessonBatches,
@@ -523,7 +520,7 @@ export default function LessonsScreen() {
       setShowSaveCurrentLessonsModal(false);
       setLessonSessionCreatedAt(null);
 
-      // Parse selected lesson IDs if provided
+      // The picker passes stable assignment IDs, independent of lesson ordering.
       const selectedIds: number[] | null = selectedLessonIds
         ? JSON.parse(
             Array.isArray(selectedLessonIds)
@@ -660,7 +657,7 @@ export default function LessonsScreen() {
       }
 
       const selectedAssignments = lessonsResponse.data.filter(
-        (_, index) => !selectedIdSet || selectedIdSet.has(index)
+        (assignment) => !selectedIdSet || selectedIdSet.has(assignment.id)
       );
       const pendingProgressAssignmentIds =
         await getPendingProgressAssignmentIds().catch(() => ({
