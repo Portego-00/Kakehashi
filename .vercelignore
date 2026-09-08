@@ -18,6 +18,7 @@ web/.vercel/**
 web/node_modules/**
 web/playwright-report/**
 web/test-results/**
+web/src/features/notebooks/mobile-editor-compatibility.test.tsx
 !assets
 !assets/pitch
 !assets/pitch/wanikani_pitch_accents.json
@@ -28,6 +29,9 @@ web/test-results/**
 !src/types/wanikani.ts
 !src/utils
 !src/utils/answerChecker.ts
+!src/utils/audioVocabStudy.ts
+!src/utils/portegoAccess.ts
 !src/utils/pronunciationAudio.ts
 !src/utils/radicalImage.ts
+!src/utils/vocabularyTypeFilter.ts
 !.vercelignore

@@ -18,6 +18,7 @@ import { MusicPlaybackSection } from "./sections/MusicPlaybackSection";
 import { LessonSettingsSection } from "./sections/LessonSettingsSection";
 import { SubjectListsSection } from "./sections/SubjectListsSection";
 import { ReviewSettingsSection } from "./sections/ReviewSettingsSection";
+import { NotesSection } from "./sections/NotesSection";
 import { HapticSection } from "./sections/HapticSection";
 import { KanjiLearningSection } from "./sections/KanjiLearningSection";
 import { UserProfileSection } from "./sections/UserProfileSection";
@@ -37,7 +38,6 @@ import { ReminderTimeModal } from "./modals/ReminderTimeModal";
 import { AnswerStopDetailsPreviewModal } from "./modals/AnswerStopDetailsPreviewModal";
 import { ReviewShortcutModal } from "./modals/ReviewShortcutModal";
 import { BunproSurveyModal } from "./modals/BunproSurveyModal";
-import { VoiceSelectionModal } from "./modals/VoiceSelectionModal";
 import { CacheAnalysisModal } from "./modals/CacheAnalysisModal";
 import { NotificationsDebugModal } from "./modals/NotificationsDebugModal";
 
@@ -169,6 +169,7 @@ function SettingsScreenContent() {
         <LessonSettingsSection />
         <SubjectListsSection />
         <ReviewSettingsSection />
+        <NotesSection />
         <HapticSection />
         <KanjiLearningSection />
         <UserProfileSection />
@@ -190,7 +191,6 @@ function SettingsScreenContent() {
       <AnswerStopDetailsPreviewModal />
       <ReviewShortcutModal />
       <BunproSurveyModal />
-      <VoiceSelectionModal />
       <CacheAnalysisModal />
       <NotificationsDebugModal />
 

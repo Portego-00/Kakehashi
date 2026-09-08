@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import type { AnimeListProvider } from "@/features/anime/types";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
+import { canAccessNotebooks } from "@/features/notebooks/access";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -146,6 +147,7 @@ export function SettingsWorkspace() {
   const { user, signOut, isDemo } = useSession();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const username = user?.data.username ?? "anonymous";
+  const notebooksAllowed = !isDemo && canAccessNotebooks(username);
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_WEB_SETTINGS);
   const [saved, setSaved] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -423,8 +425,8 @@ export function SettingsWorkspace() {
       <div className={styles.sectionIntro}><LayoutDashboard size={19} /><div><h2 id="workspace-heading">Workspace layout</h2><p>Choose your desktop navbar tabs, trim optional destinations, and arrange dashboard sections.</p></div></div>
       <div className={styles.workspaceOptions}>
         <Card padding="none" className={styles.preferenceCard}>
-          <div className={styles.subsectionHead}><h3>Desktop navbar tabs</h3><p>{settings.workspace.navbarTabs.length} shown. Home and Level are fixed; other tabs stay in More unless hidden below.</p></div>
-          {NAVBAR_TAB_OPTIONS.map((option) => {
+          <div className={styles.subsectionHead}><h3>Desktop navbar tabs</h3><p>{settings.workspace.navbarTabs.filter((id) => id !== "notebooks" || notebooksAllowed).length} shown. Home and Level are fixed; other tabs stay in More unless hidden below.</p></div>
+          {NAVBAR_TAB_OPTIONS.filter((option) => option.id !== "notebooks" || notebooksAllowed).map((option) => {
             const checked = settings.workspace.navbarTabs.includes(option.id);
             const required = REQUIRED_NAVBAR_TABS.has(option.id);
             const description = required ? `${option.description} Always shown.` : option.description;

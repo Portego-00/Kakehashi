@@ -1,11 +1,22 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Alert, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import { Audio } from "../../utils/expoAvCompat";
 import { buildReviewQuestionQueue } from "../../utils/reviewOrdering";
+
+let mockFlushedNoteText: string | undefined;
+const mockEditorFlush = jest.fn((value?: string) =>
+  Promise.resolve(mockFlushedNoteText ?? value ?? ""),
+);
+const mockAlert = jest.spyOn(Alert, "alert");
+
+function respondToDiscardAlert(action: "Keep editing" | "Discard") {
+  const buttons = mockAlert.mock.calls.at(-1)?.[2];
+  act(() => buttons?.find((button) => button.text === action)?.onPress?.());
+}
 
 const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
   async () => null,
@@ -82,6 +93,11 @@ jest.mock("expo-blur", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   return { BlurView: View };
 });
+
+jest.mock("react-native-safe-area-context", () => ({
+  ...jest.requireActual("react-native-safe-area-context"),
+  useSafeAreaInsets: () => ({ top: 59, right: 0, bottom: 34, left: 0 }),
+}));
 
 jest.mock("expo-router", () => {
   return {
@@ -236,11 +252,12 @@ jest.mock("../formatted-note", () => {
   const { TextInput, TouchableOpacity, Text } =
     jest.requireActual<typeof import("react-native")>("react-native");
   const Editor = React.forwardRef<
-    { closeLinkPicker: () => boolean },
+    { closeLinkPicker: () => boolean; flush: () => Promise<string> },
     React.ComponentProps<typeof TextInput>
   >((props, ref) => {
     const [pickerOpen, setPickerOpen] = React.useState(false);
     React.useImperativeHandle(ref, () => ({
+      flush: () => mockEditorFlush(props.value),
       closeLinkPicker: () => {
         if (!pickerOpen) return false;
         setPickerOpen(false);
@@ -385,6 +402,18 @@ function renderQuestion(options?: {
   );
 }
 
+async function renderReviewNote() {
+  mockSettings.disableAutoProgressOnCorrect = true;
+  mockSettings.showAnswerStopSubjectDetails = true;
+  const screen = renderQuestion();
+  fireEvent(screen.getByTestId("answer-input"), "submitEditing", {
+    nativeEvent: { text: "ground" },
+  });
+  await waitFor(() => expect(screen.getByText("Edit meaning note")).toBeTruthy());
+  fireEvent.press(screen.getByText("Edit meaning note"));
+  return screen;
+}
+
 function getSubmitButton(screen: ReturnType<typeof render>) {
   return screen.UNSAFE_getAllByType(TouchableOpacity).find(
     (button) => ["arrow-forward", "chevron-forward"].includes(button.props.children?.props?.name),
@@ -393,6 +422,9 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
+    mockAlert.mockClear();
+    mockEditorFlush.mockClear();
+    mockFlushedNoteText = undefined;
     jest.mocked(Audio.Sound.createAsync).mockReset();
     Object.assign(mockSettings, defaultSettings);
     mockReadReviewSettings.mockClear();
@@ -415,6 +447,23 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnWrong = false;
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
+  });
+
+  it("closes an unchanged review note without asking to discard", async () => {
+    const screen = await renderReviewNote();
+    fireEvent.press(screen.getByLabelText("Close note editor"));
+    await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+    expect(mockEditorFlush).toHaveBeenCalledTimes(1);
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  it("checks the freshly flushed review draft before closing", async () => {
+    const screen = await renderReviewNote();
+    mockFlushedNoteText = "Last native keystroke";
+    fireEvent.press(screen.getByLabelText("Close note editor"));
+    await waitFor(() => expect(mockAlert).toHaveBeenCalledTimes(1));
+    respondToDiscardAlert("Keep editing");
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe("Last native keystroke");
   });
 
   it.each(["Cancel", "close button", "request close"])(
@@ -446,7 +495,22 @@ describe("ReviewQuestionScreen question occurrences", () => {
       expect(screen.queryByText("Subject link picker")).toBeNull();
       expect(screen.getByLabelText("Meaning note text").props.value).toBe("My unsaved note");
 
+      expect(mockAlert).not.toHaveBeenCalled();
+      expect(mockEditorFlush).not.toHaveBeenCalled();
       dismiss();
+      await waitFor(() => expect(mockAlert).toHaveBeenCalledWith(
+        "Discard note changes?",
+        "Your changes will not be saved.",
+        expect.arrayContaining([
+          expect.objectContaining({ text: "Keep editing", style: "cancel" }),
+          expect.objectContaining({ text: "Discard", style: "destructive" }),
+        ]),
+      ));
+      respondToDiscardAlert("Keep editing");
+      expect(screen.getByLabelText("Meaning note text").props.value).toBe("My unsaved note");
+      dismiss();
+      await waitFor(() => expect(mockAlert).toHaveBeenCalledTimes(2));
+      respondToDiscardAlert("Discard");
       expect(screen.queryByLabelText("Meaning note text")).toBeNull();
     },
   );
@@ -1604,3 +1668,5 @@ describe("ReviewQuestionScreen question occurrences", () => {
     screen.unmount();
   });
 });
+
+afterAll(() => mockAlert.mockRestore());

@@ -70,6 +70,8 @@ import {
   FormattedNoteText,
   type FormattedNoteEditorHandle,
 } from "./formatted-note";
+import { parseFormattedNote } from "../utils/note-formatting";
+import { getNoteVisualEditorRunsSignature } from "./note-visual-editor-model";
 import { NoteFieldContainer } from "./note-field-container";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
@@ -508,6 +510,9 @@ const SubjectContent = ({
   const [meaningNote, setMeaningNote] = useState("");
   const [readingNote, setReadingNote] = useState("");
   const [noteModalVisible, setNoteModalVisible] = useState(false);
+  // Reset on open, keeping the editor intact during iOS modal dismissal.
+  const [noteEditorSession, setNoteEditorSession] = useState(0);
+  const noteModalInsets = useSafeAreaInsets();
   const [editingNoteType, setEditingNoteType] = useState<
     "meaning" | "reading"
   >("meaning");
@@ -521,6 +526,8 @@ const SubjectContent = ({
   const { apiToken } = useAuthStore();
   const mountedRef = useRef(true);
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
+  const originalNoteSignatureRef = useRef("");
+  const checkingNoteChangesRef = useRef(false);
 
   // Visually similar kanji state (for Niai source)
   const [niaiSimilarKanji, setNiaiSimilarKanji] = useState<any[]>([]);
@@ -1272,14 +1279,49 @@ const SubjectContent = ({
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteEditorSession((session) => session + 1);
     setEditingNoteType(type);
-    setEditingNoteText(type === "meaning" ? meaningNote : readingNote);
+    const initialNoteText = type === "meaning" ? meaningNote : readingNote;
+    originalNoteSignatureRef.current = getNoteVisualEditorRunsSignature(
+      parseFormattedNote(initialNoteText),
+    );
+    setEditingNoteText(initialNoteText);
     setNoteModalVisible(true);
   };
 
-  const handleCloseNote = () => {
+  const handleCloseNote = async () => {
     if (noteEditorRef.current?.closeLinkPicker()) return;
-    setNoteModalVisible(false);
+    if (isSavingNote || checkingNoteChangesRef.current) return;
+
+    checkingNoteChangesRef.current = true;
+    try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? editingNoteText;
+      if (
+        getNoteVisualEditorRunsSignature(parseFormattedNote(currentNoteText)) ===
+        originalNoteSignatureRef.current
+      ) {
+        setNoteModalVisible(false);
+        return;
+      }
+
+      setEditingNoteText(currentNoteText);
+      Alert.alert("Discard note changes?", "Your changes will not be saved.", [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => setNoteModalVisible(false),
+        },
+      ]);
+    } catch {
+      Alert.alert(
+        "Unable to close note",
+        "Please try again. Your changes are still here.",
+      );
+    } finally {
+      checkingNoteChangesRef.current = false;
+    }
   };
 
   const handleSaveNote = async () => {
@@ -4470,26 +4512,24 @@ const SubjectContent = ({
         onRequestClose={handleCloseNote}
       >
         <KeyboardAvoidingView
-          style={styles.noteModalOverlay}
+          style={[
+            styles.noteModalOverlay,
+            {
+              paddingTop: Math.max(16, noteModalInsets.top),
+              paddingBottom: 16 + androidKeyboardLift,
+            },
+          ]}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
           onLayout={handleNoteModalOverlayLayout}
         >
-          <View
-            style={[
-              styles.noteModalContent,
-              Platform.OS === "android" &&
-                androidKeyboardLift > 0 && {
-                  transform: [{ translateY: -androidKeyboardLift }],
-                },
-            ]}
-          >
+          <View style={styles.noteModalContent}>
             <Text style={styles.noteModalTitle}>
               {editingNoteType === "meaning" ? "Meaning Note" : "Reading Note"}
             </Text>
             <FormattedNoteEditor
               ref={noteEditorRef}
-              key={`${editingNoteType}:${noteModalVisible}`}
+              key={noteEditorSession}
+              containerStyle={styles.noteEditor}
               style={styles.noteInput}
               value={editingNoteText}
               onChangeText={setEditingNoteText}
@@ -6059,14 +6099,15 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     noteModalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       alignItems: "center",
       padding: 16,
     },
     noteModalContent: {
+      flex: 1,
       width: "100%",
       maxWidth: 460,
-      maxHeight: "90%",
+      maxHeight: 640,
       flexShrink: 1,
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
@@ -6090,6 +6131,10 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       backgroundColor: theme.isDark ? "rgba(255,255,255,0.05)" : "#ffffff",
       fontSize: 16,
       textAlignVertical: "top",
+    },
+    noteEditor: {
+      flex: 1,
+      minHeight: 0,
     },
     noteModalButtons: {
       marginTop: 16,

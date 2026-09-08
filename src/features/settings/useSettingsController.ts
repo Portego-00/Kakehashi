@@ -52,7 +52,6 @@ import {
 } from "../../utils/api";
 import { apiDebugger } from "../../utils/apiDebugger";
 import { isPortegoUsername } from "../../utils/portegoAccess";
-import { azureSpeechService, JAPANESE_VOICES } from "../../utils/azureSpeech";
 import {
   clearBadgeCount,
   updateBadgeWithReviewCount,
@@ -303,6 +302,7 @@ type SettingsSectionKey =
   | "lessons"
   | "subjectLists"
   | "reviews"
+  | "notes"
   | "haptic"
   | "kanji"
   | "profile"
@@ -330,6 +330,7 @@ type SettingsSectionChipLayout = {
 const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   profile: "profile",
   reviews: "reviews",
+  notes: "notes",
   kanji: "kanji",
   lessons: "lessons",
   vocabContext: "vocabContext",
@@ -565,15 +566,11 @@ export function useSettingsController() {
     saveClientId: saveSpotifyClientId,
     isConfiguring: isSpotifyConfiguring,
   } = useSpotifyAuth();
-  const [selectedVoice, setSelectedVoice] =
-    useState<string>("ja-JP-NanamiNeural");
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showOpenSourceModal, setShowOpenSourceModal] = useState(false);
   const [appleMusicPlaybackAccessStatus, setAppleMusicPlaybackAccessStatus] =
     useState<"unknown" | "available" | "subscriptionRequired" | "unavailable">(
       "unknown",
     );
-  const [testingVoiceId, setTestingVoiceId] = useState<string | null>(null);
   const [cacheAnalysis, setCacheAnalysis] =
     useState<CacheAnalysisResult | null>(null);
   const [showCacheModal, setShowCacheModal] = useState(false);
@@ -726,6 +723,7 @@ export function useSettingsController() {
       { key: "lessons", label: "Lessons", icon: "school-outline" },
       { key: "subjectLists", label: "Subject Lists", icon: "list-outline" },
       { key: "reviews", label: "Reviews", icon: "checkmark-done-outline" },
+      { key: "notes", label: "Notes", icon: "create-outline" },
       { key: "haptic", label: "Haptic", icon: "phone-portrait-outline" },
       { key: "kanji", label: "Kanji", icon: "brush-outline" },
       { key: "profile", label: "Profile", icon: "person-circle-outline" },
@@ -990,11 +988,6 @@ export function useSettingsController() {
     });
   }, [availableLevelAnalyticsLevels]);
 
-  // Load current voice selection on component mount
-  useEffect(() => {
-    loadCurrentVoice();
-  }, []);
-
   useEffect(() => {
     setGravatarEmailInput(gravatarEmail ?? "");
   }, [gravatarEmail]);
@@ -1150,84 +1143,6 @@ export function useSettingsController() {
       void refreshOfflineAudioCacheSize();
     }
   }, [offlineAudioProgress.inProgress, refreshOfflineAudioCacheSize]);
-
-  const loadCurrentVoice = () => {
-    const config = azureSpeechService.getConfig();
-    setSelectedVoice(config.selectedVoice);
-  };
-
-  const handleVoiceSelection = () => {
-    setShowVoiceModal(true);
-  };
-
-  const saveSelectedVoice = async (voiceShortName: string) => {
-    try {
-      await azureSpeechService.saveSelectedVoice(voiceShortName);
-      setSelectedVoice(voiceShortName);
-      setShowVoiceModal(false);
-    } catch {
-      Alert.alert("Error", "Failed to save voice selection");
-    }
-  };
-
-  const testVoice = async (voiceShortName: string) => {
-    // Stop any currently playing voice test
-    if (testingVoiceId !== null) {
-      await azureSpeechService.stop();
-    }
-
-    setTestingVoiceId(voiceShortName);
-
-    // Store the original voice only if we're not already testing
-    const originalVoice = selectedVoice;
-    await azureSpeechService.saveSelectedVoice(voiceShortName);
-
-    // Test text saying in japanese "My name is (name)" removing ja-JP from the voiceShortName
-    const testText = `私の名前は ${voiceShortName
-      ?.replace("ja-JP-", "")
-      ?.replace("Neural", "")} です`;
-
-    try {
-      await azureSpeechService.speak(
-        testText,
-        () => {},
-        () => {
-          // Only clear testing state if this voice is still the one being tested
-          if (testingVoiceId === voiceShortName) {
-            setTestingVoiceId(null);
-            // Restore original voice if not selected
-            if (originalVoice !== voiceShortName) {
-              azureSpeechService.saveSelectedVoice(originalVoice);
-            }
-          }
-        },
-        (error) => {
-          console.error("Voice test error:", error);
-          // Only clear testing state if this voice is still the one being tested
-          if (testingVoiceId === voiceShortName) {
-            setTestingVoiceId(null);
-            // Restore original voice on error
-            azureSpeechService.saveSelectedVoice(originalVoice);
-            Alert.alert(
-              "Test Failed",
-              "Unable to test voice. Please check your internet connection.",
-            );
-          }
-        },
-      );
-    } catch {
-      // Only clear testing state if this voice is still the one being tested
-      if (testingVoiceId === voiceShortName) {
-        setTestingVoiceId(null);
-        // Restore original voice on error
-        await azureSpeechService.saveSelectedVoice(originalVoice);
-        Alert.alert(
-          "Test Failed",
-          "Unable to test voice. Please check your internet connection.",
-        );
-      }
-    }
-  };
 
   const handleSaveGravatarEmail = () => {
     const email = gravatarEmailInput.trim();
@@ -2118,11 +2033,6 @@ export function useSettingsController() {
     );
   };
 
-  const getCurrentVoiceDisplayName = () => {
-    const voice = JAPANESE_VOICES.find((v) => v.shortName === selectedVoice);
-    return voice?.displayName || selectedVoice;
-  };
-
   const getVocabularyAudioVoiceLabel = (
     voice: VocabularyAudioVoicePreference,
   ) => {
@@ -2919,7 +2829,6 @@ export function useSettingsController() {
     getAppleMusicStatusLabel,
     getAppleMusicSubscriptionAlertMessage,
     getCurrentPatchNotesVersion,
-    getCurrentVoiceDisplayName,
     getLessonOrderLabel,
     getNextDailyLessonLimit,
     getNextDailyLessonReminderMinimum,
@@ -2979,7 +2888,6 @@ export function useSettingsController() {
     handleShowApiTimelineSummary,
     handleShowPendingNotifications,
     handleSubmitBunproSurvey,
-    handleVoiceSelection,
     hapticFeedbackEnabled,
     hasStoredJpdbApiKey,
     hideContextSentenceTranslations,
@@ -3007,7 +2915,6 @@ export function useSettingsController() {
     isSongsHiddenForEmail,
     isSubmittingBunproSurvey,
     JAPANESE_KEYBOARD_SETUP_INSTRUCTIONS,
-    JAPANESE_VOICES,
     jitaiEnabled,
     jitaiSelectedFontIds,
     jpdbApiKeyInput,
@@ -3019,7 +2926,6 @@ export function useSettingsController() {
     lessonPickerViewMode,
     lessonTypeOrderEnabled,
     levelAnalyticsExportFormat,
-    loadCurrentVoice,
     logout,
     modalHeaderPaddingTop,
     myAnimeListUsername,
@@ -3070,7 +2976,6 @@ export function useSettingsController() {
     reviewWrapUpTargetStep,
     reviewWrapUpTargetSubjects,
     router,
-    saveSelectedVoice,
     scrollToParam,
     scrollToSection,
     scrollViewRef,
@@ -3082,7 +2987,6 @@ export function useSettingsController() {
     selectAllLevelAnalyticsLevels,
     selectedLevelAnalyticsLevels,
     selectedSectionKey,
-    selectedVoice,
     selectSrsProgressionCardMode,
     selectVocabularyAudioVoice,
     setAcceptAnyKanjiOnyomiReading,
@@ -3166,7 +3070,6 @@ export function useSettingsController() {
     setSectionOffsets,
     setSelectedLevelAnalyticsLevels,
     setSelectedSectionKey,
-    setSelectedVoice,
     setShowAddSynonymButton,
     setShowAnswerStopDetailsPreview,
     setShowAnswerStopSubjectDetails,
@@ -3197,14 +3100,12 @@ export function useSettingsController() {
     setShowStrokeOrder,
     setShowVocabContextSentencesInReviews,
     setShowVocabularyVoiceMenu,
-    setShowVoiceModal,
     setSinglePageLessonView,
     setSkipCustomLessonQuiz,
     setSongsLyricsDefaultStudyMode,
     setSongsPlaybackSource,
     setSrsProgressionCardDisplayMode,
     setStrokeLeniency,
-    setTestingVoiceId,
     setThemeMode,
     settingsBottomPadding,
     setVisuallySimilarKanjiSource,
@@ -3246,7 +3147,6 @@ export function useSettingsController() {
     showStrokeOrder,
     showVocabContextSentencesInReviews,
     showVocabularyVoiceMenu,
-    showVoiceModal,
     showWidgetsSection,
     signOut,
     singlePageLessonView,
@@ -3268,8 +3168,6 @@ export function useSettingsController() {
     STUDY_MODE_DEFAULT_OPTIONS,
     StyleSheet,
     submitBunproSurveyResponse,
-    testingVoiceId,
-    testVoice,
     theme,
     themeMode,
     toggleLevelAnalyticsLevelSelection,

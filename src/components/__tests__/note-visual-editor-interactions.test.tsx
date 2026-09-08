@@ -68,6 +68,49 @@ function command(value: CommandInput) {
   act(() => root.render(<NoteVisualEditorContent {...props} />));
 }
 
+function mockCollapsedTypingCommands() {
+  const originalExecCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
+  const originalQueryCommandState = Object.getOwnPropertyDescriptor(document, "queryCommandState");
+  const selection = window.getSelection()!;
+  const addRange = selection.addRange.bind(selection);
+  const pendingFormats = new Set<string>();
+  const formatTags = { bold: "b,strong", italic: "i,em", underline: "u" };
+
+  // Browsers keep caret typing styles separately from existing DOM markup.
+  // Replacing the range derives those styles from the new caret's ancestors.
+  const restoreRange = jest.spyOn(selection, "addRange").mockImplementation((range) => {
+    addRange(range);
+    pendingFormats.clear();
+    const element = range.startContainer instanceof Element
+      ? range.startContainer
+      : range.startContainer.parentElement;
+    for (const [format, tags] of Object.entries(formatTags)) {
+      if (element?.closest(tags)) pendingFormats.add(format);
+    }
+  });
+  Object.defineProperty(document, "execCommand", {
+    configurable: true,
+    value: jest.fn((format: string) => {
+      if (!(format in formatTags)) return true;
+      if (pendingFormats.has(format)) pendingFormats.delete(format);
+      else pendingFormats.add(format);
+      return true;
+    }),
+  });
+  Object.defineProperty(document, "queryCommandState", {
+    configurable: true,
+    value: jest.fn((format: string) => pendingFormats.has(format)),
+  });
+
+  return () => {
+    restoreRange.mockRestore();
+    if (originalExecCommand) Object.defineProperty(document, "execCommand", originalExecCommand);
+    else Reflect.deleteProperty(document, "execCommand");
+    if (originalQueryCommandState) Object.defineProperty(document, "queryCommandState", originalQueryCommandState);
+    else Reflect.deleteProperty(document, "queryCommandState");
+  };
+}
+
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,6 +127,178 @@ afterEach(() => {
 });
 
 describe("note visual editor interactions", () => {
+  it("combines pending caret formats before typing and lets either be disabled", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([]);
+      act(() => editor.focus());
+      select(editor, 0);
+
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold"] });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold", "underline"] });
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["underline"] });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([]);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it.each(["bold", "italic", "underline"] as const)("disables pending %s inside matching formatted text", (format) => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([{ text: "existing", formats: [format] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!.firstChild!, 4);
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [format] });
+
+      command({ type: "toggle-format", format });
+
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "existing", formats: [format] }]);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("combines and disables caret formats inside a subject link without changing its label", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const runs = [{ text: "bridge", formats: [], subjectId: 440 }];
+      const editor = renderEditor(runs);
+      act(() => editor.focus());
+      select(editor.querySelector("a")!.firstChild!, 3);
+
+      command({ type: "toggle-format", format: "bold" });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+        text: "bridge",
+        formats: ["bold", "underline"],
+        subjectId: 440,
+      });
+
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+        text: "bridge",
+        formats: ["underline"],
+        subjectId: 440,
+      });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+        text: "bridge",
+        formats: [],
+        subjectId: 440,
+      });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual(runs);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it.each([
+    { top: 1_800, expectedScroll: 1_430 },
+    { top: 40, expectedScroll: null },
+  ])("reveals a restored native selection only when outside the viewport ($top)", ({ top, expectedScroll }) => {
+    const originalBounds = Object.getOwnPropertyDescriptor(Range.prototype, "getBoundingClientRect");
+    const originalHeight = Object.getOwnPropertyDescriptor(window, "innerHeight");
+    const frame = jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const scroll = jest.spyOn(window, "scrollBy").mockImplementation(() => {});
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 400 });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top, bottom: top + 22, height: 22 }),
+    });
+    try {
+      renderEditor([{ text: "first\nmiddle\nlast", formats: [] }]);
+      props = { ...props, appearance: { ...props.appearance, isolatedHost: true, minHeight: 400 } };
+      command({ type: "focus", selection: { start: 6, end: 12 } });
+      expect(window.getSelection()!.toString()).toBe("middle");
+      if (expectedScroll === null) {
+        expect(scroll).not.toHaveBeenCalled();
+      } else {
+        expect(scroll).toHaveBeenCalledWith({ top: expectedScroll, behavior: "instant" });
+      }
+    } finally {
+      frame.mockRestore();
+      scroll.mockRestore();
+      if (originalBounds) Object.defineProperty(Range.prototype, "getBoundingClientRect", originalBounds);
+      else Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+      if (originalHeight) Object.defineProperty(window, "innerHeight", originalHeight);
+    }
+  });
+
+  it.each(["viewport", "native layout"])("keeps a restored selection visible when %s shrinks after focus", (resizeSource) => {
+    const originalBounds = Object.getOwnPropertyDescriptor(Range.prototype, "getBoundingClientRect");
+    const originalHeight = Object.getOwnPropertyDescriptor(window, "innerHeight");
+    const frame = jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const scroll = jest.spyOn(window, "scrollBy").mockImplementation(() => {});
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 400 });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 340, bottom: 362, height: 22 }),
+    });
+    try {
+      const editor = renderEditor([{ text: "first\nmiddle\nlast", formats: [] }]);
+      props = { ...props, appearance: { ...props.appearance, isolatedHost: true, minHeight: 400 } };
+      command({ type: "focus", selection: { start: 6, end: 12 } });
+      expect(scroll).not.toHaveBeenCalled();
+
+      act(() => {
+        if (resizeSource === "viewport") {
+          Object.defineProperty(window, "innerHeight", { configurable: true, value: 263 });
+          window.dispatchEvent(new Event("resize"));
+        } else {
+          props = { ...props, appearance: { ...props.appearance, minHeight: 263 } };
+          root.render(<NoteVisualEditorContent {...props} />);
+        }
+      });
+      expect(scroll).toHaveBeenLastCalledWith({ top: 107, behavior: "instant" });
+
+      scroll.mockClear();
+      editor.dispatchEvent(new Event("touchstart", { bubbles: true }));
+      act(() => {
+        Object.defineProperty(window, "innerHeight", { configurable: true, value: 150 });
+        window.dispatchEvent(new Event("resize"));
+        props = { ...props, appearance: { ...props.appearance, minHeight: 150 } };
+        root.render(<NoteVisualEditorContent {...props} />);
+      });
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      frame.mockRestore();
+      scroll.mockRestore();
+      if (originalBounds) Object.defineProperty(Range.prototype, "getBoundingClientRect", originalBounds);
+      else Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+      if (originalHeight) Object.defineProperty(window, "innerHeight", originalHeight);
+    }
+  });
+
+  it("captures the latest visible range with the source snapshot", () => {
+    const editor = renderEditor([
+      { text: "A&B", formats: ["bold"] },
+      { text: " tail", formats: [] },
+    ]);
+    act(() => editor.focus());
+    select(editor.firstChild!.firstChild!, 1, 3, false);
+
+    command({ type: "prepare-source" });
+
+    expect(props.onSourceReady).toHaveBeenLastCalledWith({
+      requestNonce: nonce,
+      runs: props.runs,
+      selection: { start: 1, end: 3 },
+    });
+  });
+
   it("captures a live selection before the browser delivers selectionchange", () => {
     const editor = renderEditor([{ text: "before middle after", formats: [] }]);
     act(() => editor.focus());

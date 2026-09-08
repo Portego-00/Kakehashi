@@ -26,6 +26,8 @@ import type { Subject } from "../utils/api";
 import {
   getNoteLinkSearchText,
   getNoteSubjectLinkAtSelection,
+  mapSourceNoteSelectionToVisual,
+  mapVisualNoteSelectionToSource,
   normalizeFormattedNoteSegments,
   parseFormattedNote,
   removeNoteSubjectLink,
@@ -38,6 +40,7 @@ import {
   type NoteSubjectLink,
 } from "../utils/note-formatting";
 import { rememberNoteSubjectType } from "../utils/note-subject-metadata";
+import { useSettingsStore } from "../utils/store";
 import { useSubjectColors, withAlpha } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
 import NoteSubjectLinkPicker from "./note-subject-link-picker";
@@ -241,7 +244,107 @@ const FORMAT_BUTTONS: {
 export const FormattedNoteEditor = React.forwardRef<
   FormattedNoteEditorHandle,
   FormattedNoteEditorProps
->(function FormattedNoteEditor(
+>(function FormattedNoteEditor(props, forwardedRef) {
+  const advancedEditorEnabled = useSettingsStore(
+    (state) => state.advancedNoteEditorEnabled,
+  );
+  // Callers remount for each editing session. Typing literal markup into a
+  // plain note must not switch editors or move the cursor mid-edit.
+  const [startedWithFormatting] = useState(() =>
+    parseFormattedNote(props.value).some(
+      (segment) =>
+        segment.formats.length > 0 || segment.subjectId !== undefined,
+    ),
+  );
+
+  return advancedEditorEnabled || startedWithFormatting ? (
+    <RichNoteEditor {...props} ref={forwardedRef} />
+  ) : (
+    <PlainNoteEditor {...props} ref={forwardedRef} />
+  );
+});
+
+function preferredNoteEditorHeight(style?: StyleProp<TextStyle>) {
+  const flattenedStyle = StyleSheet.flatten(style) ?? {};
+  return Math.max(
+    120,
+    typeof flattenedStyle.height === "number"
+      ? flattenedStyle.height
+      : typeof flattenedStyle.minHeight === "number"
+        ? flattenedStyle.minHeight
+        : 120,
+  );
+}
+
+function noteEditorFillsContainer(style?: StyleProp<ViewStyle>) {
+  const flattenedStyle = StyleSheet.flatten(style);
+  return (flattenedStyle?.flex ?? 0) > 0 || (flattenedStyle?.flexGrow ?? 0) > 0;
+}
+
+const PlainNoteEditor = React.forwardRef<
+  FormattedNoteEditorHandle,
+  FormattedNoteEditorProps
+>(function PlainNoteEditor(
+  {
+    value,
+    onChangeText,
+    onBlur,
+    onFocus,
+    style,
+    containerStyle,
+    ...inputProps
+  },
+  forwardedRef,
+) {
+  const currentValueRef = useRef(value);
+  currentValueRef.current = value;
+  const plainText = useMemo(
+    () =>
+      parseFormattedNote(value)
+        .map((segment) => segment.text)
+        .join(""),
+    [value],
+  );
+  useImperativeHandle(
+    forwardedRef,
+    () => ({
+      closeLinkPicker: () => false,
+      flush: async () => currentValueRef.current,
+    }),
+    [],
+  );
+
+  return (
+    <View style={[styles.editorContainer, containerStyle]}>
+      <TextInput
+        {...inputProps}
+        multiline
+        scrollEnabled
+        style={[
+          style,
+          styles.editorSurface,
+          styles.plainEditorSurface,
+          noteEditorFillsContainer(containerStyle)
+            ? styles.fillingEditorSurface
+            : { height: preferredNoteEditorHeight(style) },
+        ]}
+        value={plainText}
+        onBlur={onBlur}
+        onFocus={onFocus}
+        onChangeText={(text) => {
+          const storedText = serializeFormattedNote([{ text, formats: [] }]);
+          currentValueRef.current = storedText;
+          onChangeText(storedText);
+        }}
+      />
+    </View>
+  );
+});
+
+const RichNoteEditor = React.forwardRef<
+  FormattedNoteEditorHandle,
+  FormattedNoteEditorProps
+>(function RichNoteEditor(
   {
     value,
     onChangeText,
@@ -304,14 +407,13 @@ export const FormattedNoteEditor = React.forwardRef<
     textInputProps.maxFontSizeMultiplier > 0
       ? Math.min(deviceFontScale, textInputProps.maxFontSizeMultiplier)
       : deviceFontScale;
-  const visualEditorHeight = Math.max(
-    120,
-    typeof flattenedEditorStyle.height === "number"
-      ? flattenedEditorStyle.height
-      : typeof flattenedEditorStyle.minHeight === "number"
-        ? flattenedEditorStyle.minHeight
-        : 120,
-  );
+  const fillsContainer = noteEditorFillsContainer(containerStyle);
+  const [measuredEditorHeight, setMeasuredEditorHeight] = useState<
+    number | null
+  >(null);
+  const visualEditorHeight =
+    (fillsContainer && measuredEditorHeight) ||
+    preferredNoteEditorHeight(style);
   const visualEditorFrameStyle = useMemo<ViewStyle>(
     () => ({
       ...(typeof flattenedEditorStyle.height === "number"
@@ -434,28 +536,34 @@ export const FormattedNoteEditor = React.forwardRef<
     ],
   );
 
-  const handleLinkPress = useCallback((action: "change" | "toggle" = "change") => {
-    if (!editorIsEditable) return;
-    if (editorMode === "visual") {
-      pendingVisualLinkActionRef.current = action;
-      pendingVisualLinkRequestNonceRef.current = issueVisualCommand({
-        type: "capture-selection",
-      });
-      return;
-    }
+  const handleLinkPress = useCallback(
+    (action: "change" | "toggle" = "change") => {
+      if (!editorIsEditable) return;
+      if (editorMode === "visual") {
+        pendingVisualLinkActionRef.current = action;
+        pendingVisualLinkRequestNonceRef.current = issueVisualCommand({
+          type: "capture-selection",
+        });
+        return;
+      }
 
-    const existingLink = getNoteSubjectLinkAtSelection(value, selection);
-    setLinkPickerContext({
-      editorMode: "source",
-      selection: { ...selection },
-      initialQuery: getNoteLinkSearchText(value, selection),
-      linkedSubjectId: existingLink?.subjectId,
-    });
-  }, [editorIsEditable, editorMode, issueVisualCommand, selection, value]);
+      const existingLink = getNoteSubjectLinkAtSelection(value, selection);
+      setLinkPickerContext({
+        editorMode: "source",
+        selection: { ...selection },
+        initialQuery: getNoteLinkSearchText(value, selection),
+        linkedSubjectId: existingLink?.subjectId,
+      });
+    },
+    [editorIsEditable, editorMode, issueVisualCommand, selection, value],
+  );
 
   const closeLinkPicker = useCallback(() => {
     if (linkPickerContext?.editorMode === "visual") {
-      issueVisualCommand({ type: "focus", selection: linkPickerContext.selection });
+      issueVisualCommand({
+        type: "focus",
+        selection: linkPickerContext.selection,
+      });
     } else {
       shouldRestoreFocusRef.current = true;
     }
@@ -622,7 +730,11 @@ export const FormattedNoteEditor = React.forwardRef<
       pendingSourceRequestNonceRef.current = null;
       pendingVisualLinkRequestNonceRef.current = null;
       if (nextValue !== currentValueRef.current) commitValue(nextValue);
-      setSelection({ start: nextValue.length, end: nextValue.length });
+      setSelection(
+        snapshot.selection
+          ? mapVisualNoteSelectionToSource(nextValue, snapshot.selection)
+          : { start: nextValue.length, end: nextValue.length },
+      );
       setEditorMode("source");
       requestAnimationFrame(() => textInputRef.current?.focus());
     },
@@ -674,17 +786,18 @@ export const FormattedNoteEditor = React.forwardRef<
       pendingSourceRequestNonceRef.current = null;
       setEditorMode("visual");
       if (nextMode === "visual") {
-        issueVisualCommand({ type: "focus" });
+        issueVisualCommand({
+          type: "focus",
+          selection: mapSourceNoteSelectionToVisual(currentValueRef.current, selection),
+        });
       }
     },
-    [editorMode, issueVisualCommand],
+    [editorMode, issueVisualCommand, selection],
   );
 
   const sourceLink = getNoteSubjectLinkAtSelection(value, selection);
   const selectedLinkSubjectId =
     editorMode === "visual" ? visualSelection.subjectId : sourceLink?.subjectId;
-  const selectedLinkText =
-    editorMode === "visual" ? visualSelection.text : sourceLink?.text || "";
   const selectedLinkType = selectedLinkSubjectId
     ? linkedSubjectTypes[selectedLinkSubjectId]
     : undefined;
@@ -713,9 +826,250 @@ export const FormattedNoteEditor = React.forwardRef<
         pointerEvents={linkPickerContext ? "none" : "auto"}
         style={[
           styles.editorControls,
+          fillsContainer && styles.fillingEditorControls,
           linkPickerContext && styles.hiddenEditorControls,
         ]}
       >
+        <View
+          style={[
+            visualEditorFrameStyle,
+            styles.editorSurface,
+            fillsContainer
+              ? styles.fillingEditorSurface
+              : { height: visualEditorHeight },
+            styles.visualEditorFrame,
+            editorMode !== "visual" && styles.hiddenEditorSurface,
+          ]}
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            if (fillsContainer && height > 0) {
+              // Keep the native WebView explicitly sized inside its flex slot.
+              setMeasuredEditorHeight(
+                Math.max(
+                  1,
+                  height - 2 * (flattenedEditorStyle.borderWidth ?? 0),
+                ),
+              );
+            }
+          }}
+        >
+          <NoteVisualEditorDOM
+            accessibilityHint={
+              typeof textInputProps.accessibilityHint === "string"
+                ? textInputProps.accessibilityHint
+                : undefined
+            }
+            accessibilityLabel={
+              typeof textInputProps.accessibilityLabel === "string"
+                ? textInputProps.accessibilityLabel
+                : "Note text"
+            }
+            appearance={{
+              colorScheme: theme.isDark ? "dark" : "light",
+              isolatedHost: Platform.OS !== "web",
+              backgroundColor:
+                typeof flattenedEditorStyle.backgroundColor === "string"
+                  ? flattenedEditorStyle.backgroundColor
+                  : theme.cardBackground,
+              textColor:
+                typeof flattenedEditorStyle.color === "string"
+                  ? flattenedEditorStyle.color
+                  : theme.textColor,
+              placeholderColor:
+                typeof textInputProps.placeholderTextColor === "string"
+                  ? textInputProps.placeholderTextColor
+                  : theme.textLight,
+              caretColor: theme.primary,
+              selectionColor: withAlpha(theme.primary, 0.28),
+              subjectColors: {
+                radical: subjectColors.radical,
+                kanji: subjectColors.kanji,
+                vocabulary: subjectColors.vocabulary,
+              },
+              fontFamily:
+                typeof flattenedEditorStyle.fontFamily === "string"
+                  ? flattenedEditorStyle.fontFamily
+                  : undefined,
+              fontSize:
+                typeof flattenedEditorStyle.fontSize === "number"
+                  ? flattenedEditorStyle.fontSize * fontScale
+                  : 16 * fontScale,
+              lineHeight:
+                typeof flattenedEditorStyle.lineHeight === "number"
+                  ? flattenedEditorStyle.lineHeight * fontScale
+                  : 22 * fontScale,
+              minHeight: visualEditorHeight,
+              paddingHorizontal:
+                typeof flattenedEditorStyle.paddingHorizontal === "number"
+                  ? flattenedEditorStyle.paddingHorizontal
+                  : typeof flattenedEditorStyle.padding === "number"
+                    ? flattenedEditorStyle.padding
+                    : 12,
+              paddingVertical:
+                typeof flattenedEditorStyle.paddingVertical === "number"
+                  ? flattenedEditorStyle.paddingVertical
+                  : typeof flattenedEditorStyle.padding === "number"
+                    ? flattenedEditorStyle.padding
+                    : 12,
+            }}
+            autoFocus={
+              editorMode === "visual" && Boolean(textInputProps.autoFocus)
+            }
+            autoCapitalize={textInputProps.autoCapitalize}
+            autoCorrect={textInputProps.autoCorrect !== false}
+            command={visualCommand}
+            dom={{
+              keyboardDisplayRequiresUserAction: false,
+              hideKeyboardAccessoryView: true,
+              scrollEnabled: true,
+              style: { width: "100%", height: visualEditorHeight },
+            }}
+            onChange={handleVisualRunsChange}
+            onBlur={handleVisualBlur}
+            onFocus={handleVisualFocus}
+            onSelectionChange={handleVisualSelectionChange}
+            onSourceReady={handleVisualSourceReady}
+            onValueReady={handleVisualValueReady}
+            placeholder={
+              typeof textInputProps.placeholder === "string"
+                ? textInputProps.placeholder
+                : ""
+            }
+            runs={visualRuns}
+            editable={editorIsEditable}
+            maxLength={textInputProps.maxLength}
+            spellCheck={
+              textInputProps.spellCheck ?? textInputProps.autoCorrect ?? true
+            }
+            subjectTypes={visualSubjectTypes}
+          />
+        </View>
+
+        <TextInput
+          {...textInputProps}
+          ref={textInputRef}
+          autoFocus={
+            editorMode === "source" && Boolean(textInputProps.autoFocus)
+          }
+          multiline
+          scrollEnabled
+          style={[
+            style,
+            styles.editorSurface,
+            fillsContainer
+              ? styles.fillingEditorSurface
+              : { height: visualEditorHeight },
+            editorMode !== "source" && styles.hiddenEditorSurface,
+          ]}
+          value={value}
+          onChangeText={commitValue}
+          onBlur={onBlur}
+          onFocus={onFocus}
+          selection={selection}
+          onSelectionChange={(event) =>
+            setSelection(event.nativeEvent.selection)
+          }
+        />
+
+        <View style={styles.editorModeRow}>
+          <View
+            accessibilityLabel="Note editor mode"
+            accessibilityRole="tablist"
+            style={[
+              styles.modeSwitcher,
+              {
+                borderColor: theme.border,
+                backgroundColor: theme.cardBackground,
+              },
+            ]}
+          >
+            {(["visual", "source"] as const).map((mode) => {
+              const selected = editorMode === mode;
+              const label = mode === "visual" ? "Visual" : "Source";
+              return (
+                <Pressable
+                  key={mode}
+                  accessibilityLabel={`Use ${mode} editor`}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  onPress={() => handleEditorModeChange(mode)}
+                  style={({ pressed }) => [
+                    styles.modeButton,
+                    {
+                      backgroundColor: selected
+                        ? theme.headerSurface
+                        : "transparent",
+                      opacity: pressed ? 0.65 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modeButtonText,
+                      { color: selected ? theme.primary : theme.textSecondary },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View
+            pointerEvents={selectedLinkSubjectId ? "auto" : "none"}
+            accessibilityElementsHidden={!selectedLinkSubjectId}
+            importantForAccessibility={
+              selectedLinkSubjectId ? "auto" : "no-hide-descendants"
+            }
+            style={[
+              styles.linkActionsContainer,
+              !selectedLinkSubjectId && styles.inactiveLinkActions,
+            ]}
+          >
+            <View
+              style={[
+                styles.linkActions,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.cardBackground,
+                },
+              ]}
+            >
+              <Pressable
+                accessibilityLabel="Change subject link"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !editorIsEditable }}
+                disabled={!editorIsEditable}
+                onPress={() => handleLinkPress("change")}
+                style={({ pressed }) => [
+                  styles.linkActionButton,
+                  { opacity: pressed ? 0.55 : 1 },
+                ]}
+              >
+                <Text style={[styles.linkActionText, { color: theme.primary }]}>
+                  Change
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Remove subject link"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !editorIsEditable }}
+                disabled={!editorIsEditable}
+                accessibilityHint="Removes the whole subject link and keeps its text"
+                onPress={() => handleRemoveSelectedLink("link")}
+                style={({ pressed }) => [
+                  styles.linkActionButton,
+                  { opacity: pressed ? 0.55 : 1 },
+                ]}
+              >
+                <Text style={[styles.linkActionText, { color: theme.error }]}>
+                  Remove
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
         <View
           style={styles.toolbar}
           accessibilityRole="toolbar"
@@ -797,227 +1151,6 @@ export const FormattedNoteEditor = React.forwardRef<
             />
           </Pressable>
         </View>
-
-        {selectedLinkSubjectId ? (
-          <View
-            style={[
-              styles.linkActions,
-              {
-                borderColor: theme.border,
-                backgroundColor: theme.cardBackground,
-              },
-            ]}
-          >
-            <View style={styles.linkActionsLabel}>
-              <Ionicons name="link" size={15} color={selectedLinkColor} />
-              <Text
-                numberOfLines={1}
-                style={[styles.linkActionsText, { color: selectedLinkColor }]}
-              >
-                {selectedLinkText || "Linked subject"}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityLabel="Change subject link"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !editorIsEditable }}
-              disabled={!editorIsEditable}
-              onPress={() => handleLinkPress("change")}
-              style={({ pressed }) => [
-                styles.linkActionButton,
-                { opacity: pressed ? 0.55 : 1 },
-              ]}
-            >
-              <Text style={[styles.linkActionText, { color: theme.primary }]}>
-                Change
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Remove subject link"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !editorIsEditable }}
-              disabled={!editorIsEditable}
-              accessibilityHint="Removes the whole subject link and keeps its text"
-              onPress={() => handleRemoveSelectedLink("link")}
-              style={({ pressed }) => [
-                styles.linkActionButton,
-                { opacity: pressed ? 0.55 : 1 },
-              ]}
-            >
-              <Text style={[styles.linkActionText, { color: theme.error }]}>
-                Remove
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <View
-          accessibilityLabel="Note editor mode"
-          accessibilityRole="tablist"
-          style={[
-            styles.modeSwitcher,
-            {
-              borderColor: theme.border,
-              backgroundColor: theme.cardBackground,
-            },
-          ]}
-        >
-          {(["visual", "source"] as const).map((mode) => {
-            const selected = editorMode === mode;
-            const label = mode === "visual" ? "Visual" : "Source";
-            return (
-              <Pressable
-                key={mode}
-                accessibilityLabel={`Use ${mode} editor`}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => handleEditorModeChange(mode)}
-                style={({ pressed }) => [
-                  styles.modeButton,
-                  {
-                    backgroundColor: selected
-                      ? theme.headerSurface
-                      : "transparent",
-                    opacity: pressed ? 0.65 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.modeButtonText,
-                    { color: selected ? theme.primary : theme.textSecondary },
-                  ]}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View
-          style={[
-            visualEditorFrameStyle,
-            styles.editorSurface,
-            { height: visualEditorHeight },
-            styles.visualEditorFrame,
-            editorMode !== "visual" && styles.hiddenEditorSurface,
-          ]}
-        >
-          <NoteVisualEditorDOM
-            accessibilityHint={
-              typeof textInputProps.accessibilityHint === "string"
-                ? textInputProps.accessibilityHint
-                : undefined
-            }
-            accessibilityLabel={
-              typeof textInputProps.accessibilityLabel === "string"
-                ? textInputProps.accessibilityLabel
-                : "Note text"
-            }
-            appearance={{
-              colorScheme: theme.isDark ? "dark" : "light",
-              isolatedHost: Platform.OS !== "web",
-              backgroundColor:
-                typeof flattenedEditorStyle.backgroundColor === "string"
-                  ? flattenedEditorStyle.backgroundColor
-                  : theme.cardBackground,
-              textColor:
-                typeof flattenedEditorStyle.color === "string"
-                  ? flattenedEditorStyle.color
-                  : theme.textColor,
-              placeholderColor:
-                typeof textInputProps.placeholderTextColor === "string"
-                  ? textInputProps.placeholderTextColor
-                  : theme.textLight,
-              caretColor: theme.primary,
-              selectionColor: withAlpha(theme.primary, 0.28),
-              subjectColors: {
-                radical: subjectColors.radical,
-                kanji: subjectColors.kanji,
-                vocabulary: subjectColors.vocabulary,
-              },
-              fontFamily:
-                typeof flattenedEditorStyle.fontFamily === "string"
-                  ? flattenedEditorStyle.fontFamily
-                  : undefined,
-              fontSize:
-                typeof flattenedEditorStyle.fontSize === "number"
-                  ? flattenedEditorStyle.fontSize * fontScale
-                  : 16 * fontScale,
-              lineHeight:
-                typeof flattenedEditorStyle.lineHeight === "number"
-                  ? flattenedEditorStyle.lineHeight * fontScale
-                  : 22 * fontScale,
-              minHeight: visualEditorHeight,
-              paddingHorizontal:
-                typeof flattenedEditorStyle.paddingHorizontal === "number"
-                  ? flattenedEditorStyle.paddingHorizontal
-                  : typeof flattenedEditorStyle.padding === "number"
-                    ? flattenedEditorStyle.padding
-                    : 12,
-              paddingVertical:
-                typeof flattenedEditorStyle.paddingVertical === "number"
-                  ? flattenedEditorStyle.paddingVertical
-                  : typeof flattenedEditorStyle.padding === "number"
-                    ? flattenedEditorStyle.padding
-                    : 12,
-            }}
-            autoFocus={
-              editorMode === "visual" && Boolean(textInputProps.autoFocus)
-            }
-            autoCapitalize={textInputProps.autoCapitalize}
-            autoCorrect={textInputProps.autoCorrect !== false}
-            command={visualCommand}
-            dom={{
-              keyboardDisplayRequiresUserAction: false,
-              scrollEnabled: true,
-              style: { width: "100%", height: visualEditorHeight },
-            }}
-            onChange={handleVisualRunsChange}
-            onBlur={handleVisualBlur}
-            onFocus={handleVisualFocus}
-            onSelectionChange={handleVisualSelectionChange}
-            onSourceReady={handleVisualSourceReady}
-            onValueReady={handleVisualValueReady}
-            placeholder={
-              typeof textInputProps.placeholder === "string"
-                ? textInputProps.placeholder
-                : ""
-            }
-            runs={visualRuns}
-            editable={editorIsEditable}
-            maxLength={textInputProps.maxLength}
-            spellCheck={
-              textInputProps.spellCheck ?? textInputProps.autoCorrect ?? true
-            }
-            subjectTypes={visualSubjectTypes}
-          />
-        </View>
-
-        <TextInput
-          {...textInputProps}
-          ref={textInputRef}
-          autoFocus={
-            editorMode === "source" && Boolean(textInputProps.autoFocus)
-          }
-          multiline
-          scrollEnabled
-          style={[
-            style,
-            styles.editorSurface,
-            { height: visualEditorHeight },
-            editorMode !== "source" && styles.hiddenEditorSurface,
-          ]}
-          value={value}
-          onChangeText={commitValue}
-          onBlur={onBlur}
-          onFocus={onFocus}
-          selection={selection}
-          onSelectionChange={(event) =>
-            setSelection(event.nativeEvent.selection)
-          }
-        />
       </View>
     </View>
   );
@@ -1036,10 +1169,31 @@ const styles = StyleSheet.create({
     minHeight: 0,
     flexShrink: 1,
   },
+  fillingEditorControls: {
+    flex: 1,
+  },
+  fillingEditorSurface: {
+    flex: 1,
+    height: undefined,
+    minHeight: 64,
+  },
+  plainEditorSurface: {
+    textAlignVertical: "top",
+  },
+  inactiveLinkActions: {
+    opacity: 0,
+  },
   editorSurface: {
     minHeight: 64,
     flexShrink: 1,
+  },
+  editorModeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 4,
     marginTop: 8,
+    flexShrink: 0,
   },
   modeSwitcher: {
     alignSelf: "flex-start",
@@ -1047,12 +1201,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 2,
-    marginTop: 8,
   },
   modeButton: {
-    minWidth: 72,
-    minHeight: 32,
-    paddingHorizontal: 12,
+    minWidth: 60,
+    minHeight: 36,
+    paddingHorizontal: 8,
     borderRadius: 7,
     alignItems: "center",
     justifyContent: "center",
@@ -1070,6 +1223,7 @@ const styles = StyleSheet.create({
     display: "none",
   },
   toolbar: {
+    marginTop: 8,
     minHeight: 44,
     flexShrink: 0,
     flexDirection: "row",
@@ -1088,33 +1242,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
   },
+  linkActionsContainer: {
+    flexShrink: 1,
+  },
   linkActions: {
-    minHeight: 42,
-    marginTop: 8,
-    borderWidth: 1,
-    borderRadius: 9,
-    paddingLeft: 10,
-    paddingRight: 4,
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
   },
-  linkActionsLabel: {
-    minWidth: 0,
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  linkActionsText: {
-    minWidth: 0,
-    flexShrink: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
-  },
   linkActionButton: {
     minHeight: 44,
+    flexShrink: 1,
     justifyContent: "center",
     paddingHorizontal: 8,
   },

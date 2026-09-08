@@ -154,7 +154,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 19;
+const SETTINGS_STORE_SCHEMA_VERSION = 20;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -558,6 +558,7 @@ type SettingsState = {
   showVocabContextSentencesInReviews: boolean; // Show the on-demand context sentence hint on vocabulary review questions
   reviewAnimatePreviousQuestion: boolean; // Animate the previous answered card from center to top-left during reviews
   hapticFeedbackEnabled: boolean; // Enable haptic feedback throughout the app
+  advancedNoteEditorEnabled: boolean; // Enable formatting and subject links for plain study notes
 
   // UI settings
   appTextSizeScale: number;
@@ -738,6 +739,7 @@ type SettingsState = {
   setAutoSwitchKeyboard: (enabled: boolean) => void;
   setVoiceReviewAnswersEnabled: (enabled: boolean) => void;
   setHapticFeedbackEnabled: (enabled: boolean) => void;
+  setAdvancedNoteEditorEnabled: (enabled: boolean) => void;
   setReviewIncorrectKeyboardShortcuts: (
     shortcuts: Partial<ReviewIncorrectKeyboardShortcutSettings>,
   ) => void;
@@ -904,6 +906,7 @@ export const useSettingsStore = create<SettingsState>()(
       autoSwitchKeyboard: false, // Default to disabled (use wanakana romaji-to-kana conversion)
       voiceReviewAnswersEnabled: false, // Default to disabled (manual typing)
       hapticFeedbackEnabled: true, // Default to enabled for tactile feedback
+      advancedNoteEditorEnabled: false,
       reviewIncorrectKeyboardShortcuts: {
         ...DEFAULT_REVIEW_INCORRECT_KEYBOARD_SHORTCUTS,
       },
@@ -1138,6 +1141,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ voiceReviewAnswersEnabled: enabled }),
       setHapticFeedbackEnabled: (enabled) =>
         set({ hapticFeedbackEnabled: enabled }),
+      setAdvancedNoteEditorEnabled: (enabled) =>
+        set({ advancedNoteEditorEnabled: enabled }),
       setReviewIncorrectKeyboardShortcuts: (shortcuts) =>
         set((state) => ({
           reviewIncorrectKeyboardShortcuts: {
@@ -1403,6 +1408,7 @@ export const useSettingsStore = create<SettingsState>()(
           spotifyClientId?: unknown;
           kanjiReadingTextToSpeechEnabled?: unknown;
           newsSourcePreference?: unknown;
+          advancedNoteEditorEnabled?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1566,6 +1572,9 @@ export const useSettingsStore = create<SettingsState>()(
         migratedRecord.newsSourcePreference = normalizeNewsSourcePreference(
           migratedRecord.newsSourcePreference
         );
+        if (typeof migratedRecord.advancedNoteEditorEnabled !== "boolean") {
+          migratedRecord.advancedNoteEditorEnabled = false;
+        }
 
         return migrated;
       },

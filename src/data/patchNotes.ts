@@ -56,6 +56,24 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.12",
+    date: "2026-09-08",
+    changes: [
+      {
+        type: "feature",
+        title: "Advanced Note Editor Setting",
+        description:
+          "Notes use plain text by default. Enable formatting and subject links in Settings → Notes; existing formatted notes keep rich editing.",
+      },
+      {
+        type: "improvement",
+        title: "Smoother Note Editing",
+        description:
+          "More writing space, controls closer to the keyboard, and cleaner scrolling. Cursor position is preserved when switching modes or editing links.",
+      },
+    ],
+  },
+  {
     version: "1.4.11",
     date: "2026-09-07",
     changes: [

@@ -21,11 +21,9 @@ export function VoiceSettingsSection() {
     autoplayVocabularyAudio,
     formatByteSize,
     formatCount,
-    getCurrentVoiceDisplayName,
     getVocabularyAudioVoiceLabel,
     handleClearOfflineAudioCache,
     handleOfflineVocabularyAudioToggle,
-    handleVoiceSelection,
     isClearingOfflineAudioCache,
     offlineAudioCacheFileCount,
     offlineAudioCacheSizeBytes,
@@ -65,33 +63,6 @@ export function VoiceSettingsSection() {
         </Text>
 
         <AdvancedSettingsGroup>
-        <TouchableOpacity
-          style={[styles.settingItem, { borderBottomColor: theme.border }]}
-          onPress={handleVoiceSelection}
-        >
-          <Ionicons
-            name="volume-high"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Voice for context sentences
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              {getCurrentVoiceDisplayName()}
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={theme.textSecondary}
-          />
-        </TouchableOpacity>
-
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >

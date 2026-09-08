@@ -1,6 +1,8 @@
 import {
   getNoteLinkSearchText,
   getNoteSubjectLinkAtSelection,
+  mapSourceNoteSelectionToVisual,
+  mapVisualNoteSelectionToSource,
   normalizeFormattedNoteSegments,
   parseFormattedNote,
   removeNoteSubjectLink,
@@ -31,6 +33,13 @@ describe("note formatting", () => {
   it("keeps malformed formatting markup visible", () => {
     expect(parseFormattedNote("Try <b>this")).toEqual([
       { text: "Try <b>this", formats: [] },
+    ]);
+  });
+
+  it("does not duplicate text when an unclosed tag follows matching formatting", () => {
+    expect(parseFormattedNote("<b>first</b><b>unfinished")).toEqual([
+      { text: "first", formats: ["bold"] },
+      { text: "<b>unfinished", formats: [] },
     ]);
   });
 
@@ -274,5 +283,56 @@ describe("note formatting", () => {
       text: "<i>on</i>",
       selection: { start: 3, end: 5 },
     });
+  });
+});
+
+describe("note editor selection mapping", () => {
+  it.each([
+    "plain 日本語 🧠 text",
+    "<b>A&amp;B</b> tail",
+    'Before <a href="wk://subject/440"><b>橋</b><i>はし</i></a> after',
+    "<b>outer <i>inner</i> end</b>",
+    "<unknown>A&lt;B</unknown>",
+    "<b>unclosed &amp; literal",
+    "<b>first</b><b>unfinished",
+    "<b>crossed<i>tags</b>",
+    '<a href="wk://subject/440">outer <a href="wk://subject/441">inner</a>',
+  ])("preserves every visible range through source for %s", (source) => {
+    const visibleText = parseFormattedNote(source).map((run) => run.text).join("");
+    for (let start = 0; start <= visibleText.length; start += 1) {
+      for (let end = start; end <= visibleText.length; end += 1) {
+        const selection = { start, end };
+        const sourceSelection = mapVisualNoteSelectionToSource(source, selection);
+        expect(mapSourceNoteSelectionToVisual(source, sourceSelection)).toEqual(selection);
+      }
+    }
+  });
+
+  it("selects the text inside nested tags and expands encoded character boundaries", () => {
+    const source = '<a href="wk://subject/440"><b>A&amp;B</b></a>';
+    const entityStart = source.indexOf("&amp;");
+    expect(mapVisualNoteSelectionToSource(source, { start: 1, end: 2 })).toEqual({
+      start: entityStart,
+      end: entityStart + 5,
+    });
+    expect(mapSourceNoteSelectionToVisual(source, {
+      start: entityStart + 1,
+      end: entityStart + 3,
+    })).toEqual({ start: 1, end: 2 });
+    expect(mapSourceNoteSelectionToVisual(source, { start: 2, end: 2 }))
+      .toEqual({ start: 0, end: 0 });
+    expect(mapVisualNoteSelectionToSource(source, { start: 3, end: 3 }))
+      .toEqual({ start: source.indexOf("</b>"), end: source.indexOf("</b>") });
+  });
+
+  it("clamps empty notes and stale selections to their visible text", () => {
+    expect(mapVisualNoteSelectionToSource("<b></b>", { start: 3, end: 9 }))
+      .toEqual({ start: 0, end: 0 });
+    expect(mapSourceNoteSelectionToVisual("<b></b>", { start: 3, end: 9 }))
+      .toEqual({ start: 0, end: 0 });
+    expect(mapVisualNoteSelectionToSource("<b>Hi</b>", { start: -2, end: 90 }))
+      .toEqual({ start: 3, end: 5 });
+    expect(mapSourceNoteSelectionToVisual("<b>Hi</b>", { start: -2, end: 90 }))
+      .toEqual({ start: 0, end: 2 });
   });
 });

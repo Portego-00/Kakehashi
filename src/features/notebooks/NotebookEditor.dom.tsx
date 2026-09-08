@@ -1,6 +1,6 @@
 'use dom';
 
-import { Component, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BlockNoteView } from '@blocknote/mantine';
 import { en } from '@blocknote/core/locales';
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions';
@@ -89,7 +89,7 @@ function EditorContent(props: NotebookEditorProps) {
 
   // Native autosave echoes must never replace the document or Japanese composition.
   // A different page (or explicit conflict reload) remounts the outer boundary.
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.notebookTheme = theme;
     document.documentElement.style.colorScheme = theme;
   }, [theme]);

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { BookOpen, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useSession } from "@/lib/session";
 import type { Subject } from "@/types/wanikani";
 import type { NotebookBlock } from "./model";
+import { canAccessNotebooks } from "./access";
 import { useNotebooks } from "./use-notebooks";
 import styles from "./capture.module.css";
 
@@ -24,6 +26,12 @@ export interface NotebookCaptureDialogProps {
 }
 
 export function NotebookCaptureDialog({ open, onClose, ...props }: NotebookCaptureDialogProps) {
+  const { user, status, isDemo } = useSession();
+  if (status !== "authenticated" || isDemo || !canAccessNotebooks(user?.data.username)) return null;
+  return <AccessibleNotebookCaptureDialog open={open} onClose={onClose} {...props} />;
+}
+
+function AccessibleNotebookCaptureDialog({ open, onClose, ...props }: NotebookCaptureDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -128,6 +136,8 @@ function CaptureContent({ subject, sentence, titleId, onClose }: Omit<NotebookCa
 }
 
 export function NotebookCaptureButton({ subject, sentence, label = "Add to notebook" }: { subject: Subject; sentence?: NotebookCaptureSentence; label?: string }) {
+  const { user, status, isDemo } = useSession();
   const [open, setOpen] = useState(false);
+  if (status !== "authenticated" || isDemo || !canAccessNotebooks(user?.data.username)) return null;
   return <><Button type="button" tone="ghost" size="small" onClick={() => setOpen(true)}><BookOpen size={16} aria-hidden />{label}</Button><NotebookCaptureDialog subject={subject} sentence={sentence} open={open} onClose={() => setOpen(false)} /></>;
 }

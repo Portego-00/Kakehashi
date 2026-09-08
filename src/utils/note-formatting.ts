@@ -132,9 +132,33 @@ function appendSegment(
  * Unknown or malformed markup is kept as ordinary text.
  */
 export function parseFormattedNote(note: string): FormattedNoteSegment[] {
+  return parseFormattedNoteWithSourceRanges(note);
+}
+
+type NoteTextSourceRange = { start: number; end: number };
+
+function parseFormattedNoteWithSourceRanges(
+  note: string,
+  sourceRanges?: NoteTextSourceRange[],
+): FormattedNoteSegment[] {
   if (!note) return [];
 
   const segments: FormattedNoteSegment[] = [];
+  const appendText = (
+    start: number,
+    end: number,
+    formats: NoteFormat[],
+    subjectId?: number,
+  ) => {
+    if (start === end) return;
+    appendSegment(
+      segments,
+      decodeStoredNoteText(note.slice(start, end)),
+      formats,
+      subjectId,
+    );
+    sourceRanges?.push({ start, end });
+  };
   const activeFormats: NoteFormat[] = [];
   let activeSubjectId: number | undefined;
   const openTags: {
@@ -143,6 +167,8 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
     subjectId?: number;
     sourceIndex: number;
     segmentIndex: number;
+    previousSegmentLength: number;
+    sourceRangeIndex: number;
     parentFormats: NoteFormat[];
     parentSubjectId?: number;
   }[] = [];
@@ -151,12 +177,7 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
   NOTE_TAG_PATTERN.lastIndex = 0;
   let match = NOTE_TAG_PATTERN.exec(note);
   while (match) {
-    appendSegment(
-      segments,
-      decodeStoredNoteText(note.slice(cursor, match.index)),
-      activeFormats,
-      activeSubjectId,
-    );
+    appendText(cursor, match.index, activeFormats, activeSubjectId);
 
     const tag = match[0];
     const isClosingTag = tag.startsWith("</");
@@ -166,13 +187,15 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
 
     if (subjectId) {
       if (activeSubjectId) {
-        appendSegment(segments, tag, activeFormats, activeSubjectId);
+        appendText(match.index, match.index + tag.length, activeFormats, activeSubjectId);
       } else {
         openTags.push({
           kind: "subjectLink",
           subjectId,
           sourceIndex: match.index,
           segmentIndex: segments.length,
+          previousSegmentLength: segments[segments.length - 1]?.text.length ?? 0,
+          sourceRangeIndex: sourceRanges?.length ?? 0,
           parentFormats: [...activeFormats],
           parentSubjectId: activeSubjectId,
         });
@@ -183,7 +206,7 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
         openTags.pop();
         activeSubjectId = currentOpenTag.parentSubjectId;
       } else {
-        appendSegment(segments, tag, activeFormats, activeSubjectId);
+        appendText(match.index, match.index + tag.length, activeFormats, activeSubjectId);
       }
     } else {
       const format = formatForTag(tag);
@@ -193,6 +216,8 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
           format,
           sourceIndex: match.index,
           segmentIndex: segments.length,
+          previousSegmentLength: segments[segments.length - 1]?.text.length ?? 0,
+          sourceRangeIndex: sourceRanges?.length ?? 0,
           parentFormats: [...activeFormats],
           parentSubjectId: activeSubjectId,
         });
@@ -204,7 +229,7 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
         openTags.pop();
         activeFormats.pop();
       } else {
-        appendSegment(segments, tag, activeFormats, activeSubjectId);
+        appendText(match.index, match.index + tag.length, activeFormats, activeSubjectId);
       }
     }
 
@@ -212,27 +237,89 @@ export function parseFormattedNote(note: string): FormattedNoteSegment[] {
     match = NOTE_TAG_PATTERN.exec(note);
   }
 
-  appendSegment(
-    segments,
-    decodeStoredNoteText(note.slice(cursor)),
-    activeFormats,
-    activeSubjectId,
-  );
+  appendText(cursor, note.length, activeFormats, activeSubjectId);
 
   // If an opening tag was never closed, restore it and everything after it as
   // literal text instead of silently hiding part of the note.
   const firstUnclosedTag = openTags[0];
   if (firstUnclosedTag) {
     segments.splice(firstUnclosedTag.segmentIndex);
-    appendSegment(
-      segments,
-      decodeStoredNoteText(note.slice(firstUnclosedTag.sourceIndex)),
+    const previousSegment = segments[segments.length - 1];
+    if (previousSegment) {
+      previousSegment.text = previousSegment.text.slice(0, firstUnclosedTag.previousSegmentLength);
+    }
+    sourceRanges?.splice(firstUnclosedTag.sourceRangeIndex);
+    appendText(
+      firstUnclosedTag.sourceIndex,
+      note.length,
       firstUnclosedTag.parentFormats,
       firstUnclosedTag.parentSubjectId,
     );
   }
 
   return segments;
+}
+
+function getVisibleNoteCharacterRanges(note: string): NoteTextSourceRange[] {
+  const textRanges: NoteTextSourceRange[] = [];
+  parseFormattedNoteWithSourceRanges(note, textRanges);
+  const characters: NoteTextSourceRange[] = [];
+  for (const range of textRanges) {
+    const text = note.slice(range.start, range.end);
+    for (let offset = 0; offset < text.length;) {
+      // Keep UTF-16 offsets, matching both TextInput and DOM selections.
+      const width = text.startsWith("&amp;", offset)
+        ? 5
+        : text.startsWith("&lt;", offset) || text.startsWith("&gt;", offset)
+          ? 4
+          : 1;
+      characters.push({
+        start: range.start + offset,
+        end: range.start + offset + width,
+      });
+      offset += width;
+    }
+  }
+  return characters;
+}
+
+/** Maps visible text positions to the corresponding stored text, inside tags. */
+export function mapVisualNoteSelectionToSource(
+  note: string,
+  selection: NoteSelection,
+): NoteSelection {
+  const characters = getVisibleNoteCharacterRanges(note);
+  if (characters.length === 0) return { start: 0, end: 0 };
+  const start = Math.max(0, Math.min(selection.start, characters.length));
+  const end = Math.max(start, Math.min(selection.end, characters.length));
+  const sourceStart = characters[start]?.start ?? characters[characters.length - 1].end;
+  return {
+    start: sourceStart,
+    end: start === end ? sourceStart : characters[end - 1].end,
+  };
+}
+
+/** Tags have no visible width; selecting part of an entity selects its character. */
+export function mapSourceNoteSelectionToVisual(
+  note: string,
+  selection: NoteSelection,
+): NoteSelection {
+  const characters = getVisibleNoteCharacterRanges(note);
+  const sourceSelection = clampSelection(note, selection);
+  const visibleOffset = (offset: number, includePartialCharacter: boolean) => {
+    const index = characters.findIndex((character) => offset < character.end);
+    if (index === -1) return characters.length;
+    return includePartialCharacter && offset > characters[index].start
+      ? index + 1
+      : index;
+  };
+  const start = visibleOffset(sourceSelection.start, false);
+  return {
+    start,
+    end: sourceSelection.start === sourceSelection.end
+      ? start
+      : visibleOffset(sourceSelection.end, true),
+  };
 }
 
 function haveSameSegmentMetadata(

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
+import { canAccessNotebooks } from "./access";
 import { applyNotebookMutation, createNotebookState, DEFAULT_NOTEBOOK_LIMITS, NOTEBOOK_HARD_MAX_BYTES, notebookExamplesNeedInitialization, validateNotebookState, type NotebookMutation, type NotebookState } from "./model";
 
 export type NotebookResponse = { available: boolean; state: NotebookState; revision: number; sentenceId?: string };
@@ -59,22 +60,26 @@ export function newerNotebookResponse(current: NotebookResponse | undefined, inc
 /** The account-scoped transport is independent of the editor's document format. */
 export function useNotebooks() {
   const { user, status, isDemo } = useSession();
+  const allowed = status === "authenticated" && !isDemo && canAccessNotebooks(user?.data.username);
   const scope = isDemo ? "demo" : waniKaniUserId(user) || "anonymous";
   const queryKey = useMemo(() => ["notebooks", scope] as const, [scope]);
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<Record<string, number>>({});
   const [mutationError, setMutationError] = useState({ scope, message: "" });
-  const sessionRef = useRef({ scope, status, active: false });
+  const sessionRef = useRef({ scope, status, allowed, active: false });
   useEffect(() => {
-    const session = { scope, status, active: true };
+    const session = { scope, status, allowed, active: true };
     sessionRef.current = session;
     return () => { session.active = false; };
-  }, [scope, status]);
+  }, [scope, status, allowed]);
   const query = useQuery({
     queryKey,
-    enabled: status === "authenticated",
+    enabled: allowed,
     queryFn: async ({ signal }) => {
+      if (!allowed) throw new NotebookApiError("Notebooks are not available for this account.", 403);
+      const session = sessionRef.current;
       const incoming = isDemo ? readDemo() : await responseData(await fetch("/api/notebooks", { cache: "no-store", signal }));
+      if (!session.active || sessionRef.current !== session || !session.allowed) throw new NotebookApiError("Your notebook account changed.", 409);
       const current = newerNotebookResponse(queryClient.getQueryData<NotebookResponse>(queryKey), incoming);
       const initialized = await initializeExamples(current, scope, isDemo, signal);
       return newerNotebookResponse(queryClient.getQueryData<NotebookResponse>(queryKey), initialized);
@@ -85,17 +90,22 @@ export function useNotebooks() {
   });
 
   useEffect(() => {
+    if (!allowed) {
+      void queryClient.cancelQueries({ queryKey, exact: true });
+      return;
+    }
     const listener = (event: StorageEvent) => {
       if (event.key === (isDemo ? DEMO_KEY : `kakehashi:notebooks:revision:${scope}`)) void queryClient.invalidateQueries({ queryKey, exact: true });
     };
     window.addEventListener("storage", listener);
     return () => window.removeEventListener("storage", listener);
-  }, [isDemo, queryClient, queryKey, scope]);
+  }, [allowed, isDemo, queryClient, queryKey, scope]);
 
   const mutateResult = useCallback(async (mutation: NotebookMutation): Promise<NotebookResponse> => {
     if (status !== "authenticated") throw new NotebookApiError("Sign in to save your notebook.", 401);
+    if (!allowed) throw new NotebookApiError("Notebooks are not available for this account.", 403);
     const session = sessionRef.current;
-    const isCurrentSession = () => session.active && sessionRef.current === session && session.scope === scope && session.status === "authenticated";
+    const isCurrentSession = () => session.active && sessionRef.current === session && session.scope === scope && session.status === "authenticated" && session.allowed;
     const requireCurrentSession = () => {
       if (!isCurrentSession()) throw new NotebookApiError("Your account changed before this notebook could be saved. Your draft stays with the original account.", 409);
     };
@@ -139,22 +149,22 @@ export function useNotebooks() {
       throw error;
     }
     finally { if (sessionRef.current.active) setPending((counts) => ({ ...counts, [scope]: Math.max(0, (counts[scope] ?? 1) - 1) })); if (queues.get(scope) === operation) queues.delete(scope); }
-  }, [isDemo, queryClient, queryKey, scope, status]);
+  }, [allowed, isDemo, queryClient, queryKey, scope, status]);
 
   const mutate = useCallback(async (mutation: NotebookMutation) => (await mutateResult(mutation)).state, [mutateResult]);
   return {
-    state: query.data?.state ?? EMPTY_STATE,
-    revision: query.data?.revision ?? -1,
+    state: allowed ? query.data?.state ?? EMPTY_STATE : EMPTY_STATE,
+    revision: allowed ? query.data?.revision ?? -1 : -1,
     scope,
     isDemo,
-    available: query.data?.available ?? false,
-    isLoading: query.isLoading || status === "loading",
-    isSaving: (pending[scope] ?? 0) > 0,
-    error: (mutationError.scope === scope ? mutationError.message : "") || (query.error instanceof Error ? query.error.message : ""),
+    available: allowed && (query.data?.available ?? false),
+    isLoading: allowed && query.isLoading,
+    isSaving: allowed && (pending[scope] ?? 0) > 0,
+    error: allowed ? (mutationError.scope === scope ? mutationError.message : "") || (query.error instanceof Error ? query.error.message : "") : "",
     mutate,
     mutateResult,
-    getState: () => queryClient.getQueryData<NotebookResponse>(queryKey)?.state ?? EMPTY_STATE,
-    refresh: query.refetch,
+    getState: () => allowed && sessionRef.current.allowed && sessionRef.current.scope === scope ? queryClient.getQueryData<NotebookResponse>(queryKey)?.state ?? EMPTY_STATE : EMPTY_STATE,
+    refresh: (...options: Parameters<typeof query.refetch>) => allowed && sessionRef.current.allowed && sessionRef.current.scope === scope ? query.refetch(...options) : Promise.reject(new NotebookApiError("Notebooks are not available for this account.", 403)),
   };
 }
 

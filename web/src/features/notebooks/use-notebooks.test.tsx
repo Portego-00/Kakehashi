@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   scope = "101";
   server = { "101": payload(seed("Account A")), "202": payload(seed("Account B")) };
-  mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: scope } }, isDemo: false }));
+  mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: scope, username: "Portego" } }, isDemo: false }));
   mocks.fetch.mockImplementation(async (_url: string, options?: RequestInit) => {
     if (options?.method !== "POST") return response(server[scope]);
     const owner = new Headers(options.headers).get("X-Notebook-Account")!;
@@ -71,13 +71,10 @@ describe("notebook account transport", () => {
     expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
   });
 
-  it.each([false, true])("upgrades an installed legacy tour once on load (demo: %s)", async (isDemo) => {
+  it("upgrades an installed legacy tour once on load", async () => {
     const state: NotebookState = { ...createExampleNotebook("2026-09-07T00:00:00.000Z"), examples: { version: 1, status: "installed" } };
     state.pages[0].icon = "";
-    if (isDemo) {
-      localStorage.setItem("kakehashi:notebooks:demo:v1", JSON.stringify(payload(state, 9)));
-      mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: "demo-level-21" } }, isDemo: true }));
-    } else server["101"] = payload(state, 9);
+    server["101"] = payload(state, 9);
     const { wrapper } = setup();
     const { result } = renderHook(() => [useNotebooks(), useNotebooks()], { wrapper });
     await waitFor(() => expect(result.current[0].state.examples?.contentVersion).toBe(EXAMPLE_NOTEBOOK_CONTENT_VERSION));
@@ -85,8 +82,7 @@ describe("notebook account transport", () => {
     expect(result.current[0].revision).toBe(10);
     await act(async () => { await result.current[0].refresh(); });
     expect(result.current[0].revision).toBe(10);
-    expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(isDemo ? 0 : 1);
-    if (isDemo) expect(JSON.parse(localStorage.getItem("kakehashi:notebooks:demo:v1")!).state.examples.contentVersion).toBe(EXAMPLE_NOTEBOOK_CONTENT_VERSION);
+    expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
   });
 
   it.each(["removed", "skipped"] as const)("does not attempt to upgrade a legacy %s example", async (status) => {
@@ -144,32 +140,66 @@ describe("notebook account transport", () => {
     expect(hook.result.current.state.pages[0]?.title).toBe("Account B");
   });
 
-  it("initializes browser demo storage once and keeps removal across remounts", async () => {
-    mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: "demo-level-21" } }, isDemo: true }));
-    const first = setup();
-    const hook = renderHook(() => useNotebooks(), { wrapper: first.wrapper });
-    await waitFor(() => expect(hook.result.current.state.examples?.status).toBe("installed"));
-    await act(async () => { await hook.result.current.mutate({ action: "remove_examples" }); });
-    expect(hook.result.current.state.pages).toHaveLength(0);
-    hook.unmount();
-    const second = setup();
-    const reloaded = renderHook(() => useNotebooks(), { wrapper: second.wrapper });
-    await waitFor(() => expect(reloaded.result.current.state.examples?.status).toBe("removed"));
-    expect(reloaded.result.current.state.pages).toHaveLength(0);
+  it.each([
+    { status: "authenticated", username: "Learner", isDemo: false },
+    { status: "authenticated", username: "PortegoFan", isDemo: false },
+    { status: "authenticated", username: undefined, isDemo: false },
+    { status: "authenticated", username: "Portego", isDemo: true },
+    { status: "anonymous", username: "Portego", isDemo: false },
+    { status: "loading", username: "Portego", isDemo: false },
+    { status: "unavailable", username: "Portego", isDemo: false },
+  ])("keeps notebooks inaccessible for $status / $username / demo $isDemo", async ({ status, username, isDemo }) => {
+    const cached = payload(seed("Private saved notebook"), 9);
+    const demo = JSON.stringify(cached);
+    localStorage.setItem("kakehashi:notebooks:demo:v1", demo);
+    mocks.session.mockReturnValue({ status, user: { data: { id: scope, username } }, isDemo });
+    const { wrapper, client } = setup();
+    client.setQueryData(["notebooks", isDemo ? "demo" : scope], cached);
+    const { result } = renderHook(() => useNotebooks(), { wrapper });
+    expect(result.current.state.pages).toEqual([]);
+    expect(result.current.getState().pages).toEqual([]);
+    expect(result.current.available).toBe(false);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.revision).toBe(-1);
+    await act(async () => {
+      await expect(result.current.refresh()).rejects.toMatchObject({ status: 403 });
+      await expect(result.current.mutate({ action: "create_page", page: { id: "denied", title: "Denied" } })).rejects.toMatchObject({ status: status === "authenticated" ? 403 : 401 });
+    });
+    act(() => window.dispatchEvent(new StorageEvent("storage", { key: `kakehashi:notebooks:revision:${scope}` })));
     expect(mocks.fetch).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem("kakehashi:notebooks:demo:v1")!).state.examples.status).toBe("removed");
+    expect(localStorage.getItem("kakehashi:notebooks:demo:v1")).toBe(demo);
   });
 
-  it("adds examples to an existing demo without overwriting its personal pages", async () => {
-    const state = applyNotebookMutation(createNotebookState(), { action: "create_page", page: { id: "demo-personal", title: "Personal demo page" } }).state;
-    localStorage.setItem("kakehashi:notebooks:demo:v1", JSON.stringify(payload(state, 9)));
-    mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: "demo-level-21" } }, isDemo: true }));
+  it("immediately hides cached state and blocks old callbacks when Portego access is removed", async () => {
     const { wrapper } = setup();
-    const { result } = renderHook(() => useNotebooks(), { wrapper });
-    await waitFor(() => expect(result.current.state.examples?.status).toBe("installed"));
-    expect(result.current.state.pages[0]).toEqual(state.pages[0]);
-    expect(result.current.revision).toBe(10);
-    expect(mocks.fetch).not.toHaveBeenCalled();
+    const { result, rerender } = renderHook(() => useNotebooks(), { wrapper });
+    await waitFor(() => expect(result.current.state.pages[0]?.title).toBe("Account A"));
+    const previous = result.current;
+    const reads = mocks.fetch.mock.calls.length;
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false });
+    rerender();
+    expect(result.current.state.pages).toEqual([]);
+    expect(result.current.getState().pages).toEqual([]);
+    expect(previous.getState().pages).toEqual([]);
+    expect(result.current.available).toBe(false);
+    await act(async () => {
+      await expect(result.current.refresh()).rejects.toMatchObject({ status: 403 });
+      await expect(previous.refresh()).rejects.toMatchObject({ status: 403 });
+      await expect(previous.mutate({ action: "create_page", page: { id: "denied", title: "Denied" } })).rejects.toThrow();
+    });
+    expect(mocks.fetch).toHaveBeenCalledTimes(reads);
+  });
+
+  it("never initializes examples from a pending read after access is removed", async () => {
+    const pendingRead = deferred<Response>();
+    mocks.fetch.mockReturnValueOnce(pendingRead.promise);
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(() => useNotebooks(), { wrapper });
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false });
+    rerender();
+    await act(async () => { pendingRead.resolve(response(payload())); });
+    expect(result.current.state.pages).toEqual([]);
+    expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
   });
 
   it("allows saving after Strict Mode replays the session effect", async () => {
@@ -227,7 +257,7 @@ describe("notebook account transport", () => {
     expect(server["101"].state.pages[0].title).toBe("Account A");
   });
 
-  it.each(["switch", "unmount"] as const)("does not dispatch a queued private mutation after %s", async (transition) => {
+  it.each(["switch", "unmount", "revoke"] as const)("does not dispatch a queued private mutation after %s", async (transition) => {
     const firstWrite = deferred<Response>();
     const originalFetch = mocks.fetch.getMockImplementation()!;
     let writes = 0;
@@ -243,7 +273,12 @@ describe("notebook account transport", () => {
     });
     await waitFor(() => expect(writes).toBe(1));
     if (transition === "unmount") hook.unmount();
-    else {
+    else if (transition === "revoke") {
+      mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false });
+      hook.rerender();
+      expect(hook.result.current.state.pages).toEqual([]);
+      expect(hook.result.current.isSaving).toBe(false);
+    } else {
       scope = "202";
       hook.rerender();
       await waitFor(() => expect(hook.result.current.state.pages[0]?.title).toBe("Account B"));

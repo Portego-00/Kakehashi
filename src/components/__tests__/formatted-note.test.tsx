@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 
 import {
   FormattedNoteEditor,
@@ -12,6 +12,7 @@ import type { NoteVisualEditorDOMProps } from "../note-visual-editor-types";
 const mockPeekNoteSubjectType = jest.fn();
 const mockRememberNoteSubjectType = jest.fn();
 const mockResolveNoteSubjectType = jest.fn();
+let mockAdvancedNoteEditorEnabled = true;
 
 let mockLinkPickerProps: {
   initialQuery: string;
@@ -21,6 +22,12 @@ let mockVisualEditorProps: NoteVisualEditorDOMProps | null = null;
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: () => null,
+}));
+
+jest.mock("../../utils/store", () => ({
+  useSettingsStore: (
+    selector: (state: { advancedNoteEditorEnabled: boolean }) => unknown,
+  ) => selector({ advancedNoteEditorEnabled: mockAdvancedNoteEditorEnabled }),
 }));
 
 jest.mock("../note-subject-link-picker", () => {
@@ -120,6 +127,7 @@ jest.mock("../../utils/theme", () => ({
 
 describe("FormattedNote", () => {
   beforeEach(() => {
+    mockAdvancedNoteEditorEnabled = true;
     mockLinkPickerProps = null;
     mockVisualEditorProps = null;
     mockPeekNoteSubjectType.mockReset();
@@ -129,6 +137,116 @@ describe("FormattedNote", () => {
       subjectId === 440 ? "kanji" : null,
     );
     mockResolveNoteSubjectType.mockResolvedValue(null);
+  });
+
+  it("uses a native plain text field without editor controls when advanced editing is disabled", () => {
+    mockAdvancedNoteEditorEnabled = false;
+    const editorRef = React.createRef<FormattedNoteEditorHandle>();
+    const screen = render(
+      <FormattedNoteEditor
+        ref={editorRef}
+        value="A simple note"
+        onChangeText={jest.fn()}
+        accessibilityLabel="Meaning note text"
+        containerStyle={{ flex: 1 }}
+      />,
+    );
+
+    const input = screen.UNSAFE_getByType(TextInput);
+    expect(input.props.value).toBe("A simple note");
+    expect(input.props.multiline).toBe(true);
+    expect(input.props.scrollEnabled).toBe(true);
+    expect(StyleSheet.flatten(input.props.style).flex).toBe(1);
+    expect(screen.queryByLabelText("Bold")).toBeNull();
+    expect(screen.queryByLabelText("Link to subject")).toBeNull();
+    expect(screen.queryByLabelText("Note editor mode")).toBeNull();
+    expect(mockVisualEditorProps).toBeNull();
+    expect(editorRef.current?.closeLinkPicker()).toBe(false);
+  });
+
+  it("keeps typed formatting and link markup literal throughout plain editing and reopening", () => {
+    mockAdvancedNoteEditorEnabled = false;
+    const literalText = '<b>bold</b> & <a href="wk://subject/440">bridge</a>';
+    const storedText = '&lt;b&gt;bold&lt;/b&gt; &amp; &lt;a href="wk://subject/440"&gt;bridge&lt;/a&gt;';
+    const onChangeText = jest.fn();
+    function ControlledEditor() {
+      const [value, setValue] = React.useState("");
+      return (
+        <FormattedNoteEditor
+          value={value}
+          onChangeText={(nextValue) => {
+            onChangeText(nextValue);
+            setValue(nextValue);
+          }}
+          accessibilityLabel="Meaning note text"
+        />
+      );
+    }
+    const screen = render(<ControlledEditor />);
+
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), literalText);
+
+    expect(onChangeText).toHaveBeenLastCalledWith(storedText);
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe(literalText);
+    expect(mockVisualEditorProps).toBeNull();
+    expect(screen.queryByLabelText("Bold")).toBeNull();
+
+    screen.unmount();
+    const reopened = render(
+      <FormattedNoteEditor
+        value={storedText}
+        onChangeText={jest.fn()}
+        accessibilityLabel="Reopened note text"
+      />,
+    );
+    expect(reopened.UNSAFE_getByType(TextInput).props.value).toBe(literalText);
+    expect(mockVisualEditorProps).toBeNull();
+  });
+
+  it("flushes the latest plain input immediately before the parent updates its value", async () => {
+    mockAdvancedNoteEditorEnabled = false;
+    const editorRef = React.createRef<FormattedNoteEditorHandle>();
+    const onChangeText = jest.fn();
+    const screen = render(
+      <FormattedNoteEditor
+        ref={editorRef}
+        value="old text"
+        onChangeText={onChangeText}
+        accessibilityLabel="Meaning note text"
+      />,
+    );
+
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), "最新 & <b>text</b>");
+
+    expect(onChangeText).toHaveBeenLastCalledWith("最新 &amp; &lt;b&gt;text&lt;/b&gt;");
+    await expect(editorRef.current?.flush()).resolves.toBe("最新 &amp; &lt;b&gt;text&lt;/b&gt;");
+  });
+
+  it.each([
+    "Existing <b>bold</b> note",
+    'Existing <a href="wk://subject/440">bridge</a> link',
+  ])("retains the advanced editor for an existing formatted note with the setting disabled: %s", (value) => {
+    mockAdvancedNoteEditorEnabled = false;
+    const screen = render(
+      <FormattedNoteEditor value={value} onChangeText={jest.fn()} />,
+    );
+
+    expect(mockVisualEditorProps).not.toBeNull();
+    expect(screen.getByLabelText("Bold")).toBeTruthy();
+    expect(screen.getByLabelText("Use source editor")).toBeTruthy();
+  });
+
+  it("enables the advanced editor for plain notes when the setting is on", () => {
+    mockAdvancedNoteEditorEnabled = true;
+    const screen = render(
+      <FormattedNoteEditor value="A simple note" onChangeText={jest.fn()} />,
+    );
+
+    expect(mockVisualEditorProps?.runs).toEqual([
+      { text: "A simple note", formats: [] },
+    ]);
+    expect(screen.getByLabelText("Bold")).toBeTruthy();
+    expect(screen.getByLabelText("Link to subject")).toBeTruthy();
   });
 
   it("renders formatted note text without exposing its stored tags", () => {
@@ -238,6 +356,32 @@ describe("FormattedNote", () => {
       width: "100%",
       height,
     });
+    expect(mockVisualEditorProps?.dom?.hideKeyboardAccessoryView).toBe(true);
+  });
+
+  it("resizes the native WebView to the measured writing area when the keyboard changes available space", () => {
+    const screen = render(
+      <FormattedNoteEditor
+        value="Visible note text"
+        onChangeText={jest.fn()}
+        style={{ minHeight: 120, borderWidth: 2 }}
+        containerStyle={{ flex: 1 }}
+      />,
+    );
+    const frame = screen.UNSAFE_getAllByType(View).find(
+      (view) => typeof view.props.onLayout === "function",
+    )!;
+
+    fireEvent(frame, "layout", { nativeEvent: { layout: { height: 318 } } });
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(314);
+    expect(mockVisualEditorProps?.appearance.minHeight).toBe(314);
+
+    fireEvent(frame, "layout", { nativeEvent: { layout: { height: 158 } } });
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(154);
+    expect(mockVisualEditorProps?.appearance.minHeight).toBe(154);
+
+    fireEvent(frame, "layout", { nativeEvent: { layout: { height: 0 } } });
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(154);
   });
 
   it("unlinks a visual selection from the toolbar and removes a whole link explicitly", async () => {
@@ -509,6 +653,36 @@ describe("FormattedNote", () => {
     expect(screen.getByLabelText("Meaning note text").props.value).toBe(
       "<b>日本語</b>",
     );
+  });
+
+  it("preserves the selected text when switching modes after a source edit", async () => {
+    function ControlledEditor() {
+      const [value, setValue] = React.useState("<b>A&amp;B</b> tail");
+      return <FormattedNoteEditor value={value} onChangeText={setValue} accessibilityLabel="Meaning note text" />;
+    }
+    const screen = render(<ControlledEditor />);
+    fireEvent.press(screen.getByLabelText("Use source editor"));
+    const request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSourceReady({
+        requestNonce: request.nonce,
+        runs: [{ text: "A&B", formats: ["bold"] }, { text: " tail", formats: [] }],
+        selection: { start: 1, end: 3 },
+      });
+    });
+    const sourceInput = screen.UNSAFE_getByType(TextInput);
+    expect(sourceInput.props.selection).toEqual({ start: 4, end: 10 });
+
+    const updatedSource = "new <b>A&amp;B</b> tail";
+    fireEvent.changeText(sourceInput, updatedSource);
+    fireEvent(sourceInput, "selectionChange", {
+      nativeEvent: { selection: { start: 8, end: 13 } },
+    });
+    fireEvent.press(screen.getByLabelText("Use visual editor"));
+    expect(mockVisualEditorProps!.command).toMatchObject({
+      type: "focus",
+      selection: { start: 5, end: 6 },
+    });
   });
 
   it("flushes the latest visual value before a native save reads it", async () => {
