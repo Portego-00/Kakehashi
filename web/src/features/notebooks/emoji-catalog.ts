@@ -3,17 +3,6 @@ import shortcodeData from "emojibase-data/en/shortcodes/emojibase.json";
 
 export type NotebookEmoji = { emoji: string; label: string; group: number };
 
-type EmojiData = {
-  unicode: string;
-  hexcode: string;
-  label: string;
-  group?: number;
-  order?: number;
-  tags?: string[];
-  emoticon?: string;
-  skins?: EmojiData[];
-};
-
 export const EMOJI_GROUPS: { id: number; label: string }[] = [
   { id: 0, label: "Smileys & emotion" },
   { id: 1, label: "People & body" },
@@ -27,7 +16,6 @@ export const EMOJI_GROUPS: { id: number; label: string }[] = [
   { id: 9, label: "Flags" },
 ];
 
-const data: EmojiData[] = compactData;
 const shortcodes: Record<string, string | string[]> = shortcodeData;
 
 function normalize(value: string): string {
@@ -40,7 +28,7 @@ function aliases(hexcode: string): string[] {
 }
 
 // Keep skin and multi-person variants searchable using their parent's keywords too.
-const catalog = data.flatMap((parent) => [parent, ...(parent.skins ?? [])].map((entry) => ({
+const catalog = compactData.flatMap((parent) => [parent, ...(parent.skins ?? [])].map((entry) => ({
   value: { emoji: entry.unicode, label: entry.label, group: entry.group ?? parent.group ?? 2 },
   order: entry.order ?? Number.MAX_SAFE_INTEGER,
   searchText: normalize([
