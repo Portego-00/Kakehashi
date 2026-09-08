@@ -4,7 +4,7 @@ The React Native app uses `GET` and `POST /api/notebooks/native` on the web app'
 
 For the app's endpoint environment variable, simulator setup, bundled editor, and draft recovery behavior, see [Mobile notebooks](notebooks-mobile.md).
 
-Mobile access is currently limited to the WaniKani account whose verified username is `Portego`, ignoring case and surrounding whitespace. This restriction is enforced on the server as well as in mobile navigation. It does not change access to the existing browser `/api/notebooks` endpoint.
+Mobile and browser access are currently limited to the WaniKani account whose verified username is `Portego`, ignoring case and surrounding whitespace. This restriction is enforced on the server as well as in navigation, including the browser `/api/notebooks` endpoint.
 
 ## Authentication and ownership
 

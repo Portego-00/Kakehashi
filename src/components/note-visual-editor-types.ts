@@ -91,6 +91,8 @@ export type NoteVisualEditorSelection = {
 export type NoteVisualEditorSourceSnapshot = {
   requestNonce: number;
   runs: NoteVisualEditorRun[];
+  /** Visible text positions captured together with the source snapshot. */
+  selection?: NoteVisualEditorSelectionRange;
 };
 
 export type NoteVisualEditorValueSnapshot = NoteVisualEditorSourceSnapshot;

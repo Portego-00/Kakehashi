@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/States";
 import { WebAnalyticsTracker } from "@/features/analytics/WebAnalyticsTracker";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
+import { canAccessNotebooks } from "@/features/notebooks/access";
 import { SettingsApplicator } from "@/features/settings/components/SettingsApplicator";
 import { DEFAULT_NAVBAR_TABS, type NavbarTabId } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
@@ -162,6 +163,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { status, user, isDemo, error, signOut, refresh } = useSession();
   const customSrsAllowed = !isDemo && canAccessCustomSrs(user?.data.username);
   const customSrsBlocked = isActive(pathname, "/custom-vocabulary") && !customSrsAllowed;
+  const notebooksAllowed = !isDemo && canAccessNotebooks(user?.data.username);
+  const restrictedPageBlocked = customSrsBlocked || (isActive(pathname, "/notebooks") && !notebooksAllowed);
   const { resolvedTheme, setTheme } = useTheme();
   const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const workspace = webSettings.workspace;
@@ -197,8 +200,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (status === "anonymous") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else if (status === "authenticated" && customSrsBlocked) router.replace("/dashboard");
-  }, [status, pathname, router, customSrsBlocked]);
+    else if (status === "authenticated" && restrictedPageBlocked) router.replace("/dashboard");
+  }, [status, pathname, router, restrictedPageBlocked]);
 
   useEffect(() => {
     if (previousPathRef.current !== pathname) setHasInternalHistory(true);
@@ -266,7 +269,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (status === "unavailable") {
     return <div className={styles.loading} role="alert"><div className={styles.sessionError}><strong>Your session could not be checked</strong><span>{error}</span><Button onClick={() => void refresh()}>Try Again</Button></div></div>;
   }
-  if (status !== "authenticated" || !user || customSrsBlocked) {
+  if (status !== "authenticated" || !user || restrictedPageBlocked) {
     return (
       <main className={styles.bootstrap} aria-label="Kakehashi is starting">
         <div className={styles.bootstrapBrand} aria-hidden="true">
@@ -297,7 +300,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
   const visiblePrimaryNavigation = isDemo
     ? demoNavigation
-    : (workspace.navbarTabs ?? DEFAULT_NAVBAR_TABS).map((id) => navbarDestinationById[id]);
+    : (workspace.navbarTabs ?? DEFAULT_NAVBAR_TABS).filter((id) => id !== "notebooks" || notebooksAllowed).map((id) => navbarDestinationById[id]);
   const learnedKanjiLabel = learnedKanji.data?.toLocaleString() ?? (learnedKanji.isError ? "—" : "…");
 
   const notebookWorkspace = isActive(pathname, "/notebooks");
@@ -360,7 +363,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div ref={moreDialogRef} className={styles.moreSheet} id="more-navigation" role="dialog" aria-modal="true" aria-labelledby="more-title">
         <div className={styles.moreHeader}><h2 id="more-title">All destinations</h2><Button className={styles.iconButton} tone="ghost" aria-label="Close More menu" onClick={closeMore}><X size={18} aria-hidden /></Button></div>
         <nav className={styles.moreNav} aria-label="All destinations">
-          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !isDemo
+          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (destination.href !== "/notebooks" || notebooksAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !isDemo
             ? <button key={destination.href} type="button" className={styles.moreLink} aria-label={`${destination.label}, coming soon`} disabled><destination.icon size={18} aria-hidden /><span>{destination.label}</span><span className={styles.moreStatus}>Coming soon</span></button>
             : <Link key={destination.href} href={destination.href} className={cn(styles.moreLink, isActive(pathname, destination.href) && styles.moreLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined} onClick={closeMore}><destination.icon size={18} aria-hidden /><span>{destination.label}</span></Link>)}</div></section>)}
           <section><h3>Account</h3><div><Link href="/settings" className={cn(styles.moreLink, isActive(pathname, "/settings") && styles.moreLinkActive)} onClick={closeMore}><Settings size={18} aria-hidden /><span>Settings</span></Link><button type="button" className={styles.moreLink} onClick={() => { setSignOutError(""); void signOut().then(() => router.replace("/login")).catch((cause) => setSignOutError(cause instanceof Error ? cause.message : "Kakehashi could not sign out.")); }}><LogOut size={18} aria-hidden /><span>Sign out</span></button></div></section>

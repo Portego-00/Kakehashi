@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AddToSubjectListsModal from "../../../src/components/AddToSubjectListsModal";
 import KanjiDetails from "../../../src/components/KanjiDetails";
 import RadicalDetails from "../../../src/components/RadicalDetails";
@@ -126,6 +127,7 @@ function mergeStudyMaterial(
 }
 
 export default function SubjectDetailsScreen() {
+  const noteModalInsets = useSafeAreaInsets();
   const { id, initialTab, from } = useLocalSearchParams<{
     id: string;
     initialTab?: string;
@@ -1080,14 +1082,10 @@ export default function SubjectDetailsScreen() {
     undefined;
 
   const closeNoteModal = () => {
+    if (noteEditorRef.current?.closeLinkPicker()) return;
     if (!isSavingNote) {
       setShowNoteModal(false);
     }
-  };
-
-  const handleNoteModalRequestClose = () => {
-    if (noteEditorRef.current?.closeLinkPicker()) return;
-    closeNoteModal();
   };
 
   const renderNoteModal = () => (
@@ -1095,12 +1093,14 @@ export default function SubjectDetailsScreen() {
       visible={showNoteModal}
       transparent={true}
       animationType="fade"
-      onRequestClose={handleNoteModalRequestClose}
+      onRequestClose={closeNoteModal}
     >
       <KeyboardAvoidingView
-        style={styles.modalOverlay}
+        style={[
+          styles.modalOverlay,
+          { paddingTop: Math.max(16, noteModalInsets.top) },
+        ]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
       >
         <View
           style={[
@@ -1353,16 +1353,17 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     padding: 16,
   },
   modalContent: {
+    flex: 1,
     borderRadius: 16,
     padding: 16,
     width: "100%",
     maxWidth: 450,
-    maxHeight: "85%",
+    maxHeight: 640,
     flexShrink: 1,
   },
   modalHeader: {
@@ -1398,6 +1399,8 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   noteEditor: {
+    flex: 1,
+    minHeight: 0,
     marginBottom: 16,
   },
   modalButtons: {

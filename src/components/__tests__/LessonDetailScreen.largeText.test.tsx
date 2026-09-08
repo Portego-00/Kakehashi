@@ -1,6 +1,6 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
-import { Modal, StyleSheet, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from "react-native";
 
 import LessonDetailScreen from "../LessonDetailScreen";
 
@@ -54,7 +54,7 @@ jest.mock("react-native-pager-view", () => {
 });
 
 jest.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  useSafeAreaInsets: () => ({ top: 59, right: 0, bottom: 34, left: 0 }),
 }));
 
 jest.mock("react-native-svg", () => ({
@@ -200,6 +200,68 @@ jest.mock("../VocabularyFrequencyBadge", () => () => null);
 describe("LessonDetailScreen large-text summary", () => {
   beforeEach(() => {
     mockSinglePageLessonView = false;
+  });
+
+  it("keeps the note top anchored while applying only missing Android keyboard space", () => {
+    const platform = jest.replaceProperty(Platform, "OS", "android");
+    const addListener = jest.spyOn(Keyboard, "addListener");
+    mockSinglePageLessonView = true;
+    const subject = {
+      id: 1,
+      object: "kanji",
+      data: {
+        characters: "橋",
+        meanings: [{ meaning: "bridge", primary: true }],
+        readings: [],
+      },
+    };
+    const screen = render(
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />,
+    );
+    try {
+      fireEvent.press(screen.getByLabelText("Add meaning note"));
+      const overlay = screen.UNSAFE_getByType(KeyboardAvoidingView);
+      fireEvent(overlay, "layout", { nativeEvent: { layout: { height: 844 } } });
+      const keyboardShown = addListener.mock.calls.find(
+        ([name]) => name === "keyboardDidShow",
+      )?.[1];
+      expect(keyboardShown).toBeDefined();
+      act(() => {
+        keyboardShown?.({
+          duration: 250,
+          easing: "keyboard",
+          endCoordinates: { height: 300, width: 390, screenX: 0, screenY: 544 },
+          startCoordinates: { height: 0, width: 390, screenX: 0, screenY: 844 },
+        });
+      });
+
+      expect(StyleSheet.flatten(overlay.props.style)).toMatchObject({
+        justifyContent: "flex-start",
+        paddingTop: 59,
+        paddingBottom: 316,
+      });
+      expect(StyleSheet.flatten(overlay.props.children.props.style).transform).toBeUndefined();
+
+      fireEvent(overlay, "layout", { nativeEvent: { layout: { height: 544 } } });
+      expect(StyleSheet.flatten(overlay.props.style)).toMatchObject({
+        paddingTop: 59,
+        paddingBottom: 16,
+      });
+    } finally {
+      screen.unmount();
+      addListener.mockRestore();
+      platform.restore();
+    }
   });
 
   it.each(["Cancel", "request close"])(

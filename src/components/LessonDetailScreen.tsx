@@ -508,6 +508,7 @@ const SubjectContent = ({
   const [meaningNote, setMeaningNote] = useState("");
   const [readingNote, setReadingNote] = useState("");
   const [noteModalVisible, setNoteModalVisible] = useState(false);
+  const noteModalInsets = useSafeAreaInsets();
   const [editingNoteType, setEditingNoteType] = useState<
     "meaning" | "reading"
   >("meaning");
@@ -4470,26 +4471,24 @@ const SubjectContent = ({
         onRequestClose={handleCloseNote}
       >
         <KeyboardAvoidingView
-          style={styles.noteModalOverlay}
+          style={[
+            styles.noteModalOverlay,
+            {
+              paddingTop: Math.max(16, noteModalInsets.top),
+              paddingBottom: 16 + androidKeyboardLift,
+            },
+          ]}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
           onLayout={handleNoteModalOverlayLayout}
         >
-          <View
-            style={[
-              styles.noteModalContent,
-              Platform.OS === "android" &&
-                androidKeyboardLift > 0 && {
-                  transform: [{ translateY: -androidKeyboardLift }],
-                },
-            ]}
-          >
+          <View style={styles.noteModalContent}>
             <Text style={styles.noteModalTitle}>
               {editingNoteType === "meaning" ? "Meaning Note" : "Reading Note"}
             </Text>
             <FormattedNoteEditor
               ref={noteEditorRef}
               key={`${editingNoteType}:${noteModalVisible}`}
+              containerStyle={styles.noteEditor}
               style={styles.noteInput}
               value={editingNoteText}
               onChangeText={setEditingNoteText}
@@ -6059,14 +6058,15 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     noteModalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       alignItems: "center",
       padding: 16,
     },
     noteModalContent: {
+      flex: 1,
       width: "100%",
       maxWidth: 460,
-      maxHeight: "90%",
+      maxHeight: 640,
       flexShrink: 1,
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
@@ -6090,6 +6090,10 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       backgroundColor: theme.isDark ? "rgba(255,255,255,0.05)" : "#ffffff",
       fontSize: 16,
       textAlignVertical: "top",
+    },
+    noteEditor: {
+      flex: 1,
+      minHeight: 0,
     },
     noteModalButtons: {
       marginTop: 16,

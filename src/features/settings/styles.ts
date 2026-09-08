@@ -221,40 +221,6 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-  voiceOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderRadius: 8,
-    marginVertical: 4,
-    overflow: "hidden",
-  },
-  voiceMainArea: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingLeft: 16,
-    paddingRight: 12,
-    paddingVertical: 16,
-  },
-  voiceInfo: {
-    flex: 1,
-  },
-  voiceName: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  voiceDetails: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  testVoiceButton: {
-    padding: 12,
-    borderLeftWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   cacheSection: {
     padding: 16,
     borderBottomWidth: 1,

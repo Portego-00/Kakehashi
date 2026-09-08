@@ -96,7 +96,7 @@ const EDITOR_STYLES = `
     -webkit-text-size-adjust: 100%;
   }
 
-  .note-visual-editor:focus-visible {
+  .note-visual-editor-shell[data-isolated-host="false"] .note-visual-editor:focus-visible {
     outline: 2px solid var(--note-caret-color);
     outline-offset: -2px;
   }
@@ -423,6 +423,67 @@ function restoreSelection(
   };
 }
 
+function revealSelectionAfterLayout(
+  editor: HTMLDivElement,
+  getNativeViewportHeight: () => number,
+) {
+  let active = true;
+  let frame: number | undefined;
+  let timeout: number | undefined;
+  const visualViewport = window.visualViewport;
+  const interactionEvents = ["pointerdown", "touchstart", "wheel", "keydown", "beforeinput"];
+  const cancel = () => {
+    active = false;
+    if (frame !== undefined) window.cancelAnimationFrame(frame);
+    if (timeout !== undefined) window.clearTimeout(timeout);
+    window.removeEventListener("resize", schedule);
+    visualViewport?.removeEventListener("resize", schedule);
+    for (const event of interactionEvents) document.removeEventListener(event, cancel, true);
+  };
+  const reveal = () => {
+    frame = undefined;
+    if (!active) return;
+    const selection = window.getSelection();
+    if (!editor.isConnected || !selection?.rangeCount) return;
+    const range = selection.getRangeAt(0).cloneRange();
+    if (!editor.contains(range.commonAncestorContainer)) return;
+    range.collapse(false);
+    if (typeof range.getBoundingClientRect !== "function") return;
+    const caret = range.getBoundingClientRect();
+    if (caret.height === 0) return;
+
+    const viewportTop = window.visualViewport?.offsetTop ?? 0;
+    const viewportHeight = Math.min(
+      window.visualViewport?.height ?? window.innerHeight,
+      getNativeViewportHeight(),
+    );
+    const padding = 8;
+    const delta = caret.top < viewportTop + padding
+      ? caret.top - viewportTop - padding
+      : caret.bottom > viewportTop + viewportHeight - padding
+        ? caret.bottom - viewportTop - viewportHeight + padding
+        : 0;
+    // A recreated WebView starts at the top even though its range is restored.
+    // Reveal that range without moving a selection which is already visible.
+    if (delta !== 0) window.scrollBy({ top: delta, behavior: "instant" });
+  };
+  const schedule = () => {
+    if (!active) return;
+    if (frame !== undefined) window.cancelAnimationFrame(frame);
+    frame = window.requestAnimationFrame(reveal);
+  };
+  window.addEventListener("resize", schedule);
+  visualViewport?.addEventListener("resize", schedule);
+  for (const event of interactionEvents) {
+    document.addEventListener(event, cancel, { capture: true, passive: true });
+  }
+  // Keyboard and native modal resizing can finish after the first focus frame.
+  // Stop promptly on user input so subsequent scrolling belongs to the user.
+  timeout = window.setTimeout(cancel, 1_000);
+  schedule();
+  return { schedule, cancel };
+}
+
 function closestEditorAnchor(
   editor: HTMLDivElement,
   node: Node | null,
@@ -701,6 +762,9 @@ export default function NoteVisualEditorContent({
   const lastReportedRunsSignatureRef = useRef<string | null>(null);
   const lastSelectionSignatureRef = useRef<string | null>(null);
   const pendingExternalRunsRef = useRef<PendingExternalRuns | null>(null);
+  const pendingSelectionRevealRef = useRef<
+    ReturnType<typeof revealSelectionAfterLayout> | null
+  >(null);
   const callbacksRef = useRef<CallbackRefs>({
     onChange,
     onSelectionChange,
@@ -725,6 +789,19 @@ export default function NoteVisualEditorContent({
     () => normalizeAppearance(rawAppearance),
     [rawAppearance],
   );
+  const nativeViewportHeightRef = useRef(appearance.minHeight ?? 120);
+  nativeViewportHeightRef.current = appearance.minHeight ?? 120;
+  const revealNativeSelection = useCallback((editor: HTMLDivElement) => {
+    pendingSelectionRevealRef.current?.cancel();
+    pendingSelectionRevealRef.current = revealSelectionAfterLayout(
+      editor,
+      () => nativeViewportHeightRef.current,
+    );
+  }, []);
+  useEffect(() => {
+    pendingSelectionRevealRef.current?.schedule();
+  }, [appearance.minHeight]);
+  useEffect(() => () => pendingSelectionRevealRef.current?.cancel(), []);
   const subjectTypes = useMemo(
     () => normalizeNoteVisualEditorSubjectTypes(rawSubjectTypes),
     [rawSubjectTypes],
@@ -967,8 +1044,10 @@ export default function NoteVisualEditorContent({
       return;
     }
     lastAppliedCommandNonceRef.current = command.nonce;
+    pendingSelectionRevealRef.current?.cancel();
 
     if (command.type === "prepare-source" || command.type === "capture-value") {
+      const selection = captureSelection(editor) ?? savedSelectionRef.current;
       let currentRuns = readRunsFromEditor(editor);
       if (
         getNoteVisualEditorText(currentRuns).replace(/\n/g, "").length === 0
@@ -979,6 +1058,7 @@ export default function NoteVisualEditorContent({
       const snapshot = {
         requestNonce: command.nonce,
         runs: nextRuns,
+        ...(command.type === "prepare-source" ? { selection } : {}),
       };
       invokeAsync(
         command.type === "prepare-source"
@@ -1010,6 +1090,7 @@ export default function NoteVisualEditorContent({
     if (command.type === "focus") {
       linkPickerSelectionRef.current = null;
       reportSelection(editor, savedSelectionRef.current);
+      if (appearance.isolatedHost) revealNativeSelection(editor);
       return;
     }
 
@@ -1053,6 +1134,7 @@ export default function NoteVisualEditorContent({
       savedSelectionRef.current = restoreSelection(editor, linkedOffsets);
       reportRuns(nextRuns);
       reportSelection(editor, savedSelectionRef.current);
+      if (appearance.isolatedHost) revealNativeSelection(editor);
       return;
     }
 
@@ -1085,6 +1167,7 @@ export default function NoteVisualEditorContent({
     savedSelectionRef.current = restoreSelection(editor, unlinkedOffsets);
     reportRuns(nextRuns);
     reportSelection(editor, savedSelectionRef.current);
+    if (appearance.isolatedHost) revealNativeSelection(editor);
   }, [
     command,
     appearance,
@@ -1092,6 +1175,7 @@ export default function NoteVisualEditorContent({
     normalizedMaxLength,
     reportRuns,
     reportSelection,
+    revealNativeSelection,
     subjectTypes,
   ]);
 
@@ -1257,6 +1341,7 @@ export default function NoteVisualEditorContent({
   return (
     <div
       className="note-visual-editor-shell"
+      data-isolated-host={appearance.isolatedHost}
       style={{
         backgroundColor: appearance.backgroundColor,
         colorScheme: appearance.colorScheme,

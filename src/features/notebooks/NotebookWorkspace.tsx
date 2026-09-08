@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { DOMProps } from "expo/dom";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +25,7 @@ import { useAuthStore } from "../../utils/store";
 import { useTheme } from "../../utils/theme";
 import { NotebookEditorSession } from "./NotebookEditorSession";
 import type { NotebookEditorSubject, NotebookSentenceInput } from "./editor-contract";
+import { getNotebookStartupScript } from "./editor-loading";
 import { pageText, type NotebookPage } from "./model";
 import {
   duplicateNotebookBlocks,
@@ -52,26 +53,35 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
   const params = useLocalSearchParams<{ page?: string }>();
   const store = useNotebooks();
   const { persistDrafts, flushDrafts, mutate } = store;
-  const [selectedId, setSelectedId] = useState<string | null>(params.page ?? null);
+  const [selection, setSelection] = useState(() => ({ id: params.page ?? null, generation: 0 }));
+  const selectedId = selection.id;
+  const setSelectedId = useCallback((id: string | null) => {
+    setSelection((current) => current.id === id ? current : { id, generation: current.generation + 1 });
+  }, []);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [sheet, setSheet] = useState<Sheet>(null);
   const [busy, setBusy] = useState(false);
   const [editorVersion, setEditorVersion] = useState(0);
   const [editorError, setEditorError] = useState<string | null>(null);
-  const [editorReady, setEditorReady] = useState(false);
+  const [readyEditorKey, setReadyEditorKey] = useState<string | null>(null);
+  const editorKey = `${store.accountId}:${selectedId}:${selection.generation}:${editorVersion}`;
+  const currentEditorKey = useRef(editorKey);
+  currentEditorKey.current = editorKey;
+  const editorReady = readyEditorKey === editorKey;
   const [subjects, setSubjects] = useState<NotebookEditorSubject[]>([]);
   const domOptions = useMemo<DOMProps>(() => ({
     style: { flex: 1, backgroundColor: theme.cardBackground }, scrollEnabled: false, bounces: false,
+    containerStyle: { flex: 1, backgroundColor: theme.cardBackground },
+    injectedJavaScriptBeforeContentLoaded: getNotebookStartupScript(isDark ? "dark" : "light", theme.cardBackground),
     keyboardDisplayRequiresUserAction: false, hideKeyboardAccessoryView: true,
     onError: () => { setEditorError("The editor couldn't load. Tap Retry to reopen this page."); },
     onHttpError: () => { setEditorError("The editor couldn't load. Tap Retry to reopen this page."); },
-  }), [theme.cardBackground]);
+  }), [isDark, theme.cardBackground]);
   const pages = store.state?.pages ?? EMPTY_PAGES;
   const page = pages.find((item) => item.id === selectedId && !item.trashedAt);
   useHideTabBar(!!page);
   const currentPageId = page?.id;
-  useEffect(() => { setEditorReady(false); }, [selectedId, editorVersion]);
   useEffect(() => {
     if (!currentPageId || editorReady || editorError) return;
     const timeout = setTimeout(() => setEditorError("This page is taking too long to open. Tap Retry to reopen it."), 45000);
@@ -97,7 +107,7 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
     setSelectedId(params.page ?? null);
     setSheet(null);
     setSubjects([]);
-  }, [store.accountId, params.page]);
+  }, [store.accountId, params.page, setSelectedId]);
 
   useEffect(() => {
     if (!currentPageId || subjects.length) return;
@@ -131,7 +141,7 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
     setSelectedId(id);
     setEditorError(null);
     setSheet(null);
-  }, [flushDrafts, persistDrafts]);
+  }, [flushDrafts, persistDrafts, setSelectedId]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -194,7 +204,10 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
     router.push({ pathname: "/subject/[id]", params: { id: String(id) } });
   }, [flushDrafts, persistDrafts]);
   const reportEditorError = useCallback(async (message: string) => { setEditorError(message); }, []);
-  const reportEditorReady = useCallback(async () => { setEditorReady(true); }, []);
+  const reportEditorReady = useCallback(async () => {
+    // A previous page may finish loading after navigation or a retry.
+    if (currentEditorKey.current === editorKey) setReadyEditorKey(editorKey);
+  }, [editorKey]);
 
   const resolveDraft = (keep: boolean) => {
     if (!page) return;
@@ -249,7 +262,7 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
       </View> : null}
       <View style={{ flex: 1, backgroundColor: theme.cardBackground }}>
         <NotebookEditorSession
-          key={`${store.accountId}:${page.id}:${editorVersion}`}
+          key={editorKey}
           page={page}
           hasDraft={!!activeDraft}
           updatePageDraft={store.updatePageDraft}
@@ -264,7 +277,9 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
           onReady={reportEditorReady}
           dom={domOptions}
         />
-        {!editorReady && !editorError ? <View pointerEvents="none" style={{ position: "absolute", bottom: 24, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color={theme.textSecondary} /><Text style={{ color: theme.textSecondary }}>Opening page…</Text></View> : null}
+        {!editorReady ? <View testID="notebook-editor-loading" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.cardBackground, alignItems: "center", justifyContent: "center" }]}>
+          {!editorError ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color={theme.textSecondary} /><Text style={{ color: theme.textSecondary }}>Opening page…</Text></View> : null}
+        </View> : null}
       </View>
     </> : <>
       <View style={[styles.navigation, { borderBottomWidth: 0 }]}>

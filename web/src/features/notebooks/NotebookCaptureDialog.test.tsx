@@ -3,11 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Subject } from "@/types/wanikani";
 import { applyNotebookMutation, createNotebookState, type NotebookMutation, type NotebookState } from "./model";
-import { NotebookCaptureDialog } from "./NotebookCaptureDialog";
+import { NotebookCaptureButton, NotebookCaptureDialog } from "./NotebookCaptureDialog";
 import { SubjectNotebookSection } from "./SubjectNotebookSection";
 
-const mocks = vi.hoisted(() => ({ mutate: vi.fn(), mutateResult: vi.fn(), refresh: vi.fn(), hook: vi.fn() }));
+const mocks = vi.hoisted(() => ({ mutate: vi.fn(), mutateResult: vi.fn(), refresh: vi.fn(), hook: vi.fn(), session: vi.fn() }));
 vi.mock("./use-notebooks", () => ({ useNotebooks: mocks.hook }));
+vi.mock("@/lib/session", () => ({ useSession: mocks.session }));
 
 const subject: Subject = {
   id: 88, object: "vocabulary", url: "https://api.wanikani.com/v2/subjects/88", data_updated_at: "2026-09-07T00:00:00.000Z",
@@ -17,6 +18,7 @@ let state: NotebookState;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: "123", username: "Portego" } }, isDemo: false });
   state = applyNotebookMutation(createNotebookState(), { action: "create_page", page: { id: "grammar", title: "Grammar", content: [{ id: "notes", type: "paragraph", content: [{ type: "text", text: "Existing notes" }] }] } }).state;
   mocks.hook.mockImplementation(() => ({ state, isLoading: false, available: true, error: "", mutate: mocks.mutate, mutateResult: mocks.mutateResult, refresh: mocks.refresh }));
   mocks.mutate.mockImplementation(async (action: NotebookMutation) => { state = applyNotebookMutation(state, action).state; return state; });
@@ -117,5 +119,33 @@ describe("subject notebook connections", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("including trash");
     expect(state.sentences).toHaveLength(1);
     expect(screen.getByText("猫が好きです。")).toBeInTheDocument();
+  });
+});
+
+describe("notebook capture access", () => {
+  it.each([
+    { status: "authenticated", username: "Learner", isDemo: false },
+    { status: "authenticated", username: "PortegoFan", isDemo: false },
+    { status: "authenticated", username: undefined, isDemo: false },
+    { status: "authenticated", username: "Portego", isDemo: true },
+    { status: "anonymous", username: "Portego", isDemo: false },
+    { status: "loading", username: "Portego", isDemo: false },
+    { status: "unavailable", username: "Portego", isDemo: false },
+  ])("hides every capture entry point for $status / $username / demo $isDemo", ({ status, username, isDemo }) => {
+    mocks.session.mockReturnValue({ status, user: { data: { username } }, isDemo });
+    mocks.hook.mockReturnValue({ state, isLoading: true, available: true });
+    const { container } = render(<><NotebookCaptureButton subject={subject} /><NotebookCaptureDialog subject={subject} open onClose={vi.fn()} /><SubjectNotebookSection subject={subject} /></>);
+    expect(container).toBeEmptyDOMElement();
+    expect(mocks.hook).not.toHaveBeenCalled();
+  });
+
+  it("removes open capture and subject content as soon as Portego access is removed", () => {
+    const content = <><NotebookCaptureButton subject={subject} /><NotebookCaptureDialog subject={subject} open onClose={vi.fn()} /><SubjectNotebookSection subject={subject} /></>;
+    const { container, rerender } = render(content);
+    expect(screen.getByRole("dialog", { name: "Add to notebook" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Notebook" })).toBeInTheDocument();
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { username: "Learner" } }, isDemo: false });
+    rerender(<><NotebookCaptureButton subject={subject} /><NotebookCaptureDialog subject={subject} open onClose={vi.fn()} /><SubjectNotebookSection subject={subject} /></>);
+    expect(container).toBeEmptyDOMElement();
   });
 });

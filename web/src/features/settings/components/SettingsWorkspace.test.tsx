@@ -153,7 +153,8 @@ describe("listening preferences", () => {
 describe("navbar tab preferences", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("exposes all candidates and persists any number of selected tabs", () => {
+  it("exposes all candidates to Portego and persists any number of selected tabs", () => {
+    sessionMock.user.data.username = "Portego";
     render(<SettingsWorkspace />);
 
     const heading = screen.getByRole("heading", { level: 3, name: "Desktop navbar tabs" });
@@ -184,9 +185,25 @@ describe("navbar tab preferences", () => {
       fireEvent.click(optional);
       expect(optional).toBeChecked();
     }
-    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace.navbarTabs).toEqual([
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Portego")) ?? "{}").workspace.navbarTabs).toEqual([
       "home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music", "notebooks",
     ]);
+  });
+
+  it.each([
+    { username: "Tester", isDemo: false },
+    { username: "PortegoFan", isDemo: false },
+    { username: "Portego", isDemo: true },
+  ])("hides notebooks settings for $username with demo=$isDemo without erasing saved tabs", async ({ username, isDemo }) => {
+    sessionMock.user.data.username = username;
+    sessionMock.isDemo = isDemo;
+    const key = settingsStorageKey(username);
+    const saved = JSON.stringify({ ...DEFAULT_WEB_SETTINGS, workspace: { ...DEFAULT_WEB_SETTINGS.workspace, navbarTabs: ["home", "level", "notebooks"] } });
+    window.localStorage.setItem(key, saved);
+    render(<SettingsWorkspace />);
+    expect(screen.queryByRole("checkbox", { name: /^Notebooks/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/^2 shown\./)).toBeInTheDocument());
+    expect(window.localStorage.getItem(key)).toBe(saved);
   });
 
   it("refreshes the controls when another browser tab changes the saved navbar", async () => {

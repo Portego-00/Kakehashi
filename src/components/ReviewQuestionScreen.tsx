@@ -41,7 +41,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SvgXml } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import AudioSessionManager from "../modules/AudioSessionManager";
@@ -1135,6 +1135,7 @@ export default function ReviewQuestionScreen({
   const isCustomKanaAudioQuestion = item.subject.id < 0 && item.subject.object === "kana_vocabulary";
   const isPronunciationAnswerQuestion = questionType === "reading" || isCustomKanaAudioQuestion;
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const noteModalInsets = useSafeAreaInsets();
   const { apiToken, userData } = useAuthStore();
   const {
     reviewMultipleChoiceEnabled,
@@ -4010,9 +4011,14 @@ export default function ReviewQuestionScreen({
       onRequestClose={closeStudyMaterialNoteModal}
     >
       <KeyboardAvoidingView
-        style={styles.studyMaterialNoteModalOverlay}
+        style={[
+          styles.studyMaterialNoteModalOverlay,
+          {
+            paddingTop: Math.max(16, noteModalInsets.top),
+            paddingBottom: 16 + androidKeyboardLift,
+          },
+        ]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
       >
         <View
           style={[
@@ -4021,10 +4027,6 @@ export default function ReviewQuestionScreen({
               backgroundColor: theme.cardBackground,
               borderColor: theme.border,
             },
-            Platform.OS === "android" &&
-              androidKeyboardLift > 0 && {
-                transform: [{ translateY: -androidKeyboardLift }],
-              },
           ]}
         >
           <View style={styles.studyMaterialNoteModalHeader}>
@@ -4052,6 +4054,7 @@ export default function ReviewQuestionScreen({
           <FormattedNoteEditor
             ref={studyMaterialNoteEditorRef}
             key={`${editingStudyMaterialNoteType}:${studyMaterialNoteModalVisible}`}
+            containerStyle={styles.studyMaterialNoteEditor}
             style={[
               styles.studyMaterialNoteInput,
               {
@@ -7552,14 +7555,15 @@ const styles = StyleSheet.create({
   studyMaterialNoteModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     padding: 16,
   },
   studyMaterialNoteModalContent: {
+    flex: 1,
     width: "100%",
     maxWidth: 460,
-    maxHeight: "90%",
+    maxHeight: 640,
     flexShrink: 1,
     borderRadius: 16,
     padding: 16,
@@ -7591,6 +7595,10 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     textAlignVertical: "top",
+  },
+  studyMaterialNoteEditor: {
+    flex: 1,
+    minHeight: 0,
   },
   studyMaterialNoteModalButtons: {
     marginTop: 16,

@@ -6,7 +6,7 @@ The editor is an Expo DOM component running in the app's WebView. Its JavaScript
 
 ## Access and navigation
 
-Mobile notebooks are limited to the verified WaniKani username `Portego`, ignoring case and surrounding whitespace. The restriction applies to the native API, both mobile routes, the Settings entry, and tab customization. Development mode does not bypass the account restriction. The existing web notebook access policy is unchanged.
+Mobile notebooks are limited to the verified WaniKani username `Portego`, ignoring case and surrounding whitespace. The restriction applies to the native API, both mobile routes, the Settings entry, and tab customization. Development mode does not bypass the account restriction. Browser notebook pages, controls, and the API are also limited to Portego; demo sessions have no notebook access.
 
 For Portego:
 
@@ -17,6 +17,8 @@ For Portego:
 The page browser needs a configured endpoint for its first cloud load. There is no unauthenticated sample account or local-only fallback when the endpoint is missing. After a successful load, the account's cached pages remain available during connection failures.
 
 Opening a page hides the bottom tab bar so it cannot cover the editor tools. Returning to the page list restores the tabs and preserves the list's search and expansion state. Visibility belongs to the current tab navigator and is released on blur or unmount; the standalone Settings route is unaffected. Both native tabs and the fallback tab bar follow this behavior.
+
+The editor loading surface follows the selected app theme. A document-start script applies that theme before the editor's styles and JavaScript load, while a native cover hides unfinished content until the editor reports readiness. The WebView remains mounted beneath the cover. Each opening and retry has its own readiness identity, so a delayed callback from an earlier opening cannot expose a newly loading page. Failed loads retain a themed background behind the Retry message.
 
 ## Configure the connection
 
@@ -144,3 +146,18 @@ Still required before calling the mobile experience validated: edit/save/reopen,
 On 8 September, the iOS OTA asset correction was additionally validated with the exact published editor files in a native WKWebView on the QA simulator. The missing manifest files reproduced the device's `-1100` error. The corrected package loaded successfully, accepted body edits, and loaded and inserted an emoji with native callbacks. This isolated check used synthetic content and did not exercise signed-in cloud saving or conflict recovery; the broader end-to-end checks above remain outstanding.
 
 The subsequent bottom-tab overlap fix has seven interaction regressions covering native/fallback tabs, return navigation and search preservation, failed local saves, focus changes, unmounting, and revoked access. All 51 native notebook tests passed. An isolated Expo Router fixture with the exact visibility hook and real native tabs additionally confirmed that opening the editor hides the bar, its bottom control remains tappable, and Back or leaving the tab restores it.
+
+### Dark loading correction — 8 September 2026
+
+The editor's HTML previously started with a white background before React applied the dark theme. The native container now matches the app theme, a document-start script sets the initial HTML theme, and an opaque native loading cover stays visible until the current editor session is ready. Each page opening and retry has its own readiness key, so a callback from a previous session cannot dismiss the new session's cover.
+
+All 60 native notebook tests and seven export-packaging tests passed, with focused lint clean. On the iPhone 16 / iOS 18.5 QA simulator, an isolated native fixture reproduced the white flash, then showed no white-screen frames with the fix during deliberately delayed HTML and JavaScript loading. Dark and light loading states were checked. The final exported editor also opened after a delayed startup and accepted typing. This fixture used synthetic content; it does not replace the signed-in cloud and conflict checks listed above. Evidence is in `output/notebooks-mobile/dark-loading-2026-09-08/` at the repository root.
+
+Published to the production iOS channel at **21:38 Madrid / 19:38 UTC** for runtime **1.4.7**:
+
+- Update: `01a08287-6bc8-751c-9349-dcb8487d9a44`
+- Group: `05b01742-087a-463f-9dd1-9469b000c086`
+- Native launch hash: `s_zFRLxmni6SG0MXYduOwO8DbMM7Kodx9J9Dj4hRVRQ`
+- Notebook HTML: `www.bundle/79e07ee5243dabb2df2954b7c189391b.html`
+
+The release retained the preceding production update (`01a08236-276c-7885-9b5e-922135418e72`) and changed only the notebook workspace, editor theme timing, and new startup-theme helper. After publication, the live production manifest returned the expected update ID; its launch bundle and all 87 DOM assets were downloaded and matched the validated export exactly. Portego-only access, notebook data, backend configuration, and native dependencies remain unchanged. This fix requires an OTA update, not a new App Store build.
