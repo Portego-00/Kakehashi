@@ -114,7 +114,6 @@ const EDITOR_STYLES = `
 
   .note-visual-editor a[data-subject-id] {
     cursor: pointer;
-    font-weight: 600;
     text-decoration: none !important;
   }
 `;
@@ -560,12 +559,8 @@ function selectAnchor(
 function activeCollapsedFormats(editor: HTMLDivElement): NoteFormat[] {
   const selectedFormats = new Set<NoteFormat>();
   const selection = window.getSelection();
-  let selectionIsInLink = false;
   if (selection && selectionBelongsToEditor(editor, selection)) {
     const range = selection.getRangeAt(0);
-    selectionIsInLink = Boolean(
-      closestEditorAnchor(editor, range.startContainer),
-    );
     let element: HTMLElement | null =
       range.startContainer instanceof HTMLElement
         ? range.startContainer
@@ -579,17 +574,11 @@ function activeCollapsedFormats(editor: HTMLDivElement): NoteFormat[] {
   }
 
   for (const format of ["bold", "italic", "underline"] as const) {
-    // Links are semibold for affordance, but that presentation is not stored
-    // as bold note formatting.
-    if (
-      format === "bold" &&
-      selectionIsInLink &&
-      !selectedFormats.has(format)
-    ) {
-      continue;
-    }
     try {
+      // The browser's pending typing style can override the caret's markup,
+      // including turning a format off while still inside its element.
       if (document.queryCommandState(format)) selectedFormats.add(format);
+      else selectedFormats.delete(format);
     } catch {
       // Some embedded browsers do not expose queryCommandState consistently.
     }
@@ -1073,13 +1062,19 @@ export default function NoteVisualEditorContent({
       command.type === "set-link" ||
       command.type === "remove-link" ||
       command.type === "focus";
+    const liveSelection = captureSelection(editor);
     const commandSelection =
       command.selection ??
       (isLinkPickerResult ? linkPickerSelectionRef.current : null) ??
-      captureSelection(editor) ??
+      liveSelection ??
       savedSelectionRef.current;
-    editor.focus({ preventScroll: true });
-    savedSelectionRef.current = restoreSelection(editor, commandSelection);
+    if (document.activeElement !== editor) editor.focus({ preventScroll: true });
+    // Replacing a collapsed range clears the browser's pending typing styles.
+    // Toolbar toggles should operate on the live caret so they can accumulate.
+    savedSelectionRef.current =
+      command.type === "toggle-format" && !command.selection && liveSelection
+        ? liveSelection
+        : restoreSelection(editor, commandSelection);
 
     if (command.type === "capture-selection") {
       linkPickerSelectionRef.current = savedSelectionRef.current;

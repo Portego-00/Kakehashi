@@ -27,6 +27,8 @@ import {
   FormattedNoteEditor,
   type FormattedNoteEditorHandle,
 } from "../../../src/components/formatted-note";
+import { parseFormattedNote } from "../../../src/utils/note-formatting";
+import { getNoteVisualEditorRunsSignature } from "../../../src/components/note-visual-editor-model";
 import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
 import {
   createStudyMaterial,
@@ -150,6 +152,8 @@ export default function SubjectDetailsScreen() {
   );
   const [reviewStatistics, setReviewStatistics] = useState<any>(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  // Reset on open, keeping the editor intact during iOS modal dismissal.
+  const [noteEditorSession, setNoteEditorSession] = useState(0);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [noteType, setNoteType] = useState<"meaning" | "reading">("meaning");
   const [noteText, setNoteText] = useState("");
@@ -163,6 +167,8 @@ export default function SubjectDetailsScreen() {
   const requestIdRef = useRef(0);
   const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
+  const originalNoteSignatureRef = useRef("");
+  const checkingNoteChangesRef = useRef(false);
   const isBookmarked = subjectData
     ? subjectLists.some((list) => list.subjectIds.includes(subjectData.id))
     : false;
@@ -750,17 +756,16 @@ export default function SubjectDetailsScreen() {
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteEditorSession((session) => session + 1);
     setNoteType(type);
-    // Set initial value based on existing notes
-    if (studyMaterial && studyMaterial.data) {
-      if (type === "meaning") {
-        setNoteText(studyMaterial.data.meaning_note || "");
-      } else {
-        setNoteText(studyMaterial.data.reading_note || "");
-      }
-    } else {
-      setNoteText("");
-    }
+    const initialNoteText =
+      (type === "meaning"
+        ? studyMaterial?.data?.meaning_note
+        : studyMaterial?.data?.reading_note) || "";
+    originalNoteSignatureRef.current = getNoteVisualEditorRunsSignature(
+      parseFormattedNote(initialNoteText),
+    );
+    setNoteText(initialNoteText);
     setShowNoteModal(true);
   };
 
@@ -1081,10 +1086,38 @@ export default function SubjectDetailsScreen() {
     subjectData?.data?.characters ||
     undefined;
 
-  const closeNoteModal = () => {
+  const closeNoteModal = async () => {
     if (noteEditorRef.current?.closeLinkPicker()) return;
-    if (!isSavingNote) {
-      setShowNoteModal(false);
+    if (isSavingNote || checkingNoteChangesRef.current) return;
+
+    checkingNoteChangesRef.current = true;
+    try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? noteText;
+      if (
+        getNoteVisualEditorRunsSignature(parseFormattedNote(currentNoteText)) ===
+        originalNoteSignatureRef.current
+      ) {
+        setShowNoteModal(false);
+        return;
+      }
+
+      setNoteText(currentNoteText);
+      Alert.alert("Discard note changes?", "Your changes will not be saved.", [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => setShowNoteModal(false),
+        },
+      ]);
+    } catch {
+      Alert.alert(
+        "Unable to close note",
+        "Please try again. Your changes are still here.",
+      );
+    } finally {
+      checkingNoteChangesRef.current = false;
     }
   };
 
@@ -1133,7 +1166,7 @@ export default function SubjectDetailsScreen() {
 
           <FormattedNoteEditor
             ref={noteEditorRef}
-            key={`${noteType}:${showNoteModal}`}
+            key={noteEditorSession}
             containerStyle={styles.noteEditor}
             style={[
               styles.noteInput,

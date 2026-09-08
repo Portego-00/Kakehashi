@@ -70,6 +70,8 @@ import {
   FormattedNoteText,
   type FormattedNoteEditorHandle,
 } from "./formatted-note";
+import { parseFormattedNote } from "../utils/note-formatting";
+import { getNoteVisualEditorRunsSignature } from "./note-visual-editor-model";
 import { NoteFieldContainer } from "./note-field-container";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
@@ -508,6 +510,8 @@ const SubjectContent = ({
   const [meaningNote, setMeaningNote] = useState("");
   const [readingNote, setReadingNote] = useState("");
   const [noteModalVisible, setNoteModalVisible] = useState(false);
+  // Reset on open, keeping the editor intact during iOS modal dismissal.
+  const [noteEditorSession, setNoteEditorSession] = useState(0);
   const noteModalInsets = useSafeAreaInsets();
   const [editingNoteType, setEditingNoteType] = useState<
     "meaning" | "reading"
@@ -522,6 +526,8 @@ const SubjectContent = ({
   const { apiToken } = useAuthStore();
   const mountedRef = useRef(true);
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
+  const originalNoteSignatureRef = useRef("");
+  const checkingNoteChangesRef = useRef(false);
 
   // Visually similar kanji state (for Niai source)
   const [niaiSimilarKanji, setNiaiSimilarKanji] = useState<any[]>([]);
@@ -1273,14 +1279,49 @@ const SubjectContent = ({
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteEditorSession((session) => session + 1);
     setEditingNoteType(type);
-    setEditingNoteText(type === "meaning" ? meaningNote : readingNote);
+    const initialNoteText = type === "meaning" ? meaningNote : readingNote;
+    originalNoteSignatureRef.current = getNoteVisualEditorRunsSignature(
+      parseFormattedNote(initialNoteText),
+    );
+    setEditingNoteText(initialNoteText);
     setNoteModalVisible(true);
   };
 
-  const handleCloseNote = () => {
+  const handleCloseNote = async () => {
     if (noteEditorRef.current?.closeLinkPicker()) return;
-    setNoteModalVisible(false);
+    if (isSavingNote || checkingNoteChangesRef.current) return;
+
+    checkingNoteChangesRef.current = true;
+    try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? editingNoteText;
+      if (
+        getNoteVisualEditorRunsSignature(parseFormattedNote(currentNoteText)) ===
+        originalNoteSignatureRef.current
+      ) {
+        setNoteModalVisible(false);
+        return;
+      }
+
+      setEditingNoteText(currentNoteText);
+      Alert.alert("Discard note changes?", "Your changes will not be saved.", [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => setNoteModalVisible(false),
+        },
+      ]);
+    } catch {
+      Alert.alert(
+        "Unable to close note",
+        "Please try again. Your changes are still here.",
+      );
+    } finally {
+      checkingNoteChangesRef.current = false;
+    }
   };
 
   const handleSaveNote = async () => {
@@ -4487,7 +4528,7 @@ const SubjectContent = ({
             </Text>
             <FormattedNoteEditor
               ref={noteEditorRef}
-              key={`${editingNoteType}:${noteModalVisible}`}
+              key={noteEditorSession}
               containerStyle={styles.noteEditor}
               style={styles.noteInput}
               value={editingNoteText}

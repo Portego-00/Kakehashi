@@ -120,6 +120,8 @@ import {
   FormattedNoteEditor,
   type FormattedNoteEditorHandle,
 } from "./formatted-note";
+import { parseFormattedNote } from "../utils/note-formatting";
+import { getNoteVisualEditorRunsSignature } from "./note-visual-editor-model";
 
 // Get screen dimensions for animations
 const { width, height } = Dimensions.get("window");
@@ -1278,8 +1280,13 @@ export default function ReviewQuestionScreen({
     useState("");
   const [studyMaterialNoteModalVisible, setStudyMaterialNoteModalVisible] =
     useState(false);
+  // Reset on open, keeping the editor intact during iOS modal dismissal.
+  const [studyMaterialNoteEditorSession, setStudyMaterialNoteEditorSession] =
+    useState(0);
   const studyMaterialNoteEditorRef =
     useRef<FormattedNoteEditorHandle>(null);
+  const originalNoteSignatureRef = useRef("");
+  const checkingNoteChangesRef = useRef(false);
   const isScreenFocused = useOptionalScreenIsFocused();
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
@@ -3545,26 +3552,57 @@ export default function ReviewQuestionScreen({
 
   const handleReviewDetailNotePress = useCallback(
     (noteType: StudyMaterialNoteType) => {
+      setStudyMaterialNoteEditorSession((session) => session + 1);
       releasePausedShortcutFocus();
       setEditingStudyMaterialNoteType(noteType);
-      setEditingStudyMaterialNoteText(
+      const initialNoteText =
         noteType === "meaning"
           ? effectiveStudyMaterials?.meaning_note || ""
-          : effectiveStudyMaterials?.reading_note || "",
+          : effectiveStudyMaterials?.reading_note || "";
+      originalNoteSignatureRef.current = getNoteVisualEditorRunsSignature(
+        parseFormattedNote(initialNoteText),
       );
+      setEditingStudyMaterialNoteText(initialNoteText);
       setStudyMaterialNoteModalVisible(true);
     },
     [effectiveStudyMaterials, releasePausedShortcutFocus],
   );
 
-  const closeStudyMaterialNoteModal = useCallback(() => {
+  const closeStudyMaterialNoteModal = useCallback(async () => {
     if (studyMaterialNoteEditorRef.current?.closeLinkPicker()) return;
-    if (isSavingStudyMaterialNote) {
-      return;
-    }
+    if (isSavingStudyMaterialNote || checkingNoteChangesRef.current) return;
 
-    setStudyMaterialNoteModalVisible(false);
-  }, [isSavingStudyMaterialNote]);
+    checkingNoteChangesRef.current = true;
+    try {
+      const currentNoteText =
+        (await studyMaterialNoteEditorRef.current?.flush()) ??
+        editingStudyMaterialNoteText;
+      if (
+        getNoteVisualEditorRunsSignature(parseFormattedNote(currentNoteText)) ===
+        originalNoteSignatureRef.current
+      ) {
+        setStudyMaterialNoteModalVisible(false);
+        return;
+      }
+
+      setEditingStudyMaterialNoteText(currentNoteText);
+      Alert.alert("Discard note changes?", "Your changes will not be saved.", [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => setStudyMaterialNoteModalVisible(false),
+        },
+      ]);
+    } catch {
+      Alert.alert(
+        "Unable to close note",
+        "Please try again. Your changes are still here.",
+      );
+    } finally {
+      checkingNoteChangesRef.current = false;
+    }
+  }, [editingStudyMaterialNoteText, isSavingStudyMaterialNote]);
 
   const handleSaveStudyMaterialNote = useCallback(async () => {
     if (!apiToken || item.subject.id <= 0 || isSavingStudyMaterialNote) {
@@ -4053,7 +4091,7 @@ export default function ReviewQuestionScreen({
 
           <FormattedNoteEditor
             ref={studyMaterialNoteEditorRef}
-            key={`${editingStudyMaterialNoteType}:${studyMaterialNoteModalVisible}`}
+            key={studyMaterialNoteEditorSession}
             containerStyle={styles.studyMaterialNoteEditor}
             style={[
               styles.studyMaterialNoteInput,

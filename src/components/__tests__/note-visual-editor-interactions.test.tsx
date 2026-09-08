@@ -68,6 +68,49 @@ function command(value: CommandInput) {
   act(() => root.render(<NoteVisualEditorContent {...props} />));
 }
 
+function mockCollapsedTypingCommands() {
+  const originalExecCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
+  const originalQueryCommandState = Object.getOwnPropertyDescriptor(document, "queryCommandState");
+  const selection = window.getSelection()!;
+  const addRange = selection.addRange.bind(selection);
+  const pendingFormats = new Set<string>();
+  const formatTags = { bold: "b,strong", italic: "i,em", underline: "u" };
+
+  // Browsers keep caret typing styles separately from existing DOM markup.
+  // Replacing the range derives those styles from the new caret's ancestors.
+  const restoreRange = jest.spyOn(selection, "addRange").mockImplementation((range) => {
+    addRange(range);
+    pendingFormats.clear();
+    const element = range.startContainer instanceof Element
+      ? range.startContainer
+      : range.startContainer.parentElement;
+    for (const [format, tags] of Object.entries(formatTags)) {
+      if (element?.closest(tags)) pendingFormats.add(format);
+    }
+  });
+  Object.defineProperty(document, "execCommand", {
+    configurable: true,
+    value: jest.fn((format: string) => {
+      if (!(format in formatTags)) return true;
+      if (pendingFormats.has(format)) pendingFormats.delete(format);
+      else pendingFormats.add(format);
+      return true;
+    }),
+  });
+  Object.defineProperty(document, "queryCommandState", {
+    configurable: true,
+    value: jest.fn((format: string) => pendingFormats.has(format)),
+  });
+
+  return () => {
+    restoreRange.mockRestore();
+    if (originalExecCommand) Object.defineProperty(document, "execCommand", originalExecCommand);
+    else Reflect.deleteProperty(document, "execCommand");
+    if (originalQueryCommandState) Object.defineProperty(document, "queryCommandState", originalQueryCommandState);
+    else Reflect.deleteProperty(document, "queryCommandState");
+  };
+}
+
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,6 +127,78 @@ afterEach(() => {
 });
 
 describe("note visual editor interactions", () => {
+  it("combines pending caret formats before typing and lets either be disabled", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([]);
+      act(() => editor.focus());
+      select(editor, 0);
+
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold"] });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold", "underline"] });
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["underline"] });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([]);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it.each(["bold", "italic", "underline"] as const)("disables pending %s inside matching formatted text", (format) => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([{ text: "existing", formats: [format] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!.firstChild!, 4);
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [format] });
+
+      command({ type: "toggle-format", format });
+
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "existing", formats: [format] }]);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("combines and disables caret formats inside a subject link without changing its label", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const runs = [{ text: "bridge", formats: [], subjectId: 440 }];
+      const editor = renderEditor(runs);
+      act(() => editor.focus());
+      select(editor.querySelector("a")!.firstChild!, 3);
+
+      command({ type: "toggle-format", format: "bold" });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+        text: "bridge",
+        formats: ["bold", "underline"],
+        subjectId: 440,
+      });
+
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+        text: "bridge",
+        formats: ["underline"],
+        subjectId: 440,
+      });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+        text: "bridge",
+        formats: [],
+        subjectId: 440,
+      });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual(runs);
+    } finally {
+      restoreCommands();
+    }
+  });
+
   it.each([
     { top: 1_800, expectedScroll: 1_430 },
     { top: 40, expectedScroll: null },
