@@ -200,6 +200,119 @@ describe("FormattedNote", () => {
     });
   });
 
+  it("keeps long source notes in a bounded scrolling field", async () => {
+    const screen = render(
+      <FormattedNoteEditor
+        value={"A long <b>reading note</b>\n".repeat(40)}
+        onChangeText={jest.fn()}
+        accessibilityLabel="Reading note text"
+        style={{ minHeight: 120, padding: 12 }}
+      />,
+    );
+    fireEvent.press(screen.getByLabelText("Use source editor"));
+    const request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSourceReady({
+        requestNonce: request.nonce,
+        runs: mockVisualEditorProps!.runs,
+      });
+    });
+
+    const input = screen.getByLabelText("Reading note text");
+    const inputStyle = StyleSheet.flatten(input.props.style);
+    expect(inputStyle.height).toBe(120);
+    expect(inputStyle.flexShrink).toBe(1);
+    expect(input.props.scrollEnabled).toBe(true);
+  });
+
+  it.each([120, 240])("gives the native visual WebView an explicit %d point height", (height) => {
+    render(
+      <FormattedNoteEditor
+        value="Visible note text"
+        onChangeText={jest.fn()}
+        style={height === 120 ? { minHeight: height } : { height }}
+      />,
+    );
+
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)).toEqual({
+      width: "100%",
+      height,
+    });
+  });
+
+  it("unlinks a visual selection from the toolbar and removes a whole link explicitly", async () => {
+    const screen = render(
+      <FormattedNoteEditor
+        value={'<a href="wk://subject/440">a long bridge</a>'}
+        onChangeText={jest.fn()}
+      />,
+    );
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({
+        text: "long",
+        formats: [],
+        subjectId: 440,
+      });
+    });
+
+    fireEvent.press(screen.getByLabelText("Unlink selected text"));
+    const request = mockVisualEditorProps!.command!;
+    expect(request.type).toBe("capture-selection");
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({
+        text: "long",
+        formats: [],
+        subjectId: 440,
+        requestNonce: request.nonce,
+      });
+    });
+    expect(mockVisualEditorProps!.command).toMatchObject({
+      type: "remove-link",
+      scope: "selection",
+    });
+    expect(mockLinkPickerProps).toBeNull();
+
+    fireEvent.press(screen.getByLabelText("Remove subject link"));
+    expect(mockVisualEditorProps!.command).toMatchObject({
+      type: "remove-link",
+      scope: "link",
+    });
+  });
+
+  it("uses the captured selection to choose link or unlink after a quick cursor move", async () => {
+    const screen = render(
+      <FormattedNoteEditor value="plain" onChangeText={jest.fn()} />,
+    );
+    // The native toolbar still shows Link, but the WebView caret has moved into a link.
+    fireEvent.press(screen.getByLabelText("Link to subject"));
+    let request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({
+        text: "bridge",
+        formats: [],
+        subjectId: 440,
+        requestNonce: request.nonce,
+      });
+    });
+    expect(mockVisualEditorProps!.command).toMatchObject({
+      type: "remove-link",
+      scope: "selection",
+    });
+    expect(mockLinkPickerProps).toBeNull();
+
+    // The opposite transition must open the picker for the newly selected plain text.
+    fireEvent.press(screen.getByLabelText("Unlink selected text"));
+    request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({
+        text: "plain",
+        formats: [],
+        requestNonce: request.nonce,
+      });
+    });
+    expect(mockLinkPickerProps?.initialQuery).toBe("plain");
+  });
+
   it("renders an accessible, subject-colored link without web-link decoration", () => {
     const onSubjectLinkPress = jest.fn();
     const stopPropagation = jest.fn();
@@ -339,6 +452,35 @@ describe("FormattedNote", () => {
     expect(onChangeText).toHaveBeenCalledWith(
       'Compare <a href="wk://subject/440">bridge</a> closely',
     );
+  });
+
+  it("passes the captured visual range back when the picker applies a link", async () => {
+    const screen = render(
+      <FormattedNoteEditor
+        value="before <b>middle</b> after"
+        onChangeText={jest.fn()}
+      />,
+    );
+    fireEvent.press(screen.getByLabelText("Link to subject"));
+    const request = mockVisualEditorProps!.command!;
+    const selection = { start: 7, end: 13 };
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({
+        text: "middle",
+        formats: ["bold"],
+        requestNonce: request.nonce,
+        selection,
+      });
+      await mockVisualEditorProps!.onSelectionChange({ text: "", formats: [] });
+    });
+
+    fireEvent.press(screen.getByLabelText("Choose bridge subject"));
+
+    expect(mockVisualEditorProps!.command).toMatchObject({
+      type: "set-link",
+      subjectId: 440,
+      selection,
+    });
   });
 
   it("commits the latest visual snapshot before revealing source markup", async () => {

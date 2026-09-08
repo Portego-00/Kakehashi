@@ -1,7 +1,7 @@
 import { useAuthStore } from "../utils/store";
 import { getDeviceId } from "./timeTrackingSyncService";
 import { timeTrackingStorage } from "./timeTrackingService";
-import { postStudyTimeEdge } from "./studyTimeEdgeClient";
+import { getStudyTimeHistoryRpc } from "./studyTimeRpcClient";
 import { normalizeStudyTimeUserId } from "./studyTimeStorageScope";
 import {
   createStudyTimeHistoryCache,
@@ -103,12 +103,13 @@ async function refreshScope(
   const cached = readCache(scope);
 
   try {
-    const response = await postStudyTimeEdge(
-      "study-time-history",
-      apiToken,
-      { deviceId: scope.deviceId },
+    const payload = parseStudyTimeHistoryResponse(
+      await getStudyTimeHistoryRpc(
+        apiToken,
+        scope.userId,
+        scope.deviceId,
+      ),
     );
-    const payload = parseStudyTimeHistoryResponse(await response.json());
     const nextCache = createStudyTimeHistoryCache(
       scope.userId,
       scope.deviceId,

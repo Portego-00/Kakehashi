@@ -1,8 +1,10 @@
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 
 import LessonDetailScreen from "../LessonDetailScreen";
+
+let mockSinglePageLessonView = false;
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: () => null,
@@ -115,7 +117,7 @@ jest.mock("../../utils/store", () => ({
   useSettingsStore: () => ({
     appTextSizeScale: 1.15,
     autoplayLessonReadingAudio: false,
-    singlePageLessonView: false,
+    singlePageLessonView: mockSinglePageLessonView,
     vocabularyAudioVoice: "female",
   }),
 }));
@@ -157,10 +159,35 @@ jest.mock("../CopyTooltip", () => ({
   }),
 }));
 
-jest.mock("../formatted-note", () => ({
-  FormattedNoteEditor: () => null,
-  FormattedNoteText: () => null,
-}));
+jest.mock("../formatted-note", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { TextInput, TouchableOpacity, Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  const Editor = React.forwardRef<
+    { closeLinkPicker: () => boolean },
+    React.ComponentProps<typeof TextInput>
+  >((props, ref) => {
+    const [pickerOpen, setPickerOpen] = React.useState(false);
+    React.useImperativeHandle(ref, () => ({
+      closeLinkPicker: () => {
+        if (!pickerOpen) return false;
+        setPickerOpen(false);
+        return true;
+      },
+    }));
+    return (
+      <>
+        <TextInput {...props} />
+        <TouchableOpacity onPress={() => setPickerOpen(true)}>
+          <Text>Insert subject link</Text>
+        </TouchableOpacity>
+        {pickerOpen && <Text>Subject link picker</Text>}
+      </>
+    );
+  });
+  Editor.displayName = "MockNoteEditor";
+  return { FormattedNoteEditor: Editor, FormattedNoteText: () => null };
+});
 
 jest.mock("../KanjiPracticeModal", () => () => null);
 jest.mock("../KanjiLessonEtymologySection", () => () => null);
@@ -171,6 +198,58 @@ jest.mock("../SynonymsModal", () => ({ SynonymsModal: () => null }));
 jest.mock("../VocabularyFrequencyBadge", () => () => null);
 
 describe("LessonDetailScreen large-text summary", () => {
+  beforeEach(() => {
+    mockSinglePageLessonView = false;
+  });
+
+  it.each(["Cancel", "request close"])(
+    "dismisses the subject picker before the lesson note editor through %s",
+    (dismissAction) => {
+      mockSinglePageLessonView = true;
+      const subject = {
+        id: 1,
+        object: "kanji",
+        data: {
+          characters: "橋",
+          meanings: [{ meaning: "bridge", primary: true }],
+          readings: [],
+        },
+      };
+      const screen = render(
+        <LessonDetailScreen
+          item={{ id: subject.id, subject }}
+          batchItems={[{ id: subject.id, subject }]}
+          currentBatchIndex={0}
+          onNext={jest.fn()}
+          onPrev={jest.fn()}
+          canGoBack={false}
+          canGoForward={false}
+          progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+          onExit={jest.fn()}
+        />,
+      );
+      fireEvent.press(screen.getByLabelText("Add meaning note"));
+      fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My unsaved note");
+      fireEvent.press(screen.getByText("Insert subject link"));
+      expect(screen.getByText("Subject link picker")).toBeTruthy();
+
+      const dismiss = () => {
+        if (dismissAction === "Cancel") {
+          fireEvent.press(screen.getByText("Cancel"));
+        } else {
+          fireEvent(screen.UNSAFE_getByType(Modal), "requestClose");
+        }
+      };
+      dismiss();
+
+      expect(screen.queryByText("Subject link picker")).toBeNull();
+      expect(screen.getByLabelText("Meaning note text").props.value).toBe("My unsaved note");
+
+      dismiss();
+      expect(screen.queryByLabelText("Meaning note text")).toBeNull();
+    },
+  );
+
   it("bounds the subject summary and preserves content through its trailing marker", () => {
     const longMeaning =
       "A deliberately long bridge definition that wraps";

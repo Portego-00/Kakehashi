@@ -74,14 +74,8 @@ export default function SongsTab() {
     selectedMusicSource === "apple" && appleMusicAuthStatus !== "authorized";
   const spotifyAccountNeedsAuthorization =
     selectedMusicSource === "spotify" && spotifyAuthStatus !== "authorized";
-  const spotifyPlaybackNeedsAuthorization =
-    selectedMusicSource === "spotify" &&
-    songsPlaybackSource === "spotify" &&
-    spotifyAuthStatus !== "authorized";
-  const spotifyCatalogNeedsAuthorization =
-    selectedMusicSource === "spotify" &&
-    !spotifyService.hasClientCredentials() &&
-    spotifyAuthStatus !== "authorized";
+  const spotifyCatalogUnavailable =
+    selectedMusicSource === "spotify" && !spotifyService.hasClientCredentials();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -322,10 +316,7 @@ export default function SongsTab() {
         return;
       }
 
-      if (
-        spotifyPlaybackNeedsAuthorization ||
-        spotifyCatalogNeedsAuthorization
-      ) {
+      if (spotifyCatalogUnavailable) {
         setNewReleases((prev) => ({ ...prev, data: [], loading: false }));
         setPopularSongs((prev) => ({ ...prev, data: [], loading: false }));
         setAnimeSongs((prev) => ({ ...prev, data: [], loading: false }));
@@ -388,8 +379,7 @@ export default function SongsTab() {
     hasSearched,
     selectedMusicSource,
     appleMusicAuthStatus,
-    spotifyPlaybackNeedsAuthorization,
-    spotifyCatalogNeedsAuthorization,
+    spotifyCatalogUnavailable,
   ]);
 
   useEffect(() => {
@@ -535,24 +525,12 @@ export default function SongsTab() {
         return;
       }
 
-      // Check if Spotify credentials are available when Spotify is selected.
       if (
         selectedMusicSource === "spotify" &&
-        spotifyPlaybackNeedsAuthorization
+        !spotifyService.hasClientCredentials()
       ) {
         setError(
-          "Connect Spotify in Settings first, then try searching again.",
-        );
-        return;
-      }
-
-      if (
-        selectedMusicSource === "spotify" &&
-        !spotifyService.hasClientCredentials() &&
-        spotifyAuthStatus !== "authorized"
-      ) {
-        setError(
-          "Connect Spotify in Settings, or add EXPO_PUBLIC_SPOTIFY_CLIENT_KEY for anonymous catalog search.",
+          "Spotify song search is unavailable in this build. Please try again after updating Kakehashi.",
         );
         return;
       }
@@ -590,8 +568,6 @@ export default function SongsTab() {
       selectedMusicSource,
       musicSourceLabel,
       appleMusicAuthStatus,
-      spotifyAuthStatus,
-      spotifyPlaybackNeedsAuthorization,
     ],
   );
 
@@ -1046,9 +1022,8 @@ export default function SongsTab() {
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
-                : spotifyPlaybackNeedsAuthorization ||
-                    spotifyCatalogNeedsAuthorization
-                  ? "Connect Spotify in Settings to load songs"
+                : spotifyCatalogUnavailable
+                  ? "Spotify song search is unavailable in this build"
                   : "Connect to WiFi to discover new music"}
             </Text>
           </View>
@@ -1101,9 +1076,8 @@ export default function SongsTab() {
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
-                : spotifyPlaybackNeedsAuthorization ||
-                    spotifyCatalogNeedsAuthorization
-                  ? "Connect Spotify in Settings to load songs"
+                : spotifyCatalogUnavailable
+                  ? "Spotify song search is unavailable in this build"
                   : "Connect to WiFi to discover new music"}
             </Text>
           </View>
@@ -1156,9 +1130,8 @@ export default function SongsTab() {
             <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
               {appleMusicNeedsAuthorization
                 ? "Authorize Apple Music in Settings to load songs"
-                : spotifyPlaybackNeedsAuthorization ||
-                    spotifyCatalogNeedsAuthorization
-                  ? "Connect Spotify in Settings to load songs"
+                : spotifyCatalogUnavailable
+                  ? "Spotify song search is unavailable in this build"
                   : "Connect to WiFi to discover new music"}
             </Text>
           </View>

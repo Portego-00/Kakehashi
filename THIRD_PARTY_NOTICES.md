@@ -4,6 +4,39 @@ These notices cover bundled data, build-time inputs, and runtime components
 identified below. They do not change the MIT license of the rest of the
 Kakehashi application.
 
+## Notebook editor
+
+The web notebook uses the unmodified BlockNote core, React, and Mantine packages
+(0.54.0), licensed under Mozilla Public License 2.0:
+
+- Source: https://github.com/TypeCellOS/BlockNote
+- License copy: `licenses/BLOCKNOTE_MPL_2_0.txt`
+
+Its Mantine UI dependencies (9.6.0) are MIT licensed, copyright Vitaly Rtishchev:
+
+- Source: https://github.com/mantinedev/mantine
+- License copy: `licenses/MANTINE_MIT.txt`
+
+Kakehashi adds its own vocabulary, sentence, and page integrations through the
+editor's extension interfaces. No BlockNote XL packages are included.
+
+## Notebook emoji catalog
+
+The notebook emoji picker bundles English emoji names, keywords, shortcodes,
+and Unicode characters from emojibase-data 17.0.0:
+
+- Source: https://github.com/milesj/emojibase
+- Copyright: Miles Johnson, 2017–2019
+- License: MIT; copy: `licenses/EMOJIBASE_MIT.txt`
+
+The underlying Unicode and CLDR data are covered by the Unicode data license:
+
+- Source and license: https://www.unicode.org/license.txt
+- License copy: `licenses/UNICODE_DATA_LICENSE.txt`
+
+Kakehashi indexes this data locally and renders native emoji using the device's
+fonts.
+
 ## Make Me a Hanzi
 
 Most formation records are adapted from `dictionary.txt` in Make Me a Hanzi:

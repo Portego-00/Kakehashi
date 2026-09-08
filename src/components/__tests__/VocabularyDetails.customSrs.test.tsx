@@ -2,6 +2,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { StyleSheet } from "react-native";
 import { searchImmersionKit } from "../../services/immersionKitService";
+import { CustomContextSentencesSection } from "../CustomContextSentencesSection";
 import VocabularyDetails from "../VocabularyDetails";
 import { Audio } from "../../utils/expoAvCompat";
 import { resolveCustomVocabularyAudioForPlayback } from "../../features/custom-srs/audio-cache";
@@ -76,7 +77,7 @@ const vocabulary = {
     { ja: "やっぱりこの店のカレーはおいしい。", en: "As expected, this restaurant's curry is delicious." },
     { ja: "やっぱり歩いて行く。", en: "After all, I'll walk." },
   ],
-  srsStage: 0,
+  srsStage: 1,
   nextReviewAt: "2030-01-01T12:00:00.000Z",
 };
 
@@ -104,6 +105,30 @@ it("shows only Meaning and Context for custom kana, rendering mnemonic tags as s
   expect(screen.getByText(vocabulary.contextSentences[0].ja)).toBeTruthy();
   expect(screen.getByText(vocabulary.contextSentences[1].en)).toBeTruthy();
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
+});
+
+it("keeps custom progress but hides WaniKani-only editing and fabricated statistics", async () => {
+  const screen = render(<VocabularyDetails vocabulary={vocabulary} progressionStatus="success" />);
+  expect(screen.getAllByText("Apprentice I").length).toBeGreaterThan(0);
+  expect(screen.queryByText("User Synonyms")).toBeNull();
+  expect(screen.queryByText("Manage")).toBeNull();
+  expect(screen.queryByText("Meaning Note")).toBeNull();
+  expect(screen.queryByText("Reading Note")).toBeNull();
+  expect(screen.queryByText("Current")).toBeNull();
+  expect(screen.queryByText("Longest")).toBeNull();
+  expect(screen.queryByText("0")).toBeNull();
+  expect(CustomContextSentencesSection).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
+});
+
+it("fetches anime context using the word rather than its synthetic subject ID", async () => {
+  jest.mocked(searchImmersionKit).mockResolvedValue({ results: [{ id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" }], nextOffset: 1 });
+  const screen = render(<VocabularyDetails vocabulary={vocabulary} progressionStatus="success" initialTab="context" />);
+  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalledWith("やっぱり", expect.objectContaining({ exactMatch: true, category: "anime", userLevel: 21 })));
+  expect(screen.getByText("Media Context Sentences")).toBeTruthy();
+  expect(CustomContextSentencesSection).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByText("It was you after all.")).toBeTruthy());
+  expect(screen.getByText("Fixture anime")).toBeTruthy();
 });
 
 it("retains the Reading tab for custom kanji vocabulary", async () => {

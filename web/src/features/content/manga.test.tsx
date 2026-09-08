@@ -2,6 +2,7 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PreparedMangaImport } from "./manga-import";
+import { setDemoMode } from "@/features/demo/runtime";
 import type { ContentRecord } from "./types";
 
 const fixtures = vi.hoisted(() => ({
@@ -119,7 +120,7 @@ vi.mock("./manga-pdf", () => ({
 
 vi.mock("./storage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./storage")>();
-  return {
+  const mocked = {
     ...actual,
     saveAsset: vi.fn(async (id: string, value: Blob) => { fixtures.assets.set(id, value); }),
     loadAsset: vi.fn(async (id: string) => fixtures.assets.get(id) ?? null),
@@ -128,6 +129,15 @@ vi.mock("./storage", async (importOriginal) => {
     loadFileHandle: vi.fn(async (id: string) => fixtures.handles.get(id) ?? null),
     removeFileHandle: vi.fn(async (id: string) => { fixtures.handles.delete(id); }),
   };
+  return { ...mocked, captureContentScope: () => {
+    const scope = actual.captureContentScope();
+    return { ...scope,
+      saveAsset: (id: string, blob: Blob) => { scope.assertCurrent(); return mocked.saveAsset(id, blob); },
+      saveFileHandle: (id: string, handle: FileSystemFileHandle) => { scope.assertCurrent(); return mocked.saveFileHandle(id, handle); },
+      removeAsset: mocked.removeAsset,
+      removeFileHandle: mocked.removeFileHandle,
+    };
+  } };
 });
 
 import { MangaLibrary, MangaReader } from "./manga";
@@ -222,6 +232,7 @@ async function waitForMangaLibraryReady() {
 
 describe("manga library and reader", () => {
   beforeEach(() => {
+    setDemoMode(false);
     cleanup();
     window.localStorage.clear();
     fixtures.assets.clear();
@@ -317,6 +328,7 @@ describe("manga library and reader", () => {
 
   afterEach(() => {
     cleanup();
+    setDemoMode(false);
     vi.unstubAllGlobals();
   });
 
@@ -428,6 +440,27 @@ describe("manga library and reader", () => {
     expect(input).toBeEnabled();
     expect(screen.queryByText("Importing manga…")).not.toBeInTheDocument();
     expect(screen.getByText("Imported “Pending”.")).toBeInTheDocument();
+  });
+
+  it("does not save manga pages or a library record after switching out of demo during extraction", async () => {
+    setDemoMode(true);
+    fixtures.prepareMangaImport.mockImplementationOnce(async () => {
+      setDemoMode(false);
+      return {
+        title: "Demo-only manga", fileName: "demo.cbz", sourceType: "cbz", pageCount: 1,
+        assets: [new File(["page"], "page.jpg", { type: "image/jpeg" })],
+        metadata: { readingDirection: "rtl", pagePlacements: [null] },
+      };
+    });
+    const { container } = render(<MangaLibrary />);
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["archive"], "demo.cbz", { type: "application/vnd.comicbook+zip" })] },
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("The session changed");
+    expect(saveAsset).not.toHaveBeenCalled();
+    expect(loadLibrary("manga")).toEqual([]);
+    setDemoMode(true);
+    expect(loadLibrary("manga")).toEqual([]);
   });
 
   it("imports a CBZ as locally stored pages with reader-ready record metadata", async () => {

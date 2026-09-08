@@ -37,6 +37,18 @@ export type NoteVisualEditorAppearance = {
 type NoteVisualEditorCommandBase = {
   /** A command is applied once per unique nonce, even if its object is recreated. */
   nonce: number;
+  /** Native-held target, retained when the picker hides or recreates the WebView. */
+  selection?: NoteVisualEditorSelectionRange;
+};
+
+export type NoteVisualEditorSelectionRange = {
+  start: number;
+  end: number;
+  link?: {
+    subjectId: number;
+    start: number;
+    end: number;
+  };
 };
 
 export type NoteVisualEditorCommand =
@@ -51,6 +63,8 @@ export type NoteVisualEditorCommand =
     })
   | (NoteVisualEditorCommandBase & {
       type: "remove-link";
+      /** Selected text by default; a caret always removes its containing link. */
+      scope?: "selection" | "link";
     })
   | (NoteVisualEditorCommandBase & {
       type: "focus";
@@ -70,6 +84,8 @@ export type NoteVisualEditorSelection = {
   formats: NoteFormat[];
   subjectId?: number;
   requestNonce?: number;
+  /** Returned for explicit selection captures so native commands can restore it. */
+  selection?: NoteVisualEditorSelectionRange;
 };
 
 export type NoteVisualEditorSourceSnapshot = {

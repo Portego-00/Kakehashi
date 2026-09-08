@@ -8,6 +8,7 @@ import {
   type SimplifiedPlaylist,
   type Track,
 } from "@spotify/web-api-ts-sdk";
+import { useSettingsStore } from "../utils/store";
 
 const SPOTIFY_API_BASE_URL =
   process.env.EXPO_PUBLIC_SPOTIFY_API_BASE_URL?.trim() ||
@@ -45,6 +46,10 @@ export const SPOTIFY_AUTH_SCOPES = [
   "playlist-read-collaborative",
 ] as const;
 
+export function isSpotifyClientIdValid(value: string): boolean {
+  return /^[a-f0-9]{32}$/i.test(value.trim());
+}
+
 export interface SpotifyTrack {
   id: string;
   title: string;
@@ -73,7 +78,7 @@ export interface MusicPlaylist {
 export interface SpotifyUserProfile {
   id: string;
   displayName: string;
-  product: string;
+  product?: string;
   country?: string;
 }
 
@@ -109,12 +114,27 @@ interface SpotifyTokenResponse {
 }
 
 interface StoredSpotifyToken {
+  clientId: string;
   accessToken: string;
   tokenType: string;
   expiresIn?: number;
   issuedAt: number;
   refreshToken?: string;
   scope?: string;
+}
+
+type SpotifyPlaylist = SimplifiedPlaylist & {
+  items?: { total?: number };
+};
+
+interface SpotifyPlaylistItem {
+  item?: PlaylistedTrack["track"];
+  track?: PlaylistedTrack["track"];
+}
+
+interface SpotifyPlaylistItemsPage {
+  items: SpotifyPlaylistItem[];
+  next: string | null;
 }
 
 interface SpotifySearchResponse {
@@ -166,19 +186,47 @@ interface SpotifyPlayerRequestOptions {
 }
 
 class SpotifyService {
-  private clientId: string;
-  private clientSecret: string;
   private clientCredentialsToken: string | null = null;
   private clientCredentialsTokenExpiresAt = 0;
   private storedToken: StoredSpotifyToken | null = null;
-
-  constructor() {
-    this.clientId = SPOTIFY_CLIENT_ID;
-    this.clientSecret = SPOTIFY_CLIENT_KEY;
-  }
+  private tokenLoaded = false;
+  private authGeneration = 0;
+  private pendingClientIdChange: number | null = null;
+  private tokenStorageOperation: Promise<void> = Promise.resolve();
+  private refreshRequest: {
+    generation: number;
+    promise: Promise<StoredSpotifyToken>;
+  } | null = null;
 
   getClientId(): string {
-    return this.clientId;
+    return useSettingsStore.getState().spotifyClientId;
+  }
+
+  async setClientId(value: string): Promise<void> {
+    const clientId = value.trim();
+    if (clientId && !isSpotifyClientIdValid(clientId)) {
+      throw new Error("Enter the 32-character Client ID from Spotify app settings.");
+    }
+    if (clientId === this.getClientId() && this.pendingClientIdChange === null) {
+      return;
+    }
+
+    const clearing = this.clearUserToken();
+    const generation = this.authGeneration;
+    this.pendingClientIdChange = generation;
+    try {
+      await clearing;
+      if (generation !== this.authGeneration) {
+        return;
+      }
+      const settings = useSettingsStore.getState();
+      settings.setSpotifyClientId(clientId);
+      settings.setSpotifyAuthStatus(clientId ? "notConnected" : "notConfigured");
+    } finally {
+      if (this.pendingClientIdChange === generation) {
+        this.pendingClientIdChange = null;
+      }
+    }
   }
 
   getRedirectUri(): string {
@@ -190,7 +238,7 @@ class SpotifyService {
   }
 
   isAuthConfigured(): boolean {
-    return this.clientId.length > 0;
+    return isSpotifyClientIdValid(this.getClientId());
   }
 
   isConfigured(): boolean {
@@ -198,28 +246,47 @@ class SpotifyService {
   }
 
   hasClientCredentials(): boolean {
-    return this.clientId.length > 0 && this.clientSecret.length > 0;
+    return SPOTIFY_CLIENT_ID.length > 0 && SPOTIFY_CLIENT_KEY.length > 0;
   }
 
   async saveAuthTokenResponse(
-    response: AuthSession.TokenResponse
+    response: AuthSession.TokenResponse,
+    clientId: string
   ): Promise<void> {
-    const previousToken = await this.getStoredUserToken();
+    this.assertCurrentAuthorization(clientId, this.authGeneration);
+    // A fresh login supersedes refreshes from the previous login to this app.
+    const generation = ++this.authGeneration;
+    this.refreshRequest = null;
     const token: StoredSpotifyToken = {
+      clientId,
       accessToken: response.accessToken,
       tokenType: response.tokenType,
       expiresIn: response.expiresIn,
       issuedAt: response.issuedAt,
-      refreshToken: response.refreshToken || previousToken?.refreshToken,
+      refreshToken: response.refreshToken,
       scope: response.scope,
     };
 
-    await this.saveStoredUserToken(token);
+    await this.saveStoredUserToken(token, generation);
   }
 
   async clearUserToken(): Promise<void> {
+    this.authGeneration += 1;
+    this.pendingClientIdChange = null;
     this.storedToken = null;
-    await SecureStore.deleteItemAsync(SPOTIFY_AUTH_TOKEN_KEY);
+    this.tokenLoaded = true;
+    this.refreshRequest = null;
+    const settings = useSettingsStore.getState();
+    settings.setSpotifyAuthStatus(
+      this.isAuthConfigured() ? "notConnected" : "notConfigured"
+    );
+    settings.setSpotifyDisplayName(null);
+    if (settings.songsPlaybackSource === "spotify") {
+      settings.setSongsPlaybackSource("youtube");
+    }
+    await this.queueTokenStorage(() =>
+      SecureStore.deleteItemAsync(SPOTIFY_AUTH_TOKEN_KEY)
+    );
   }
 
   async isUserAuthorized(): Promise<boolean> {
@@ -249,24 +316,6 @@ class SpotifyService {
       return [];
     }
 
-    try {
-      const sdk = await this.getOptionalUserSdk();
-      if (sdk) {
-        const data = await sdk.search(
-          trimmedQuery,
-          ["track"],
-          DEFAULT_MARKET,
-          Math.min(limit, 50) as never
-        );
-
-        return (data.tracks?.items || []).map((track) =>
-          this.mapSdkTrack(track)
-        );
-      }
-    } catch (error) {
-      console.warn("Spotify user search failed, falling back if possible:", error);
-    }
-
     return this.searchTracksWithClientCredentials(trimmedQuery, limit);
   }
 
@@ -276,14 +325,8 @@ class SpotifyService {
       return null;
     }
 
-    const sdk = await this.getOptionalUserSdk();
-    if (sdk) {
-      const track = await sdk.tracks.get(trimmedTrackId, DEFAULT_MARKET);
-      return this.mapSdkTrack(track);
-    }
-
     const accessToken = await this.getClientCredentialsAccessToken();
-    const response = await fetch(`${SPOTIFY_API_BASE_URL}/tracks/${trackId}`, {
+    const response = await fetch(`${SPOTIFY_API_BASE_URL}/tracks/${encodeURIComponent(trimmedTrackId)}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -324,12 +367,15 @@ class SpotifyService {
     while (tracks.length < safeLimit) {
       const remaining = safeLimit - tracks.length;
       const pageLimit = Math.min(50, remaining);
-      const page = await sdk.playlists.getPlaylistItems(
-        playlistId,
-        DEFAULT_MARKET,
-        undefined,
-        pageLimit as never,
-        offset
+      // The SDK still targets /tracks, which new development apps cannot use.
+      const params = new URLSearchParams({
+        market: DEFAULT_MARKET,
+        limit: String(pageLimit),
+        offset: String(offset),
+      });
+      const page = await sdk.makeRequest<SpotifyPlaylistItemsPage>(
+        "GET",
+        `playlists/${encodeURIComponent(playlistId)}/items?${params.toString()}`
       );
 
       const pageTracks = (page.items || [])
@@ -547,7 +593,7 @@ class SpotifyService {
   private async getClientCredentialsAccessToken(): Promise<string> {
     if (!this.hasClientCredentials()) {
       throw new Error(
-        "Missing Spotify credentials. Set EXPO_PUBLIC_SPOTIFY_CLIENT_ID for user auth, or add EXPO_PUBLIC_SPOTIFY_CLIENT_KEY for anonymous catalog search."
+        "Spotify catalog search is not configured for this build."
       );
     }
 
@@ -558,7 +604,7 @@ class SpotifyService {
       return this.clientCredentialsToken;
     }
 
-    const credentials = `${this.clientId}:${this.clientSecret}`;
+    const credentials = `${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_KEY}`;
     const encodedCredentials = btoa(credentials);
 
     const response = await fetch(SPOTIFY_ACCOUNTS_URL, {
@@ -591,23 +637,15 @@ class SpotifyService {
     }
 
     const token = await this.getValidUserToken();
-    return SpotifyApi.withAccessToken(this.clientId, this.toSdkAccessToken(token));
-  }
-
-  private async getOptionalUserSdk(): Promise<SpotifyApi | null> {
-    if (!this.isAuthConfigured()) {
-      return null;
-    }
-
-    try {
-      return await this.getUserSdk();
-    } catch {
-      return null;
-    }
+    return SpotifyApi.withAccessToken(token.clientId, this.toSdkAccessToken(token));
   }
 
   private async getValidUserToken(): Promise<StoredSpotifyToken> {
-    const token = await this.getStoredUserToken();
+    const generation = this.authGeneration;
+    const clientId = this.getClientId();
+    this.assertCurrentAuthorization(clientId, generation);
+    const token = await this.getStoredUserToken(clientId, generation);
+    this.assertCurrentAuthorization(clientId, generation);
 
     if (!token?.accessToken) {
       throw new SpotifyPlaybackError(
@@ -627,15 +665,35 @@ class SpotifyService {
       );
     }
 
+    if (this.refreshRequest?.generation === generation) {
+      return this.refreshRequest.promise;
+    }
+
+    const promise = this.refreshUserToken(token, generation);
+    this.refreshRequest = { generation, promise };
+    try {
+      return await promise;
+    } finally {
+      if (this.refreshRequest?.promise === promise) {
+        this.refreshRequest = null;
+      }
+    }
+  }
+
+  private async refreshUserToken(
+    token: StoredSpotifyToken,
+    generation: number
+  ): Promise<StoredSpotifyToken> {
     const refreshed = await AuthSession.refreshAsync(
       {
-        clientId: this.clientId,
+        clientId: token.clientId,
         refreshToken: token.refreshToken,
       },
       SPOTIFY_DISCOVERY
     );
 
     const nextToken: StoredSpotifyToken = {
+      clientId: token.clientId,
       accessToken: refreshed.accessToken,
       tokenType: refreshed.tokenType,
       expiresIn: refreshed.expiresIn,
@@ -644,8 +702,22 @@ class SpotifyService {
       scope: refreshed.scope || token.scope,
     };
 
-    await this.saveStoredUserToken(nextToken);
+    await this.saveStoredUserToken(nextToken, generation);
     return nextToken;
+  }
+
+  private assertCurrentAuthorization(clientId: string, generation: number): void {
+    if (
+      generation !== this.authGeneration ||
+      clientId !== this.getClientId() ||
+      !isSpotifyClientIdValid(clientId) ||
+      this.pendingClientIdChange !== null
+    ) {
+      throw new SpotifyPlaybackError(
+        "NOT_AUTHORIZED",
+        "Spotify connection changed. Connect Spotify again."
+      );
+    }
   }
 
   private isTokenFresh(token: StoredSpotifyToken): boolean {
@@ -658,36 +730,58 @@ class SpotifyService {
     return Date.now() < refreshAtMs;
   }
 
-  private async getStoredUserToken(): Promise<StoredSpotifyToken | null> {
-    if (this.storedToken) {
-      return this.storedToken;
+  private async getStoredUserToken(
+    clientId: string,
+    generation: number
+  ): Promise<StoredSpotifyToken | null> {
+    if (this.tokenLoaded) {
+      return this.storedToken?.clientId === clientId ? this.storedToken : null;
     }
 
+    await this.tokenStorageOperation;
     const rawToken = await SecureStore.getItemAsync(SPOTIFY_AUTH_TOKEN_KEY);
+    this.assertCurrentAuthorization(clientId, generation);
+    this.tokenLoaded = true;
     if (!rawToken) {
       return null;
     }
 
     try {
       const parsedToken = JSON.parse(rawToken) as StoredSpotifyToken;
-      if (!parsedToken.accessToken) {
+      // Old shared-app tokens have no clientId and must be linked again.
+      if (!parsedToken.accessToken || parsedToken.clientId !== clientId) {
         return null;
       }
 
       this.storedToken = parsedToken;
       return parsedToken;
     } catch {
-      await SecureStore.deleteItemAsync(SPOTIFY_AUTH_TOKEN_KEY);
       return null;
     }
   }
 
-  private async saveStoredUserToken(token: StoredSpotifyToken): Promise<void> {
-    this.storedToken = token;
-    await SecureStore.setItemAsync(
-      SPOTIFY_AUTH_TOKEN_KEY,
-      JSON.stringify(token)
-    );
+  private async saveStoredUserToken(
+    token: StoredSpotifyToken,
+    generation: number
+  ): Promise<void> {
+    await this.queueTokenStorage(async () => {
+      this.assertCurrentAuthorization(token.clientId, generation);
+      await SecureStore.setItemAsync(
+        SPOTIFY_AUTH_TOKEN_KEY,
+        JSON.stringify(token)
+      );
+      this.assertCurrentAuthorization(token.clientId, generation);
+      this.storedToken = token;
+      this.tokenLoaded = true;
+    });
+    this.assertCurrentAuthorization(token.clientId, generation);
+  }
+
+  private queueTokenStorage(operation: () => Promise<void>): Promise<void> {
+    // A pending save must finish before disconnect deletes its secure entry.
+    const nextOperation = this.tokenStorageOperation.then(operation);
+    this.tokenStorageOperation = nextOperation.catch(() => {});
+    return nextOperation;
   }
 
   private toSdkAccessToken(token: StoredSpotifyToken): AccessToken {
@@ -796,13 +890,13 @@ class SpotifyService {
     };
   }
 
-  private mapPlaylist(playlist: SimplifiedPlaylist): MusicPlaylist {
+  private mapPlaylist(playlist: SpotifyPlaylist): MusicPlaylist {
     return {
       id: playlist.id,
       name: playlist.name,
       description: playlist.description || "",
       imageUrl: this.getBestImageUrl(playlist.images),
-      trackCount: playlist.tracks?.total ?? 0,
+      trackCount: playlist.items?.total ?? playlist.tracks?.total ?? 0,
       source: "spotify",
       ownerName: playlist.owner?.display_name || undefined,
       url: playlist.external_urls?.spotify,
@@ -810,9 +904,9 @@ class SpotifyService {
   }
 
   private mapPlaylistTrack(
-    item: PlaylistedTrack
+    item: SpotifyPlaylistItem
   ): SpotifyTrack | null {
-    const track = item.track;
+    const track = item.item ?? item.track;
     if (
       !track ||
       track.type !== "track" ||

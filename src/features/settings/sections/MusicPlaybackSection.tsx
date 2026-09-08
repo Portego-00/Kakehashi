@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
+import { SpotifyConnectionSetup } from "./spotify-connection-setup";
 
 const YOUTUBE_RED = "#FF0000";
 const SPOTIFY_GREEN = "#15C97F";
@@ -70,15 +71,18 @@ export function MusicPlaybackSection() {
     isAppleMusicAuthenticating,
     isSpotifyAuthAvailable,
     isSpotifyAuthenticating,
+    isSpotifyConfiguring,
     appleMusicPlaybackAccessStatus,
     Platform,
     showMusicPlaybackSection,
     songsPlaybackSource,
     spotifyAuthError,
     spotifyAuthStatus,
+    spotifyClientId,
     theme,
     updateSectionOffset,
   } = useSettingsControllerContext();
+  const [isSpotifySetupExpanded, setIsSpotifySetupExpanded] = useState(false);
 
   const spotifyConnected = spotifyAuthStatus === "authorized";
   const appleMusicConnected = appleMusicAuthStatus === "authorized";
@@ -144,8 +148,18 @@ export function MusicPlaybackSection() {
           isBusy && styles.syncButtonDisabled,
         ]}
         onPress={() => {
+          if (
+            source === "spotify" &&
+            (!spotifyConnected || !spotifyClientId || !isSpotifyAuthAvailable)
+          ) {
+            setIsSpotifySetupExpanded(true);
+            return;
+          }
           void handlePlaybackSourceChange(source);
         }}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${statusLabel}`}
+        accessibilityState={{ disabled: isBusy, selected: isActive }}
         activeOpacity={0.72}
         disabled={isBusy}
       >
@@ -226,7 +240,7 @@ export function MusicPlaybackSection() {
                 statusLabel: spotifyStatusLabel,
                 brandColor: SPOTIFY_GREEN,
                 icon: <SpotifyBrandIcon />,
-                isBusy: isSpotifyAuthenticating,
+                isBusy: isSpotifyAuthenticating || isSpotifyConfiguring,
               })}
               {Platform.OS === "ios" &&
                 renderProviderButton({
@@ -239,6 +253,11 @@ export function MusicPlaybackSection() {
                 })}
             </View>
           </View>
+
+          <SpotifyConnectionSetup
+            expanded={isSpotifySetupExpanded}
+            onToggle={() => setIsSpotifySetupExpanded((expanded) => !expanded)}
+          />
 
           {(spotifyAuthError ||
             (Platform.OS === "ios" && appleMusicAuthError)) && (

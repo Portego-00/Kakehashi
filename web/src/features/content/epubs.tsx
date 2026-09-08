@@ -17,15 +17,12 @@ import { JapaneseReader, useJapaneseReaderAnalysisContexts, type JapaneseReaderA
 import { extractReadableTextFromHtml } from "./parsers";
 import { ContentHeader, ContentPage, EmptyState, Progress, UndoNotice } from "./ui";
 import {
+  captureContentScope,
   createLocalId,
-  deleteRecord,
   loadAsset,
   loadLibrary,
   readLocal,
-  removeAsset,
-  saveAsset,
   updateRecordInPlace,
-  upsertRecord,
   writeLocal,
 } from "./storage";
 import type { ContentRecord } from "./types";
@@ -86,7 +83,8 @@ function bookProgressLabel(record: ContentRecord) {
     : `Page ${page}`;
 }
 
-async function importBook(file: File): Promise<ContentRecord> {
+async function importBook(file: File, scope: ReturnType<typeof captureContentScope>): Promise<ContentRecord> {
+  const { saveAsset, removeAsset } = scope;
   const isEpub = file.name.toLocaleLowerCase().endsWith(".epub") || file.type === "application/epub+zip";
   const rawAssetId = createLocalId("epub-source");
   const textAssetId = isEpub ? "" : createLocalId("epub-text");
@@ -230,6 +228,7 @@ function BookShelfItem({ book, canRemove, onRemove }: { book: ContentRecord; can
 }
 
 export function EpubLibrary() {
+  const [contentScope] = useState(captureContentScope);
   const { user } = useSession();
   const firstLibraryReveal = useFirstContentReveal();
   const settings = useWebSettings(user?.data.username ?? "anonymous");
@@ -238,7 +237,7 @@ export function EpubLibrary() {
   const [importName, setImportName] = useState("");
   const [message, setMessage] = useState("");
   const deletion = useDelayedDeletion<ContentRecord>({
-    onCommit: deleteRecord,
+    onCommit: contentScope.deleteRecord,
     onError: () => {
       setBooks(loadLibrary("epub"));
       setMessage("The book could not be removed from browser storage, so it was restored.");
@@ -250,20 +249,21 @@ export function EpubLibrary() {
   const dailyGoalSeconds = dailyGoalMinutes * 60;
 
   const handleFiles = useCallback(async (files: File[]) => {
+    const scope = captureContentScope();
     const file = files[0];
     if (!file || deletion.pending) return;
     setBusy(true);
     setImportName(file.name);
     setMessage("");
     try {
-      const record = await importBook(file);
+      const record = await importBook(file, scope);
       try {
-        setBooks(upsertRecord(record));
+        setBooks(scope.upsertRecord(record));
       } catch (error) {
         // The archive and cover have already been written to IndexedDB at this
         // point. If the library index cannot be saved, remove those now-orphaned
         // blobs so a failed import does not quietly consume browser storage.
-        await Promise.all(record.assetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)));
+        await Promise.all(record.assetIds.map((assetId) => scope.removeAsset(assetId).catch(() => undefined)));
         throw error;
       }
     } catch (error) {

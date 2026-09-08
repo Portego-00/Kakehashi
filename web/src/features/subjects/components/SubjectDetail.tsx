@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { TextAreaField } from "@/components/ui/Field";
 import { EmptyState, Skeleton } from "@/components/ui/States";
 import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
+import { SubjectNotebookSection } from "@/features/notebooks/SubjectNotebookSection";
 import type { WebSettings } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL } from "@/features/speech/japanese-voice-assets";
@@ -596,7 +597,7 @@ export function SubjectDetailPanels({
     if (!sequentialNavigation) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
-      if (event.target instanceof Element && event.target.closest('input, textarea, select, audio, video, [role="slider"], [role="tablist"] [role="tab"], [contenteditable]:not([contenteditable="false"])')) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, dialog, audio, video, [role="slider"], [role="tablist"] [role="tab"], [contenteditable]:not([contenteditable="false"])')) return;
       event.preventDefault();
       navigateSequentially(event.key === "ArrowLeft" ? -1 : 1, false);
     };
@@ -652,6 +653,7 @@ export function SubjectDetailPanels({
           {settings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
         </section> : null}
       </DetailPager>
+      <SubjectNotebookSection key={record.id} subject={record} />
     </div>
   </div></SubjectAudioProvider>;
 }

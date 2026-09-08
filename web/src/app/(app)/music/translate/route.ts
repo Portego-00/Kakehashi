@@ -6,6 +6,7 @@ import {
 } from "@/features/content/server-security";
 import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
 import { clientAddress } from "@/lib/server/request-security";
+import { demoJpdbErrorResponse, demoJpdbProviderFailure, resolveJpdbCredential, takeDemoJpdbBudget } from "@/lib/server/demo-jpdb";
 
 export const runtime = "nodejs";
 
@@ -206,6 +207,9 @@ export async function POST(request: Request) {
   if (normalizedApiKey.length > API_KEY_MAX_CHARACTERS) {
     return invalidRequest("The JPDB API key is too long.", "bad_key");
   }
+  const credential = resolveJpdbCredential(request, normalizedApiKey);
+  if (credential.failure) return demoJpdbErrorResponse(credential.failure);
+  const { apiKey, isDemo } = credential;
 
   if (!Array.isArray(body.lines) || body.lines.length > INPUT_ENTRY_LIMIT) {
     return invalidRequest(`Choose between 1 and ${UNIQUE_LINE_LIMIT} Japanese lyric lines.`);
@@ -242,6 +246,9 @@ export async function POST(request: Request) {
   }
   if (uniqueLines.length === 0) {
     return invalidRequest("Include at least one Japanese lyric line.");
+  }
+  if (isDemo && totalSourceCharacters > 12_000) {
+    return invalidRequest("Demo translation accepts up to 12,000 characters at a time.", "text_too_long");
   }
 
   const cachedTranslations = new Map<string, string>();
@@ -345,12 +352,17 @@ export async function POST(request: Request) {
           }
 
           try {
+            const budgetFailure = takeDemoJpdbBudget(request, isDemo);
+            if (budgetFailure) {
+              finishFailure(budgetFailure);
+              return;
+            }
             const response = await fetch(JPDB_JA2EN_ENDPOINT, {
               method: "POST",
               headers: {
                 Accept: "application/json",
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${normalizedApiKey}`,
+                Authorization: `Bearer ${apiKey}`,
               },
               body: JSON.stringify({
                 text: source,
@@ -372,6 +384,11 @@ export async function POST(request: Request) {
             }
 
             if (!response.ok) {
+              const demoFailure = demoJpdbProviderFailure(isDemo, response.status, payload?.error);
+              if (demoFailure) {
+                finishFailure(demoFailure);
+                return;
+              }
               const failure = providerFailure(response, payload);
               if (failure.code === "text_too_long") {
                 skippedLongLines = true;

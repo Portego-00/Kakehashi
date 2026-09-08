@@ -1,4 +1,5 @@
 /* eslint-disable import/first -- Jest boundary mocks must load before services. */
+import * as SecureStore from "expo-secure-store";
 import fetchMock from "jest-fetch-mock";
 
 const mockMmkvData = new Map<string, string>();
@@ -40,6 +41,9 @@ import {
   timeTrackingStorage,
 } from "../timeTrackingService";
 import {
+  resetStudyTimeRpcClientForTests,
+} from "../studyTimeRpcClient";
+import {
   getDeviceId,
   maybeSyncStudyTime,
 } from "../timeTrackingSyncService";
@@ -49,6 +53,30 @@ describe("study time dirty-ledger upload", () => {
   const originalAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const userId = "verified-user-a";
   const deviceId = "current-device-a";
+  const sessionToken = `st1_${"a".repeat(64)}`;
+
+  const sessionExpiry = () => new Date(Date.now() + 4 * 60_000).toISOString();
+  const storedSession = () =>
+    JSON.stringify({
+      version: 2,
+      userId,
+      deviceId,
+      sessionToken,
+      expiresAt: sessionExpiry(),
+      receivedAtMs: Date.now(),
+    });
+  const syncAcknowledgement = (
+    acceptedDays: number,
+    expiresAt = sessionExpiry(),
+  ) => [
+    JSON.stringify({
+      ok: true,
+      synced: true,
+      acceptedDays,
+      expiresAt,
+    }),
+    { status: 200 },
+  ] as [string, { status: number }];
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -58,8 +86,14 @@ describe("study time dirty-ledger upload", () => {
   beforeEach(() => {
     mockMmkvData.clear();
     fetchMock.resetMocks();
+    resetStudyTimeRpcClientForTests();
     process.env.EXPO_PUBLIC_SUPABASE_URL = "https://project.supabase.co";
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "publishable-anon-key";
+    jest.mocked(SecureStore.getItemAsync).mockReset().mockResolvedValue(
+      storedSession(),
+    );
+    jest.mocked(SecureStore.setItemAsync).mockReset().mockResolvedValue();
+    jest.mocked(SecureStore.deleteItemAsync).mockReset().mockResolvedValue();
     timeTrackingService.setUserDeviceScope(null, null);
     timeTrackingStorage.set("ttv1.device_id", deviceId);
     expect(getDeviceId()).toBe(deviceId);
@@ -82,12 +116,24 @@ describe("study time dirty-ledger upload", () => {
     }
     timeTrackingService.setUserDeviceScope(userId, deviceId);
     fetchMock.mockResponses(
-      [JSON.stringify({ ok: true }), { status: 200 }],
-      [JSON.stringify({ ok: true }), { status: 200 }],
-      [JSON.stringify({ ok: true }), { status: 200 }],
+      syncAcknowledgement(14),
+      syncAcknowledgement(14),
+      syncAcknowledgement(3),
     );
 
     await maybeSyncStudyTime({ force: true });
+
+    expect(
+      fetchMock.mock.calls.every(([url]) =>
+        String(url) ===
+          "https://project.supabase.co/rest/v1/rpc/sync_study_time_days",
+      ),
+    ).toBe(true);
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes("/functions/v1/"),
+      ),
+    ).toBe(false);
 
     const payloads = fetchMock.mock.calls.map(([, init]) =>
       JSON.parse(String(init?.body)),
@@ -119,7 +165,7 @@ describe("study time dirty-ledger upload", () => {
     }
     timeTrackingService.setUserDeviceScope(userId, deviceId);
     fetchMock.mockResponses(
-      [JSON.stringify({ ok: true }), { status: 200 }],
+      syncAcknowledgement(14),
       ["temporary failure", { status: 503 }],
     );
 
@@ -134,8 +180,8 @@ describe("study time dirty-ledger upload", () => {
 
     fetchMock.resetMocks();
     fetchMock.mockResponses(
-      [JSON.stringify({ ok: true }), { status: 200 }],
-      [JSON.stringify({ ok: true }), { status: 200 }],
+      syncAcknowledgement(14),
+      syncAcknowledgement(3),
     );
     await maybeSyncStudyTime({ force: true });
 
@@ -162,7 +208,7 @@ describe("study time dirty-ledger upload", () => {
       }),
     );
     timeTrackingService.setUserDeviceScope(userId, deviceId);
-    fetchMock.mockResponseOnce(JSON.stringify({ ok: true }), { status: 200 });
+    fetchMock.mockResponseOnce(...syncAcknowledgement(1));
 
     await maybeSyncStudyTime({ force: true });
 
@@ -173,6 +219,7 @@ describe("study time dirty-ledger upload", () => {
       studyTotalMs: 20_000,
       appTotalMs: 25_000,
     });
+    expect(payload.session_token).toBe(sessionToken);
   });
 
   it("keeps acknowledgement markers bounded to the retained local ledger", async () => {
@@ -212,7 +259,7 @@ describe("study time dirty-ledger upload", () => {
     expect(
       timeTrackingService.acceptLegacyHistoryForCurrentUser(userId, deviceId),
     ).toBe(true);
-    fetchMock.mockResponseOnce(JSON.stringify({ ok: true }), { status: 200 });
+    fetchMock.mockResponseOnce(...syncAcknowledgement(1));
 
     await maybeSyncStudyTime({ force: true });
 
@@ -230,5 +277,46 @@ describe("study time dirty-ledger upload", () => {
     fetchMock.resetMocks();
     await maybeSyncStudyTime({ force: true });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not acknowledge a day when the RPC reports a partial acceptance", async () => {
+    const dateKey = "2026-08-31";
+    timeTrackingStorage.set(
+      `${getUserDeviceDayKeyPrefix(userId, deviceId)}${dateKey}`,
+      JSON.stringify({ reviews: 1_000, app_total: 2_000 }),
+    );
+    timeTrackingService.setUserDeviceScope(userId, deviceId);
+    fetchMock.mockResponseOnce(...syncAcknowledgement(0));
+
+    await maybeSyncStudyTime({ force: true });
+
+    expect(
+      timeTrackingStorage.getString(getUserPushedSumsKey(userId, deviceId)),
+    ).toBeUndefined();
+  });
+
+  it("acknowledges a successful batch despite server expiry appearing past locally", async () => {
+    const dateKey = "2026-08-31";
+    timeTrackingStorage.set(
+      `${getUserDeviceDayKeyPrefix(userId, deviceId)}${dateKey}`,
+      JSON.stringify({ reviews: 1_000, app_total: 2_000 }),
+    );
+    timeTrackingService.setUserDeviceScope(userId, deviceId);
+    fetchMock.mockResponseOnce(
+      ...syncAcknowledgement(
+        1,
+        new Date(Date.now() - 10 * 60_000).toISOString(),
+      ),
+    );
+
+    await maybeSyncStudyTime({ force: true });
+
+    expect(
+      JSON.parse(
+        timeTrackingStorage.getString(
+          getUserPushedSumsKey(userId, deviceId),
+        ) ?? "{}",
+      ),
+    ).toEqual({ [dateKey]: 3_000 });
   });
 });

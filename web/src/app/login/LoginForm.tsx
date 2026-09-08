@@ -14,19 +14,35 @@ type LoginPhase = "idle" | "loading" | "error" | "success";
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const { status, signIn } = useSession();
+  const { status, isDemo, signIn, startDemo } = useSession();
   const [token, setToken] = useState("");
   const [phase, setPhase] = useState<LoginPhase>("idle");
   const [error, setError] = useState("");
+  const [openingDemo, setOpeningDemo] = useState(false);
   const redirecting = useRef(false);
   const nextPath = safeInternalPath(params.get("next"));
 
   useEffect(() => {
-    if (status === "authenticated" && !redirecting.current) {
+    if (status === "authenticated" && !isDemo && !redirecting.current) {
       redirecting.current = true;
       router.replace(nextPath);
     }
-  }, [status, router, nextPath]);
+  }, [status, isDemo, router, nextPath]);
+
+  async function openDemo() {
+    if (openingDemo || phase === "loading" || phase === "success") return;
+    setError("");
+    setOpeningDemo(true);
+    redirecting.current = true;
+    try {
+      await startDemo();
+      router.replace(nextPath);
+    } catch (cause) {
+      redirecting.current = false;
+      setError(cause instanceof Error ? cause.message : "The demo could not be opened. Try again.");
+      setOpeningDemo(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +69,11 @@ export function LoginForm() {
 
   return (
     <div className={styles.form} data-phase={phase}>
+      <section className={styles.demoEntry} aria-label="Try Kakehashi without an API key">
+        <h2>Try Kakehashi first</h2>
+        <p>Explore a level 21 sample account, read manga, watch Japanese content, and try every extra study mode. No API keys needed.</p>
+        <Button type="button" tone="default" wide state={openingDemo ? "loading" : "idle"} disabled={isLoading || isSuccess} onClick={() => void openDemo()}>{openingDemo ? "Opening demo…" : isDemo ? "Continue demo" : "Explore the demo"}<ArrowRight size={17} aria-hidden /></Button>
+      </section>
       <form className={styles.formBody} onSubmit={submit} aria-busy={isLoading}>
         <div className={styles.formHeading}>
           <h2>Connect WaniKani</h2>
@@ -83,7 +104,7 @@ export function LoginForm() {
           error={tokenError}
           success={isSuccess ? "Token verified. Opening your workspace…" : undefined}
           loading={isLoading}
-          disabled={isLoading || isSuccess}
+          disabled={isLoading || isSuccess || openingDemo}
           required
         />
 
@@ -92,7 +113,7 @@ export function LoginForm() {
           tone="primary"
           wide
           state={isLoading ? "loading" : isSuccess ? "success" : "idle"}
-          disabled={token.length < 20 || isSuccess}
+          disabled={token.length < 20 || isSuccess || openingDemo}
         >
           {isLoading ? (
             "Verifying token…"

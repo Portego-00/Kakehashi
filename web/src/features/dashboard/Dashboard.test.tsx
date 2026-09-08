@@ -7,6 +7,7 @@ import { Dashboard } from "./Dashboard";
 const { dashboardTestState, levelProgressions } = vi.hoisted(() => ({
   dashboardTestState: {
     dashboardOrder: ["level-timing"],
+    isDemo: false,
     user: { id: 1, data: { username: "tester", level: 15, current_vacation_started_at: null as string | null } },
     assignments: [] as Assignment[],
     subjects: [] as Subject[],
@@ -24,7 +25,7 @@ const { dashboardTestState, levelProgressions } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: dashboardTestState.user }),
+  useSession: () => ({ user: dashboardTestState.user, isDemo: dashboardTestState.isDemo }),
 }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
@@ -86,6 +87,8 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 afterEach(() => {
   vi.useRealTimers();
   dashboardTestState.dashboardOrder = ["level-timing"];
+  dashboardTestState.isDemo = false;
+  dashboardTestState.user.data.username = "tester";
   dashboardTestState.user.data.current_vacation_started_at = null;
   dashboardTestState.assignments = [];
   dashboardTestState.subjects = [];
@@ -100,13 +103,31 @@ describe("dashboard", () => {
     );
   });
 
-  it("mounts the custom vocabulary widget with the signed-in user scope", () => {
+  it("mounts the custom vocabulary widget with Portego's signed-in user scope", () => {
     dashboardTestState.dashboardOrder = ["custom-vocabulary"];
+    dashboardTestState.user.data.username = "Portego";
 
     render(<Dashboard />);
 
     expect(screen.getByRole("heading", { name: "Custom vocabulary" })).toBeInTheDocument();
     expect(screen.getByTestId("custom-vocabulary-widget")).toHaveAttribute("data-scope", "1");
+  });
+
+  it("does not mount custom vocabulary for other accounts even when their saved layout includes it", () => {
+    dashboardTestState.dashboardOrder = ["custom-vocabulary", "level-timing"];
+    render(<Dashboard />);
+
+    expect(screen.queryByTestId("custom-vocabulary-widget")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-level-timings")).toBeInTheDocument();
+  });
+
+  it("does not mount custom vocabulary in demo mode", () => {
+    dashboardTestState.dashboardOrder = ["custom-vocabulary"];
+    dashboardTestState.user.data.username = "Portego";
+    dashboardTestState.isDemo = true;
+    render(<Dashboard />);
+
+    expect(screen.queryByTestId("custom-vocabulary-widget")).not.toBeInTheDocument();
   });
 
   it("renders Recent Mistakes as empty during Vacation Mode", () => {

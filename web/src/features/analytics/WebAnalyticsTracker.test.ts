@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cachedUsageStreak, fetchUsageStreak } from "@/features/dashboard/usage-streak";
 import { readCombinedStudyTimeRange } from "@/features/dashboard/study-time";
 import { maybeRecordWebSession, refreshRemoteStudyTime, shouldRecordWebSession } from "./WebAnalyticsTracker";
 
@@ -28,6 +29,30 @@ describe("web app sessions", () => {
 
     await maybeRecordWebSession(storage, "Tester", startedAt + 31 * 60_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("updates the correct account cache only after a timestamp-confirmed insert", async () => {
+    const storage = memoryStorage();
+    const now = new Date("2026-08-25T18:00:00Z");
+    const options = { storage, userId: "123", username: "Tester", timezone: "UTC", now };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ activeDays: ["2026-08-24"], available: true, userId: "123" }))));
+    await fetchUsageStreak(options);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ recorded: true, userId: "123", sessionStartedAt: "2026-08-25T18:00:01Z" })));
+    await maybeRecordWebSession(storage, "Tester", now.getTime(), "123");
+    expect(cachedUsageStreak({ ...options, now: new Date("2026-08-26T10:00:00Z") })?.current).toBe(3);
+  });
+
+  it("does not credit a failed insert or a response for another signed-in account", async () => {
+    const storage = memoryStorage();
+    const now = new Date("2026-08-25T18:00:00Z");
+    const options = { storage, userId: "123", username: "Tester", timezone: "UTC", now };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ activeDays: ["2026-08-24"], available: true, userId: "123" }))));
+    await fetchUsageStreak(options);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ recorded: false })));
+    await maybeRecordWebSession(storage, "Tester", now.getTime(), "123");
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ recorded: true, userId: "456", sessionStartedAt: "2026-08-25T18:00:01Z" })));
+    await maybeRecordWebSession(storage, "Tester", now.getTime() + 6 * 60_000, "123");
+    expect(cachedUsageStreak({ ...options, now: new Date("2026-08-26T10:00:00Z") })?.current).toBe(1);
   });
 
   it("allows a new local day to start a session inside the normal cooldown", async () => {

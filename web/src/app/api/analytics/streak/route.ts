@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { activeDayKeysForSessions } from "@/features/dashboard/usage-streak";
-import { analyticsBackendConfigured, analyticsIdentityFromSealedSession, publicAnalyticsBackend, readAppSessionStartedAt } from "@/lib/server/analytics-server";
+import { analyticsBackendConfigured, analyticsIdentityFromSealedSession, publicAnalyticsBackend, readAppSessionActiveDays } from "@/lib/server/analytics-server";
 import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
 import { WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 
@@ -27,10 +26,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const identity = await analyticsIdentityFromSealedSession(sealed);
-    const sessionStartedAt = await readAppSessionStartedAt(identity.id);
-    const activeDays = activeDayKeysForSessions(sessionStartedAt, safeTimezone(request.nextUrl.searchParams.get("timezone")));
-    return NextResponse.json({ activeDays, available: true });
+    const activeDays = await readAppSessionActiveDays(identity.id, safeTimezone(request.nextUrl.searchParams.get("timezone")), request.signal);
+    return NextResponse.json({ activeDays, available: true, userId: identity.id }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
-    return NextResponse.json({ error: "The app streak could not be loaded.", publicBackend: publicAnalyticsBackend() }, { status: 503 });
+    return NextResponse.json({ error: "The app streak could not be loaded." }, { status: 503 });
   }
 }

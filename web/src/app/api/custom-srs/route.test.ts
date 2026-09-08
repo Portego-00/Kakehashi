@@ -40,7 +40,7 @@ describe("custom SRS route", () => {
   beforeEach(() => {
     clearRateLimitsForTests();
     mocks.configured.mockReset().mockReturnValue(true);
-    mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Tester", level: 12 });
+    mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Portego", level: 12 });
     mocks.read.mockReset().mockResolvedValue({ state: emptyState, revision: -1 });
     mocks.mutate.mockReset().mockImplementation(async (_id, _packs, transform) => ({ state: transform(emptyState, new Date("2026-08-31T10:00:00Z")), revision: 0 }));
   });
@@ -56,7 +56,48 @@ describe("custom SRS route", () => {
 
   it("requires authentication and a trusted same-origin mutation", async () => {
     expect((await GET(request("GET", undefined, { cookie: false }))).status).toBe(401);
+    expect((await POST(request("POST", { action: "complete_lesson", wordId: "pack:word", eventId: crypto.randomUUID() }, { cookie: false }))).status).toBe(401);
     expect((await POST(request("POST", { action: "complete_lesson", wordId: "pack:word", eventId: crypto.randomUUID() }, { origin: "https://evil.example" }))).status).toBe(403);
+    expect(mocks.mutate).not.toHaveBeenCalled();
+  });
+
+  it.each(["portego", " PORTEGO "])("allows the normalized Portego username %j", async (username) => {
+    mocks.identity.mockResolvedValue({ id: "123", username, level: 12 });
+    expect((await GET(request("GET"))).status).toBe(200);
+    expect((await POST(request("POST", { action: "enroll_pack", packId: "conversation-glue", eventId: crypto.randomUUID() }))).status).toBe(200);
+  });
+
+  it.each([
+    { username: "Tester", configured: true },
+    { username: "Tester", configured: false },
+    { username: "PortegoFan", configured: true },
+    { username: "", configured: true },
+    { username: undefined, configured: false },
+  ])("denies other or absent usernames before backend access ($username, configured=$configured)", async ({ username, configured }) => {
+    mocks.identity.mockResolvedValue({ id: "123", username, level: 12 });
+    mocks.configured.mockReturnValue(configured);
+
+    for (const response of [
+      await GET(request("GET")),
+      await POST(request("POST", { action: "enroll_pack", packId: "conversation-glue", eventId: crypto.randomUUID() })),
+    ]) {
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: "Custom vocabulary is not available for this account." });
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store, max-age=0");
+    }
+    expect(mocks.configured).not.toHaveBeenCalled();
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(mocks.mutate).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the session identity cannot be verified", async () => {
+    mocks.identity.mockRejectedValue(new Error("Session invalid"));
+    mocks.configured.mockReturnValue(false);
+
+    expect((await GET(request("GET"))).status).toBe(503);
+    expect((await POST(request("POST", { action: "enroll_pack", packId: "conversation-glue", eventId: crypto.randomUUID() }))).status).toBe(503);
+    expect(mocks.configured).not.toHaveBeenCalled();
+    expect(mocks.read).not.toHaveBeenCalled();
     expect(mocks.mutate).not.toHaveBeenCalled();
   });
 
@@ -75,11 +116,13 @@ describe("custom SRS route", () => {
     expect(Object.keys(payload.state.assignments)).toHaveLength(16);
   });
 
-  it("degrades explicitly to browser persistence when the private backend is absent", async () => {
+  it("allows browser persistence only after verifying Portego when the private backend is absent", async () => {
     mocks.configured.mockReturnValue(false);
     expect(await (await GET(request("GET"))).json()).toEqual({ available: false, state: null, revision: -1 });
     expect(await (await POST(request("POST", { action: "complete_lesson", wordId: "pack:word", eventId: crypto.randomUUID() }))).json()).toEqual({ available: false, state: null, revision: -1 });
-    expect(mocks.identity).not.toHaveBeenCalled();
+    expect(mocks.identity).toHaveBeenCalledTimes(2);
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(mocks.mutate).not.toHaveBeenCalled();
   });
 
   it("allows a complete custom-vocabulary backlog plus bounded retries before rate limiting", async () => {

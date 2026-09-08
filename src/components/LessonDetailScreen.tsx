@@ -1204,6 +1204,8 @@ const SubjectContent = ({
       meaning_note?: string;
       reading_note?: string;
     }) => {
+      // Negative IDs belong to custom SRS, never to the WaniKani API.
+      if (subject.id <= 0) throw new Error("Custom vocabulary does not use WaniKani notes");
       if (!apiToken) throw new Error("Missing API token");
 
       if (studyMaterialId) {
@@ -1237,7 +1239,7 @@ const SubjectContent = ({
 
   // Fetch study materials for user synonyms and notes
   useEffect(() => {
-    if (!apiToken || !subject.id || !shouldLoadStudyMaterials) {
+    if (!apiToken || subject.id <= 0 || !shouldLoadStudyMaterials) {
       return deferStateUpdate(() => applyStudyMaterialState(null));
     }
 
@@ -1273,6 +1275,11 @@ const SubjectContent = ({
     setEditingNoteType(type);
     setEditingNoteText(type === "meaning" ? meaningNote : readingNote);
     setNoteModalVisible(true);
+  };
+
+  const handleCloseNote = () => {
+    if (noteEditorRef.current?.closeLinkPicker()) return;
+    setNoteModalVisible(false);
   };
 
   const handleSaveNote = async () => {
@@ -2101,6 +2108,7 @@ const SubjectContent = ({
     renderHintSection("Reading Hint", subject.data?.reading_hint);
 
   const renderNoteCard = (type: "meaning" | "reading") => {
+    if (subject.id <= 0) return null;
     const noteValue = type === "meaning" ? meaningNote : readingNote;
     const noteLabel = type === "meaning" ? "Meaning Note" : "Reading Note";
     return (
@@ -2236,7 +2244,7 @@ const SubjectContent = ({
     );
   };
 
-  const renderCustomContextSentences = () => (
+  const renderCustomContextSentences = () => subject.id > 0 ? (
     <CustomContextSentencesSection
       ref={customContextSentencesRef}
       subjectId={subject.id}
@@ -2248,14 +2256,14 @@ const SubjectContent = ({
       subjectReadings={Array.from(subjectReadingSet)}
       accentColor={subjectColors.vocabulary}
     />
-  );
+  ) : null;
 
   const renderContextSentencesHeader = () => (
     <View style={styles.contextSentencesHeader}>
       <Text style={[styles.sectionTitle, styles.contextSentencesTitle]}>
         Context Sentences
       </Text>
-      <TouchableOpacity
+      {subject.id > 0 && <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel="Add context sentence"
         activeOpacity={0.55}
@@ -2264,7 +2272,7 @@ const SubjectContent = ({
         style={styles.contextSentenceAddButton}
       >
         <Ionicons name="add" size={18} color={subjectColors.vocabulary} />
-      </TouchableOpacity>
+      </TouchableOpacity>}
     </View>
   );
 
@@ -2273,7 +2281,7 @@ const SubjectContent = ({
     const subjectType = subject.object;
 
     // Helper to render user synonyms section
-    const renderUserSynonyms = () => (
+    const renderUserSynonyms = () => subject.id > 0 ? (
       <View style={styles.infoSection}>
         <Text style={styles.sectionTitle}>User Synonyms</Text>
         <View style={styles.synonymsRow}>
@@ -2294,7 +2302,7 @@ const SubjectContent = ({
           </TouchableOpacity>
         </View>
       </View>
-    );
+    ) : null;
 
     // Helper to render context sentences (for vocabulary)
     const renderContextSentences = () => (
@@ -3176,7 +3184,7 @@ const SubjectContent = ({
                   {renderReadingHintSection()}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3346,7 +3354,7 @@ const SubjectContent = ({
                   {renderNoteCard("meaning")}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3588,7 +3596,7 @@ const SubjectContent = ({
                   {renderNoteCard("meaning")}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -4113,7 +4121,7 @@ const SubjectContent = ({
                   {renderReadingHintSection()}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -4459,10 +4467,7 @@ const SubjectContent = ({
         visible={noteModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => {
-          if (noteEditorRef.current?.closeLinkPicker()) return;
-          setNoteModalVisible(false);
-        }}
+        onRequestClose={handleCloseNote}
       >
         <KeyboardAvoidingView
           style={styles.noteModalOverlay}
@@ -4498,7 +4503,7 @@ const SubjectContent = ({
             <View style={styles.noteModalButtons}>
               <TouchableOpacity
                 style={styles.noteModalButton}
-                onPress={() => setNoteModalVisible(false)}
+                onPress={handleCloseNote}
                 disabled={isSavingNote}
               >
                 <Text style={styles.noteModalButtonText}>Cancel</Text>
@@ -5302,12 +5307,12 @@ export default function LessonDetailScreen({
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
+                {pageSubject.id > 0 && <TouchableOpacity
                   style={styles.constellationButton}
                   onPress={() => handleConstellationPress(pageSubject.id)}
                 >
                   <Ionicons name="planet-outline" size={24} color="#fff" />
-                </TouchableOpacity>
+                </TouchableOpacity>}
 
                 <View
                   ref={(node) => {

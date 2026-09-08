@@ -25,13 +25,13 @@ describe("app-session analytics route", () => {
     clearRateLimitsForTests();
     mocks.analyticsBackendConfigured.mockReturnValue(true);
     mocks.analyticsIdentityFromSealedSession.mockReset().mockResolvedValue({ id: "123", username: "Tester", level: 21 });
-    mocks.recordWebAppSession.mockReset().mockResolvedValue(true);
+    mocks.recordWebAppSession.mockReset().mockResolvedValue("2026-08-25T10:00:00Z");
   });
 
   it("authenticates the session and records it", async () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ recorded: true });
+    expect(await response.json()).toEqual({ recorded: true, sessionStartedAt: "2026-08-25T10:00:00Z", userId: "123" });
     expect(mocks.analyticsIdentityFromSealedSession).toHaveBeenCalledWith("sealed-session");
     expect(mocks.recordWebAppSession).toHaveBeenCalledWith({ id: "123", username: "Tester", level: 21 });
   });

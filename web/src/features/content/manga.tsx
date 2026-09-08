@@ -36,18 +36,12 @@ import {
 } from "./manga-pagination";
 import { openMangaPdf, type MangaPdfDocument } from "./manga-pdf";
 import {
+  captureContentScope,
   createLocalId,
-  deleteRecord,
   loadAsset,
   loadLibrary,
   loadMangaOcrPage,
-  removeAsset,
-  removeFileHandle,
   reorderLibrary,
-  saveAsset,
-  saveFileHandle,
-  saveLibrary,
-  saveMangaOcrPage,
   updateRecordInPlace,
 } from "./storage";
 import type { ContentRecord } from "./types";
@@ -762,6 +756,7 @@ function MangaOcrModelControl({
 }
 
 export function MangaLibrary() {
+  const [contentScope] = useState(captureContentScope);
   const firstLibraryReveal = useFirstContentReveal();
   const [manga, setManga] = useState<ContentRecord[]>(() => loadLibrary("manga"));
   const [busy, setBusy] = useState(false);
@@ -778,7 +773,7 @@ export function MangaLibrary() {
   const importInFlightRef = useRef(false);
   const missingMangaCleanupRef = useRef(new Set<string>());
   const deletion = useDelayedDeletion<ContentRecord>({
-    onCommit: deleteRecord,
+    onCommit: contentScope.deleteRecord,
     onError: () => {
       setManga(loadLibrary("manga"));
       setMessage("The manga could not be removed from browser storage, so it was restored.");
@@ -789,24 +784,24 @@ export function MangaLibrary() {
 
   const removeMangaWithMissingAsset = useCallback((recordId: string) => {
     if (missingMangaCleanupRef.current.has(recordId)) return;
-    const record = loadLibrary("manga").find((candidate) => candidate.id === recordId);
+    const record = contentScope.loadLibrary("manga").find((candidate) => candidate.id === recordId);
     if (!record) return;
     missingMangaCleanupRef.current.add(recordId);
 
-    const cleanup = deleteRecord(record);
-    const stored = loadLibrary("manga");
+    const cleanup = contentScope.deleteRecord(record);
+    const stored = contentScope.loadLibrary("manga");
     mangaOrderRef.current = stored;
     setManga((current) => current.filter((candidate) => candidate.id !== recordId));
     setMessage("Removed manga whose local files were no longer available.");
 
     void cleanup.catch(() => {
-      const restored = loadLibrary("manga");
+      const restored = contentScope.loadLibrary("manga");
       mangaOrderRef.current = restored;
       setManga(restored);
       setMessage("A manga with missing local files could not be removed from the library.");
       missingMangaCleanupRef.current.delete(recordId);
     });
-  }, []);
+  }, [contentScope]);
 
   useEffect(() => {
     function resetDragOnBlur() {
@@ -829,6 +824,7 @@ export function MangaLibrary() {
   }, []);
 
   async function importFiles(files: File[], handles: Array<FileSystemFileHandle | null> = []) {
+    const { saveAsset, removeAsset, saveFileHandle, removeFileHandle, loadLibrary, saveLibrary } = captureContentScope();
     if (!files.length || importInFlightRef.current || deletion.pending) return;
     const importGroups = groupMangaImportFiles(files);
     if (!importGroups.length) return;
@@ -1490,6 +1486,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
   }, [changeSpread, direction]);
 
   async function recognize(loadedPage: LoadedMangaPage, selectionToRead: MangaOcrSelection, spreadKey: string) {
+    const { saveMangaOcrPage } = captureContentScope();
     if (spreadKey !== targetSpreadKeyRef.current || loadedSpreadKeyRef.current !== spreadKey || navigationPending.current) return;
     ocrAbort.current?.abort();
     const controller = new AbortController();
@@ -1608,6 +1605,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
     files: File[],
     handles: Array<FileSystemFileHandle | null> = [],
   ) {
+    const { saveAsset, removeAsset, saveFileHandle, removeFileHandle, updateRecordInPlace } = captureContentScope();
     if (!record || !files.length || sourceRecoveryPending.current) return;
     sourceRecoveryPending.current = true;
     const previousAssetIds = [...record.assetIds];

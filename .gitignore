@@ -42,9 +42,11 @@ yarn-error.*
 *.tsbuildinfo
 web/.data/
 
-# Generated custom-vocabulary audio, backups, and private operator/QA records.
-# The app uses the checked-in publication manifest and hosted Supabase files.
-/output/custom-vocabulary-audio/
+# Local proof screenshots, previews, exports, audio, and operator/QA records.
+/output/
+
+# Local Supabase CLI project metadata.
+/supabase/.temp/
 
 # python
 __pycache__/

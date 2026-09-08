@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   analyticsBackendConfigured: vi.fn(() => true),
   analyticsIdentityFromSealedSession: vi.fn(),
   publicAnalyticsBackend: vi.fn(() => ({ url: "https://supabase.test", anonKey: "public-key" })),
-  readAppSessionStartedAt: vi.fn(),
+  readAppSessionActiveDays: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -25,17 +25,16 @@ describe("app-streak analytics route", () => {
     clearRateLimitsForTests();
     mocks.analyticsBackendConfigured.mockReturnValue(true);
     mocks.analyticsIdentityFromSealedSession.mockReset().mockResolvedValue({ id: "123", username: "Tester", level: 21 });
-    mocks.readAppSessionStartedAt.mockReset().mockResolvedValue([
-      "2026-08-24T22:30:00.000Z",
-      "2026-08-25T08:00:00.000Z",
+    mocks.readAppSessionActiveDays.mockReset().mockResolvedValue([
+      "2026-08-25",
     ]);
   });
 
   it("returns unique app-active days in the browser timezone", async () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ activeDays: ["2026-08-25"], available: true });
-    expect(mocks.readAppSessionStartedAt).toHaveBeenCalledWith("123");
+    expect(await response.json()).toEqual({ activeDays: ["2026-08-25"], available: true, userId: "123" });
+    expect(mocks.readAppSessionActiveDays).toHaveBeenCalledWith("123", "Europe/Madrid", expect.any(AbortSignal));
   });
 
   it("requires an authenticated WaniKani session", async () => {
@@ -43,14 +42,12 @@ describe("app-streak analytics route", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns the mobile-compatible fallback when the server read fails", async () => {
-    mocks.readAppSessionStartedAt.mockRejectedValueOnce(new Error("Read denied"));
+  it("does not trigger another public read when the server read fails", async () => {
+    mocks.readAppSessionActiveDays.mockRejectedValueOnce(new Error("Read denied"));
 
     const response = await GET(request());
 
     expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      publicBackend: { url: "https://supabase.test", anonKey: "public-key" },
-    });
+    expect(await response.json()).not.toHaveProperty("publicBackend");
   });
 });

@@ -1,4 +1,5 @@
 import type { WKCollection } from "@/types/wanikani";
+import { isDemoMode } from "@/features/demo/runtime";
 
 const API_ROOT = "/api/wanikani";
 
@@ -9,6 +10,10 @@ export class WaniKaniApiError extends Error {
 export interface RequestOptions extends Omit<RequestInit, "body"> { body?: unknown; fresh?: boolean }
 
 export async function wkRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (isDemoMode()) {
+    const { demoWaniKaniRequest } = await import("@/features/demo/wanikani");
+    return demoWaniKaniRequest<T>(path, options);
+  }
   const cleanPath = path.replace(/^https:\/\/api\.wanikani\.com\/v2\//, "").replace(/^\//, "");
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");

@@ -108,7 +108,7 @@ export function getNoteVisualEditorFormatsForElement(
 }
 
 export function readNoteVisualEditorRunsFromElement(
-  editor: HTMLDivElement,
+  editor: HTMLElement | DocumentFragment,
 ): NoteVisualEditorRun[] {
   const runs: NoteVisualEditorRun[] = [];
 
@@ -185,7 +185,7 @@ export function readNoteVisualEditorRunsFromElement(
 }
 
 export function getNoteVisualEditorBoundaryOffset(
-  editor: HTMLDivElement,
+  editor: HTMLElement,
   container: Node,
   offset: number,
 ): number {
@@ -201,7 +201,7 @@ export function getNoteVisualEditorBoundaryOffset(
 }
 
 export function hasNoteVisualEditorStructuralBreaks(
-  editor: HTMLDivElement,
+  editor: HTMLElement,
 ): boolean {
   return Boolean(
     editor.querySelector(

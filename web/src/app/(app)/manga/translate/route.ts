@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isSameOriginRequest, readBoundedJson, readBoundedRequestJson } from "@/features/content/server-security";
 import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
 import { clientAddress } from "@/lib/server/request-security";
+import { demoJpdbErrorResponse, demoJpdbProviderFailure, resolveJpdbCredential, takeDemoJpdbBudget } from "@/lib/server/demo-jpdb";
 
 export const runtime = "nodejs";
 
@@ -103,15 +104,26 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return errorResponse("Translation request must be a JSON object.", "provider_error", 400);
+  }
   if (typeof body.text !== "string" || !body.text.trim() || body.text.length > TEXT_MAX_CHARACTERS) {
     return errorResponse(`Enter between 1 and ${TEXT_MAX_CHARACTERS.toLocaleString()} characters.`, "text_too_long", 400);
   }
 
-  const submittedKey = typeof body.apiKey === "string" && body.apiKey.length <= API_KEY_MAX_CHARACTERS ? body.apiKey.trim() : "";
-  const apiKey = submittedKey || process.env.JPDB_API_KEY?.trim() || "";
+  if (typeof body.apiKey === "string" && body.apiKey.length > API_KEY_MAX_CHARACTERS) {
+    return errorResponse("The JPDB API key is too long.", "bad_key", 400);
+  }
+  const submittedKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+  const credential = resolveJpdbCredential(request, submittedKey, true);
+  if (credential.failure) return demoJpdbErrorResponse(credential.failure);
+  const { apiKey, isDemo } = credential;
   if (!apiKey) {
     return errorResponse("Add your JPDB API key in Settings to translate manga text.", "missing_key", 409);
   }
+  if (isDemo && body.text.length > 4_000) return errorResponse("Demo translation accepts up to 4,000 characters at a time.", "text_too_long", 400);
+  const budgetFailure = takeDemoJpdbBudget(request, isDemo);
+  if (budgetFailure) return demoJpdbErrorResponse(budgetFailure);
 
   try {
     const response = await fetch(JPDB_JA2EN_ENDPOINT, {
@@ -127,7 +139,10 @@ export async function POST(request: Request) {
     });
     const payload = await readBoundedJson(response, RESPONSE_MAX_BYTES).catch(() => null) as JpdbTranslationPayload | null;
 
-    if (!response.ok) return providerError(response, payload);
+    if (!response.ok) {
+      const demoFailure = demoJpdbProviderFailure(isDemo, response.status, payload?.error);
+      return demoFailure ? demoJpdbErrorResponse(demoFailure) : providerError(response, payload);
+    }
     if (!payload || typeof payload.text !== "string" || !payload.text.trim()) {
       return errorResponse("JPDB returned no usable translation.", "provider_error", 502);
     }

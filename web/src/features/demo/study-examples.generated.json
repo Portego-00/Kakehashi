@@ -1,0 +1,122 @@
+{
+  "人": [
+    {
+      "sentence": "どこどこ？　あの人？",
+      "translation": "Where? Him?",
+      "title": "Princess Mononoke",
+      "source": "princess_mononoke",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Princess%20Mononoke/media/A_PrincessMononoke_1_0.33.28.594-0.33.31.305.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Princess%20Mononoke/media/A_PrincessMononoke_1_0.33.29.950.jpg"
+    }
+  ],
+  "大きい": [
+    {
+      "sentence": "かばんも大きいようで",
+      "translation": "And you do have a spacious bag.",
+      "title": "Your Lie in April",
+      "source": "your_lie_in_april",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Your%20Lie%20in%20April/media/Anime_Your_lie_in_april_E16_1_0.05.36.120-0.05.38.460.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Your%20Lie%20in%20April/media/Anime_Your_lie_in_april_E16_1_0.05.37.290.jpg"
+    }
+  ],
+  "山": [
+    {
+      "sentence": "ほら 山へ帰りなさい",
+      "translation": "There you go! Go back to the mountains!",
+      "title": "Haruhi Suzumiya",
+      "source": "haruhi_suzumiya",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Haruhi%20Suzumiya/media/Z.SUZUMIYA_10_0.11.01.548-0.11.04.105.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Haruhi%20Suzumiya/media/Z.SUZUMIYA_10_0.11.02.767.jpg"
+    }
+  ],
+  "川": [
+    {
+      "sentence": "レイン川で遊んだ時も",
+      "translation": "Even when we played by Raine River...",
+      "title": "Fullmetal Alchemist Brotherhood",
+      "source": "fullmetal_alchemist_brotherhood",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fullmetal%20Alchemist%20Brotherhood/media/A_FullmetalAlchemistBrotherhood_09_0.19.09.440-0.19.10.940.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fullmetal%20Alchemist%20Brotherhood/media/A_FullmetalAlchemistBrotherhood_09_0.19.10.190.jpg"
+    }
+  ],
+  "水": [
+    {
+      "sentence": "あと　水を怖がりすぎ",
+      "translation": "You also don't seem too fond of water.",
+      "title": "My Little Sister Can't Be This Cute",
+      "source": "my_little_sister_can_t_be_this_cute",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/My%20Little%20Sister%20Can%27t%20Be%20This%20Cute/media/Oreimo_S02E14_0.02.56.430-0.02.58.410.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/My%20Little%20Sister%20Can%27t%20Be%20This%20Cute/media/Oreimo_S02E14_0.02.56.430-0.02.58.410.jpg"
+    }
+  ],
+  "犬": [
+    {
+      "sentence": "って　犬じゃねえか！",
+      "translation": "He's just a dog!",
+      "title": "Shirokuma Cafe",
+      "source": "shirokuma_cafe",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Shirokuma%20Cafe/media/A_Shirokuma_Cafe_25_0.16.51.000-0.16.52.860.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Shirokuma%20Cafe/media/A_Shirokuma_Cafe_25_0.16.51.930.jpg"
+    }
+  ],
+  "日本": [
+    {
+      "sentence": "な、何故日本だった？",
+      "translation": "Wh-Why Japan?",
+      "title": "Death Note",
+      "source": "death_note",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Death%20Note/media/A_DeathNote_12_0.09.07.950-0.09.09.780.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Death%20Note/media/A_DeathNote_12_0.09.08.865.jpg"
+    }
+  ],
+  "古い": [
+    {
+      "sentence": "やだぁ　そんな古いの",
+      "translation": "But, Mom, that one's so old.",
+      "title": "Kiki's Delivery Service",
+      "source": "kiki_s_delivery_service",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Kiki%27s%20Delivery%20Service/media/A_KikisDeliveryService_1_0.06.51.150-0.06.52.568.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Kiki%27s%20Delivery%20Service/media/A_KikisDeliveryService_1_0.06.51.859.jpg"
+    }
+  ],
+  "先生": [
+    {
+      "sentence": "さすが 先生 先生！",
+      "translation": "Yes, that's our Sensei! Sensei!",
+      "title": "Fairy Tail",
+      "source": "fairy_tail",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fairy%20Tail/media/Fairy_Tail_054_0.05.14.926-0.05.16.969.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fairy%20Tail/media/Fairy_Tail_054_0.05.15.948.jpg"
+    }
+  ],
+  "毎日": [
+    {
+      "sentence": "キミは毎日走れるのか",
+      "translation": "Do you get to run every day?",
+      "title": "Kino's Journey",
+      "source": "kino_s_journey",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Kino%27s%20Journey/media/Kino_no_Tabi_5_0.06.29.820-0.06.32.880.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Kino%27s%20Journey/media/Kino_no_Tabi_5_0.06.31.350.jpg"
+    }
+  ],
+  "行く": [
+    {
+      "sentence": "なんか 行く気うせた",
+      "translation": "I suddenly don't want to go.",
+      "title": "Fermat Kitchen",
+      "source": "fermat_kitchen",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fermat%20Kitchen/media/fermat_kitchen_001_0.07.55.559-0.07.56.769.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fermat%20Kitchen/media/fermat_kitchen_001_0.07.56.164.jpg"
+    }
+  ],
+  "学生": [
+    {
+      "sentence": "お父はん　まだ学生か",
+      "translation": "Your dad's still a student?",
+      "title": "Cardcaptor Sakura",
+      "source": "cardcaptor_sakura",
+      "audio": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Cardcaptor%20Sakura/media/A_CardCaptorSakura02_1_0.04.48.859-0.04.50.653.mp3",
+      "imageUrl": "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Cardcaptor%20Sakura/media/A_CardCaptorSakura02_1_0.04.49.756.jpg"
+    }
+  ]
+}

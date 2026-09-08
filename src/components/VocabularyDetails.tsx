@@ -1675,7 +1675,7 @@ export default function VocabularyDetails({
           >
             Context Sentences
           </Text>
-          <TouchableOpacity
+          {vocabulary.id > 0 && <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Add context sentence"
             activeOpacity={0.55}
@@ -1690,7 +1690,7 @@ export default function VocabularyDetails({
               size={18}
               color={subjectColors.vocabulary}
             />
-          </TouchableOpacity>
+          </TouchableOpacity>}
         </View>
         <View
           style={[
@@ -1754,7 +1754,7 @@ export default function VocabularyDetails({
               </View>
             );
           })}
-          <CustomContextSentencesSection
+          {vocabulary.id > 0 && <CustomContextSentencesSection
             ref={customContextSentencesRef}
             subjectId={vocabulary.id}
             subjectCharacters={vocabulary.characters}
@@ -1762,7 +1762,7 @@ export default function VocabularyDetails({
               (reading) => reading.reading,
             )}
             accentColor={subjectColors.vocabulary}
-          />
+          />}
         </View>
       </View>
     );
@@ -2116,6 +2116,7 @@ export default function VocabularyDetails({
                 <View
                   style={[
                     styles.row,
+                    vocabulary.id <= 0 && { display: "none" },
                     {
                       marginBottom:
                         vocabulary.partsOfSpeech &&
@@ -2671,7 +2672,7 @@ export default function VocabularyDetails({
         {activeTab !== "context" && (
           <>
             {/* Notes Section */}
-            <View style={styles.section}>
+            {vocabulary.id > 0 && <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
                 Notes
               </Text>
@@ -2768,6 +2769,7 @@ export default function VocabularyDetails({
               </View>
             </View>
 
+            }
             {/* Vocabulary Composition Section */}
             {sortedComponentSubjects.length > 0 && (
               <View style={styles.section}>
@@ -3025,11 +3027,12 @@ export default function VocabularyDetails({
                       <View
                         style={[
                           styles.divider,
+                          vocabulary.id <= 0 && { display: "none" },
                           { backgroundColor: theme.border },
                         ]}
                       />
 
-                      <View style={styles.statsContainer}>
+                      <View style={[styles.statsContainer, vocabulary.id <= 0 && { display: "none" }]}>
                         <View style={styles.statColumn}>
                           <Text
                             style={[
@@ -3277,9 +3280,9 @@ export default function VocabularyDetails({
               </TouchableOpacity>
             )}
 
-            <View style={styles.levelBadge}>
+            {vocabulary.level > 0 && <View style={styles.levelBadge}>
               <Text style={styles.levelText}>{vocabulary.level}</Text>
-            </View>
+            </View>}
           </View>
 
           {onOpenConstellation && vocabulary.object !== "kana_vocabulary" && (

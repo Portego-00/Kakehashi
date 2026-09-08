@@ -263,6 +263,14 @@ describe("study question engine", () => {
     expect(generateQuestions("context-sentences", dataset, { ...filters, subjectTypes: ["vocabulary"] }, () => 0.5)[0].prompt).toContain("＿＿");
   });
 
+  it("keeps usable context questions when a linked notebook sentence does not contain the word", () => {
+    const cat = subjects[0];
+    const withNotebookSentence = { ...cat, data: { ...cat.data, context_sentences: [...cat.data.context_sentences!, { ja: "これは文法のメモです。", en: "This is a grammar note." }] } };
+    const questions = generateQuestions("context-sentences", { subjects: [withNotebookSentence], assignments: [assignment(cat.id)] }, { ...filters, subjectTypes: ["vocabulary"] }, () => 0.9);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].sentence?.ja).toBe("猫が好きです。");
+  });
+
   it("accepts kana readings for typed listening vocabulary prompts", () => {
     const question = generateQuestions(
       "listening",

@@ -43,18 +43,27 @@ vi.mock("./mpeg-converter", () => ({
 }));
 vi.mock("./storage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./storage")>();
-  return {
+  const mocked = {
     ...actual,
     loadFileHandle: vi.fn(async (id: string) => fixtures.fileHandles.get(id) ?? null),
     removeFileHandle: vi.fn(async (id: string) => { fixtures.fileHandles.delete(id); }),
     saveFileHandle: vi.fn(async (id: string, handle: FileSystemFileHandle) => { fixtures.fileHandles.set(id, handle); }),
   };
+  return { ...mocked, captureContentScope: () => {
+    const scope = actual.captureContentScope();
+    return { ...scope,
+      saveFileHandle: (id: string, handle: FileSystemFileHandle) => { scope.assertCurrent(); return mocked.saveFileHandle(id, handle); },
+      removeFileHandle: mocked.removeFileHandle,
+    };
+  } };
 });
 
 import { transcodeMpegToMp4 } from "./mpeg-converter";
 import { loadFileHandle, loadLibrary, removeFileHandle, saveFileHandle, saveLibrary } from "./storage";
 import type { ContentRecord } from "./types";
 import { VideoWorkspace } from "./video";
+import { DEMO_VIDEOS } from "@/features/demo/media";
+import { setDemoMode } from "@/features/demo/runtime";
 
 const savedVideo: ContentRecord = {
   id: "video-saved",
@@ -136,7 +145,52 @@ describe("video workspace", () => {
     youtubePlayerMocks.seekTo.mockClear();
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { setDemoMode(false); vi.restoreAllMocks(); });
+
+  it("opens a demo URL with verified captions and automatically saves its full Japanese transcript", async () => {
+    setDemoMode(true);
+    const sample = DEMO_VIDEOS[0];
+    saveLibrary("video", [sample]);
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({
+      title: sample.title, language: "ja", transcript: "[00:04]こんにちは。\n[00:47]日本の生活です。",
+    }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: `Open ${sample.title}` }));
+    expect(screen.getByText("Loading the full Japanese captions. A short verified excerpt is ready to try.")).toBeInTheDocument();
+    await waitFor(() => expect(loadLibrary("video")[0].metadata?.demoCaptionExcerpt).toBe(false));
+    expect(fetchMock).toHaveBeenCalledWith("/video/transcript", expect.objectContaining({ body: JSON.stringify({ videoId: "K5RfTVZH-1g", language: "ja" }) }));
+    expect(screen.getByRole("button", { name: "Seek to 0:47" })).toBeInTheDocument();
+    setDemoMode(false);
+    expect(loadLibrary("video")).toEqual([]);
+  });
+
+  it("keeps demo captions readable and offers retry when the transcript provider fails", async () => {
+    setDemoMode(true);
+    const sample = DEMO_VIDEOS[0];
+    saveLibrary("video", [sample]);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "Captions are temporarily unavailable." }) })));
+    render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: `Open ${sample.title}` }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Captions are temporarily unavailable.");
+    expect(screen.getByText("Showing a short verified excerpt. Get YouTube captions to load the full transcript.")).toBeInTheDocument();
+    expect(loadLibrary("video")[0].text).toBe(sample.text);
+    expect(screen.getByRole("button", { name: "Get YouTube captions" })).toBeEnabled();
+  });
+
+  it("does not save a subtitle file into another session after its text is read", async () => {
+    setDemoMode(true);
+    saveLibrary("video", [savedVideo]);
+    render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: `Open ${savedVideo.title}` }));
+    const subtitle = new File(["demo captions"], "demo.lrc", { type: "text/plain" });
+    Object.defineProperty(subtitle, "text", { value: async () => { setDemoMode(false); return "[0:01]別の字幕です。"; } });
+    fireEvent.change(screen.getByLabelText("Transcript file picker"), { target: { files: [subtitle] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("The session changed");
+    expect(loadLibrary("video")).toEqual([]);
+    setDemoMode(true);
+    expect(loadLibrary("video")[0].text).toBe(savedVideo.text);
+  });
 
   it("starts on a home screen with previously watched videos", () => {
     saveLibrary("video", [savedVideo]);

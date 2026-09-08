@@ -14,6 +14,7 @@ import { hydrateModeFilters, isQuizMode } from "../mode-config";
 import { clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, configKey, sessionKey } from "../storage";
 import type { StudyFilters, StudyModeId, StudySession } from "../types";
 import { useStudyDataset } from "../use-study-dataset";
+import { isDemoMode } from "@/features/demo/runtime";
 import { QuizSession } from "./quiz-session";
 import { StudyConfig } from "./study-config";
 import { CrosswordGame, CustomLessons, KanaWordle, SimilarKanjiMatching, SubjectLists, TextAnalysis, WritingPractice } from "./special-modes";
@@ -117,9 +118,12 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
       setActiveFilters(effectiveFilters); setPreparing(false); return;
     }
     if (isQuizMode(mode)) {
+      const questionDataset = mode === "listening" && isDemoMode()
+        ? (await import("@/features/demo/study")).demoListeningDataset(dataset)
+        : dataset;
       const generationFilters = mode === "listening" ? { ...effectiveFilters, count: Math.min(60, effectiveFilters.count * 3) } : effectiveFilters;
       const questions = mode === "custom-review"
-        ? generateQuestions(mode, dataset, generationFilters, {
+        ? generateQuestions(mode, questionDataset, generationFilters, {
           customReviewOrder: webSettings.study.customReviewOrder,
           reviewTypeOrderEnabled: webSettings.study.reviewTypeOrderEnabled,
           reviewTypeOrder: webSettings.study.reviewTypeOrder,
@@ -131,8 +135,8 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
           maxQuestionGap: 10,
         })
         : mode === "audio-vocab"
-          ? generateQuestions(mode, dataset, generationFilters, { audioVocabVoice: webSettings.study.vocabularyAudioVoice })
-          : generateQuestions(mode, dataset, generationFilters);
+          ? generateQuestions(mode, questionDataset, generationFilters, { audioVocabVoice: webSettings.study.vocabularyAudioVoice })
+          : generateQuestions(mode, questionDataset, generationFilters);
       if (mode === "listening") {
         const controller = new AbortController();
         listeningAbortRef.current = controller;

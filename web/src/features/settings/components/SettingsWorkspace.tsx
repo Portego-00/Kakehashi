@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import type { AnimeListProvider } from "@/features/anime/types";
+import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -65,6 +66,7 @@ const NAVBAR_TAB_OPTIONS: Array<{ id: NavbarTabId; label: string; description: s
   { id: "video", label: "Video", description: "Local video with Japanese subtitles." },
   { id: "manga", label: "Manga", description: "Manga reading with on-device OCR." },
   { id: "music", label: "Songs", description: "Japanese music, synced lyrics, and translation." },
+  { id: "notebooks", label: "Notebooks", description: "Your study notes, linked vocabulary, and shared sentences." },
 ];
 const REQUIRED_NAVBAR_TABS = new Set<NavbarTabId>(REQUIRED_NAVBAR_TAB_IDS);
 const DASHBOARD_DEFINITION_BY_ID = new Map(DASHBOARD_SECTION_DEFINITIONS.map((definition) => [definition.id, definition]));
@@ -141,7 +143,7 @@ function moveRadio(event: KeyboardEvent<HTMLButtonElement>, index: number, total
 
 export function SettingsWorkspace() {
   const router = useRouter();
-  const { user, signOut } = useSession();
+  const { user, signOut, isDemo } = useSession();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const username = user?.data.username ?? "anonymous";
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_WEB_SETTINGS);
@@ -412,8 +414,8 @@ export function SettingsWorkspace() {
       <Card padding="none" className={styles.preferenceCard}>
         <label className={styles.selectRow}><span><strong>Word details</strong><small>Click keeps hover as a visual highlight only. Hover opens details as soon as the pointer enters a word.</small></span><select value={settings.reader.detailsInteraction} onChange={(event) => updateReader("detailsInteraction", event.target.value as WebSettings["reader"]["detailsInteraction"])}><option value="click">Click</option><option value="hover">Hover</option></select></label>
         <label className={styles.selectRow}><span><strong>Text recognition</strong><small>Choose exact WaniKani matching or add JPDB parsing for grammar, verbs, and vocabulary.</small></span><select value={settings.reader.recognitionMode} onChange={(event) => updateReader("recognitionMode", event.target.value as WebSettings["reader"]["recognitionMode"])}><option value="wk">WaniKani only</option><option value="wk-jpdb">WaniKani + JPDB</option></select></label>
-        <label id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB API key</strong><small>Saved only in this browser and sent through Kakehashi when you analyze Japanese, translate a manga selection, song lyrics, or a video transcript. Copy your free key from JPDB account settings.</small></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>
-        <ToggleRow label="English lyric translations" description={settings.integrations.jpdbApiKey.trim() ? "Show JPDB machine translations beneath each Japanese lyric line." : "Save a JPDB API key to enable line-by-line song translations."} checked={settings.study.songsLyricsLineTranslationsEnabled} disabled={!settings.integrations.jpdbApiKey.trim()} onChange={(value) => updateStudy("songsLyricsLineTranslationsEnabled", value)} />
+        {isDemo ? <div id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB included in the demo</strong><small>Word readings, definitions, and Japanese-to-English translations are ready to try. No personal API key is needed.</small></span></div> : <label id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB API key</strong><small>Saved only in this browser and sent through Kakehashi when you analyze Japanese, translate a manga selection, song lyrics, or a video transcript. Copy your free key from JPDB account settings.</small></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>}
+        <ToggleRow label="English lyric translations" description={isDemo || settings.integrations.jpdbApiKey.trim() ? "Show JPDB machine translations beneath each Japanese lyric line." : "Save a JPDB API key to enable line-by-line song translations."} checked={settings.study.songsLyricsLineTranslationsEnabled} disabled={!isDemo && !settings.integrations.jpdbApiKey.trim()} onChange={(value) => updateStudy("songsLyricsLineTranslationsEnabled", value)} />
       </Card>
     </section>
 
@@ -431,7 +433,7 @@ export function SettingsWorkspace() {
           <div className={styles.subsectionHead}><h3>More menu</h3><p>Choose which optional destinations appear in More and in standalone header shortcuts.</p></div>
           {OPTIONAL_NAV_ITEMS.map((id) => <ToggleRow key={id} label={WORKSPACE_LABELS[id]} description={`Show ${WORKSPACE_LABELS[id].toLocaleLowerCase()} in More and related shortcuts.`} checked={settings.workspace.visibleNav.includes(id)} onChange={() => toggleNav(id)} />)}
         </Card>
-        <DashboardLayoutEditor settings={settings} onChange={update} />
+        <DashboardLayoutEditor settings={settings} onChange={update} customSrsAccessible={!isDemo && canAccessCustomSrs(username)} />
       </div>
     </section>
 
@@ -454,25 +456,32 @@ export function SettingsWorkspace() {
   </main>;
 }
 
-function DashboardLayoutEditor({ settings, onChange }: { settings: WebSettings; onChange: (settings: WebSettings) => void }) {
+function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { settings: WebSettings; onChange: (settings: WebSettings) => void; customSrsAccessible: boolean }) {
   const [draggedId, setDraggedId] = useState<DashboardSectionId | null>(null);
   const draggedIdRef = useRef<DashboardSectionId | null>(null);
   const [dropTargetId, setDropTargetId] = useState<DashboardSectionId | "available" | "end" | null>(null);
   const [canvasDropTarget, setCanvasDropTarget] = useState<DashboardCanvasDropTarget | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const hidden = new Set(settings.workspace.hiddenDashboard);
-  const activeIds = settings.workspace.dashboardOrder.filter((id): id is DashboardSectionId => DASHBOARD_DEFINITION_BY_ID.has(id as DashboardSectionId) && !hidden.has(id));
-  const availableIds = settings.workspace.dashboardOrder.filter((id): id is DashboardSectionId => DASHBOARD_DEFINITION_BY_ID.has(id as DashboardSectionId) && hidden.has(id));
+  const isEditableSection = (id: string): id is DashboardSectionId => DASHBOARD_DEFINITION_BY_ID.has(id as DashboardSectionId) && (id !== "custom-vocabulary" || customSrsAccessible);
+  const editableIds = settings.workspace.dashboardOrder.filter(isEditableSection);
+  const activeIds = editableIds.filter((id) => !hidden.has(id));
+  const availableIds = editableIds.filter((id) => hidden.has(id));
   const rowStarts = settings.workspace.dashboardRowStarts ?? [];
 
   const saveLayout = (nextActive: DashboardSectionId[], nextAvailable: DashboardSectionId[], message: string, nextRowStarts = rowStarts) => {
+    const nextOrder: string[] = [...nextActive, ...nextAvailable];
+    // Keep restricted widgets' saved positions and visibility while editing the available layout.
+    settings.workspace.dashboardOrder.forEach((id, index) => {
+      if (!isEditableSection(id)) nextOrder.splice(index, 0, id);
+    });
     onChange({
       ...settings,
       workspace: {
         ...settings.workspace,
-        dashboardOrder: [...nextActive, ...nextAvailable],
-        hiddenDashboard: nextAvailable,
-        dashboardRowStarts: [...new Set(nextRowStarts.filter((id) => nextActive.includes(id) && id !== nextActive[0]))],
+        dashboardOrder: nextOrder,
+        hiddenDashboard: [...nextAvailable, ...settings.workspace.hiddenDashboard.filter((id) => !isEditableSection(id))],
+        dashboardRowStarts: [...new Set([...nextRowStarts.filter((id) => nextActive.includes(id) && id !== nextActive[0]), ...rowStarts.filter((id) => !isEditableSection(id))])],
       },
     });
     setAnnouncement(message);
@@ -509,7 +518,8 @@ function DashboardLayoutEditor({ settings, onChange }: { settings: WebSettings; 
   };
   const sourceFromDrop = (event: DragEvent<HTMLElement>) => {
     const transferredId = event.dataTransfer.getData("text/plain");
-    return (DASHBOARD_DEFINITION_BY_ID.has(transferredId as DashboardSectionId) ? transferredId : draggedIdRef.current) as DashboardSectionId | null;
+    const source = transferredId || draggedIdRef.current;
+    return source && editableIds.includes(source as DashboardSectionId) ? source as DashboardSectionId : null;
   };
   const finishDrag = () => { draggedIdRef.current = null; setDraggedId(null); setDropTargetId(null); setCanvasDropTarget(null); };
   const canvasTargetFromEvent = (event: DragEvent<HTMLOListElement>) => {

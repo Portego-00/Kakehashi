@@ -2,15 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, CircleAlert, Cloud, HardDrive, Library, Plus, RotateCw } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, CircleAlert, Cloud, HardDrive, Library, Plus } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Progress } from "@/components/ui/Progress";
 import { LoadingState } from "@/components/ui/States";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
+import { ReviewForecast } from "@/features/dashboard/ReviewForecast";
+import { createReviewForecast, customReviewForecastEntries } from "@/features/dashboard/review-forecast";
+import { useReviewForecastPreferences } from "@/features/dashboard/use-review-forecast-preferences";
+import dashboardStyles from "@/features/dashboard/dashboard.module.css";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
 import { customLessonWords, customPackProgress, customReviewWords } from "./model";
 import type { CustomSrsState, CustomVocabularyPack } from "./types";
@@ -117,6 +122,59 @@ function PackFlightLayer({ flight, onComplete }: { flight: PackFlight | null; on
 function readableError(error: unknown) {
   if (!error) return "";
   return error instanceof Error ? error.message : typeof error === "string" ? error : "Custom vocabulary progress could not be loaded.";
+}
+
+function CustomStudyQueueCard({ type, count, loading, unavailable }: {
+  type: "lesson" | "review";
+  count: number;
+  loading: boolean;
+  unavailable: boolean;
+}) {
+  const lessons = type === "lesson";
+  const title = lessons ? "Lessons" : "Reviews";
+  const action = lessons ? "Start lessons" : "Review due";
+  const ready = !loading && !unavailable && count > 0;
+  const empty = !loading && !unavailable && count === 0;
+  const artwork = lessons
+    ? empty ? "NoLessons" : "Lessons"
+    : empty ? "ReviewsFinished" : "Reviews";
+  const subtitle = loading ? "Loading your custom vocabulary…"
+    : unavailable ? "Your custom progress is unavailable."
+      : lessons ? empty ? "Add a pack to keep learning." : "Learn from added packs."
+        : empty ? "You're all caught up." : "Review your vocabulary.";
+
+  return <article
+    className={dashboardStyles.queueRow}
+    data-kind={type}
+    data-state={empty || unavailable ? "empty" : "ready"}
+    aria-busy={loading || undefined}
+    aria-label={`Custom ${title.toLowerCase()} study queue`}
+  >
+    <Image
+      className={dashboardStyles.queueArtwork}
+      data-queue-art={empty ? "empty" : "ready"}
+      src={`/dashboard/${artwork}.png`}
+      alt=""
+      width={1254}
+      height={1254}
+      sizes="(max-width: 767px) 100px, 150px"
+      loading="eager"
+      draggable={false}
+    />
+    <div className={dashboardStyles.queueContent}>
+      <div className={dashboardStyles.queueTitleRow}>
+        <h3>{title}</h3>
+        <span className={dashboardStyles.queueCountBadge} aria-live="polite">
+          {loading ? <span className={dashboardStyles.queueCountLoading} aria-hidden="true" /> : unavailable ? "—" : count.toLocaleString()}
+        </span>
+      </div>
+      <p className={dashboardStyles.queueSubtitle}>{subtitle}</p>
+      <div className={dashboardStyles.queueBottom}>
+        {ready ? <Link className={dashboardStyles.queueAction} href={lessons ? "/custom-vocabulary/lessons" : "/custom-vocabulary/reviews"}>{action}<ArrowRight size={16} aria-hidden="true" /></Link>
+          : <button className={dashboardStyles.queueAction} type="button" disabled>{action}</button>}
+      </div>
+    </div>
+  </article>;
 }
 
 function PackWordStatus({ state, wordId, enrolled }: { state: CustomSrsState; wordId: string; enrolled: boolean }) {
@@ -261,6 +319,7 @@ function VocabularyPack({
 export function CustomVocabularyHub() {
   const { user } = useSession();
   const scope = waniKaniUserId(user) || "anonymous";
+  const forecastPreferences = useReviewForecastPreferences(user?.data.username ?? "anonymous");
   const customSrs = useCustomSrs(scope, CUSTOM_VOCABULARY_PACKS);
   const { state, enrollPack, isLoading, isRefreshing, isUnavailable, isSaving, error, storageMode, refresh } = customSrs;
   const [now, setNow] = useState(() => new Date());
@@ -290,6 +349,7 @@ export function CustomVocabularyHub() {
   const queue = useMemo(() => ({
     lessons: customLessonWords(state, CUSTOM_VOCABULARY_PACKS).length,
     reviews: customReviewWords(state, CUSTOM_VOCABULARY_PACKS, now).length,
+    forecast: createReviewForecast(customReviewForecastEntries(state, CUSTOM_VOCABULARY_PACKS), now),
   }), [now, state]);
   const persistence = storageMode === "cloud"
     ? { label: "Cloud progress", detail: "Synced with your Kakehashi account", Icon: Cloud }
@@ -387,28 +447,19 @@ export function CustomVocabularyHub() {
       {isLoading ? <div className={styles.syncState}><LoadingState compact label="Loading custom vocabulary progress" detail="Checking your saved packs and review queue." /></div> : null}
       {visibleError ? <div className={styles.errorNotice} role="alert"><CircleAlert size={17} aria-hidden="true" /><span>{visibleError}</span>{isUnavailable ? <Button size="small" tone="ghost" state={isRefreshing ? "loading" : "idle"} disabled={isRefreshing} onClick={() => void refresh()}>Try Again</Button> : null}</div> : null}
 
-      <section className={styles.queue} aria-labelledby="custom-queue-heading">
-        <div className={styles.queueIntro}>
-          <span className={styles.queueSubjectMark} data-subject-type="vocabulary" lang="ja" aria-hidden="true">かな</span>
-          <div className={styles.queueCopy}>
-            <h2 id="custom-queue-heading">Custom study</h2>
-            <p>{state.enrolledPackIds.length ? "Continue your added custom vocabulary." : "Add a pack to make its words available as lessons."}</p>
-          </div>
+      <section className={styles.study} aria-labelledby="custom-queue-heading">
+        <h2 id="custom-queue-heading" className="sr-only">Custom study</h2>
+        <div className={dashboardStyles.queue}>
+          <CustomStudyQueueCard type="lesson" count={queue.lessons} loading={isLoading} unavailable={isUnavailable} />
+          <CustomStudyQueueCard type="review" count={queue.reviews} loading={isLoading} unavailable={isUnavailable} />
         </div>
-        <div className={styles.queueWorkspace}>
-          <dl className={styles.queueCounts}>
-            <div><dt>Lessons</dt><dd>{queue.lessons}</dd></div>
-            <div><dt>Reviews due</dt><dd>{queue.reviews}</dd></div>
-            <div><dt>Packs added</dt><dd>{state.enrolledPackIds.length}</dd></div>
-          </dl>
-          <div className={styles.queueActions}>
-            <ButtonLink href="/custom-vocabulary/lessons" disabled={isLoading || isUnavailable || queue.lessons === 0}>
-              <BookOpen size={17} aria-hidden="true" /> Start lessons <ArrowRight size={16} aria-hidden="true" />
-            </ButtonLink>
-            <ButtonLink href="/custom-vocabulary/reviews" tone="primary" disabled={isLoading || isUnavailable || queue.reviews === 0}>
-              <RotateCw size={17} aria-hidden="true" /> Review due <ArrowRight size={16} aria-hidden="true" />
-            </ButtonLink>
-          </div>
+        <div className={dashboardStyles.section}>
+          <ReviewForecast
+            forecast={queue.forecast}
+            {...forecastPreferences}
+            loading={isLoading}
+            unavailable={isUnavailable ? "Custom review schedule is unavailable." : undefined}
+          />
         </div>
       </section>
 

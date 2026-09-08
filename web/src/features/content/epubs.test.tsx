@@ -7,6 +7,7 @@ import { extractBookEpub } from "./epub-import";
 import type { EpubRenditionPageState } from "./EpubRendition";
 import type { ContentRecord } from "./types";
 import { EpubLibrary, EpubReader } from "./epubs";
+import { setDemoMode } from "@/features/demo/runtime";
 
 const fixtures = vi.hoisted(() => ({
   assets: new Map<string, Blob>(),
@@ -47,7 +48,19 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({
   }),
 }));
 
-vi.mock("./storage", () => ({
+vi.mock("./storage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./storage")>();
+  return {
+  captureContentScope: () => {
+    const scope = actual.captureContentScope();
+    return {
+      ...scope,
+      saveAsset: (id: string, blob: Blob) => { scope.assertCurrent(); return fixtures.saveAsset(id, blob); },
+      removeAsset: fixtures.removeAsset,
+      upsertRecord: (record: ContentRecord) => { scope.assertCurrent(); return fixtures.upsertRecord(record); },
+      deleteRecord: vi.fn(async () => undefined),
+    };
+  },
   createLocalId: (prefix: string) => `${prefix}-test`,
   deleteRecord: vi.fn(async () => undefined),
   loadAsset: fixtures.loadAsset,
@@ -58,7 +71,7 @@ vi.mock("./storage", () => ({
   updateRecordInPlace: fixtures.updateRecordInPlace,
   upsertRecord: fixtures.upsertRecord,
   writeLocal: vi.fn(() => true),
-}));
+}; });
 
 vi.mock("./epub-import", () => ({
   extractBookEpub: vi.fn(),
@@ -213,6 +226,24 @@ describe("Books library and reader", () => {
     expect(screen.queryByText("No readable text was found in that file.")).not.toBeInTheDocument();
     expect(fixtures.saveAsset).toHaveBeenCalledTimes(1);
     expect(fixtures.saveAsset).toHaveBeenCalledWith("epub-source-test", expect.any(File));
+  });
+
+  it("does not publish an EPUB import into another session after extraction finishes", async () => {
+    setDemoMode(true);
+    vi.mocked(extractBookEpub).mockImplementationOnce(async () => {
+      setDemoMode(false);
+      return {
+        chapters: [{ blocks: [], path: "OPS/chapter.xhtml", text: "第一章", title: null, writingMode: "vertical-rl" }],
+        language: "ja", pageProgressionDirection: "rtl", text: "第一章", title: "Demo-only import",
+      };
+    });
+    const { container } = render(<EpubLibrary />);
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["epub"], "demo.epub", { type: "application/epub+zip" })] },
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("The session changed");
+    expect(fixtures.saveAsset).not.toHaveBeenCalled();
+    expect(fixtures.upsertRecord).not.toHaveBeenCalled();
   });
 
   it("removes imported blobs when the library index cannot be saved", async () => {

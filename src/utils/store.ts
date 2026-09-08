@@ -118,6 +118,7 @@ export type CustomTabId =
   | "epubs"
   | "videos"
   | "mangas"
+  | "notebooks"
   | "bunpro";
 
 const ALL_CUSTOM_TAB_IDS: CustomTabId[] = [
@@ -130,6 +131,7 @@ const ALL_CUSTOM_TAB_IDS: CustomTabId[] = [
   "epubs",
   "videos",
   "mangas",
+  "notebooks",
   "bunpro",
 ];
 const DEFAULT_CUSTOM_TAB_ORDER: CustomTabId[] = [
@@ -152,7 +154,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 18;
+const SETTINGS_STORE_SCHEMA_VERSION = 19;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -633,6 +635,7 @@ type SettingsState = {
     | "unknown";
   spotifyAuthStatus: SpotifyAuthStatus;
   spotifyDisplayName: string | null;
+  spotifyClientId: string;
 
   // Patch notes tracking
   lastSeenPatchNotesVersion: string | null;
@@ -812,6 +815,7 @@ type SettingsState = {
   ) => void;
   setSpotifyAuthStatus: (status: SpotifyAuthStatus) => void;
   setSpotifyDisplayName: (displayName: string | null) => void;
+  setSpotifyClientId: (clientId: string) => void;
   setLastSeenPatchNotesVersion: (version: string | null) => void;
   setBunproSurveyCompleted: (completed: boolean) => void;
   setCustomTabOrder: (tabs: CustomTabId[]) => void;
@@ -973,8 +977,9 @@ export const useSettingsStore = create<SettingsState>()(
       songsLyricsDefaultStudyMode: "wk", // Default to WK chips for inline lyrics analysis
       songsLyricsLineTranslationsEnabled: false, // Default to hidden machine translations
       appleMusicAuthStatus: "notDetermined",
-      spotifyAuthStatus: "notConnected",
+      spotifyAuthStatus: "notConfigured",
       spotifyDisplayName: null,
+      spotifyClientId: "",
 
       immersionKitAnimes: null, // Custom list of selected animes for Immersion Kit
 
@@ -1256,6 +1261,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAppleMusicAuthStatus: (status) => set({ appleMusicAuthStatus: status }),
       setSpotifyAuthStatus: (status) => set({ spotifyAuthStatus: status }),
       setSpotifyDisplayName: (displayName) => set({ spotifyDisplayName: displayName }),
+      setSpotifyClientId: (clientId) => set({ spotifyClientId: clientId }),
       setLastSeenPatchNotesVersion: (version) => set({ lastSeenPatchNotesVersion: version }),
       setBunproSurveyCompleted: (completed) => set({ bunproSurveyCompleted: completed }),
       setCustomTabOrder: (tabs) =>
@@ -1394,6 +1400,7 @@ export const useSettingsStore = create<SettingsState>()(
           songsPlaybackSource?: unknown;
           spotifyAuthStatus?: unknown;
           spotifyDisplayName?: unknown;
+          spotifyClientId?: unknown;
           kanjiReadingTextToSpeechEnabled?: unknown;
           newsSourcePreference?: unknown;
         };
@@ -1534,6 +1541,22 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (typeof migratedRecord.spotifyDisplayName !== "string") {
           migratedRecord.spotifyDisplayName = null;
+        }
+        const restoredSpotifyClientId =
+          typeof migratedRecord.spotifyClientId === "string"
+            ? migratedRecord.spotifyClientId.trim()
+            : "";
+        migratedRecord.spotifyClientId =
+          version >= 19 && /^[a-f0-9]{32}$/i.test(restoredSpotifyClientId)
+            ? restoredSpotifyClientId
+            : "";
+        // Legacy connections used the shared app and must be linked again.
+        if (!migratedRecord.spotifyClientId) {
+          migratedRecord.spotifyAuthStatus = "notConfigured";
+          migratedRecord.spotifyDisplayName = null;
+          if (migratedRecord.songsPlaybackSource === "spotify") {
+            migratedRecord.songsPlaybackSource = "youtube";
+          }
         }
         if (
           typeof migratedRecord.kanjiReadingTextToSpeechEnabled !== "boolean"

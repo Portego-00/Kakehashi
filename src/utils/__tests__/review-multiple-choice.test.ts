@@ -167,3 +167,57 @@ it("falls back safely when there are not enough plausible meanings", () => {
     }),
   ).toEqual([]);
 });
+
+function radical(
+  id: number,
+  meaning: string,
+  level = 1,
+  amalgamations: number[] = [],
+): Subject {
+  return {
+    id,
+    object: "radical",
+    data: {
+      level,
+      meanings: [{ meaning, primary: true, accepted_answer: true }],
+      amalgamation_subject_ids: amalgamations,
+    },
+  };
+}
+
+it("offers radical names even when their mnemonics have no semantic family", () => {
+  const gun = radical(1, "Gun");
+  const choices = createReviewAnswerChoices({
+    subject: gun,
+    questionType: "meaning",
+    subjects: [gun, radical(2, "Slide"), radical(3, "Lid"), radical(4, "Barb")],
+    seed: "radical-names",
+  });
+  expect(choices).toHaveLength(4);
+  expect(choices.filter((choice) => choice.isCorrect)).toEqual([
+    { text: "Gun", isCorrect: true },
+  ]);
+});
+
+it("prefers radicals used in the same kanji, then names from nearby levels", () => {
+  const gun = radical(1, "Gun", 1, [101, 102]);
+  const choices = createReviewAnswerChoices({
+    subject: gun,
+    questionType: "meaning",
+    subjects: [
+      radical(2, "Slide", 1),
+      radical(3, "Lid", 1),
+      radical(4, "Barb", 20, [101]),
+      radical(5, "Coffin", 40),
+      radical(6, "Weapon", 1),
+    ],
+    meaningSynonyms: ["Weapon"],
+    seed: "radical-relations",
+  });
+  expect(choices.map((choice) => choice.text).sort()).toEqual([
+    "Barb",
+    "Gun",
+    "Lid",
+    "Slide",
+  ]);
+});

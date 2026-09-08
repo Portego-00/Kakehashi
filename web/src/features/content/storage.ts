@@ -1,4 +1,6 @@
 import type { CommunityPost, ContentKind, ContentRecord } from "./types";
+import { getDemoModeEpoch, isDemoMode } from "@/features/demo/runtime";
+import { DEMO_ASSET_URLS } from "@/features/demo/media-assets";
 
 const DB_NAME = "kakehashi-content-v1";
 const DB_VERSION = 2;
@@ -6,42 +8,46 @@ const ASSET_STORE = "assets";
 const FILE_HANDLE_STORE = "file-handles";
 const PREFIX = "kakehashi:content:v1";
 
+function storagePrefix(demo = isDemoMode()) {
+  return demo ? `${PREFIX}:demo` : PREFIX;
+}
+
 function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-export function readLocal<T>(key: string, fallback: T): T {
+export function readLocal<T>(key: string, fallback: T, demo = isDemoMode()): T {
   if (!canUseStorage()) return fallback;
   try {
-    const value = window.localStorage.getItem(`${PREFIX}:${key}`);
+    const value = window.localStorage.getItem(`${storagePrefix(demo)}:${key}`);
     return value ? (JSON.parse(value) as T) : fallback;
   } catch {
     return fallback;
   }
 }
 
-export function writeLocal(key: string, value: unknown) {
+export function writeLocal(key: string, value: unknown, demo = isDemoMode()) {
   if (!canUseStorage()) return false;
   try {
-    window.localStorage.setItem(`${PREFIX}:${key}`, JSON.stringify(value));
+    window.localStorage.setItem(`${storagePrefix(demo)}:${key}`, JSON.stringify(value));
     return true;
   } catch {
     return false;
   }
 }
 
-export function removeLocal(key: string) {
+export function removeLocal(key: string, demo = isDemoMode()) {
   if (!canUseStorage()) return;
-  window.localStorage.removeItem(`${PREFIX}:${key}`);
+  window.localStorage.removeItem(`${storagePrefix(demo)}:${key}`);
 }
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(demo = isDemoMode()): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
       reject(new Error("This browser does not provide IndexedDB storage."));
       return;
     }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(demo ? `${DB_NAME}-demo` : DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(ASSET_STORE)) database.createObjectStore(ASSET_STORE);
@@ -65,6 +71,7 @@ export async function saveAsset(id: string, value: Blob) {
 }
 
 export async function loadAsset(id: string): Promise<Blob | null> {
+  const demo = isDemoMode();
   const database = await openDatabase();
   const value = await new Promise<Blob | undefined>((resolve, reject) => {
     const request = database.transaction(ASSET_STORE, "readonly").objectStore(ASSET_STORE).get(id);
@@ -72,11 +79,19 @@ export async function loadAsset(id: string): Promise<Blob | null> {
     request.onerror = () => reject(request.error ?? new Error("Could not read this file."));
   });
   database.close();
-  return value ?? null;
+  if (value) return value;
+  const demoUrl = demo ? DEMO_ASSET_URLS[id] : undefined;
+  if (!demoUrl) return null;
+  const response = await fetch(demoUrl);
+  if (!response.ok) throw new Error("The demo sample could not be loaded. Please try again.");
+  const sample = await response.blob();
+  // A user may leave the demo while this download is in flight.
+  if (isDemoMode()) await saveAsset(id, sample).catch(() => undefined);
+  return sample;
 }
 
-export async function removeAsset(id: string) {
-  const database = await openDatabase();
+export async function removeAsset(id: string, demo = isDemoMode()) {
+  const database = await openDatabase(demo);
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(ASSET_STORE, "readwrite");
     transaction.objectStore(ASSET_STORE).delete(id);
@@ -115,8 +130,8 @@ export async function loadFileHandle(id: string): Promise<FileSystemFileHandle |
   }
 }
 
-export async function removeFileHandle(id: string) {
-  const database = await openDatabase();
+export async function removeFileHandle(id: string, demo = isDemoMode()) {
+  const database = await openDatabase(demo);
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction(FILE_HANDLE_STORE, "readwrite");
@@ -133,12 +148,12 @@ export function contentKey(kind: ContentKind) {
   return `library:${kind}`;
 }
 
-export function loadLibrary(kind: ContentKind): ContentRecord[] {
-  return readLocal<ContentRecord[]>(contentKey(kind), []).filter((record) => record.kind === kind && typeof record.id === "string");
+export function loadLibrary(kind: ContentKind, demo = isDemoMode()): ContentRecord[] {
+  return readLocal<ContentRecord[]>(contentKey(kind), [], demo).filter((record) => record.kind === kind && typeof record.id === "string");
 }
 
-export function saveLibrary(kind: ContentKind, records: ContentRecord[]) {
-  return writeLocal(contentKey(kind), records);
+export function saveLibrary(kind: ContentKind, records: ContentRecord[], demo = isDemoMode()) {
+  return writeLocal(contentKey(kind), records, demo);
 }
 
 export function upsertRecord(record: ContentRecord) {
@@ -174,9 +189,9 @@ export function reorderLibrary(kind: ContentKind, orderedIds: readonly string[])
   return orderedRecords;
 }
 
-export async function deleteRecord(record: ContentRecord) {
-  const next = loadLibrary(record.kind).filter((item) => item.id !== record.id);
-  if (!saveLibrary(record.kind, next)) throw new Error("Browser storage did not accept the library update.");
+export async function deleteRecord(record: ContentRecord, demo = isDemoMode()) {
+  const next = loadLibrary(record.kind, demo).filter((item) => item.id !== record.id);
+  if (!saveLibrary(record.kind, next, demo)) throw new Error("Browser storage did not accept the library update.");
   const serializedLinkedFileIds = record.metadata?.linkedFileIds;
   let linkedFileIds: string[] = [];
   if (typeof serializedLinkedFileIds === "string") {
@@ -188,10 +203,35 @@ export async function deleteRecord(record: ContentRecord) {
     }
   }
   await Promise.all([
-    ...record.assetIds.map((assetId) => removeAsset(assetId).catch(() => undefined)),
-    ...linkedFileIds.map((fileId) => removeFileHandle(fileId).catch(() => undefined)),
+    ...record.assetIds.map((assetId) => removeAsset(assetId, demo).catch(() => undefined)),
+    ...linkedFileIds.map((fileId) => removeFileHandle(fileId, demo).catch(() => undefined)),
   ]);
-  if (record.kind === "manga") removeLocal(`manga-ocr:${record.id}`);
+  if (record.kind === "manga") removeLocal(`manga-ocr:${record.id}`, demo);
+}
+
+/** Bind an async import to its originating session; cleanup always uses its original database. */
+export function captureContentScope() {
+  const demo = isDemoMode();
+  const epoch = getDemoModeEpoch();
+  const assertCurrent = () => {
+    if (epoch !== getDemoModeEpoch()) throw new Error("The session changed. Please import this file again in the current workspace.");
+  };
+  return {
+    assertCurrent,
+    isCurrent: () => epoch === getDemoModeEpoch(),
+    loadLibrary: (kind: ContentKind) => loadLibrary(kind, demo),
+    saveLibrary: (kind: ContentKind, records: ContentRecord[]) => { assertCurrent(); return saveLibrary(kind, records, demo); },
+    upsertRecord: (record: ContentRecord) => { assertCurrent(); return upsertRecord(record); },
+    updateRecordInPlace: (record: ContentRecord) => { assertCurrent(); return updateRecordInPlace(record); },
+    saveAsset: (id: string, value: Blob) => { assertCurrent(); return saveAsset(id, value); },
+    saveFileHandle: (id: string, handle: FileSystemFileHandle) => { assertCurrent(); return saveFileHandle(id, handle); },
+    saveMangaOcrPage: (id: string, page: number, text: string) => { assertCurrent(); return saveMangaOcrPage(id, page, text); },
+    // Cleanup is allowed after a session switch, but can only touch the original scope.
+    removeAsset: (id: string) => removeAsset(id, demo),
+    removeFileHandle: (id: string) => removeFileHandle(id, demo),
+    removeLocal: (key: string) => removeLocal(key, demo),
+    deleteRecord: (record: ContentRecord) => deleteRecord(record, demo),
+  };
 }
 
 export interface MangaOcrPageCache {

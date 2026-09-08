@@ -92,7 +92,7 @@ function parseDay(value: unknown): OtherDeviceStudyTimeDay {
   };
 }
 
-/** Validate and normalize the history edge-function response. */
+/** Validate and normalize the cloud history RPC response. */
 export function parseStudyTimeHistoryResponse(
   value: unknown,
 ): StudyTimeHistoryResponse {

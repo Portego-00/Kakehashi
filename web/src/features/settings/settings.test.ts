@@ -22,7 +22,7 @@ describe("web settings persistence", () => {
   });
 
   it("defines every supported navbar tab and the default selection", () => {
-    expect(NAVBAR_TAB_IDS).toEqual(["home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music"]);
+    expect(NAVBAR_TAB_IDS).toEqual(["home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music", "notebooks"]);
     expect(DEFAULT_WEB_SETTINGS.workspace.navbarTabs).toEqual(["home", "level", "news", "video", "manga", "music"]);
   });
 
@@ -31,11 +31,11 @@ describe("web settings persistence", () => {
       ...DEFAULT_WEB_SETTINGS,
       workspace: {
         ...DEFAULT_WEB_SETTINGS.workspace,
-        navbarTabs: ["music", "video", "unknown", "analytics", "music", "items"],
+        navbarTabs: ["music", "video", "unknown", "notebooks", "analytics", "music", "items"],
       },
     }), "tester");
 
-    expect(loaded.workspace.navbarTabs).toEqual(["home", "level", "items", "analytics", "video", "music"]);
+    expect(loaded.workspace.navbarTabs).toEqual(["home", "level", "items", "analytics", "video", "music", "notebooks"]);
 
     const empty = loadWebSettings(storage({
       ...DEFAULT_WEB_SETTINGS,

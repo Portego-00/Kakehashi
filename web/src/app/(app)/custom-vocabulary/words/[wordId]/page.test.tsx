@@ -6,6 +6,7 @@ import CustomVocabularyWordPage, { metadata } from "./page";
 const notFoundMock = vi.hoisted(() => vi.fn(() => { throw new Error("not found"); }));
 
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
+vi.mock("@/lib/server/custom-srs-access", () => ({ requireCustomSrsPageAccess: vi.fn().mockResolvedValue(undefined) }));
 
 vi.mock("@/features/custom-srs/CustomVocabularyDetail", () => ({
   CustomVocabularyDetail: ({ word, packTitle }: { word: { characters: string; meanings: string[] }; packTitle: string }) => <main><h1>{word.meanings[0]}</h1><p>{word.characters}</p><p>{packTitle}</p></main>,

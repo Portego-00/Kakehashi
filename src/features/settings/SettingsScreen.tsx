@@ -155,6 +155,8 @@ function SettingsScreenContent() {
       <ScrollView
         style={styles.content}
         ref={scrollViewRef}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         onScroll={handleSettingsScroll}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: settingsBottomPadding }}

@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const identity = await analyticsIdentityFromSealedSession(sealed);
-    const recorded = await recordWebAppSession(identity);
-    return NextResponse.json({ recorded });
+    const sessionStartedAt = await recordWebAppSession(identity);
+    return NextResponse.json({ recorded: Boolean(sessionStartedAt), sessionStartedAt, userId: identity.id });
   } catch {
     return NextResponse.json({ error: "The usage session could not be recorded." }, { status: 503 });
   }
