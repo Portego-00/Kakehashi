@@ -15,6 +15,10 @@ vi.mock("@/lib/wanikani/client", () => ({
   wkRequest: vi.fn(),
 }));
 
+vi.mock("@/lib/session", () => ({
+  useSession: () => ({ status: "authenticated", user: { data: { id: "test", username: "test" } }, isDemo: false }),
+}));
+
 vi.mock("@/features/notebooks/use-notebooks", () => ({ useNotebooks: () => ({ state: { version: 1, pages: [], sentences: [] }, available: false, isLoading: false, error: "" }) }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({

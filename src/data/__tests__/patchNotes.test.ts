@@ -1,12 +1,18 @@
 import { PATCH_NOTES, getCurrentPatchNotesVersion } from "../patchNotes";
 
 describe("patch notes", () => {
-  it("keeps the latest release current and preserves the JLPT announcement", () => {
-    expect(getCurrentPatchNotesVersion()).toBe("1.4.11");
-    expect(PATCH_NOTES[0]).toMatchObject({
-      version: "1.4.11",
-      date: "2026-09-07",
-    });
+  it("keeps the newest release first and reports its version", () => {
+    const versions = PATCH_NOTES.map((note) => note.version);
+    const newestFirst = [...versions].sort((a, b) =>
+      b.localeCompare(a, "en", { numeric: true }),
+    );
+
+    expect(versions.length).toBeGreaterThan(0);
+    expect(versions).toEqual(newestFirst);
+    expect(getCurrentPatchNotesVersion()).toBe(newestFirst[0]);
+  });
+
+  it("preserves the JLPT announcement in its original release", () => {
     const jlptRelease = PATCH_NOTES.find((note) => note.version === "1.4.8");
     expect(
       jlptRelease?.changes.find((change) => change.title === "JLPT Quizzes"),
