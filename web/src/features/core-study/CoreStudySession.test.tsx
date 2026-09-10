@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import { playAnswerFeedback } from "@/features/study/feedback-audio";
 import { CoreStudySession, fetchCoreStudyCollectionByIds } from "./CoreStudySession";
+import { PHONE_STUDY_MEDIA_QUERY } from "./use-phone-study-input";
 
 const fixtures = vi.hoisted(() => {
   const user = {
@@ -217,6 +218,7 @@ describe("core study prompt layout", () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     vi.clearAllMocks();
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaQueryList);
     fixtures.studyMaterialsRequest = null;
     fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment];
     fixtures.reviewAssignmentsResponse = [fixtures.reviewAssignment];
@@ -253,6 +255,7 @@ describe("core study prompt layout", () => {
       srsProgressionCardDisplayMode: "normal",
       acceptUserSynonymsAsAnswers: false,
       showAddSynonymButton: true,
+      keyboardShortcuts: true,
       showAnswerStopSubjectDetails: false,
       shuffleSubjects: false,
       vocabularyAudioVoice: "female",
@@ -436,6 +439,113 @@ describe("core study prompt layout", () => {
     expect(container.querySelector("[data-srs-progression-slot]")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");
     expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { answer: "River", result: "Correct", keyboardShortcuts: true },
+    { answer: "mountain", result: "Incorrect", keyboardShortcuts: false },
+  ])("keeps the mobile answer input editable and focused through $result feedback and keyboard advance", async ({ answer, result, keyboardShortcuts }) => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    fixtures.settings.study.pauseOnCorrect = true;
+    fixtures.settings.study.keyboardShortcuts = keyboardShortcuts;
+    renderSession("reviews");
+
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    input.focus();
+    fireEvent.change(input, { target: { value: answer } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(await screen.findByText(result)).toBeInTheDocument();
+    expect(input).toBeEnabled();
+    expect(input).not.toHaveAttribute("readonly");
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: "changed after grading" } });
+    expect(input).toHaveValue(answer);
+
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBe(input);
+    expect(input).toBeEnabled();
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+  });
+
+  it("does not advance a mobile answer when Enter finishes composition or repeats", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    fixtures.settings.study.pauseOnCorrect = true;
+    renderSession("reviews");
+
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(await screen.findByText("Correct")).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Enter", repeat: true });
+    expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
+    expect(input).toHaveFocus();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
+  });
+
+  it("accepts a paused typo with the mobile keyboard while retaining answer focus", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    fixtures.settings.study.pauseOnClose = true;
+    renderSession("reviews");
+
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "rivr" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(await screen.findByRole("button", { name: "Mark Correct" })).toBeInTheDocument();
+    expect(input).toBeEnabled();
+    expect(input).toHaveFocus();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+  });
+
+  it("retains mobile answer focus when correct feedback advances automatically", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    renderSession("reviews");
+
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(await screen.findByText("Correct")).toBeInTheDocument();
+    expect(input).toBeEnabled();
+    expect(input).toHaveFocus();
+
+    expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBe(input);
+    expect(input).toHaveFocus();
+  });
+
+  it("preserves desktop answer sizing, disabled feedback, and keyboard advance", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === "(min-width: 48rem)", addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    fixtures.settings.study.pauseOnCorrect = true;
+    fixtures.settings.study.reviewInputFontScale = 0.8;
+    renderSession("reviews");
+
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(input).toHaveStyle({ fontSize: "0.8rem" });
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(await screen.findByText("Correct")).toBeInTheDocument();
+    expect(input).toBeDisabled();
+
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
+    expect(input).toBeEnabled();
+    await waitFor(() => expect(input).toHaveFocus());
   });
 
   it("keeps answers and item details out of an active review until feedback", async () => {

@@ -729,6 +729,78 @@
   .lessonNav > * { flex: 1; }
 }
 
+/* Compact only the phone workspace above an open software keyboard. */
+@media (max-width: 47.999rem) and (pointer: coarse) {
+  .studyShell[data-mobile-review-keyboard="true"] {
+    position: fixed;
+    z-index: var(--z-sticky-nav);
+    inset-inline: 0;
+    top: var(--review-viewport-top);
+    height: var(--review-viewport-height);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .studyShell[data-mobile-review-keyboard="true"] .question {
+    height: 100%;
+    grid-template-rows: minmax(5.5rem, 1fr) auto auto;
+  }
+
+  .studyShell[data-mobile-review-keyboard="true"] .promptBand { min-height: 0; animation: none; }
+  .studyShell[data-mobile-review-keyboard="true"] .bandHeader { align-items: center; gap: var(--space-xs); padding: var(--space-2xs) var(--space-sm); }
+  .studyShell[data-mobile-review-keyboard="true"] .sessionProgress { gap: var(--space-xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .bandActions { flex-direction: row; align-items: center; }
+  .studyShell[data-mobile-review-keyboard="true"] .bandAction { min-height: 2.5rem; padding: var(--space-2xs) var(--space-xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .subjectGlyph { gap: var(--space-2xs); padding: var(--space-3xs) 4rem; overflow-y: auto; }
+  /* Override the learner's large prompt size only while space is keyboard-constrained. */
+  .studyShell[data-mobile-review-keyboard="true"] .characters,
+  .studyShell[data-mobile-review-keyboard="true"] .subjectText { font-size: clamp(1.75rem, calc(var(--review-viewport-height) * .09), 3rem) !important; }
+  .studyShell[data-mobile-review-keyboard="true"] .previousAnswerCard { width: 2.5rem; height: 2.5rem; inset-block-start: var(--space-2xs); inset-inline-start: var(--space-sm); }
+  .studyShell[data-mobile-review-keyboard="true"] .promptTypeStrip { min-height: 2rem; padding-block: var(--space-2xs); animation: none; }
+
+  .studyShell[data-mobile-review-keyboard="true"] .answerRegion {
+    min-height: 0;
+    max-height: calc(var(--review-viewport-height) - 7.5rem);
+    gap: var(--space-2xs);
+    padding: var(--space-2xs) var(--space-sm) var(--space-xs);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: none;
+  }
+
+  .studyShell[data-mobile-review-keyboard="true"] .srsProgressionSlot { min-height: 1.25rem; }
+  .studyShell[data-mobile-review-keyboard="true"] .srsProgression { gap: var(--space-2xs); padding: 0 var(--space-xs); grid-template-columns: auto auto auto; }
+  .studyShell[data-mobile-review-keyboard="true"] .srsProgression > small { grid-column: auto; }
+  .studyShell[data-mobile-review-keyboard="true"] .srsProgression > strong { font-size: var(--text-sm); }
+  .studyShell[data-mobile-review-keyboard="true"] .answerForm { gap: var(--space-3xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .answerLabel,
+  .studyShell[data-mobile-review-keyboard="true"] .answerHelper {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .studyShell[data-mobile-review-keyboard="true"] .answerRow { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .answerInput { min-height: 2.75rem; padding: var(--space-2xs) var(--space-xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .checkButton { width: auto; min-width: 0; min-height: 2.75rem; padding: var(--space-2xs) var(--space-xs); font-size: var(--text-sm); }
+  .studyShell[data-mobile-review-keyboard="true"] .answerHelper { font-size: var(--text-xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .studyTools { display: flex; padding-block: 0; }
+  .studyShell[data-mobile-review-keyboard="true"] .toolButton,
+  .studyShell[data-mobile-review-keyboard="true"] .inputMode { width: auto; flex: 1; min-height: 2.5rem; padding: var(--space-2xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .inputMode { flex: 0; }
+  .studyShell[data-mobile-review-keyboard="true"] .shortcut { display: none; }
+  .studyShell[data-mobile-review-keyboard="true"] .feedback { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--space-xs); padding: 0 var(--space-xs); animation: none; font-size: var(--text-xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .feedback > strong { font-size: var(--text-sm); }
+  .studyShell[data-mobile-review-keyboard="true"] .feedbackActions,
+  .studyShell[data-mobile-review-keyboard="true"] .answerStopDetails,
+  .studyShell[data-mobile-review-keyboard="true"] .feedback > .error { grid-column: 1 / -1; }
+  .studyShell[data-mobile-review-keyboard="true"] .feedbackActions { gap: var(--space-2xs); }
+  .studyShell[data-mobile-review-keyboard="true"] .feedbackActions > button { min-height: 2.5rem; padding: var(--space-2xs) var(--space-xs); font-size: var(--text-sm); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .promptBand,
   .promptTypeStrip,

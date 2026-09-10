@@ -13,6 +13,7 @@ const mockPeekNoteSubjectType = jest.fn();
 const mockRememberNoteSubjectType = jest.fn();
 const mockResolveNoteSubjectType = jest.fn();
 let mockAdvancedNoteEditorEnabled = true;
+let mockIncludeCharacters = false;
 
 let mockLinkPickerProps: {
   initialQuery: string;
@@ -26,8 +27,8 @@ jest.mock("@expo/vector-icons", () => ({
 
 jest.mock("../../utils/store", () => ({
   useSettingsStore: (
-    selector: (state: { advancedNoteEditorEnabled: boolean }) => unknown,
-  ) => selector({ advancedNoteEditorEnabled: mockAdvancedNoteEditorEnabled }),
+    selector: (state: { advancedNoteEditorEnabled: boolean; noteLinkIncludeCharacters: boolean; setNoteLinkIncludeCharacters: (enabled: boolean) => void }) => unknown,
+  ) => selector({ advancedNoteEditorEnabled: mockAdvancedNoteEditorEnabled, noteLinkIncludeCharacters: mockIncludeCharacters, setNoteLinkIncludeCharacters: (enabled) => { mockIncludeCharacters = enabled; } }),
 }));
 
 jest.mock("../note-subject-link-picker", () => {
@@ -128,6 +129,7 @@ jest.mock("../../utils/theme", () => ({
 describe("FormattedNote", () => {
   beforeEach(() => {
     mockAdvancedNoteEditorEnabled = true;
+    mockIncludeCharacters = false;
     mockLinkPickerProps = null;
     mockVisualEditorProps = null;
     mockPeekNoteSubjectType.mockReset();
@@ -238,6 +240,7 @@ describe("FormattedNote", () => {
 
   it("enables the advanced editor for plain notes when the setting is on", () => {
     mockAdvancedNoteEditorEnabled = true;
+    mockIncludeCharacters = false;
     const screen = render(
       <FormattedNoteEditor value="A simple note" onChangeText={jest.fn()} />,
     );
@@ -399,7 +402,7 @@ describe("FormattedNote", () => {
       });
     });
 
-    fireEvent.press(screen.getByLabelText("Unlink selected text"));
+    fireEvent.press(screen.getByLabelText("Toggle subject link"));
     const request = mockVisualEditorProps!.command!;
     expect(request.type).toBe("capture-selection");
     await act(async () => {
@@ -411,8 +414,7 @@ describe("FormattedNote", () => {
       });
     });
     expect(mockVisualEditorProps!.command).toMatchObject({
-      type: "remove-link",
-      scope: "selection",
+      type: "toggle-link",
     });
     expect(mockLinkPickerProps).toBeNull();
 
@@ -439,13 +441,12 @@ describe("FormattedNote", () => {
       });
     });
     expect(mockVisualEditorProps!.command).toMatchObject({
-      type: "remove-link",
-      scope: "selection",
+      type: "toggle-link",
     });
     expect(mockLinkPickerProps).toBeNull();
 
     // The opposite transition must open the picker for the newly selected plain text.
-    fireEvent.press(screen.getByLabelText("Unlink selected text"));
+    fireEvent.press(screen.getByLabelText("Toggle subject link"));
     request = mockVisualEditorProps!.command!;
     await act(async () => {
       await mockVisualEditorProps!.onSelectionChange({
@@ -548,6 +549,107 @@ describe("FormattedNote", () => {
     expect(onChangeText).toHaveBeenCalledWith(
       'Compare <a href="wk://subject/440">bridge</a> closely',
     );
+  });
+
+  it("resumes linked typing at an inactive caret without opening the picker", async () => {
+    const screen = render(<FormattedNoteEditor value='<a href="wk://subject/440">bridge</a>' onChangeText={jest.fn()} />);
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({ text: "", formats: [], inactiveSubjectId: 440 });
+    });
+    fireEvent.press(screen.getByLabelText("Resume subject link"));
+    const request = mockVisualEditorProps!.command!;
+    const selection = { start: 3, end: 3 };
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({ text: "", formats: [], inactiveSubjectId: 440, selection, requestNonce: request.nonce });
+    });
+    expect(mockLinkPickerProps).toBeNull();
+    expect(mockVisualEditorProps!.command).toMatchObject({ type: "toggle-link", selection });
+  });
+
+  it("stops linked typing from a source caret while preserving both existing link halves", async () => {
+    const editorRef = React.createRef<FormattedNoteEditorHandle>();
+    function ControlledEditor() {
+      const [value, setValue] = React.useState(
+        'Compare <a href="wk://subject/440">bridge</a> closely',
+      );
+      return <FormattedNoteEditor ref={editorRef} value={value} onChangeText={setValue} accessibilityLabel="Meaning note text" />;
+    }
+    const screen = render(<ControlledEditor />);
+    fireEvent.press(screen.getByLabelText("Use source editor"));
+    const request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSourceReady({
+        requestNonce: request.nonce,
+        runs: mockVisualEditorProps!.runs,
+        selection: { start: 11, end: 11 },
+      });
+    });
+
+    fireEvent.press(screen.getByLabelText("Toggle subject link"));
+    expect(mockLinkPickerProps).toBeNull();
+    expect(screen.getByLabelText("Link to subject").props.accessibilityState.selected).toBe(false);
+    const sourceInput = screen.UNSAFE_getByType(TextInput);
+    const splitSource = 'Compare <a href="wk://subject/440">bri</a><a href="wk://subject/440">dge</a> closely';
+    const caret = splitSource.indexOf("</a>") + "</a>".length;
+    expect(sourceInput.props.value).toBe(splitSource);
+    expect(sourceInput.props.selection).toEqual({ start: caret, end: caret });
+
+    const typedSource = splitSource.slice(0, caret) + "new" + splitSource.slice(caret);
+    fireEvent.changeText(sourceInput, typedSource);
+    expect(mockVisualEditorProps!.runs).toEqual([
+      { text: "Compare ", formats: [] },
+      { text: "bri", formats: [], subjectId: 440 },
+      { text: "new", formats: [] },
+      { text: "dge", formats: [], subjectId: 440 },
+      { text: " closely", formats: [] },
+    ]);
+    await expect(editorRef.current!.flush()).resolves.toBe(typedSource);
+  });
+
+  it.each([false, true])("applies the remembered Japanese-text choice (%s) in Source and preserves linked typing", async (include) => {
+    mockIncludeCharacters = include;
+    function ControlledEditor() {
+      const [value, setValue] = React.useState("Compare bridge closely");
+      return <FormattedNoteEditor value={value} onChangeText={setValue} accessibilityLabel="Meaning note text" />;
+    }
+    const screen = render(<ControlledEditor />);
+    fireEvent.press(screen.getByLabelText("Use source editor"));
+    const request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSourceReady({
+        requestNonce: request.nonce,
+        runs: mockVisualEditorProps!.runs,
+        selection: { start: 8, end: 14 },
+      });
+    });
+    fireEvent.press(screen.getByLabelText("Link to subject"));
+    expect(mockLinkPickerProps?.initialQuery).toBe("bridge");
+    fireEvent.press(screen.getByLabelText("Choose bridge subject"));
+
+    const label = include ? "bridge 橋" : "bridge";
+    const linkedSource = `Compare <a href="wk://subject/440">${label}</a> closely`;
+    const caret = linkedSource.indexOf("</a>");
+    const sourceInput = screen.UNSAFE_getByType(TextInput);
+    expect(sourceInput.props.value).toBe(linkedSource);
+    expect(sourceInput.props.selection).toEqual({ start: caret, end: caret });
+    fireEvent.changeText(sourceInput, linkedSource.slice(0, caret) + "!" + linkedSource.slice(caret));
+    expect(mockVisualEditorProps!.runs).toEqual([
+      { text: "Compare ", formats: [] },
+      { text: `${label}!`, formats: [], subjectId: 440 },
+      { text: " closely", formats: [] },
+    ]);
+  });
+
+  it.each([false, true])("applies the remembered Japanese-text choice (%s) when linking", async (include) => {
+    mockIncludeCharacters = include;
+    const screen = render(<FormattedNoteEditor value="bridge" onChangeText={jest.fn()} />);
+    fireEvent.press(screen.getByLabelText("Link to subject"));
+    const request = mockVisualEditorProps!.command!;
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({ text: "bridge", formats: [], selection: { start: 0, end: 6 }, requestNonce: request.nonce });
+    });
+    fireEvent.press(screen.getByLabelText("Choose bridge subject"));
+    expect(mockVisualEditorProps!.command).toMatchObject({ type: "set-link", appendCharacters: include ? "橋" : undefined });
   });
 
   it("creates a subject link from visual text without exposing markup", async () => {

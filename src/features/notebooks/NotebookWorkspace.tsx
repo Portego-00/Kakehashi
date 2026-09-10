@@ -37,6 +37,8 @@ import {
   NOTEBOOK_TEMPLATES,
 } from "./native-page-helpers";
 import { useNotebooks } from "./use-notebooks";
+import { useHandwriting } from "./use-handwriting";
+import { useNativeInlineHandwriting } from "./use-native-inline-handwriting";
 
 type Sheet = { type: "create"; parentId: string | null } | { type: "actions" | "move" | "icon"; pageId: string } | { type: "trash" } | null;
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -82,6 +84,8 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
   const page = pages.find((item) => item.id === selectedId && !item.trashedAt);
   useHideTabBar(!!page);
   const currentPageId = page?.id;
+  const handwriting = useHandwriting(store.accountId, currentPageId, isDark ? "dark" : "light", persistDrafts);
+  const nativeHandwriting = useNativeInlineHandwriting(store.accountId, currentPageId, persistDrafts, editorKey, theme.cardBackground);
   useEffect(() => {
     if (!currentPageId || editorReady || editorError) return;
     const timeout = setTimeout(() => setEditorError("This page is taking too long to open. Tap Retry to reopen it."), 45000);
@@ -262,6 +266,9 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
       </View> : null}
       <View style={{ flex: 1, backgroundColor: theme.cardBackground }}>
         <NotebookEditorSession
+          {...handwriting}
+          {...nativeHandwriting.editorProps}
+          inlineHandwritingAvailable={false}
           key={editorKey}
           page={page}
           hasDraft={!!activeDraft}
@@ -270,6 +277,7 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
           pages={activePages.filter((item) => item.id !== page.id).map(({ id, title, icon }) => ({ id, title, icon }))}
           subjects={subjects}
           theme={isDark ? "dark" : "light"}
+          themeBackground={theme.cardBackground}
           onOpenPage={openPage}
           onOpenSubject={openSubject}
           onSaveSentence={saveSentence}
@@ -277,6 +285,7 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
           onReady={reportEditorReady}
           dom={domOptions}
         />
+        {nativeHandwriting.overlay}
         {!editorReady ? <View testID="notebook-editor-loading" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.cardBackground, alignItems: "center", justifyContent: "center" }]}>
           {!editorError ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color={theme.textSecondary} /><Text style={{ color: theme.textSecondary }}>Opening page…</Text></View> : null}
         </View> : null}

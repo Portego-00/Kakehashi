@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readBoundedRequestJson } from "@/features/content/server-security";
 import { DEMO_SESSION_COOKIE } from "@/features/demo/constants";
 import { canAccessNotebooks } from "@/features/notebooks/access";
-import { NotebookError, parseNotebookMutation, NOTEBOOK_HARD_MAX_BYTES } from "@/features/notebooks/model";
+import { NotebookError, assertNotebookFeatures, parseNotebookMutation, NOTEBOOK_HARD_MAX_BYTES } from "@/features/notebooks/model";
 import { analyticsIdentityFromSealedSession } from "@/lib/server/analytics-server";
 import { mutateRemoteNotebookState, notebookServerLimits, notebooksBackendConfigured, readRemoteNotebookState } from "@/lib/server/notebooks-server";
 import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
   try {
     const user = await identity(sealed);
     if (!notebooksBackendConfigured()) return privateResponse({ available: false, state: null, revision: -1, limits: notebookServerLimits() });
-    return privateResponse({ available: true, ...await readRemoteNotebookState(user.id), limits: notebookServerLimits() });
+    const stored = await readRemoteNotebookState(user.id);
+    assertNotebookFeatures(stored.state, request.headers.get("X-Notebook-Features"));
+    return privateResponse({ available: true, ...stored, limits: notebookServerLimits() });
   } catch (cause) { return failure(cause, "loaded"); }
 }
 export async function POST(request: NextRequest) {
@@ -54,6 +56,6 @@ export async function POST(request: NextRequest) {
     catch { return privateResponse({ error: "The notebook update is invalid or too large.", code: "invalid" }, 400); }
     const mutation = parseNotebookMutation(payload);
     if (!notebooksBackendConfigured()) return privateResponse({ available: false, state: null, revision: -1, limits: notebookServerLimits() }, 503);
-    return privateResponse({ available: true, ...await mutateRemoteNotebookState(user.id, mutation), limits: notebookServerLimits() });
+    return privateResponse({ available: true, ...await mutateRemoteNotebookState(user.id, mutation, undefined, request.headers.get("X-Notebook-Features")), limits: notebookServerLimits() });
   } catch (cause) { return failure(cause, "saved"); }
 }

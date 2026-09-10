@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.13",
+    date: "2026-09-10",
+    changes: [
+      {
+        type: "fix",
+        title: "Multiple Choice Answers",
+        description:
+          "Multiple choice reviews now fill missing options with answers from learned items, while keeping similar choices first.",
+      },
+    ],
+  },
+  {
     version: "1.4.12",
     date: "2026-09-08",
     changes: [
@@ -70,6 +82,12 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Smoother Note Editing",
         description:
           "More writing space, controls closer to the keyboard, and cleaner scrolling. Cursor position is preserved when switching modes or editing links.",
+      },
+      {
+        type: "improvement",
+        title: "More Flexible Note Links",
+        description:
+          "Optionally add Japanese text when linking a selection, with your choice remembered. Toggle linked typing without removing the existing link.",
       },
     ],
   },

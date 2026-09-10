@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readBoundedJson } from "@/features/content/server-security";
-import { NotebookError, parseNotebookMutation, NOTEBOOK_HARD_MAX_BYTES } from "@/features/notebooks/model";
+import { NotebookError, assertNotebookFeatures, parseNotebookMutation, NOTEBOOK_HARD_MAX_BYTES } from "@/features/notebooks/model";
 import { NativeNotebookAccessError, nativeNotebookIdentity, nativeNotebookToken } from "@/lib/server/native-notebook-access";
 import { mutateRemoteNotebookState, notebookServerLimits, notebooksBackendConfigured, readRemoteNotebookState } from "@/lib/server/notebooks-server";
 import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     const user = await nativeNotebookIdentity(limitedToken(request, "read"), request.signal);
     if (!notebooksBackendConfigured()) return privateResponse({ available: false, accountId: user.id, state: null, revision: -1, limits: notebookServerLimits() });
     const stored = await readRemoteNotebookState(user.id);
+    assertNotebookFeatures(stored.state, request.headers.get("X-Notebook-Features"));
     return privateResponse({ available: true, accountId: user.id, ...stored, limits: notebookServerLimits() });
   } catch (cause) { return failure(cause, "loaded"); }
 }
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
     const mutation = parseNotebookMutation(payload);
     request.signal.throwIfAborted();
     if (!notebooksBackendConfigured()) return privateResponse({ available: false, accountId: user.id, state: null, revision: -1, limits: notebookServerLimits() }, 503);
-    const stored = await mutateRemoteNotebookState(user.id, mutation);
+    const stored = await mutateRemoteNotebookState(user.id, mutation, undefined, request.headers.get("X-Notebook-Features"));
     return privateResponse({ available: true, accountId: user.id, ...stored, limits: notebookServerLimits() });
   } catch (cause) { return failure(cause, "saved"); }
 }

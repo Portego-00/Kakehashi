@@ -65,6 +65,7 @@ import {
   getAllSubjects,
   getSubjectById,
 } from "../utils/cache";
+import { getAssignmentsFromPermanentStorage } from "../utils/permanentStorage";
 import { fontStyles } from "../utils/fonts";
 import {
   DEFAULT_JITAI_FONT_FAMILY,
@@ -1218,7 +1219,10 @@ export default function ReviewQuestionScreen({
       !effectiveAnkiCardMode &&
       supportsMultipleChoice,
   );
-  const [choiceSubjects, setChoiceSubjects] = useState<WKSubject[] | null>(null);
+  const [choiceCatalog, setChoiceCatalog] = useState<{
+    subjects: WKSubject[];
+    learnedSubjectIds: ReadonlySet<number>;
+  } | null>(null);
   const [choiceSeed] = useState(() => String(Math.random()));
   const [selectedChoice, setSelectedChoice] = useState<{
     questionKey: string;
@@ -1226,19 +1230,33 @@ export default function ReviewQuestionScreen({
   } | null>(null);
 
   useEffect(() => {
-    if (!usesMultipleChoice || choiceSubjects !== null) return;
+    if (!usesMultipleChoice || choiceCatalog !== null) return;
     let cancelled = false;
-    void getAllSubjects()
-      .then((subjects) => {
-        if (!cancelled) setChoiceSubjects(subjects);
+    void Promise.all([
+      getAllSubjects(),
+      getAssignmentsFromPermanentStorage({ ignoreTTL: true }),
+    ])
+      .then(([subjects, assignments]) => {
+        if (!cancelled) {
+          setChoiceCatalog({
+            subjects,
+            learnedSubjectIds: new Set<number>(
+              (assignments ?? [])
+                .filter((assignment) => assignment.data?.srs_stage > 0)
+                .map((assignment) => assignment.data.subject_id),
+            ),
+          });
+        }
       })
       .catch(() => {
-        if (!cancelled) setChoiceSubjects([]);
+        if (!cancelled) {
+          setChoiceCatalog({ subjects: [], learnedSubjectIds: new Set() });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [usesMultipleChoice, choiceSubjects]);
+  }, [usesMultipleChoice, choiceCatalog]);
 
   // The input owns its text; keep only a synchronous fallback for submissions.
   const userAnswerRef = useRef("");
@@ -1651,20 +1669,21 @@ export default function ReviewQuestionScreen({
       : questionTypeDisplayLabel;
   const currentQuestionKey = `${item.id}:${questionType}:${currentItem}:${questionOccurrenceId}`;
   const answerChoices = useMemo(
-    () => usesMultipleChoice && choiceSubjects !== null
+    () => usesMultipleChoice && choiceCatalog !== null
       ? createReviewAnswerChoices({
           subject,
           questionType,
-          subjects: choiceSubjects,
+          subjects: choiceCatalog.subjects,
+          learnedSubjectIds: choiceCatalog.learnedSubjectIds,
           meaningSynonyms: localStudyMaterials?.meaning_synonyms,
           seed: `${choiceSeed}:${currentQuestionKey}`,
         })
       : [],
-    [usesMultipleChoice, choiceSubjects, subject, questionType,
+    [usesMultipleChoice, choiceCatalog, subject, questionType,
       localStudyMaterials?.meaning_synonyms, choiceSeed, currentQuestionKey],
   );
   const showMultipleChoiceAnswers = usesMultipleChoice && answerChoices.length === 4;
-  const isLoadingChoices = usesMultipleChoice && choiceSubjects === null;
+  const isLoadingChoices = usesMultipleChoice && choiceCatalog === null;
   const hideTypedAnswerInput = showMultipleChoiceAnswers || isLoadingChoices;
   const currentSelectedChoice = selectedChoice?.questionKey === currentQuestionKey
     ? selectedChoice.text

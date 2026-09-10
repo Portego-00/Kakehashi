@@ -14,7 +14,7 @@ For Portego:
 - Use **Settings → Appearance → Customize Tabs → Notebooks** to add the tab, subject to the device's existing tab limit. Existing tab choices are preserved.
 - The standalone route is `/notebook-workspace`; the tab route is `/(app)/(tabs)/notebooks`. Both reject other accounts before mounting the workspace.
 
-The page browser needs a configured endpoint for its first cloud load. There is no unauthenticated sample account or local-only fallback when the endpoint is missing. After a successful load, the account's cached pages remain available during connection failures.
+The page browser connects to the deployed notebook endpoint by default. There is no unauthenticated sample account. After a successful load, the account's cached pages remain available during connection failures.
 
 Opening a page hides the bottom tab bar so it cannot cover the editor tools. Returning to the page list restores the tabs and preserves the list's search and expansion state. Visibility belongs to the current tab navigator and is released on blur or unmount; the standalone Settings route is unaffected. Both native tabs and the fallback tab bar follow this behavior.
 
@@ -22,15 +22,15 @@ The editor loading surface follows the selected app theme. A document-start scri
 
 ## Configure the connection
 
-The native endpoint is deployed at `https://kakehashiapp.com/api/notebooks/native`. EAS project `@portego00/kakehashi` has this URL configured as `EXPO_PUBLIC_NOTEBOOKS_API_URL` in **production**. Use `--environment production` when publishing an EAS Update so it receives this value. This backend deployment did not publish a mobile update.
+The native endpoint is deployed at `https://kakehashiapp.com/api/notebooks/native`. The mobile client uses this app-owned public URL whenever `EXPO_PUBLIC_NOTEBOOKS_API_URL` is unset or blank, including local device builds. EAS project `@portego00/kakehashi` also has this URL configured in **production**. Use the intended EAS environment when publishing an update so other environment-specific values are included.
 
-Set `EXPO_PUBLIC_NOTEBOOKS_API_URL` in the mobile app's build/update environment to the **complete** endpoint URL:
+To use a different trusted deployment, override `EXPO_PUBLIC_NOTEBOOKS_API_URL` in the mobile app's build/update environment with the **complete** endpoint URL:
 
 ```dotenv
 EXPO_PUBLIC_NOTEBOOKS_API_URL=https://your-web-origin.example/api/notebooks/native
 ```
 
-The value belongs in the Expo environment, not just the Next.js server's environment. It is a public URL embedded in the mobile bundle. Use the trusted Kakehashi web deployment: the native client sends the signed-in user's WaniKani bearer token to this endpoint. The DOM editor receives page data and callbacks, never authentication tokens or Supabase credentials.
+The override belongs in the Expo environment, not just the Next.js server's environment. It is a public URL embedded in the mobile bundle. Use a trusted Kakehashi deployment: the native client sends the signed-in user's WaniKani bearer token to this endpoint. Malformed or unsafe nonempty overrides still fail rather than silently using a different server. The DOM editor receives page data and callbacks, never authentication tokens or Supabase credentials.
 
 Production connections require HTTPS. URLs containing embedded credentials are rejected. HTTP is allowed only in a development bundle for `localhost`, `127.0.0.1`, or Android Emulator's `10.0.2.2`; arbitrary LAN HTTP URLs are rejected.
 

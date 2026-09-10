@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
+import { PHONE_STUDY_MEDIA_QUERY } from "@/features/core-study/use-phone-study-input";
 import type { Assignment, StudyMaterial, Subject } from "@/types/wanikani";
 import type { StudyQuestion, StudySession } from "../types";
 import { loadStudySession, sessionKey } from "../storage";
@@ -164,6 +165,31 @@ describe("extra-study quiz interaction", () => {
     wkRequestMock.mockReset();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("keeps the phone keyboard input editable and focused through answer stops and Enter", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const first = makeQuestion();
+    const second = makeQuestion({ id: "question-2", prompt: "猫", acceptedAnswers: ["ねこ"], displayAnswer: "ねこ" });
+    renderQuiz({ scope: "test", initialSession: { ...makeSession(first), mode: "custom-review", questions: [first, second] }, reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewInputFontScale: 0.8 }, pauseOnCorrect: true, answerFeedbackSoundEnabled: false, keyboardShortcuts: false, onExit: vi.fn() });
+    const input = await screen.findByRole("textbox");
+    expect(input).toHaveStyle({ fontSize: "max(16px, 0.8rem)" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "fusegu" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(input).not.toHaveAttribute("readonly");
+    expect(input).toBeEnabled();
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: "unwanted edit" } });
+    expect(input).toHaveValue("ふせぐ");
+    expect(fireEvent.mouseDown(screen.getByRole("button", { name: "Next" }))).toBe(false);
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(screen.getByRole("heading", { name: "防ぐ" })).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByRole("heading", { name: "猫" });
+    expect(screen.getByRole("textbox")).toBe(input);
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
   });
 
   function renderAudioQuiz(ankiMode: "off" | "both" | "reading" | "meaning" = "off") {

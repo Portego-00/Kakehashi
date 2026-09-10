@@ -154,7 +154,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 20;
+const SETTINGS_STORE_SCHEMA_VERSION = 21;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -559,6 +559,7 @@ type SettingsState = {
   reviewAnimatePreviousQuestion: boolean; // Animate the previous answered card from center to top-left during reviews
   hapticFeedbackEnabled: boolean; // Enable haptic feedback throughout the app
   advancedNoteEditorEnabled: boolean; // Enable formatting and subject links for plain study notes
+  noteLinkIncludeCharacters: boolean; // Append subject characters when linking selected note text
 
   // UI settings
   appTextSizeScale: number;
@@ -740,6 +741,7 @@ type SettingsState = {
   setVoiceReviewAnswersEnabled: (enabled: boolean) => void;
   setHapticFeedbackEnabled: (enabled: boolean) => void;
   setAdvancedNoteEditorEnabled: (enabled: boolean) => void;
+  setNoteLinkIncludeCharacters: (enabled: boolean) => void;
   setReviewIncorrectKeyboardShortcuts: (
     shortcuts: Partial<ReviewIncorrectKeyboardShortcutSettings>,
   ) => void;
@@ -907,6 +909,7 @@ export const useSettingsStore = create<SettingsState>()(
       voiceReviewAnswersEnabled: false, // Default to disabled (manual typing)
       hapticFeedbackEnabled: true, // Default to enabled for tactile feedback
       advancedNoteEditorEnabled: false,
+      noteLinkIncludeCharacters: false,
       reviewIncorrectKeyboardShortcuts: {
         ...DEFAULT_REVIEW_INCORRECT_KEYBOARD_SHORTCUTS,
       },
@@ -1143,6 +1146,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ hapticFeedbackEnabled: enabled }),
       setAdvancedNoteEditorEnabled: (enabled) =>
         set({ advancedNoteEditorEnabled: enabled }),
+      setNoteLinkIncludeCharacters: (enabled) =>
+        set({ noteLinkIncludeCharacters: enabled }),
       setReviewIncorrectKeyboardShortcuts: (shortcuts) =>
         set((state) => ({
           reviewIncorrectKeyboardShortcuts: {
@@ -1409,6 +1414,7 @@ export const useSettingsStore = create<SettingsState>()(
           kanjiReadingTextToSpeechEnabled?: unknown;
           newsSourcePreference?: unknown;
           advancedNoteEditorEnabled?: unknown;
+          noteLinkIncludeCharacters?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1574,6 +1580,9 @@ export const useSettingsStore = create<SettingsState>()(
         );
         if (typeof migratedRecord.advancedNoteEditorEnabled !== "boolean") {
           migratedRecord.advancedNoteEditorEnabled = false;
+        }
+        if (typeof migratedRecord.noteLinkIncludeCharacters !== "boolean") {
+          migratedRecord.noteLinkIncludeCharacters = false;
         }
 
         return migrated;

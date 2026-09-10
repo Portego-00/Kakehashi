@@ -48,6 +48,18 @@ describe("custom SRS server store", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("returns the authoritative revision without writing for an already-applied or stale occurrence", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { mutateRemoteCustomSrsState } = await import("./custom-srs-server");
+
+    const result = await mutateRemoteCustomSrsState("123", [pack], (state) => state, () => new Date("2026-08-31T10:00:00Z"));
+
+    expect(result).toMatchObject({ revision: -1, state: { enrolledPackIds: [] } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBeInstanceOf(URL);
+  });
+
   it("does not expose or attempt remote storage without a service credential", async () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
     vi.stubEnv("SUPABASE_SECRET_KEY", "");

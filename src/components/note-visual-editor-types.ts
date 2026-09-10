@@ -60,10 +60,15 @@ export type NoteVisualEditorCommand =
       type: "set-link";
       subjectId: number;
       fallbackLabel: string;
+      /** Optional subject characters appended to the label, without duplication. */
+      appendCharacters?: string;
+    })
+  | (NoteVisualEditorCommandBase & {
+      type: "toggle-link";
     })
   | (NoteVisualEditorCommandBase & {
       type: "remove-link";
-      /** Selected text by default; a caret always removes its containing link. */
+      /** A caret changes future typing; only explicit link scope removes its label link. */
       scope?: "selection" | "link";
     })
   | (NoteVisualEditorCommandBase & {
@@ -83,6 +88,8 @@ export type NoteVisualEditorSelection = {
   text: string;
   formats: NoteFormat[];
   subjectId?: number;
+  /** The link available to resume at a caret whose linked typing is switched off. */
+  inactiveSubjectId?: number;
   requestNonce?: number;
   /** Returned for explicit selection captures so native commands can restore it. */
   selection?: NoteVisualEditorSelectionRange;

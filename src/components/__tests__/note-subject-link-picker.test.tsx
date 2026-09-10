@@ -137,6 +137,25 @@ describe("NoteSubjectLinkPicker", () => {
     ]);
   });
 
+  it("offers a controlled Japanese-text choice when linking selected text", async () => {
+    const onIncludeCharactersChange = jest.fn();
+    const props = { initialQuery: "bridge", selectedText: "bridge", onCancel: jest.fn(), onSelect: jest.fn(), onIncludeCharactersChange };
+    const screen = render(<NoteSubjectLinkPicker {...props} includeCharacters={false} />);
+    const checkbox = screen.getByRole("checkbox", { name: "Include Japanese text" });
+    expect(checkbox.props.accessibilityState.checked).toBe(false);
+    fireEvent.press(checkbox);
+    expect(onIncludeCharactersChange).toHaveBeenCalledWith(true);
+    screen.rerender(<NoteSubjectLinkPicker {...props} includeCharacters />);
+    expect(screen.getByRole("checkbox", { name: "Include Japanese text" }).props.accessibilityState.checked).toBe(true);
+    await waitFor(() => expect(screen.getByLabelText("Link to 橋, Bridge")).toBeTruthy());
+  });
+
+  it("does not offer an append choice without selected text", async () => {
+    const screen = render(<NoteSubjectLinkPicker initialQuery="bridge" onCancel={jest.fn()} onSelect={jest.fn()} />);
+    expect(screen.queryByRole("checkbox", { name: "Include Japanese text" })).toBeNull();
+    await waitFor(() => expect(screen.getByLabelText("Link to 橋, Bridge")).toBeTruthy());
+  });
+
   it("searches the cached catalog from its prefilled query and selects the ranked result", async () => {
     const onSelect = jest.fn();
     const screen = render(

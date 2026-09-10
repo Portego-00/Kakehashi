@@ -699,6 +699,7 @@ export function setNoteSubjectLink(
   selection: NoteSelection,
   subjectId: number,
   fallbackLabel: string,
+  appendCharacters?: string,
 ): { text: string; selection: NoteSelection } {
   if (!Number.isInteger(subjectId) || subjectId <= 0) {
     return { text: note, selection: clampSelection(note, selection) };
@@ -715,21 +716,133 @@ export function setNoteSubjectLink(
   const currentLabel = existingLink
     ? note.slice(existingLink.contentStart, existingLink.contentEnd)
     : note.slice(expandedSelection.start, expandedSelection.end);
-  const label =
+  let label =
     stripSubjectLinkTags(currentLabel) || stripSubjectLinkTags(fallbackLabel);
 
   if (!label) {
     return { text: note, selection: clampedSelection };
   }
 
+  const characters = appendCharacters?.trim();
+  const visibleLabel = parseFormattedNote(label)
+    .map((segment) => segment.text)
+    .join("");
+  const shouldAppendCharacters = Boolean(
+    characters &&
+    (existingLink || clampedSelection.start !== clampedSelection.end) &&
+    !visibleLabel.trimEnd().endsWith(characters),
+  );
+  if (shouldAppendCharacters && characters) {
+    const characterRanges = getVisibleNoteCharacterRanges(label);
+    const suffixOffset = characterRanges[characterRanges.length - 1]?.end ?? label.length;
+    const suffix = `${/\s$/.test(visibleLabel) ? "" : " "}${encodeStoredNoteText(characters)}`;
+    label = label.slice(0, suffixOffset) + suffix + label.slice(suffixOffset);
+  }
+
   const openTag = createSubjectLinkOpenTag(subjectId);
   const linkedText = `${openTag}${label}</a>`;
+  const labelEnd = replaceStart + openTag.length + label.length;
+  const openTagLengthChange = existingLink
+    ? openTag.length - (existingLink.contentStart - existingLink.openStart)
+    : 0;
+  const nextSelection = existingLink && !shouldAppendCharacters
+    ? {
+        start: clampedSelection.start === existingLink.openStart
+          ? existingLink.openStart
+          : clampedSelection.start + openTagLengthChange,
+        end: clampedSelection.end + openTagLengthChange,
+      }
+    : { start: labelEnd, end: labelEnd };
 
   return {
     text: note.slice(0, replaceStart) + linkedText + note.slice(replaceEnd),
+    selection: nextSelection,
+  };
+}
+
+function sliceNoteSegments(
+  segments: FormattedNoteSegment[],
+  start: number,
+  end: number,
+): FormattedNoteSegment[] {
+  const sliced: FormattedNoteSegment[] = [];
+  let offset = 0;
+  for (const segment of segments) {
+    const text = segment.text.slice(
+      Math.max(0, start - offset),
+      Math.max(0, end - offset),
+    );
+    if (text) sliced.push({ text, formats: [...segment.formats] });
+    offset += segment.text.length;
+    if (offset >= end) break;
+  }
+  return sliced;
+}
+
+/** Stops linking at the caret, or unlinks only the selected part of a label. */
+export function toggleNoteSubjectLink(
+  note: string,
+  selection: NoteSelection,
+): { text: string; selection: NoteSelection } {
+  const clampedSelection = clampSelection(note, selection);
+  const existingLink = findSubjectLinkRange(note, clampedSelection);
+  if (!existingLink) return { text: note, selection: clampedSelection };
+
+  const label = note.slice(existingLink.contentStart, existingLink.contentEnd);
+  const labelSelection = clampSelection(label, {
+    start: clampedSelection.start - existingLink.contentStart,
+    end: clampedSelection.end - existingLink.contentStart,
+  });
+  const visualSelection = mapSourceNoteSelectionToVisual(label, labelSelection);
+  const segments = parseFormattedNote(label);
+  const labelLength = segments.reduce(
+    (length, segment) => length + segment.text.length,
+    0,
+  );
+  const linkedPart = (start: number, end: number) => {
+    if (start === end) return "";
+    return (
+      createSubjectLinkOpenTag(existingLink.subjectId) +
+      serializeFormattedNote(sliceNoteSegments(segments, start, end)) +
+      "</a>"
+    );
+  };
+  const before = linkedPart(0, visualSelection.start);
+  const after = linkedPart(visualSelection.end, labelLength);
+  let unlinked = serializeFormattedNote(
+    sliceNoteSegments(segments, visualSelection.start, visualSelection.end),
+  );
+  let unlinkedSelection = mapVisualNoteSelectionToSource(unlinked, {
+    start: 0,
+    end: visualSelection.end - visualSelection.start,
+  });
+
+  if (clampedSelection.start === clampedSelection.end) {
+    // Empty format tags retain the other typing styles at the new, unlinked caret.
+    const formats = getNoteFormatRanges(label)
+      .filter((range) =>
+        labelSelection.start >= range.contentStart &&
+        labelSelection.start <= range.contentEnd,
+      )
+      .sort((left, right) => left.openStart - right.openStart)
+      .map((range) => range.format);
+    unlinked = serializeFormattedTextSegment({ text: "", formats });
+    const caret = formats.reduce(
+      (offset, format) => offset + FORMAT_MARKERS[format].open.length,
+      0,
+    );
+    unlinkedSelection = { start: caret, end: caret };
+  }
+
+  const unlinkedStart = existingLink.openStart + before.length;
+  return {
+    text:
+      note.slice(0, existingLink.openStart) +
+      before + unlinked + after +
+      note.slice(existingLink.closeEnd),
     selection: {
-      start: replaceStart + openTag.length,
-      end: replaceStart + openTag.length + label.length,
+      start: unlinkedStart + unlinkedSelection.start,
+      end: unlinkedStart + unlinkedSelection.end,
     },
   };
 }

@@ -6,10 +6,13 @@ import { en } from '@blocknote/core/locales';
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions';
 import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote, type DefaultReactSuggestionItem, type FloatingUIOptions } from '@blocknote/react';
 import { autoPlacement, offset, shift, size } from '@floating-ui/react-dom';
-import { ArrowDown, ArrowUp, ArrowUpRight, Bold, BookOpen, Check, CheckSquare, ChevronDown, Code, Copy, FileText, Heading1, Heading2, Indent, Italic, Keyboard, Lightbulb, Link2, List, ListOrdered, MessageSquareText, Minus, Outdent, Plus, Quote, Redo2, Search, Table2, Trash2, Type, Underline, Undo2, Volume2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpRight, Bold, BookOpen, Check, CheckSquare, ChevronDown, Code, Copy, FileText, Heading1, Heading2, Indent, Italic, Keyboard, Lightbulb, Link2, List, ListOrdered, MessageSquareText, Minus, Outdent, Pencil, Plus, Quote, Redo2, Search, Table2, Trash2, Type, Underline, Undo2, Volume2, X } from 'lucide-react';
 import { toHiragana } from 'wanakana';
 import type { NotebookBlock, NotebookSentence } from './model';
 import type { NotebookEditorProps, NotebookEditorSubject, NotebookSentenceInput } from './editor-contract';
+import type { NotebookDrawingPayload } from '../../../web/src/features/notebooks/handwriting';
+import { isNotebookPaperColor, type NotebookPaperColor } from '../../../web/src/features/notebooks/paper-appearance';
+import type { NativeInkStart } from './native-inline-contract';
 import { MobileNotebookStudyContext, mobileNotebookSchema, SubjectCharacter, subjectLabel, subjectMeaning, subjectReading } from './mobile-editor-schema';
 import { MobilePageIcon } from './mobile-page-icon';
 import '@blocknote/mantine/style.css';
@@ -49,7 +52,8 @@ function insertBlock(editor: Editor, block: PartialBlock) {
   if (cursor.block.content === undefined) {
     const inserted = editor.insertBlocks([block, { type: 'paragraph' }], cursor.block, 'after');
     editor.setTextCursorPosition(inserted[1], 'start');
-  } else insertOrUpdateBlockForSlashMenu(editor, block);
+    return inserted[0];
+  } else return insertOrUpdateBlockForSlashMenu(editor, block);
 }
 
 class EditorBoundary extends Component<{ children: ReactNode; onError?: NotebookEditorProps['onError'] }, { error: boolean }> {
@@ -72,6 +76,15 @@ function EditorContent(props: NotebookEditorProps) {
   const [notice, setNotice] = useState('');
   const [styles, setStyles] = useState<Record<string, unknown>>({});
   const titleInput = useRef<HTMLTextAreaElement>(null);
+  const mounted = useRef(true);
+  const drawingBusy = useRef(false);
+  const nativeStartBusy = useRef(false);
+  const nativeSaveBusy = useRef(false);
+  const [nativeStarting, setNativeStarting] = useState(false);
+  const [nativeAutoStartBlockId, setNativeAutoStartBlockId] = useState<string | null>(null);
+  const [nativeFullscreenBlockId, setNativeFullscreenBlockId] = useState<string | null>(null);
+  const nativeEditing = !!props.nativeHandwritingState || nativeStarting || !!nativeAutoStartBlockId || !!nativeFullscreenBlockId;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const editor = useCreateBlockNote({
     schema: mobileNotebookSchema,
     initialContent: value.length ? value as PartialBlock[] : [{ type: 'paragraph' }],
@@ -92,7 +105,8 @@ function EditorContent(props: NotebookEditorProps) {
   useLayoutEffect(() => {
     document.documentElement.dataset.notebookTheme = theme;
     document.documentElement.style.colorScheme = theme;
-  }, [theme]);
+    document.documentElement.style.setProperty('--nb-bg', props.themeBackground || (theme === 'dark' ? '#1e1e1e' : '#ffffff'));
+  }, [theme, props.themeBackground]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -114,6 +128,106 @@ function EditorContent(props: NotebookEditorProps) {
   useEffect(() => { const input = titleInput.current; if (input) { input.style.height = 'auto'; input.style.height = `${input.scrollHeight}px`; } }, [draftTitle]);
 
   const report = useCallback((caught: unknown) => setNotice(caught instanceof Error ? caught.message : 'This change could not be completed. Please try again.'), []);
+  const addHandwriting = useCallback(() => {
+    if (actions.current.readOnly || !actions.current.nativeHandwritingAvailable || actions.current.nativeHandwritingState || nativeStartBusy.current) return;
+    setPicker(null);
+    const inserted = insertBlock(editor, { type: 'handwriting', props: { drawingId: '', inkFormat: 'strokes-v1', width: 768, height: 384, paperColor: 'auto' } });
+    setNativeAutoStartBlockId(inserted.id);
+    editor.blur(); titleInput.current?.blur();
+    void actions.current.onChange(editor.document as NotebookBlock[]).catch(report);
+  }, [editor, report]);
+  const editDrawing = useCallback(async (blockId: string, sourceId: string) => {
+    if (drawingBusy.current || actions.current.readOnly || !actions.current.handwritingAvailable || !actions.current.onEditHandwriting) return;
+    drawingBusy.current = true;
+    setPicker(null);
+    editor.blur(); titleInput.current?.blur();
+    try {
+      const saved = await actions.current.onEditHandwriting(sourceId);
+      if (!saved || !mounted.current) return;
+      const current = editor.getBlock(blockId);
+      if (!current || current.type !== 'handwriting' || current.props.drawingId !== sourceId || current.props.inkFormat === 'strokes-v1') throw new Error('This block changed. Reopen Handwriting to recover your saved drawing.');
+      editor.updateBlock(blockId, { type: 'handwriting', props: saved });
+      await actions.current.onChange(editor.document as NotebookBlock[]);
+      await actions.current.onHandwritingCommitted?.(saved.drawingId);
+      if (mounted.current) setNotice('');
+    } catch (error) { if (mounted.current) report(error); }
+    finally { drawingBusy.current = false; }
+  }, [editor, report]);
+  const saveInlineDrawing = useCallback(async (blockId: string, sourceId: string, payload: NotebookDrawingPayload) => {
+    const currentBlock = () => {
+      const block = editor.getBlock(blockId);
+      if (!mounted.current || actions.current.readOnly || !block || block.type !== 'handwriting' || block.props.inkFormat !== 'strokes-v1' || block.props.drawingId !== sourceId) throw new Error('This handwriting block changed. Reopen it to recover your draft.');
+      return block;
+    };
+    try {
+      currentBlock();
+      const save = actions.current.onSaveInlineHandwriting;
+      if (!save) throw new Error('Reopen this notebook to save your handwriting.');
+      const saved = await save(blockId, sourceId, payload);
+      currentBlock();
+      editor.updateBlock(blockId, { type: 'handwriting', props: { ...saved, inkFormat: 'strokes-v1' } });
+      await actions.current.onChange(editor.document as NotebookBlock[]);
+      // A closed page or a deleted/replaced block must retain its recovery copy.
+      const block = editor.getBlock(blockId);
+      if (!mounted.current || !block || block.type !== 'handwriting' || block.props.drawingId !== saved.drawingId) return;
+      await actions.current.onInlineHandwritingCommitted?.(blockId, saved.drawingId);
+      if (mounted.current) setNotice('');
+    } catch (caught) {
+      // Replacing the asset remounts its canvas. Keep persistence failures
+      // visible here so that canvas unmount cannot hide a failed commit.
+      if (mounted.current) report(caught);
+      throw caught;
+    }
+  }, [editor, report]);
+  const startNativeDrawing = useCallback(async (input: NativeInkStart) => {
+    const block = editor.getBlock(input.blockId);
+    if (!mounted.current || actions.current.readOnly || nativeStartBusy.current || actions.current.nativeHandwritingState || !block || block.type !== 'handwriting' || block.props.drawingId !== input.drawingId) throw new Error('Finish the current handwriting area before opening another.');
+    const start = actions.current.onNativeHandwritingStart;
+    if (!start || !actions.current.nativeHandwritingAvailable) throw new Error('This build cannot open inline handwriting.');
+    nativeStartBusy.current = true; setNativeStarting(true); setNativeAutoStartBlockId(null);
+    try { await start(input); }
+    catch (caught) { if (mounted.current) report(caught); throw caught; }
+    finally { nativeStartBusy.current = false; if (mounted.current) setNativeStarting(false); }
+  }, [editor, report]);
+  const saveNativeDrawing = useCallback(async (blockId: string, sourceId: string) => {
+    if (nativeSaveBusy.current) return;
+    const currentBlock = () => {
+      const block = editor.getBlock(blockId);
+      if (!mounted.current || actions.current.readOnly || !block || block.type !== 'handwriting' || block.props.drawingId !== sourceId) throw new Error('This handwriting block changed. Its recovery copy has been kept.');
+      return block;
+    };
+    nativeSaveBusy.current = true;
+    try {
+      currentBlock();
+      const save = actions.current.onNativeHandwritingSave;
+      if (!save) throw new Error('Reopen this notebook to save your handwriting.');
+      const saved = await save(blockId, sourceId);
+      const source = currentBlock();
+      editor.updateBlock(blockId, { type: 'handwriting', props: { ...saved, inkFormat: saved.inkFormat ?? 'pencilkit-v1', paperColor: source.props.paperColor, previewFormat: saved.previewFormat ?? '' } });
+      await actions.current.onChange(editor.document as NotebookBlock[]);
+      const block = editor.getBlock(blockId);
+      if (!mounted.current || !block || block.type !== 'handwriting' || block.props.drawingId !== saved.drawingId) return;
+      await actions.current.onNativeHandwritingCommitted?.(blockId, saved.drawingId);
+      if (mounted.current) setNotice('');
+    } catch (caught) { if (mounted.current) report(caught); throw caught; }
+    finally { nativeSaveBusy.current = false; }
+  }, [editor, report]);
+  const changePaperColor = useCallback(async (blockId: string, paperColor: NotebookPaperColor) => {
+    const source = editor.getBlock(blockId);
+    if (!mounted.current || actions.current.readOnly || nativeSaveBusy.current || !source || source.type !== 'handwriting' || !isNotebookPaperColor(paperColor)) throw new Error('This handwriting area cannot be changed right now.');
+    try {
+      if (actions.current.nativeHandwritingState?.blockId === blockId) {
+        const update = actions.current.onNativeHandwritingPaperColor;
+        if (!update) throw new Error('Reopen this notebook to change its paper color.');
+        await update(blockId, paperColor);
+      }
+      const current = editor.getBlock(blockId);
+      if (!mounted.current || !current || current.type !== 'handwriting' || current.props.drawingId !== source.props.drawingId) throw new Error('This handwriting block changed. Reopen it before changing paper color.');
+      editor.updateBlock(blockId, { type: 'handwriting', props: { paperColor } });
+      await actions.current.onChange(editor.document as NotebookBlock[]);
+      if (mounted.current) setNotice('');
+    } catch (caught) { if (mounted.current) report(caught); throw caught; }
+  }, [editor, report]);
   const insertWord = useCallback((subject: NotebookEditorSubject, inline = false) => {
     editor.focus();
     const wordProps = { subjectId: subject.id, label: subjectLabel(subject) };
@@ -125,22 +239,23 @@ function EditorContent(props: NotebookEditorProps) {
     setPicker(null);
   }, [editor]);
   const slashItems = useMemo<DefaultReactSuggestionItem[]>(() => [
+    ...(props.nativeHandwritingAvailable ? [{ title: 'Handwriting', aliases: ['drawing', 'pencil', 'ink'], group: 'Study', icon: <Pencil size={18} />, onItemClick: addHandwriting }] : []),
     { title: 'Word', aliases: ['vocabulary', 'kanji', 'radical'], group: 'Study', icon: <BookOpen size={18} />, onItemClick: () => setPicker({ type: 'word' }) },
     { title: 'Sentence', aliases: ['example', 'context'], group: 'Study', icon: <MessageSquareText size={18} />, onItemClick: () => setPicker({ type: 'sentence' }) },
     { title: 'Page link', aliases: ['page', 'note'], group: 'Study', icon: <FileText size={18} />, onItemClick: () => setPicker({ type: 'page' }) },
     { title: 'Callout', aliases: ['tip', 'grammar'], group: 'Study', icon: <Lightbulb size={18} />, onItemClick: () => insertBlock(editor, { type: 'callout' }) },
     ...getDefaultReactSlashMenuItems(editor),
-  ], [editor]);
+  ], [editor, addHandwriting, props.nativeHandwritingAvailable]);
   const subjectMap = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const sentenceMap = useMemo(() => new Map(sentences.map((sentence) => [sentence.id, sentence])), [sentences]);
   const pageMap = useMemo(() => new Map(pages.map((page) => [page.id, page])), [pages]);
   const toggleStyle = (style: 'bold' | 'italic' | 'underline') => { editor.focus(); editor.toggleStyles({ [style]: true }); setStyles(editor.getActiveStyles()); };
 
-  return <MobileNotebookStudyContext value={{ subjects: subjectMap, sentences: sentenceMap, pages: pageMap, readOnly, onPreviewSubject: (subjectId) => setPicker({ type: 'preview', subjectId }), onOpenPage: (pageId) => { void actions.current.onOpenPage(pageId).catch(report); }, onEditSentence: (sentenceId) => setPicker({ type: 'sentence', sentenceId }) }}>
-    <div className="nb-mobile" onDropCapture={(event) => { if (event.dataTransfer.files.length) { event.preventDefault(); event.stopPropagation(); setNotice('Notebooks support text and links. Attachments are not stored.'); } }}>
+  return <MobileNotebookStudyContext value={{ subjects: subjectMap, sentences: sentenceMap, pages: pageMap, readOnly, theme, themeBackground: props.themeBackground, onPaperColorChange: changePaperColor, nativeAutoStartBlockId, onNativeFullscreenChange: (blockId, fullscreen) => { if (mounted.current) setNativeFullscreenBlockId((current) => fullscreen ? blockId : current === blockId ? null : current); }, onNativePreparing: () => setNativeStarting(true), onNativePrepared: () => { if (mounted.current) { setNativeStarting(false); setNativeAutoStartBlockId(null); } }, nativeHandwriting: { nativeHandwritingAvailable: props.nativeHandwritingAvailable, nativeHandwritingState: props.nativeHandwritingState, onNativeHandwritingStart: startNativeDrawing, onNativeHandwritingLayout: props.onNativeHandwritingLayout, onNativeHandwritingCommand: props.onNativeHandwritingCommand, onNativeHandwritingResize: props.onNativeHandwritingResize, onNativeHandwritingClose: props.onNativeHandwritingClose }, saveNativeHandwriting: saveNativeDrawing, loadInlineHandwriting: props.inlineHandwritingAvailable ? props.onLoadInlineHandwriting : undefined, persistInlineHandwriting: props.inlineHandwritingAvailable ? props.onPersistInlineHandwriting : undefined, saveInlineHandwriting: props.inlineHandwritingAvailable ? saveInlineDrawing : undefined, loadHandwritingPreview: props.onLoadHandwritingPreview, onEditHandwriting: props.handwritingAvailable ? (blockId, drawingId) => { void editDrawing(blockId, drawingId); } : undefined, onPreviewSubject: (subjectId) => setPicker({ type: 'preview', subjectId }), onOpenPage: (pageId) => { void actions.current.onOpenPage(pageId).catch(report); }, onEditSentence: (sentenceId) => setPicker({ type: 'sentence', sentenceId }) }}>
+    <div className="nb-mobile" data-native-handwriting={nativeEditing ? 'true' : undefined} onPointerDownCapture={(event) => { if (nativeEditing && event.target instanceof Element && !event.target.closest('.nb-native-handwriting')) { event.preventDefault(); event.stopPropagation(); } }} onKeyDownCapture={(event) => { if (nativeEditing && event.target instanceof Element && !event.target.closest('.nb-native-handwriting')) { event.preventDefault(); event.stopPropagation(); } }} onDropCapture={(event) => { if (event.dataTransfer.files.length) { event.preventDefault(); event.stopPropagation(); setNotice('Notebooks support text and links. Attachments are not stored.'); } }}>
       {notice ? <div className="nb-notice" role="status"><span>{notice}</span><button type="button" className="nb-icon-button" aria-label="Dismiss notice" onClick={() => setNotice('')}><X size={18} /></button></div> : null}
       <main className="nb-scroll">
-        {title !== undefined ? <div className="nb-page-heading">{icon ? <span className="nb-page-icon" aria-hidden><MobilePageIcon icon={icon} size={42} /></span> : null}<textarea ref={titleInput} className="nb-title" aria-label="Page title" value={draftTitle} rows={1} placeholder="Untitled" maxLength={240} readOnly={readOnly || !onTitleChange} onChange={(event) => { const next = event.target.value.replace(/\n/g, ''); setDraftTitle(next); void actions.current.onTitleChange?.(next).catch(report); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); editor.focus(); editor.setTextCursorPosition(editor.document[0], 'start'); } }} /></div> : null}
+        {title !== undefined ? <div className="nb-page-heading">{icon ? <span className="nb-page-icon" aria-hidden><MobilePageIcon icon={icon} size={42} /></span> : null}<textarea ref={titleInput} className="nb-title" aria-label="Page title" value={draftTitle} rows={1} placeholder="Untitled" maxLength={240} readOnly={readOnly || nativeEditing || !onTitleChange} onChange={(event) => { const next = event.target.value.replace(/\n/g, ''); setDraftTitle(next); void actions.current.onTitleChange?.(next).catch(report); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); editor.focus(); editor.setTextCursorPosition(editor.document[0], 'start'); } }} /></div> : null}
         <BlockNoteView editor={editor} theme={theme} editable={!readOnly} formattingToolbar={false} sideMenu={false} slashMenu={false} filePanel={false} onChange={() => { void actions.current.onChange(editor.document as NotebookBlock[]).catch(report); }}>
           <SuggestionMenuController triggerCharacter="/" floatingUIOptions={suggestionPosition} getItems={async (query) => filterSuggestionItems(slashItems, query)} />
           <SuggestionMenuController triggerCharacter="@" floatingUIOptions={suggestionPosition} minQueryLength={1} getItems={async (query) => findSubjects(subjects, query).slice(0, 15).map((subject) => ({ title: subjectLabel(subject), subtext: [subjectReading(subject), subjectMeaning(subject)].filter(Boolean).join(' · '), icon: <BookOpen size={17} />, onItemClick: () => insertWord(subject, true) }))} />
@@ -149,6 +264,7 @@ function EditorContent(props: NotebookEditorProps) {
       {!readOnly ? <div className="nb-toolbar" role="toolbar" aria-label="Page editing tools">
         <button type="button" className="nb-tool nb-add-tool" aria-label="Add a block" onMouseDown={(event) => event.preventDefault()} onClick={() => setPicker({ type: 'blocks' })}><Plus size={23} /></button>
         <div className="nb-toolbar-scroll">
+          {props.nativeHandwritingAvailable ? <button type="button" className="nb-tool" aria-label="Add handwriting" onMouseDown={(event) => event.preventDefault()} onClick={addHandwriting}><Pencil size={20} /></button> : null}
           <button type="button" className="nb-tool" aria-label="Text style" onMouseDown={(event) => event.preventDefault()} onClick={() => setPicker({ type: 'format' })}><span className="nb-aa">Aa</span><ChevronDown size={12} /></button>
           <button type="button" className="nb-tool" aria-label="Bold" aria-pressed={Boolean(styles.bold)} onMouseDown={(event) => event.preventDefault()} onClick={() => toggleStyle('bold')}><Bold size={20} /></button>
           <button type="button" className="nb-tool" aria-label="Italic" aria-pressed={Boolean(styles.italic)} onMouseDown={(event) => event.preventDefault()} onClick={() => toggleStyle('italic')}><Italic size={20} /></button>
@@ -161,12 +277,12 @@ function EditorContent(props: NotebookEditorProps) {
         <button type="button" className="nb-tool nb-keyboard-tool" aria-label="Dismiss keyboard" onClick={() => { editor.blur(); titleInput.current?.blur(); }}><Keyboard size={21} /><ChevronDown size={11} /></button>
       </div> : null}
     </div>
-    {picker ? <EditorPicker key={`${picker.type}-${picker.type === 'sentence' ? picker.sentenceId || 'new' : picker.type === 'preview' ? picker.subjectId : ''}`} picker={picker} editor={editor} subjects={subjects} sentences={sentences} pages={pages} onClose={() => setPicker(null)} onWord={insertWord} onSentence={(sentence) => { insertBlock(editor, { type: 'sentence', props: { sentenceId: sentence.id } }); setPicker(null); }} onSaveSentence={(input) => actions.current.onSaveSentence(input)} onOpenSubject={(id) => actions.current.onOpenSubject(id)} onPickerChange={setPicker} /> : null}
+    {picker ? <EditorPicker key={`${picker.type}-${picker.type === 'sentence' ? picker.sentenceId || 'new' : picker.type === 'preview' ? picker.subjectId : ''}`} picker={picker} editor={editor} subjects={subjects} sentences={sentences} pages={pages} onClose={() => setPicker(null)} onWord={insertWord} onSentence={(sentence) => { insertBlock(editor, { type: 'sentence', props: { sentenceId: sentence.id } }); setPicker(null); }} onSaveSentence={(input) => actions.current.onSaveSentence(input)} onOpenSubject={(id) => actions.current.onOpenSubject(id)} onPickerChange={setPicker} onHandwriting={props.nativeHandwritingAvailable ? addHandwriting : undefined} /> : null}
   </MobileNotebookStudyContext>;
 }
 
-function EditorPicker({ picker, editor, subjects, sentences, pages, onClose, onWord, onSentence, onSaveSentence, onOpenSubject, onPickerChange }: {
-  picker: Picker; editor: Editor; subjects: NotebookEditorSubject[]; sentences: NotebookSentence[]; pages: NotebookEditorProps['pages']; onClose: () => void; onWord: (subject: NotebookEditorSubject, inline?: boolean) => void; onSentence: (sentence: NotebookSentence) => void; onSaveSentence: (input: NotebookSentenceInput) => Promise<NotebookSentence>; onOpenSubject: (id: number) => Promise<void>; onPickerChange: (picker: Picker) => void;
+function EditorPicker({ picker, editor, subjects, sentences, pages, onClose, onWord, onSentence, onSaveSentence, onOpenSubject, onPickerChange, onHandwriting }: {
+  picker: Picker; editor: Editor; subjects: NotebookEditorSubject[]; sentences: NotebookSentence[]; pages: NotebookEditorProps['pages']; onClose: () => void; onWord: (subject: NotebookEditorSubject, inline?: boolean) => void; onSentence: (sentence: NotebookSentence) => void; onSaveSentence: (input: NotebookSentenceInput) => Promise<NotebookSentence>; onOpenSubject: (id: number) => Promise<void>; onPickerChange: (picker: Picker) => void; onHandwriting?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -237,7 +353,7 @@ function EditorPicker({ picker, editor, subjects, sentences, pages, onClose, onW
     <div className="nb-sheet-body">
       {picker.type === 'blocks' || picker.type === 'format' ? <>
         {picker.type === 'blocks' ? <div className="nb-study-options">{[{ type: 'word' as const, label: 'Word', icon: <BookOpen size={21} /> }, { type: 'sentence' as const, label: 'Sentence', icon: <MessageSquareText size={21} /> }, { type: 'page' as const, label: 'Page link', icon: <FileText size={21} /> }].map((item) => <button key={item.type} type="button" onClick={() => onPickerChange({ type: item.type })}>{item.icon}<span>{item.label}</span></button>)}</div> : null}
-        <div className="nb-block-options">{blockOptions.map((item) => <button key={item.label} type="button" onClick={() => picker.type === 'format' ? changeType(item.block) : add(item.block)}>{item.icon}<span>{item.label}</span></button>)}</div>
+        <div className="nb-block-options">{picker.type === 'blocks' && onHandwriting ? <button type="button" onClick={() => { dialog.current?.close(); onHandwriting(); }}><Pencil size={20} /><span>Handwriting</span></button> : null}{blockOptions.map((item) => <button key={item.label} type="button" onClick={() => picker.type === 'format' ? changeType(item.block) : add(item.block)}>{item.icon}<span>{item.label}</span></button>)}</div>
         {picker.type === 'format' ? <div className="nb-block-options nb-block-actions">
           <button type="button" onClick={() => { dialog.current?.close(); editor.focus(); editor.moveBlocksUp(); onClose(); }}><ArrowUp size={20} />Move up</button>
           <button type="button" onClick={() => { dialog.current?.close(); editor.focus(); editor.moveBlocksDown(); onClose(); }}><ArrowDown size={20} />Move down</button>

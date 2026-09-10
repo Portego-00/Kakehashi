@@ -431,11 +431,11 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     window.requestAnimationFrame(() => wordInputRef.current?.focus());
   };
 
-  const selectNextEntry = (fromEntryId: string) => {
+  const selectNextEntry = (fromEntryId: string, values = game.values) => {
     if (!orderedEntries.length) return;
     const currentIndex = orderedEntries.findIndex((entry) => entry.id === fromEntryId);
-    const nextEntry = orderedEntries.find((entry, index) => index > currentIndex && !entryIsCorrect(entry))
-      ?? orderedEntries.find((entry) => !entryIsCorrect(entry))
+    const nextEntry = orderedEntries.find((entry, index) => index > currentIndex && !crosswordEntryIsCorrect(entry, values))
+      ?? orderedEntries.find((entry) => !crosswordEntryIsCorrect(entry, values))
       ?? orderedEntries[currentIndex >= 0 ? (currentIndex + 1) % orderedEntries.length : 0];
     if (nextEntry) selectEntry(nextEntry.id);
   };
@@ -516,8 +516,7 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     if (!values || crosswordIsComplete(puzzle, values)) return;
     await waitForCrosswordFeedback(CROSSWORD_WORD_SETTLE_MS);
     if (feedbackSequenceRef.current !== sequence) return;
-    const nextEntry = orderedEntries.find((entry) => entry.id !== activeEntry.id && !crosswordEntryIsCorrect(entry, values));
-    if (nextEntry) selectEntry(nextEntry.id);
+    selectNextEntry(activeEntry.id, values);
   };
 
   const startNewCrossword = () => {
@@ -591,7 +590,7 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
           </div>
           <section className={styles.crosswordActiveClue} aria-label="Selected clue">
             <div className={styles.crosswordActiveClueTop}>
-              <div className={styles.crosswordActiveClueCopy}><span>{activeEntry ? `${activeEntry.number} ${activeEntry.direction === "across" ? "Across" : "Down"}` : "Select a clue"}</span><strong data-active-clue>{activeEntry?.clue ?? "Pick a clue or a cell"}</strong>{activeEntry && hintedEntryIds.has(activeEntry.id) ? <p>{crosswordHint(activeEntry, filters.crosswordClueMode)}</p> : null}</div>
+              <div className={styles.crosswordActiveClueCopy}><span>{activeEntry ? `${activeEntry.number} ${activeEntry.direction === "across" ? "Across" : "Down"}` : "Select a clue"}</span><strong data-active-clue>{activeEntry?.clue ?? "Pick a clue or a cell"}</strong></div>
               <div className={styles.crosswordHintActions}><button type="button" className={styles.crosswordHintButton} aria-label="Show hint" disabled={!activeEntry || hintedEntryIds.has(activeEntry.id)} onClick={() => activeEntry && setHintedEntryIds((current) => new Set(current).add(activeEntry.id))}><Sparkles size={16} /> Hint</button><button type="button" className={styles.crosswordHintButton} aria-label="Play pronunciation" disabled={!activeEntry?.audioUrl} onClick={() => playAudio(activeEntry?.audioUrl)}><Volume2 size={16} /> Audio</button><button type="button" className={styles.crosswordHintButton} aria-label="Reveal word" disabled={!activeEntry || entryIsCorrect(activeEntry)} onClick={revealWord}><Lightbulb size={16} /> Reveal word</button></div>
             </div>
             <form className={styles.crosswordWordForm} data-feedback={wordFeedback} onSubmit={(event) => { event.preventDefault(); void checkActiveWord(); }}>
@@ -601,8 +600,8 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
             </form>
           </section>
           <footer className={styles.crosswordFooter}>
-            <p id="crossword-word-status" role="status">{wordFeedback === "empty" ? "Type the selected word before checking it." : wordFeedback === "correct" ? "Correct. Revealing the word…" : wordFeedback === "incorrect" ? "That answer does not match the selected clue. Try again." : game.checked && !allCorrect ? "Some letters need another look." : "Type below and press Return to check the selected word. Select tiles to change words."}</p>
-            <div className={styles.gameActions}><button type="button" className={styles.primaryButton} disabled={answerIsAnimating} onClick={() => { const next = { ...game, checked: true }; setGame(next); saveModeState(scope, "crossword", "game", next); }}>Check puzzle</button></div>
+            {activeEntry && hintedEntryIds.has(activeEntry.id) ? <p className={styles.crosswordHint} aria-live="polite">{crosswordHint(activeEntry, filters.crosswordClueMode)}</p> : null}
+            <p id="crossword-word-status" role="status">{wordFeedback === "empty" ? "Type the selected word before checking it." : wordFeedback === "correct" ? "Correct. Revealing the word…" : wordFeedback === "incorrect" ? "That answer does not match the selected clue. Try again." : game.checked && !allCorrect ? "Some letters need another look." : "Type your answer and press Return to check the selected word. Select tiles to change words."}</p>
           </footer>
         </div>
       </div>
