@@ -5,6 +5,11 @@ import { ArrowUpRight, Link2, Pencil } from "lucide-react";
 import { MobilePageIcon } from "./mobile-page-icon";
 import type { NotebookEditorSubject, NotebookEditorProps } from "./editor-contract";
 import type { NotebookSentence } from "./model";
+import { MobileHandwriting } from "./mobile-handwriting";
+import { NativeHandwriting } from "./native-handwriting";
+import type { NotebookPaperColor } from "../../../web/src/features/notebooks/paper-appearance";
+import type { NotebookDrawingPayload } from "../../../web/src/features/notebooks/handwriting";
+import type { NativeInlineHandwritingProps } from "./native-inline-contract";
 
 export const subjectLabel = (subject: NotebookEditorSubject) => subject.data.characters || subject.data.slug || subject.data.meanings[0]?.meaning || `Subject ${subject.id}`;
 export const subjectMeaning = (subject: NotebookEditorSubject) => (subject.data.meanings.find((entry) => entry.primary) || subject.data.meanings[0])?.meaning || "";
@@ -15,9 +20,23 @@ interface StudyContextValue {
   sentences: Map<string, NotebookSentence>;
   pages: Map<string, NotebookEditorProps["pages"][number]>;
   readOnly: boolean;
+  theme?: "light" | "dark";
+  themeBackground?: string;
+  onPaperColorChange?: (blockId: string, paperColor: NotebookPaperColor) => Promise<void>;
   onPreviewSubject: (subjectId: number) => void;
   onOpenPage: (pageId: string) => void;
   onEditSentence: (sentenceId: string) => void;
+  loadHandwritingPreview?: NotebookEditorProps["onLoadHandwritingPreview"];
+  onEditHandwriting?: (blockId: string, drawingId: string) => void;
+  loadInlineHandwriting?: NotebookEditorProps["onLoadInlineHandwriting"];
+  persistInlineHandwriting?: NotebookEditorProps["onPersistInlineHandwriting"];
+  saveInlineHandwriting?: (blockId: string, drawingId: string, payload: NotebookDrawingPayload) => Promise<void>;
+  nativeHandwriting?: NativeInlineHandwritingProps;
+  saveNativeHandwriting?: (blockId: string, drawingId: string) => Promise<void>;
+  nativeAutoStartBlockId?: string | null;
+  onNativePreparing?: () => void;
+  onNativePrepared?: () => void;
+  onNativeFullscreenChange?: (blockId: string, fullscreen: boolean) => void;
 }
 
 export const MobileNotebookStudyContext = createContext<StudyContextValue | null>(null);
@@ -59,6 +78,15 @@ function PageReference({ pageId }: { pageId: string }) {
   </button>;
 }
 
+function HandwritingReference({ blockId, drawingId, width, height, inkFormat, paperColor, previewFormat }: { blockId: string; drawingId: string; width: number; height: number; inkFormat: string; paperColor: string; previewFormat: string }) {
+  const context = useContext(MobileNotebookStudyContext);
+  if (!context?.readOnly && context?.nativeHandwriting?.nativeHandwritingAvailable && context.saveNativeHandwriting) {
+    return <NativeHandwriting key={blockId} blockId={blockId} drawingId={drawingId} inkFormat={inkFormat === "strokes-v1" ? "strokes-v1" : "pencilkit-v1"} width={width} height={height} paperColor={paperColor} previewFormat={previewFormat} theme={context.theme ?? "light"} themeBackground={context.themeBackground} onPaperColorChange={context.onPaperColorChange} {...context.nativeHandwriting} autoStart={context.nativeAutoStartBlockId === blockId} onPreparing={context.onNativePreparing} onPrepared={context.onNativePrepared} onFullscreenChange={context.onNativeFullscreenChange} loadPreview={context.loadHandwritingPreview} saveAndClose={context.saveNativeHandwriting} />;
+  }
+  if (!drawingId) return <div className="nb-missing" contentEditable={false}>Empty handwriting area</div>;
+  return <MobileHandwriting drawingId={drawingId} width={width} height={height} paperColor={paperColor} previewFormat={previewFormat} theme={context?.theme ?? "light"} themeBackground={context?.themeBackground} loadPreview={context?.loadHandwritingPreview} onEdit={inkFormat !== "strokes-v1" && !context?.readOnly && context?.onEditHandwriting ? () => context.onEditHandwriting?.(blockId, drawingId) : undefined} />;
+}
+
 // These persisted type names, props, and content modes match the web editor.
 // Presentation is local so native taps do not depend on Next.js links or hover.
 export const mobileNotebookSchema = BlockNoteSchema.create({
@@ -73,6 +101,10 @@ export const mobileNotebookSchema = BlockNoteSchema.create({
     divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
     table: defaultBlockSpecs.table,
+    handwriting: createReactBlockSpec({ type: "handwriting", propSchema: { drawingId: { default: "" }, inkFormat: { default: "pencilkit-v1", values: ["pencilkit-v1", "strokes-v1"] as const }, width: { default: 768 }, height: { default: 1024 }, paperColor: { default: "auto" }, previewFormat: { default: "", values: ["", "themed-v1"] as const } }, content: "none" }, {
+      render: ({ block }) => <HandwritingReference blockId={block.id} {...block.props} />,
+      toExternalHTML: () => <p>Handwritten notebook content — open the notebook to view.</p>,
+    })(),
     vocabulary: createReactBlockSpec({ type: "vocabulary", propSchema: { subjectId: { default: 0 }, label: { default: "" } }, content: "none" }, {
       render: ({ block }) => <WordReference {...block.props} />,
       toExternalHTML: ({ block }) => <a href={`/subjects/${block.props.subjectId}`}>{block.props.label}</a>,

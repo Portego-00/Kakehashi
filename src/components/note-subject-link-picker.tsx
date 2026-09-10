@@ -42,6 +42,9 @@ import { VocabularyTypeFilter } from "./vocabulary-type-filter";
 
 type NoteSubjectLinkPickerProps = {
   initialQuery: string;
+  selectedText?: string;
+  includeCharacters?: boolean;
+  onIncludeCharactersChange?: (enabled: boolean) => void;
   linkedSubjectId?: number;
   onCancel: () => void;
   onRemove?: () => void;
@@ -101,6 +104,9 @@ function getSubjectType(type: string): SubjectType {
 
 export default function NoteSubjectLinkPicker({
   initialQuery,
+  selectedText,
+  includeCharacters = false,
+  onIncludeCharactersChange,
   linkedSubjectId,
   onCancel,
   onRemove,
@@ -239,7 +245,8 @@ export default function NoteSubjectLinkPicker({
 
   const trimmedQuery = query.trim();
   const isSearching = query !== deferredQuery;
-  const pickerHeight = Math.min(320, Math.max(168, windowHeight * 0.34));
+  const showsCharactersChoice = Boolean(selectedText?.trim() && onIncludeCharactersChange);
+  const pickerHeight = Math.min(380, Math.max(168, windowHeight * 0.34) + (showsCharactersChoice ? 56 : 0));
 
   return (
     <View
@@ -379,6 +386,29 @@ export default function NoteSubjectLinkPicker({
           renderItem={renderSubject}
         />
       )}
+      {showsCharactersChoice ? (
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityLabel="Include Japanese text"
+          accessibilityHint="Adds the subject's Japanese text after your selected text inside the same link. This choice is remembered."
+          accessibilityState={{ checked: includeCharacters }}
+          onPress={() => onIncludeCharactersChange?.(!includeCharacters)}
+          style={({ pressed }) => [
+            styles.charactersChoice,
+            { borderTopColor: theme.border, backgroundColor: pressed ? theme.headerSurface : theme.cardBackground },
+          ]}
+        >
+          <Ionicons
+            name={includeCharacters ? "checkbox" : "square-outline"}
+            size={22}
+            color={includeCharacters ? theme.primary : theme.textSecondary}
+          />
+          <View style={styles.charactersChoiceText}>
+            <Text style={[styles.charactersChoiceTitle, { color: theme.textColor }]}>Include Japanese text</Text>
+            <Text style={[styles.charactersChoiceHint, { color: theme.textSecondary }]}>Add it after the selected text</Text>
+          </View>
+        </Pressable>
+      ) : null}
       {showVocabularyTypes ? (
         <Modal
           transparent
@@ -432,6 +462,19 @@ export default function NoteSubjectLinkPicker({
 }
 
 const styles = StyleSheet.create({
+  charactersChoice: {
+    minHeight: 56,
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  charactersChoiceText: { flex: 1, gap: 2 },
+  charactersChoiceTitle: { fontSize: 14, fontWeight: "500" },
+  charactersChoiceHint: { fontSize: 12 },
   container: {
     width: "100%",
     flexShrink: 1,

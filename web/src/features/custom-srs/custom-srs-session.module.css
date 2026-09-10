@@ -7,6 +7,19 @@
   animation-name: customStudyReveal !important;
 }
 
+.syncStatus {
+  min-block-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .contrastStableReveal { animation: none !important; }
 }

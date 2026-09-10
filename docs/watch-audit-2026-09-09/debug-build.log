@@ -1,0 +1,378 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project ios/wanikani.xcodeproj -target "Kakehashi Watch" -configuration Debug -sdk watchsimulator ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CONFIGURATION_BUILD_DIR=/tmp/kakehashi-watch-audit-products/debug OBJROOT=/tmp/kakehashi-watch-audit-objects CODE_SIGNING_ALLOWED=NO build
+
+Build settings from command line:
+    ARCHS = arm64
+    CODE_SIGNING_ALLOWED = NO
+    CONFIGURATION_BUILD_DIR = /tmp/kakehashi-watch-audit-products/debug
+    OBJROOT = /tmp/kakehashi-watch-audit-objects
+    ONLY_ACTIVE_ARCH = YES
+    SDKROOT = watchsimulator26.2
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (1 target)
+    Target 'Kakehashi Watch' in project 'wanikani' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: 56622e12cc7a4e9ed7fd771d74b1417a
+Build description path: /tmp/kakehashi-watch-audit-objects/XCBuildData/56622e12cc7a4e9ed7fd771d74b1417a.xcbuilddata
+CreateBuildDirectory /tmp/kakehashi-watch-audit-20260909/ios/build
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    builtin-create-build-directory /tmp/kakehashi-watch-audit-20260909/ios/build
+
+CreateBuildDirectory /tmp/kakehashi-watch-audit-objects
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    builtin-create-build-directory /tmp/kakehashi-watch-audit-objects
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode/SDKStatCaches.noindex/watchsimulator26.2-23S303-963ebdd26732d23a23bcca82c2045e26.sdkstatcache
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk -o /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode/SDKStatCaches.noindex/watchsimulator26.2-23S303-963ebdd26732d23a23bcca82c2045e26.sdkstatcache
+
+CreateBuildDirectory /tmp/kakehashi-watch-audit-products/debug
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    builtin-create-build-directory /tmp/kakehashi-watch-audit-products/debug
+
+CreateBuildDirectory /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    builtin-create-build-directory /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules
+
+CreateBuildDirectory /tmp/kakehashi-watch-audit-objects/ExplicitPrecompiledModules
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    builtin-create-build-directory /tmp/kakehashi-watch-audit-objects/ExplicitPrecompiledModules
+
+CreateBuildDirectory /tmp/kakehashi-watch-audit-objects/EagerLinkingTBDs/Debug-watchsimulator
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    builtin-create-build-directory /tmp/kakehashi-watch-audit-objects/EagerLinkingTBDs/Debug-watchsimulator
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/wanikani-3e77984687b6132172f151ff728b000c-VFS-watchsimulator/all-product-headers.yaml
+    cd /tmp/kakehashi-watch-audit-20260909/ios/wanikani.xcodeproj
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/wanikani-3e77984687b6132172f151ff728b000c-VFS-watchsimulator/all-product-headers.yaml
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.hmap (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.hmap
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-project-headers.hmap (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-project-headers.hmap
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-target-headers.hmap (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-target-headers.hmap
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-generated-files.hmap (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-generated-files.hmap
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-own-target-headers.hmap (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-own-target-headers.hmap
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.LinkFileList (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.LinkFileList
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_const_extract_protocols.json (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_const_extract_protocols.json
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftFileList (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftFileList
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch-OutputFileMap.json (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch-OutputFileMap.json
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftConstValuesFileList (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.DependencyStaticMetadataFileList (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.DependencyMetadataFileList (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.DependencyMetadataFileList
+
+WriteAuxiliaryFile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-non-framework-target-headers.hmap (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    write-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-non-framework-target-headers.hmap
+
+MkDir /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /bin/mkdir -p /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app
+
+MkDir /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/unthinned (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /bin/mkdir -p /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/unthinned
+
+CpResource /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/PrivacyInfo.xcprivacy /tmp/kakehashi-watch-audit-20260909/ios/wanikani/PrivacyInfo.xcprivacy (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /tmp/kakehashi-watch-audit-20260909/ios/wanikani/PrivacyInfo.xcprivacy /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app
+
+MkDir /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/thinned (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /bin/mkdir -p /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/thinned
+
+GenerateAssetSymbols /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Assets.xcassets (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /Applications/Xcode.app/Contents/Developer/usr/bin/actool /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Assets.xcassets --compile /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app --output-format human-readable-text --notices --warnings --export-dependency-info /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_dependencies --output-partial-info-plist /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_generated_info.plist --app-icon AppIcon --accent-color \$accent --compress-pngs --enable-on-demand-resources YES --development-region en --target-device watch --minimum-deployment-target 10.0 --platform watchsimulator --bundle-identifier com.portego00.kakehashi.watch --generate-swift-asset-symbol-extensions NO --generate-swift-asset-symbols /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/GeneratedAssetSymbols.swift --generate-objc-asset-symbols /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/* com.apple.actool.compilation-results */
+/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi Watch.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi Watch.build/DerivedSources/GeneratedAssetSymbols.h
+/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi Watch.build/DerivedSources/GeneratedAssetSymbols.swift
+
+
+CompileAssetCatalogVariant thinned /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Assets.xcassets (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /Applications/Xcode.app/Contents/Developer/usr/bin/actool /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Assets.xcassets --compile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_dependencies_thinned --output-partial-info-plist /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --accent-color \$accent --compress-pngs --enable-on-demand-resources YES --development-region en --target-device watch --minimum-deployment-target 10.0 --platform watchsimulator
+/* com.apple.actool.compilation-results */
+/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi Watch.build/assetcatalog_generated_info.plist_thinned
+/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi Watch.build/assetcatalog_output/thinned/Assets.car
+
+
+SwiftDriver Kakehashi\ Watch normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Kakehashi_Watch -Onone -enforce-exclusivity\=checked @/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftFileList -DDEBUG -D EXPO_CONFIGURATION_DEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk -target arm64-apple-watchos10.0-simulator -g -Xfrontend -serialize-debugging-options -enable-testing -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /tmp/kakehashi-watch-audit-products/debug -F /tmp/kakehashi-watch-audit-products/debug -emit-localized-strings -emit-localized-strings-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64 -c -j11 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode/SDKStatCaches.noindex/watchsimulator26.2-23S303-963ebdd26732d23a23bcca82c2045e26.sdkstatcache -output-file-map /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_const_extract_protocols.json -Xcc -iquote -Xcc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-generated-files.hmap -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-own-target-headers.hmap -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-target-headers.hmap -Xcc -iquote -Xcc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-project-headers.hmap -Xcc -I/tmp/kakehashi-watch-audit-products/debug/include -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources-normal/arm64 -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/arm64 -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch-Swift.h -working-directory /tmp/kakehashi-watch-audit-20260909/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_SwiftConcurrencyShims-E9COWIXGT7I4PADQ0X2G3EBK4.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/SwiftShims-4F0UJ57XANYUP4O8H0HVXK9PR.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/ptrauth-44WXIV6FBVJMMOL9JG2LDQGLY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/DeveloperToolsSupport-AMQP2YY93W2HWZZSRN9S98QMH.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/ptrcheck-C1QVS3PNVGFB4K6XE0C5LL4RV.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_stddef-28C5WUI3AMPJSE8HQL5JA9ULZ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_stdbool-6GTCM9UHTDVHIA6L89UTHS435.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_stdarg-EP9346WYB47R7PPVFVW1PMM25.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_AvailabilityInternal-E85V24MBECHETQHCQAVQIN6GH.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_float-3JQ84KCJCZI9580VP0IRV1RA.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_DarwinFoundation1-BUXFMHSHHTB71ZEMUQBOL26A.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_DarwinFoundation2-5YZ6P9FEAD71I3UGV5DGJLZVC.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_limits-4ATJB0RM8S04ASSWUNRGNLKC8.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_tgmath-8EQP2NYPUW6RSLQ7IGP3GCSIZ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/sys_types-1G2ZHVNJEDI4PQAB9QP0KVMFA.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_stdint-8P22UKFN4SLOEFMBII13EDD2D.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_DarwinFoundation3-EPX4I5T06NOO6D2W6Q9B5RWGD.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_intrinsics-66BVFPZP6PR7Z454ZT541N7TL.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_stdatomic-7MG47C71QB1GY0B09X665YTE5.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_Builtin_inttypes-CTLVBYJQGMZTEEAXUC6M0V6BM.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Darwin-EFJT61S95PWE6T16EBGXU7BZY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/simd-B0733080JEFSC84V8S05LALRY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/MachO-CUDXLDOB4M9GMWWNVHGG8XZU5.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/ObjectiveC-6TTQLEDPXATDPXN07P2V9AFSL.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/os_object-3JNVVJTAPYZCQXW75DXOAS9RQ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/os_workgroup-A96LQYMLZ0PRBZQBYT2O4DH9D.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Spatial-882WYFANTHI9UO5EZ10RM5098.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Dispatch-DV00VRUJANYKZV7N6OMYG8DTO.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/os-CQFPLJUPT0FN8R51AJCU5W6A0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreFoundation-32EC60CL0S1J3TVK26LN7AGGX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreGraphics-7DCYBKDEODNVBHWF3K6ZB37IO.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Security-DO7GPBLY7ML50210FITLE04WN.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Foundation-12JRT6DVP5KBDJ8R6XFQBEECK.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreText-9C3WPBGY06E7BG0ZWZT2XHIBD.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreVideo-67OWVQ8FNTXTEZ4UCPV002V6F.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/DataDetection-DK7EOWJ2WNPV1PQHB4LZZW1YX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/SceneKit-4M9PK0D85PP0TGOK8RPK8HLHV.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/QuartzCore-7NMPR9VUV0Y4G2YDE0197PQLY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreTransferable-8Z5WDYIPO9XV7NZCMTN7CHQJK.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/WatchConnectivity-D1752WPFDV623F7K2PGI0KT0V.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreData-7N78L1SJUE0CQFZPTZHCF3SUK.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/UserNotifications-1FKOT9XZVV1V5GMFYDMRELBBI.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/OSLog-6JWEQ3PM0BJOR5FKASE5PWHVV.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/UIUtilities-5TMYQ44OX1TUV5MQW8TJNLJL0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Symbols-4I3ENPT00WZJS1RKCHUEVT7YN.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/Accessibility-ANVEQK8N4Y9W8FXA85B6ZSMK.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/_LocationEssentials-A38PDJBDVZTXI5VK7NK4VTLZM.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/UniformTypeIdentifiers-16LLMNITJKYQZ614QSU42ZDNR.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/UIKit-5MJCG0H3IKE2APWCGSYVASZQJ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/SwiftUICore-CHBR0FHG3E1D3OGQO2ZE2A2CB.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/CoreLocation-41F0ONLICDJK5LUEZIKP9EAEI.pcm
+
+LinkAssetCatalog /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Assets.xcassets (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-linkAssetCatalog --thinned /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/thinned --thinned-dependencies /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_dependencies_thinned --thinned-info-plist-content /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_generated_info.plist_thinned --unthinned /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_output/unthinned --unthinned-dependencies /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_dependencies_unthinned --unthinned-info-plist-content /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_generated_info.plist_unthinned --output /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app --plist-output /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_generated_info.plist
+note: Emplaced /tmp/kakehashi-watch-audit-products/debug/Kakehashi Watch.app/Assets.car (in target 'Kakehashi Watch' from project 'wanikani')
+
+ProcessInfoPlistFile /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Info.plist /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Info.plist (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-infoPlistUtility /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/Info.plist -producttype com.apple.product-type.application -genpkginfo /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/PkgInfo -expandbuildsettings -format binary -platform watchsimulator -additionalcontentfile /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/assetcatalog_generated_info.plist -o /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Info.plist
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/MapKit-A4DUOFJ9JUPD2B3ZPGK9L5XLZ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/HomeKit-3K8R9UN2RV1F7XM7XQNBA7H0T.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/WatchKit-26A3OFR9FHVQ3G6BXJ13ETEEL.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules/SwiftUI-67UZBH7CI9LERLZ7YPGAZ2942.pcm
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ Kakehashi_Watch (in target 'Kakehashi Watch' from project 'wanikani')
+
+EmitSwiftModule normal arm64 (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    
+
+SwiftCompile normal arm64 Compiling\ KakehashiWatchApp.swift /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/KakehashiWatchApp.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftCompile normal arm64 /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/KakehashiWatchApp.swift (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    
+
+SwiftCompile normal arm64 Compiling\ ContentView.swift /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/ContentView.swift (in target 'Kakehashi Watch' from project 'wanikani')
+SwiftCompile normal arm64 /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/ContentView.swift (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    
+
+SwiftCompile normal arm64 Compiling\ WatchReviewStore.swift /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/WatchReviewStore.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftCompile normal arm64 /tmp/kakehashi-watch-audit-20260909/targets/kakehashi-watch/WatchReviewStore.swift (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    
+
+SwiftCompile normal arm64 Compiling\ GeneratedAssetSymbols.swift /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftCompile normal arm64 /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling KakehashiWatchApp.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftDriverJobDiscovery normal arm64 Compiling GeneratedAssetSymbols.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for Kakehashi_Watch (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftDriver\ Compilation\ Requirements Kakehashi\ Watch normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Kakehashi_Watch -Onone -enforce-exclusivity\=checked @/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftFileList -DDEBUG -D EXPO_CONFIGURATION_DEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk -target arm64-apple-watchos10.0-simulator -g -Xfrontend -serialize-debugging-options -enable-testing -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /tmp/kakehashi-watch-audit-products/debug -F /tmp/kakehashi-watch-audit-products/debug -emit-localized-strings -emit-localized-strings-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64 -c -j11 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode/SDKStatCaches.noindex/watchsimulator26.2-23S303-963ebdd26732d23a23bcca82c2045e26.sdkstatcache -output-file-map /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_const_extract_protocols.json -Xcc -iquote -Xcc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-generated-files.hmap -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-own-target-headers.hmap -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-target-headers.hmap -Xcc -iquote -Xcc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-project-headers.hmap -Xcc -I/tmp/kakehashi-watch-audit-products/debug/include -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources-normal/arm64 -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/arm64 -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch-Swift.h -working-directory /tmp/kakehashi-watch-audit-20260909/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftMergeGeneratedHeaders /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/Kakehashi_Watch-Swift.h /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch-Swift.h (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-swiftHeaderTool -arch arm64 /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch-Swift.h -o /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/Kakehashi_Watch-Swift.h
+
+Copy /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/arm64-apple-watchos-simulator.abi.json /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.abi.json (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.abi.json /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/arm64-apple-watchos-simulator.abi.json
+
+Copy /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/arm64-apple-watchos-simulator.swiftdoc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftdoc (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftdoc /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/arm64-apple-watchos-simulator.swiftdoc
+
+Copy /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/arm64-apple-watchos-simulator.swiftmodule /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftmodule (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftmodule /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/arm64-apple-watchos-simulator.swiftmodule
+
+Copy /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/Project/arm64-apple-watchos-simulator.swiftsourceinfo /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftsourceinfo (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftsourceinfo /tmp/kakehashi-watch-audit-products/debug/Kakehashi_Watch.swiftmodule/Project/arm64-apple-watchos-simulator.swiftsourceinfo
+
+SwiftDriverJobDiscovery normal arm64 Compiling WatchReviewStore.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftDriverJobDiscovery normal arm64 Compiling ContentView.swift (in target 'Kakehashi Watch' from project 'wanikani')
+
+SwiftDriver\ Compilation Kakehashi\ Watch normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Kakehashi_Watch -Onone -enforce-exclusivity\=checked @/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftFileList -DDEBUG -D EXPO_CONFIGURATION_DEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk -target arm64-apple-watchos10.0-simulator -g -Xfrontend -serialize-debugging-options -enable-testing -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /tmp/kakehashi-watch-audit-products/debug -F /tmp/kakehashi-watch-audit-products/debug -emit-localized-strings -emit-localized-strings-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64 -c -j11 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode/SDKStatCaches.noindex/watchsimulator26.2-23S303-963ebdd26732d23a23bcca82c2045e26.sdkstatcache -output-file-map /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /tmp/kakehashi-watch-audit-objects/SwiftExplicitPrecompiledModules -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/7r/rt1k66h94s50640q2ykc0vyw0000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_const_extract_protocols.json -Xcc -iquote -Xcc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-generated-files.hmap -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-own-target-headers.hmap -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-all-target-headers.hmap -Xcc -iquote -Xcc /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch-project-headers.hmap -Xcc -I/tmp/kakehashi-watch-audit-products/debug/include -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources-normal/arm64 -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources/arm64 -Xcc -I/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch-Swift.h -working-directory /tmp/kakehashi-watch-audit-20260909/ios -experimental-emit-module-separately -disable-cmo
+
+Ld /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Kakehashi\ Watch normal (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-watchos10.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk -O0 -L/tmp/kakehashi-watch-audit-objects/EagerLinkingTBDs/Debug-watchsimulator -L/tmp/kakehashi-watch-audit-products/debug -L/Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk/usr/lib/swift -F/tmp/kakehashi-watch-audit-objects/EagerLinkingTBDs/Debug-watchsimulator -F/tmp/kakehashi-watch-audit-products/debug -filelist /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/watchsimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch.swiftmodule @/tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi_Watch-linker-args.resp -framework SwiftUI -framework WatchConnectivity -o /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Kakehashi\ Watch
+
+CopySwiftLibs /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Kakehashi\ Watch --scan-folder /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Frameworks --scan-folder /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/PlugIns --scan-folder /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/SystemExtensions --scan-folder /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Extensions --scan-folder /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk/System/Library/Frameworks/SwiftUI.framework --scan-folder /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk/System/Library/Frameworks/WatchConnectivity.framework --platform watchsimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+Ignoring --strip-bitcode because --sign was not passed
+
+ExtractAppIntentsMetadata (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name Kakehashi_Watch --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator26.2.sdk --xcode-version 17C529 --platform-family watchOS --deployment-target 10.0 --bundle-identifier com.portego00.kakehashi.watch --output /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app --target-triple arm64-apple-watchos10.0-simulator --binary-file /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app/Kakehashi\ Watch --dependency-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch_dependency_info.dat --stringsdata-file /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftFileList --metadata-file-list /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.DependencyMetadataFileList --static-metadata-file-list /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Kakehashi\ Watch.DependencyStaticMetadataFileList --swift-const-vals-list /tmp/kakehashi-watch-audit-objects/wanikani.build/Debug-watchsimulator/Kakehashi\ Watch.build/Objects-normal/arm64/Kakehashi\ Watch.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-09-09 13:00:03.620 appintentsmetadataprocessor[63941:11692915] Starting appintentsmetadataprocessor export
+2026-09-09 13:00:03.621 appintentsmetadataprocessor[63941:11692915] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+RegisterExecutionPolicyException /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-RegisterExecutionPolicyException /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app
+
+Validate /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    builtin-validationUtility /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app -shallow-bundle -infoplist-subpath Info.plist
+
+Touch /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app (in target 'Kakehashi Watch' from project 'wanikani')
+    cd /tmp/kakehashi-watch-audit-20260909/ios
+    /usr/bin/touch -c /tmp/kakehashi-watch-audit-products/debug/Kakehashi\ Watch.app
+
+** BUILD SUCCEEDED **
+

@@ -25,6 +25,9 @@ export function notebookMarkdown(page: NotebookPage, state: NotebookState): stri
     if (block.type === "codeBlock") text = `\`\`\`${block.props?.language || ""}\n${text}\n\`\`\``;
     if (block.type === "vocabulary") text = `[${block.props?.label || "Word"}](/subjects/${block.props?.subjectId})`;
     if (block.type === "pageLink") text = `[${state.pages.find((item) => item.id === block.props?.pageId)?.title || "Page"}](/notebooks/${block.props?.pageId})`;
+    if (block.type === "handwriting") text = block.props?.drawingId === "" && block.props?.inkFormat === "strokes-v1"
+      ? "[Empty handwriting area]"
+      : "[Handwriting — view the saved drawing in your notebook. It is not included in this text export.]";
     if (block.type === "sentence") {
       const sentence = state.sentences.find((item) => item.id === block.props?.sentenceId);
       text = sentence ? [sentence.japanese, sentence.kana, sentence.english].filter(Boolean).join("  \n") : "";

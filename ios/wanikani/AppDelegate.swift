@@ -38,6 +38,7 @@ public class AppDelegate: ExpoAppDelegate {
     
     // Request notification permissions
     UNUserNotificationCenter.current().requestAuthorization(options: [.badge, .alert, .sound]) { _, _ in }
+    KakehashiWatchBridge.shared.activate()
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -116,27 +117,19 @@ public class AppDelegate: ExpoAppDelegate {
     print("📱 AppDelegate: Updating widget with \(currentReviews) reviews from scheduled notification")
     
     // Update widget data in shared App Group
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
-      print("❌ AppDelegate: Failed to access App Group UserDefaults")
-      return
-    }
-    
-    let data: [String: Any] = [
-      "currentReviews": currentReviews,
-      "upcomingReviews": upcomingReviews,
-      "upcomingReviewTimes": upcomingReviewTimes ?? [:],
-      "lastUpdated": Date().timeIntervalSince1970
-    ]
-    
-    sharedDefaults.set(data, forKey: "waniKaniReviewData")
-    let syncSuccess = sharedDefaults.synchronize()
+    let syncSuccess = saveKakehashiReviewSnapshot(
+      currentReviews: currentReviews,
+      upcomingReviews: upcomingReviews,
+      upcomingReviewTimes: upcomingReviewTimes,
+      logPrefix: "AppDelegate"
+    )
     print("✅ AppDelegate: Saved widget data - \(currentReviews) reviews (sync: \(syncSuccess))")
     NSLog("✅ AppDelegate: Saved widget data - %d reviews (sync: %@)", currentReviews, syncSuccess ? "success" : "failed")
     
     // Reload widget timelines
     DispatchQueue.main.async {
       WidgetCenter.shared.reloadAllTimelines()
-      WidgetCenter.shared.reloadTimelines(ofKind: "WaniKaniWidget")
+      WidgetCenter.shared.reloadTimelines(ofKind: kakehashiHomeWidgetKind)
       print("🔄 AppDelegate: Widget reload completed")
       NSLog("🔄 AppDelegate: Widget reload completed")
     }

@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCustomSrsState, enrollCustomVocabularyPack } from "./model";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
@@ -78,8 +78,38 @@ function renderDetail(detailWord = word, packTitle = pack.title) {
 
 describe("custom vocabulary subject details", () => {
   afterEach(() => {
+    cleanup();
     window.localStorage.clear();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("shows and plays published Shizuka audio on the details page without build-time audio configuration", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CUSTOM_VOCABULARY_AUDIO_SUPABASE_URL", undefined);
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+
+    const { container } = renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play Shizuka pronunciation" }));
+    await waitFor(() => expect(play).toHaveBeenCalledOnce());
+    expect(container.querySelector("audio[data-subject-audio-player]")).toHaveAttribute("src", expect.stringContaining("https://zcvoxqcvobgvcwcrqytz.supabase.co/storage/v1/object/public/custom-vocabulary-audio/v1/conversation-glue/conversation-douzo/"));
+    expect(screen.queryByRole("tab", { name: "Reading" })).not.toBeInTheDocument();
+  });
+
+  it("shows the released recording in the Reading tab for kanji vocabulary", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CUSTOM_VOCABULARY_AUDIO_SUPABASE_URL", undefined);
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    const kanjiPack = CUSTOM_VOCABULARY_PACKS.find((candidate) => candidate.words.some((entry) => /\p{Script=Han}/u.test(entry.characters)))!;
+    const kanjiWord = kanjiPack.words.find((entry) => /\p{Script=Han}/u.test(entry.characters))!;
+    const { container } = renderDetail(kanjiWord, kanjiPack.title);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
+    fireEvent.click(screen.getByRole("button", { name: "Play Shizuka pronunciation" }));
+    await waitFor(() => expect(play).toHaveBeenCalledOnce());
+    expect(container.querySelector("audio[data-subject-audio-player]")).toHaveAttribute("src", expect.stringContaining(`/${kanjiWord.id}/`));
   });
 
   beforeEach(() => {

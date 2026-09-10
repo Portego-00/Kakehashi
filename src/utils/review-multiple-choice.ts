@@ -197,17 +197,19 @@ function readingConfusions(
   return candidates;
 }
 
-/** Generates four unambiguous choices, or none when the local catalog is insufficient. */
+/** Prefers difficult distractors, then fills missing choices from learned answers. */
 export function createReviewAnswerChoices({
   subject,
   questionType,
   subjects,
+  learnedSubjectIds,
   meaningSynonyms = [],
   seed,
 }: {
   subject: Subject;
   questionType: QuestionType;
   subjects: readonly Subject[];
+  learnedSubjectIds?: ReadonlySet<number>;
   meaningSynonyms?: readonly string[];
   seed: string;
 }): ReviewAnswerChoice[] {
@@ -367,6 +369,57 @@ export function createReviewAnswerChoices({
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
+  if (distractors.length < 3 && learnedSubjectIds?.size) {
+    // Keep every difficult choice. Only missing slots use random learned answers,
+    // preferring the same subject type before widening to the rest of the pool.
+    const used = new Set([
+      ...excluded,
+      ...distractors.map(({ text }) => normalize(text, questionType)),
+    ]);
+    const fallback = subjects
+      .filter(
+        (candidate) =>
+          candidate.id !== subject.id && learnedSubjectIds.has(candidate.id),
+      )
+      .map((candidate) => ({ candidate, rank: random() }))
+      .sort(
+        (a, b) =>
+          Number(b.candidate.object === subject.object) -
+            Number(a.candidate.object === subject.object) || a.rank - b.rank,
+      );
+    for (const { candidate } of fallback) {
+      if (
+        questionType === "meaning" &&
+        candidate.data.meanings.some((entry) =>
+          excluded.has(normalize(entry.meaning, "meaning")),
+        )
+      )
+        continue;
+      const entries =
+        questionType === "reading"
+          ? (candidate.data.readings ?? [])
+              .filter((entry) => entry.accepted_answer !== false)
+              .map((entry) => ({ text: entry.reading, primary: entry.primary }))
+          : candidate.data.meanings
+              .filter((entry) => entry.accepted_answer !== false)
+              .map((entry) => ({ text: entry.meaning, primary: entry.primary }));
+      // Try alternate accepted answers too if a primary answer is already used.
+      entries.sort(
+        (a, b) => Number(Boolean(b.primary)) - Number(Boolean(a.primary)),
+      );
+      for (const { text } of entries) {
+        const key = normalize(text, questionType);
+        if (!key || used.has(key)) continue;
+        used.add(key);
+        distractors.push({
+          text: questionType === "reading" ? key : text,
+          score: 0,
+        });
+        if (distractors.length === 3) break;
+      }
+      if (distractors.length === 3) break;
+    }
+  }
   if (distractors.length < 3) return [];
   const choices = [
     { text: correct, isCorrect: true },

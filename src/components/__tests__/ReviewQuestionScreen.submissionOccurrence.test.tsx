@@ -23,6 +23,7 @@ const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
 );
 const mockRenderedDetailSubjects: number[] = [];
 const mockGetAllSubjects = jest.fn(async (): Promise<unknown[]> => []);
+const mockGetAssignments = jest.fn<Promise<unknown[] | null>, [{ ignoreTTL: boolean }]>(async () => []);
 const mockSpeechListeners = new Map<string, (event: unknown) => void>();
 let mockUseRealKanaInput = false;
 let mockVoicePermissionsGranted = false;
@@ -31,6 +32,10 @@ jest.mock("../../utils/cache", () => ({
   getSubjectById: (id: number) => mockGetSubjectById(id),
   getAllSubjects: () => mockGetAllSubjects(),
   clearStudyMaterialsCache: jest.fn(async () => {}),
+}));
+
+jest.mock("../../utils/permanentStorage", () => ({
+  getAssignmentsFromPermanentStorage: (options: { ignoreTTL: boolean }) => mockGetAssignments(options),
 }));
 
 const mockAuthState: { apiToken: null; userData: { username: string } | null } = {
@@ -440,6 +445,8 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.setReviewMultipleChoiceEnabled.mockReset();
     mockGetAllSubjects.mockReset();
     mockGetAllSubjects.mockResolvedValue([]);
+    mockGetAssignments.mockReset();
+    mockGetAssignments.mockResolvedValue([]);
     mockSettings.allowSkippingReviews = false;
     mockSettings.ankiCardMode = false;
     mockSettings.ankiCardModeScope = "both";
@@ -1328,7 +1335,37 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.queryByLabelText("Switch to typing")).toBeNull();
     expect(screen.queryByTestId("answer-input")).toBeNull();
     expect(mockGetAllSubjects).not.toHaveBeenCalled();
+    expect(mockGetAssignments).not.toHaveBeenCalled();
     expect(screen.getByText("Tap anywhere to see the answer")).toBeTruthy();
+  });
+
+  it.each(["kanji", "vocabulary", "kana_vocabulary"] as const)("fills %s choices from learned assignments, including burned items", async (object) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const item = { ...audioItem, subject: { ...audioItem.subject, object } };
+    const candidates = ["Tatami", "Festival", "Umbrella", "Salt"].map((meaning, index) => ({
+      id: 20 + index, object, data: {
+        characters: null, meanings: [{ meaning, primary: true, accepted_answer: true }],
+      },
+    }));
+    mockGetAllSubjects.mockResolvedValue(candidates);
+    let resolveAssignments!: (assignments: unknown[]) => void;
+    mockGetAssignments.mockImplementation(() => new Promise((resolve) => { resolveAssignments = resolve; }));
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={onAnswer} />);
+    await act(async () => {});
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    await act(async () => resolveAssignments(candidates.map(({ id }, index) => ({
+      data: { subject_id: id, srs_stage: [1, 5, 9, 0][index] },
+    }))));
+    const answer = await screen.findByRole("button", { name: /\d\. Cat$/ });
+    const cards = screen.getAllByRole("button").filter(button => /^\d\. /.test(button.props.accessibilityLabel));
+    expect(cards.map(button => button.props.accessibilityLabel.replace(/^\d\. /, "")).sort())
+      .toEqual(["Cat", "Festival", "Tatami", "Umbrella"]);
+    expect(mockGetAssignments).toHaveBeenCalledWith({ ignoreTTL: true });
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    expect(screen.queryByText(/Not enough distinct choices/)).toBeNull();
+    fireEvent.press(answer);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(item, "meaning", true, false, false));
   });
 
   it("falls back to typing when meaning choices cannot be generated", async () => {

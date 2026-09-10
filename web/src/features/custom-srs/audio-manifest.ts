@@ -17,6 +17,10 @@ export interface CustomVocabularyAudioPublication {
 }
 
 const publication: CustomVocabularyAudioPublication = publicationData as CustomVocabularyAudioPublication;
+
+/** Public origin of the verified release; no credentials or unpublished recordings are included. */
+export const CUSTOM_VOCABULARY_AUDIO_PUBLIC_ORIGIN = "https://zcvoxqcvobgvcwcrqytz.supabase.co";
+
 const SAFE_SEGMENT = /^[a-z0-9][a-z0-9-]*$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 

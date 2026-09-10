@@ -18,7 +18,7 @@ describe("native notebook transport", () => {
     fetchMock.mockResponseOnce(JSON.stringify(envelope));
     expect(await requestNotebookCloud(token, accountId)).toEqual(envelope);
     expect(fetchMock).toHaveBeenCalledWith("https://kakehashi.test/api/notebooks/native", expect.objectContaining({
-      method: "GET", credentials: "omit", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal: expect.any(AbortSignal),
+      method: "GET", credentials: "omit", headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "X-Notebook-Features": "handwriting-v1, handwriting-strokes-v1, handwriting-appearance-v1" }, signal: expect.any(AbortSignal),
     }));
     expect(fetchMock.mock.calls[0][0]).not.toContain(token);
   });
@@ -30,6 +30,20 @@ describe("native notebook transport", () => {
     expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
       method: "POST", headers: expect.objectContaining({ "Content-Type": "application/json", "X-Notebook-Account": accountId }), body: JSON.stringify(mutation),
     }));
+  });
+
+  it.each([undefined, "", "   "])("connects a device build to the deployed notebooks when its override is %p", async (configured) => {
+    if (configured === undefined) delete process.env.EXPO_PUBLIC_NOTEBOOKS_API_URL;
+    else process.env.EXPO_PUBLIC_NOTEBOOKS_API_URL = configured;
+    fetchMock.mockResponseOnce(JSON.stringify(envelope));
+    expect(await requestNotebookCloud(token, accountId)).toEqual(envelope);
+    expect(fetchMock).toHaveBeenCalledWith("https://kakehashiapp.com/api/notebooks/native", expect.objectContaining({
+      method: "GET", credentials: "omit", headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
+    }));
+  });
+
+  it("preserves an explicit trusted notebook deployment override", () => {
+    expect(notebookEndpoint("  https://preview.kakehashi.test/api/notebooks/native  ")).toBe("https://preview.kakehashi.test/api/notebooks/native");
   });
 
   it("rejects account-mismatched responses instead of sharing another account's state", async () => {
@@ -52,7 +66,7 @@ describe("native notebook transport", () => {
   });
 
   it("validates connection configuration before passing a token to fetch", async () => {
-    for (const configured of ["", "bad url", "http://outside.test/api", "https://user:password@outside.test/api", "file:///tmp/notebook.json"]) {
+    for (const configured of ["bad url", "http://outside.test/api", "https://user:password@outside.test/api", "file:///tmp/notebook.json"]) {
       expect(() => notebookEndpoint(configured)).toThrow();
       process.env.EXPO_PUBLIC_NOTEBOOKS_API_URL = configured;
       await expect(requestNotebookCloud(token, accountId)).rejects.toMatchObject({ status: 503, code: "not_configured" });
