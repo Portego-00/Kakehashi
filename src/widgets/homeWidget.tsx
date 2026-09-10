@@ -25,6 +25,7 @@ import {
   shadow,
   widgetAccentedRenderingMode,
 } from "@expo/ui/swift-ui/modifiers";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Asset } from "expo-asset";
 import { Directory, File, Paths } from "expo-file-system";
 import type { Widget, WidgetEnvironment } from "expo-widgets";
@@ -36,6 +37,7 @@ import type {
 
 export const KAKEHASHI_HOME_WIDGET_NAME = "KakehashiHomeWidget";
 const WIDGET_APP_GROUP_IDENTIFIER = "group.com.kakehashi.reviewdata";
+const LAST_WIDGET_SNAPSHOT_STORAGE_KEY = "kakehashi-last-widget-snapshot-input";
 const STREAK_ICON_VERSION = "v5";
 const REVIEW_ILLUSTRATION_VERSION = "v6";
 const REVIEW_ACCESSORY_ICON_VERSION = "v2";
@@ -1957,6 +1959,14 @@ function sanitizeWidgetPropsForNative(props: HomeWidgetProps): HomeWidgetProps {
 export function updateHomeWidgetSnapshot(input: HomeWidgetSnapshotInput) {
   const normalizedInput = normalizeSnapshotInputForLiveStreakSession(input);
   latestWidgetSnapshotInput = normalizedInput;
+  try {
+    void AsyncStorage.setItem(
+      LAST_WIDGET_SNAPSHOT_STORAGE_KEY,
+      JSON.stringify(normalizedInput),
+    );
+  } catch {
+    // Best effort only.
+  }
 
   const updateTimelineWithProps = (snapshotInput: HomeWidgetSnapshotInput) => {
     const reviewIllustrationUris = cachedReviewIllustrationUris ?? {};
@@ -2177,3 +2187,84 @@ export function reloadHomeWidget() {
     // Ignore reload errors. This function is best effort only.
   }
 }
+
+export type BackgroundReviewSyncData = {
+  currentReviews: number;
+  upcomingReviews?: number[];
+  upcomingReviewTimes?: { [key: string]: number };
+};
+
+export async function getLastWidgetSnapshotInput(): Promise<HomeWidgetSnapshotInput | null> {
+  if (latestWidgetSnapshotInput) {
+    return latestWidgetSnapshotInput;
+  }
+  try {
+    const raw = await AsyncStorage.getItem(LAST_WIDGET_SNAPSHOT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as HomeWidgetSnapshotInput;
+      latestWidgetSnapshotInput = parsed;
+      return parsed;
+    }
+  } catch {
+    // Best effort only.
+  }
+  return null;
+}
+
+export async function syncHomeWidgetFromBackgroundReviewData(
+  reviewData: BackgroundReviewSyncData,
+): Promise<void> {
+  if (Platform.OS !== "ios") {
+    return;
+  }
+
+  const existingInput = await getLastWidgetSnapshotInput();
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  const upcomingBuckets: ReviewUpcomingBucket[] = [];
+  let earliestFutureReviewTime: string | null = null;
+  let earliestFutureMs = Number.POSITIVE_INFINITY;
+
+  if (reviewData.upcomingReviewTimes) {
+    for (const [isoDate, count] of Object.entries(reviewData.upcomingReviewTimes)) {
+      if (count <= 0) continue;
+      upcomingBuckets.push({ date: isoDate, count });
+      const ms = Date.parse(isoDate);
+      if (!Number.isNaN(ms) && ms > nowMs && ms < earliestFutureMs) {
+        earliestFutureMs = ms;
+        earliestFutureReviewTime = isoDate;
+      }
+    }
+  }
+
+  const reviewCount = Math.max(0, Math.round(reviewData.currentReviews));
+
+  const updatedInput: HomeWidgetSnapshotInput = {
+    contentMode: existingInput?.contentMode ?? "reviews",
+    streakGradientPreset: existingInput?.streakGradientPreset ?? "defaults",
+    isDarkTheme: existingInput?.isDarkTheme,
+    streakTimezone: existingInput?.streakTimezone,
+    reviewCount,
+    nextReviewDate:
+      earliestFutureReviewTime ??
+      (existingInput?.nextReviewDate ?? null),
+    todayReviewTotal: existingInput?.todayReviewTotal ?? 0,
+    reviewUpcomingBuckets:
+      upcomingBuckets.length > 0
+        ? upcomingBuckets
+        : (existingInput?.reviewUpcomingBuckets ?? []),
+    criticalCount: existingInput?.criticalCount ?? 0,
+    topCriticalItem: existingInput?.topCriticalItem ?? null,
+    recentMistakesCount: existingInput?.recentMistakesCount ?? 0,
+    currentStreak: existingInput?.currentStreak ?? 0,
+    longestStreak: existingInput?.longestStreak ?? 0,
+    freezeAvailable: existingInput?.freezeAvailable ?? false,
+    freezeDaysUntilReload: existingInput?.freezeDaysUntilReload ?? 7,
+    streakRecentDays: existingInput?.streakRecentDays ?? [],
+  };
+
+  updateHomeWidgetSnapshot(updatedInput);
+  reloadHomeWidget();
+}
+

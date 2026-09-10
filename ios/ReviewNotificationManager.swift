@@ -12,7 +12,7 @@ import WidgetKit
 
 // Simple widget data storage for notifications
 private func saveWidgetData(currentReviews: Int, upcomingReviews: [Int], upcomingReviewTimes: [String: Int]?) {
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
+    guard let sharedDefaults = UserDefaults(suiteName: "group.com.kakehashi.reviewdata") else {
         print("❌ Failed to access App Group UserDefaults")
         return
     }
@@ -491,7 +491,7 @@ class ReviewNotificationManager: NSObject {
     print("📱 ReviewNotificationManager.updateWidgetData called at \(timestamp) with: currentReviews=\(currentReviews)")
     NSLog("📱 ReviewNotificationManager.updateWidgetData called at %@ with: currentReviews=%d", timestamp, currentReviews)
     
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
+    guard let sharedDefaults = UserDefaults(suiteName: "group.com.kakehashi.reviewdata") else {
       print("❌ Failed to access App Group UserDefaults")
       return
     }
@@ -511,7 +511,7 @@ class ReviewNotificationManager: NSObject {
     // Tell WidgetKit to reload widgets
     DispatchQueue.main.async {
       WidgetCenter.shared.reloadAllTimelines()
-      WidgetCenter.shared.reloadTimelines(ofKind: "WaniKaniWidget")
+      WidgetCenter.shared.reloadTimelines(ofKind: "KakehashiHomeWidget")
       print("🔄 ReviewNotificationManager: Widget reload requested")
       NSLog("🔄 ReviewNotificationManager: Widget reload requested")
     }
@@ -703,7 +703,7 @@ class ReviewNotificationManager: NSObject {
     print("🧪 ReviewNotificationManager: Scheduling test widget updates")
     
     // Get current review data
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata"),
+    guard let sharedDefaults = UserDefaults(suiteName: "group.com.kakehashi.reviewdata"),
           let currentData = sharedDefaults.object(forKey: "waniKaniReviewData") as? [String: Any],
           let currentReviews = currentData["currentReviews"] as? Int else {
       // Use default values if no current data

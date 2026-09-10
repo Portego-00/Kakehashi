@@ -1,7 +1,13 @@
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
-import { getReviewCount, getStoredApiToken, type VisibleReviewData } from './api';
+import {
+  getReviewCount,
+  getStoredApiToken,
+  getVisibleReviewData,
+  type VisibleReviewData,
+} from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   updateBadgeAndScheduleNotifications,
@@ -51,6 +57,38 @@ async function isReviewNotificationsEnabled(): Promise<boolean> {
   }
 }
 
+// Helper function to check if widget background refresh is enabled
+async function isWidgetBackgroundRefreshEnabled(): Promise<boolean> {
+  try {
+    const settings = await AsyncStorage.getItem('wanikani-settings');
+    if (settings) {
+      const parsedSettings = JSON.parse(settings);
+      return parsedSettings.state?.widgetBackgroundRefreshEnabled ?? true; // Default to true
+    }
+    return true; // Default to true if no settings found
+  } catch (error) {
+    console.error('Error checking widget background refresh setting:', error);
+    return true; // Default to true on error
+  }
+}
+
+async function syncHomeWidgetIfSupported(reviewData: {
+  currentReviews: number;
+  upcomingReviews?: number[];
+  upcomingReviewTimes?: { [key: string]: number };
+}): Promise<void> {
+  if (Platform.OS !== 'ios') {
+    return;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { syncHomeWidgetFromBackgroundReviewData } = require('../widgets/homeWidget');
+    await syncHomeWidgetFromBackgroundReviewData(reviewData);
+  } catch (error) {
+    console.warn('Background widget sync error:', error);
+  }
+}
+
 if (NOTIFICATION_RUNTIME_SUPPORTED) {
   const isBackgroundFetchTaskAlreadyDefined =
     typeof TaskManager.isTaskDefined === 'function' &&
@@ -82,11 +120,29 @@ if (NOTIFICATION_RUNTIME_SUPPORTED) {
           return BackgroundTask.BackgroundTaskResult.Success;
         }
 
+        let visibleReviewData: VisibleReviewData | null = null;
+        try {
+          visibleReviewData = await getVisibleReviewData(apiToken, {
+            hoursAhead: 24,
+          });
+        } catch {
+          // Visible review fetch failed, fall back to review count below.
+        }
+
+        const widgetRefreshEnabled = await isWidgetBackgroundRefreshEnabled();
+        if (widgetRefreshEnabled && visibleReviewData) {
+          await syncHomeWidgetIfSupported(visibleReviewData);
+        }
+
         // Use native notification manager when available
         if (USE_NATIVE_NOTIFICATION_SYSTEM) {
           try {
-            await updateBadgeAndScheduleNotifications();
-            await syncDailyReminderNotifications();
+            await updateBadgeAndScheduleNotifications({
+              visibleReviewData: visibleReviewData ?? undefined,
+            });
+            await syncDailyReminderNotifications({
+              reviewCount: visibleReviewData?.currentReviews,
+            });
             return BackgroundTask.BackgroundTaskResult.Success;
           } catch {
             // Fall back to Expo notifications below
@@ -101,7 +157,16 @@ if (NOTIFICATION_RUNTIME_SUPPORTED) {
         const reviewNotificationsEnabled = await isReviewNotificationsEnabled();
 
         // Get current review count (we need this for both features)
-        const reviewCount = await getReviewCount(apiToken);
+        const reviewCount =
+          visibleReviewData?.currentReviews ?? (await getReviewCount(apiToken));
+
+        if (widgetRefreshEnabled && !visibleReviewData) {
+          await syncHomeWidgetIfSupported({
+            currentReviews: reviewCount,
+            upcomingReviews: [],
+            upcomingReviewTimes: {},
+          });
+        }
 
         // Handle badge notifications
         if (badgeEnabled) {
@@ -156,7 +221,7 @@ export async function initializeBadgeNotifications(): Promise<void> {
       // Still register background fetch for periodic updates
       try {
         await BackgroundTask.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-          minimumInterval: 60, // 1 hour in minutes
+          minimumInterval: 15, // 15 minutes (iOS system minimum interval)
         });
       } catch {
         // Background fetch registration failed - continue anyway
@@ -172,7 +237,7 @@ export async function initializeBadgeNotifications(): Promise<void> {
     // Try to register background fetch task
     try {
       await BackgroundTask.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-        minimumInterval: 60, // 1 hour in minutes
+        minimumInterval: 15, // 15 minutes (iOS system minimum interval)
       });
     } catch {
       // Background fetch registration failed - continue anyway
@@ -207,6 +272,13 @@ export async function updateBadgeWithReviewCount(
 
   badgeUpdateInFlight = (async () => {
     try {
+      if (options.visibleReviewData) {
+        const widgetRefreshEnabled = await isWidgetBackgroundRefreshEnabled();
+        if (widgetRefreshEnabled) {
+          await syncHomeWidgetIfSupported(options.visibleReviewData);
+        }
+      }
+
       let reviewCountForReminder =
         typeof options.visibleReviewData?.currentReviews === 'number'
           ? Math.max(0, options.visibleReviewData.currentReviews)

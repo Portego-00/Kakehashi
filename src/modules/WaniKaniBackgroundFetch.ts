@@ -18,9 +18,10 @@ interface BackgroundFetchResult {
 interface WaniKaniBackgroundFetchModule {
   storeApiToken(apiToken: string): void;
   updateNotificationSettings(settings: {
-    badgeEnabled: boolean;
-    alertsEnabled: boolean;
-    soundsEnabled: boolean;
+    badgeEnabled?: boolean;
+    alertsEnabled?: boolean;
+    soundsEnabled?: boolean;
+    widgetBackgroundRefreshEnabled?: boolean;
   }): void;
   getBackgroundFetchStatus(): BackgroundFetchStatus;
   triggerBackgroundFetchManually(): Promise<BackgroundFetchResult>;
