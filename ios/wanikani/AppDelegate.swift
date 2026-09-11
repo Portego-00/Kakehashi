@@ -33,9 +33,6 @@ public class AppDelegate: ExpoAppDelegate {
     // Setup notifications
     UNUserNotificationCenter.current().delegate = self
     
-    // Enable background fetch with minimum interval
-    application.setMinimumBackgroundFetchInterval(UIApplication.backgroundFetchIntervalMinimum)
-    
     // Request notification permissions
     UNUserNotificationCenter.current().requestAuthorization(options: [.badge, .alert, .sound]) { _, _ in }
     KakehashiWatchBridge.shared.activate()
@@ -66,33 +63,7 @@ public class AppDelegate: ExpoAppDelegate {
   
   public override func applicationDidBecomeActive(_ application: UIApplication) {
     super.applicationDidBecomeActive(application)
-    updateAppBadgeCount()
-  }
-  
-  public override func applicationWillResignActive(_ application: UIApplication) {
-    super.applicationWillResignActive(application)
-    updateAppBadgeCount()
-  }
-  
-  public override func application(
-    _ application: UIApplication,
-    performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
-  ) {
-    // Use the WaniKaniBackgroundFetch module to perform background fetch
-    let backgroundFetch = WaniKaniBackgroundFetch()
-    backgroundFetch.performBackgroundFetch(completionHandler: completionHandler)
-  }
-  
-  // MARK: - Badge and Notification Management
-  
-  private func updateAppBadgeCount() {
-    // Trigger notification update through our background fetch module
-    DispatchQueue.main.async {
-      NotificationCenter.default.post(
-        name: Notification.Name("TriggerReviewUpdate"),
-        object: nil
-      )
-    }
+    removeDeliveredKakehashiReviewNotifications()
   }
   
   // Handle widget update notifications
@@ -152,6 +123,10 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     // Check if this is a silent widget notification (should not show banner)
     if let widgetUpdate = userInfo["widgetUpdate"] as? Bool, widgetUpdate == true {
       // Silent widget notifications should only update badge, no banner or sound
+      completionHandler([.badge])
+    } else if userInfo[kakehashiReviewNotificationMarkerKey] as? Bool == true,
+              userInfo[kakehashiReviewAlertMarkerKey] as? Bool != true {
+      // Future review counts use silent notifications to keep the badge current.
       completionHandler([.badge])
     } else {
       // Show notification normally for regular notifications

@@ -72,6 +72,7 @@ let subjectsMemoryLoadPromise: Promise<void> | null = null;
 let lastMemoryLoadAttemptAt: number = 0;
 let lastMemoryLoadHadData = false;
 const MEMORY_CACHE_RELOAD_BACKOFF_MS = 10 * 1000;
+let studyMaterialsCacheMutationLock: Promise<void> = Promise.resolve();
 
 function hasSubjectsPayloadInPermanentStorage(): boolean {
   try {
@@ -216,35 +217,99 @@ async function getPersistedStudyMaterialsCache(): Promise<PersistedStudyMaterial
   };
 }
 
-export async function saveStudyMaterialsToPermanentCache(
+function getStudyMaterialUpdatedAt(
+  material: CachedStudyMaterialRecord | null | undefined
+): number | null {
+  if (!material?.data_updated_at) return null;
+
+  const parsed = Date.parse(material.data_updated_at);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function canReplaceCachedStudyMaterial(
+  existing: CachedStudyMaterialRecord | null | undefined,
+  incoming: CachedStudyMaterialRecord | null,
+  responseDataUpdatedAt?: string | null
+): boolean {
+  if (!existing) return true;
+
+  const existingUpdatedAt = getStudyMaterialUpdatedAt(existing);
+  const incomingUpdatedAt =
+    getStudyMaterialUpdatedAt(incoming) ??
+    (responseDataUpdatedAt ? Date.parse(responseDataUpdatedAt) : NaN);
+  if (existingUpdatedAt === null || !Number.isFinite(incomingUpdatedAt)) {
+    return true;
+  }
+
+  return incomingUpdatedAt >= existingUpdatedAt;
+}
+
+async function saveStudyMaterialsToPermanentCacheUnlocked(
   requestedSubjectIds: number[],
   materials: CachedStudyMaterialRecord[],
-  options: { completeResponse: boolean; completeCollection?: boolean }
+  options: {
+    completeResponse: boolean;
+    completeCollection?: boolean;
+    dataUpdatedAt?: string | null;
+  }
 ): Promise<void> {
   const requestedIds = normalizeStudyMaterialSubjectIds(requestedSubjectIds);
   const current = await getPersistedStudyMaterialsCache();
-  const next: PersistedStudyMaterialsCache = options.completeCollection
-    ? {
-        version: 1,
-        isCompleteCollection: true,
-        bySubjectId: {},
-      }
-    : {
-        version: 1,
-        isCompleteCollection: current.isCompleteCollection,
-        bySubjectId: { ...current.bySubjectId },
-      };
+  const next: PersistedStudyMaterialsCache = {
+    version: 1,
+    isCompleteCollection:
+      current.isCompleteCollection || Boolean(options.completeCollection),
+    bySubjectId: { ...current.bySubjectId },
+  };
 
-  if (options.completeResponse) {
-    requestedIds.forEach((subjectId) => {
-      next.bySubjectId[String(subjectId)] = null;
-    });
-  }
-
+  const incomingBySubjectId = new Map<string, CachedStudyMaterialRecord>();
   materials.forEach((material) => {
     const subjectId = material?.data?.subject_id;
     if (Number.isInteger(subjectId) && subjectId > 0) {
-      next.bySubjectId[String(subjectId)] = material;
+      incomingBySubjectId.set(String(subjectId), material);
+    }
+  });
+
+  if (options.completeCollection) {
+    Object.entries(current.bySubjectId).forEach(([key, existing]) => {
+      if (
+        !incomingBySubjectId.has(key) &&
+        canReplaceCachedStudyMaterial(
+          existing,
+          null,
+          options.dataUpdatedAt
+        )
+      ) {
+        delete next.bySubjectId[key];
+      }
+    });
+  }
+
+  if (options.completeResponse) {
+    requestedIds.forEach((subjectId) => {
+      const key = String(subjectId);
+      if (
+        !incomingBySubjectId.has(key) &&
+        canReplaceCachedStudyMaterial(
+          current.bySubjectId[key],
+          null,
+          options.dataUpdatedAt
+        )
+      ) {
+        next.bySubjectId[key] = null;
+      }
+    });
+  }
+
+  incomingBySubjectId.forEach((material, key) => {
+    if (
+      canReplaceCachedStudyMaterial(
+        current.bySubjectId[key],
+        material,
+        options.dataUpdatedAt
+      )
+    ) {
+      next.bySubjectId[key] = material;
     }
   });
 
@@ -253,6 +318,33 @@ export async function saveStudyMaterialsToPermanentCache(
     next,
     new Date().toISOString()
   );
+}
+
+export async function saveStudyMaterialsToPermanentCache(
+  requestedSubjectIds: number[],
+  materials: CachedStudyMaterialRecord[],
+  options: {
+    completeResponse: boolean;
+    completeCollection?: boolean;
+    dataUpdatedAt?: string | null;
+  }
+): Promise<void> {
+  const previousMutation = studyMaterialsCacheMutationLock;
+  let releaseMutation!: () => void;
+  studyMaterialsCacheMutationLock = new Promise<void>((resolve) => {
+    releaseMutation = resolve;
+  });
+
+  await previousMutation;
+  try {
+    await saveStudyMaterialsToPermanentCacheUnlocked(
+      requestedSubjectIds,
+      materials,
+      options
+    );
+  } finally {
+    releaseMutation();
+  }
 }
 
 export async function getStudyMaterialsFromPermanentCache(

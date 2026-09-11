@@ -1230,7 +1230,7 @@
 				INFOPLIST_FILE = "../targets/kakehashi-watch/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Kakehashi;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.portego00.kakehashi;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.portego00.kakehashi.dev;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1239,7 +1239,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.portego00.kakehashi.watch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.portego00.kakehashi.dev.watch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;

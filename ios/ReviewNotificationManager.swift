@@ -17,6 +17,247 @@ let kakehashiHomeWidgetKind = "KakehashiHomeWidget"
 let kakehashiStoredAPITokenKey = "wanikani_api_token"
 let kakehashiVacationModeKey = "wanikani_is_on_vacation"
 let kakehashiVacationStartedAtKey = "wanikani_vacation_started_at"
+let kakehashiReviewNotificationCategoryIdentifier = "REVIEW_CATEGORY"
+let kakehashiReviewNotificationThreadIdentifier = "kakehashi-reviews"
+let kakehashiReviewNotificationMarkerKey = "kakehashiReviewNotification"
+let kakehashiReviewAlertMarkerKey = "kakehashiReviewAlert"
+
+struct KakehashiNativeAuthSessionSnapshot {
+  let apiToken: String
+  let generation: UInt64
+}
+
+final class KakehashiNativeAuthSession {
+  static let shared = KakehashiNativeAuthSession()
+
+  private let lock = NSLock()
+  private var apiToken: String?
+  private var generation: UInt64 = 0
+  private var didLoadStoredToken = false
+
+  private init() {}
+
+  private func normalizedToken(_ value: String?) -> String? {
+    let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return normalized?.isEmpty == false ? normalized : nil
+  }
+
+  private func loadStoredTokenIfNeeded() {
+    guard !didLoadStoredToken else {
+      return
+    }
+    apiToken = normalizedToken(
+      UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey)
+    )
+    didLoadStoredToken = true
+  }
+
+  func update(apiToken value: String?) {
+    lock.lock()
+    defer { lock.unlock() }
+    loadStoredTokenIfNeeded()
+
+    let normalized = normalizedToken(value)
+    if normalized != apiToken {
+      generation &+= 1
+      apiToken = normalized
+    }
+  }
+
+  func snapshot() -> KakehashiNativeAuthSessionSnapshot? {
+    lock.lock()
+    defer { lock.unlock() }
+    loadStoredTokenIfNeeded()
+
+    guard let apiToken else {
+      return nil
+    }
+    return KakehashiNativeAuthSessionSnapshot(
+      apiToken: apiToken,
+      generation: generation
+    )
+  }
+
+  func isCurrent(_ snapshot: KakehashiNativeAuthSessionSnapshot) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    loadStoredTokenIfNeeded()
+    return snapshot.generation == generation && snapshot.apiToken == apiToken
+  }
+}
+
+private let kakehashiLegacyReviewNotificationPrefixes = [
+  "review-",
+  "badge-update-",
+]
+
+func isKakehashiReviewNotification(_ request: UNNotificationRequest) -> Bool {
+  if request.content.categoryIdentifier == kakehashiReviewNotificationCategoryIdentifier {
+    return true
+  }
+
+  if request.content.userInfo[kakehashiReviewNotificationMarkerKey] as? Bool == true {
+    return true
+  }
+
+  return kakehashiLegacyReviewNotificationPrefixes.contains { prefix in
+    request.identifier.hasPrefix(prefix)
+  }
+}
+
+func isKakehashiReviewAlertNotification(_ request: UNNotificationRequest) -> Bool {
+  if let isAlert = request.content.userInfo[
+    kakehashiReviewAlertMarkerKey
+  ] as? Bool {
+    return isAlert
+  }
+
+  if request.content.categoryIdentifier == kakehashiReviewNotificationCategoryIdentifier {
+    return true
+  }
+
+  let hasVisibleContent =
+    !request.content.title.isEmpty ||
+    !request.content.body.isEmpty ||
+    request.content.sound != nil
+
+  if request.content.userInfo[kakehashiReviewNotificationMarkerKey] as? Bool == true {
+    return hasVisibleContent
+  }
+
+  // Older native schedules used both review-* and badge-update-* for visible
+  // alerts, so visible content distinguishes them from silent badge updates.
+  return kakehashiLegacyReviewNotificationPrefixes.contains { prefix in
+    request.identifier.hasPrefix(prefix)
+  } && hasVisibleContent
+}
+
+private func kakehashiReviewNotificationInteger(_ value: Any?) -> Int? {
+  if let value = value as? Int {
+    return value
+  }
+
+  return (value as? NSNumber)?.intValue
+}
+
+private func preservedKakehashiReviewTrigger(
+  _ trigger: UNNotificationTrigger?
+) -> UNNotificationTrigger? {
+  guard let trigger else {
+    return nil
+  }
+
+  guard let intervalTrigger = trigger as? UNTimeIntervalNotificationTrigger,
+        !intervalTrigger.repeats else {
+    return trigger
+  }
+
+  guard let nextTriggerDate = intervalTrigger.nextTriggerDate() else {
+    return nil
+  }
+
+  let remainingInterval = nextTriggerDate.timeIntervalSinceNow
+  guard remainingInterval > 1 else {
+    return nil
+  }
+
+  return UNTimeIntervalNotificationTrigger(
+    timeInterval: remainingInterval,
+    repeats: false
+  )
+}
+
+private func transformedKakehashiReviewRequest(
+  _ request: UNNotificationRequest,
+  showAlert: Bool,
+  updateBadge: Bool,
+  playSound: Bool
+) -> UNNotificationRequest? {
+  guard let content = request.content.mutableCopy() as? UNMutableNotificationContent else {
+    return nil
+  }
+  guard let trigger = preservedKakehashiReviewTrigger(request.trigger) else {
+    return nil
+  }
+
+  var userInfo = content.userInfo
+  let reviewCount = kakehashiReviewNotificationInteger(
+    userInfo["reviewCount"]
+  ) ?? content.badge?.intValue
+  let newReviews = kakehashiReviewNotificationInteger(
+    userInfo["newReviews"]
+  )
+  let hasVisibleContent =
+    !content.title.isEmpty ||
+    !content.body.isEmpty ||
+    content.sound != nil
+  let canShowAlert = showAlert && (hasVisibleContent || reviewCount != nil)
+
+  if canShowAlert {
+    if content.title.isEmpty {
+      if let newReviews {
+        let newlyAvailable = max(0, newReviews)
+        content.title = "\(newlyAvailable) new review\(newlyAvailable == 1 ? "" : "s") available"
+      } else {
+        content.title = "Reviews available"
+      }
+    }
+    if content.body.isEmpty, let reviewCount {
+      content.body = "You have \(reviewCount) review\(reviewCount == 1 ? "" : "s") waiting"
+    }
+    content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+    content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
+    content.sound = playSound ? UNNotificationSound.default : nil
+  } else {
+    content.title = ""
+    content.subtitle = ""
+    content.body = ""
+    content.categoryIdentifier = ""
+    content.threadIdentifier = ""
+    content.sound = nil
+  }
+
+  if updateBadge {
+    if let reviewCount {
+      content.badge = NSNumber(value: max(0, reviewCount))
+    }
+  } else {
+    content.badge = nil
+  }
+
+  let willUpdateBadge = updateBadge && content.badge != nil
+  guard canShowAlert || willUpdateBadge else {
+    return nil
+  }
+
+  userInfo[kakehashiReviewNotificationMarkerKey] = true
+  userInfo[kakehashiReviewAlertMarkerKey] = canShowAlert
+  content.userInfo = userInfo
+
+  return UNNotificationRequest(
+    identifier: request.identifier,
+    content: content,
+    trigger: trigger
+  )
+}
+
+func removeDeliveredKakehashiReviewNotifications(
+  from center: UNUserNotificationCenter = UNUserNotificationCenter.current()
+) {
+  center.getDeliveredNotifications { notifications in
+    let identifiers = notifications
+      .map(\.request)
+      .filter(isKakehashiReviewNotification)
+      .map(\.identifier)
+
+    guard !identifiers.isEmpty else {
+      return
+    }
+
+    center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    print("🗑️ Removed \(identifiers.count) delivered review notifications")
+  }
+}
 
 private let waniKaniAPIBaseURL = "https://api.wanikani.com/v2"
 private let waniKaniAPIRevision = "20170710"
@@ -695,6 +936,139 @@ class ReviewNotificationManager: NSObject {
       self.processReviewData(reviewData, resolve: resolve, reject: reject)
     }
   }
+
+  @objc func clearReviewAlerts(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter _: @escaping RCTPromiseRejectBlock
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getPendingNotificationRequests { pendingRequests in
+      let pendingIdentifiers = pendingRequests
+        .filter(isKakehashiReviewAlertNotification)
+        .map(\.identifier)
+      center.removePendingNotificationRequests(
+        withIdentifiers: pendingIdentifiers
+      )
+
+      center.getDeliveredNotifications { deliveredNotifications in
+        let deliveredIdentifiers = deliveredNotifications
+          .map(\.request)
+          .filter(isKakehashiReviewAlertNotification)
+          .map(\.identifier)
+        center.removeDeliveredNotifications(
+          withIdentifiers: deliveredIdentifiers
+        )
+
+        DispatchQueue.main.async {
+          resolve([
+            "success": true,
+            "pendingRemoved": pendingIdentifiers.count,
+            "deliveredRemoved": deliveredIdentifiers.count,
+          ])
+        }
+      }
+    }
+  }
+
+  @objc func applyReviewNotificationSettings(
+    _ notificationSettings: [String: Any],
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter _: @escaping RCTPromiseRejectBlock
+  ) {
+    let defaults = UserDefaults.standard
+    if let badgeEnabled = notificationSettings["badgeEnabled"] as? Bool {
+      defaults.set(badgeEnabled, forKey: "badge_notifications_enabled")
+    }
+    if let alertsEnabled = notificationSettings["alertsEnabled"] as? Bool {
+      defaults.set(alertsEnabled, forKey: "review_notifications_enabled")
+    }
+    if let soundsEnabled = notificationSettings["soundsEnabled"] as? Bool {
+      defaults.set(soundsEnabled, forKey: "notification_sounds_enabled")
+    }
+
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationSettings { systemSettings in
+      center.getPendingNotificationRequests { pendingRequests in
+        // Read the persisted values here so overlapping setting changes always
+        // converge on the most recent preferences.
+        let badgeEnabled = defaults.object(
+          forKey: "badge_notifications_enabled"
+        ) as? Bool ?? true
+        let alertsEnabled = defaults.object(
+          forKey: "review_notifications_enabled"
+        ) as? Bool ?? false
+        let soundsEnabled = defaults.object(
+          forKey: "notification_sounds_enabled"
+        ) as? Bool ?? true
+        let shouldShowAlert =
+          alertsEnabled && systemSettings.alertSetting == .enabled
+        let shouldUpdateBadge =
+          badgeEnabled && systemSettings.badgeSetting == .enabled
+        let shouldPlaySound =
+          shouldShowAlert &&
+          soundsEnabled &&
+          systemSettings.soundSetting == .enabled
+
+        var identifiersToRemove: [String] = []
+        var replacementRequests: [UNNotificationRequest] = []
+
+        for request in pendingRequests where isKakehashiReviewNotification(request) {
+          // Immediate Expo availability notifications are handled by the Expo
+          // cleanup path. Re-adding a nil-trigger request would deliver it again.
+          guard request.trigger != nil else {
+            if !shouldShowAlert {
+              identifiersToRemove.append(request.identifier)
+            }
+            continue
+          }
+
+          if let replacement = transformedKakehashiReviewRequest(
+            request,
+            showAlert: shouldShowAlert,
+            updateBadge: shouldUpdateBadge,
+            playSound: shouldPlaySound
+          ) {
+            replacementRequests.append(replacement)
+          } else {
+            identifiersToRemove.append(request.identifier)
+          }
+        }
+
+        if !identifiersToRemove.isEmpty {
+          center.removePendingNotificationRequests(
+            withIdentifiers: identifiersToRemove
+          )
+        }
+
+        let updateGroup = DispatchGroup()
+        let resultQueue = DispatchQueue(
+          label: "com.kakehashi.review-notification-settings-result"
+        )
+        var updateFailures = 0
+
+        for request in replacementRequests {
+          updateGroup.enter()
+          center.add(request) { error in
+            if error != nil {
+              resultQueue.sync {
+                updateFailures += 1
+              }
+            }
+            updateGroup.leave()
+          }
+        }
+
+        updateGroup.notify(queue: .main) {
+          resolve([
+            "success": updateFailures == 0,
+            "pendingUpdated": replacementRequests.count - updateFailures,
+            "pendingRemoved": identifiersToRemove.count,
+            "updateFailures": updateFailures,
+          ])
+        }
+      }
+    }
+  }
   
   private func processReviewData(
     _ reviewData: [String: Any],
@@ -711,6 +1085,7 @@ class ReviewNotificationManager: NSObject {
 	    let badgeEnabled = notificationSettings["badgeEnabled"] ?? false
 	    let alertsEnabled = notificationSettings["alertsEnabled"] ?? false
 	    let soundsEnabled = notificationSettings["soundsEnabled"] ?? false
+	    let widgetBackgroundRefreshEnabled = notificationSettings["widgetBackgroundRefreshEnabled"] ?? true
 	    let upcomingReviewTimes = reviewData["upcomingReviewTimes"] as? [String: Int]
 	    let isOnVacation = reviewData["isOnVacation"] as? Bool ?? false
 	    let vacationStartedAt = reviewData["vacationStartedAt"] as? String
@@ -719,31 +1094,55 @@ class ReviewNotificationManager: NSObject {
 	      ? Array(repeating: 0, count: max(upcomingReviews.count, 24))
 	      : upcomingReviews
 	    let effectiveUpcomingReviewTimes: [String: Int]? = isOnVacation ? [:] : upcomingReviewTimes
+    let defaults = UserDefaults.standard
+    let authSessionSnapshot = KakehashiNativeAuthSession.shared.snapshot()
 
-	    UserDefaults.standard.set(isOnVacation, forKey: kakehashiVacationModeKey)
+    // The bridge normally patches these defaults before invoking this method.
+    // Seed only missing keys so an older in-flight payload cannot overwrite a
+    // setting the user changed after the request started.
+    if defaults.object(forKey: "badge_notifications_enabled") == nil {
+      defaults.set(badgeEnabled, forKey: "badge_notifications_enabled")
+    }
+    if defaults.object(forKey: "review_notifications_enabled") == nil {
+      defaults.set(alertsEnabled, forKey: "review_notifications_enabled")
+    }
+    if defaults.object(forKey: "notification_sounds_enabled") == nil {
+      defaults.set(soundsEnabled, forKey: "notification_sounds_enabled")
+    }
+    if defaults.object(forKey: "widget_background_refresh_enabled") == nil {
+      defaults.set(
+        widgetBackgroundRefreshEnabled,
+        forKey: "widget_background_refresh_enabled"
+      )
+    }
+
+	    defaults.set(isOnVacation, forKey: kakehashiVacationModeKey)
 	    if let vacationStartedAt {
-	      UserDefaults.standard.set(vacationStartedAt, forKey: kakehashiVacationStartedAtKey)
+	      defaults.set(vacationStartedAt, forKey: kakehashiVacationStartedAtKey)
 	    } else {
-	      UserDefaults.standard.removeObject(forKey: kakehashiVacationStartedAtKey)
+	      defaults.removeObject(forKey: kakehashiVacationStartedAtKey)
 	    }
 
 	    UNUserNotificationCenter.current().getNotificationSettings { settings in
 	      DispatchQueue.main.async {
-	        // Update badge count
-	        if settings.badgeSetting == .enabled && badgeEnabled {
-	          UIApplication.shared.applicationIconBadgeNumber = effectiveCurrentReviews
-	        } else {
-	          UIApplication.shared.applicationIconBadgeNumber = 0
-	        }
 
-        // Clear existing review notifications first, then schedule new ones
-        // This prevents race conditions where old notifications fire alongside new ones
-        UNUserNotificationCenter.current().getPendingNotificationRequests { existingRequests in
-          let reviewNotificationIds = existingRequests
-            .filter {
-              $0.identifier.hasPrefix("review-") ||
-              $0.identifier.hasPrefix("badge-update-")
-            }
+        // Replace the pending review schedule. Delivered alerts remain available
+        // until the user opens the app, and iOS groups them under one thread.
+	        UNUserNotificationCenter.current().getPendingNotificationRequests { existingRequests in
+	          guard let authSessionSnapshot,
+	                KakehashiNativeAuthSession.shared.isCurrent(authSessionSnapshot) else {
+	            resolve([
+	              "success": true,
+	              "currentReviews": 0,
+	              "badgeSet": false,
+	              "notificationsScheduled": false,
+	              "cancelledForLogout": true,
+	            ])
+	            return
+	          }
+
+	          let reviewNotificationIds = existingRequests
+            .filter(isKakehashiReviewNotification)
             .map { $0.identifier }
 
           UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: reviewNotificationIds)
@@ -751,10 +1150,45 @@ class ReviewNotificationManager: NSObject {
 
 	          // Small delay to ensure removal completes before scheduling new notifications
 	          DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+	              guard KakehashiNativeAuthSession.shared.isCurrent(authSessionSnapshot) else {
+	                resolve([
+	                  "success": true,
+	                  "currentReviews": 0,
+	                  "badgeSet": false,
+	                  "notificationsScheduled": false,
+	                  "cancelledForLogout": true,
+	                ])
+	                return
+	              }
+
+	              // Re-read the native preferences at the final mutation point. A
+              // settings toggle may have completed while this refresh waited on
+              // notification-center callbacks.
+              let latestBadgeEnabled = defaults.object(
+                forKey: "badge_notifications_enabled"
+              ) as? Bool ?? badgeEnabled
+              let latestAlertsEnabled = defaults.object(
+                forKey: "review_notifications_enabled"
+              ) as? Bool ?? alertsEnabled
+              let latestSoundsEnabled = defaults.object(
+                forKey: "notification_sounds_enabled"
+              ) as? Bool ?? soundsEnabled
+              let latestWidgetBackgroundRefreshEnabled = defaults.object(
+                forKey: "widget_background_refresh_enabled"
+              ) as? Bool ?? widgetBackgroundRefreshEnabled
+              let shouldShowAlert =
+                settings.alertSetting == .enabled && latestAlertsEnabled
+              let shouldUpdateBadge =
+                settings.badgeSetting == .enabled && latestBadgeEnabled
+
+              if shouldUpdateBadge {
+                UIApplication.shared.applicationIconBadgeNumber = effectiveCurrentReviews
+              } else {
+                UIApplication.shared.applicationIconBadgeNumber = 0
+              }
+
 	            // Schedule new notifications if enabled
-	            if !isOnVacation &&
-	               ((settings.alertSetting == .enabled && alertsEnabled) ||
-	                (settings.badgeSetting == .enabled && badgeEnabled)) {
+	            if !isOnVacation && (shouldShowAlert || shouldUpdateBadge) {
 
 	              // Use exact timing if available, otherwise fall back to hourly
 	              if let exactTimes = effectiveUpcomingReviewTimes {
@@ -762,23 +1196,24 @@ class ReviewNotificationManager: NSObject {
 	                  currentReviews: effectiveCurrentReviews,
 	                  upcomingReviewTimes: exactTimes,
 	                  settings: settings,
-	                  alertsEnabled: alertsEnabled,
-                  badgeEnabled: badgeEnabled,
-                  soundsEnabled: soundsEnabled
+	                  alertsEnabled: latestAlertsEnabled,
+	                  badgeEnabled: latestBadgeEnabled,
+	                  soundsEnabled: latestSoundsEnabled
 	                )
 	              } else {
 	                self.scheduleUpcomingNotifications(
 	                  currentReviews: effectiveCurrentReviews,
 	                  upcomingReviews: effectiveUpcomingReviews,
 	                  settings: settings,
-	                  alertsEnabled: alertsEnabled,
-                  badgeEnabled: badgeEnabled,
-                  soundsEnabled: soundsEnabled
+	                  alertsEnabled: latestAlertsEnabled,
+	                  badgeEnabled: latestBadgeEnabled,
+	                  soundsEnabled: latestSoundsEnabled
                 )
               }
             }
 
-            // Update widget with review data
+	            // The shared snapshot also feeds the Apple Watch bridge, so keep
+	            // it current even when automatic Home Widget reloads are disabled.
 	            saveWidgetData(
 	              currentReviews: effectiveCurrentReviews,
 	              upcomingReviews: effectiveUpcomingReviews,
@@ -786,13 +1221,16 @@ class ReviewNotificationManager: NSObject {
 	              isOnVacation: isOnVacation,
 	              vacationStartedAt: vacationStartedAt
 	            )
-	            WidgetCenter.shared.reloadAllTimelines()
+
+	            if latestWidgetBackgroundRefreshEnabled {
+	              WidgetCenter.shared.reloadAllTimelines()
+	            }
 
 	            resolve([
 	              "success": true,
 	              "currentReviews": effectiveCurrentReviews,
-	              "badgeSet": badgeEnabled,
-	              "notificationsScheduled": !isOnVacation && alertsEnabled,
+	              "badgeSet": shouldUpdateBadge,
+	              "notificationsScheduled": !isOnVacation && shouldShowAlert,
 	              "isOnVacation": isOnVacation
 	            ])
           }
@@ -834,24 +1272,38 @@ class ReviewNotificationManager: NSObject {
         continue
       }
       
-      let identifier = "review-\(hour)"
+      let shouldShowAlert =
+        settings.alertSetting == .enabled &&
+        alertsEnabled
+      let shouldUpdateBadge = settings.badgeSetting == .enabled && badgeEnabled
+      guard shouldShowAlert || shouldUpdateBadge else {
+        continue
+      }
+
+      let identifier = shouldShowAlert
+        ? "review-hourly-\(hour)"
+        : "badge-update-hourly-\(hour)"
       let content = UNMutableNotificationContent()
-      
-      if settings.alertSetting == .enabled && alertsEnabled {
+
+      if shouldShowAlert {
         content.title = "\(reviews) new review\(reviews == 1 ? "" : "s") available"
         content.body = "You have \(cumulativeReviews) review\(cumulativeReviews == 1 ? "" : "s") waiting"
-        content.categoryIdentifier = "REVIEW_CATEGORY"
-        content.userInfo = [
-          "reviewCount": cumulativeReviews,
-          "newReviews": reviews
-        ]
+        content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+        content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
       }
-      
-      if settings.badgeSetting == .enabled && badgeEnabled {
+
+      content.userInfo = [
+        kakehashiReviewNotificationMarkerKey: true,
+        kakehashiReviewAlertMarkerKey: shouldShowAlert,
+        "reviewCount": cumulativeReviews,
+        "newReviews": reviews,
+      ]
+
+      if shouldUpdateBadge {
         content.badge = NSNumber(value: cumulativeReviews)
       }
-      
-      if settings.soundSetting == .enabled && soundsEnabled {
+
+      if shouldShowAlert && settings.soundSetting == .enabled && soundsEnabled {
         content.sound = UNNotificationSound.default
       }
       
@@ -932,25 +1384,39 @@ class ReviewNotificationManager: NSObject {
       print("✅ Will schedule notification for: \(availableAt) with \(reviewCount) reviews")
       cumulativeReviews += reviewCount
       
-      let identifier = "review-exact-\(timeString)"
+      let shouldShowAlert =
+        settings.alertSetting == .enabled &&
+        alertsEnabled
+      let shouldUpdateBadge = settings.badgeSetting == .enabled && badgeEnabled
+      guard shouldShowAlert || shouldUpdateBadge else {
+        continue
+      }
+
+      let identifier = shouldShowAlert
+        ? "review-exact-\(timeString)"
+        : "badge-update-exact-\(timeString)"
       let content = UNMutableNotificationContent()
-      
-      if settings.alertSetting == .enabled && alertsEnabled {
+
+      if shouldShowAlert {
         content.title = "\(reviewCount) new review\(reviewCount == 1 ? "" : "s") available"
         content.body = "You now have \(cumulativeReviews) review\(cumulativeReviews == 1 ? "" : "s") waiting"
-        content.categoryIdentifier = "REVIEW_CATEGORY"
-        content.userInfo = [
-          "reviewCount": cumulativeReviews,
-          "newReviews": reviewCount,
-          "exactTime": true
-        ]
+        content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+        content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
       }
-      
-      if settings.badgeSetting == .enabled && badgeEnabled {
+
+      content.userInfo = [
+        kakehashiReviewNotificationMarkerKey: true,
+        kakehashiReviewAlertMarkerKey: shouldShowAlert,
+        "reviewCount": cumulativeReviews,
+        "newReviews": reviewCount,
+        "exactTime": true,
+      ]
+
+      if shouldUpdateBadge {
         content.badge = NSNumber(value: cumulativeReviews)
       }
-      
-      if settings.soundSetting == .enabled && soundsEnabled {
+
+      if shouldShowAlert && settings.soundSetting == .enabled && soundsEnabled {
         content.sound = UNNotificationSound.default
       }
       
@@ -986,13 +1452,22 @@ class ReviewNotificationManager: NSObject {
     )
     
     let category = UNNotificationCategory(
-      identifier: "REVIEW_CATEGORY",
+      identifier: kakehashiReviewNotificationCategoryIdentifier,
       actions: [reviewAction],
       intentIdentifiers: [],
+      hiddenPreviewsBodyPlaceholder: "Review update",
+      categorySummaryFormat: "%u review updates",
       options: []
     )
-    
-    UNUserNotificationCenter.current().setNotificationCategories([category])
+
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationCategories { existingCategories in
+      var categories = Set(existingCategories.filter {
+        $0.identifier != kakehashiReviewNotificationCategoryIdentifier
+      })
+      categories.insert(category)
+      center.setNotificationCategories(categories)
+    }
   }
   
   @objc func requestPermissions(
@@ -1022,9 +1497,6 @@ class ReviewNotificationManager: NSObject {
           return
         }
         
-        // Clear existing notifications
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
-        
         // Set badge to 99 for testing
         UIApplication.shared.applicationIconBadgeNumber = 99
         
@@ -1034,8 +1506,11 @@ class ReviewNotificationManager: NSObject {
         content.body = "This is a test! You have 42 new reviews available."
         content.badge = NSNumber(value: 142) // Will change badge to 142 when notification arrives
         content.sound = UNNotificationSound.default
-        content.categoryIdentifier = "REVIEW_CATEGORY"
+        content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+        content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
         content.userInfo = [
+          kakehashiReviewNotificationMarkerKey: true,
+          kakehashiReviewAlertMarkerKey: true,
           "reviewCount": 42,
           "isTest": true
         ]

@@ -101,7 +101,7 @@ export const mobileNotebookSchema = BlockNoteSchema.create({
     divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
     table: defaultBlockSpecs.table,
-    handwriting: createReactBlockSpec({ type: "handwriting", propSchema: { drawingId: { default: "" }, inkFormat: { default: "pencilkit-v1", values: ["pencilkit-v1", "strokes-v1"] as const }, width: { default: 768 }, height: { default: 1024 }, paperColor: { default: "auto" }, previewFormat: { default: "", values: ["", "themed-v1"] as const } }, content: "none" }, {
+    handwriting: createReactBlockSpec({ type: "handwriting", propSchema: { drawingId: { default: "" }, inkFormat: { default: "pencilkit-v1", values: ["pencilkit-v1", "strokes-v1"] as const }, width: { default: 768 }, height: { default: 1024 }, paperColor: { default: "" }, previewFormat: { default: "", values: ["", "themed-v1"] as const } }, content: "none" }, {
       render: ({ block }) => <HandwritingReference blockId={block.id} {...block.props} />,
       toExternalHTML: () => <p>Handwritten notebook content — open the notebook to view.</p>,
     })(),

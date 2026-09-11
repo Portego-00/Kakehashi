@@ -71,6 +71,7 @@ import {
 import { quickOptimize } from "../../utils/cacheOptimizer";
 import { hasFeatureAccess } from "../../utils/featureFlags";
 import {
+  applyNativeReviewNotificationSettings,
   requestNotificationPermissions,
   updateBadgeAndScheduleNotifications,
 } from "../../utils/reviewNotificationIntegration";
@@ -1757,19 +1758,26 @@ export function useSettingsController() {
 
   const handleBadgeNotificationChange = async (value: boolean) => {
     setShowBadgeNotifications(value);
+    await applyNativeReviewNotificationSettings({ badgeEnabled: value });
 
     if (value) {
-      // If enabling, update badge with current count and schedule notifications
-      await updateBadgeWithReviewCount();
-      // Also update the native notification system
-      await updateBadgeAndScheduleNotifications();
+      await updateBadgeWithReviewCount({
+        notificationSettings: { badgeEnabled: true },
+      });
     } else {
       // If disabling, clear the badge immediately
       await clearBadgeCount();
-      // Also clear native notifications if review notifications are also disabled
-      if (
+      if (enableReviewNotifications) {
+        // Preserve visible review alerts while removing their future badge
+        // updates. The explicit override avoids racing persisted settings.
+        await updateBadgeAndScheduleNotifications({
+          notificationSettings: {
+            badgeEnabled: false,
+            alertsEnabled: true,
+          },
+        });
+      } else if (
         Platform.OS === "ios" &&
-        !enableReviewNotifications &&
         !isRunningOnMacFromIOS &&
         ReviewNotificationManager &&
         typeof ReviewNotificationManager.updateBadgeAndScheduleNotifications ===
@@ -1797,12 +1805,18 @@ export function useSettingsController() {
 
   const handleReviewNotificationChange = async (value: boolean) => {
     setEnableReviewNotifications(value);
+    await applyNativeReviewNotificationSettings({ alertsEnabled: value });
 
     if (value) {
       // If enabling, use the new native notification system
       const permissionGranted = await requestNotificationPermissions();
       if (permissionGranted) {
-        await updateBadgeAndScheduleNotifications();
+        // Re-read system authorization after the permission prompt so an
+        // offline refresh can still promote existing badge-only requests.
+        await applyNativeReviewNotificationSettings({ alertsEnabled: true });
+        await updateBadgeAndScheduleNotifications({
+          notificationSettings: { alertsEnabled: true },
+        });
       }
 
       // Keep the old system as fallback for background checks
@@ -1815,7 +1829,13 @@ export function useSettingsController() {
 
       if (showBadgeNotifications) {
         // Keep badge scheduling active when review alerts are disabled.
-        await updateBadgeWithReviewCount({ forceSummaryRefresh: true });
+        await updateBadgeWithReviewCount({
+          forceSummaryRefresh: true,
+          notificationSettings: {
+            alertsEnabled: false,
+            badgeEnabled: true,
+          },
+        });
         return;
       }
 

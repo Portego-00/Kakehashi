@@ -1,37 +1,77 @@
-import * as Notifications from 'expo-notifications';
-import * as BackgroundTask from 'expo-background-task';
-import * as TaskManager from 'expo-task-manager';
-import { getReviewCount, getStoredApiToken, type VisibleReviewData } from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from "react-native";
+import * as Notifications from "expo-notifications";
+import * as BackgroundTask from "expo-background-task";
+import * as TaskManager from "expo-task-manager";
+import {
+  getCachedReviewCountIfAvailable,
+  getReviewCount,
+  getStoredApiToken,
+  getVisibleReviewData,
+  type VisibleReviewData,
+} from "./api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   updateBadgeAndScheduleNotifications,
   initializeNotifications,
   shouldUseNativeReviewNotificationSystem,
-} from './reviewNotificationIntegration';
-import { syncDailyReminderNotifications } from './reviewNotifications';
-import { supportsBadgeAndReviewNotifications } from './platformSupport';
+} from "./reviewNotificationIntegration";
+import { syncDailyReminderNotifications } from "./reviewNotifications";
+import { supportsBadgeAndReviewNotifications } from "./platformSupport";
+import { presentCombinedReviewAvailabilityNotification } from "./reviewAvailabilityNotifications";
+import { isNotificationSessionActive } from "./notificationSession";
 
-const BACKGROUND_FETCH_TASK = 'background-fetch-reviews';
-const LAST_REVIEW_COUNT_KEY = 'last-review-count';
+const BACKGROUND_FETCH_TASK = "background-fetch-reviews";
+const LAST_REVIEW_COUNT_KEY = "last-review-count";
 const NOTIFICATION_RUNTIME_SUPPORTED = supportsBadgeAndReviewNotifications();
-const USE_NATIVE_NOTIFICATION_SYSTEM = shouldUseNativeReviewNotificationSystem();
+const USE_NATIVE_NOTIFICATION_SYSTEM =
+  shouldUseNativeReviewNotificationSystem();
 let badgeUpdateInFlight: Promise<void> | null = null;
+let badgeUpdateGeneration = 0;
+const activeBadgeBackgroundWork = new Set<Promise<unknown>>();
 type UpdateBadgeWithReviewCountOptions = {
   forceSummaryRefresh?: boolean;
   visibleReviewData?: VisibleReviewData;
+  notificationSettings?: {
+    badgeEnabled?: boolean;
+    alertsEnabled?: boolean;
+    soundsEnabled?: boolean;
+    widgetBackgroundRefreshEnabled?: boolean;
+  };
 };
+let pendingBadgeUpdateOptions: UpdateBadgeWithReviewCountOptions | null = null;
+
+function mergeBadgeUpdateOptions(
+  current: UpdateBadgeWithReviewCountOptions | null,
+  incoming: UpdateBadgeWithReviewCountOptions,
+): UpdateBadgeWithReviewCountOptions {
+  const notificationSettings =
+    current?.notificationSettings || incoming.notificationSettings
+      ? {
+          ...current?.notificationSettings,
+          ...incoming.notificationSettings,
+        }
+      : undefined;
+
+  return {
+    forceSummaryRefresh:
+      Boolean(current?.forceSummaryRefresh) ||
+      Boolean(incoming.forceSummaryRefresh),
+    visibleReviewData: incoming.visibleReviewData ?? current?.visibleReviewData,
+    notificationSettings,
+  };
+}
 
 // Helper function to check if badge notifications are enabled
 async function isBadgeNotificationsEnabled(): Promise<boolean> {
   try {
-    const settings = await AsyncStorage.getItem('wanikani-settings');
+    const settings = await AsyncStorage.getItem("wanikani-settings");
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       return parsedSettings.state?.showBadgeNotifications ?? true; // Default to true
     }
     return true; // Default to true if no settings found
   } catch (error) {
-    console.error('Error checking badge notification setting:', error);
+    console.error("Error checking badge notification setting:", error);
     return true; // Default to true on error
   }
 }
@@ -39,28 +79,64 @@ async function isBadgeNotificationsEnabled(): Promise<boolean> {
 // Helper function to check if review notifications are enabled
 async function isReviewNotificationsEnabled(): Promise<boolean> {
   try {
-    const settings = await AsyncStorage.getItem('wanikani-settings');
+    const settings = await AsyncStorage.getItem("wanikani-settings");
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       return parsedSettings.state?.enableReviewNotifications ?? false;
     }
     return false;
   } catch (error) {
-    console.error('Error checking review notification setting:', error);
+    console.error("Error checking review notification setting:", error);
     return false;
+  }
+}
+
+// Helper function to check if widget background refresh is enabled
+async function isWidgetBackgroundRefreshEnabled(): Promise<boolean> {
+  try {
+    const settings = await AsyncStorage.getItem("wanikani-settings");
+    if (settings) {
+      const parsedSettings = JSON.parse(settings);
+      return parsedSettings.state?.widgetBackgroundRefreshEnabled ?? true; // Default to true
+    }
+    return true; // Default to true if no settings found
+  } catch (error) {
+    console.error("Error checking widget background refresh setting:", error);
+    return true; // Default to true on error
+  }
+}
+
+async function syncHomeWidgetIfSupported(reviewData: {
+  currentReviews: number;
+  upcomingReviews?: number[];
+  upcomingReviewTimes?: { [key: string]: number };
+}): Promise<void> {
+  if (Platform.OS !== "ios") {
+    return;
+  }
+  try {
+    // Keep the SwiftUI widget module lazy so Android never evaluates it. Jest's
+    // CommonJS runtime also needs a synchronous module load here.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { syncHomeWidgetFromBackgroundReviewData } = require(
+      "../widgets/homeWidget",
+    ) as typeof import("../widgets/homeWidget");
+    await syncHomeWidgetFromBackgroundReviewData(reviewData);
+  } catch (error) {
+    console.warn("Background widget sync error:", error);
   }
 }
 
 if (NOTIFICATION_RUNTIME_SUPPORTED) {
   const isBackgroundFetchTaskAlreadyDefined =
-    typeof TaskManager.isTaskDefined === 'function' &&
+    typeof TaskManager.isTaskDefined === "function" &&
     TaskManager.isTaskDefined(BACKGROUND_FETCH_TASK);
 
   // Configure notification behavior
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
       const shouldShowIssueActivity =
-        notification.request.content.data?.kind === 'issueActivity';
+        notification.request.content.data?.kind === "issueActivity";
 
       return {
         shouldShowAlert: shouldShowIssueActivity,
@@ -75,18 +151,83 @@ if (NOTIFICATION_RUNTIME_SUPPORTED) {
   // Background task to update badge count and check for new reviews.
   // Guard against re-defining after OTA/JS reload to avoid runtime collisions.
   if (!isBackgroundFetchTaskAlreadyDefined) {
-    TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
+    TaskManager.defineTask(BACKGROUND_FETCH_TASK, () => {
+      const workGeneration = badgeUpdateGeneration;
+      const backgroundWork = (async () => {
       try {
-        const apiToken = await getStoredApiToken();
-        if (!apiToken) {
+        if (
+          workGeneration !== badgeUpdateGeneration ||
+          !isNotificationSessionActive()
+        ) {
           return BackgroundTask.BackgroundTaskResult.Success;
         }
 
+        const apiToken = await getStoredApiToken();
+        if (
+          !apiToken ||
+          workGeneration !== badgeUpdateGeneration ||
+          !isNotificationSessionActive()
+        ) {
+          return BackgroundTask.BackgroundTaskResult.Success;
+        }
+
+        let visibleReviewData: VisibleReviewData | null = null;
+        try {
+          visibleReviewData = await getVisibleReviewData(apiToken, {
+            hoursAhead: 24,
+          });
+        } catch {
+          // A stored count can still update the badge without replacing a
+          // trustworthy native schedule with empty upcoming data.
+        }
+
+        const reviewCount =
+          visibleReviewData?.currentReviews ??
+          (await getCachedReviewCountIfAvailable());
+        if (reviewCount === null) {
+          return BackgroundTask.BackgroundTaskResult.Failed;
+        }
+
+        if (
+          workGeneration !== badgeUpdateGeneration ||
+          !isNotificationSessionActive()
+        ) {
+          return BackgroundTask.BackgroundTaskResult.Success;
+        }
+
+        const widgetRefreshEnabled = await isWidgetBackgroundRefreshEnabled();
+        if (widgetRefreshEnabled) {
+          await syncHomeWidgetIfSupported(
+            visibleReviewData ?? {
+              currentReviews: reviewCount,
+            },
+          );
+          if (
+            workGeneration !== badgeUpdateGeneration ||
+            !isNotificationSessionActive()
+          ) {
+            return BackgroundTask.BackgroundTaskResult.Success;
+          }
+        }
+
         // Use native notification manager when available
-        if (USE_NATIVE_NOTIFICATION_SYSTEM) {
+        // A count-only result cannot safely replace the native upcoming-review
+        // schedule, so use the Expo fallback instead of asking the native
+        // integration to repeat the failed detailed request.
+        if (USE_NATIVE_NOTIFICATION_SYSTEM && visibleReviewData) {
           try {
-            await updateBadgeAndScheduleNotifications();
-            await syncDailyReminderNotifications();
+            await updateBadgeAndScheduleNotifications({
+              visibleReviewData,
+            });
+            if (
+              workGeneration !== badgeUpdateGeneration ||
+              !isNotificationSessionActive()
+            ) {
+              return BackgroundTask.BackgroundTaskResult.Success;
+            }
+            await syncDailyReminderNotifications({
+              reviewCount,
+            });
             return BackgroundTask.BackgroundTaskResult.Success;
           } catch {
             // Fall back to Expo notifications below
@@ -100,8 +241,12 @@ if (NOTIFICATION_RUNTIME_SUPPORTED) {
         // Check review notifications setting
         const reviewNotificationsEnabled = await isReviewNotificationsEnabled();
 
-        // Get current review count (we need this for both features)
-        const reviewCount = await getReviewCount(apiToken);
+        if (
+          workGeneration !== badgeUpdateGeneration ||
+          !isNotificationSessionActive()
+        ) {
+          return BackgroundTask.BackgroundTaskResult.Success;
+        }
 
         // Handle badge notifications
         if (badgeEnabled) {
@@ -113,25 +258,26 @@ if (NOTIFICATION_RUNTIME_SUPPORTED) {
         // Handle review notifications
         if (reviewNotificationsEnabled) {
           // Get last known review count
-          const lastCountStr = await AsyncStorage.getItem(LAST_REVIEW_COUNT_KEY);
+          const lastCountStr = await AsyncStorage.getItem(
+            LAST_REVIEW_COUNT_KEY,
+          );
           const lastReviewCount = lastCountStr ? parseInt(lastCountStr, 10) : 0;
 
           // If we have more reviews than before, send notification
           if (reviewCount > lastReviewCount && reviewCount > 0) {
             const newReviews = reviewCount - lastReviewCount;
 
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: 'New Reviews Available! 📚',
-                body: `You have ${newReviews} new review${newReviews > 1 ? 's' : ''} ready. Time to study!`,
-                data: { reviewCount, newReviews },
-              },
-              trigger: null, // Send immediately
+            await presentCombinedReviewAvailabilityNotification({
+              reviewCount,
+              newReviews,
             });
           }
 
           // Update last review count
-          await AsyncStorage.setItem(LAST_REVIEW_COUNT_KEY, reviewCount.toString());
+          await AsyncStorage.setItem(
+            LAST_REVIEW_COUNT_KEY,
+            reviewCount.toString(),
+          );
         }
 
         await syncDailyReminderNotifications({ reviewCount });
@@ -140,6 +286,13 @@ if (NOTIFICATION_RUNTIME_SUPPORTED) {
       } catch {
         return BackgroundTask.BackgroundTaskResult.Failed;
       }
+      })();
+
+      activeBadgeBackgroundWork.add(backgroundWork);
+      void backgroundWork.finally(() => {
+        activeBadgeBackgroundWork.delete(backgroundWork);
+      });
+      return backgroundWork;
     });
   }
 }
@@ -156,7 +309,7 @@ export async function initializeBadgeNotifications(): Promise<void> {
       // Still register background fetch for periodic updates
       try {
         await BackgroundTask.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-          minimumInterval: 60, // 1 hour in minutes
+          minimumInterval: 15, // 15 minutes (iOS system minimum interval)
         });
       } catch {
         // Background fetch registration failed - continue anyway
@@ -172,7 +325,7 @@ export async function initializeBadgeNotifications(): Promise<void> {
     // Try to register background fetch task
     try {
       await BackgroundTask.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-        minimumInterval: 60, // 1 hour in minutes
+        minimumInterval: 15, // 15 minutes (iOS system minimum interval)
       });
     } catch {
       // Background fetch registration failed - continue anyway
@@ -195,66 +348,150 @@ export async function setBadgeCount(count: number): Promise<void> {
 }
 
 export async function updateBadgeWithReviewCount(
-  options: UpdateBadgeWithReviewCountOptions = {}
+  options: UpdateBadgeWithReviewCountOptions = {},
 ): Promise<void> {
-  if (!NOTIFICATION_RUNTIME_SUPPORTED) {
+  if (!NOTIFICATION_RUNTIME_SUPPORTED || !isNotificationSessionActive()) {
     return;
   }
 
-  if (badgeUpdateInFlight) {
-    return badgeUpdateInFlight;
+  pendingBadgeUpdateOptions = mergeBadgeUpdateOptions(
+    pendingBadgeUpdateOptions,
+    options,
+  );
+
+  if (!badgeUpdateInFlight) {
+    const activeGeneration = badgeUpdateGeneration;
+    badgeUpdateInFlight = (async () => {
+      try {
+        while (pendingBadgeUpdateOptions) {
+          if (
+            activeGeneration !== badgeUpdateGeneration ||
+            !isNotificationSessionActive()
+          ) {
+            pendingBadgeUpdateOptions = null;
+            return;
+          }
+
+          const nextOptions = pendingBadgeUpdateOptions;
+          pendingBadgeUpdateOptions = null;
+
+          try {
+            await performBadgeUpdate(nextOptions, activeGeneration);
+          } catch {
+            // A failed refresh must not discard a newer settings update that
+            // arrived while it was running.
+          }
+        }
+      } finally {
+        badgeUpdateInFlight = null;
+      }
+    })();
   }
 
-  badgeUpdateInFlight = (async () => {
-    try {
-      let reviewCountForReminder =
-        typeof options.visibleReviewData?.currentReviews === 'number'
-          ? Math.max(0, options.visibleReviewData.currentReviews)
-          : null;
-
-      if (USE_NATIVE_NOTIFICATION_SYSTEM) {
-        await updateBadgeAndScheduleNotifications({
-          forceSummaryRefresh: options.forceSummaryRefresh ?? false,
-          visibleReviewData: options.visibleReviewData,
-        });
-
-        await syncDailyReminderNotifications({
-          reviewCount: reviewCountForReminder ?? undefined,
-        });
-        return;
-      }
-
-      // Android/fallback implementation
-      const apiToken = await getStoredApiToken();
-
-      if (!apiToken) {
-        await syncDailyReminderNotifications({ reviewCount: 0 });
-        return;
-      }
-
-      if (reviewCountForReminder === null) {
-        reviewCountForReminder = await getReviewCount(apiToken);
-      }
-
-      // Check if badge notifications are enabled
-      const isEnabled = await isBadgeNotificationsEnabled();
-      if (!isEnabled) {
-        await setBadgeCount(0);
-      } else {
-        await setBadgeCount(reviewCountForReminder);
-      }
-
-      await syncDailyReminderNotifications({
-        reviewCount: reviewCountForReminder,
-      });
-    } catch {
-      // Silent failure for badge update
-    } finally {
-      badgeUpdateInFlight = null;
-    }
-  })();
-
   return badgeUpdateInFlight;
+}
+
+/**
+ * Drop queued account work and wait for the active update to stop. Callers can
+ * then remove notifications without a stale badge refresh recreating them.
+ */
+export async function invalidateBadgeNotificationUpdatesForLogout(): Promise<void> {
+  badgeUpdateGeneration += 1;
+  pendingBadgeUpdateOptions = null;
+  await Promise.allSettled([
+    ...(badgeUpdateInFlight ? [badgeUpdateInFlight] : []),
+    ...activeBadgeBackgroundWork,
+  ]);
+}
+
+async function performBadgeUpdate(
+  options: UpdateBadgeWithReviewCountOptions,
+  requestedGeneration: number,
+): Promise<void> {
+  if (
+    requestedGeneration !== badgeUpdateGeneration ||
+    !isNotificationSessionActive()
+  ) {
+    return;
+  }
+
+  if (options.visibleReviewData) {
+    const widgetRefreshEnabled = await isWidgetBackgroundRefreshEnabled();
+    if (
+      requestedGeneration !== badgeUpdateGeneration ||
+      !isNotificationSessionActive()
+    ) {
+      return;
+    }
+    if (widgetRefreshEnabled) {
+      await syncHomeWidgetIfSupported(options.visibleReviewData);
+      if (
+        requestedGeneration !== badgeUpdateGeneration ||
+        !isNotificationSessionActive()
+      ) {
+        return;
+      }
+    }
+  }
+
+  let reviewCountForReminder =
+    typeof options.visibleReviewData?.currentReviews === "number"
+      ? Math.max(0, options.visibleReviewData.currentReviews)
+      : null;
+
+  if (USE_NATIVE_NOTIFICATION_SYSTEM) {
+    await updateBadgeAndScheduleNotifications({
+      forceSummaryRefresh: options.forceSummaryRefresh ?? false,
+      visibleReviewData: options.visibleReviewData,
+      notificationSettings: options.notificationSettings,
+    });
+
+    if (
+      requestedGeneration !== badgeUpdateGeneration ||
+      !isNotificationSessionActive()
+    ) {
+      return;
+    }
+
+    await syncDailyReminderNotifications({
+      reviewCount: reviewCountForReminder ?? undefined,
+    });
+    return;
+  }
+
+  // Android/fallback implementation
+  const apiToken = await getStoredApiToken();
+
+  if (
+    !apiToken ||
+    requestedGeneration !== badgeUpdateGeneration ||
+    !isNotificationSessionActive()
+  ) {
+    await syncDailyReminderNotifications({ reviewCount: 0 });
+    return;
+  }
+
+  if (reviewCountForReminder === null) {
+    reviewCountForReminder = await getReviewCount(apiToken);
+    if (
+      requestedGeneration !== badgeUpdateGeneration ||
+      !isNotificationSessionActive()
+    ) {
+      return;
+    }
+  }
+
+  // Check if badge notifications are enabled
+  const isEnabled = await isBadgeNotificationsEnabled();
+  if (!isEnabled) {
+    await setBadgeCount(0);
+  } else {
+    await setBadgeCount(reviewCountForReminder);
+  }
+
+  await syncDailyReminderNotifications({
+    reviewCount: reviewCountForReminder,
+  });
 }
 
 export async function clearBadgeCount(): Promise<void> {
@@ -273,7 +510,9 @@ export async function getBackgroundFetchStatus(): Promise<{
 
   try {
     const status = await BackgroundTask.getStatusAsync();
-    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK);
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(
+      BACKGROUND_FETCH_TASK,
+    );
 
     return {
       isAvailable: status === BackgroundTask.BackgroundTaskStatus.Available,

@@ -16,16 +16,15 @@
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": [
-              "kakehashi"
-            ]
+            "CFBundleURLSchemes": ["kakehashi"]
           }
         ],
         "NSCameraUsageDescription": "$(PRODUCT_NAME) needs access to your Camera to scan Japanese text.",
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
         "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos",
-        "UIBackgroundModes": [
-          "fetch"
+        "UIBackgroundModes": ["processing"],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.expo.modules.backgroundtask.processing"
         ],
         "NSSpeechRecognitionUsageDescription": "$(PRODUCT_NAME) uses speech recognition to convert your spoken Japanese into text, allowing you to search for vocabulary by speaking words or phrases aloud.",
         "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) uses the microphone to listen to your voice when you speak Japanese words or phrases for vocabulary search.",
@@ -57,10 +56,7 @@
               "scheme": "kakehashi"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
       "permissions": [
@@ -191,9 +187,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "assetBundlePatterns": [
-      "assets/**/*"
-    ],
+    "assetBundlePatterns": ["assets/**/*"],
     "extra": {
       "router": {},
       "eas": {

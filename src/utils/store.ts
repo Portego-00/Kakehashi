@@ -9,7 +9,10 @@ import {
   recoverAuthentication,
   saveApiToken,
 } from "./api";
-import { clearBadgeCount } from "./badgeNotifications";
+import {
+  clearBadgeCount,
+  invalidateBadgeNotificationUpdatesForLogout,
+} from "./badgeNotifications";
 import { clearCache } from "./cache";
 import {
   PERMANENT_KEYS,
@@ -35,7 +38,15 @@ import {
   type ReviewCorrectKeyboardShortcutSettings,
   type ReviewIncorrectKeyboardShortcutSettings,
 } from "./reviewKeyboardShortcuts";
-import { cancelReviewNotifications } from "./reviewNotifications";
+import {
+  cancelAllNotificationsForLogout,
+  invalidateReviewNotificationWorkForLogout,
+} from "./reviewNotifications";
+import { invalidateReviewNotificationSyncsForLogout } from "./reviewNotificationIntegration";
+import {
+  resumeNotificationSession,
+  suspendNotificationSessionForLogout,
+} from "./notificationSession";
 import {
   DEFAULT_WIDGET_CARD_STYLE_COLORS,
   type WidgetCardStyleColorKey,
@@ -61,6 +72,10 @@ import {
 import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
+import {
+  invalidateAssignmentCacheWrites,
+  withAssignmentCacheLock,
+} from "../services/assignmentCacheCoordinator";
 
 export {
   APP_TEXT_SIZE_OPTIONS,
@@ -406,6 +421,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: true });
           const token = await getStoredApiToken();
           if (token) {
+            resumeNotificationSession();
             set({ apiToken: token, isAuthenticated: true });
             set({ isLoading: false });
             return token;
@@ -446,28 +462,42 @@ export const useAuthStore = create<AuthState>()(
       setLastWrappedLevel: (level) => set({ lastWrappedLevel: level }),
 
       logout: async () => {
+        // Invalidate synchronously so requests started by the outgoing account
+        // cannot recreate its assignment cache after the clear finishes.
+        invalidateAssignmentCacheWrites();
+        suspendNotificationSessionForLogout();
+        // Invalidate first, then wait for any native bridge call already in
+        // progress so the cancellation below is the final notification update.
+        const notificationDrains = Promise.all([
+          invalidateBadgeNotificationUpdatesForLogout(),
+          invalidateReviewNotificationSyncsForLogout(),
+          invalidateReviewNotificationWorkForLogout(),
+        ]);
         await clearApiToken();
+        await notificationDrains;
         await clearBadgeCount(); // Clear the app badge when logging out
-        await cancelReviewNotifications(); // Cancel review notifications when logging out
+        await cancelAllNotificationsForLogout();
 
         // Clear user-scoped caches so a subsequent login never hydrates data
         // from a previous account.
         clearInMemoryCache();
-        await clearCache();
-        await Promise.all(
-          [
-            PERMANENT_KEYS.DASHBOARD_DATA,
-            PERMANENT_KEYS.ALL_ASSIGNMENTS,
-            PERMANENT_KEYS.ALL_SUBJECTS,
-            PERMANENT_KEYS.SUBJECTS_METADATA,
-            PERMANENT_KEYS.STUDY_MATERIALS,
-            PERMANENT_KEYS.REVIEW_STATISTICS,
-            PERMANENT_KEYS.LEVEL_PROGRESSIONS,
-            PERMANENT_KEYS.SRS_SYSTEMS,
-          ].map((key) =>
-            removeFromPermanentStorage(key).catch(() => {})
-          )
-        );
+        await withAssignmentCacheLock(async () => {
+          await clearCache();
+          await Promise.all(
+            [
+              PERMANENT_KEYS.DASHBOARD_DATA,
+              PERMANENT_KEYS.ALL_ASSIGNMENTS,
+              PERMANENT_KEYS.ALL_SUBJECTS,
+              PERMANENT_KEYS.SUBJECTS_METADATA,
+              PERMANENT_KEYS.STUDY_MATERIALS,
+              PERMANENT_KEYS.REVIEW_STATISTICS,
+              PERMANENT_KEYS.LEVEL_PROGRESSIONS,
+              PERMANENT_KEYS.SRS_SYSTEMS,
+            ].map((key) =>
+              removeFromPermanentStorage(key).catch(() => {})
+            )
+          );
+        });
         await clearOfflineVocabularyAudioCache().catch(() => {});
 
         set({
@@ -658,6 +688,7 @@ type SettingsState = {
   // Widget customization
   widgetContentMode: WidgetContentMode;
   widgetStreakGradient: WidgetStreakGradientPreset;
+  widgetBackgroundRefreshEnabled: boolean;
   widgetCardsFollowTheme: boolean;
   widgetLessonCardFollowTheme: boolean;
   widgetReviewCardFollowTheme: boolean;
@@ -837,6 +868,7 @@ type SettingsState = {
   ) => void;
   setWidgetContentMode: (mode: WidgetContentMode) => void;
   setWidgetStreakGradient: (preset: WidgetStreakGradientPreset) => void;
+  setWidgetBackgroundRefreshEnabled: (enabled: boolean) => void;
   setWidgetCardsFollowTheme: (follow: boolean) => void;
   setWidgetLessonCardFollowTheme: (follow: boolean) => void;
   setWidgetReviewCardFollowTheme: (follow: boolean) => void;
@@ -1000,6 +1032,7 @@ export const useSettingsStore = create<SettingsState>()(
       homeSrsBreakdownDisplayMode: "combined",
       widgetContentMode: "reviews",
       widgetStreakGradient: "sunset",
+      widgetBackgroundRefreshEnabled: true,
       widgetCardsFollowTheme: true,
       widgetLessonCardFollowTheme: true,
       widgetReviewCardFollowTheme: true,
@@ -1367,6 +1400,8 @@ export const useSettingsStore = create<SettingsState>()(
       setWidgetContentMode: (mode) => set({ widgetContentMode: mode }),
       setWidgetStreakGradient: (preset) =>
         set({ widgetStreakGradient: preset }),
+      setWidgetBackgroundRefreshEnabled: (enabled) =>
+        set({ widgetBackgroundRefreshEnabled: enabled }),
       setWidgetCardsFollowTheme: (follow) =>
         set({ widgetCardsFollowTheme: follow }),
       setWidgetLessonCardFollowTheme: (follow) =>

@@ -9,6 +9,19 @@ screen widgets.
 Kakehashi is free and community-built. It requires a WaniKani account and is not
 affiliated with WaniKani or Tofugu LLC.
 
+## Offline study and widgets
+
+When cached assignments are available, review sessions open without waiting for
+a network check. Completed reviews are saved on the device before the next
+question appears, and queued results sync with WaniKani when a connection is
+available. Requests that reach an unresponsive connection time out instead of
+holding the app indefinitely.
+
+On iOS, widget refresh uses Expo's processing task. Keep `processing` in
+`UIBackgroundModes`, and keep `com.expo.modules.backgroundtask.processing` in
+`BGTaskSchedulerPermittedIdentifiers` in both `app.json` and the checked-in
+native `Info.plist` when regenerating the iOS project.
+
 <p>
   <a href="https://apps.apple.com/app/kakehashi-wanikani-companion/id6757765444">
     <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="48" />
