@@ -1,4 +1,5 @@
 import { createNotebookState, DEFAULT_NOTEBOOK_LIMITS, NOTEBOOK_HARD_MAX_BYTES, validateNotebookState, type NotebookLimits, type NotebookMutation, type NotebookState } from "./model";
+import { NOTEBOOK_HANDWRITING_FEATURES } from "../../../web/src/features/notebooks/handwriting";
 
 export interface NotebookResponse {
   available: boolean;
@@ -42,10 +43,14 @@ export function parseNotebookResponse(input: unknown): NotebookResponse {
   };
 }
 
-export function notebookEndpoint(configured = process.env.EXPO_PUBLIC_NOTEBOOKS_API_URL?.trim()): string {
-  if (!configured) throw new NotebookApiError("Notebooks are not connected in this version of the app yet.", 503, "not_configured");
+// This public, app-owned endpoint must also work in local device builds, which
+// do not inherit EAS environment variables. An explicit override supports QA.
+const DEFAULT_NOTEBOOK_ENDPOINT = "https://kakehashiapp.com/api/notebooks/native";
+
+export function notebookEndpoint(configured = process.env.EXPO_PUBLIC_NOTEBOOKS_API_URL): string {
+  const endpoint = configured?.trim() || DEFAULT_NOTEBOOK_ENDPOINT;
   let url: URL;
-  try { url = new URL(configured); }
+  try { url = new URL(endpoint); }
   catch { throw new NotebookApiError("The notebook connection is not configured correctly.", 503, "not_configured"); }
   const local = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "10.0.2.2";
   if (url.username || url.password || (url.protocol !== "https:" && !(typeof __DEV__ !== "undefined" && __DEV__ && local && url.protocol === "http:"))) {
@@ -65,7 +70,7 @@ export async function requestNotebookCloud(token: string, accountId: string, mut
     if (controller.signal.aborted) throw new Error("Request cancelled.");
     const response = await fetch(url, {
       method: mutation ? "POST" : "GET",
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...(mutation ? { "Content-Type": "application/json", "X-Notebook-Account": accountId } : {}) },
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "X-Notebook-Features": NOTEBOOK_HANDWRITING_FEATURES, ...(mutation ? { "Content-Type": "application/json", "X-Notebook-Account": accountId } : {}) },
       ...(mutation ? { body: JSON.stringify(mutation) } : {}),
       signal: controller.signal,
       credentials: "omit",

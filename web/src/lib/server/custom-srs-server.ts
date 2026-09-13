@@ -113,7 +113,9 @@ export async function mutateRemoteCustomSrsState(
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const now = clock();
     const current = await readRemoteCustomSrsState(userId, packs, now);
-    const next = reconcileCustomSrsState(transform(current.state, now), packs, now);
+    const transformed = transform(current.state, now);
+    if (transformed === current.state) return current;
+    const next = reconcileCustomSrsState(transformed, packs, now);
     const revision = await compareAndSetRemoteState(userId, current.revision, next);
     if (revision !== null) return { state: next, revision };
   }

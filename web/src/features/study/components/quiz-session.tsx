@@ -13,6 +13,8 @@ import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFreque
 import { NotebookCaptureButton } from "@/features/notebooks/NotebookCaptureDialog";
 import { checkAnswer as checkReviewAnswer, type QuestionKind as ReviewQuestionKind } from "@/features/core-study/answer-checker";
 import { canonicalAnswer, usesSelfAssessment } from "@/features/core-study/study-preferences";
+import { usePhoneStudyInput } from "@/features/core-study/use-phone-study-input";
+import { useMobileReviewViewport } from "@/features/core-study/use-mobile-review-viewport";
 import { installCustomJitaiFonts, resolveJitaiFontFamily } from "@/features/settings/jitai";
 import type { WebSettings, WebStudyPreferences } from "@/features/settings/settings";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
@@ -346,6 +348,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const [value, setValue] = useState("");
   const [answerWarning, setAnswerWarning] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const phoneInput = usePhoneStudyInput();
   const autoPlayedQuestionRef = useRef<string | null>(null);
   const audioVocabPlayerRef = useRef<AudioVocabPlayer>(null);
   const vocabularyAudioAbortRef = useRef<AbortController | null>(null);
@@ -379,6 +382,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const customReviewPreferences = session.mode === "custom-review" || session.mode === "audio-vocab" ? reviewPreferences : undefined;
   const reviewKind = question ? reviewKindForStudyQuestion(question) : null;
   const ankiEnabled = Boolean(customReviewPreferences && reviewKind && usesSelfAssessment(reviewKind, customReviewPreferences));
+  const reviewViewportRef = useMobileReviewViewport(
+    (session.mode === "custom-review" || session.mode === "recent-lessons")
+    && !session.complete && Boolean(question && !question.choices) && !ankiEnabled,
+  );
   const studyMaterialBySubjectId = useMemo(() => new Map([...studyMaterials, ...savedStudyMaterials].map((material) => [material.data.subject_id, material])), [savedStudyMaterials, studyMaterials]);
   const ankiQuestions = (() => {
     if (!question || !ankiEnabled) return [];
@@ -499,7 +506,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       if (result.status === "blocked") {
         setAnswerWarning(result.message);
         setValue("");
-        window.requestAnimationFrame(() => inputRef.current?.focus());
+        window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
         return;
       }
       semanticStatus = result.status;
@@ -567,7 +574,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
     setContextTranslationOpen(false);
     setDetailsOverride(null);
     saveStudySession(scope, nextSession);
-    window.requestAnimationFrame(() => inputRef.current?.focus());
+    window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
   }
 
   function acceptSavedSynonym(savedMaterial: StudyMaterial) {
@@ -583,6 +590,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
   const next = useCallback(() => {
     if (!answer || closeAnswerNeedsResolution || waitingForNextQuestion || advancingQuestionRef.current) return;
+    if (phoneInput) inputRef.current?.focus({ preventScroll: true });
     const advanceNow = () => {
       let updated = advanceStudySession(session);
       while (!updated.complete) {
@@ -605,10 +613,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       const upcomingQuestion = updated.questions[updated.currentIndex];
       setDetailsTab(upcomingQuestion ? itemDetailsTabForQuestion(upcomingQuestion) : "meaning");
       saveStudySession(scope, updated);
-      window.setTimeout(() => inputRef.current?.focus(), 0);
+      window.setTimeout(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined), 0);
     };
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+    if (!phoneInput) window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
     if (detailsVisible && !reducedMotion) {
       advancingQuestionRef.current = true;
       detailsShouldOpenRef.current = false;
@@ -618,7 +626,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       return;
     }
     advanceNow();
-  }, [answer, closeAnswerNeedsResolution, detailsVisible, scope, session, waitingForNextQuestion]);
+  }, [answer, closeAnswerNeedsResolution, detailsVisible, phoneInput, scope, session, waitingForNextQuestion]);
 
   useEffect(() => () => {
     if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
@@ -669,7 +677,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
   const hasQuestionAudio = Boolean(question?.audioUrl || question?.audioVocabSentence);
   const onStudyKeyDown = useEffectEvent((event: KeyboardEvent) => {
-      const shortcutFromAnsweredInput = ["d", "r"].includes(event.key.toLocaleLowerCase()) && event.target === inputRef.current && inputRef.current?.readOnly === true;
+      const shortcutFromAnsweredInput = ["d", "r"].includes(event.key.toLocaleLowerCase()) && event.target === inputRef.current && (inputRef.current?.readOnly === true || (phoneInput && Boolean(answer)));
       if (event.defaultPrevented || (!shortcutFromAnsweredInput && event.target instanceof Element && event.target.closest(studyShortcutInteractiveSelector))) return;
       if (event.key.toLocaleLowerCase() === "r" && hasQuestionAudio) {
         event.preventDefault();
@@ -738,7 +746,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   );
 
   return (
-    <section className={styles.quizShell} data-type={question.subjectType} data-listening={listeningQuestion || undefined} data-scene={Boolean(question.imageUrl) || undefined} data-details-open={detailsOpen || undefined} data-advancing={advancingQuestion || undefined} aria-labelledby="question-prompt">
+    <section ref={reviewViewportRef} className={styles.quizShell} data-type={question.subjectType} data-listening={listeningQuestion || undefined} data-scene={Boolean(question.imageUrl) || undefined} data-details-open={detailsOpen || undefined} data-advancing={advancingQuestion || undefined} aria-labelledby="question-prompt">
       <div className={styles.quizTopbar}>
         <span className={styles.numeric}>{displayedCurrent} / {visibleTotal}</span>
         <div className={styles.progressTrack} role="progressbar" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={visibleTotal}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
@@ -812,8 +820,15 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         </> : <form className={styles.answerForm} data-result={answer ? currentAnswerStatus === "close" ? "warning" : answer.correct ? "correct" : "incorrect" : answerWarning ? "warning" : undefined} onSubmit={(event) => { event.preventDefault(); if (closeAnswerNeedsResolution) resolveCloseAnswer("correct"); else if (answer) next(); else commit(value); }}>
           <label className={styles.promptTypeStrip} data-tone={promptType?.tone} htmlFor="study-answer"><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong>{kanaComposition ? <small>Romaji → かな</small> : null}</label>
           <div className={styles.answerInputRow} data-result={answer ? currentAnswerStatus === "close" ? "warning" : answer.correct ? "correct" : "incorrect" : answerWarning ? "warning" : undefined}>
-            <input ref={inputRef} id="study-answer" autoFocus autoComplete="off" spellCheck={false} lang={kanaComposition ? "ja" : undefined} style={{ fontSize: customReviewPreferences ? `${reviewInputScale}rem` : undefined }} value={value} onChange={(event) => { setAnswerWarning(null); setValue(kanaComposition ? composeKanaInput(event.target.value) : event.target.value); }} readOnly={Boolean(answer)} aria-label={`${subjectTypeLabel(question)} ${promptType?.label ?? "answer"}`} aria-invalid={answer ? currentAnswerStatus === "incorrect" : answerWarning ? true : undefined} aria-describedby={answer || answerWarning ? "study-answer-status" : undefined} />
-            <button type={closeAnswerNeedsResolution ? "button" : "submit"} className={styles.primaryButton} disabled={advancingQuestion || closeAnswerNeedsResolution || (!answer && !value.trim())}>{closeAnswerNeedsResolution ? <RotateCcw size={18} /> : answer ? <ArrowRight size={18} /> : <Check size={18} />}{closeAnswerNeedsResolution ? "Choose result" : answer ? "Next" : "Check"}</button>
+            <input ref={inputRef} id="study-answer" autoFocus autoComplete="off" spellCheck={false} lang={kanaComposition ? "ja" : undefined} style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : customReviewPreferences ? `${reviewInputScale}rem` : undefined }} value={value} onChange={(event) => { if (answer) return; setAnswerWarning(null); setValue(kanaComposition ? composeKanaInput(event.target.value) : event.target.value); }} readOnly={!phoneInput && Boolean(answer)} enterKeyHint={phoneInput ? "go" : undefined} onKeyDown={(event) => {
+              if (!phoneInput || event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
+              event.preventDefault();
+              if (event.repeat) return;
+              if (closeAnswerNeedsResolution) resolveCloseAnswer("correct");
+              else if (answer) next();
+              else commit(value);
+            }} aria-label={`${subjectTypeLabel(question)} ${promptType?.label ?? "answer"}`} aria-invalid={answer ? currentAnswerStatus === "incorrect" : answerWarning ? true : undefined} aria-describedby={answer || answerWarning ? "study-answer-status" : undefined} />
+            <button type={closeAnswerNeedsResolution ? "button" : "submit"} className={styles.primaryButton} onMouseDown={(event) => { if (phoneInput && document.activeElement === inputRef.current) event.preventDefault(); }} disabled={advancingQuestion || closeAnswerNeedsResolution || (!answer && !value.trim())}>{closeAnswerNeedsResolution ? <RotateCcw size={18} /> : answer ? <ArrowRight size={18} /> : <Check size={18} />}{closeAnswerNeedsResolution ? "Choose result" : answer ? "Next" : "Check"}</button>
           </div>
         </form>}
 
@@ -825,8 +840,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
               </span> : currentAnswerStatus === "close" ? <span>Correct, with a small typo.</span> : !answer.correct ? <span className={styles.correctAnswer}><small>Correct answer</small><strong lang={kanaComposition ? "ja" : undefined}>{question.displayAnswer}</strong></span> : null}</div> : null}
 
             {closeAnswerNeedsResolution ? <div className={styles.closeAnswerActions} aria-label="Close answer result">
-              <button type="button" className={styles.dangerButton} disabled={advancingQuestion} onClick={() => resolveCloseAnswer("incorrect")}><X size={17} aria-hidden /> Mark Incorrect</button>
-              <button type="button" className={styles.primaryButton} disabled={advancingQuestion} onClick={() => resolveCloseAnswer("correct")}><Check size={17} aria-hidden /> Mark Correct</button>
+              <button type="button" className={styles.dangerButton} disabled={advancingQuestion} onMouseDown={(event) => { if (phoneInput && document.activeElement === inputRef.current) event.preventDefault(); }} onClick={() => resolveCloseAnswer("incorrect")}><X size={17} aria-hidden /> Mark Incorrect</button>
+              <button type="button" className={styles.primaryButton} disabled={advancingQuestion} onMouseDown={(event) => { if (phoneInput && document.activeElement === inputRef.current) event.preventDefault(); }} onClick={() => resolveCloseAnswer("correct")}><Check size={17} aria-hidden /> Mark Correct</button>
             </div> : null}
 
             {canAddSynonym && currentSubject ? <AddMeaningSynonymButton subject={currentSubject} synonym={synonymCandidate} existingMaterial={currentStudyMaterial} disabled={advancingQuestion} onSaved={acceptSavedSynonym} /> : null}

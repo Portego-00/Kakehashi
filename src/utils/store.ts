@@ -9,7 +9,10 @@ import {
   recoverAuthentication,
   saveApiToken,
 } from "./api";
-import { clearBadgeCount } from "./badgeNotifications";
+import {
+  clearBadgeCount,
+  invalidateBadgeNotificationUpdatesForLogout,
+} from "./badgeNotifications";
 import { clearCache } from "./cache";
 import {
   PERMANENT_KEYS,
@@ -35,7 +38,15 @@ import {
   type ReviewCorrectKeyboardShortcutSettings,
   type ReviewIncorrectKeyboardShortcutSettings,
 } from "./reviewKeyboardShortcuts";
-import { cancelReviewNotifications } from "./reviewNotifications";
+import {
+  cancelAllNotificationsForLogout,
+  invalidateReviewNotificationWorkForLogout,
+} from "./reviewNotifications";
+import { invalidateReviewNotificationSyncsForLogout } from "./reviewNotificationIntegration";
+import {
+  resumeNotificationSession,
+  suspendNotificationSessionForLogout,
+} from "./notificationSession";
 import {
   DEFAULT_WIDGET_CARD_STYLE_COLORS,
   type WidgetCardStyleColorKey,
@@ -61,6 +72,10 @@ import {
 import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
+import {
+  invalidateAssignmentCacheWrites,
+  withAssignmentCacheLock,
+} from "../services/assignmentCacheCoordinator";
 
 export {
   APP_TEXT_SIZE_OPTIONS,
@@ -154,7 +169,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 20;
+const SETTINGS_STORE_SCHEMA_VERSION = 21;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -406,6 +421,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: true });
           const token = await getStoredApiToken();
           if (token) {
+            resumeNotificationSession();
             set({ apiToken: token, isAuthenticated: true });
             set({ isLoading: false });
             return token;
@@ -446,28 +462,42 @@ export const useAuthStore = create<AuthState>()(
       setLastWrappedLevel: (level) => set({ lastWrappedLevel: level }),
 
       logout: async () => {
+        // Invalidate synchronously so requests started by the outgoing account
+        // cannot recreate its assignment cache after the clear finishes.
+        invalidateAssignmentCacheWrites();
+        suspendNotificationSessionForLogout();
+        // Invalidate first, then wait for any native bridge call already in
+        // progress so the cancellation below is the final notification update.
+        const notificationDrains = Promise.all([
+          invalidateBadgeNotificationUpdatesForLogout(),
+          invalidateReviewNotificationSyncsForLogout(),
+          invalidateReviewNotificationWorkForLogout(),
+        ]);
         await clearApiToken();
+        await notificationDrains;
         await clearBadgeCount(); // Clear the app badge when logging out
-        await cancelReviewNotifications(); // Cancel review notifications when logging out
+        await cancelAllNotificationsForLogout();
 
         // Clear user-scoped caches so a subsequent login never hydrates data
         // from a previous account.
         clearInMemoryCache();
-        await clearCache();
-        await Promise.all(
-          [
-            PERMANENT_KEYS.DASHBOARD_DATA,
-            PERMANENT_KEYS.ALL_ASSIGNMENTS,
-            PERMANENT_KEYS.ALL_SUBJECTS,
-            PERMANENT_KEYS.SUBJECTS_METADATA,
-            PERMANENT_KEYS.STUDY_MATERIALS,
-            PERMANENT_KEYS.REVIEW_STATISTICS,
-            PERMANENT_KEYS.LEVEL_PROGRESSIONS,
-            PERMANENT_KEYS.SRS_SYSTEMS,
-          ].map((key) =>
-            removeFromPermanentStorage(key).catch(() => {})
-          )
-        );
+        await withAssignmentCacheLock(async () => {
+          await clearCache();
+          await Promise.all(
+            [
+              PERMANENT_KEYS.DASHBOARD_DATA,
+              PERMANENT_KEYS.ALL_ASSIGNMENTS,
+              PERMANENT_KEYS.ALL_SUBJECTS,
+              PERMANENT_KEYS.SUBJECTS_METADATA,
+              PERMANENT_KEYS.STUDY_MATERIALS,
+              PERMANENT_KEYS.REVIEW_STATISTICS,
+              PERMANENT_KEYS.LEVEL_PROGRESSIONS,
+              PERMANENT_KEYS.SRS_SYSTEMS,
+            ].map((key) =>
+              removeFromPermanentStorage(key).catch(() => {})
+            )
+          );
+        });
         await clearOfflineVocabularyAudioCache().catch(() => {});
 
         set({
@@ -559,6 +589,7 @@ type SettingsState = {
   reviewAnimatePreviousQuestion: boolean; // Animate the previous answered card from center to top-left during reviews
   hapticFeedbackEnabled: boolean; // Enable haptic feedback throughout the app
   advancedNoteEditorEnabled: boolean; // Enable formatting and subject links for plain study notes
+  noteLinkIncludeCharacters: boolean; // Append subject characters when linking selected note text
 
   // UI settings
   appTextSizeScale: number;
@@ -742,6 +773,7 @@ type SettingsState = {
   setVoiceReviewAnswersEnabled: (enabled: boolean) => void;
   setHapticFeedbackEnabled: (enabled: boolean) => void;
   setAdvancedNoteEditorEnabled: (enabled: boolean) => void;
+  setNoteLinkIncludeCharacters: (enabled: boolean) => void;
   setReviewIncorrectKeyboardShortcuts: (
     shortcuts: Partial<ReviewIncorrectKeyboardShortcutSettings>,
   ) => void;
@@ -911,6 +943,7 @@ export const useSettingsStore = create<SettingsState>()(
       voiceReviewAnswersEnabled: false, // Default to disabled (manual typing)
       hapticFeedbackEnabled: true, // Default to enabled for tactile feedback
       advancedNoteEditorEnabled: false,
+      noteLinkIncludeCharacters: false,
       reviewIncorrectKeyboardShortcuts: {
         ...DEFAULT_REVIEW_INCORRECT_KEYBOARD_SHORTCUTS,
       },
@@ -1149,6 +1182,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ hapticFeedbackEnabled: enabled }),
       setAdvancedNoteEditorEnabled: (enabled) =>
         set({ advancedNoteEditorEnabled: enabled }),
+      setNoteLinkIncludeCharacters: (enabled) =>
+        set({ noteLinkIncludeCharacters: enabled }),
       setReviewIncorrectKeyboardShortcuts: (shortcuts) =>
         set((state) => ({
           reviewIncorrectKeyboardShortcuts: {
@@ -1419,6 +1454,7 @@ export const useSettingsStore = create<SettingsState>()(
           kanjiReadingTextToSpeechEnabled?: unknown;
           newsSourcePreference?: unknown;
           advancedNoteEditorEnabled?: unknown;
+          noteLinkIncludeCharacters?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1584,6 +1620,9 @@ export const useSettingsStore = create<SettingsState>()(
         );
         if (typeof migratedRecord.advancedNoteEditorEnabled !== "boolean") {
           migratedRecord.advancedNoteEditorEnabled = false;
+        }
+        if (typeof migratedRecord.noteLinkIncludeCharacters !== "boolean") {
+          migratedRecord.noteLinkIncludeCharacters = false;
         }
 
         return migrated;

@@ -48,6 +48,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); for (const client of clients.splice(0)) client.clear(); localStorage.clear(); vi.unstubAllGlobals(); });
 
 describe("notebook account transport", () => {
+  it("advertises handwriting support on reads and writes so private drawings survive notebook edits", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useNotebooks(), { wrapper });
+    await waitFor(() => expect(result.current.available).toBe(true));
+    await act(async () => { await result.current.mutate({ action: "create_page", page: { id: "second", title: "More notes" } }); });
+    expect(mocks.fetch.mock.calls.some(([, options]) => options?.method === "POST")).toBe(true);
+    for (const [, options] of mocks.fetch.mock.calls) expect(new Headers(options?.headers).get("X-Notebook-Features")).toBe("handwriting-v1, handwriting-strokes-v1, handwriting-appearance-v1");
+  });
+
   it.each(["new", "existing"])("initializes the example through a verified POST for a %s account", async (kind) => {
     const state = kind === "new" ? createNotebookState() : applyNotebookMutation(createNotebookState(), { action: "create_page", page: { id: "personal", title: "My own work" } }).state;
     server["101"] = payload(state);
@@ -58,6 +67,7 @@ describe("notebook account transport", () => {
     expect(result.current.state.pages).toHaveLength(state.pages.length + 3);
     const initialization = mocks.fetch.mock.calls.find(([, options]) => options?.method === "POST")!;
     expect(new Headers(initialization[1].headers).get("X-Notebook-Account")).toBe("101");
+    expect(new Headers(initialization[1].headers).get("X-Notebook-Features")).toBe("handwriting-v1, handwriting-strokes-v1, handwriting-appearance-v1");
     expect(JSON.parse(initialization[1].body)).toEqual({ action: "initialize_examples" });
     await act(async () => { await result.current.refresh(); });
     expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);

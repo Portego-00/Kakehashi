@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, ExternalLink, Info, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, type ReactNode, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { FormEvent, type MouseEvent, type ReactNode, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
@@ -31,6 +31,8 @@ import { coreSessionKey, lessonsStartedToday, recordLessonStarted, selectCoreAss
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
 import { canonicalAnswer, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
 import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationStudyMessage, WANIKANI_VACATION_SETTINGS_URL } from "./vacation";
+import { usePhoneStudyInput } from "./use-phone-study-input";
+import { useMobileReviewViewport } from "./use-mobile-review-viewport";
 import styles from "./core-study.module.css";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
 
@@ -173,6 +175,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const username = liveUser?.data.username || user?.data.username || "anonymous";
   const webSettings = useWebSettings(username);
   const preferences = webSettings.study;
+  const phoneInput = usePhoneStudyInput();
   const [phase, setPhase] = useState<Phase>("loading");
   const [lessonIndex, setLessonIndex] = useState(0);
   const [lessonTab, setLessonTab] = useState<SubjectDetailTab>("meaning");
@@ -498,6 +501,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const totalItems = sessionItemIds.size || selectedAssignments.length;
   const completedItems = submittedIds.filter((id) => sessionItemIds.has(id)).length;
   const currentUsesSelfAssessment = Boolean(current && usesSelfAssessment(current.kind, preferences));
+  const reviewViewportRef = useMobileReviewViewport<HTMLDivElement>(phase === "quiz" && !currentUsesSelfAssessment);
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status) || Boolean(currentUsesSelfAssessment && ankiRevealed);
   const answerStopped = Boolean(feedback && feedback.status !== "blocked" && shouldPauseAfterResult(feedback.status, preferences));
   const unresolvedCloseAnswer = feedback?.status === "close" && preferences.pauseOnClose;
@@ -637,6 +641,11 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     if (result.status === "correct" && current.kind === "reading" && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
   }
 
+  function preservePhoneInputFocus(event: MouseEvent<HTMLButtonElement>) {
+    // Cancel the focus change here; canceling pointerdown suppresses Safari's tap click.
+    if (phoneInput && document.activeElement === inputRef.current) event.preventDefault();
+  }
+
   function gradeSelf(correct: boolean) {
     if (!current || feedback) return;
     const gradedKinds = selfAssessmentKinds.length ? selfAssessmentKinds : [current.kind];
@@ -677,7 +686,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     if (!current || !feedback || feedback.status === "blocked") {
       if (feedback?.status === "blocked") setAnswer("");
       setFeedback(null);
-      window.requestAnimationFrame(() => inputRef.current?.focus());
+      window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
       return;
     }
     setSessionError("");
@@ -696,7 +705,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       setAnsweredKinds([]);
       setContextTranslationOpen(false);
       setStudyDetailsOverride(null);
-      window.requestAnimationFrame(() => inputRef.current?.focus());
+      window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
       return;
     }
     const finishedKinds = [...(completed[current.assignment.id] || []), ...resolvedAnsweredKinds].filter((value, index, all) => all.indexOf(value) === index);
@@ -728,7 +737,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
         await Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]);
         setDisplayNow(Date.now());
         setPhase("results");
-      } else window.requestAnimationFrame(() => inputRef.current?.focus());
+      } else window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
     } catch (cause) {
       setSessionError(formatFailure(cause, mode === "reviews" ? "The completed review is saved locally and will reconcile before another submission." : "The lesson remains in place; retry when the connection returns."));
     }
@@ -736,6 +745,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
 
   function advance(correctOverride?: boolean) {
     if (advancingQuestionRef.current || (unresolvedCloseAnswer && correctOverride === undefined)) return;
+    if (phoneInput) inputRef.current?.focus({ preventScroll: true });
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     const collapseDetailsFirst = (studyDetailsOpen || studyDetailsExpanded) && !reducedMotion;
     advancingQuestionRef.current = true;
@@ -818,7 +828,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setAnsweredKinds([]);
     setContextTranslationOpen(false);
     setStudyDetailsOverride(null);
-    window.requestAnimationFrame(() => inputRef.current?.focus());
+    window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
   }
 
   function continueSavedSession() {
@@ -938,7 +948,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     && !(material?.data.meaning_synonyms ?? []).some((synonym) => synonym.toLocaleLowerCase() === synonymCandidate);
   const questionMetadata = <div className={styles.itemMeta} aria-label="Question status">{showReviewMetadata ? <><span>Level {current.subject.data.level}</span><span><SrsStageIcon stage={current.assignment.data.srs_stage} size={16} />{srsStageLabel(current.assignment.data.srs_stage)}</span></> : null}<span>{mistakes} {mistakes === 1 ? "mistake" : "mistakes"}</span></div>;
 
-  return <div className={styles.studyShell}>
+  return <div ref={reviewViewportRef} className={styles.studyShell}>
     <section className={styles.question} aria-labelledby="study-prompt-title">
       <header className={styles.promptBand} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
         <div className={styles.bandHeader}>
@@ -996,8 +1006,42 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
         {!selfAssessment ? <form className={styles.answerForm} onSubmit={submit}>
           <label className={styles.answerLabel} htmlFor="review-answer">Your answer</label>
           <div className={styles.answerRow}>
-            <input ref={inputRef} id="review-answer" name="review-answer" className={styles.answerInput} style={{ fontSize: `${reviewInputScale}rem` }} value={answer} onChange={(event) => setAnswer(current.kind === "reading" ? composeKanaInput(event.target.value) : event.target.value)} disabled={Boolean(feedback && feedback.status !== "blocked")} aria-describedby="review-answer-helper" autoComplete="off" spellCheck={current.kind !== "reading"} inputMode={current.kind === "reading" ? "text" : undefined} placeholder={current.kind === "reading" ? "Type kana or romaji…" : "Type the English meaning…"} />
-            <Button className={styles.checkButton} tone="primary" disabled={!answer.trim() || Boolean(feedback)}>Check Answer</Button>
+            <input
+              ref={inputRef}
+              id="review-answer"
+              name="review-answer"
+              className={styles.answerInput}
+              style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : `${reviewInputScale}rem` }}
+              value={answer}
+              onChange={(event) => {
+                if (feedback && feedback.status !== "blocked") return;
+                setAnswer(current.kind === "reading" ? composeKanaInput(event.target.value) : event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (!phoneInput || !feedback || event.key !== "Enter") return;
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                event.preventDefault();
+                if (event.repeat || reviewMutation.isPending || lessonMutation.isPending || addSynonymMutation.isPending) return;
+                if (unresolvedCloseAnswer) resolveCloseAnswer(true);
+                else void advance();
+              }}
+              disabled={!phoneInput && Boolean(feedback && feedback.status !== "blocked")}
+              enterKeyHint={phoneInput ? "go" : undefined}
+              aria-describedby="review-answer-helper"
+              autoComplete="off"
+              spellCheck={current.kind !== "reading"}
+              inputMode={current.kind === "reading" ? "text" : undefined}
+              placeholder={current.kind === "reading" ? "Type kana or romaji…" : "Type the English meaning…"}
+            />
+            <Button
+              className={styles.checkButton}
+              tone="primary"
+              type={phoneInput && feedback ? "button" : "submit"}
+              onMouseDown={preservePhoneInputFocus}
+              onClick={phoneInput && feedback ? () => void advance() : undefined}
+              disabled={phoneInput && feedback ? unresolvedCloseAnswer || advancingQuestion || addSynonymMutation.isPending : !answer.trim() || Boolean(feedback)}
+              state={phoneInput && feedback && (reviewMutation.isPending || lessonMutation.isPending) ? "loading" : "idle"}
+            >{phoneInput && feedback ? unresolvedCloseAnswer ? "Choose result" : feedback.status === "blocked" ? "Try Again" : answerStopped ? "Next Question" : "Continue now" : "Check Answer"}</Button>
           </div>
           <p id="review-answer-helper" className={styles.answerHelper}>{current.kind === "reading" ? "Kana and romaji are accepted." : preferences.acceptUserSynonymsAsAnswers ? "Accepted meanings and your synonyms are checked." : "Accepted WaniKani meanings are checked."}</p>
           {speechError ? <p className={styles.error} role="alert">{speechError}</p> : null}
@@ -1017,15 +1061,15 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
           <p>{feedback.message}</p>
           {answerStopped && preferences.showAnswerStopSubjectDetails ? <div className={styles.answerStopDetails}><span>Expected answer</span><strong>{canonicalAnswer(current.subject, current.kind)}</strong>{contextSentences[0] ? <p><span lang="ja">{contextSentences[0].ja}</span><br />{contextSentences[0].en}</p> : null}</div> : null}
           {sessionError ? <p className={styles.error} role="alert">{sessionError}</p> : null}
-          <div className={styles.feedbackActions}>
+          {unresolvedCloseAnswer || canAddSynonym || !phoneInput ? <div className={styles.feedbackActions}>
             {unresolvedCloseAnswer ? <>
-              <Button type="button" tone="danger" disabled={advancingQuestion} onClick={() => resolveCloseAnswer(false)}><X size={17} aria-hidden />Mark Incorrect</Button>
-              <Button type="button" tone="primary" disabled={advancingQuestion} onClick={() => resolveCloseAnswer(true)}><Check size={17} aria-hidden />Mark Correct</Button>
+              <Button type="button" tone="danger" disabled={advancingQuestion} onMouseDown={preservePhoneInputFocus} onClick={() => resolveCloseAnswer(false)}><X size={17} aria-hidden />Mark Incorrect</Button>
+              <Button type="button" tone="primary" disabled={advancingQuestion} onMouseDown={preservePhoneInputFocus} onClick={() => resolveCloseAnswer(true)}><Check size={17} aria-hidden />Mark Correct</Button>
             </> : <>
               {canAddSynonym ? <Button type="button" tone="ghost" disabled={addSynonymMutation.isPending || advancingQuestion} state={addSynonymMutation.isPending ? "loading" : "idle"} onClick={() => addSynonymMutation.mutate({ subject: current.subject, assignmentId: current.assignment.id, kind: current.kind, synonym: synonymCandidate, existingMaterial: material })}><Plus size={17} aria-hidden />Add as synonym</Button> : null}
-              <Button tone={feedback.status === "incorrect" ? "danger" : "primary"} disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()} state={reviewMutation.isPending || lessonMutation.isPending ? "loading" : "idle"}>{feedback.status === "blocked" ? "Try Again" : answerStopped ? "Next Question" : "Continue now"}<ArrowRight size={17} /></Button>
+              {!phoneInput ? <Button tone={feedback.status === "incorrect" ? "danger" : "primary"} disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()} state={reviewMutation.isPending || lessonMutation.isPending ? "loading" : "idle"}>{feedback.status === "blocked" ? "Try Again" : answerStopped ? "Next Question" : "Continue now"}<ArrowRight size={17} /></Button> : null}
             </>}
-          </div>
+          </div> : null}
         </div> : null}
 
         {revealStudyDetails ? <div className={styles.detailsPanelReveal} data-open={studyDetailsExpanded} aria-hidden={!studyDetailsExpanded} inert={!studyDetailsExpanded ? true : undefined}><div>

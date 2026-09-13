@@ -80,6 +80,32 @@ const hospitalPuzzle = {
   }],
 } satisfies CrosswordPuzzle;
 
+const navigationPuzzle = {
+  ...puzzle,
+  cells: [
+    puzzle.cells[0],
+    [
+      { answer: "に", number: 2, entryIds: ["what", "garden"] },
+      { answer: "わ", entryIds: ["garden"] },
+    ],
+  ],
+  entries: [
+    ...puzzle.entries,
+    {
+      id: "garden",
+      subjectId: 4,
+      answer: "にわ",
+      clue: "Garden",
+      characters: "庭",
+      meaning: "Garden",
+      row: 1,
+      col: 0,
+      direction: "across",
+      number: 2,
+    },
+  ],
+} satisfies CrosswordPuzzle;
+
 function renderCrossword(nextPuzzle?: CrosswordPuzzle) {
   if (nextPuzzle) vi.mocked(generateCrossword).mockReturnValueOnce(nextPuzzle);
   return render(
@@ -222,6 +248,32 @@ describe("crossword keyboard interaction", () => {
     expect(answer).toHaveValue("");
     expect(answer).not.toHaveAttribute("aria-invalid");
     await waitFor(() => expect(answer).toHaveFocus());
+  });
+
+  it("continues forward after answering a skipped-to clue and wraps past solved clues", async () => {
+    renderCrossword(navigationPuzzle);
+
+    const answer = screen.getByRole("textbox", { name: "Answer" });
+    fireEvent.keyDown(answer, { key: "Enter" });
+    expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible();
+
+    fireEvent.change(answer, { target: { value: "nani" } });
+    fireEvent.keyDown(answer, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("Garden", { selector: "[data-active-clue]" })).toBeVisible());
+
+    fireEvent.keyDown(answer, { key: "Enter" });
+    expect(screen.getByText("Summer", { selector: "[data-active-clue]" })).toBeVisible();
+    fireEvent.keyDown(answer, { key: "Enter" });
+    expect(screen.getByText("Garden", { selector: "[data-active-clue]" })).toBeVisible();
+
+    fireEvent.change(answer, { target: { value: "niwa" } });
+    fireEvent.keyDown(answer, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("Summer", { selector: "[data-active-clue]" })).toBeVisible());
+    await waitFor(() => expect(answer).toHaveFocus());
+
+    fireEvent.change(answer, { target: { value: "natsu" } });
+    fireEvent.keyDown(answer, { key: "Enter" });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Crossword complete" })).toBeVisible());
   });
 
   it("keeps an incorrect checked word editable without committing it", async () => {

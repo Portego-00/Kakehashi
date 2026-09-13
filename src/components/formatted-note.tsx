@@ -35,6 +35,7 @@ import {
   serializeFormattedNote,
   setNoteSubjectLink,
   toggleNoteFormat,
+  toggleNoteSubjectLink,
   type NoteFormat,
   type NoteSelection,
   type NoteSubjectLink,
@@ -358,6 +359,8 @@ const RichNoteEditor = React.forwardRef<
 ) {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
+  const includeLinkCharacters = useSettingsStore((state) => state.noteLinkIncludeCharacters);
+  const setIncludeLinkCharacters = useSettingsStore((state) => state.setNoteLinkIncludeCharacters);
   const textInputRef = useRef<TextInput>(null);
   const currentValueRef = useRef(value);
   const shouldRestoreFocusRef = useRef(false);
@@ -548,6 +551,13 @@ const RichNoteEditor = React.forwardRef<
       }
 
       const existingLink = getNoteSubjectLinkAtSelection(value, selection);
+      if (action === "toggle" && existingLink) {
+        const result = toggleNoteSubjectLink(value, selection);
+        commitValue(result.text);
+        setSelection(result.selection);
+        textInputRef.current?.focus();
+        return;
+      }
       setLinkPickerContext({
         editorMode: "source",
         selection: { ...selection },
@@ -555,7 +565,7 @@ const RichNoteEditor = React.forwardRef<
         linkedSubjectId: existingLink?.subjectId,
       });
     },
-    [editorIsEditable, editorMode, issueVisualCommand, selection, value],
+    [commitValue, editorIsEditable, editorMode, issueVisualCommand, selection, value],
   );
 
   const closeLinkPicker = useCallback(() => {
@@ -600,6 +610,7 @@ const RichNoteEditor = React.forwardRef<
           type: "set-link",
           subjectId: subject.id,
           fallbackLabel,
+          appendCharacters: includeLinkCharacters ? subject.data.characters : undefined,
           selection: linkPickerContext.selection,
         });
         setLinkPickerContext(null);
@@ -611,6 +622,7 @@ const RichNoteEditor = React.forwardRef<
         linkPickerContext.selection,
         subject.id,
         fallbackLabel,
+        includeLinkCharacters ? subject.data.characters : undefined,
       );
 
       commitValue(result.text);
@@ -621,6 +633,7 @@ const RichNoteEditor = React.forwardRef<
       closeLinkPicker,
       commitValue,
       issueVisualCommand,
+      includeLinkCharacters,
       linkPickerContext,
       value,
     ],
@@ -697,11 +710,10 @@ const RichNoteEditor = React.forwardRef<
         pendingVisualLinkRequestNonceRef.current = null;
         if (
           pendingVisualLinkActionRef.current === "toggle" &&
-          selectionSnapshot.subjectId
+          (selectionSnapshot.subjectId || selectionSnapshot.inactiveSubjectId)
         ) {
           issueVisualCommand({
-            type: "remove-link",
-            scope: "selection",
+            type: "toggle-link",
             selection: selectionSnapshot.selection,
           });
           return;
@@ -804,14 +816,17 @@ const RichNoteEditor = React.forwardRef<
   const selectedLinkColor = selectedLinkType
     ? subjectColors.getColorForType(selectedLinkType)
     : theme.textColor;
-  const canUnlinkSelection =
-    editorMode === "visual" && Boolean(selectedLinkSubjectId);
+  const canUnlinkSelection = Boolean(selectedLinkSubjectId);
+  const canResumeLink = editorMode === "visual" && Boolean(visualSelection.inactiveSubjectId);
 
   return (
     <View style={[styles.editorContainer, containerStyle]}>
       {linkPickerContext ? (
         <NoteSubjectLinkPicker
           initialQuery={linkPickerContext.initialQuery}
+          selectedText={linkPickerContext.initialQuery}
+          includeCharacters={includeLinkCharacters}
+          onIncludeCharactersChange={setIncludeLinkCharacters}
           linkedSubjectId={linkPickerContext.linkedSubjectId}
           onCancel={closeLinkPicker}
           onRemove={
@@ -1116,11 +1131,13 @@ const RichNoteEditor = React.forwardRef<
           <Pressable
             accessibilityHint={
               canUnlinkSelection
-                ? "Removes the link from the selected text, or the current link at the cursor"
+                ? "Turns linking off for new text at the cursor, or unlinks selected text. Use Remove to remove the whole link."
+                : canResumeLink
+                  ? "Continues typing with the same subject link"
                 : "Searches for a WaniKani subject to link from the selected note text"
             }
             accessibilityLabel={
-              canUnlinkSelection ? "Unlink selected text" : "Link to subject"
+              canUnlinkSelection ? "Toggle subject link" : canResumeLink ? "Resume subject link" : "Link to subject"
             }
             accessibilityRole="button"
             accessibilityState={{

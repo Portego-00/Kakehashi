@@ -463,6 +463,8 @@ export default function WidgetSettings() {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel="Background widget refresh"
+                accessibilityHint="Controls whether Kakehashi updates home widgets while the app is closed"
                 value={widgetBackgroundRefreshEnabled}
                 onValueChange={handleWidgetBackgroundRefreshChange}
                 trackColor={{ false: "#767577", true: theme.primary }}

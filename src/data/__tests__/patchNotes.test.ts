@@ -25,16 +25,20 @@ describe("patch notes", () => {
     });
   });
 
-  it("announces fully hidden translations on September 12", () => {
+  it("preserves both announcements in the September 12 release", () => {
     expect(PATCH_NOTES[0]).toMatchObject({
       version: "1.4.13",
       date: "2026-09-12",
-      changes: [
+      changes: expect.arrayContaining([
         expect.objectContaining({
           type: "feature",
           title: "Fully Hidden Translations",
         }),
-      ],
+        expect.objectContaining({
+          type: "fix",
+          title: "Multiple Choice Answers",
+        }),
+      ]),
     });
   });
 

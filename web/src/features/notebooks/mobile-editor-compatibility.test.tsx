@@ -26,6 +26,26 @@ describe('mobile BlockNote persistence', () => {
     expect(validateNotebookState(result)).toEqual(result);
   });
 
+  it('preserves handwriting references through web edits, duplication, reordering, and a mobile reopen', () => {
+    const drawing = { drawingId: '8b7f489d-1f66-4667-800a-f83ed02dd170', width: 768, height: 1024 };
+    const mobile = BlockNoteEditor.create({ schema: mobileNotebookSchema, initialContent: [
+      { id: 'title', type: 'paragraph', content: 'Kanji practice' },
+      { id: 'ink', type: 'handwriting', props: drawing },
+    ] });
+    const web = BlockNoteEditor.create({ schema: notebookSchema, initialContent: sanitizeNotebookBlocks(mobile.document) as typeof notebookSchema.PartialBlock[] });
+    try {
+      web.updateBlock('title', { content: 'Updated on the web' });
+      web.insertBlocks([{ id: 'ink-copy', type: 'handwriting', props: drawing }], 'title', 'before');
+      web.removeBlocks(['ink']);
+      const saved = sanitizeNotebookBlocks(web.document);
+      expect(saved.map((block) => block.id)).toEqual(['ink-copy', 'title']);
+      expect(saved[0]).toMatchObject({ type: 'handwriting', props: drawing });
+      const reopened = BlockNoteEditor.create({ schema: mobileNotebookSchema, initialContent: saved as typeof mobileNotebookSchema.PartialBlock[] });
+      try { expect(sanitizeNotebookBlocks(reopened.document)).toEqual(saved); }
+      finally { reopened.unmount(); }
+    } finally { mobile.unmount(); web.unmount(); }
+  });
+
   it('roundtrips nested word mentions, linked blocks, styles and tables without losing shared IDs', () => {
     const editor = BlockNoteEditor.create({ schema: mobileNotebookSchema, initialContent: [
       { id: 'callout', type: 'callout', props: { icon: '💡' }, content: [{ type: 'text', text: '日本語 ', styles: { bold: true } }, { type: 'vocabularyMention', props: { subjectId: 123, label: '日本語' } }] },

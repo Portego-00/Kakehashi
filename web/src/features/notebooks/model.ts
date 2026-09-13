@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { isNotebookDrawingId, isNotebookDrawingSize, isNotebookInkFormat, isNotebookPreviewFormat, supportsNotebookHandwriting, supportsNotebookStrokes, supportsNotebookAppearance, type NotebookDrawingReference } from "./handwriting";
+import { isNotebookPaperColor, type NotebookPaperColor } from "./paper-appearance";
 import { createExampleNotebook, EXAMPLE_NOTEBOOK_PAGE_IDS, EXAMPLE_NOTEBOOK_SENTENCE_ID } from "./example-notebook";
 
-/** Portable text-only document format. Shared sentences are stored once and referenced by ID. */
+/** Portable document format with private handwriting asset references. Shared sentences are stored once and referenced by ID. */
 export type NotebookInline =
   | { type: "text"; text: string; styles?: Record<string, string | boolean> }
   | { type: "link"; href: string; content: NotebookInline[] }
@@ -18,7 +20,7 @@ export const DEFAULT_NOTEBOOK_LIMITS: NotebookLimits = { maxBytes: 1_048_576, ma
 export const NOTEBOOK_HARD_MAX_BYTES = 4_194_304;
 
 export class NotebookError extends Error {
-  constructor(message: string, public code: "invalid" | "conflict" | "limit" | "not_found" | "referenced", public status = code === "limit" ? 413 : code === "invalid" ? 400 : code === "not_found" ? 404 : 409) { super(message); this.name = "NotebookError"; }
+  constructor(message: string, public code: "invalid" | "conflict" | "limit" | "not_found" | "referenced" | "update_required", public status = code === "update_required" ? 426 : code === "limit" ? 413 : code === "invalid" ? 400 : code === "not_found" ? 404 : 409) { super(message); this.name = "NotebookError"; }
 }
 const idSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/);
 const revisionSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER - 1);
@@ -51,11 +53,21 @@ function text(value: unknown, max = 20_000): string { if (typeof value !== "stri
 function identifier(value: unknown) { const result = idSchema.safeParse(value); if (!result.success) return invalid("A notebook reference is invalid."); return result.data; }
 function subjectId(value: unknown) { const id = Number(value); if (!Number.isSafeInteger(id) || id <= 0) return invalid("A vocabulary reference is invalid."); return id; }
 function safeLink(value: unknown) { const href = text(value, 2_048); if (/^\/(?![\\/])/.test(href) && !href.includes("\\")) return href; try { const url = new URL(href); if (["http:", "https:", "mailto:"].includes(url.protocol)) return href; } catch {} return invalid("Links must use https, http, mailto, or an app path."); }
-const blockTypes = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "table", "divider", "codeBlock", "callout", "vocabulary", "sentence", "pageLink"]);
+const blockTypes = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "table", "divider", "codeBlock", "callout", "vocabulary", "sentence", "pageLink", "handwriting"]);
 const commonProps = new Set(["textColor", "backgroundColor", "textAlignment"]);
 function props(value: unknown, type: string): Record<string, string | number | boolean> {
   const source = value === undefined ? {} : record(value);
   const allowed = new Set([...commonProps, ...(type === "heading" ? ["level", "isToggleable"] : type === "numberedListItem" ? ["start"] : type === "checkListItem" ? ["checked"] : type === "codeBlock" ? ["language"] : type === "callout" ? ["icon"] : type === "tableCell" ? ["colspan", "rowspan"] : [])]);
+  if (type === "handwriting") {
+    const inkFormat = source.inkFormat === undefined ? "pencilkit-v1" : source.inkFormat;
+    const blank = source.drawingId === "" && inkFormat === "strokes-v1";
+    if (!isNotebookInkFormat(inkFormat) || (!blank && !isNotebookDrawingId(source.drawingId)) || !isNotebookDrawingSize(source.width, source.height)) invalid("This handwriting reference is invalid.");
+    const paperColor = source.paperColor === "" ? undefined : source.paperColor;
+    const previewFormat = source.previewFormat === "" ? undefined : source.previewFormat;
+    if (paperColor !== undefined && !isNotebookPaperColor(paperColor) || previewFormat !== undefined && !isNotebookPreviewFormat(previewFormat) || previewFormat && (blank || inkFormat !== "pencilkit-v1")) invalid("This handwriting appearance is invalid.");
+    // Preserve the original legacy shape; portable references always carry their format.
+    return { drawingId: source.drawingId as string, width: source.width as number, height: source.height as number, ...(inkFormat === "strokes-v1" ? { inkFormat } : {}), ...(paperColor !== undefined ? { paperColor: paperColor as NotebookPaperColor } : {}), ...(previewFormat ? { previewFormat: "themed-v1" } : {}) };
+  }
   if (type === "vocabulary") return { subjectId: subjectId(source.subjectId), label: text(source.label, 240) };
   if (type === "sentence") return { sentenceId: identifier(source.sentenceId) };
   if (type === "pageLink") return { pageId: identifier(source.pageId) };
@@ -114,12 +126,28 @@ export function sanitizeNotebookBlocks(value: unknown): NotebookBlock[] {
       const result: NotebookBlock = { id, type: source.type };
       const cleanProps = props(source.props, source.type);
       if (Object.keys(cleanProps).length) result.props = cleanProps;
-      if (source.content !== undefined && !["sentence", "vocabulary", "pageLink", "divider"].includes(source.type)) result.content = source.type === "table" ? tableContent(source.content) : typeof source.content === "string" ? text(source.content) : inlineContent(source.content);
+      if (source.content !== undefined && !["sentence", "vocabulary", "pageLink", "divider", "handwriting"].includes(source.type)) result.content = source.type === "table" ? tableContent(source.content) : typeof source.content === "string" ? text(source.content) : inlineContent(source.content);
       if (Array.isArray(source.children) && source.children.length) result.children = visit(source.children, depth + 1);
       return result;
     });
   }
   return visit(value, 0);
+}
+/** Includes nested blocks and trash, which older clients also validate on read. */
+export function notebookDrawingReferences(state: NotebookState) {
+  const references: (NotebookDrawingReference & { paperColor?: NotebookPaperColor })[] = [];
+  for (const page of state.pages) walkBlocks(page.content, (block) => {
+    if (block.type === "handwriting") references.push({ drawingId: String(block.props?.drawingId), width: Number(block.props?.width), height: Number(block.props?.height), ...(block.props?.inkFormat === "strokes-v1" ? { inkFormat: "strokes-v1" } : {}), ...(isNotebookPaperColor(block.props?.paperColor) ? { paperColor: block.props.paperColor } : {}), ...(block.props?.previewFormat === "themed-v1" ? { previewFormat: "themed-v1" } : {}) });
+  });
+  return references;
+}
+export function assertNotebookFeatures(state: NotebookState, features: string | null | undefined) {
+  const references = notebookDrawingReferences(state);
+  if ((!supportsNotebookHandwriting(features) && references.length)
+    || (!supportsNotebookStrokes(features) && references.some((ref) => ref.inkFormat === "strokes-v1"))
+    || (!supportsNotebookAppearance(features) && references.some((ref) => ref.paperColor !== undefined || ref.previewFormat !== undefined))) {
+    throw new NotebookError("Update Kakehashi to open and edit notebooks containing handwriting.", "update_required");
+  }
 }
 export function parseNotebookMutation(value: unknown): NotebookMutation {
   const parsed = mutationSchema.safeParse(value);

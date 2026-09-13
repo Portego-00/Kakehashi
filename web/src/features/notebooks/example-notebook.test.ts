@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEMO_SUBJECTS } from "@/features/demo/wanikani";
 import { createExampleNotebook, EXAMPLE_NOTEBOOK_KANJI, EXAMPLE_NOTEBOOK_PAGE_IDS, EXAMPLE_NOTEBOOK_RADICAL, EXAMPLE_NOTEBOOK_ROOT_ID, EXAMPLE_NOTEBOOK_SENTENCE_ID, EXAMPLE_NOTEBOOK_SUBJECT } from "./example-notebook";
 import { notebookSchema } from "./editor-schema";
-import { applyNotebookMutation, notebookStateBytes, pageSubjectIds, pageText, sanitizeNotebookBlocks, validateNotebookState, type NotebookBlock } from "./model";
+import { applyNotebookMutation, assertNotebookFeatures, notebookStateBytes, pageSubjectIds, pageText, sanitizeNotebookBlocks, validateNotebookState, type NotebookBlock } from "./model";
 
 const now = new Date("2026-09-07T18:00:00.000Z");
 
@@ -33,10 +33,12 @@ describe("default example notebook", () => {
     expect(state.sentences[0].japanese).toContain(EXAMPLE_NOTEBOOK_SUBJECT.label);
   });
 
-  it("loads every supported block type in the actual editor and preserves content through saving", () => {
+  it("loads every self-contained block type in the actual editor and preserves content through saving", () => {
     const state = createExampleNotebook(now);
     const types = new Set(state.pages.flatMap((page) => allBlocks(page.content).map((block) => block.type)));
-    expect([...types].sort()).toEqual(Object.keys(notebookSchema.blockSchema).sort());
+    const selfContainedBlockTypes = Object.keys(notebookSchema.blockSchema).filter((type) => type !== "handwriting");
+    expect([...types].sort()).toEqual(selfContainedBlockTypes.sort());
+    expect(() => assertNotebookFeatures(state, undefined)).not.toThrow();
     for (const page of state.pages) {
       const editor = BlockNoteEditor.create({ schema: notebookSchema, initialContent: page.content as typeof notebookSchema.PartialBlock[] });
       const saved = sanitizeNotebookBlocks(editor.document);

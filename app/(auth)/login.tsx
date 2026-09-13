@@ -26,6 +26,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WaniKaniWebClient from "../../src/modules/WaniKaniWebClient";
+import { registerPendingProgressAccount } from "../../src/services/offlineStudyProgressService";
 import { getUserData, validateApiToken } from "../../src/utils/api";
 import { getCacheStatus } from "../../src/utils/cache";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
@@ -220,7 +221,13 @@ export default function Login() {
 
       const isValid = await validateApiToken(loginResult.apiToken);
       if (isValid) {
-        const userData = await getUserData(loginResult.apiToken);
+        const userData = await getUserData(loginResult.apiToken, {
+          forceRefresh: true,
+        });
+        await registerPendingProgressAccount(
+          loginResult.apiToken,
+          userData.data.id,
+        );
 
         // Use the new signIn method from AuthContext
         await signIn(loginResult.apiToken);
@@ -283,7 +290,8 @@ export default function Login() {
     try {
       const isValid = await validateApiToken(apiToken);
       if (isValid) {
-        const userData = await getUserData(apiToken);
+        const userData = await getUserData(apiToken, { forceRefresh: true });
+        await registerPendingProgressAccount(apiToken, userData.data.id);
 
         // Use the new signIn method from AuthContext
         await signIn(apiToken);

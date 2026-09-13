@@ -5,11 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { canAccessNotebooks } from "./access";
+import { NOTEBOOK_HANDWRITING_FEATURES } from "./handwriting";
 import { applyNotebookMutation, createNotebookState, DEFAULT_NOTEBOOK_LIMITS, NOTEBOOK_HARD_MAX_BYTES, notebookExamplesNeedInitialization, validateNotebookState, type NotebookMutation, type NotebookState } from "./model";
 
 export type NotebookResponse = { available: boolean; state: NotebookState; revision: number; sentenceId?: string };
 const queues = new Map<string, Promise<unknown>>();
 const DEMO_KEY = "kakehashi:notebooks:demo:v1";
+const NOTEBOOK_FEATURE_HEADERS = { "X-Notebook-Features": NOTEBOOK_HANDWRITING_FEATURES };
 
 export class NotebookApiError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "NotebookApiError"; }
@@ -34,7 +36,7 @@ async function initializeExamples(incoming: NotebookResponse, scope: string, isD
   if (!incoming.available || !notebookExamplesNeedInitialization(incoming.state)) return incoming;
   signal.throwIfAborted();
   try {
-    if (!isDemo) return await responseData(await fetch("/api/notebooks", { method: "POST", headers: { "Content-Type": "application/json", "X-Notebook-Account": scope }, body: JSON.stringify({ action: "initialize_examples" }), signal: AbortSignal.any([signal, AbortSignal.timeout(25_000)]) }));
+    if (!isDemo) return await responseData(await fetch("/api/notebooks", { method: "POST", headers: { ...NOTEBOOK_FEATURE_HEADERS, "Content-Type": "application/json", "X-Notebook-Account": scope }, body: JSON.stringify({ action: "initialize_examples" }), signal: AbortSignal.any([signal, AbortSignal.timeout(25_000)]) }));
     const save = () => {
       signal.throwIfAborted();
       const current = readDemo();
@@ -78,7 +80,7 @@ export function useNotebooks() {
     queryFn: async ({ signal }) => {
       if (!allowed) throw new NotebookApiError("Notebooks are not available for this account.", 403);
       const session = sessionRef.current;
-      const incoming = isDemo ? readDemo() : await responseData(await fetch("/api/notebooks", { cache: "no-store", signal }));
+      const incoming = isDemo ? readDemo() : await responseData(await fetch("/api/notebooks", { cache: "no-store", headers: NOTEBOOK_FEATURE_HEADERS, signal }));
       if (!session.active || sessionRef.current !== session || !session.allowed) throw new NotebookApiError("Your notebook account changed.", 409);
       const current = newerNotebookResponse(queryClient.getQueryData<NotebookResponse>(queryKey), incoming);
       const initialized = await initializeExamples(current, scope, isDemo, signal);
@@ -86,7 +88,11 @@ export function useNotebooks() {
     },
     staleTime: 30_000,
     retry: 1,
-    refetchOnWindowFocus: true,
+    // A save from the iPad does not emit this browser's storage event. Refresh
+    // when returning immediately, and while reading an already-open notebook.
+    refetchOnWindowFocus: "always",
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   useEffect(() => {
@@ -127,7 +133,7 @@ export function useNotebooks() {
       };
       const result = isDemo
         ? (navigator.locks ? await navigator.locks.request(DEMO_KEY, saveDemo) : saveDemo())
-        : await responseData(await fetch("/api/notebooks", { method: "POST", headers: { "Content-Type": "application/json", "X-Notebook-Account": scope }, body: JSON.stringify(mutation), signal: AbortSignal.timeout(25_000) }));
+        : await responseData(await fetch("/api/notebooks", { method: "POST", headers: { ...NOTEBOOK_FEATURE_HEADERS, "Content-Type": "application/json", "X-Notebook-Account": scope }, body: JSON.stringify(mutation), signal: AbortSignal.timeout(25_000) }));
       if (!result.available) throw new NotebookApiError("Notebook storage is not available yet. Your changes are kept as a draft on this device.", 503);
       // An already-dispatched save can finish after navigation or sign-out. Its
       // caller may finish cleanup, but it must not repopulate a cleared account cache.

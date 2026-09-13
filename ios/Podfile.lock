@@ -472,6 +472,8 @@ PODS:
     - nanopb/encode (= 3.30910.0)
   - nanopb/decode (3.30910.0)
   - nanopb/encode (3.30910.0)
+  - NotebookHandwriting (1.0.0):
+    - ExpoModulesCore
   - openiap (1.3.14)
   - PromiseKit/CorePromise (8.2.0)
   - PromiseKit/Foundation (8.2.0):
@@ -3679,6 +3681,7 @@ DEPENDENCIES:
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - ImageColors (from `../node_modules/react-native-image-colors/ios`)
+  - NotebookHandwriting (from `../modules/notebook-handwriting/ios`)
   - PromiseKit/Foundation (~> 8.2)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -3919,6 +3922,8 @@ EXTERNAL SOURCES:
     :tag: hermes-v0.14.1
   ImageColors:
     :path: "../node_modules/react-native-image-colors/ios"
+  NotebookHandwriting:
+    :path: "../modules/notebook-handwriting/ios"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTDeprecation:
@@ -4176,6 +4181,7 @@ SPEC CHECKSUMS:
   MLKitVision: fa8dea9012ac59497c79ddbe9ebf32051047ac4c
   MobileVLCKit: 144d5f565512d1147d63b0fa1379231b3fd66535
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
+  NotebookHandwriting: f328d2da71ed5bb066152b25e4b350fb77fc72b4
   openiap: ab2a58a26223bf7167dd47d42e0532f97ed7dae4
   PromiseKit: 74e6ab5894856b4762fef547055c809bca91d440
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47

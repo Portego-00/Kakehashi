@@ -140,3 +140,66 @@ button { touch-action: manipulation; }
 .bn-suggestion-menu { max-width: calc(100vw - 24px) !important; max-height: 280px; overflow-y: auto; }
 .bn-suggestion-menu-item { min-height: 48px !important; }
 @media (min-width: 700px) { .nb-page-heading { padding-top: 32px; } .nb-mobile .bn-editor { padding-bottom: 180px; } .nb-toolbar { padding-inline: max(8px, calc((100vw - 700px) / 2)); } }
+:root .nb-handwriting { margin: 8px 0; width: 100%; border: 1px solid var(--nb-border); border-radius: 8px; overflow: hidden; }
+.nb-handwriting-actions { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 12px; color: var(--nb-muted); font-size: 13px; }
+.nb-handwriting-actions > span { flex: 1; }
+.nb-handwriting-preview { display: block; width: 100%; border: 0; padding: 0; background: var(--nb-paper-color, var(--nb-bg)); cursor: zoom-in; }
+.nb-handwriting-preview img { display: block; width: 100%; height: auto; }
+.nb-handwriting-status { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; text-align: center; }
+.nb-handwriting-status button { border: 0; background: transparent; color: var(--nb-primary); min-height: 44px; }
+.nb-handwriting-dialog { width: min(100%, 900px); max-height: 95dvh; padding: 0; border: 1px solid var(--nb-border); border-radius: 8px; color: var(--nb-text); background: var(--nb-bg); }
+.nb-handwriting-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.nb-handwriting-dialog header { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--nb-bg); }
+.nb-handwriting-dialog h2 { margin: 0; font-size: 17px; }
+.nb-handwriting-dialog > img { display: block; width: 100%; height: auto; background: var(--nb-paper-color, var(--nb-bg)); }
+.nb-inline-ink { position: relative; }
+.nb-ink-tools { display: flex; min-height: 48px; align-items: center; border-bottom: 1px solid var(--nb-border); background: var(--nb-bg); padding-inline: 4px; }
+.nb-ink-tool-scroll { display: flex; flex: 1; min-width: 0; overflow-x: auto; align-items: center; scrollbar-width: none; }
+.nb-ink-tool-scroll .nb-icon-button { min-width: 42px; padding-inline: 8px; }
+.nb-ink-tools button[aria-pressed='true'] { background: var(--nb-tint); color: var(--nb-primary); }
+.nb-ink-color { display: flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 44px; min-height: 44px; }
+.nb-ink-color input { width: 28px; height: 28px; padding: 0; border: 1px solid var(--nb-border); border-radius: 4px; background: transparent; }
+.nb-ink-width select { height: 44px; max-width: 98px; border: 0; background: transparent; font-size: 14px; }
+.nb-ink-done { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; padding: 0 10px; border: 0; border-left: 1px solid var(--nb-border); background: transparent; color: var(--nb-primary); font-size: 14px; }
+.nb-ink-canvas { display: block; width: 100%; height: auto; background: var(--nb-paper-color, var(--nb-bg)); cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.nb-ink-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 2px 10px; border-top: 1px solid var(--nb-border); font-size: 12px; color: var(--nb-muted); background: var(--nb-bg); }
+.nb-ink-footer label { display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.nb-ink-footer input { width: 16px; height: 16px; accent-color: var(--nb-primary); }
+.nb-ink-footer button { display: flex; align-items: center; gap: 4px; min-height: 40px; border: 0; padding-inline: 0; background: transparent; color: var(--nb-muted); }
+.nb-ink-save-state { flex: 1; text-align: end; }
+.nb-ink-status { position: absolute; top: 72px; left: 12px; color: #555; font-size: 14px; }
+.nb-ink-error { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--nb-danger); font-size: 14px; }
+.nb-ink-error button { border: 0; background: transparent; color: var(--nb-primary); min-height: 40px; }
+.nb-ink-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.nb-mobile[data-native-handwriting='true'] .nb-scroll { overflow: hidden; }
+.nb-mobile[data-native-handwriting='true'] .bn-inline-content { pointer-events: none; user-select: none; -webkit-user-select: none; }
+.nb-mobile[data-native-handwriting='true'] > .nb-toolbar { visibility: hidden; pointer-events: none; }
+.nb-native-handwriting { overflow: visible !important; }
+.nb-native-ink-tools { display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--nb-border); font-size: 14px; }
+.nb-native-ink-tools > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 0 8px; border: 0; background: transparent; font-size: 14px; }
+.nb-native-ink-tool-space { flex: 1; }
+.nb-native-ink-tools .nb-native-ink-done { color: var(--nb-primary); }
+.nb-native-handwriting .nb-paper-resize-container { margin: 0; }
+.nb-native-ink-preview { display: block; max-width: none; object-fit: contain; object-position: top left; }
+.nb-native-ink-placeholder { display: grid; place-items: center; height: 100%; padding: 16px; color: var(--nb-paper-text, var(--nb-muted)); font-size: 15px; }
+.nb-native-ink-start { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; }
+.nb-native-ink-finger { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; color: var(--nb-muted); font-size: 12px; }
+.nb-native-ink-finger input { width: 16px; height: 16px; accent-color: var(--nb-primary); }
+
+.nb-native-paper-options { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--nb-border); color: var(--nb-muted); font-size: 12px; }
+.nb-native-paper-options > span { margin-right: 6px; }
+.nb-native-paper-options button { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; border: 0; padding: 0 7px; background: transparent; font-size: 12px; }
+.nb-native-paper-options button[aria-pressed='true'] { color: var(--nb-primary); }
+.nb-paper-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--nb-muted); border-radius: 50%; }
+.nb-paper-custom { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; padding-left: 7px; }
+.nb-paper-custom input { width: 24px; height: 24px; padding: 0; border: 0; background: transparent; }
+
+.nb-native-handwriting-slot { width: 100%; }
+.nb-native-ink-stage { min-width: 0; width: 100%; }
+.nb-native-handwriting[data-fullscreen='true'] { position: fixed; inset: var(--nb-viewport-top, 0px) 0 auto; z-index: 80; width: 100% !important; height: var(--nb-viewport-height, 100dvh); margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: var(--nb-bg); display: flex; flex-direction: column; padding-bottom: max(140px, env(safe-area-inset-bottom)); }
+.nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-tools, .nb-native-handwriting[data-fullscreen='true'] .nb-native-paper-options, .nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-finger, .nb-native-handwriting[data-fullscreen='true'] .nb-ink-error { flex: none; }
+.nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-stage { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; padding: 12px 16px 0; overflow: hidden; }
+.nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-finger { min-height: 36px; }
+.nb-native-handwriting[data-fullscreen='true'] .nb-paper-resize-container { flex: none; }
+
+.nb-native-recovery-notice { margin: 0; padding: 10px 12px; color: var(--nb-muted); font-size: 13px; }

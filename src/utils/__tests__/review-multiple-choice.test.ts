@@ -168,6 +168,108 @@ it("falls back safely when there are not enough plausible meanings", () => {
   ).toEqual([]);
 });
 
+describe("learned-answer fallback", () => {
+  const unrelated = [
+    vocabulary(20, "畳", "Tatami", "たたみ"),
+    vocabulary(21, "祭", "Festival", "まつり"),
+    vocabulary(22, "傘", "Umbrella", "かさ"),
+    vocabulary(23, "砂", "Sand", "すな"),
+    vocabulary(24, "塩", "Salt", "しお"),
+  ];
+  const learnedSubjectIds = new Set(unrelated.map(({ id }) => id));
+
+  it.each(["kanji", "vocabulary", "kana_vocabulary"] as const)(
+    "fills %s meanings from learned answers when none are related",
+    (object) => {
+      const subjects = unrelated.map((entry) => ({ ...entry, object }));
+      const options = { subject: { ...cat, object }, questionType: "meaning" as const,
+        subjects, learnedSubjectIds, seed: "fallback" };
+      const choices = createReviewAnswerChoices(options);
+      expect(choices).toHaveLength(4);
+      expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "Cat", isCorrect: true }]);
+      expect(new Set(choices.map(({ text }) => text)).size).toBe(4);
+      expect(createReviewAnswerChoices(options)).toEqual(choices);
+      for (const choice of choices.filter(({ isCorrect }) => !isCorrect)) {
+        expect(unrelated.map((entry) => entry.data.meanings[0].meaning)).toContain(choice.text);
+      }
+      const results = new Set(Array.from({ length: 10 }, (_, index) =>
+        createReviewAnswerChoices({ ...options, seed: String(index) })
+          .map(({ text }) => text).sort().join(",")));
+      expect(results.size).toBeGreaterThan(1);
+    },
+  );
+
+  it.each([1, 2, 3])("keeps all %i difficult distractors before filling the gaps", (count) => {
+    const choices = createReviewAnswerChoices({
+      subject: cat, questionType: "meaning", subjects: [...animals.slice(0, count), ...unrelated],
+      learnedSubjectIds, seed: "partial",
+    });
+    expect(choices).toHaveLength(4);
+    expect(choices.map(({ text }) => text)).toEqual(expect.arrayContaining(
+      animals.slice(0, count).map((entry) => entry.data.meanings[0].meaning),
+    ));
+  });
+
+  it("leaves a full set of difficult choices and their order unchanged", () => {
+    const options = { subject: cat, questionType: "meaning" as const,
+      subjects: [...animals, ...unrelated], seed: "unchanged" };
+    expect(createReviewAnswerChoices({ ...options, learnedSubjectIds })).toEqual(createReviewAnswerChoices(options));
+  });
+
+  it("uses learned answers of other subject types when the same type has too few", () => {
+    const choices = createReviewAnswerChoices({
+      subject: { ...cat, object: "kanji" }, questionType: "meaning", subjects: unrelated,
+      learnedSubjectIds, seed: "cross-type",
+    });
+    expect(choices).toHaveLength(4);
+  });
+
+  it("excludes unlearned fillers, synonyms, alternate meanings, and normalized duplicates", () => {
+    const ambiguous = { ...vocabulary(30, "子猫", "Kitten", "こねこ"),
+      data: { characters: "子猫", meanings: [{ meaning: "Kitten", primary: true }, { meaning: "Cat" }] } };
+    const subjects = [...unrelated.slice(0, 3),
+      vocabulary(31, "祭", "The Festival", "まつり"),
+      vocabulary(32, "猫", "Feline", "ねこ"),
+      vocabulary(33, "猫", "Kitty", "ねこ"), ambiguous,
+      vocabulary(99, "塩", "Salt", "しお")];
+    const choices = createReviewAnswerChoices({
+      subject: { ...cat, data: { ...cat.data, auxiliary_meanings: [{ meaning: "Kitty", type: "whitelist" }] } },
+      questionType: "meaning", subjects, meaningSynonyms: ["Feline"],
+      learnedSubjectIds: new Set(subjects.filter(({ id }) => id !== 99).map(({ id }) => id)), seed: "exclude",
+    });
+    expect(choices).toHaveLength(4);
+    expect(choices.map(({ text }) => text.replace(/^The /, "")).sort()).toEqual(["Cat", "Festival", "Tatami", "Umbrella"]);
+  });
+
+  it("fills readings even when no sound-confusion or similar reading is available", () => {
+    const subject = vocabulary(40, "ん", "N", "ん");
+    const choices = createReviewAnswerChoices({ subject, questionType: "reading", subjects: unrelated,
+      learnedSubjectIds, seed: "reading-fallback" });
+    expect(choices).toHaveLength(4);
+    expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "ん", isCorrect: true }]);
+    for (const choice of choices.filter(({ isCorrect }) => !isCorrect)) {
+      expect(unrelated.map((entry) => entry.data.readings![0].reading)).toContain(choice.text);
+    }
+  });
+
+  it("excludes alternate readings and duplicates from the learned fallback", () => {
+    const subject = { ...vocabulary(40, "ん", "N", "ん"), data: {
+      characters: "ん", meanings: [], readings: [
+        { reading: "ん", primary: true, accepted_answer: true },
+        { reading: "カサ", accepted_answer: false },
+      ],
+    } };
+    const subjects = [...unrelated, vocabulary(50, "畳", "Tatami mat", "タタミ")];
+    const choices = createReviewAnswerChoices({ subject, questionType: "reading", subjects,
+      learnedSubjectIds: new Set(subjects.map(({ id }) => id)), seed: "reading-exclusions" });
+    expect(choices).toHaveLength(4);
+    const answers = choices.map(({ text }) => text);
+    expect(new Set(answers).size).toBe(4);
+    expect(answers).not.toContain("かさ");
+    expect(answers.every((text) => /^[ぁ-ゖ]+$/.test(text))).toBe(true);
+  });
+});
+
 function radical(
   id: number,
   meaning: string,
@@ -178,6 +280,7 @@ function radical(
     id,
     object: "radical",
     data: {
+      characters: null,
       level,
       meanings: [{ meaning, primary: true, accepted_answer: true }],
       amalgamation_subject_ids: amalgamations,

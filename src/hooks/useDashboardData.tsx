@@ -53,10 +53,7 @@ import {
   loadLevelTimingExcludedLevels,
   subscribeLevelTimingExcludedLevels,
 } from "../utils/levelTimingExclusions";
-import {
-  getFullDashboardDataFromPermanentStorage,
-  saveAssignmentsToPermanentStorage,
-} from "../utils/permanentStorage";
+import { getFullDashboardDataFromPermanentStorage } from "../utils/permanentStorage";
 import { updateBadgeWithReviewCount } from "../utils/badgeNotifications";
 import { updateLastReviewCount } from "../utils/reviewNotifications";
 import { shouldUseNativeReviewNotificationSystem } from "../utils/reviewNotificationIntegration";
@@ -480,7 +477,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const loadPendingProgressAssignmentIds = useCallback(
     async (): Promise<PendingProgressAssignmentIds> => {
       try {
-        return await getPendingProgressAssignmentIds();
+        if (!apiToken) {
+          return EMPTY_PENDING_PROGRESS_ASSIGNMENT_IDS;
+        }
+        return await getPendingProgressAssignmentIds(apiToken);
       } catch (error) {
         console.warn(
           "[Dashboard] Failed to load pending progress assignment IDs:",
@@ -492,7 +492,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         };
       }
     },
-    []
+    [apiToken]
   );
 
   const getLessonAndReviewCountsFromSummary = (summary: any) => {
@@ -702,19 +702,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           pendingProgressAssignmentIds,
           serverCounts
         );
-
-        // Save assignments to permanent storage (survives iOS cache clearing)
-        try {
-          await saveAssignmentsToPermanentStorage(
-            assignments.data,
-            assignments.data_updated_at
-          );
-        } catch (assignmentCacheError) {
-          console.warn(
-            "⚠️ Failed to save assignments to permanent storage:",
-            assignmentCacheError
-          );
-        }
 
         // Update with more accurate assignment-based counts
         const latestPendingProgressAssignmentIdsForCounts =
@@ -2450,10 +2437,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
         try {
           await saveDashboardCache(updatedDashboardSnapshot);
-          await saveAssignmentsToPermanentStorage(
-            assignments.data,
-            assignments.data_updated_at ?? new Date().toISOString()
-          );
         } catch (cacheError) {
           console.warn(
             "Failed to persist lessons/reviews refresh snapshot:",

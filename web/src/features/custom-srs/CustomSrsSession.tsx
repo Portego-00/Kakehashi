@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, ChevronLeft, ChevronRight, RotateCcw, X } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, ExternalLink, Info, RotateCcw, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +9,8 @@ import { LoadingState, Skeleton } from "@/components/ui/States";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "@/features/core-study/answer-checker";
 import { createQuestionQueue } from "@/features/core-study/queue";
 import { orderCoreAssignments } from "@/features/core-study/session-planning";
+import { usePhoneStudyInput } from "@/features/core-study/use-phone-study-input";
+import { useMobileReviewViewport } from "@/features/core-study/use-mobile-review-viewport";
 import coreStyles from "@/features/core-study/core-study.module.css";
 import type { WebSettings } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
@@ -28,6 +30,7 @@ import { nextCustomSrsStage } from "./scheduler";
 import { customAssignmentToWaniKani, customWordToSubject, customWordUsesKanji } from "./subject-adapter";
 import type { CustomSrsStage, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
 import { useCustomSrs } from "./use-custom-srs";
+import sessionStyles from "./custom-srs-session.module.css";
 import reviewResultsStyles from "./custom-srs-review-results.module.css";
 
 type CustomStudyMode = "lessons" | "reviews";
@@ -39,6 +42,64 @@ type CustomQuestion = {
 };
 
 const DEFAULT_LESSON_BATCH_SIZE = 5;
+
+function CustomSrsSyncStatus({ pendingCount, error, onRetry }: {
+  pendingCount: number;
+  error: string;
+  onRetry: () => unknown;
+}) {
+  return <div className={sessionStyles.syncStatus} role="status" aria-live="polite">
+    {pendingCount > 0 ? <>
+      <span>{pendingCount} {pendingCount === 1 ? "answer" : "answers"} saved on this device. {error ? `Cloud sync needs attention. ${error}` : "Syncing in the background…"}</span>
+      {error ? <Button size="small" tone="ghost" onClick={async () => { try { await onRetry(); } catch { /* The hook retains the pending answers and reports the error. */ } }}>Retry sync</Button> : null}
+    </> : null}
+  </div>;
+}
+
+function CustomReviewDetails({ word, assignment, settings, immersionSources, initialTab }: {
+  word: CustomVocabularyWord;
+  assignment: CustomSrsState["assignments"][string] | undefined;
+  settings: WebSettings["subjectDetails"];
+  immersionSources: string[];
+  initialTab: QuestionKind;
+}) {
+  const subject = customWordToSubject(word);
+  const immersion = useQuery({
+    queryKey: ["immersion", "custom-vocabulary-detail", word.characters, immersionSources.join(",")],
+    queryFn: ({ signal }) => fetchImmersionExamples(word.characters, immersionSources, signal),
+    enabled: settings.showImmersionExamples,
+    staleTime: 60 * 60_000,
+    retry: 1,
+  });
+  return <section id="custom-study-item-details" className={coreStyles.detailsPanel} aria-labelledby="custom-study-details-title" style={{ "--subject-color": subjectColor() } as CSSProperties}>
+    <div className={coreStyles.detailsHeader}>
+      <h2 id="custom-study-details-title">Item details</h2>
+      <ButtonLink href={`/custom-vocabulary/words/${encodeURIComponent(word.id)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small">Open full subject<ExternalLink size={15} aria-hidden /></ButtonLink>
+    </div>
+    <div className={coreStyles.detailsIdentity}>
+      <SubjectCharacter subject={subject} className={coreStyles.detailsCharacter} imageSize="100%" data-type="vocabulary" />
+      <div className={coreStyles.detailsIdentityCopy}><h3>{primaryMeaning(word)}</h3>{customWordUsesKanji(word) ? <p lang="ja">{word.reading}</p> : null}</div>
+    </div>
+    <SubjectDetailPanels
+      record={subject}
+      assignment={assignment ? customAssignmentToWaniKani(assignment, word) : undefined}
+      materialLoading={false}
+      materialsKey={["custom-srs", "read-only-materials", word.id]}
+      relatedSubjects={[]}
+      pitchAccents={[]}
+      usagePatterns={[]}
+      immersionExamples={immersion.data ?? []}
+      immersionLoading={immersion.isLoading}
+      immersionFailed={immersion.isError}
+      settings={{ ...settings, showContextSentences: true, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/custom-vocabulary"
+      initialTab={initialTab}
+      idPrefix="custom-review-subject"
+      allowStudyMaterialEditing={false}
+      embedded
+    />
+  </section>;
+}
 
 function primaryMeaning(word: CustomVocabularyWord) {
   return word.meanings[0] ?? word.characters;
@@ -311,7 +372,7 @@ function CustomSrsSessionGate({
   studySettings: WebSettings["study"];
   customSrs: ReturnType<typeof useCustomSrs>;
 }) {
-  const [admitted, setAdmitted] = useState(() => !customSrs.error);
+  const [admitted, setAdmitted] = useState(() => !(customSrs.isUnavailable ?? Boolean(customSrs.error)));
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState("");
 
@@ -348,7 +409,9 @@ function CustomSrsSessionGate({
     state={customSrs.state}
     completeLesson={customSrs.completeLesson}
     submitReview={customSrs.submitReview}
-    hookSaving={customSrs.isSaving}
+    pendingCount={customSrs.pendingCount ?? 0}
+    syncError={customSrs.syncError ?? ""}
+    retrySync={customSrs.retrySync}
   />;
 }
 
@@ -361,7 +424,9 @@ function ReadyCustomSrsSession({
   state,
   completeLesson,
   submitReview,
-  hookSaving,
+  pendingCount,
+  syncError,
+  retrySync,
 }: {
   mode: CustomStudyMode;
   packs: readonly CustomVocabularyPack[];
@@ -371,7 +436,9 @@ function ReadyCustomSrsSession({
   state: CustomSrsState;
   completeLesson: ReturnType<typeof useCustomSrs>["completeLesson"];
   submitReview: ReturnType<typeof useCustomSrs>["submitReview"];
-  hookSaving: boolean;
+  pendingCount: number;
+  syncError: string;
+  retrySync: ReturnType<typeof useCustomSrs>["retrySync"];
 }) {
   const [startedAt, setStartedAt] = useState(() => new Date());
   const packsByWordId = useMemo(() => {
@@ -388,6 +455,7 @@ function ReadyCustomSrsSession({
   const [lessonIndex, setLessonIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
+  const [detailsOverride, setDetailsOverride] = useState<boolean | null>(null);
   const [incorrectByWord, setIncorrectByWord] = useState<Record<string, number>>({});
   const [incorrectByQuestion, setIncorrectByQuestion] = useState<CustomReviewQuestionMistakes>({});
   const [reviewOutcomesByWord, setReviewOutcomesByWord] = useState<Record<string, CustomReviewOutcome>>({});
@@ -399,15 +467,20 @@ function ReadyCustomSrsSession({
   const [lastProgression, setLastProgression] = useState<CustomSrsProgression | null>(null);
   const dismissProgression = useCallback(() => setLastProgression(null), []);
   const inputRef = useRef<HTMLInputElement>(null);
+  const phoneInput = usePhoneStudyInput();
   const committingRef = useRef(false);
   const committedWordsRef = useRef(new Set<string>());
   const [committedWordIds, setCommittedWordIds] = useState<ReadonlySet<string>>(() => new Set());
   const eventIdsRef = useRef(new Map<string, string>());
   const currentQuestion = queue[0];
+  const reviewViewportRef = useMobileReviewViewport(phoneInput && phase === "quiz" && Boolean(currentQuestion));
   const currentWord = currentQuestion?.word;
   const currentKind = currentQuestion?.kind;
   const currentSubject = useMemo(() => currentWord ? customWordToSubject(currentWord) : null, [currentWord]);
   const currentAssignment = currentWord ? state.assignments[currentWord.id] : undefined;
+  const canShowDetails = Boolean(feedback && feedback.status !== "blocked");
+  const detailsOpen = canShowDetails && (detailsOverride ?? studySettings.showAnswerStopSubjectDetails);
+  const syncStatus = <CustomSrsSyncStatus pendingCount={pendingCount} error={syncError} onRetry={retrySync} />;
   const total = sessionWords.length;
   const displayedCurrent = Math.min(total, completedCount + 1);
   const itemProgress = total ? displayedCurrent / total : 0;
@@ -418,7 +491,7 @@ function ReadyCustomSrsSession({
   const nextBatchCount = Math.min(batchSize, remainingLessons.length);
 
   function startNextLessonBatch() {
-    if (mode !== "lessons" || phase !== "results" || committingRef.current || hookSaving) return;
+    if (mode !== "lessons" || phase !== "results" || committingRef.current) return;
     const nextWords = remainingLessons.slice(0, batchSize);
     if (!nextWords.length) return;
 
@@ -441,21 +514,21 @@ function ReadyCustomSrsSession({
   const startQuiz = () => {
     setPhase("quiz");
     setLessonIndex(0);
-    window.requestAnimationFrame(() => inputRef.current?.focus());
+    window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
   };
 
   useEffect(() => {
     if (phase !== "quiz") return;
     const frame = window.requestAnimationFrame(() => {
-      if (feedback) document.getElementById("custom-study-advance")?.focus();
-      else inputRef.current?.focus();
+      if (feedback && !phoneInput) document.getElementById("custom-study-advance")?.focus();
+      else inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [currentKind, currentWord?.id, feedback, phase]);
+  }, [currentKind, currentWord?.id, feedback, phase, phoneInput]);
 
   function submitAnswer(event: FormEvent) {
     event.preventDefault();
-    if (!currentSubject || !currentKind || feedback || committingRef.current || hookSaving) return;
+    if (!currentSubject || !currentKind || feedback || committingRef.current) return;
     const result = checkAnswer(currentSubject, currentKind, answer);
     setFeedback(result);
     setCommitError("");
@@ -474,11 +547,13 @@ function ReadyCustomSrsSession({
   function resetForNextQuestion() {
     setAnswer("");
     setFeedback(null);
+    setDetailsOverride(null);
     setCommitError("");
   }
 
   async function advanceQuiz() {
-    if (!currentWord || !feedback || committingRef.current || hookSaving) return;
+    if (!currentWord || !feedback || committingRef.current) return;
+    if (phoneInput) inputRef.current?.focus({ preventScroll: true });
     if (feedback.status === "blocked") {
       resetForNextQuestion();
       return;
@@ -555,7 +630,7 @@ function ReadyCustomSrsSession({
   }
 
   if (phase === "teaching") {
-    return <CustomLessonTeaching
+    return <><CustomLessonTeaching
       words={sessionWords}
       packsByWordId={packsByWordId}
       state={state}
@@ -565,7 +640,7 @@ function ReadyCustomSrsSession({
       currentIndex={lessonIndex}
       onCurrentIndexChange={setLessonIndex}
       onStartQuiz={startQuiz}
-    />;
+    />{syncStatus}</>;
   }
 
   if (phase === "results" || !currentWord || !currentSubject) {
@@ -579,6 +654,7 @@ function ReadyCustomSrsSession({
           startedAt={startedAt}
           completedAt={completedAt}
         />
+        {syncStatus}
       </div>;
     }
     const incorrect = Object.values(incorrectByWord).reduce((sum, count) => sum + count, 0);
@@ -605,10 +681,11 @@ function ReadyCustomSrsSession({
         </div> : null}
         {nextBatchCount ? <p>{remainingLessons.length} {remainingLessons.length === 1 ? "lesson" : "lessons"} remaining.</p> : null}
         <div className="cluster" style={{ justifyContent: "center" }}>
-          {nextBatchCount ? <Button tone="primary" onClick={startNextLessonBatch} disabled={committing || hookSaving}>Next batch ({nextBatchCount})<ArrowRight size={17} aria-hidden /></Button> : null}
+          {nextBatchCount ? <Button tone="primary" onClick={startNextLessonBatch} disabled={committing}>Next batch ({nextBatchCount})<ArrowRight size={17} aria-hidden /></Button> : null}
           <ButtonLink href="/custom-vocabulary" tone={nextBatchCount ? "ghost" : "primary"}>Vocabulary Packs</ButtonLink>
           {completedCount && mode === "lessons" ? <ButtonLink href="/custom-vocabulary/reviews" tone="ghost">Review Due Items</ButtonLink> : null}
         </div>
+        {syncStatus}
       </section>
     </div>;
   }
@@ -631,10 +708,12 @@ function ReadyCustomSrsSession({
   const pronunciation = canPlayPronunciation ? currentSubject.data.pronunciation_audios?.[0] : undefined;
   const pronunciationKey = `pronunciation:${currentWord.id}`;
 
-  return <SubjectAudioProvider
-    key={`${currentWord.id}:${currentKind}:${canPlayPronunciation ? "revealed" : "question"}`}
-    autoplay={studySettings.autoplayAudio && pronunciation ? { audioKey: pronunciationKey, src: pronunciation.url } : undefined}
-  ><section
+  const audioScopeKey = `${currentWord.id}:${currentKind}:${canPlayPronunciation ? "revealed" : "question"}`;
+  const autoplay = studySettings.autoplayAudio && pronunciation ? { audioKey: pronunciationKey, src: pronunciation.url } : undefined;
+  const pronunciationButton = pronunciation ? <SubjectAudioButton audioKey={pronunciationKey} src={pronunciation.url} label={`${pronunciation.metadata.voice_actor_name} pronunciation`} variant="pronunciation"><span>{pronunciation.metadata.voice_actor_name} · AI-generated</span></SubjectAudioButton> : null;
+
+  const content = <section
+    ref={reviewViewportRef}
     className={studyStyles.quizShell}
     data-study-session="active"
     data-type={customWordUsesKanji(currentWord) ? "vocabulary" : "kana_vocabulary"}
@@ -683,9 +762,20 @@ function ReadyCustomSrsSession({
             id="custom-review-answer"
             name="custom-review-answer"
             value={answer}
-            onChange={(event) => setAnswer(isReadingQuestion ? composeKanaInput(event.target.value) : event.target.value)}
-            readOnly={Boolean(feedback)}
-            disabled={committing || hookSaving}
+            onChange={(event) => {
+              if (feedback || committing) return;
+              setAnswer(isReadingQuestion ? composeKanaInput(event.target.value) : event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (!phoneInput || event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
+              event.preventDefault();
+              if (event.repeat) return;
+              if (feedback) void advanceQuiz();
+              else submitAnswer(event);
+            }}
+            readOnly={!phoneInput && Boolean(feedback)}
+            disabled={!phoneInput && committing}
+            enterKeyHint={phoneInput ? "go" : undefined}
             aria-label={`Vocabulary ${promptLabel}`}
             aria-invalid={feedback?.status === "incorrect" || feedback?.status === "blocked" ? true : undefined}
             aria-describedby={feedback ? "custom-review-answer-status" : undefined}
@@ -693,19 +783,26 @@ function ReadyCustomSrsSession({
             lang={isReadingQuestion ? "ja" : undefined}
             spellCheck={false}
             inputMode={isReadingQuestion ? "text" : undefined}
-            style={{ fontSize: `${reviewInputScale}rem` }}
+            style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : `${reviewInputScale}rem` }}
           />
           <button
             id={feedback ? "custom-study-advance" : undefined}
             type="submit"
             className={studyStyles.primaryButton}
-            disabled={committing || hookSaving || (!feedback && !answer.trim())}
+            onMouseDown={(event) => {
+              if (phoneInput && document.activeElement === inputRef.current) event.preventDefault();
+            }}
+            disabled={committing || (!feedback && !answer.trim())}
           >
             {feedback?.status === "blocked" ? <RotateCcw size={18} aria-hidden /> : feedback ? <ArrowRight size={18} aria-hidden /> : <Check size={18} aria-hidden />}
             {feedback ? nextButtonLabel : "Check"}
           </button>
         </div>
       </form>
+
+      <div className={coreStyles.studyTools} aria-label="Answer controls">
+        <Button className={coreStyles.toolButton} type="button" tone="ghost" disabled={!canShowDetails || committing} aria-controls="custom-study-item-details" aria-expanded={detailsOpen} onClick={() => setDetailsOverride(!detailsOpen)}><Info size={17} aria-hidden /><span>Info</span></Button>
+      </div>
 
       <div className={studyStyles.answerStopReveal} data-answer-stop data-visible={Boolean(feedback)} aria-hidden={!feedback} inert={!feedback ? true : undefined}>
         <div className={studyStyles.answerStopContent}>
@@ -717,11 +814,22 @@ function ReadyCustomSrsSession({
             {feedback.status === "incorrect" ? <span className={studyStyles.correctAnswer}><small>Correct answer</small><strong lang={isReadingQuestion ? "ja" : undefined}>{acceptedAnswer}</strong></span> : feedback.status === "blocked" || feedback.status === "close" ? <span>{feedback.message}</span> : null}
           </div> : null}
           {commitError ? <p className={coreStyles.error} role="alert">{commitError}</p> : null}
-          {pronunciation ? <SubjectAudioButton audioKey={pronunciationKey} src={pronunciation.url} label={`${pronunciation.metadata.voice_actor_name} pronunciation`} variant="pronunciation"><span>{pronunciation.metadata.voice_actor_name} · AI-generated</span></SubjectAudioButton> : null}
+          {phoneInput ? <SubjectAudioProvider key={audioScopeKey} autoplay={autoplay}>{pronunciationButton}</SubjectAudioProvider> : pronunciationButton}
         </div>
       </div>
 
+      {detailsOpen ? <CustomReviewDetails
+        key={`${currentWord.id}:${currentKind}`}
+        word={currentWord}
+        assignment={currentAssignment}
+        settings={detailSettings}
+        immersionSources={studySettings.immersionKitAnimeSources}
+        initialTab={currentKind ?? "meaning"}
+      /> : null}
+      {syncStatus}
       {studySettings.keyboardShortcuts ? <p className={studyStyles.keyboardHint}>Press <kbd>Enter</kbd> to {feedback?.status === "blocked" ? "try again" : feedback ? "continue" : "check"}</p> : null}
     </div>
-  </section></SubjectAudioProvider>;
+  </section>;
+  // Only the audio player resets on phones; replacing its ancestor would dismiss the keyboard.
+  return phoneInput ? content : <SubjectAudioProvider key={audioScopeKey} autoplay={autoplay}>{content}</SubjectAudioProvider>;
 }

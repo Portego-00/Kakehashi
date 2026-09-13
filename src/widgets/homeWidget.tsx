@@ -34,6 +34,16 @@ import type {
   WidgetContentMode,
   WidgetStreakGradientPreset,
 } from "../utils/store";
+import {
+  normalizeStreakSnapshotForUpdate,
+  persistWidgetSnapshot,
+  resolveBackgroundReviewSchedule,
+  resolveProjectedReviewTotalForLocalDay,
+  selectWidgetTimelineTimestamps,
+  type BackgroundReviewSyncData,
+} from "./homeWidgetBackgroundSync";
+
+export type { BackgroundReviewSyncData } from "./homeWidgetBackgroundSync";
 
 export const KAKEHASHI_HOME_WIDGET_NAME = "KakehashiHomeWidget";
 const WIDGET_APP_GROUP_IDENTIFIER = "group.com.kakehashi.reviewdata";
@@ -162,12 +172,14 @@ export type HomeWidgetSnapshotInput = {
 
 type HomeWidgetProps = {
   contentMode: WidgetContentMode;
+  timelineAnchor?: boolean;
   updatedAtLabel: string;
   reviewsCountValue: number;
   reviewsPrimaryLabel: string;
   reviewsSecondaryLabel: string;
   reviewsTertiaryLabel: string;
   reviewsImageUri: string;
+  reviewIllustrationUris: ReviewIllustrationUris;
   reviewsImageAspectRatio: number;
   reviewsIconUri: string;
   criticalPrimaryLabel: string;
@@ -221,12 +233,14 @@ const NOOP_WIDGET: WidgetController<HomeWidgetProps> = {
 
 const DEFAULT_WIDGET_PROPS: HomeWidgetProps = {
   contentMode: "reviews",
+  timelineAnchor: false,
   updatedAtLabel: "",
   reviewsCountValue: 0,
   reviewsPrimaryLabel: "0 available",
   reviewsSecondaryLabel: "No upcoming reviews",
   reviewsTertiaryLabel: "0 total today",
   reviewsImageUri: "",
+  reviewIllustrationUris: {},
   reviewsImageAspectRatio: 1.6,
   reviewsIconUri: "",
   criticalPrimaryLabel: "0 critical items",
@@ -269,7 +283,6 @@ function hasAllStreakIconUris(
   }
   return STREAK_ICON_KEYS.every((key) => Boolean(iconUris[key]));
 }
-
 function hasAllReviewIllustrationUris(
   illustrationUris: ReviewIllustrationUris | null,
 ): illustrationUris is ReviewIllustrationUris {
@@ -1382,101 +1395,6 @@ function buildProjectedStreakRecentDays(
   return projected;
 }
 
-function normalizeSnapshotInputForLiveStreakSession(
-  input: HomeWidgetSnapshotInput,
-): HomeWidgetSnapshotInput {
-  if (input.contentMode !== "streak") {
-    return input;
-  }
-
-  const sourceRecentDays = Array.isArray(input.streakRecentDays)
-    ? input.streakRecentDays
-    : [];
-  if (sourceRecentDays.length === 0) {
-    return input;
-  }
-
-  const now = new Date();
-  const timezone = input.streakTimezone;
-  const currentDayKey =
-    typeof timezone === "string" && timezone.trim().length > 0
-      ? toDayKeyInTimezone(now, timezone)
-      : toLocalDayKey(now);
-
-  const hasSortableDayKeys = sourceRecentDays.every(
-    (day) =>
-      typeof day.dayKey === "string" && STREAK_DAY_KEY_PATTERN.test(day.dayKey),
-  );
-  const shouldMarkTodayActive =
-    toNonNegativeInteger(input.currentStreak) > 0 ||
-    sourceRecentDays.some((day) => Boolean(day.active));
-
-  let normalizedRecentDays: StreakRecentDay[];
-
-  if (hasSortableDayKeys) {
-    const dayByKey = new Map<string, StreakRecentDay>();
-    for (const day of sourceRecentDays) {
-      if (day.dayKey) {
-        dayByKey.set(day.dayKey, day);
-      }
-    }
-
-    normalizedRecentDays = [];
-    for (let offset = 6; offset >= 0; offset -= 1) {
-      const dayKey = addDays(currentDayKey, -offset);
-      const sourceDay = dayByKey.get(dayKey);
-      normalizedRecentDays.push({
-        dayKey,
-        label:
-          sourceDay?.label && sourceDay.label.trim().length > 0
-            ? sourceDay.label
-            : STREAK_DAY_LABEL_FORMATTER.format(dayKeyToUtcDate(dayKey)),
-        // Opening the app should count as activity for today.
-        active:
-          offset === 0
-            ? shouldMarkTodayActive || Boolean(sourceDay?.active)
-            : Boolean(sourceDay?.active),
-        isToday: offset === 0,
-      });
-    }
-  } else {
-    const fallbackRecentDays = sourceRecentDays.slice(-7);
-    normalizedRecentDays = fallbackRecentDays.map((day, index) => {
-      const isToday = index === fallbackRecentDays.length - 1;
-      return {
-        ...day,
-        active: isToday ? shouldMarkTodayActive || Boolean(day.active) : Boolean(day.active),
-        isToday,
-      };
-    });
-  }
-
-  const didChange =
-    normalizedRecentDays.length !== sourceRecentDays.length ||
-    normalizedRecentDays.some((day, index) => {
-      const sourceDay = sourceRecentDays[index];
-      if (!sourceDay) {
-        return true;
-      }
-
-      return (
-        (day.dayKey ?? null) !== (sourceDay.dayKey ?? null) ||
-        day.label !== sourceDay.label ||
-        day.active !== Boolean(sourceDay.active) ||
-        day.isToday !== Boolean(sourceDay.isToday)
-      );
-    });
-
-  if (!didChange) {
-    return input;
-  }
-
-  return {
-    ...input,
-    streakRecentDays: normalizedRecentDays,
-  };
-}
-
 function formatUpcomingReviewBucketLabel(
   nextReviewDate: string | null,
   nextReviewCount: number | null,
@@ -1750,6 +1668,7 @@ function buildWidgetProps(
   options: {
     referenceDate: Date;
     projectedReviewCount: number;
+    projectedTodayReviewTotal: number;
     projectedNextReviewDate: string | null;
     projectedNextReviewCount: number | null;
     reviewIllustrationUris: ReviewIllustrationUris;
@@ -1759,7 +1678,7 @@ function buildWidgetProps(
   const reviewCount = toNonNegativeInteger(options.projectedReviewCount);
   const todayReviewTotal = Math.max(
     reviewCount,
-    toNonNegativeInteger(input.todayReviewTotal),
+    toNonNegativeInteger(options.projectedTodayReviewTotal),
   );
   const criticalCount = toNonNegativeInteger(input.criticalCount);
   const recentMistakesCount = toNonNegativeInteger(input.recentMistakesCount);
@@ -1799,6 +1718,7 @@ function buildWidgetProps(
       reviewCount,
       options.reviewIllustrationUris,
     ) ?? "",
+    reviewIllustrationUris: options.reviewIllustrationUris,
     reviewsImageAspectRatio: resolveReviewIllustrationAspectRatio(reviewCount),
     reviewsIconUri: options.reviewAccessoryIconUri,
     criticalPrimaryLabel: `${criticalCount} critical ${pluralize(criticalCount, "item", "items")}`,
@@ -1852,6 +1772,7 @@ function buildTimelineEntries(
   const now = new Date();
   const reviewUpcomingBuckets = normalizeReviewUpcomingBuckets(input, now);
   const timelineTimestamps = new Set<number>([now.getTime()]);
+  const timelineAnchorTimestamps = new Set<number>();
 
   // Lock Screen accessory families always render reviews, even when the
   // Home Screen widget is configured for streaks.
@@ -1871,6 +1792,7 @@ function buildTimelineEntries(
   let midnight = getNextLocalMidnight(now);
   for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
     timelineTimestamps.add(midnight.getTime());
+    timelineAnchorTimestamps.add(midnight.getTime());
     const nextMidnight = new Date(midnight);
     nextMidnight.setDate(midnight.getDate() + 1);
     nextMidnight.setHours(0, 0, 0, 0);
@@ -1880,16 +1802,16 @@ function buildTimelineEntries(
   if (input.streakGradientPreset === "automatic") {
     for (const timestamp of getAutomaticThemeTransitionTimestamps(now)) {
       timelineTimestamps.add(timestamp);
+      timelineAnchorTimestamps.add(timestamp);
     }
   }
 
-  const sortedTimestamps = Array.from(timelineTimestamps).sort(
-    (leftTimestamp, rightTimestamp) => leftTimestamp - rightTimestamp,
+  const clampedTimestamps = selectWidgetTimelineTimestamps(
+    timelineTimestamps,
+    timelineAnchorTimestamps,
+    now.getTime(),
+    MAX_WIDGET_TIMELINE_ENTRIES,
   );
-  const clampedTimestamps =
-    sortedTimestamps.length > MAX_WIDGET_TIMELINE_ENTRIES
-      ? sortedTimestamps.slice(0, MAX_WIDGET_TIMELINE_ENTRIES)
-      : sortedTimestamps;
 
   return clampedTimestamps
     .map((timestamp) => {
@@ -1900,17 +1822,31 @@ function buildTimelineEntries(
         now,
         referenceDate,
       );
+      const projectedTodayReviewTotal =
+        resolveProjectedReviewTotalForLocalDay({
+          baselineDate: now,
+          referenceDate,
+          currentReviews: projectedReviews.projectedReviewCount,
+          baselineTodayTotal: input.todayReviewTotal,
+          upcomingBuckets: input.reviewUpcomingBuckets,
+        });
 
       return {
         date: referenceDate,
-        props: buildWidgetProps(input, {
-          referenceDate,
-          projectedReviewCount: projectedReviews.projectedReviewCount,
-          projectedNextReviewDate: projectedReviews.projectedNextReviewDate,
-          projectedNextReviewCount: projectedReviews.projectedNextReviewCount,
-          reviewIllustrationUris,
-          reviewAccessoryIconUri,
-        }),
+        props: {
+          ...buildWidgetProps(input, {
+            referenceDate,
+            projectedReviewCount: projectedReviews.projectedReviewCount,
+            projectedTodayReviewTotal,
+            projectedNextReviewDate: projectedReviews.projectedNextReviewDate,
+            projectedNextReviewCount: projectedReviews.projectedNextReviewCount,
+            reviewIllustrationUris,
+            reviewAccessoryIconUri,
+          }),
+          // Native background refreshes replace review timestamps, while these
+          // entries must survive so streak days and automatic themes still advance.
+          timelineAnchor: timelineAnchorTimestamps.has(timestamp),
+        },
       };
     });
 }
@@ -1927,9 +1863,17 @@ function buildImmediateWidgetProps(
     now,
     now,
   );
+  const projectedTodayReviewTotal = resolveProjectedReviewTotalForLocalDay({
+    baselineDate: now,
+    referenceDate: now,
+    currentReviews: projectedReviews.projectedReviewCount,
+    baselineTodayTotal: input.todayReviewTotal,
+    upcomingBuckets: input.reviewUpcomingBuckets,
+  });
   return buildWidgetProps(input, {
     referenceDate: now,
     projectedReviewCount: projectedReviews.projectedReviewCount,
+    projectedTodayReviewTotal,
     projectedNextReviewDate: projectedReviews.projectedNextReviewDate,
     projectedNextReviewCount: projectedReviews.projectedNextReviewCount,
     reviewIllustrationUris,
@@ -1956,17 +1900,17 @@ function sanitizeWidgetPropsForNative(props: HomeWidgetProps): HomeWidgetProps {
   }
 }
 
-export function updateHomeWidgetSnapshot(input: HomeWidgetSnapshotInput) {
-  const normalizedInput = normalizeSnapshotInputForLiveStreakSession(input);
+export async function updateHomeWidgetSnapshot(
+  input: HomeWidgetSnapshotInput,
+  options: { recordAppActivity?: boolean } = {},
+): Promise<void> {
+  const normalizedInput = normalizeStreakSnapshotForUpdate(input, options);
   latestWidgetSnapshotInput = normalizedInput;
-  try {
-    void AsyncStorage.setItem(
-      LAST_WIDGET_SNAPSHOT_STORAGE_KEY,
-      JSON.stringify(normalizedInput),
-    );
-  } catch {
-    // Best effort only.
-  }
+  const snapshotPersistence = persistWidgetSnapshot(
+    AsyncStorage,
+    LAST_WIDGET_SNAPSHOT_STORAGE_KEY,
+    normalizedInput,
+  );
 
   const updateTimelineWithProps = (snapshotInput: HomeWidgetSnapshotInput) => {
     const reviewIllustrationUris = cachedReviewIllustrationUris ?? {};
@@ -2058,25 +2002,25 @@ export function updateHomeWidgetSnapshot(input: HomeWidgetSnapshotInput) {
   }
 
   if (pendingAssetPreparations.length === 0) {
+    await snapshotPersistence;
     return;
   }
 
-  void Promise.all(pendingAssetPreparations)
-    .then(() => {
-      const latestInput = latestWidgetSnapshotInput;
-      if (!latestInput) {
-        return;
-      }
+  await Promise.all(pendingAssetPreparations);
 
-      try {
-        updateTimelineWithProps(latestInput);
-      } catch (error) {
-        if (!hasLoggedWidgetUpdateError) {
-          hasLoggedWidgetUpdateError = true;
-          console.warn("Unable to update home widget snapshot:", error);
-        }
+  const latestInput = latestWidgetSnapshotInput;
+  if (latestInput) {
+    try {
+      updateTimelineWithProps(latestInput);
+    } catch (error) {
+      if (!hasLoggedWidgetUpdateError) {
+        hasLoggedWidgetUpdateError = true;
+        console.warn("Unable to update home widget snapshot:", error);
       }
-    });
+    }
+  }
+
+  await snapshotPersistence;
 }
 
 function mapTimelineEntriesToDebugEntries(
@@ -2188,12 +2132,6 @@ export function reloadHomeWidget() {
   }
 }
 
-export type BackgroundReviewSyncData = {
-  currentReviews: number;
-  upcomingReviews?: number[];
-  upcomingReviewTimes?: { [key: string]: number };
-};
-
 export async function getLastWidgetSnapshotInput(): Promise<HomeWidgetSnapshotInput | null> {
   if (latestWidgetSnapshotInput) {
     return latestWidgetSnapshotInput;
@@ -2220,25 +2158,27 @@ export async function syncHomeWidgetFromBackgroundReviewData(
 
   const existingInput = await getLastWidgetSnapshotInput();
   const now = new Date();
-  const nowMs = now.getTime();
-
-  const upcomingBuckets: ReviewUpcomingBucket[] = [];
-  let earliestFutureReviewTime: string | null = null;
-  let earliestFutureMs = Number.POSITIVE_INFINITY;
-
-  if (reviewData.upcomingReviewTimes) {
-    for (const [isoDate, count] of Object.entries(reviewData.upcomingReviewTimes)) {
-      if (count <= 0) continue;
-      upcomingBuckets.push({ date: isoDate, count });
-      const ms = Date.parse(isoDate);
-      if (!Number.isNaN(ms) && ms > nowMs && ms < earliestFutureMs) {
-        earliestFutureMs = ms;
-        earliestFutureReviewTime = isoDate;
-      }
-    }
-  }
+  const reviewSchedule = resolveBackgroundReviewSchedule(
+    existingInput
+      ? {
+          nextReviewDate: existingInput.nextReviewDate,
+          reviewUpcomingBuckets: existingInput.reviewUpcomingBuckets,
+        }
+      : null,
+    reviewData,
+    now,
+  );
 
   const reviewCount = Math.max(0, Math.round(reviewData.currentReviews));
+  const todayReviewTotal = resolveProjectedReviewTotalForLocalDay({
+    baselineDate: now,
+    referenceDate: now,
+    currentReviews: reviewCount,
+    // Background review data is authoritative for the current local day. Do
+    // not carry yesterday's dashboard total across midnight.
+    baselineTodayTotal: 0,
+    upcomingBuckets: reviewSchedule.reviewUpcomingBuckets,
+  });
 
   const updatedInput: HomeWidgetSnapshotInput = {
     contentMode: existingInput?.contentMode ?? "reviews",
@@ -2246,14 +2186,9 @@ export async function syncHomeWidgetFromBackgroundReviewData(
     isDarkTheme: existingInput?.isDarkTheme,
     streakTimezone: existingInput?.streakTimezone,
     reviewCount,
-    nextReviewDate:
-      earliestFutureReviewTime ??
-      (existingInput?.nextReviewDate ?? null),
-    todayReviewTotal: existingInput?.todayReviewTotal ?? 0,
-    reviewUpcomingBuckets:
-      upcomingBuckets.length > 0
-        ? upcomingBuckets
-        : (existingInput?.reviewUpcomingBuckets ?? []),
+    nextReviewDate: reviewSchedule.nextReviewDate,
+    todayReviewTotal,
+    reviewUpcomingBuckets: reviewSchedule.reviewUpcomingBuckets,
     criticalCount: existingInput?.criticalCount ?? 0,
     topCriticalItem: existingInput?.topCriticalItem ?? null,
     recentMistakesCount: existingInput?.recentMistakesCount ?? 0,
@@ -2264,7 +2199,6 @@ export async function syncHomeWidgetFromBackgroundReviewData(
     streakRecentDays: existingInput?.streakRecentDays ?? [],
   };
 
-  updateHomeWidgetSnapshot(updatedInput);
+  await updateHomeWidgetSnapshot(updatedInput, { recordAppActivity: false });
   reloadHomeWidget();
 }
-

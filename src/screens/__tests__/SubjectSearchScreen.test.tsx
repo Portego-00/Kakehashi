@@ -29,6 +29,16 @@ const mockSubjects = [
       parts_of_speech: ["proper noun"],
     },
   },
+  {
+    id: 9232,
+    object: "kana_vocabulary",
+    data: {
+      level: 21,
+      characters: "ドキドキ",
+      meanings: [{ meaning: "Pounding Heart", primary: true }],
+      parts_of_speech: ["adverb"],
+    },
+  },
 ];
 
 jest.mock("expo-router", () => {
@@ -90,6 +100,19 @@ jest.mock("../../utils/theme", () => ({
 
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
+
+it("finds ドキドキ by romaji and opens its subject details", async () => {
+  const screen = render(<SubjectSearchScreen />);
+  await waitFor(() => expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(200));
+
+  fireEvent.changeText(screen.getByPlaceholderText("Search kanji, vocabulary, or meanings..."), "Dokidoki");
+  await act(async () => { jest.advanceTimersByTime(400); });
+
+  await screen.findByText("Pounding Heart");
+  expect(screen.UNSAFE_getByType(FlatList).props.data.map((item: { id: number }) => item.id)).toEqual([9232]);
+  fireEvent.press(screen.getByText("ドキドキ"));
+  expect(mockRouter.push).toHaveBeenCalledWith("/subject/9232");
+});
 
 it("filters browsing and ranked search before result limits, and restores results when cleared", async () => {
   const screen = render(<SubjectSearchScreen />);

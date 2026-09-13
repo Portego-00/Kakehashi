@@ -498,7 +498,6 @@
 .crosswordActiveClueCopy { min-width: 0; display: grid; gap: var(--space-2xs); }
 .crosswordActiveClueCopy > span { color: var(--color-accent); font-size: var(--text-xs); font-weight: 700; }
 .crosswordActiveClueCopy strong { overflow-wrap: anywhere; font-family: var(--font-display); font-size: var(--text-md); line-height: 1.3; }
-.crosswordActiveClueCopy p { color: var(--color-muted); font-size: var(--text-sm); }
 .crosswordHintActions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 .crosswordHintButton { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-sm); background: transparent; color: var(--color-ink-2); padding-inline: var(--space-sm); cursor: pointer; white-space: nowrap; transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out); }
 .crosswordHintButton:active { background: var(--color-paper-3); }
@@ -511,9 +510,9 @@
 .crosswordWordForm[data-feedback="correct"] > input { border-color: var(--color-success); background: var(--color-success-soft); }
 .crosswordWordForm > input:disabled { opacity: 1; color: var(--color-ink); }
 .crosswordWordForm .primaryButton { min-height: 2.75rem; margin-block-start: 0; white-space: nowrap; }
-.crosswordFooter { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-sm) var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule); }
+.crosswordFooter { min-width: 0; min-height: 0; height: 4.5rem; display: grid; align-content: start; gap: var(--space-2xs); overflow: auto; overscroll-behavior: contain; padding: var(--space-sm) var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule); }
 .crosswordFooter > p { color: var(--color-muted); font-size: var(--text-xs); }
-.crosswordFooter .primaryButton { margin-block-start: 0; }
+.crosswordFooter > .crosswordHint { color: var(--color-ink-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .crosswordResults { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-md); padding: var(--space-lg); border-block: var(--rule-thin) solid var(--color-rule); background: var(--color-surface); }
 .crosswordResultLead { display: flex; align-items: center; gap: var(--space-md); }
 .crosswordResultLead .resultMark { flex: none; }
@@ -745,10 +744,6 @@
   .results .resultActions > button { width: 100%; }
   .lessonFacts > div + div { border-left: 0; border-top: 1px solid var(--color-rule); padding-left: 0; }
   .lessonNav { justify-content: center; }
-  .crosswordFooter > p { display: none; }
-  .crosswordFooter { align-items: stretch; flex-direction: column; }
-  .crosswordFooter .gameActions { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .crosswordFooter .gameActions > button { width: 100%; padding-inline: var(--space-sm); }
   .crosswordResultReviewHeader { align-items: flex-start; flex-direction: column; gap: var(--space-2xs); }
   .crosswordSolutionGroups { grid-template-columns: minmax(0, 1fr); }
   .crosswordSolutionGroup + .crosswordSolutionGroup { border-inline-start: 0; border-block-start: var(--rule-thin) solid var(--color-rule); }
@@ -773,6 +768,52 @@
   .crosswordHintButton { flex: 1; min-width: 0; gap: var(--space-2xs); padding-inline: var(--space-xs); font-size: var(--text-xs); }
   .crosswordHintButton:last-child { flex-grow: 1.35; }
 }
+@media (max-width: 47.999rem) and (pointer: coarse) {
+  .quizShell[data-mobile-review-keyboard="true"] {
+    --quiz-topbar-height: 3rem;
+    position: fixed;
+    z-index: var(--z-sticky-nav);
+    inset-inline: 0;
+    top: var(--review-viewport-top);
+    height: var(--review-viewport-height);
+    min-height: 0;
+    grid-template-rows: auto minmax(2.25rem, 1fr) auto;
+    overflow: hidden;
+    background: var(--color-paper);
+  }
+  .quizShell[data-mobile-review-keyboard="true"] .quizTopbar { min-height: var(--quiz-topbar-height); padding: var(--space-3xs) var(--space-sm); }
+  .quizShell[data-mobile-review-keyboard="true"] .questionCard { min-height: 0; gap: var(--space-2xs); padding: var(--space-3xs) 4rem; overflow-y: auto; }
+  .quizShell[data-mobile-review-keyboard="true"] .questionCard h2 { font-size: clamp(1.75rem, calc(var(--review-viewport-height) * .09), 3rem) !important; }
+  .quizShell[data-mobile-review-keyboard="true"] .previousSubjectLink { top: calc(var(--quiz-topbar-height) + var(--space-2xs)); width: 2.5rem; height: 2.5rem; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerArea {
+    min-height: 0;
+    max-height: calc(var(--review-viewport-height) - 5.25rem);
+    gap: var(--space-2xs);
+    padding: var(--space-2xs) var(--space-sm) var(--space-xs);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .quizShell[data-mobile-review-keyboard="true"] .promptTypeStrip { min-height: 2rem; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerInputRow { grid-template-columns: minmax(0, 1fr) auto; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerInputRow input,
+  .quizShell[data-mobile-review-keyboard="true"] .answerInputRow .primaryButton { height: 2.75rem; min-height: 2.75rem; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerInputRow .primaryButton { min-width: 0; padding-inline: var(--space-sm); }
+  .quizShell[data-mobile-review-keyboard="true"] .answerStopReveal { transition: none; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerStopContent { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2xs); }
+  .quizShell[data-mobile-review-keyboard="true"] .answerStopContent > * { grid-column: 1 / -1; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerStopContent:has(.addSynonymAction) > .addSynonymAction,
+  .quizShell[data-mobile-review-keyboard="true"] .answerStopContent:has(.addSynonymAction) > .itemDetailsRegion:not([data-open="true"]) { grid-column: auto; }
+  .quizShell[data-mobile-review-keyboard="true"] .answerStatus { min-height: 2rem; gap: var(--space-2xs) var(--space-xs); padding: 0; font-size: var(--text-xs); }
+  .quizShell[data-mobile-review-keyboard="true"] .correctAnswer strong { font-size: var(--text-sm); }
+  .quizShell[data-mobile-review-keyboard="true"] .closeAnswerActions { min-height: 2.5rem; flex-wrap: nowrap; gap: var(--space-2xs); }
+  .quizShell[data-mobile-review-keyboard="true"] .closeAnswerActions > button { flex: 1; min-width: 0; }
+  .quizShell[data-mobile-review-keyboard="true"] .closeAnswerActions > button,
+  .quizShell[data-mobile-review-keyboard="true"] .addSynonymAction > button,
+  .quizShell[data-mobile-review-keyboard="true"] .itemDetailsButton { min-height: 2.5rem; gap: var(--space-2xs); padding: var(--space-2xs) var(--space-xs); font-size: var(--text-xs); }
+  .quizShell[data-mobile-review-keyboard="true"] .itemDetailsButton kbd { display: none; }
+  .quizShell[data-mobile-review-keyboard="true"] .keyboardHint { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spinner, .filmLoader > div, .choiceResult, .fetchReady, .fetchReady:not([data-study-session="active"]) .modeHeader, .fetchReady:not([data-study-session="active"]) .configLayout { animation: none; }
   .crosswordGrid[data-feedback], .crosswordCell[data-feedback] { animation: none; }

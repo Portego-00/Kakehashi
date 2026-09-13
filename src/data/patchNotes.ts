@@ -65,6 +65,12 @@ export const PATCH_NOTES: PatchNote[] = [
         description:
           "Added an option to completely hide context sentence translations until you tap to reveal them, instead of showing a blurred preview.",
       },
+      {
+        type: "fix",
+        title: "Multiple Choice Answers",
+        description:
+          "Multiple choice reviews now fill missing options with answers from learned items, while keeping similar choices first.",
+      },
     ],
   },
   {
@@ -82,6 +88,12 @@ export const PATCH_NOTES: PatchNote[] = [
         title: "Smoother Note Editing",
         description:
           "More writing space, controls closer to the keyboard, and cleaner scrolling. Cursor position is preserved when switching modes or editing links.",
+      },
+      {
+        type: "improvement",
+        title: "More Flexible Note Links",
+        description:
+          "Optionally add Japanese text when linking a selection, with your choice remembered. Toggle linked typing without removing the existing link.",
       },
     ],
   },

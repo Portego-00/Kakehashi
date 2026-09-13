@@ -190,6 +190,14 @@
 }
 .shell[data-workspace="notebooks"] .brandMark { --profile-avatar-size: 1.875rem; }
 .shell[data-workspace="notebooks"] .moreSheet { inset-block-start: calc(var(--workspace-header-height) + var(--space-sm)); }
+@media (max-width: 47.999rem) and (pointer: coarse) {
+  :global(html):has(.shell [data-mobile-review-keyboard="true"]),
+  :global(body):has(.shell [data-mobile-review-keyboard="true"]) { overflow: hidden; overscroll-behavior: none; }
+  .shell:has([data-mobile-review-keyboard="true"]) { min-height: 0; }
+  .shell:has([data-mobile-review-keyboard="true"]) .topbar,
+  .shell:has([data-mobile-review-keyboard="true"]) .mobileNav { display: none; }
+}
+
 @media (max-width: 53.999rem) {
   .shell[data-workspace="notebooks"] .moreSheet { inset-block-start: auto; }
 }

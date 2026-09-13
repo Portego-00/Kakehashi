@@ -26,7 +26,7 @@ describe("authenticated notebook route", () => {
     mocks.identity.mockResolvedValue({ id: account, username: "Portego" });
     expect((await GET(request("GET"))).status).toBe(200);
     expect((await POST(request("POST", create, { account }))).status).toBe(200);
-    expect(mocks.mutate).toHaveBeenCalledWith(account, create);
+    expect(mocks.mutate).toHaveBeenCalledWith(account, create, undefined, null);
   });
   it.each(["Portego", " PORTEGO "])("allows only the verified username %j", async (username) => {
     mocks.identity.mockResolvedValue({ id: "123", username, level: 5 });
@@ -81,7 +81,7 @@ describe("authenticated notebook route", () => {
   });
   it("sends validated mutations with the server identity and returns canonical capture IDs", async () => {
     mocks.mutate.mockResolvedValue({ state: createNotebookState(), revision: 1, sentenceId: "canonical" });
-    const response = await POST(request("POST", create)); expect(response.status).toBe(200); expect(mocks.mutate).toHaveBeenCalledWith("123", create); expect(await response.json()).toMatchObject({ sentenceId: "canonical" });
+    const response = await POST(request("POST", create)); expect(response.status).toBe(200); expect(mocks.mutate).toHaveBeenCalledWith("123", create, undefined, null); expect(await response.json()).toMatchObject({ sentenceId: "canonical" });
   });
   it.each([["conflict", 409], ["limit", 413], ["not_found", 404]] as const)("reports %s errors distinctly", async (code, status) => {
     mocks.mutate.mockRejectedValue(new NotebookError("Helpful error", code)); const response = await POST(request("POST", create)); expect(response.status).toBe(status); expect(await response.json()).toEqual({ error: "Helpful error", code });

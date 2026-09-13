@@ -41,6 +41,13 @@ type SelectionOffsets = {
 
 type SelectionSnapshot = NoteVisualEditorSelectionRange;
 
+type PendingLinkTyping = {
+  subjectId: number;
+  enabled: boolean;
+  offset: number;
+  text: string;
+};
+
 type PendingExternalRuns = {
   runs: NoteVisualEditorRun[];
   signature: string;
@@ -744,6 +751,7 @@ export default function NoteVisualEditorContent({
   const isComposingRef = useRef(false);
   const savedSelectionRef = useRef<SelectionSnapshot>({ start: 0, end: 0 });
   const linkPickerSelectionRef = useRef<SelectionSnapshot | null>(null);
+  const pendingLinkTypingRef = useRef<PendingLinkTyping | null>(null);
   const lastAppliedCommandNonceRef = useRef<number | null>(null);
   const lastAppliedPropSignatureRef = useRef<string | null>(null);
   const lastEmittedSignatureRef = useRef<string | null>(null);
@@ -821,7 +829,22 @@ export default function NoteVisualEditorContent({
         capturedOffsets ?? preferredOffsets ?? savedSelectionRef.current;
       savedSelectionRef.current = offsets;
       const currentRuns = readRunsFromEditor(editor);
-      const description = describeEditorSelection(editor, currentRuns, offsets);
+      let description = describeEditorSelection(editor, currentRuns, offsets);
+      let pendingLink = pendingLinkTypingRef.current;
+      if (pendingLink && getNoteVisualEditorText(currentRuns) === pendingLink.text &&
+          (offsets.start !== offsets.end || offsets.start !== pendingLink.offset)) {
+        pendingLinkTypingRef.current = null;
+        pendingLink = null;
+      }
+      if (pendingLink && offsets.start === offsets.end && offsets.start === pendingLink.offset) {
+        description = {
+          text: "",
+          formats: description.formats,
+          ...(pendingLink.enabled
+            ? { subjectId: pendingLink.subjectId }
+            : { inactiveSubjectId: pendingLink.subjectId }),
+        };
+      }
       const signature = JSON.stringify(description);
       if (
         requestNonce === undefined &&
@@ -860,6 +883,42 @@ export default function NoteVisualEditorContent({
 
     let offsets = captureSelection(editor) ?? savedSelectionRef.current;
     let currentRuns = readRunsFromEditor(editor);
+    const pendingLink = pendingLinkTypingRef.current;
+    const pendingFormats = pendingLink && offsets.start === offsets.end
+      ? activeCollapsedFormats(editor)
+      : null;
+    let rewrotePendingLink = false;
+    if (pendingLink) {
+      const text = getNoteVisualEditorText(currentRuns);
+      if (text !== pendingLink.text) {
+        // WebKit inherits an anchor at a collapsed caret. Apply the user's
+        // typing choice only to this edit, leaving all existing label text
+        // linked. Waiting for composition end also keeps IME candidates intact.
+        let start = 0;
+        const prefixLimit = Math.min(pendingLink.offset, pendingLink.text.length, text.length);
+        while (start < prefixLimit && pendingLink.text[start] === text[start]) start += 1;
+        let suffix = 0;
+        const suffixLimit = Math.min(pendingLink.text.length - pendingLink.offset, text.length - start);
+        while (suffix < suffixLimit && pendingLink.text[pendingLink.text.length - suffix - 1] === text[text.length - suffix - 1]) suffix += 1;
+        const end = text.length - suffix;
+        if (end > start) {
+          currentRuns = normalizeNoteVisualEditorRuns([
+            ...sliceNoteVisualEditorRuns(currentRuns, 0, start),
+            ...sliceNoteVisualEditorRuns(currentRuns, start, end).map(({ text: insertedText, formats }) => ({
+              text: insertedText,
+              formats,
+              ...(pendingLink.enabled ? { subjectId: pendingLink.subjectId } : {}),
+            })),
+            ...sliceNoteVisualEditorRuns(currentRuns, end, text.length),
+          ]);
+          writeRunsToEditor(editor, currentRuns, appearance, subjectTypes);
+          offsets = restoreSelection(editor, { start: offsets.start, end: offsets.end });
+          rewrotePendingLink = true;
+        }
+        pendingLink.text = text;
+        pendingLink.offset = offsets.end;
+      }
+    }
     if (getNoteVisualEditorText(currentRuns).replace(/\n/g, "").length === 0) {
       currentRuns = [];
     }
@@ -887,6 +946,20 @@ export default function NoteVisualEditorContent({
       editor.replaceChildren();
       offsets = restoreSelection(editor, { start: 0, end: 0 });
     }
+    if (pendingLink) {
+      pendingLink.text = getNoteVisualEditorText(nextRuns);
+      pendingLink.offset = offsets.end;
+    }
+    if (rewrotePendingLink && pendingFormats) {
+      // Restoring a range between split anchors resets WebKit's typing styles.
+      // Carry bold/italic/underline forward independently from the link choice.
+      const restoredFormats = activeCollapsedFormats(editor);
+      for (const format of ["bold", "italic", "underline"] as const) {
+        if (restoredFormats.includes(format) !== pendingFormats.includes(format)) {
+          executeDocumentCommand(format);
+        }
+      }
+    }
     savedSelectionRef.current = offsets;
     reportSelection(editor, offsets);
   }, [
@@ -902,6 +975,7 @@ export default function NoteVisualEditorContent({
       const editor = editorRef.current;
       if (!editor) return;
 
+      pendingLinkTypingRef.current = null;
       const wasFocused = document.activeElement === editor;
       const offsets = captureSelection(editor) ?? savedSelectionRef.current;
       const writtenRuns = writeRunsToEditor(
@@ -1069,10 +1143,17 @@ export default function NoteVisualEditorContent({
       liveSelection ??
       savedSelectionRef.current;
     if (document.activeElement !== editor) editor.focus({ preventScroll: true });
+    const sameLiveSelection = liveSelection &&
+      liveSelection.start === commandSelection.start &&
+      liveSelection.end === commandSelection.end &&
+      liveSelection.link?.subjectId === commandSelection.link?.subjectId &&
+      liveSelection.link?.start === commandSelection.link?.start &&
+      liveSelection.link?.end === commandSelection.link?.end;
     // Replacing a collapsed range clears the browser's pending typing styles.
     // Toolbar toggles should operate on the live caret so they can accumulate.
     savedSelectionRef.current =
-      command.type === "toggle-format" && !command.selection && liveSelection
+      (command.type === "toggle-format" || command.type === "toggle-link" || command.type === "capture-selection") &&
+      sameLiveSelection
         ? liveSelection
         : restoreSelection(editor, commandSelection);
 
@@ -1109,9 +1190,13 @@ export default function NoteVisualEditorContent({
     }
 
     if (command.type === "set-link") {
+      pendingLinkTypingRef.current = null;
       linkPickerSelectionRef.current = null;
       if (!Number.isInteger(command.subjectId) || command.subjectId <= 0)
         return;
+      const originalSelection = captureSelection(editor) ?? savedSelectionRef.current;
+      const existingAnchor = anchorForSelection(editor);
+      const originalLabel = existingAnchor?.textContent ?? "";
       const linkedAnchor = applyLinkCommand(
         editor,
         command,
@@ -1120,13 +1205,31 @@ export default function NoteVisualEditorContent({
       );
       if (!linkedAnchor) return;
 
+      const suffix = command.appendCharacters?.trim();
+      const label = linkedAnchor.textContent ?? "";
+      const suffixText = suffix ? `${/\s$/.test(label) ? "" : " "}${suffix}` : "";
+      const remainingCapacity = normalizedMaxLength === undefined
+        ? Infinity
+        : normalizedMaxLength - getNoteVisualEditorText(readRunsFromEditor(editor)).length;
+      if (suffix && !label.trimEnd().endsWith(suffix) && suffixText.length <= remainingCapacity) {
+        // Optional characters must never push existing note text over the limit.
+        // Match the final label's formatting, including mixed-format labels.
+        const lastText = getTextBoundary(linkedAnchor, label.length);
+        const suffixNode = document.createTextNode(suffixText);
+        if (lastText.node.nodeType === Node.TEXT_NODE) lastText.node.parentNode!.appendChild(suffixNode);
+        else linkedAnchor.appendChild(suffixNode);
+      }
       const linkedOffsets = selectAnchor(editor, linkedAnchor);
+      const labelChanged = (linkedAnchor.textContent ?? "") !== originalLabel;
+      const selectionAfterLink = existingAnchor && !labelChanged
+        ? { ...originalSelection, link: linkedOffsets.link }
+        : { start: linkedOffsets.end, end: linkedOffsets.end, link: linkedOffsets.link };
       const nextRuns = truncateNoteVisualEditorRuns(
         readRunsFromEditor(editor),
         normalizedMaxLength,
       );
       writeRunsToEditor(editor, nextRuns, appearance, subjectTypes);
-      savedSelectionRef.current = restoreSelection(editor, linkedOffsets);
+      savedSelectionRef.current = restoreSelection(editor, selectionAfterLink);
       reportRuns(nextRuns);
       reportSelection(editor, savedSelectionRef.current);
       if (appearance.isolatedHost) revealNativeSelection(editor);
@@ -1138,8 +1241,26 @@ export default function NoteVisualEditorContent({
     const selectedAnchor =
       anchorForSelection(editor) ??
       anchorForOffsets(editor, savedSelectionRef.current);
-    const removeWholeLink =
-      command.scope === "link" || selectedOffsets.start === selectedOffsets.end;
+    if (selectedOffsets.start === selectedOffsets.end &&
+        (command.type === "toggle-link" || command.scope !== "link")) {
+      const pendingLink = pendingLinkTypingRef.current;
+      const subjectId = pendingLink?.offset === selectedOffsets.start
+        ? pendingLink.subjectId
+        : selectedAnchor ? getSubjectIdFromAnchor(selectedAnchor) : undefined;
+      if (!subjectId) return;
+      pendingLinkTypingRef.current = {
+        subjectId,
+        enabled: command.type === "toggle-link" && pendingLink?.offset === selectedOffsets.start
+          ? !pendingLink.enabled
+          : false,
+        offset: selectedOffsets.start,
+        text: getNoteVisualEditorText(readRunsFromEditor(editor)),
+      };
+      reportSelection(editor, selectedOffsets);
+      return;
+    }
+    pendingLinkTypingRef.current = null;
+    const removeWholeLink = command.type === "remove-link" && command.scope === "link";
     if (removeWholeLink && !selectedAnchor) return;
     const unlinkedOffsets = removeWholeLink
       ? selectAnchor(editor, selectedAnchor!)

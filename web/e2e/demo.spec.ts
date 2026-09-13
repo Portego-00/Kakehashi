@@ -24,7 +24,7 @@ for (const mode of [...quizModes, ...gameModes]) {
     if (quizModes.includes(mode)) await expect(page.locator('[data-study-session="active"] input, [data-study-session="active"] [class*="choice"]').first()).toBeVisible();
     if (mode === "crossword") {
       await page.getByRole("button", { name: "Reveal word", exact: true }).click();
-      await expect(page.getByRole("button", { name: "Check puzzle" })).toBeEnabled();
+      await expect(page.getByLabel("Crossword grid").locator('[data-completed="true"]').first()).toBeVisible();
     }
     if (mode === "kana-wordle") await expect(page.getByLabel("Guess in kana or romaji")).toBeEnabled();
     if (mode === "similar-kanji") {
@@ -34,6 +34,33 @@ for (const mode of [...quizModes, ...gameModes]) {
     expect(requests).toEqual([]);
   });
 }
+
+test("demo crossword keeps the board size when showing a hint in the footer", async ({ page }) => {
+  await openDemo(page);
+  await page.goto("/study/crossword");
+  await page.getByRole("button", { name: "Start session", exact: true }).click();
+  const grid = page.getByLabel("Crossword grid", { exact: true });
+  const viewport = grid.locator("..");
+  await expect(grid).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const before = { grid: await grid.boundingBox(), viewport: await viewport.boundingBox() };
+  expect(before.grid).not.toBeNull();
+  expect(before.viewport).not.toBeNull();
+
+  await page.getByRole("button", { name: "Show hint", exact: true }).click();
+  const hint = page.locator('[data-study-session="active"]').getByText(/^(Written as |Meaning: |\d+ kana$)/);
+  await expect(hint).toBeVisible();
+  const after = { grid: await grid.boundingBox(), viewport: await viewport.boundingBox() };
+  expect(after.grid).not.toBeNull();
+  expect(after.viewport).not.toBeNull();
+  for (const element of ["grid", "viewport"] as const) {
+    for (const dimension of ["x", "y", "width", "height"] as const) {
+      expect.soft(Math.abs(after[element]![dimension] - before[element]![dimension]), `${element} ${dimension} changed after showing a hint`).toBeLessThanOrEqual(1);
+    }
+  }
+  await expect(hint.locator("xpath=ancestor::footer")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check puzzle", exact: true })).toHaveCount(0);
+});
 
 for (const mode of ["custom-review", "custom-lessons"]) {
   test(`demo selects subjects for ${mode}`, async ({ page }) => {

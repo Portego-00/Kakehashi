@@ -9,6 +9,7 @@ import type { NotebookPage, NotebookSentence } from "./model";
 import styles from "./editor.module.css";
 import referenceStyles from "./references.module.css";
 import NotebookSubjectReference from "./NotebookSubjectReference";
+import NotebookHandwriting from "./NotebookHandwriting";
 import type { NotebookSubjectCatalogProps } from "./NotebookSubjectCatalogStatus";
 
 export { subjectLabel, subjectMeaning, subjectReading } from "./NotebookSubjectReference";
@@ -134,6 +135,28 @@ const pageLinkBlock = createReactBlockSpec({
   toExternalHTML: ({ block }) => <a href={`/notebooks/${block.props.pageId}`}>Notebook page</a>,
 })();
 
+const handwritingReactBlock = createReactBlockSpec({
+  type: "handwriting",
+  propSchema: { drawingId: { default: "" }, width: { default: 768 }, height: { default: 1024 }, inkFormat: { default: "pencilkit-v1", values: ["pencilkit-v1", "strokes-v1"] as const }, paperColor: { default: "" }, previewFormat: { default: "", values: ["", "themed-v1"] as const } },
+  content: "none",
+}, {
+  render: ({ block, editor }) => <NotebookHandwriting {...block.props} onPaperColorChange={editor.isEditable ? (paperColor) => { if (editor.isEditable) editor.updateBlock(block, { props: { paperColor } }); } : undefined} />,
+})();
+
+const handwritingBlock = {
+  ...handwritingReactBlock,
+  implementation: {
+    ...handwritingReactBlock.implementation,
+    // The React spec wrapper normally copies saved props to HTML attributes.
+    // Return plain external HTML so exports contain neither an asset URL nor ID.
+    toExternalHTML: () => {
+      const element = document.createElement("p");
+      element.textContent = "Handwriting (view in your notebook)";
+      return { dom: element };
+    },
+  },
+};
+
 const vocabularyInline = createReactInlineContentSpec({
   type: "vocabularyMention",
   propSchema: { subjectId: { default: 0 }, label: { default: "" } },
@@ -152,7 +175,7 @@ const calloutBlock = createReactBlockSpec({
   toExternalHTML: ({ contentRef }) => <aside ref={contentRef} />,
 })();
 
-// Explicitly omit media blocks, so pasted or dragged files cannot become uploads.
+// Omit general media uploads; handwriting references are saved by the native canvas.
 export const notebookSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph: defaultBlockSpecs.paragraph,
@@ -169,6 +192,7 @@ export const notebookSchema = BlockNoteSchema.create({
     sentence: sentenceBlock,
     pageLink: pageLinkBlock,
     callout: calloutBlock,
+    handwriting: handwritingBlock,
   },
   inlineContentSpecs: { ...defaultInlineContentSpecs, vocabularyMention: vocabularyInline },
 });

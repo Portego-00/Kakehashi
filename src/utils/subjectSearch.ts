@@ -34,6 +34,7 @@ interface QueryVariant {
 interface SearchQueryVariants {
   primary: QueryVariant;
   kana: QueryVariant | null;
+  katakana: QueryVariant | null;
   romaji: QueryVariant | null;
   hasLatin: boolean;
 }
@@ -310,10 +311,14 @@ function createSearchQueryVariants(query: string): SearchQueryVariants {
   const looksLikeRomaji =
     primary.normalized.length > 0 &&
     primary.normalized === kanaRoundTripRomaji;
+  const shouldMatchKana = queryHasKana || looksLikeRomaji;
 
   return {
     primary,
-    kana: queryHasKana || looksLikeRomaji ? rawKanaVariant : null,
+    kana: shouldMatchKana ? rawKanaVariant : null,
+    katakana: shouldMatchKana
+      ? createQueryVariant(wanakana.toKatakana(kanaQuery))
+      : null,
     romaji,
     hasLatin: /[a-z]/i.test(query),
   };
@@ -328,7 +333,7 @@ function getSubjectMatchScore(
   if (subject.data.characters) {
     const charactersScore = scoreCandidateWithVariants(
       subject.data.characters,
-      [queryVariants.primary, queryVariants.kana],
+      [queryVariants.primary, queryVariants.kana, queryVariants.katakana],
       false
     );
 
@@ -356,7 +361,7 @@ function getSubjectMatchScore(
     for (const reading of subject.data.readings) {
       let readingScore = scoreCandidateWithVariants(
         reading.reading,
-        [queryVariants.primary, queryVariants.kana],
+        [queryVariants.primary, queryVariants.kana, queryVariants.katakana],
         false
       );
 

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WEB_SETTINGS, settingsStorageKey } from "@/features/settings/settings";
+import { PHONE_STUDY_MEDIA_QUERY } from "@/features/core-study/use-phone-study-input";
 import type { PronunciationAudio } from "@/types/wanikani";
 import { CUSTOM_SRS_POLICY } from "./scheduler";
 import type { CustomSrsAssignment, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
@@ -12,6 +13,9 @@ const hook = vi.hoisted(() => ({
   error: "",
   isLoading: false,
   isSaving: false,
+  pendingCount: 0,
+  syncError: "",
+  retrySync: vi.fn(),
   completeLesson: vi.fn(),
   submitReview: vi.fn(),
   refresh: vi.fn(),
@@ -33,6 +37,9 @@ vi.mock("./use-custom-srs", () => ({
     storageMode: "browser",
     isLoading: hook.isLoading,
     isSaving: hook.isSaving,
+    pendingCount: hook.pendingCount,
+    syncError: hook.syncError,
+    retrySync: hook.retrySync,
     error: hook.error,
     completeLesson: hook.completeLesson,
     submitReview: hook.submitReview,
@@ -133,6 +140,9 @@ describe("custom vocabulary lesson and review sessions", () => {
     hook.error = "";
     hook.isLoading = false;
     hook.isSaving = false;
+    hook.pendingCount = 0;
+    hook.syncError = "";
+    hook.retrySync.mockReset();
     scrollIntoViewMock.mockClear();
     fetchImmersionExamplesMock.mockReset();
     fetchImmersionExamplesMock.mockResolvedValue([{
@@ -145,6 +155,59 @@ describe("custom vocabulary lesson and review sessions", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the phone answer input mounted and focused while checking, saving and advancing", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      study: { ...DEFAULT_WEB_SETTINGS.study, reviewInputFontScale: 0.8 },
+    }));
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat, dog] };
+    const initial = stateFor(pack, {
+      [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" },
+      [dog.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" },
+    });
+    hook.state = initial;
+    let finishSave!: (state: CustomSrsState) => void;
+    hook.submitReview.mockImplementation(() => new Promise<CustomSrsState>((resolve) => { finishSave = resolve; }));
+    renderSession("reviews", [pack]);
+    const input = screen.getByRole("textbox");
+    expect(input).toHaveStyle({ fontSize: "max(16px, 0.8rem)" });
+    input.focus();
+    const firstWord = screen.getByRole("heading", { level: 2 }).textContent === cat.characters ? cat : dog;
+    fireEvent.change(input, { target: { value: firstWord.meanings[0] } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(screen.getByRole("textbox")).toBe(input);
+    expect(input).not.toHaveAttribute("readonly");
+    expect(input).toBeEnabled();
+    await waitFor(() => expect(input).toHaveFocus());
+    fireEvent.change(input, { target: { value: "unwanted edit" } });
+    expect(input).toHaveValue(firstWord.meanings[0]);
+    expect(fireEvent.mouseDown(screen.getByRole("button", { name: "Next" }))).toBe(false);
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(hook.submitReview).toHaveBeenCalledOnce();
+    expect(input).toBeEnabled();
+    expect(input).toHaveFocus();
+    finishSave(withAssignment(initial, firstWord.id, 2, "2999-01-02T00:00:00.000Z"));
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(screen.getByRole("textbox")).toBe(input);
+    expect(input).toHaveFocus();
+  });
+
+  it("keeps the desktop answer stop focused on Next with a read-only input", async () => {
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    renderSession("reviews", [pack]);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
+    const next = screen.getByRole("button", { name: "Next" });
+    await waitFor(() => expect(next).toHaveFocus());
+    expect(fireEvent.mouseDown(next)).toBe(true);
   });
 
   function enablePublishedAudio(autoplayAudio = true) {
@@ -162,6 +225,101 @@ describe("custom vocabulary lesson and review sessions", () => {
       pause: vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined),
     };
   }
+
+  it.each(["lessons", "reviews"] as const)("opens subject details after correct and incorrect %s answers without leaving the session", async (mode) => {
+    window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      study: { ...DEFAULT_WEB_SETTINGS.study, showAnswerStopSubjectDetails: false },
+    }));
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, { [cat.id]: { stage: mode === "lessons" ? 0 : 1, availableAt: mode === "lessons" ? null : "2020-01-01T00:00:00.000Z" } });
+    renderSession(mode, [pack]);
+    if (mode === "lessons") fireEvent.click(screen.getByRole("button", { name: "Start lesson quiz" }));
+    expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
+
+    for (const answer of ["wrong answer", "cat"]) {
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: answer } });
+      fireEvent.click(screen.getByRole("button", { name: "Check" }));
+      const info = screen.getByRole("button", { name: "Info" });
+      expect(info).toBeEnabled();
+      fireEvent.click(info);
+      const details = screen.getByRole("region", { name: "Item details" });
+      expect(details).toHaveTextContent("A cat curls up by your neck.");
+      expect(within(details).getByRole("tab", { name: "Meaning" })).toBeInTheDocument();
+      expect(within(details).queryByRole("tab", { name: "Reading" })).not.toBeInTheDocument();
+      fireEvent.click(within(details).getByRole("tab", { name: "Context" }));
+      expect(within(details).getByText(cat.contextSentences[0].ja)).toBeInTheDocument();
+      await waitFor(() => expect(fetchImmersionExamplesMock).toHaveBeenCalledWith(cat.characters, expect.any(Array), expect.any(AbortSignal)));
+      expect(hook.completeLesson).not.toHaveBeenCalled();
+      expect(hook.submitReview).not.toHaveBeenCalled();
+      fireEvent.click(info);
+      expect(info).toHaveAttribute("aria-expanded", "false");
+      if (answer === "wrong answer") fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+  });
+
+  it("keeps studying available while completed answers sync in the background", async () => {
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat, dog] };
+    const initial = stateFor(pack, Object.fromEntries(pack.words.map((word) => [word.id, { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" }])));
+    hook.state = initial;
+    hook.isSaving = true;
+    hook.pendingCount = 1;
+    hook.submitReview.mockImplementation(async (wordId) => {
+      hook.isSaving = true;
+      hook.pendingCount = 1;
+      return withAssignment(initial, wordId, 2, "2999-01-02T00:00:00.000Z");
+    });
+    renderSession("reviews", [pack]);
+    const firstWord = screen.getByRole("heading", { level: 2 }).textContent === cat.characters ? cat : dog;
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: firstWord.meanings[0] } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
+    expect(screen.getByRole("textbox")).toBeEnabled();
+    expect(screen.getByText(/saved on this device/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "wrong answer" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByText("Incorrect")).toBeInTheDocument();
+  });
+
+  it("retains locally saved answers after a sync error and offers a nonblocking retry", () => {
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    hook.pendingCount = 2;
+    hook.syncError = "Network error";
+    renderSession("reviews", [pack]);
+    expect(screen.getByText(/2 answers saved on this device/)).toBeInTheDocument();
+    expect(screen.getByText(/Cloud sync needs attention. Network error/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry sync" }));
+    expect(hook.retrySync).toHaveBeenCalledOnce();
+  });
+
+  it("respects automatic answer details, closes them between questions, and hides them for blocked answers", async () => {
+    window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS,
+      study: { ...DEFAULT_WEB_SETTINGS.study, showAnswerStopSubjectDetails: true, reviewQuestionOrder: "meaning-first", reviewQuestionOrderEnabled: true, backToBackQuestions: true },
+    }));
+    const pack: CustomVocabularyPack = { id: "kanji", title: "Kanji", description: "Common words", script: "kanji", words: [footsteps] };
+    hook.state = stateFor(pack, { [footsteps.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    renderSession("reviews", [pack]);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "あしおと" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
+    expect(screen.queryByRole("region", { name: "Item details" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "footsteps" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByRole("region", { name: "Item details" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open full subject" })).toHaveAttribute("href", `/custom-vocabulary/words/${footsteps.id}`);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("textbox", { name: "Vocabulary Reading" })).toHaveValue("");
+    expect(screen.queryByRole("region", { name: "Item details" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: footsteps.reading } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(screen.getByRole("tab", { name: "Reading" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(fetchImmersionExamplesMock).toHaveBeenCalled());
+  });
 
   it("autoplays revealed lessons with the existing setting and stops the previous word", async () => {
     const { play, pause } = enablePublishedAudio();

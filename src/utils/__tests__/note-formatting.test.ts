@@ -10,6 +10,7 @@ import {
   serializeFormattedNote,
   setNoteSubjectLink,
   toggleNoteFormat,
+  toggleNoteSubjectLink,
 } from "../note-formatting";
 
 describe("note formatting", () => {
@@ -145,7 +146,7 @@ describe("note formatting", () => {
       setNoteSubjectLink("See bridge here", { start: 4, end: 10 }, 42, "橋"),
     ).toEqual({
       text: 'See <a href="wk://subject/42">bridge</a> here',
-      selection: { start: 30, end: 36 },
+      selection: { start: 36, end: 36 },
     });
   });
 
@@ -172,7 +173,7 @@ describe("note formatting", () => {
       setNoteSubjectLink(note, crossingSelection, 99, "Different"),
     ).toEqual({
       text: '<a href="wk://subject/99">See bridge</a> today',
-      selection: { start: 26, end: 36 },
+      selection: { start: 36, end: 36 },
     });
   });
 
@@ -237,8 +238,113 @@ describe("note formatting", () => {
       setNoteSubjectLink("Remember ", { start: 9, end: 9 }, 88, "橋"),
     ).toEqual({
       text: 'Remember <a href="wk://subject/88">橋</a>',
-      selection: { start: 35, end: 36 },
+      selection: { start: 36, end: 36 },
     });
+  });
+
+  it("adds subject characters to selected text and leaves the caret ready to continue the link", () => {
+    const linked = setNoteSubjectLink("See bridge here", { start: 4, end: 10 }, 42, "橋", "橋");
+    expect(linked.text).toBe('See <a href="wk://subject/42">bridge 橋</a> here');
+    expect(linked.selection).toEqual({ start: 38, end: 38 });
+    const typed = linked.text.slice(0, linked.selection.start) + "!" + linked.text.slice(linked.selection.end);
+    expect(parseFormattedNote(typed)[1]).toEqual({ text: "bridge 橋!", formats: [], subjectId: 42 });
+  });
+
+  it("does not duplicate subject characters already ending the selected label", () => {
+    const note = "<b>bridge 橋</b>";
+    expect(setNoteSubjectLink(note, { start: 0, end: note.length }, 42, "橋", "橋").text)
+      .toBe('<a href="wk://subject/42"><b>bridge 橋</b></a>');
+  });
+
+  it("appends characters in the final label format without doubling existing whitespace", () => {
+    const note = "<i>the </i><b>bridge </b>";
+    expect(setNoteSubjectLink(note, { start: 0, end: note.length }, 42, "橋", "橋").text)
+      .toBe('<a href="wk://subject/42"><i>the </i><b>bridge 橋</b></a>');
+  });
+
+  it("preserves the caret on Change and optionally appends characters to its existing label", () => {
+    const note = '<a href="wk://subject/42">bridge</a>';
+    expect(setNoteSubjectLink(note, { start: 28, end: 28 }, 999, "川")).toEqual({
+      text: '<a href="wk://subject/999">bridge</a>',
+      selection: { start: 29, end: 29 },
+    });
+    const appended = setNoteSubjectLink(note, { start: 28, end: 28 }, 99, "川", "川");
+    expect(appended.text).toBe('<a href="wk://subject/99">bridge 川</a>');
+    expect(appended.selection).toEqual({ start: 34, end: 34 });
+    expect(setNoteSubjectLink("See ", { start: 4, end: 4 }, 42, "橋", "橋").text)
+      .toBe('See <a href="wk://subject/42">橋</a>');
+  });
+
+  it("stops linking at a caret without erasing either side of the existing link", () => {
+    const note = 'See <a href="wk://subject/42">bridge</a> here';
+    const result = toggleNoteSubjectLink(note, { start: 33, end: 33 });
+    expect(result.text).toBe('See <a href="wk://subject/42">bri</a><a href="wk://subject/42">dge</a> here');
+    expect(getNoteSubjectLinkAtSelection(result.text, result.selection)).toBeNull();
+    const typed = result.text.slice(0, result.selection.start) + "new" + result.text.slice(result.selection.end);
+    expect(parseFormattedNote(typed)).toEqual([
+      { text: "See ", formats: [] },
+      { text: "bri", formats: [], subjectId: 42 },
+      { text: "new", formats: [] },
+      { text: "dge", formats: [], subjectId: 42 },
+      { text: " here", formats: [] },
+    ]);
+  });
+
+  it.each(["start", "end"] as const)("moves a caret at the %s outside the link", (edge) => {
+    const note = 'See <a href="wk://subject/42">bridge</a> here';
+    const offset = edge === "start" ? note.indexOf("bridge") : note.indexOf("</a>");
+    const result = toggleNoteSubjectLink(note, { start: offset, end: offset });
+    expect(result.text).toBe(note);
+    expect(result.selection).toEqual(edge === "start" ? { start: 4, end: 4 } : { start: 40, end: 40 });
+  });
+
+  it("removes linking only from the selected part, preserving its nested formatting", () => {
+    const note = 'See <a href="wk://subject/42"><b>bri<i>d&amp;g</i>e</b></a> here';
+    const result = toggleNoteSubjectLink(note, { start: note.indexOf("d&amp;g"), end: note.indexOf("d&amp;g") + "d&amp;g".length });
+    expect(parseFormattedNote(result.text)).toEqual([
+      { text: "See ", formats: [] },
+      { text: "bri", formats: ["bold"], subjectId: 42 },
+      { text: "d&g", formats: ["bold", "italic"] },
+      { text: "e", formats: ["bold"], subjectId: 42 },
+      { text: " here", formats: [] },
+    ]);
+    expect(mapSourceNoteSelectionToVisual(result.text, result.selection)).toEqual({ start: 7, end: 10 });
+  });
+
+  it("keeps other typing formats when stopping a link at a caret", () => {
+    const note = '<a href="wk://subject/42"><b><u>bridge</u></b></a>';
+    const offset = note.indexOf("bridge") + 3;
+    const result = toggleNoteSubjectLink(note, { start: offset, end: offset });
+    const typed = result.text.slice(0, result.selection.start) + "new" + result.text.slice(result.selection.end);
+    expect(parseFormattedNote(typed)).toEqual([
+      { text: "bri", formats: ["bold", "underline"], subjectId: 42 },
+      { text: "new", formats: ["bold", "underline"] },
+      { text: "dge", formats: ["bold", "underline"], subjectId: 42 },
+    ]);
+  });
+
+  it.each([
+    '<a href="wk://subject/42"><b>A&amp;B</b><i>橋</i></a>',
+    '<u><a href="wk://subject/42">日本<b>語</b></a></u>',
+  ])("unlinks every visible selection without changing other characters or formats in %s", (note) => {
+    const original = parseFormattedNote(note).flatMap((segment) =>
+      segment.text.split("").map((text) => ({ ...segment, text })),
+    );
+    for (let start = 0; start < original.length; start += 1) {
+      for (let end = start + 1; end <= original.length; end += 1) {
+        const result = toggleNoteSubjectLink(note, mapVisualNoteSelectionToSource(note, { start, end }));
+        const actual = parseFormattedNote(result.text).flatMap((segment) =>
+          segment.text.split("").map((text) => ({ ...segment, text })),
+        );
+        const expected = original.map((character, index) => {
+          if (index < start || index >= end) return character;
+          return { text: character.text, formats: character.formats };
+        });
+        expect(actual).toEqual(expected);
+        expect(mapSourceNoteSelectionToVisual(result.text, result.selection)).toEqual({ start, end });
+        expect(getNoteSubjectLinkAtSelection(result.text, result.selection)).toBeNull();
+      }
+    }
   });
 
   it("wraps selected text and keeps it selected", () => {

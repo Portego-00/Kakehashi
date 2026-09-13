@@ -68,6 +68,15 @@ function command(value: CommandInput) {
   act(() => root.render(<NoteVisualEditorContent {...props} />));
 }
 
+function insertBrowserText(editor: HTMLDivElement, text: string) {
+  const range = window.getSelection()!.getRangeAt(0);
+  range.deleteContents();
+  const node = document.createTextNode(text);
+  range.insertNode(node);
+  select(node, text.length, text.length, false);
+  act(() => editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text })));
+}
+
 function mockCollapsedTypingCommands() {
   const originalExecCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
   const originalQueryCommandState = Object.getOwnPropertyDescriptor(document, "queryCommandState");
@@ -413,7 +422,7 @@ describe("note visual editor interactions", () => {
       act(() => root.render(null));
       const nextCommand: NoteVisualEditorCommand = type === "set-link"
         ? { type, subjectId: 3, fallbackLabel: "third", nonce: ++nonce, selection: captured.selection }
-        : { type, nonce: ++nonce, selection: captured.selection };
+        : { type, nonce: ++nonce, selection: captured.selection, ...(type === "remove-link" ? { scope: "link" } : {}) };
       props = { ...props, command: nextCommand };
 
       act(() => root.render(<NoteVisualEditorContent {...props} />));
@@ -463,6 +472,193 @@ describe("note visual editor interactions", () => {
     ]);
   });
 
+  it("turns off linked typing at a caret without removing the existing link", () => {
+    const runs = [{ text: "linked", formats: ["italic"] as const, subjectId: 1 }];
+    const editor = renderEditor(runs.map((run) => ({ ...run, formats: [...run.formats] })));
+    select(editor.querySelector("i")!.firstChild!, 3);
+
+    command({ type: "remove-link", scope: "selection" });
+
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual(runs);
+    expect(props.onSelectionChange).toHaveBeenLastCalledWith({
+      text: "", formats: ["italic"], inactiveSubjectId: 1,
+    });
+  });
+
+  it.each([0, 3, 6])("turns off only newly typed text at link offset %s and can resume linking", (offset) => {
+    const editor = renderEditor([{ text: "linked", formats: ["italic"], subjectId: 1 }]);
+    select(editor.querySelector("i")!.firstChild!, offset);
+    command({ type: "toggle-link" });
+    insertBrowserText(editor, "字");
+
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+      ...(offset ? [{ text: "linked".slice(0, offset), formats: ["italic"], subjectId: 1 }] : []),
+      { text: "字", formats: ["italic"] },
+      ...(offset < 6 ? [{ text: "linked".slice(offset), formats: ["italic"], subjectId: 1 }] : []),
+    ]);
+    expect(props.onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({ inactiveSubjectId: 1 }));
+
+    command({ type: "toggle-link" });
+    insertBrowserText(editor, "橋");
+    expect(readNoteVisualEditorRunsFromElement(editor).filter((run) => run.text.includes("橋")))
+      .toEqual([expect.objectContaining({ subjectId: 1 })]);
+    expect(editor.textContent).toBe(`${"linked".slice(0, offset)}字橋${"linked".slice(offset)}`);
+  });
+
+  it("combines caret formats across the link toggle's selection capture", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([{ text: "linked", formats: [], subjectId: 1 }]);
+      act(() => editor.focus());
+      select(editor.querySelector("a")!.firstChild!, 3);
+      command({ type: "toggle-format", format: "bold" });
+      command({ type: "capture-selection" });
+      const captured = jest.mocked(props.onSelectionChange).mock.calls.at(-1)![0];
+      command({ type: "toggle-link", selection: captured.selection });
+      command({ type: "toggle-format", format: "underline" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold", "underline"], inactiveSubjectId: 1 });
+      command({ type: "toggle-link" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold", "underline"], subjectId: 1 });
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("keeps non-link typing formats after an insertion splits the link", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([{ text: "linked", formats: ["italic"], subjectId: 1 }]);
+      select(editor.querySelector("i")!.firstChild!, 3);
+      command({ type: "toggle-link" });
+      insertBrowserText(editor, "字");
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["italic"], inactiveSubjectId: 1 });
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold", "italic"], inactiveSubjectId: 1 });
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("resumes the link's natural state after moving the caret", () => {
+    const editor = renderEditor([{ text: "linked", formats: [], subjectId: 1 }]);
+    select(editor.querySelector("a")!.firstChild!, 3);
+    command({ type: "toggle-link" });
+    select(editor.querySelector("a")!.firstChild!, 4);
+    expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "linked", formats: [], subjectId: 1 });
+    insertBrowserText(editor, "字");
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "link字ed", formats: [], subjectId: 1 }]);
+  });
+
+  it("keeps IME composition intact and unlinks only the committed Japanese text", () => {
+    const frame = jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
+    try {
+      const editor = renderEditor([{ text: "linked", formats: ["italic"], subjectId: 1 }]);
+      select(editor.querySelector("i")!.firstChild!, 3);
+      command({ type: "toggle-link" });
+      act(() => editor.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true })));
+      insertBrowserText(editor, "かんじ");
+      expect(editor.querySelector("a")!.textContent).toBe("linかんじked");
+      const compositionNode = window.getSelection()!.anchorNode!;
+      compositionNode.textContent = "漢字";
+      select(compositionNode, 2, 2, false);
+      act(() => editor.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "漢字" })));
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+        { text: "lin", formats: ["italic"], subjectId: 1 },
+        { text: "漢字", formats: ["italic"] },
+        { text: "ked", formats: ["italic"], subjectId: 1 },
+      ]);
+    } finally {
+      frame.mockRestore();
+    }
+  });
+
+  it("appends subject characters in the label's formatting and leaves its caret ready for more text", () => {
+    const editor = renderEditor([{ text: "bridge", formats: ["bold"] }]);
+    select(editor.querySelector("b")!.firstChild!, 0, 6);
+    command({ type: "set-link", subjectId: 440, fallbackLabel: "橋", appendCharacters: "橋" });
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "bridge 橋", formats: ["bold"], subjectId: 440 }]);
+    expect(window.getSelection()!.isCollapsed).toBe(true);
+    insertBrowserText(editor, "字");
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "bridge 橋字", formats: ["bold"], subjectId: 440 }]);
+  });
+
+  it("applies appended characters as the initial command in a recreated native editor", async () => {
+    renderEditor([{ text: "bridge", formats: [] }]);
+    act(() => root.render(null));
+    props = {
+      ...props,
+      autoFocus: true,
+      appearance: { ...props.appearance, isolatedHost: true },
+      command: {
+        nonce: ++nonce,
+        type: "set-link",
+        subjectId: 440,
+        fallbackLabel: "橋",
+        appendCharacters: "橋",
+        selection: { start: 0, end: 6 },
+      },
+    };
+    await act(async () => {
+      root.render(<NoteVisualEditorContent {...props} />);
+    });
+    const editor = host.querySelector<HTMLDivElement>('[role="textbox"]')!;
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+      { text: "bridge 橋", formats: [], subjectId: 440 },
+    ]);
+    expect(props.onChange).toHaveBeenLastCalledWith([
+      { text: "bridge 橋", formats: [], subjectId: 440 },
+    ]);
+    expect(window.getSelection()!.isCollapsed).toBe(true);
+    insertBrowserText(editor, "字");
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+      { text: "bridge 橋字", formats: [], subjectId: 440 },
+    ]);
+  });
+
+  it("skips optional characters when appending them would truncate existing note text", () => {
+    const editor = renderEditor([{ text: "bridge tail", formats: [] }]);
+    props = { ...props, maxLength: 12 };
+    select(editor.firstChild!, 0, 6);
+    command({ type: "set-link", subjectId: 440, fallbackLabel: "橋", appendCharacters: "橋" });
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+      { text: "bridge", formats: [], subjectId: 440 },
+      { text: " tail", formats: [] },
+    ]);
+    expect(window.getSelection()!.isCollapsed).toBe(true);
+    insertBrowserText(editor, "字");
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+      { text: "bridge字", formats: [], subjectId: 440 },
+      { text: " tail", formats: [] },
+    ]);
+  });
+
+  it("keeps a space and pasted Japanese unlinked after switching linked typing off", async () => {
+    const editor = renderEditor([{ text: "bridge", formats: [], subjectId: 440 }]);
+    select(editor.querySelector("a")!.firstChild!, 6);
+    command({ type: "capture-selection" });
+    const captured = jest.mocked(props.onSelectionChange).mock.calls.at(-1)![0];
+    command({ type: "toggle-link", selection: captured.selection });
+    insertBrowserText(editor, " ");
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", {
+      value: { getData: (type: string) => type === "text/plain" ? "漢字" : "" },
+    });
+    await act(async () => { editor.dispatchEvent(paste); });
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([
+      { text: "bridge", formats: [], subjectId: 440 },
+      { text: " 漢字", formats: [] },
+    ]);
+  });
+
+  it("does not duplicate an existing character suffix and preserves a Change caret", () => {
+    const editor = renderEditor([{ text: "bridge 橋", formats: ["italic"], subjectId: 1 }]);
+    select(editor.querySelector("i")!.firstChild!, 3);
+    command({ type: "set-link", subjectId: 440, fallbackLabel: "橋", appendCharacters: "橋" });
+    expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "bridge 橋", formats: ["italic"], subjectId: 440 }]);
+    expect(window.getSelection()!.isCollapsed).toBe(true);
+    expect(window.getSelection()!.anchorOffset).toBe(3);
+  });
+
   it("lets a tap keep the caret inside a linked label", () => {
     const editor = renderEditor([{ text: "linked", formats: [], subjectId: 1 }]);
     const anchor = editor.querySelector("a")!;
@@ -484,7 +680,7 @@ describe("note visual editor interactions", () => {
 
       command({
         type: "remove-link",
-        ...(action === "whole-link action" ? { scope: "link" } : {}),
+        scope: "link",
       });
 
       expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([

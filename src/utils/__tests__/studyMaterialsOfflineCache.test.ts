@@ -163,4 +163,109 @@ describe("study materials permanent cache", () => {
     ).resolves.toBeNull();
   });
 
+  it("serializes concurrent writes for disjoint subjects", async () => {
+    let persisted = {
+      version: 1 as const,
+      isCompleteCollection: false,
+      bySubjectId: {},
+    };
+    getFromPermanentStorageMock.mockImplementation(async () => ({
+      timestamp: Date.now(),
+      dataUpdatedAt: new Date().toISOString(),
+      data: persisted,
+    }));
+
+    let releaseFirstWrite!: () => void;
+    let markFirstWriteStarted!: () => void;
+    const firstWriteStarted = new Promise<void>((resolve) => {
+      markFirstWriteStarted = resolve;
+    });
+    const firstWriteGate = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+    saveToPermanentStorageMock
+      .mockImplementationOnce(async (_key, data) => {
+        markFirstWriteStarted();
+        await firstWriteGate;
+        persisted = data as typeof persisted;
+      })
+      .mockImplementation(async (_key, data) => {
+        persisted = data as typeof persisted;
+      });
+
+    const firstWrite = saveStudyMaterialsToPermanentCache(
+      [1001],
+      [material],
+      { completeResponse: true }
+    );
+    await firstWriteStarted;
+    const secondMaterial = {
+      ...material,
+      id: 78,
+      data: {
+        ...material.data,
+        subject_id: 1002,
+        meaning_synonyms: ["mature"],
+      },
+    };
+    const secondWrite = saveStudyMaterialsToPermanentCache(
+      [1002],
+      [secondMaterial],
+      { completeResponse: true }
+    );
+
+    expect(saveToPermanentStorageMock).toHaveBeenCalledTimes(1);
+    releaseFirstWrite();
+    await Promise.all([firstWrite, secondWrite]);
+
+    expect(persisted.bySubjectId).toEqual({
+      "1001": material,
+      "1002": secondMaterial,
+    });
+  });
+
+  it("does not let an older refresh replace a newer saved synonym", async () => {
+    const newerMaterial = {
+      ...material,
+      data_updated_at: "2026-09-11T11:00:00.000Z",
+      data: {
+        ...material.data,
+        meaning_synonyms: ["new synonym"],
+      },
+    };
+    const olderMaterial = {
+      ...material,
+      data_updated_at: "2026-09-11T10:00:00.000Z",
+      data: {
+        ...material.data,
+        meaning_synonyms: ["old synonym"],
+      },
+    };
+    let persisted = {
+      version: 1 as const,
+      isCompleteCollection: true,
+      bySubjectId: { "1001": newerMaterial },
+    };
+    getFromPermanentStorageMock.mockImplementation(async () => ({
+      timestamp: Date.now(),
+      dataUpdatedAt: newerMaterial.data_updated_at,
+      data: persisted,
+    }));
+    saveToPermanentStorageMock.mockImplementation(async (_key, data) => {
+      persisted = data as typeof persisted;
+    });
+
+    await saveStudyMaterialsToPermanentCache(
+      [1001],
+      [olderMaterial],
+      {
+        completeResponse: true,
+        dataUpdatedAt: olderMaterial.data_updated_at,
+      }
+    );
+
+    expect(persisted.bySubjectId["1001"]).toEqual(newerMaterial);
+    expect(persisted.isCompleteCollection).toBe(true);
+  });
+
 });

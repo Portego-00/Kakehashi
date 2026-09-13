@@ -11,15 +11,16 @@ import { opaqueRateLimitKey, takeRateLimit } from "@/lib/server/rate-limit";
 import { WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 
 const eventId = z.string().uuid();
+const accountId = z.string().min(1).max(128).optional();
 const CUSTOM_SRS_MUTATION_RETRY_MARGIN = 64;
 const CUSTOM_SRS_MUTATION_LIMIT_PER_TEN_MINUTES = Math.max(
   120,
   CUSTOM_VOCABULARY_PACKS.reduce((total, pack) => total + pack.words.length, 0) + CUSTOM_SRS_MUTATION_RETRY_MARGIN,
 );
 const mutationSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("enroll_pack"), packId: z.string().trim().min(1).max(120), eventId }).strict(),
-  z.object({ action: z.literal("complete_lesson"), wordId: z.string().trim().min(1).max(180), eventId }).strict(),
-  z.object({ action: z.literal("submit_review"), wordId: z.string().trim().min(1).max(180), incorrectAnswers: z.number().int().min(0).max(100), eventId }).strict(),
+  z.object({ action: z.literal("enroll_pack"), packId: z.string().trim().min(1).max(120), eventId, accountId }).strict(),
+  z.object({ action: z.literal("complete_lesson"), wordId: z.string().trim().min(1).max(180), eventId, accountId }).strict(),
+  z.object({ action: z.literal("submit_review"), wordId: z.string().trim().min(1).max(180), incorrectAnswers: z.number().int().min(0).max(100), eventId, accountId, expectedAssignmentUpdatedAt: z.iso.datetime({ offset: true }).optional() }).strict(),
 ]);
 
 export const runtime = "nodejs";
@@ -36,8 +37,11 @@ export async function GET(request: NextRequest) {
   if (!sealed) return privateResponse({ error: "No active session." }, 401);
   const limit = takeRateLimit(opaqueRateLimitKey("custom-srs-read", sealed), 120, 60 * 60_000);
   if (!limit.allowed) return privateResponse({ error: "Too many custom study requests." }, 429, { "Retry-After": String(limit.retryAfterSeconds) });
+  const assertedAccount = accountId.safeParse(request.nextUrl.searchParams.get("accountId") ?? undefined);
+  if (!assertedAccount.success) return privateResponse({ error: "The custom study account is invalid." }, 400);
   try {
     const identity = await analyticsIdentityFromSealedSession(sealed);
+    if (assertedAccount.data !== undefined && assertedAccount.data !== identity.id) return accountChangedResponse();
     if (!canAccessCustomSrs(identity.username)) return privateResponse({ error: "Custom vocabulary is not available for this account." }, 403);
     if (!customSrsBackendConfigured()) return privateResponse({ available: false, state: null, revision: -1 });
     const result = await readRemoteCustomSrsState(identity.id, CUSTOM_VOCABULARY_PACKS);
@@ -57,6 +61,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return privateResponse({ error: "The custom study update is invalid." }, 400);
   try {
     const identity = await analyticsIdentityFromSealedSession(sealed);
+    if (parsed.data.accountId !== undefined && parsed.data.accountId !== identity.id) return accountChangedResponse();
     if (!canAccessCustomSrs(identity.username)) return privateResponse({ error: "Custom vocabulary is not available for this account." }, 403);
     if (!customSrsBackendConfigured()) return privateResponse({ available: false, state: null, revision: -1 });
     const result = await mutateRemoteCustomSrsState(identity.id, CUSTOM_VOCABULARY_PACKS, (state, now) => {
@@ -67,6 +72,11 @@ export async function POST(request: NextRequest) {
         return enrollCustomVocabularyPack(state, pack, now);
       }
       if (mutation.action === "complete_lesson") return completeCustomLesson(state, mutation.wordId, now);
+      // A lost response must not advance the same review again. The occurrence
+      // guard also protects retries after the bounded event log has been trimmed.
+      if (state.reviewLog.some((entry) => entry.eventId === mutation.eventId)) return state;
+      const assignment = state.assignments[mutation.wordId];
+      if (assignment && mutation.expectedAssignmentUpdatedAt !== undefined && assignment.updatedAt !== mutation.expectedAssignmentUpdatedAt) return state;
       return recordCustomReview(state, mutation.wordId, mutation.incorrectAnswers, now, mutation.eventId);
     });
     return privateResponse({ available: true, ...result });
@@ -75,4 +85,8 @@ export async function POST(request: NextRequest) {
     const clientError = /not found|not active|not due yet/i.test(message);
     return privateResponse({ error: clientError ? message : "Custom vocabulary progress could not be saved." }, clientError ? 409 : 503);
   }
+}
+
+function accountChangedResponse() {
+  return privateResponse({ error: "The custom study account has changed. Sign back in to sync this account's saved progress." }, 403);
 }
