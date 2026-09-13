@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.13",
+    date: "2026-09-12",
+    changes: [
+      {
+        type: "feature",
+        title: "Fully Hidden Translations",
+        description:
+          "Added an option to completely hide context sentence translations until you tap to reveal them, instead of showing a blurred preview.",
+      },
+    ],
+  },
+  {
     version: "1.4.12",
     date: "2026-09-08",
     changes: [

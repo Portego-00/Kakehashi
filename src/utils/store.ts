@@ -574,6 +574,7 @@ type SettingsState = {
   showSingleKanjiVocabularySimilarKanji: boolean;
   showMediaContextSentences: boolean;
   hideContextSentenceTranslations: boolean;
+  hideContextSentenceTranslationsCompletely: boolean;
   showContextSentenceSpeedControl: boolean;
   showMnemonicIllustrations: boolean; // Show radical mnemonic illustrations in subject details and lessons
   showInlineRadicalReminders: boolean; // Expand radical mnemonics inline from kanji details
@@ -766,6 +767,7 @@ type SettingsState = {
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
   setShowMediaContextSentences: (show: boolean) => void;
   setHideContextSentenceTranslations: (hide: boolean) => void;
+  setHideContextSentenceTranslationsCompletely: (hide: boolean) => void;
   setShowContextSentenceSpeedControl: (show: boolean) => void;
   setShowMnemonicIllustrations: (show: boolean) => void;
   setShowInlineRadicalReminders: (show: boolean) => void;
@@ -932,6 +934,7 @@ export const useSettingsStore = create<SettingsState>()(
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
       showMediaContextSentences: true, // Default to enabled (show media context sentences)
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
+      hideContextSentenceTranslationsCompletely: false, // Default to blurred hidden translations
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
       showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
@@ -1191,6 +1194,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showMediaContextSentences: show }),
       setHideContextSentenceTranslations: (hide) =>
         set({ hideContextSentenceTranslations: hide }),
+      setHideContextSentenceTranslationsCompletely: (hide) =>
+        set({ hideContextSentenceTranslationsCompletely: hide }),
       setShowContextSentenceSpeedControl: (show) =>
         set({ showContextSentenceSpeedControl: show }),
       setShowMnemonicIllustrations: (show) =>
