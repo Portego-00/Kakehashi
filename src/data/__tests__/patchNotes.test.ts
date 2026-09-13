@@ -25,6 +25,19 @@ describe("patch notes", () => {
     });
   });
 
+  it("announces fully hidden translations on September 12", () => {
+    expect(PATCH_NOTES[0]).toMatchObject({
+      version: "1.4.13",
+      date: "2026-09-12",
+      changes: [
+        expect.objectContaining({
+          type: "feature",
+          title: "Fully Hidden Translations",
+        }),
+      ],
+    });
+  });
+
   it("preserves the Word Search announcement in its original release", () => {
     const wordSearchRelease = PATCH_NOTES.find((note) => note.version === "1.4.7");
     expect(wordSearchRelease).toMatchObject({
