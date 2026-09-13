@@ -536,6 +536,16 @@ export const PRELOADED_ANIME_INFO: Record<string, AnimeMALInfo> = {
     episodes: 1,
     mediaType: "movie",
   },
+  the_tunnel_to_summer__the_exit_of_goodbyes: {
+    malId: 50593,
+    title: "Natsu e no Tunnel, Sayonara no Deguchi",
+    imageUrl: "https://cdn.myanimelist.net/images/anime/1462/125397.jpg",
+    synopsis:
+      "Kaoru Touno's family is falling apart. After the death of a sibling and his parents' divorce, he no longer feels any peace at home. Following a heated confrontation with his father, Kaoru runs out of his house and finds himself before a mysterious tunnel, which pulls him in. Bewildered by what he sees inside, he rushes to the exit, picking up a bird that looks identical to his deceased pet on his way out.\n\nUpon emerging outside, Kaoru realizes that, despite him spending just a few minutes inside the tunnel, an entire week has passed. The bizarre experience leads him to remember the rumors of \"Urashima Tunnel\"—a passage that grants wishes in exchange for one's lifespan. Given the resurrection of his pet bird, Kaoru cannot help but wonder if another visit can help fix his messed up life.\n\nHowever, when he returns to the entrance of the mysterious tunnel, Kaoru realizes that he has been followed by Anzu Hanashiro, a new transfer student in his class. She also knows about the rumors and asks him to help her with an experiment—it turns out that she, too, has a wish that only the tunnel can grant.\n\n[Written by MAL Rewrite]",
+    score: 8,
+    episodes: 1,
+    mediaType: "movie",
+  },
   the_wind_rises: {
     malId: 16662,
     title: "Kaze Tachinu",

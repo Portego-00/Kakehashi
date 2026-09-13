@@ -1,0 +1,7 @@
+.nb-paper-resize-container { padding: 0 0 36px; width: fit-content; }
+.nb-paper-frame { position: relative; }
+.nb-paper-content { position: relative; overflow: hidden; background: var(--nb-paper-color, var(--nb-bg, #fff)); }
+.nb-paper-resize { position: absolute; display: flex; align-items: center; justify-content: center; height: 36px; padding: 0; border: 0; background: transparent; color: var(--nb-muted); touch-action: none; user-select: none; -webkit-user-select: none; }
+.nb-paper-resize-height { left: calc(50% - 36px); top: 100%; width: 72px; cursor: ns-resize; }
+.nb-paper-resize:active { color: var(--nb-primary); }
+.nb-paper-resize-error { margin: 4px 0 0; color: var(--nb-danger); font-size: 14px; }

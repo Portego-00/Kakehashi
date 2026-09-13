@@ -695,6 +695,10 @@ export async function getCachedOrDownloadVocabularyAudioUri(
     return null;
   }
 
+  // A lesson prefetch may still be writing this file when the user taps Play.
+  const pendingDownload = onDemandAudioCachePromises.get(cacheFilename);
+  if (pendingDownload) return pendingDownload;
+
   const cachedUri = await resolveOfflineVocabularyAudioUri(subjectId, audio);
   if (cachedUri) {
     return cachedUri;
@@ -714,7 +718,10 @@ export async function getCachedOrDownloadVocabularyAudioUri(
         return cacheUri;
       }
 
-      await FileSystem.downloadAsync(audioUrl, cacheUri);
+      const download = await FileSystem.downloadAsync(audioUrl, cacheUri);
+      if (!Number.isFinite(download.status) || download.status < 200 || download.status >= 300) {
+        throw new Error(`Audio download failed (${download.status})`);
+      }
       return (await fileExists(cacheUri)) ? cacheUri : null;
     } catch {
       await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(

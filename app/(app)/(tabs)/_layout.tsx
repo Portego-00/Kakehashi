@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useEffect, useMemo } from "react";
 import { Appearance, DynamicColorIOS, Platform } from "react-native";
+import { TabBarVisibilityProvider, useTabBarHidden } from "../../../src/contexts/TabBarVisibilityContext";
 import { useFeatureFlag } from "../../../src/hooks/useFeatureFlags";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
@@ -19,9 +20,15 @@ type TabId =
   | "epubs"
   | "videos"
   | "mangas"
+  | "notebooks"
   | "bunpro";
 
 export default function TabsLayout() {
+  return <TabBarVisibilityProvider><TabsContent /></TabBarVisibilityProvider>;
+}
+
+function TabsContent() {
+  const tabBarHidden = useTabBarHidden();
   const { theme, themeMode, isDark } = useTheme();
   const useNativeTabs = supportsNativeTabs();
   const { userData } = useAuthStore();
@@ -41,13 +48,14 @@ export default function TabsLayout() {
     const filteredOrder = customTabOrder.filter((tab: TabId) => {
       if (tab === "songs" && !showSongsTab) return false;
       if (tab === "mangas" && !canAccessMangaTab) return false;
+      if (tab === "notebooks" && !isPortegoUsername(userData?.username)) return false;
       if (tab === "bunpro") return false;
       return true;
     });
 
     const cappedOrder = filteredOrder.slice(0, maxTabs);
     return new Set(cappedOrder);
-  }, [canAccessMangaTab, customTabOrder, maxTabs, showSongsTab]);
+  }, [canAccessMangaTab, customTabOrder, maxTabs, showSongsTab, userData?.username]);
 
   const isTabVisible = (tabId: TabId) => visibleTabs.has(tabId);
 
@@ -79,6 +87,7 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: theme.textSecondary,
           headerShown: false,
           tabBarStyle: {
+            display: tabBarHidden ? "none" : undefined,
             backgroundColor: theme.cardBackground,
             borderTopColor: theme.border,
           },
@@ -164,6 +173,16 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="notebooks"
+          options={{
+            title: "Notebooks",
+            href: isTabVisible("notebooks") ? undefined : null,
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="document-text" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="songs"
           options={{
             title: "Music",
@@ -201,6 +220,7 @@ export default function TabsLayout() {
   // to ensure proper positioning below each tab's header
   return (
     <NativeTabs
+      hidden={tabBarHidden}
       labelStyle={{
         fontSize: 10,
       }}
@@ -258,6 +278,11 @@ export default function TabsLayout() {
       <NativeTabs.Trigger name="search" role="search">
         <NativeTabs.Trigger.Icon sf="magnifyingglass" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="notebooks" hidden={!isTabVisible("notebooks")}>
+        <NativeTabs.Trigger.Icon sf={{ default: "note.text", selected: "note.text" }} />
+        <NativeTabs.Trigger.Label>Notebooks</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="songs" hidden={!isTabVisible("songs")}>

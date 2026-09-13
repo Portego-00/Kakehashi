@@ -601,14 +601,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "white",
+    flexShrink: 1,
   },
   countBadge: {
-    borderRadius: 18,
+    borderRadius: 999,
     minWidth: 36,
-    height: 36,
+    minHeight: 36,
     paddingHorizontal: 12,
+    paddingVertical: 8,
     justifyContent: "center",
     alignItems: "center",
+    flexShrink: 0,
   },
   countText: {
     fontSize: 16,
@@ -659,7 +662,9 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
+    minWidth: 0,
   },
   bottomLeft: {
     flexDirection: "row",

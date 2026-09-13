@@ -10,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   type ViewStyle,
+  useWindowDimensions,
   View,
 } from "react-native";
 import type { SrsLevel } from "../types/wanikani";
@@ -32,13 +33,19 @@ export type SrsBreakdownGroupStagesScope = "shared" | "graph" | "details";
 
 type SrsBreakdownProps = {
   levels: SrsLevel[];
-  assignments?: { data?: { srs_stage?: number; subject_id?: number; started_at?: string | null } }[];
+  assignments?: {
+    data?: {
+      srs_stage?: number;
+      subject_id?: number;
+      started_at?: string | null;
+    };
+  }[];
   subjects?: { id?: number; object?: string }[];
   onLevelPress?: (level: SrsLevel) => void;
   onStagePress?: (
     stage: number,
     stageLabel: string,
-    options?: { exactStage?: boolean }
+    options?: { exactStage?: boolean },
   ) => void;
   viewMode?: SrsBreakdownViewMode;
   groupStagesScope?: SrsBreakdownGroupStagesScope;
@@ -90,7 +97,12 @@ function formatAxisValue(value: number): string {
   return value.toLocaleString("en-US");
 }
 
-function BreakdownPill({ value, backgroundColor, textColor, borderColor }: BreakdownPillProps) {
+function BreakdownPill({
+  value,
+  backgroundColor,
+  textColor,
+  borderColor,
+}: BreakdownPillProps) {
   return (
     <View
       style={[
@@ -118,23 +130,25 @@ export default function SrsBreakdown({
 }: SrsBreakdownProps) {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const { fontScale } = useWindowDimensions();
   const sharedWidgetSrsBreakdownGroupStages = useSettingsStore(
-    (state) => state.widgetSrsBreakdownGroupStages
+    (state) => state.widgetSrsBreakdownGroupStages,
   );
   const graphWidgetSrsBreakdownGroupStages = useSettingsStore(
-    (state) => state.widgetSrsBreakdownGraphGroupStages
+    (state) => state.widgetSrsBreakdownGraphGroupStages,
   );
   const detailsWidgetSrsBreakdownGroupStages = useSettingsStore(
-    (state) => state.widgetSrsBreakdownDetailsGroupStages
+    (state) => state.widgetSrsBreakdownDetailsGroupStages,
   );
   const setSharedWidgetSrsBreakdownGroupStages = useSettingsStore(
-    (state) => state.setWidgetSrsBreakdownGroupStages
+    (state) => state.setWidgetSrsBreakdownGroupStages,
   );
   const setGraphWidgetSrsBreakdownGroupStages = useSettingsStore(
-    (state) => state.setWidgetSrsBreakdownGraphGroupStages
+    (state) => state.setWidgetSrsBreakdownGraphGroupStages,
   );
   const setDetailsWidgetSrsBreakdownGroupStages = useSettingsStore(
-    (state) => state.setWidgetSrsBreakdownDetailsGroupStages
+    (state) => state.setWidgetSrsBreakdownDetailsGroupStages,
   );
   const widgetSrsBreakdownGroupStages =
     groupStagesScope === "graph"
@@ -150,11 +164,36 @@ export default function SrsBreakdown({
         : setSharedWidgetSrsBreakdownGroupStages;
   const [showDetails, setShowDetails] = useState(false);
   const [cardWidth, setCardWidth] = useState(0);
+  const nativeFontScale = Math.max(1, fontScale || 1);
+  const effectiveTextScale =
+    Math.max(1, appTextSizeScale || 1) * nativeFontScale;
+  const usesLargeText = effectiveTextScale > 1;
+  const headerHeight = Math.ceil(HEADER_HEIGHT * effectiveTextScale);
+  const chartHeight = Math.ceil(CHART_HEIGHT * effectiveTextScale);
+  const chartTopInset = Math.ceil(CHART_TOP_INSET * effectiveTextScale);
+  const axisLabelLineHeight = Math.ceil(
+    AXIS_LABEL_LINE_HEIGHT * effectiveTextScale,
+  );
+  const barValueLabelLineHeight = Math.ceil(
+    BAR_VALUE_LABEL_LINE_HEIGHT * effectiveTextScale,
+  );
+  const barValueLabelGap = Math.ceil(BAR_VALUE_LABEL_GAP * effectiveTextScale);
+  const xAxisHeight = Math.ceil(X_AXIS_HEIGHT * effectiveTextScale);
+  const panelHeight = chartHeight + xAxisHeight;
+  const axisWidth = Math.ceil(50 * effectiveTextScale);
+  const stageCellWidth = Math.ceil(38 * effectiveTextScale);
   const isCombinedView = viewMode === "combined";
   const isGraphOnlyView = viewMode === "graph";
   const isDetailsOnlyView = viewMode === "details";
-  const shouldScrollDetailsOnly = isDetailsOnlyView && !widgetSrsBreakdownGroupStages;
-  const transitionTarget = isCombinedView ? (showDetails ? 1 : 0) : isDetailsOnlyView ? 1 : 0;
+  const shouldScrollDetailsOnly =
+    isDetailsOnlyView && !widgetSrsBreakdownGroupStages;
+  const transitionTarget = isCombinedView
+    ? showDetails
+      ? 1
+      : 0
+    : isDetailsOnlyView
+      ? 1
+      : 0;
   const detailsVisible = transitionTarget === 1;
 
   const transitionValue = useRef(new Animated.Value(transitionTarget)).current;
@@ -199,9 +238,9 @@ export default function SrsBreakdown({
       new Set<number>(
         widgetSrsBreakdownGroupStages
           ? GROUPED_ACTIVE_SRS_STAGES
-          : ACTIVE_SRS_STAGES
+          : ACTIVE_SRS_STAGES,
       ),
-    [widgetSrsBreakdownGroupStages]
+    [widgetSrsBreakdownGroupStages],
   );
 
   const baseStages = useMemo(() => {
@@ -217,17 +256,21 @@ export default function SrsBreakdown({
       widgetSrsBreakdownGroupStages
         ? groupSrsStageBreakdown(baseStages)
         : baseStages,
-    [baseStages, widgetSrsBreakdownGroupStages]
+    [baseStages, widgetSrsBreakdownGroupStages],
   );
 
   const visibleStages = useMemo(
     () => allStages.filter((stage) => activeStagesSet.has(stage.stage)),
-    [activeStagesSet, allStages]
+    [activeStagesSet, allStages],
+  );
+  const chartContentWidth = Math.max(
+    cardWidth,
+    axisWidth + 6 + visibleStages.length * stageCellWidth,
   );
 
   const maxTotal = useMemo(
     () => Math.max(1, ...allStages.map((stage) => stage.total)),
-    [allStages]
+    [allStages],
   );
 
   const axisConfig = useMemo(() => {
@@ -256,9 +299,9 @@ export default function SrsBreakdown({
   const axisValues = useMemo(
     () =>
       Array.from({ length: axisIntervals + 1 }, (_, index) =>
-        Math.round((axisMax * (axisIntervals - index)) / axisIntervals)
+        Math.round((axisMax * (axisIntervals - index)) / axisIntervals),
       ),
-    [axisIntervals, axisMax]
+    [axisIntervals, axisMax],
   );
 
   const canPressStages = Boolean(onStagePress || onLevelPress);
@@ -323,8 +366,12 @@ export default function SrsBreakdown({
         disabled={!canPressStages}
       >
         <View style={styles.stageLabelArea}>
-          <SrsStageIcon stage={stage.stage} size={22} color={theme.textSecondary} />
-          <Text style={[styles.stageLabel, { color: theme.textColor }]} numberOfLines={1}>
+          <SrsStageIcon
+            stage={stage.stage}
+            size={22}
+            color={theme.textSecondary}
+          />
+          <Text style={[styles.stageLabel, { color: theme.textColor }]}>
             {useCompactDetailsLabels ? stage.shortLabel : stage.label}
           </Text>
         </View>
@@ -347,9 +394,15 @@ export default function SrsBreakdown({
           />
           <BreakdownPill
             value={stage.total}
-            backgroundColor={withAlpha(theme.textSecondary, theme.isDark ? 0.17 : 0.08)}
+            backgroundColor={withAlpha(
+              theme.textSecondary,
+              theme.isDark ? 0.17 : 0.08,
+            )}
             textColor={theme.textColor}
-            borderColor={withAlpha(theme.textSecondary, theme.isDark ? 0.48 : 0.2)}
+            borderColor={withAlpha(
+              theme.textSecondary,
+              theme.isDark ? 0.48 : 0.2,
+            )}
           />
         </View>
       </TouchableOpacity>
@@ -403,7 +456,7 @@ export default function SrsBreakdown({
       ]}
       onLayout={handleCardLayout}
     >
-      <View style={styles.headerViewport}>
+      <View style={[styles.headerViewport, { height: headerHeight }]}>
         <Animated.View
           pointerEvents={detailsVisible ? "none" : "auto"}
           style={[
@@ -414,7 +467,9 @@ export default function SrsBreakdown({
             },
           ]}
         >
-          <Text style={[styles.title, { color: theme.textColor }]}>Active Item Spread</Text>
+          <Text style={[styles.title, { color: theme.textColor }]}>
+            Active Item Spread
+          </Text>
           <View style={styles.headerActions}>
             {renderGroupToggleButton()}
 
@@ -424,8 +479,14 @@ export default function SrsBreakdown({
                 onPress={() => setShowDetails(true)}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.detailsText, { color: theme.textColor }]}>Details</Text>
-                <Ionicons name="chevron-forward" size={19} color={theme.textSecondary} />
+                <Text style={[styles.detailsText, { color: theme.textColor }]}>
+                  Details
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={19}
+                  color={theme.textSecondary}
+                />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -447,22 +508,29 @@ export default function SrsBreakdown({
               onPress={() => setShowDetails(false)}
               activeOpacity={0.75}
             >
-              <Ionicons name="chevron-back" size={19} color={theme.textSecondary} />
-              <Text style={[styles.backText, { color: theme.textColor }]}>Back</Text>
+              <Ionicons
+                name="chevron-back"
+                size={19}
+                color={theme.textSecondary}
+              />
+              <Text style={[styles.backText, { color: theme.textColor }]}>
+                Back
+              </Text>
             </TouchableOpacity>
           ) : (
-            <Text style={[styles.title, { color: theme.textColor }]}>Stage Breakdown</Text>
+            <Text style={[styles.title, { color: theme.textColor }]}>
+              Stage Breakdown
+            </Text>
           )}
 
-          <View style={styles.headerActions}>
-            {renderGroupToggleButton()}
-          </View>
+          <View style={styles.headerActions}>{renderGroupToggleButton()}</View>
         </Animated.View>
       </View>
 
       <View
         style={[
           styles.panelViewport,
+          { height: panelHeight },
           isDetailsOnlyView &&
             !shouldScrollDetailsOnly &&
             styles.panelViewportForDetailsOnly,
@@ -478,154 +546,235 @@ export default function SrsBreakdown({
             },
           ]}
         >
-          <View style={styles.chartBody}>
-            <View style={styles.chartTopRow}>
-                <View style={[styles.axisLabelColumn, { height: CHART_HEIGHT }]}>
-                {axisValues.map((value, index) => {
-                  const lineY =
-                    CHART_TOP_INSET +
-                    ((CHART_HEIGHT - CHART_TOP_INSET) / axisIntervals) * index;
-                  const centeredTop = lineY - AXIS_LABEL_LINE_HEIGHT / 2;
-                  const top =
-                    index === 0
-                      ? Math.max(0, centeredTop)
-                      : index === axisIntervals
-                        ? CHART_HEIGHT - AXIS_LABEL_LINE_HEIGHT
-                        : centeredTop;
-
-                  return (
-                    <Text
-                      key={`${value}-${index}`}
-                      style={[
-                        styles.axisLabel,
-                        { color: theme.textSecondary, top },
-                      ]}
-                    >
-                      {value === 0 ? "" : formatAxisValue(value)}
-                    </Text>
-                  );
-                })}
-              </View>
-
-              <View style={styles.chartColumn}>
-                <View style={styles.gridContainer}>
-                  {axisValues.map((value) => (
-                    <View
-                      key={value}
-                      style={[
-                        styles.gridLine,
-                        {
-                          borderBottomColor: withAlpha(
-                            theme.textSecondary,
-                            value === 0 ? 0.28 : 0.2
-                          ),
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-
-                <View style={[styles.barsRow, { height: CHART_HEIGHT }]}>
-                  {visibleStages.map((stage) => {
-                    const totalHeight =
-                      stage.total > 0
-                        ? Math.max(2, (stage.total / axisMax) * (CHART_HEIGHT - CHART_TOP_INSET))
-                        : 0;
-                    const valueLabelBottom = Math.min(
-                      totalHeight + BAR_VALUE_LABEL_GAP,
-                      CHART_HEIGHT - BAR_VALUE_LABEL_LINE_HEIGHT
-                    );
-
-                    const radicalHeight =
-                      stage.total > 0 ? (stage.breakdown.radical / stage.total) * totalHeight : 0;
-                    const kanjiHeight =
-                      stage.total > 0 ? (stage.breakdown.kanji / stage.total) * totalHeight : 0;
-                    const vocabularyHeight =
-                      stage.total > 0
-                        ? (stage.breakdown.vocabulary / stage.total) * totalHeight
-                        : 0;
+          <ScrollView
+            horizontal
+            scrollEnabled={usesLargeText}
+            showsHorizontalScrollIndicator={usesLargeText}
+            style={styles.chartScroll}
+            contentContainerStyle={[
+              styles.chartScrollContent,
+              usesLargeText
+                ? { minWidth: chartContentWidth }
+                : { width: "100%" },
+            ]}
+          >
+            <View
+              style={[
+                styles.chartBody,
+                usesLargeText
+                  ? { width: chartContentWidth }
+                  : { width: "100%" },
+              ]}
+            >
+              <View style={styles.chartTopRow}>
+                <View
+                  style={[
+                    styles.axisLabelColumn,
+                    { width: axisWidth, height: chartHeight },
+                  ]}
+                >
+                  {axisValues.map((value, index) => {
+                    const lineY =
+                      chartTopInset +
+                      ((chartHeight - chartTopInset) / axisIntervals) * index;
+                    const centeredTop = lineY - axisLabelLineHeight / 2;
+                    const top =
+                      index === 0
+                        ? Math.max(0, centeredTop)
+                        : index === axisIntervals
+                          ? chartHeight - axisLabelLineHeight
+                          : centeredTop;
 
                     return (
-                      <TouchableOpacity
-                        key={stage.stage}
-                        style={styles.stageCell}
-                        onPress={() => handlePressStage(stage)}
-                        disabled={!canPressStages}
-                        activeOpacity={0.8}
+                      <Text
+                        key={`${value}-${index}`}
+                        allowFontScaling={false}
+                        style={[
+                          styles.axisLabel,
+                          {
+                            color: theme.textSecondary,
+                            top,
+                            fontSize: 12 * nativeFontScale,
+                            lineHeight:
+                              AXIS_LABEL_LINE_HEIGHT * nativeFontScale,
+                          },
+                        ]}
                       >
-                        <Text
-                          style={[
-                            styles.barValueLabel,
-                            {
-                              color: theme.textSecondary,
-                              bottom: stage.total > 0 ? valueLabelBottom : 4,
-                            },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {formatAxisValue(stage.total)}
-                        </Text>
-                        <View style={styles.barContainer}>
-                          <View
-                            style={[
-                              styles.barSegment,
-                              styles.barSegmentTopRadius,
-                              { height: vocabularyHeight, backgroundColor: subjectColors.vocabulary },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              styles.barSegment,
-                              { height: kanjiHeight, backgroundColor: subjectColors.kanji },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              styles.barSegment,
-                              { height: radicalHeight, backgroundColor: subjectColors.radical },
-                            ]}
-                          />
-                        </View>
-                      </TouchableOpacity>
+                        {value === 0 ? "" : formatAxisValue(value)}
+                      </Text>
                     );
                   })}
                 </View>
-              </View>
-            </View>
 
-            <View
-              style={[
-                styles.xAxisRow,
-                { borderBottomColor: withAlpha(theme.textSecondary, theme.isDark ? 0.32 : 0.24) },
-              ]}
-            >
-              <View style={styles.axisSpacer} />
-              <View style={styles.stageTicksRow}>
-                {visibleStages.map((stage) => (
-                  <TouchableOpacity
-                    key={`tick-${stage.stage}`}
-                    style={styles.stageCell}
-                    onPress={() => handlePressStage(stage)}
-                    disabled={!canPressStages}
-                    activeOpacity={0.8}
+                <View style={styles.chartColumn}>
+                  <View
+                    style={[
+                      styles.gridContainer,
+                      {
+                        top: chartTopInset,
+                        height: chartHeight - chartTopInset,
+                      },
+                    ]}
                   >
-                    <View style={styles.stageLegend}>
-                      <SrsStageIcon stage={stage.stage} size={24} color={theme.textSecondary} />
-                      <Text
+                    {axisValues.map((value) => (
+                      <View
+                        key={value}
                         style={[
-                          styles.stageRoman,
-                          getStageTickLabel(stage).includes("-") && styles.stageRomanRange,
-                          { color: theme.textSecondary },
+                          styles.gridLine,
+                          {
+                            borderBottomColor: withAlpha(
+                              theme.textSecondary,
+                              value === 0 ? 0.28 : 0.2,
+                            ),
+                          },
                         ]}
-                      >
-                        {getStageTickLabel(stage)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                      />
+                    ))}
+                  </View>
+
+                  <View style={[styles.barsRow, { height: chartHeight }]}>
+                    {visibleStages.map((stage) => {
+                      const totalHeight =
+                        stage.total > 0
+                          ? Math.max(
+                              2,
+                              (stage.total / axisMax) *
+                                (chartHeight - chartTopInset),
+                            )
+                          : 0;
+                      const valueLabelBottom = Math.min(
+                        totalHeight + barValueLabelGap,
+                        chartHeight - barValueLabelLineHeight,
+                      );
+
+                      const radicalHeight =
+                        stage.total > 0
+                          ? (stage.breakdown.radical / stage.total) *
+                            totalHeight
+                          : 0;
+                      const kanjiHeight =
+                        stage.total > 0
+                          ? (stage.breakdown.kanji / stage.total) * totalHeight
+                          : 0;
+                      const vocabularyHeight =
+                        stage.total > 0
+                          ? (stage.breakdown.vocabulary / stage.total) *
+                            totalHeight
+                          : 0;
+
+                      return (
+                        <TouchableOpacity
+                          key={stage.stage}
+                          style={styles.stageCell}
+                          onPress={() => handlePressStage(stage)}
+                          disabled={!canPressStages}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            allowFontScaling={false}
+                            style={[
+                              styles.barValueLabel,
+                              {
+                                color: theme.textSecondary,
+                                bottom: stage.total > 0 ? valueLabelBottom : 4,
+                                fontSize: 8 * nativeFontScale,
+                                lineHeight:
+                                  BAR_VALUE_LABEL_LINE_HEIGHT * nativeFontScale,
+                              },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {formatAxisValue(stage.total)}
+                          </Text>
+                          <View style={styles.barContainer}>
+                            <View
+                              style={[
+                                styles.barSegment,
+                                styles.barSegmentTopRadius,
+                                {
+                                  height: vocabularyHeight,
+                                  backgroundColor: subjectColors.vocabulary,
+                                },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                styles.barSegment,
+                                {
+                                  height: kanjiHeight,
+                                  backgroundColor: subjectColors.kanji,
+                                },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                styles.barSegment,
+                                {
+                                  height: radicalHeight,
+                                  backgroundColor: subjectColors.radical,
+                                },
+                              ]}
+                            />
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.xAxisRow,
+                  {
+                    height: xAxisHeight - 5,
+                    borderBottomColor: withAlpha(
+                      theme.textSecondary,
+                      theme.isDark ? 0.32 : 0.24,
+                    ),
+                  },
+                ]}
+              >
+                <View style={[styles.axisSpacer, { width: axisWidth }]} />
+                <View style={styles.stageTicksRow}>
+                  {visibleStages.map((stage) => (
+                    <TouchableOpacity
+                      key={`tick-${stage.stage}`}
+                      style={styles.stageCell}
+                      onPress={() => handlePressStage(stage)}
+                      disabled={!canPressStages}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.stageLegend}>
+                        <SrsStageIcon
+                          stage={stage.stage}
+                          size={24}
+                          color={theme.textSecondary}
+                        />
+                        <Text
+                          allowFontScaling={false}
+                          style={[
+                            styles.stageRoman,
+                            getStageTickLabel(stage).includes("-") &&
+                              styles.stageRomanRange,
+                            {
+                              color: theme.textSecondary,
+                              fontSize:
+                                (getStageTickLabel(stage).includes("-")
+                                  ? 8.5
+                                  : 9) * nativeFontScale,
+                            },
+                          ]}
+                        >
+                          {getStageTickLabel(stage)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
+          </ScrollView>
         </Animated.View>
 
         {isDetailsOnlyView ? (
@@ -746,6 +895,12 @@ const styles = StyleSheet.create({
   },
   chartBody: {
     flex: 1,
+  },
+  chartScroll: {
+    flex: 1,
+  },
+  chartScrollContent: {
+    flexGrow: 1,
   },
   chartTopRow: {
     flexDirection: "row",
@@ -887,16 +1042,21 @@ const styles = StyleSheet.create({
   pillsRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    flexShrink: 1,
     gap: 4,
   },
   pill: {
     minWidth: 36,
-    height: 24,
+    minHeight: 24,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexShrink: 0,
   },
   pillText: {
     fontSize: 10,

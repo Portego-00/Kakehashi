@@ -427,8 +427,6 @@ export default function SubjectListsScreen() {
                           >
                             <Text
                               style={styles.previewChipText}
-                              numberOfLines={1}
-                              allowFontScaling={false}
                             >
                               {getSubjectPreviewLabel(subject)}
                             </Text>
@@ -449,8 +447,6 @@ export default function SubjectListsScreen() {
                                 styles.previewMoreText,
                                 { color: theme.textSecondary },
                               ]}
-                              numberOfLines={1}
-                              allowFontScaling={false}
                             >
                               +{remainingPreviewCount}
                             </Text>
@@ -881,39 +877,47 @@ const styles = StyleSheet.create({
   },
   previewChip: {
     minWidth: 34,
-    height: 30,
-    maxHeight: 30,
+    minHeight: 30,
     borderRadius: 8,
     paddingHorizontal: 8,
+    paddingVertical: 6,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 6,
     marginBottom: 6,
-    overflow: "hidden",
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   previewChipText: {
     color: "#fff",
     fontSize: 14,
     lineHeight: 16,
     fontWeight: "700",
+    textAlign: "center",
+    maxWidth: "100%",
+    minWidth: 0,
   },
   previewMoreChip: {
     minWidth: 34,
-    height: 30,
-    maxHeight: 30,
+    minHeight: 30,
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 8,
+    paddingVertical: 6,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 6,
     marginBottom: 6,
-    overflow: "hidden",
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   previewMoreText: {
     fontSize: 12,
     lineHeight: 14,
     fontWeight: "700",
+    textAlign: "center",
+    maxWidth: "100%",
+    minWidth: 0,
   },
   actions: {
     flexDirection: "row",

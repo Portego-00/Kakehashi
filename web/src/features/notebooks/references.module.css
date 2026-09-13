@@ -1,0 +1,59 @@
+.wordMention, .wordBlock {
+  --reference-color: var(--color-vocabulary-ink);
+  --reference-tint: var(--color-vocabulary);
+  color: var(--reference-color);
+  border: 0;
+  border-radius: 3px;
+  background: color-mix(in oklch, var(--reference-tint) 8%, transparent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.wordMention[data-kind="radical"], .wordBlock[data-kind="radical"] { --reference-color: var(--color-radical-ink); --reference-tint: var(--color-radical); }
+.wordMention[data-kind="kanji"], .wordBlock[data-kind="kanji"] { --reference-color: var(--color-kanji-ink); --reference-tint: var(--color-kanji); }
+.wordMention[data-kind="unknown"], .wordBlock[data-kind="unknown"] { --reference-color: var(--color-muted); --reference-tint: var(--color-muted); }
+.wordMention:hover, .wordBlock:hover, .wordMention[aria-expanded="true"], .wordBlock[aria-expanded="true"] { background: color-mix(in oklch, var(--reference-tint) 15%, transparent); }
+.wordMention { display: inline-flex; align-items: center; vertical-align: baseline; padding: 0 3px; font: inherit; line-height: inherit; text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--reference-color) 45%, transparent); text-underline-offset: 3px; max-width: 100%; }
+.wordCharacter { display: inline-flex; align-items: center; color: inherit; overflow-wrap: anywhere; }
+.wordBlock { display: flex; align-items: center; gap: 10px; width: fit-content; max-width: 100%; padding: 6px 9px; line-height: 1.6; }
+.wordBlock .wordCharacter { font-size: 19px; font-weight: 550; }
+.wordMeaning { color: var(--color-ink-2); font-size: 13px; overflow-wrap: anywhere; }
+.wordArrow { flex-shrink: 0; opacity: .7; margin-left: auto; }
+.wordPreview { z-index: calc(var(--z-tooltip, 500) + 3); width: min(350px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: min(460px, calc(100dvh - 24px)); overflow-y: auto; pointer-events: auto; text-align: left; box-shadow: 0 2px 8px rgb(0 0 0 / 14%); }
+.previewError { color: var(--color-danger); font-size: 12px; }
+.referenceSkeleton { display: inline-block; width: 2.6em; height: .8em; margin-block: .15em; border-radius: 2px; background: var(--color-rule); }
+.unresolvedHeader { padding: 14px 16px; border-bottom: 1px solid var(--color-rule-2); background: var(--color-paper-2); color: var(--color-ink); font-size: 16px; font-weight: 550; }
+.unresolvedCopy { margin: 0; color: var(--color-muted); font-size: 12px; line-height: 1.6; }
+.sentenceBlock { width: 100%; margin: 2px 0; padding: 7px 0 7px 13px; border-left: 2px solid var(--color-rule-2); }
+.sentenceMain { display: flex; align-items: flex-start; gap: 8px; }
+.sentenceJapanese { flex: 1; min-width: 0; color: var(--color-ink); font-size: 18px; font-weight: 500; line-height: 1.8; overflow-wrap: anywhere; }
+.sentenceActions { display: flex; flex-shrink: 0; gap: 1px; margin-top: 2px; }
+.iconButton { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--color-muted); cursor: pointer; }
+.iconButton:hover { background: var(--color-paper-2); color: var(--color-ink); }
+.sentenceFooter { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; }
+.sentenceWords { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.translationToggle { display: inline-flex; align-items: center; flex-shrink: 0; gap: 3px; padding: 0; border: 0; border-radius: 2px; background: transparent; color: var(--color-muted); cursor: pointer; font-size: 11px; line-height: 1.65; }
+.translationToggle:hover { color: var(--color-ink); }
+.translationToggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.translationToggle > svg { transition: transform 160ms ease; }
+.translationToggle[aria-expanded="true"] > svg { transform: rotate(90deg); }
+.translation { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows 160ms cubic-bezier(.4, 0, 1, 1), opacity 120ms ease, visibility 0s linear 160ms; }
+.translation[data-expanded="true"] { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: grid-template-rows 200ms cubic-bezier(0, 0, .2, 1), opacity 180ms ease, visibility 0s; }
+.translationContent { min-height: 0; overflow: hidden; }
+.translationContent > p { margin: 5px 0 0; color: var(--color-ink-2); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.missingReference { display: flex; align-items: center; gap: 7px; padding: 8px 0; font-size: 12px; color: var(--color-muted); }
+.pageBlock { display: flex; align-items: center; gap: 9px; width: fit-content; max-width: 100%; padding: 5px 7px; border: 0; border-radius: 4px; background: transparent; color: var(--color-ink); text-align: left; cursor: pointer; }
+.pageBlock:hover { background: var(--color-paper-2); }
+.pageBlock > span:nth-child(2) { text-decoration: underline; text-decoration-color: var(--color-rule); text-underline-offset: 4px; }
+.pageBlock > svg:last-child { color: var(--color-muted); flex-shrink: 0; }
+.pageBlock[aria-disabled="true"] { color: var(--color-muted); cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .translation, .translation[data-expanded="true"], .translationToggle > svg { transition: none !important; }
+}
+@media (max-width: 640px) {
+  .sentenceBlock { padding-left: 10px; }
+  .sentenceJapanese { font-size: 16px; }
+  .sentenceActions .iconButton { width: 30px; height: 30px; }
+  .wordBlock { gap: 8px; }
+  .wordBlock .wordCharacter { font-size: 17px; }
+  .wordMeaning { font-size: 12px; }
+}

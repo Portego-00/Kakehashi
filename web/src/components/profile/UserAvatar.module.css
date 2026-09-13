@@ -1,0 +1,24 @@
+.avatar {
+  --profile-avatar-size: 2rem;
+  position: relative;
+  width: var(--profile-avatar-size);
+  height: var(--profile-avatar-size);
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.fallback {
+  --kakehashi-mark-size: var(--profile-avatar-size);
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--color-surface);
+}

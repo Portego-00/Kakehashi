@@ -34,11 +34,7 @@ type ReviewForecastProps = {
 type ViewMode = "list" | "chart";
 type ChartMode = "hourly" | "daily";
 type ForecastBreakdownMode = "subject" | "srs";
-type SrsBreakdownKey =
-  | "apprentice"
-  | "guru"
-  | "master"
-  | "enlightened";
+type SrsBreakdownKey = "apprentice" | "guru" | "master" | "enlightened";
 type SrsBreakdown = Record<SrsBreakdownKey, number>;
 
 // Storage key for view mode preference
@@ -132,8 +128,11 @@ export default function ReviewForecast({
       color: SRS_COLORS.enlightened,
     },
   ] as const;
-  const { forecastShowSubjectColors, setForecastShowSubjectColors } =
-    useSettingsStore();
+  const {
+    appTextSizeScale,
+    forecastShowSubjectColors,
+    setForecastShowSubjectColors,
+  } = useSettingsStore();
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
   const [chartMode, setChartMode] = useState<ChartMode>("hourly");
@@ -179,7 +178,7 @@ export default function ReviewForecast({
   // Helper function to identify if reviews contain critical items
   const areReviewsCritical = (
     subjectBreakdown?: SubjectTypeBreakdown,
-    subjectIds?: number[]
+    subjectIds?: number[],
   ): boolean => {
     if (!subjectIds || !currentLevel || !subjects || !assignments) return false;
 
@@ -221,6 +220,15 @@ export default function ReviewForecast({
 
   // Check if we have a large screen for more bars
   const isLargeScreen = screenData.width > 768;
+  const nativeFontScale = Math.max(1, screenData.fontScale || 1);
+  const effectiveTextScale =
+    Math.max(1, appTextSizeScale || 1) * nativeFontScale;
+  const usesLargeText = effectiveTextScale > 1;
+  const chartViewportHeight = Math.ceil(128 + 32 * effectiveTextScale);
+  const dailyChartHeight = Math.ceil(108 + 32 * effectiveTextScale);
+  const chartCellWidth = Math.ceil(
+    (isLargeScreen ? 24 : 32) * effectiveTextScale,
+  );
 
   // Load saved view mode preference on component mount
   useEffect(() => {
@@ -241,7 +249,9 @@ export default function ReviewForecast({
   useEffect(() => {
     const loadSavedBreakdownMode = async () => {
       try {
-        const savedMode = await AsyncStorage.getItem(BREAKDOWN_MODE_STORAGE_KEY);
+        const savedMode = await AsyncStorage.getItem(
+          BREAKDOWN_MODE_STORAGE_KEY,
+        );
         if (savedMode === "subject" || savedMode === "srs") {
           setForecastBreakdownMode(savedMode);
         }
@@ -258,11 +268,12 @@ export default function ReviewForecast({
   useEffect(() => {
     if (!hasLoadedBreakdownMode) return;
 
-    AsyncStorage.setItem(BREAKDOWN_MODE_STORAGE_KEY, forecastBreakdownMode).catch(
-      (error) => {
-        console.warn("Failed to save forecast breakdown mode", error);
-      }
-    );
+    AsyncStorage.setItem(
+      BREAKDOWN_MODE_STORAGE_KEY,
+      forecastBreakdownMode,
+    ).catch((error) => {
+      console.warn("Failed to save forecast breakdown mode", error);
+    });
   }, [forecastBreakdownMode, hasLoadedBreakdownMode]);
 
   // Expand only "Today" by default whenever forecast changes
@@ -314,7 +325,7 @@ export default function ReviewForecast({
 
   // Helper function to create cumulative subject breakdown
   const createCumulativeBreakdown = (
-    breakdowns: (SubjectTypeBreakdown | undefined)[]
+    breakdowns: (SubjectTypeBreakdown | undefined)[],
   ): SubjectTypeBreakdown => {
     const cumulative: SubjectTypeBreakdown = {
       radical: 0,
@@ -336,7 +347,7 @@ export default function ReviewForecast({
   };
 
   const createCumulativeSrsBreakdown = (
-    breakdowns: (SrsBreakdown | undefined)[]
+    breakdowns: (SrsBreakdown | undefined)[],
   ): SrsBreakdown => {
     const cumulative = createEmptySrsBreakdown();
 
@@ -353,7 +364,8 @@ export default function ReviewForecast({
 
   const createSrsBreakdownFromSubjectIds = useCallback(
     (subjectIds?: number[]): SrsBreakdown | undefined => {
-      if (!subjectIds?.length || assignmentStageMap.size === 0) return undefined;
+      if (!subjectIds?.length || assignmentStageMap.size === 0)
+        return undefined;
 
       const breakdown = createEmptySrsBreakdown();
       let counted = 0;
@@ -368,77 +380,73 @@ export default function ReviewForecast({
 
       return counted > 0 ? breakdown : undefined;
     },
-    [assignmentStageMap]
+    [assignmentStageMap],
   );
 
   // Helper to calculate breakdown from assignments
-  const calculateCurrentBreakdown = useCallback(
-    (): SubjectTypeBreakdown | undefined => {
-      if (!assignments || !subjects || currentReviewCount === 0) return undefined;
+  const calculateCurrentBreakdown = useCallback(():
+    SubjectTypeBreakdown | undefined => {
+    if (!assignments || !subjects || currentReviewCount === 0) return undefined;
 
-      const breakdown: SubjectTypeBreakdown = {
-        radical: 0,
-        kanji: 0,
-        vocabulary: 0,
-        kana_vocabulary: 0,
-      };
+    const breakdown: SubjectTypeBreakdown = {
+      radical: 0,
+      kanji: 0,
+      vocabulary: 0,
+      kana_vocabulary: 0,
+    };
 
-      const now = new Date();
-      // Create map for fast lookups
-      const subjectMap = new Map();
-      subjects.forEach((s) => subjectMap.set(s.id, s));
+    const now = new Date();
+    // Create map for fast lookups
+    const subjectMap = new Map();
+    subjects.forEach((s) => subjectMap.set(s.id, s));
 
-      let counted = 0;
+    let counted = 0;
 
-      assignments.forEach((a) => {
-        if (!isAssignmentInReviewQueueState(a?.data)) {
-          return;
-        }
+    assignments.forEach((a) => {
+      if (!isAssignmentInReviewQueueState(a?.data)) {
+        return;
+      }
 
-        const availableAt = new Date(a.data.available_at);
-        if (availableAt <= now) {
-          const subject = subjectMap.get(a.data.subject_id);
-          if (subject) {
-            const type = subject.object as keyof SubjectTypeBreakdown;
-            if (breakdown[type] !== undefined) {
-              breakdown[type]++;
-              counted++;
-            }
+      const availableAt = new Date(a.data.available_at);
+      if (availableAt <= now) {
+        const subject = subjectMap.get(a.data.subject_id);
+        if (subject) {
+          const type = subject.object as keyof SubjectTypeBreakdown;
+          if (breakdown[type] !== undefined) {
+            breakdown[type]++;
+            counted++;
           }
         }
-      });
+      }
+    });
 
-      if (counted === 0) return undefined;
+    if (counted === 0) return undefined;
 
-      return breakdown;
-    },
-    [assignments, currentReviewCount, subjects]
-  );
+    return breakdown;
+  }, [assignments, currentReviewCount, subjects]);
 
-  const calculateCurrentSrsBreakdown = useCallback(
-    (): SrsBreakdown | undefined => {
-      if (!assignments || currentReviewCount === 0) return undefined;
+  const calculateCurrentSrsBreakdown = useCallback(():
+    SrsBreakdown | undefined => {
+    if (!assignments || currentReviewCount === 0) return undefined;
 
-      const breakdown = createEmptySrsBreakdown();
-      const now = new Date();
-      let counted = 0;
+    const breakdown = createEmptySrsBreakdown();
+    const now = new Date();
+    let counted = 0;
 
-      assignments.forEach((assignment) => {
-        if (!isAssignmentInReviewQueueState(assignment?.data)) return;
+    assignments.forEach((assignment) => {
+      if (!isAssignmentInReviewQueueState(assignment?.data)) return;
 
-        const availableAt = new Date(assignment.data.available_at);
-        if (availableAt <= now) {
-          const srsKey = getSrsBreakdownKey(assignment.data.srs_stage);
-          if (!srsKey) return;
-          breakdown[srsKey]++;
-          counted++;
-        }
-      });
+      const availableAt = new Date(assignment.data.available_at);
+      if (availableAt <= now) {
+        const srsKey = getSrsBreakdownKey(assignment.data.srs_stage);
+        if (!srsKey) return;
+        breakdown[srsKey]++;
+        counted++;
+      }
+    });
 
-      return counted > 0 ? breakdown : undefined;
-    },
-    [assignments, currentReviewCount]
-  );
+    return counted > 0 ? breakdown : undefined;
+  }, [assignments, currentReviewCount]);
 
   // Debug snapshot to diagnose overcounting and mismatch between props and computed totals.
   useEffect(() => {
@@ -540,7 +548,8 @@ export default function ReviewForecast({
     });
 
     debugLog("ui-cumulative-values", {
-      listTodayCumulativeShown: (todayData?.cumulativeCount || 0) + currentReviewCount,
+      listTodayCumulativeShown:
+        (todayData?.cumulativeCount || 0) + currentReviewCount,
       hourlyInitialRunningTotal,
       hourlyRunningAfterFutureSubtraction,
     });
@@ -552,7 +561,7 @@ export default function ReviewForecast({
         totalCount: day.totalCount,
         cumulativeFromForecast: day.cumulativeCount,
         cumulativeShownInList: day.cumulativeCount + currentReviewCount,
-      }))
+      })),
     );
   }, [
     assignments,
@@ -594,7 +603,7 @@ export default function ReviewForecast({
       const pastHoursBreakdown = createCumulativeBreakdown(
         todayData.hours
           .filter((h) => h.hour <= currentHour)
-          .map((h) => h.subjectBreakdown)
+          .map((h) => h.subjectBreakdown),
       );
 
       const breakdownTotal =
@@ -613,7 +622,7 @@ export default function ReviewForecast({
       } else {
         // Try to get breakdown from all hours in today
         const allTodayBreakdown = createCumulativeBreakdown(
-          todayData.hours.map((h) => h.subjectBreakdown)
+          todayData.hours.map((h) => h.subjectBreakdown),
         );
         // If still no breakdown, create a default one (assume all vocabulary)
         if (
@@ -662,11 +671,13 @@ export default function ReviewForecast({
         // Collect all subject IDs for this day
         const daySubjectIds =
           day.hours?.flatMap((h) => h.subjectIds || []) || [];
-        const forecastSrsBreakdowns = forecast.slice(0, index + 1).map((d) =>
-          createSrsBreakdownFromSubjectIds(
-            d.hours?.flatMap((h) => h.subjectIds || []) || []
-          )
-        );
+        const forecastSrsBreakdowns = forecast
+          .slice(0, index + 1)
+          .map((d) =>
+            createSrsBreakdownFromSubjectIds(
+              d.hours?.flatMap((h) => h.subjectIds || []) || [],
+            ),
+          );
         const cumulativeSrsBreakdown = createCumulativeSrsBreakdown([
           currentSrsBreakdown,
           ...forecastSrsBreakdowns,
@@ -681,8 +692,8 @@ export default function ReviewForecast({
               day.day === "Today"
                 ? "Today"
                 : day.day === "Tomorrow"
-                ? "Tomorrow"
-                : day.day.slice(0, 3),
+                  ? "Tomorrow"
+                  : day.day.slice(0, 3),
             value: runningTotal,
             count: day.totalCount,
             isToday: day.day === "Today",
@@ -699,8 +710,8 @@ export default function ReviewForecast({
               day.day === "Today"
                 ? "Today"
                 : day.day === "Tomorrow"
-                ? "Tomorrow"
-                : day.day.slice(0, 3),
+                  ? "Tomorrow"
+                  : day.day.slice(0, 3),
             value: runningTotal,
             count: day.totalCount,
             isToday: day.day === "Today",
@@ -778,25 +789,26 @@ export default function ReviewForecast({
             runningTotal += hour.count;
             allHourlyBreakdowns.push(hour.subjectBreakdown);
             const hourSrsBreakdown = createSrsBreakdownFromSubjectIds(
-              hour.subjectIds || []
+              hour.subjectIds || [],
             );
             allHourlySrsBreakdowns.push(hourSrsBreakdown);
 
             // Calculate cumulative breakdown up to this hour
             const cumulativeBreakdown =
               createCumulativeBreakdown(allHourlyBreakdowns);
-            const cumulativeSrsBreakdown =
-              createCumulativeSrsBreakdown(allHourlySrsBreakdowns);
+            const cumulativeSrsBreakdown = createCumulativeSrsBreakdown(
+              allHourlySrsBreakdowns,
+            );
 
             hourlyData.push({
               label:
                 hour.hour === 0
                   ? "12A"
                   : hour.hour === 12
-                  ? "12P"
-                  : hour.hour > 12
-                  ? `${hour.hour - 12}P`
-                  : `${hour.hour}A`,
+                    ? "12P"
+                    : hour.hour > 12
+                      ? `${hour.hour - 12}P`
+                      : `${hour.hour}A`,
               value: runningTotal,
               count: hour.count,
               isToday: day.day === "Today",
@@ -804,8 +816,8 @@ export default function ReviewForecast({
                 day.day === "Today"
                   ? ""
                   : day.day === "Tomorrow"
-                  ? "(T)"
-                  : "(+2)",
+                    ? "(T)"
+                    : "(+2)",
               subjectBreakdown: cumulativeBreakdown,
               srsBreakdown: cumulativeSrsBreakdown,
               subjectIds: hour.subjectIds || [],
@@ -823,11 +835,11 @@ export default function ReviewForecast({
   const maxValue = Math.max(...chartData.map((d) => d.value), 1);
   const listNowSubjectBreakdown = useMemo(
     () => calculateCurrentBreakdown(),
-    [calculateCurrentBreakdown]
+    [calculateCurrentBreakdown],
   );
   const listNowSrsBreakdown = useMemo(
     () => calculateCurrentSrsBreakdown(),
-    [calculateCurrentSrsBreakdown]
+    [calculateCurrentSrsBreakdown],
   );
 
   // Helper function to render colored subject type bars (vertical stacking for charts)
@@ -835,7 +847,7 @@ export default function ReviewForecast({
     breakdown: SubjectTypeBreakdown,
     totalHeight: number,
     width: string = "80%",
-    isCritical: boolean = false
+    isCritical: boolean = false,
   ) => {
     const total =
       breakdown.radical +
@@ -879,7 +891,7 @@ export default function ReviewForecast({
               height: Math.max(segmentHeight, 1), // Minimum 1px height
               backgroundColor: SUBJECT_COLORS[type],
             }}
-          />
+          />,
         );
         currentHeight += segmentHeight;
       }
@@ -921,7 +933,7 @@ export default function ReviewForecast({
     breakdown: SrsBreakdown,
     totalHeight: number,
     width: string = "80%",
-    isCritical: boolean = false
+    isCritical: boolean = false,
   ) => {
     const total = getSrsBreakdownTotal(breakdown);
     if (total === 0)
@@ -959,7 +971,7 @@ export default function ReviewForecast({
               height: Math.max(segmentHeight, 1),
               backgroundColor: SRS_COLORS[stage],
             }}
-          />
+          />,
         );
         currentHeight += segmentHeight;
       }
@@ -1000,7 +1012,7 @@ export default function ReviewForecast({
   // Helper function to render horizontal colored bars (for list view)
   const renderHorizontalColoredBar = (
     breakdown: SubjectTypeBreakdown,
-    width: string = "100%"
+    width: string = "100%",
   ) => {
     const total =
       breakdown.radical +
@@ -1042,7 +1054,7 @@ export default function ReviewForecast({
               height: "100%",
               backgroundColor: SUBJECT_COLORS[type],
             }}
-          />
+          />,
         );
         currentWidth += segmentWidth;
       }
@@ -1065,7 +1077,7 @@ export default function ReviewForecast({
 
   const renderHorizontalSrsColoredBar = (
     breakdown: SrsBreakdown,
-    width: string = "100%"
+    width: string = "100%",
   ) => {
     const total = getSrsBreakdownTotal(breakdown);
     if (total === 0)
@@ -1101,7 +1113,7 @@ export default function ReviewForecast({
               height: "100%",
               backgroundColor: SRS_COLORS[stage],
             }}
-          />
+          />,
         );
         currentWidth += segmentWidth;
       }
@@ -1126,7 +1138,7 @@ export default function ReviewForecast({
   const renderSingleColorBar = (
     height: number,
     color: string,
-    width: string = "80%"
+    width: string = "80%",
   ) => (
     <View
       style={{
@@ -1149,25 +1161,28 @@ export default function ReviewForecast({
       {chartMode === "hourly" ? (
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chartScrollView}
-          contentContainerStyle={styles.chartBarsScrollable}
+          showsHorizontalScrollIndicator={usesLargeText}
+          style={[styles.chartScrollView, { minHeight: chartViewportHeight }]}
+          contentContainerStyle={[
+            styles.chartBarsScrollable,
+            { minHeight: chartViewportHeight },
+          ]}
         >
           {chartData.map((item, index) => {
             const barHeight = Math.max((item.value / maxValue) * 120, 2);
             const isCritical = areReviewsCritical(
               (item as any).subjectBreakdown,
-              (item as any).subjectIds
+              (item as any).subjectIds,
             );
             const barColor = isCritical
               ? theme.error
               : chartMode === "hourly"
-              ? item.isToday
-                ? theme.primary
-                : withAlpha(theme.primary, 0.55)
-              : index === 0
-              ? theme.primary
-              : withAlpha(theme.primary, 0.55);
+                ? item.isToday
+                  ? theme.primary
+                  : withAlpha(theme.primary, 0.55)
+                : index === 0
+                  ? theme.primary
+                  : withAlpha(theme.primary, 0.55);
 
             // Only show value if it's different from the previous bar or it's the first bar
             const showValue =
@@ -1179,11 +1194,18 @@ export default function ReviewForecast({
                 entering={FadeInDown.delay(index * 50).duration(300)}
                 style={[
                   styles.chartBarContainerScrollable,
-                  isLargeScreen && styles.chartBarContainerScrollableLarge,
+                  { width: chartCellWidth },
                 ]}
               >
                 <Text
-                  style={[styles.chartBarValue, { color: theme.textSecondary }]}
+                  allowFontScaling={false}
+                  style={[
+                    styles.chartBarValue,
+                    {
+                      color: theme.textSecondary,
+                      fontSize: 10 * nativeFontScale,
+                    },
+                  ]}
                 >
                   {showValue && item.value > 0 ? item.value : ""}
                 </Text>
@@ -1195,29 +1217,41 @@ export default function ReviewForecast({
                         (item as any).subjectBreakdown,
                         barHeight,
                         "100%",
-                        isCritical
+                        isCritical,
                       )
                     : forecastShowSubjectColors &&
-                      forecastBreakdownMode === "srs" &&
-                      (item as any).srsBreakdown &&
-                      getSrsBreakdownTotal((item as any).srsBreakdown) > 0
-                    ? renderSrsColoredBar(
-                        (item as any).srsBreakdown,
-                        barHeight,
-                        "100%",
-                        isCritical
-                      )
-                    : renderSingleColorBar(barHeight, barColor, "100%")}
+                        forecastBreakdownMode === "srs" &&
+                        (item as any).srsBreakdown &&
+                        getSrsBreakdownTotal((item as any).srsBreakdown) > 0
+                      ? renderSrsColoredBar(
+                          (item as any).srsBreakdown,
+                          barHeight,
+                          "100%",
+                          isCritical,
+                        )
+                      : renderSingleColorBar(barHeight, barColor, "100%")}
                 </View>
                 <Text
-                  style={[styles.chartBarLabel, { color: theme.textSecondary }]}
+                  allowFontScaling={false}
+                  style={[
+                    styles.chartBarLabel,
+                    {
+                      color: theme.textSecondary,
+                      fontSize: 8 * nativeFontScale,
+                      lineHeight: 10 * nativeFontScale,
+                    },
+                  ]}
                 >
                   {item.label}
                   {(item as any).dayLabel && (
                     <Text
+                      allowFontScaling={false}
                       style={[
                         styles.chartBarDayLabel,
-                        { color: theme.textLight },
+                        {
+                          color: theme.textLight,
+                          fontSize: 6 * nativeFontScale,
+                        },
                       ]}
                     >
                       {"\n"}
@@ -1230,23 +1264,36 @@ export default function ReviewForecast({
           })}
         </ScrollView>
       ) : (
-        <View
-          style={[
+        <ScrollView
+          horizontal
+          scrollEnabled={usesLargeText}
+          showsHorizontalScrollIndicator={usesLargeText}
+          style={{ minHeight: dailyChartHeight }}
+          contentContainerStyle={[
             styles.chartBarsDaily,
-            { paddingHorizontal: isLargeScreen ? 16 : 8 },
+            {
+              minHeight: dailyChartHeight,
+              minWidth: usesLargeText
+                ? Math.max(
+                    screenData.width - 32,
+                    chartData.length * chartCellWidth,
+                  )
+                : "100%",
+              paddingHorizontal: isLargeScreen ? 16 : 8,
+            },
           ]}
         >
           {chartData.map((item, index) => {
             const barHeight = Math.max((item.value / maxValue) * 100, 2);
             const isCritical = areReviewsCritical(
               (item as any).subjectBreakdown,
-              (item as any).subjectIds
+              (item as any).subjectIds,
             );
             const barColor = isCritical
               ? theme.error
               : index === 0
-              ? theme.primary
-              : withAlpha(theme.primary, 0.55);
+                ? theme.primary
+                : withAlpha(theme.primary, 0.55);
 
             // Only show value if it's different from the previous bar or it's the first bar
             const showValue =
@@ -1264,10 +1311,26 @@ export default function ReviewForecast({
               <Animated.View
                 key={`${item.label}-${index}`}
                 entering={FadeInDown.delay(index * 50).duration(300)}
-                style={[styles.chartBarContainer, { maxWidth: maxBarWidth }]}
+                style={[
+                  styles.chartBarContainer,
+                  usesLargeText
+                    ? {
+                        flex: 0,
+                        width: chartCellWidth,
+                        maxWidth: chartCellWidth,
+                      }
+                    : { maxWidth: maxBarWidth },
+                ]}
               >
                 <Text
-                  style={[styles.chartBarValue, { color: theme.textSecondary }]}
+                  allowFontScaling={false}
+                  style={[
+                    styles.chartBarValue,
+                    {
+                      color: theme.textSecondary,
+                      fontSize: 10 * nativeFontScale,
+                    },
+                  ]}
                 >
                   {showValue && item.value > 0 ? item.value : ""}
                 </Text>
@@ -1279,29 +1342,37 @@ export default function ReviewForecast({
                         (item as any).subjectBreakdown,
                         barHeight,
                         "100%",
-                        isCritical
+                        isCritical,
                       )
                     : forecastShowSubjectColors &&
-                      forecastBreakdownMode === "srs" &&
-                      (item as any).srsBreakdown &&
-                      getSrsBreakdownTotal((item as any).srsBreakdown) > 0
-                    ? renderSrsColoredBar(
-                        (item as any).srsBreakdown,
-                        barHeight,
-                        "100%",
-                        isCritical
-                      )
-                    : renderSingleColorBar(barHeight, barColor, "100%")}
+                        forecastBreakdownMode === "srs" &&
+                        (item as any).srsBreakdown &&
+                        getSrsBreakdownTotal((item as any).srsBreakdown) > 0
+                      ? renderSrsColoredBar(
+                          (item as any).srsBreakdown,
+                          barHeight,
+                          "100%",
+                          isCritical,
+                        )
+                      : renderSingleColorBar(barHeight, barColor, "100%")}
                 </View>
                 <Text
-                  style={[styles.chartBarLabel, { color: theme.textSecondary }]}
+                  allowFontScaling={false}
+                  style={[
+                    styles.chartBarLabel,
+                    {
+                      color: theme.textSecondary,
+                      fontSize: 8 * nativeFontScale,
+                      lineHeight: 10 * nativeFontScale,
+                    },
+                  ]}
                 >
                   {item.label}
                 </Text>
               </Animated.View>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </Animated.View>
   );
@@ -1329,7 +1400,9 @@ export default function ReviewForecast({
               activeOpacity={0.7}
             >
               <Ionicons
-                name={expandedDays[day.day] ? "chevron-down" : "chevron-forward"}
+                name={
+                  expandedDays[day.day] ? "chevron-down" : "chevron-forward"
+                }
                 size={18}
                 color={theme.textSecondary}
               />
@@ -1353,10 +1426,10 @@ export default function ReviewForecast({
                 style={styles.hoursContainer}
               >
                 {shouldShowNowRow && (
-                  <View
-                    style={styles.hourRow}
-                  >
-                    <Text style={[styles.hourText, { color: theme.textSecondary }]}>
+                  <View style={styles.hourRow}>
+                    <Text
+                      style={[styles.hourText, { color: theme.textSecondary }]}
+                    >
                       Now
                     </Text>
                     <View
@@ -1376,12 +1449,18 @@ export default function ReviewForecast({
                         {forecastShowSubjectColors &&
                         forecastBreakdownMode === "subject" &&
                         listNowSubjectBreakdown ? (
-                          renderHorizontalColoredBar(listNowSubjectBreakdown, "100%")
+                          renderHorizontalColoredBar(
+                            listNowSubjectBreakdown,
+                            "100%",
+                          )
                         ) : forecastShowSubjectColors &&
                           forecastBreakdownMode === "srs" &&
                           listNowSrsBreakdown &&
                           getSrsBreakdownTotal(listNowSrsBreakdown) > 0 ? (
-                          renderHorizontalSrsColoredBar(listNowSrsBreakdown, "100%")
+                          renderHorizontalSrsColoredBar(
+                            listNowSrsBreakdown,
+                            "100%",
+                          )
                         ) : (
                           <View
                             style={[
@@ -1395,10 +1474,17 @@ export default function ReviewForecast({
                         )}
                       </View>
                     </View>
-                    <Text style={[styles.hourCount, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[styles.hourCount, { color: theme.textSecondary }]}
+                    >
                       0
                     </Text>
-                    <Text style={[styles.hourCumulative, { color: theme.textLight }]}>
+                    <Text
+                      style={[
+                        styles.hourCumulative,
+                        { color: theme.textLight },
+                      ]}
+                    >
                       {currentReviewCount}
                     </Text>
                   </View>
@@ -1407,10 +1493,10 @@ export default function ReviewForecast({
                 {nonZeroHours.map((hour) => {
                   const isCritical = areReviewsCritical(
                     hour.subjectBreakdown,
-                    hour.subjectIds
+                    hour.subjectIds,
                   );
                   const hourSrsBreakdown = createSrsBreakdownFromSubjectIds(
-                    hour.subjectIds || []
+                    hour.subjectIds || [],
                   );
                   return (
                     <View
@@ -1422,41 +1508,51 @@ export default function ReviewForecast({
                         },
                       ]}
                     >
-                      <Text style={[styles.hourText, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.hourText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         {hour.hour === 0
                           ? "12 am"
                           : hour.hour === 12
-                          ? "12 pm"
-                          : hour.hour > 12
-                          ? `${hour.hour - 12} pm`
-                          : `${hour.hour} am`}
+                            ? "12 pm"
+                            : hour.hour > 12
+                              ? `${hour.hour - 12} pm`
+                              : `${hour.hour} am`}
                       </Text>
                       <View
                         style={[
                           styles.barContainer,
                           {
-                            backgroundColor: theme.isDark ? "#2a2a2a" : "#f0f0f0",
+                            backgroundColor: theme.isDark
+                              ? "#2a2a2a"
+                              : "#f0f0f0",
                           },
                         ]}
                       >
                         <View
                           style={{
-                            width: `${Math.min(
-                              100,
-                              (hour.count / day.totalCount) * 100
-                            )}%`,
+                            width: `${Math.min(100, (hour.count / day.totalCount) * 100)}%`,
                             height: "100%",
                           }}
                         >
                           {forecastShowSubjectColors &&
                           forecastBreakdownMode === "subject" &&
                           hour.subjectBreakdown ? (
-                            renderHorizontalColoredBar(hour.subjectBreakdown, "100%")
+                            renderHorizontalColoredBar(
+                              hour.subjectBreakdown,
+                              "100%",
+                            )
                           ) : forecastShowSubjectColors &&
                             forecastBreakdownMode === "srs" &&
                             hourSrsBreakdown &&
                             getSrsBreakdownTotal(hourSrsBreakdown) > 0 ? (
-                            renderHorizontalSrsColoredBar(hourSrsBreakdown, "100%")
+                            renderHorizontalSrsColoredBar(
+                              hourSrsBreakdown,
+                              "100%",
+                            )
                           ) : (
                             <View
                               style={[
@@ -1470,10 +1566,20 @@ export default function ReviewForecast({
                           )}
                         </View>
                       </View>
-                      <Text style={[styles.hourCount, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.hourCount,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         {hour.count}
                       </Text>
-                      <Text style={[styles.hourCumulative, { color: theme.textLight }]}>
+                      <Text
+                        style={[
+                          styles.hourCumulative,
+                          { color: theme.textLight },
+                        ]}
+                      >
                         {hour.cumulativeCount + currentReviewCount}
                       </Text>
                     </View>
@@ -1481,7 +1587,9 @@ export default function ReviewForecast({
                 })}
 
                 {shouldShowNoReviewsText && (
-                  <Text style={[styles.noReviewsText, { color: theme.textLight }]}>
+                  <Text
+                    style={[styles.noReviewsText, { color: theme.textLight }]}
+                  >
                     No reviews scheduled for this day.
                   </Text>
                 )}
@@ -1526,7 +1634,11 @@ export default function ReviewForecast({
               ))
             : srsLegendItems.map((item) => (
                 <View key={item.key} style={styles.breakdownLegendIcon}>
-                  <SrsLevelIcon level={item.level} size={11} color={item.color} />
+                  <SrsLevelIcon
+                    level={item.level}
+                    size={11}
+                    color={item.color}
+                  />
                 </View>
               ))}
         </View>
@@ -1621,7 +1733,7 @@ export default function ReviewForecast({
                     setChartMode(
                       event.nativeEvent.selectedSegmentIndex === 0
                         ? "hourly"
-                        : "daily"
+                        : "daily",
                     );
                   }}
                   appearance={theme.isDark ? "dark" : "light"}
@@ -1648,8 +1760,8 @@ export default function ReviewForecast({
                   !forecastShowSubjectColors
                     ? "chart-bar"
                     : forecastBreakdownMode === "subject"
-                    ? "chart-bar-stacked"
-                    : "layers-triple"
+                      ? "chart-bar-stacked"
+                      : "layers-triple"
                 }
                 size={20}
                 color={
@@ -1693,18 +1805,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
-    height: 36,
+    minHeight: 36,
+    flexWrap: "wrap",
+    rowGap: 8,
   },
   viewModeSegment: {
     flexDirection: "row",
     borderRadius: 8,
     padding: 2,
-    height: 36,
+    minHeight: 36,
     alignItems: "center",
   },
   viewModeButton: {
     paddingHorizontal: 12,
-    height: 32,
+    minHeight: 32,
+    paddingVertical: 6,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 6,
@@ -1733,7 +1848,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   chartScrollView: {
-    height: 160,
+    minHeight: 160,
   },
   chartBarsScrollable: {
     flexDirection: "row",
@@ -1745,7 +1860,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    height: 140,
+    minHeight: 140,
     paddingHorizontal: 4,
     paddingVertical: 8,
   },
@@ -1767,7 +1882,7 @@ const styles = StyleSheet.create({
   chartBarValue: {
     fontSize: 10,
     marginBottom: 4,
-    height: 12,
+    minHeight: 12,
   },
   chartBar: {
     width: "80%",
@@ -1781,7 +1896,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
     lineHeight: 10,
-    height: 20,
+    minHeight: 20,
   },
   chartBarDayLabel: {
     fontSize: 6,
@@ -1883,12 +1998,13 @@ const styles = StyleSheet.create({
   },
   breakdownLegendSubjectChip: {
     minWidth: 19,
-    height: 19,
-    borderRadius: 5,
+    minHeight: 19,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
+    paddingVertical: 2,
   },
   breakdownLegendSubjectText: {
     color: "#FFFFFF",

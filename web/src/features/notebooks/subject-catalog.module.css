@@ -1,0 +1,11 @@
+.state { padding: 12px 8px; color: var(--color-muted); font-size: 12px; line-height: 1.6; }
+.state p { margin: 0; }
+.skeletons { display: grid; gap: 16px; margin-top: 14px; }
+.row { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.lines { display: grid; flex: 1; min-width: 0; gap: 8px; }
+.state[data-compact] { padding: 9px 8px; }
+.state[data-compact] .skeletons { gap: 10px; margin-top: 10px; }
+.error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.error button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--color-rule); border-radius: 4px; background: transparent; color: var(--color-ink); font: inherit; cursor: pointer; }
+.error button:hover { background: var(--color-paper-2); }
+.error button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }

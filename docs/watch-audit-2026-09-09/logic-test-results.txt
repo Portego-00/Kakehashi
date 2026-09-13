@@ -1,0 +1,18 @@
+Swift Watch logic audit: actual Store with fake WatchConnectivity, isolated cache, extracted actual forecast functions; UTC
+PASS | Correct grade payload | meaning=0 reading=0
+PASS | Normal successful review advances exactly once | current=2 completed=1 ready=2
+PASS | Failed submission allows retry | card=1 error=Temporary failure
+FAIL | Successful retry clears previous error | next card=2, error=Temporary failure
+FAIL | Closing while loading ignores late session reply | active=true cards=1
+FAIL | Old submission reply cannot skip a card in new session | new session current=12 completed=1
+FAIL | Closing during submission ignores late transport error | active=true error=Could not reach iPhone to submit.
+FAIL | Phone snapshot before success reply cannot double-decrement | started=3 phone authoritative=2 final watch=1
+PASS | Kanji Miss marks both meaning and reading incorrect | meaning=1 reading=1
+OBSERVED | No separate meaning/reading self grading | Only Bool correct input is accepted: Miss produces (1,1), Got it produces (0,0); (1,0)/(0,1) cannot be represented for a reading card.
+PASS | Radical Miss does not invent a reading error | meaning=1 reading=0
+PASS | Fresh forecast aligns next hour | first=(label: "11am", count: 5)
+FAIL | Aged forecast does not move old counts into future hours | cached 10:15 [11am=5,12pm=7]; at12:15 first=(label: "1pm", count: 5) second=(label: "2pm", count: 7)
+FAIL | Expired exact reviews do not become future fallback reviews | at12:15 next=2026-09-09T13:00:00Z
+PASS | Snapshot age display reports elapsed time | age=2h
+OBSERVED | Ready count remains stale | All 12 forecast reviews are past due at 12:15 but effectiveCurrentReviews remains 0, so Review on Watch action stays hidden until a phone sync.
+TOTAL | 7 passed | 7 failed | 2 observations

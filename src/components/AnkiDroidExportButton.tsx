@@ -19,7 +19,6 @@ import {
 } from "react-native";
 import type { AnkiDroidCollectionItem } from "../modules/AnkiDroid";
 import {
-  clearAnkiDroidExportConfig,
   exportContextSentenceToAnkiDroid,
   guessAnkiDroidFieldMappings,
   loadAnkiDroidExportConfig,
@@ -28,6 +27,7 @@ import {
   saveAnkiDroidExportConfig,
   type AnkiDroidExportConfig,
 } from "../services/ankiDroidService";
+import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 
 interface AnkiDroidExportButtonProps {
@@ -107,7 +107,7 @@ function AnkiDroidSetupModal({
             ? storedConfig!.noteTypeId
             : setup.noteTypes[0]?.id ?? ""
         );
-        setTags(storedConfig?.tags.join(" ") || "kakehashi context-sentence");
+        setTags(storedConfig?.tags.join(" ") ?? "kakehashi context-sentence");
       })
       .catch((error) => {
         if (!cancelled) setErrorMessage(getErrorMessage(error));
@@ -179,6 +179,7 @@ function AnkiDroidSetupModal({
     !!selectedNoteType &&
     fields.length >= 2 &&
     japaneseFieldIndex !== englishFieldIndex &&
+    !loading &&
     !loadingFields &&
     !saving;
 
@@ -228,6 +229,7 @@ function AnkiDroidSetupModal({
           </TouchableOpacity>
           <Text style={[styles.modalTitle, { color: theme.textColor }]}>AnkiDroid Export</Text>
           <TouchableOpacity
+            accessibilityRole="button"
             onPress={handleSave}
             style={styles.headerAction}
             disabled={!canSave}
@@ -389,7 +391,19 @@ function PickerField({
   );
 }
 
-export function AnkiDroidExportButton({
+export function AnkiDroidExportButton(props: AnkiDroidExportButtonProps) {
+  const enabled = useSettingsStore((state) => state.ankiDroidExportEnabled);
+  if (Platform.OS !== "android" || enabled !== true) return null;
+
+  return (
+    <AnkiDroidSentenceExportButton
+      key={JSON.stringify([props.japanese, props.english])}
+      {...props}
+    />
+  );
+}
+
+function AnkiDroidSentenceExportButton({
   japanese,
   english,
   compact = false,
@@ -400,21 +414,12 @@ export function AnkiDroidExportButton({
   const [exported, setExported] = useState(false);
   const [setupVisible, setSetupVisible] = useState(false);
 
-  if (Platform.OS !== "android") return null;
-
   const exportWithConfig = async (config: AnkiDroidExportConfig) => {
     setExporting(true);
     try {
       await exportContextSentenceToAnkiDroid(config, { japanese, english });
       setExported(true);
       ToastAndroid.show(`Added to ${config.deckName}`, ToastAndroid.SHORT);
-    } catch (error: any) {
-      if (error?.code === "FIELDS_CHANGED") {
-        await clearAnkiDroidExportConfig();
-        setSetupVisible(true);
-        return;
-      }
-      Alert.alert("AnkiDroid Export", getErrorMessage(error));
     } finally {
       setExporting(false);
     }
@@ -431,7 +436,14 @@ export function AnkiDroidExportButton({
       }
       await exportWithConfig(config);
     } catch (error) {
-      Alert.alert("AnkiDroid Export", getErrorMessage(error));
+      if (
+        error && typeof error === "object" &&
+        "code" in error && error.code === "FIELDS_CHANGED"
+      ) {
+        setSetupVisible(true);
+      } else {
+        Alert.alert("AnkiDroid Export", getErrorMessage(error));
+      }
     } finally {
       setExporting(false);
     }
@@ -480,11 +492,11 @@ export function AnkiDroidExportButton({
         )}
       </TouchableOpacity>
 
-      <AnkiDroidSetupModal
+      {setupVisible && <AnkiDroidSetupModal
         visible={setupVisible}
         onClose={() => setSetupVisible(false)}
         onSave={exportWithConfig}
-      />
+      />}
     </>
   );
 }
@@ -496,7 +508,11 @@ export function AnkiDroidExportSettingsButton() {
 
   useEffect(() => {
     if (Platform.OS === "android") {
-      void loadAnkiDroidExportConfig().then(setConfig);
+      let cancelled = false;
+      void loadAnkiDroidExportConfig()
+        .then((loadedConfig) => { if (!cancelled) setConfig(loadedConfig); })
+        .catch(() => { if (!cancelled) setConfig(null); });
+      return () => { cancelled = true; };
     }
   }, [setupVisible]);
 
@@ -528,11 +544,11 @@ export function AnkiDroidExportSettingsButton() {
         <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
       </TouchableOpacity>
 
-      <AnkiDroidSetupModal
+      {setupVisible && <AnkiDroidSetupModal
         visible={setupVisible}
         onClose={() => setSetupVisible(false)}
         onSave={(savedConfig) => setConfig(savedConfig)}
-      />
+      />}
     </>
   );
 }

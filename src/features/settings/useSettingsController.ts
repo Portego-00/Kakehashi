@@ -52,7 +52,6 @@ import {
 } from "../../utils/api";
 import { apiDebugger } from "../../utils/apiDebugger";
 import { isPortegoUsername } from "../../utils/portegoAccess";
-import { azureSpeechService, JAPANESE_VOICES } from "../../utils/azureSpeech";
 import {
   clearBadgeCount,
   updateBadgeWithReviewCount,
@@ -72,6 +71,7 @@ import {
 import { quickOptimize } from "../../utils/cacheOptimizer";
 import { hasFeatureAccess } from "../../utils/featureFlags";
 import {
+  applyNativeReviewNotificationSettings,
   requestNotificationPermissions,
   updateBadgeAndScheduleNotifications,
 } from "../../utils/reviewNotificationIntegration";
@@ -303,6 +303,7 @@ type SettingsSectionKey =
   | "lessons"
   | "subjectLists"
   | "reviews"
+  | "notes"
   | "haptic"
   | "kanji"
   | "profile"
@@ -330,6 +331,7 @@ type SettingsSectionChipLayout = {
 const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   profile: "profile",
   reviews: "reviews",
+  notes: "notes",
   kanji: "kanji",
   lessons: "lessons",
   vocabContext: "vocabContext",
@@ -461,6 +463,8 @@ export function useSettingsController() {
     setShowMediaContextSentences,
     hideContextSentenceTranslations,
     setHideContextSentenceTranslations,
+    hideContextSentenceTranslationsCompletely,
+    setHideContextSentenceTranslationsCompletely,
     showContextSentenceSpeedControl,
     setShowContextSentenceSpeedControl,
     showMnemonicIllustrations,
@@ -526,6 +530,8 @@ export function useSettingsController() {
     setVisuallySimilarKanjiSource,
     newsDefaultStudyMode,
     setNewsDefaultStudyMode,
+    hideNewsFuriganaByDefault,
+    setHideNewsFuriganaByDefault,
     hideVocabularyTooltipMeanings,
     setHideVocabularyTooltipMeanings,
     hideVocabularyTooltipReadings,
@@ -559,16 +565,15 @@ export function useSettingsController() {
     error: spotifyAuthError,
     profile: spotifyProfile,
     redirectUri: spotifyRedirectUri,
+    clientId: spotifyClientId,
+    saveClientId: saveSpotifyClientId,
+    isConfiguring: isSpotifyConfiguring,
   } = useSpotifyAuth();
-  const [selectedVoice, setSelectedVoice] =
-    useState<string>("ja-JP-NanamiNeural");
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showOpenSourceModal, setShowOpenSourceModal] = useState(false);
   const [appleMusicPlaybackAccessStatus, setAppleMusicPlaybackAccessStatus] =
     useState<"unknown" | "available" | "subscriptionRequired" | "unavailable">(
       "unknown",
     );
-  const [testingVoiceId, setTestingVoiceId] = useState<string | null>(null);
   const [cacheAnalysis, setCacheAnalysis] =
     useState<CacheAnalysisResult | null>(null);
   const [showCacheModal, setShowCacheModal] = useState(false);
@@ -721,6 +726,7 @@ export function useSettingsController() {
       { key: "lessons", label: "Lessons", icon: "school-outline" },
       { key: "subjectLists", label: "Subject Lists", icon: "list-outline" },
       { key: "reviews", label: "Reviews", icon: "checkmark-done-outline" },
+      { key: "notes", label: "Notes", icon: "create-outline" },
       { key: "haptic", label: "Haptic", icon: "phone-portrait-outline" },
       { key: "kanji", label: "Kanji", icon: "brush-outline" },
       { key: "profile", label: "Profile", icon: "person-circle-outline" },
@@ -985,11 +991,6 @@ export function useSettingsController() {
     });
   }, [availableLevelAnalyticsLevels]);
 
-  // Load current voice selection on component mount
-  useEffect(() => {
-    loadCurrentVoice();
-  }, []);
-
   useEffect(() => {
     setGravatarEmailInput(gravatarEmail ?? "");
   }, [gravatarEmail]);
@@ -1145,84 +1146,6 @@ export function useSettingsController() {
       void refreshOfflineAudioCacheSize();
     }
   }, [offlineAudioProgress.inProgress, refreshOfflineAudioCacheSize]);
-
-  const loadCurrentVoice = () => {
-    const config = azureSpeechService.getConfig();
-    setSelectedVoice(config.selectedVoice);
-  };
-
-  const handleVoiceSelection = () => {
-    setShowVoiceModal(true);
-  };
-
-  const saveSelectedVoice = async (voiceShortName: string) => {
-    try {
-      await azureSpeechService.saveSelectedVoice(voiceShortName);
-      setSelectedVoice(voiceShortName);
-      setShowVoiceModal(false);
-    } catch {
-      Alert.alert("Error", "Failed to save voice selection");
-    }
-  };
-
-  const testVoice = async (voiceShortName: string) => {
-    // Stop any currently playing voice test
-    if (testingVoiceId !== null) {
-      await azureSpeechService.stop();
-    }
-
-    setTestingVoiceId(voiceShortName);
-
-    // Store the original voice only if we're not already testing
-    const originalVoice = selectedVoice;
-    await azureSpeechService.saveSelectedVoice(voiceShortName);
-
-    // Test text saying in japanese "My name is (name)" removing ja-JP from the voiceShortName
-    const testText = `私の名前は ${voiceShortName
-      ?.replace("ja-JP-", "")
-      ?.replace("Neural", "")} です`;
-
-    try {
-      await azureSpeechService.speak(
-        testText,
-        () => {},
-        () => {
-          // Only clear testing state if this voice is still the one being tested
-          if (testingVoiceId === voiceShortName) {
-            setTestingVoiceId(null);
-            // Restore original voice if not selected
-            if (originalVoice !== voiceShortName) {
-              azureSpeechService.saveSelectedVoice(originalVoice);
-            }
-          }
-        },
-        (error) => {
-          console.error("Voice test error:", error);
-          // Only clear testing state if this voice is still the one being tested
-          if (testingVoiceId === voiceShortName) {
-            setTestingVoiceId(null);
-            // Restore original voice on error
-            azureSpeechService.saveSelectedVoice(originalVoice);
-            Alert.alert(
-              "Test Failed",
-              "Unable to test voice. Please check your internet connection.",
-            );
-          }
-        },
-      );
-    } catch {
-      // Only clear testing state if this voice is still the one being tested
-      if (testingVoiceId === voiceShortName) {
-        setTestingVoiceId(null);
-        // Restore original voice on error
-        await azureSpeechService.saveSelectedVoice(originalVoice);
-        Alert.alert(
-          "Test Failed",
-          "Unable to test voice. Please check your internet connection.",
-        );
-      }
-    }
-  };
 
   const handleSaveGravatarEmail = () => {
     const email = gravatarEmailInput.trim();
@@ -1670,7 +1593,7 @@ export function useSettingsController() {
       setSpotifyAuthStatus("notConfigured");
       Alert.alert(
         "Spotify Setup Required",
-        `Add EXPO_PUBLIC_SPOTIFY_CLIENT_ID and register ${spotifyRedirectUri} exactly as a redirect URI in your Spotify app settings.`,
+        "Open Spotify setup in Music Playback settings. Follow the guide to create your personal developer app, then save its Client ID.",
       );
       return;
     }
@@ -1687,15 +1610,15 @@ export function useSettingsController() {
       }
 
       setSongsPlaybackSource("spotify");
-      if (profile.product !== "premium") {
+      if (profile.product && profile.product !== "premium") {
         Alert.alert(
           "Spotify Connected",
-          "Your Spotify account is connected. Spotify playback control usually requires Premium; playlist import will still work.",
+          "Your account is linked, but Spotify playback and personal developer apps require an active Spotify Premium subscription.",
         );
         return;
       }
 
-      Alert.alert("Connected", "Spotify playback is now ready.");
+      Alert.alert("Connected", "Your Spotify account is linked. Open Spotify and play a song once, then return to Kakehashi to control playback.");
     } catch (error) {
       console.error("Spotify login failed:", error);
       Alert.alert(
@@ -1724,7 +1647,7 @@ export function useSettingsController() {
       if (!isSpotifyAuthAvailable) {
         Alert.alert(
           "Spotify Setup Required",
-          `Add EXPO_PUBLIC_SPOTIFY_CLIENT_ID and register ${spotifyRedirectUri} exactly as a redirect URI in your Spotify app settings.`,
+          "Open Spotify setup in Music Playback settings. Follow the guide to create your personal developer app, then save its Client ID.",
         );
         return;
       }
@@ -1837,19 +1760,26 @@ export function useSettingsController() {
 
   const handleBadgeNotificationChange = async (value: boolean) => {
     setShowBadgeNotifications(value);
+    await applyNativeReviewNotificationSettings({ badgeEnabled: value });
 
     if (value) {
-      // If enabling, update badge with current count and schedule notifications
-      await updateBadgeWithReviewCount();
-      // Also update the native notification system
-      await updateBadgeAndScheduleNotifications();
+      await updateBadgeWithReviewCount({
+        notificationSettings: { badgeEnabled: true },
+      });
     } else {
       // If disabling, clear the badge immediately
       await clearBadgeCount();
-      // Also clear native notifications if review notifications are also disabled
-      if (
+      if (enableReviewNotifications) {
+        // Preserve visible review alerts while removing their future badge
+        // updates. The explicit override avoids racing persisted settings.
+        await updateBadgeAndScheduleNotifications({
+          notificationSettings: {
+            badgeEnabled: false,
+            alertsEnabled: true,
+          },
+        });
+      } else if (
         Platform.OS === "ios" &&
-        !enableReviewNotifications &&
         !isRunningOnMacFromIOS &&
         ReviewNotificationManager &&
         typeof ReviewNotificationManager.updateBadgeAndScheduleNotifications ===
@@ -1877,12 +1807,18 @@ export function useSettingsController() {
 
   const handleReviewNotificationChange = async (value: boolean) => {
     setEnableReviewNotifications(value);
+    await applyNativeReviewNotificationSettings({ alertsEnabled: value });
 
     if (value) {
       // If enabling, use the new native notification system
       const permissionGranted = await requestNotificationPermissions();
       if (permissionGranted) {
-        await updateBadgeAndScheduleNotifications();
+        // Re-read system authorization after the permission prompt so an
+        // offline refresh can still promote existing badge-only requests.
+        await applyNativeReviewNotificationSettings({ alertsEnabled: true });
+        await updateBadgeAndScheduleNotifications({
+          notificationSettings: { alertsEnabled: true },
+        });
       }
 
       // Keep the old system as fallback for background checks
@@ -1895,7 +1831,13 @@ export function useSettingsController() {
 
       if (showBadgeNotifications) {
         // Keep badge scheduling active when review alerts are disabled.
-        await updateBadgeWithReviewCount({ forceSummaryRefresh: true });
+        await updateBadgeWithReviewCount({
+          forceSummaryRefresh: true,
+          notificationSettings: {
+            alertsEnabled: false,
+            badgeEnabled: true,
+          },
+        });
         return;
       }
 
@@ -2111,11 +2053,6 @@ export function useSettingsController() {
         minute: reminderMinuteDraft,
       })
     );
-  };
-
-  const getCurrentVoiceDisplayName = () => {
-    const voice = JAPANESE_VOICES.find((v) => v.shortName === selectedVoice);
-    return voice?.displayName || selectedVoice;
   };
 
   const getVocabularyAudioVoiceLabel = (
@@ -2914,7 +2851,6 @@ export function useSettingsController() {
     getAppleMusicStatusLabel,
     getAppleMusicSubscriptionAlertMessage,
     getCurrentPatchNotesVersion,
-    getCurrentVoiceDisplayName,
     getLessonOrderLabel,
     getNextDailyLessonLimit,
     getNextDailyLessonReminderMinimum,
@@ -2974,10 +2910,10 @@ export function useSettingsController() {
     handleShowApiTimelineSummary,
     handleShowPendingNotifications,
     handleSubmitBunproSurvey,
-    handleVoiceSelection,
     hapticFeedbackEnabled,
     hasStoredJpdbApiKey,
     hideContextSentenceTranslations,
+    hideContextSentenceTranslationsCompletely,
     hideVocabularyTooltipMeanings,
     hideVocabularyTooltipReadings,
     insets,
@@ -3002,7 +2938,6 @@ export function useSettingsController() {
     isSongsHiddenForEmail,
     isSubmittingBunproSurvey,
     JAPANESE_KEYBOARD_SETUP_INSTRUCTIONS,
-    JAPANESE_VOICES,
     jitaiEnabled,
     jitaiSelectedFontIds,
     jpdbApiKeyInput,
@@ -3014,11 +2949,11 @@ export function useSettingsController() {
     lessonPickerViewMode,
     lessonTypeOrderEnabled,
     levelAnalyticsExportFormat,
-    loadCurrentVoice,
     logout,
     modalHeaderPaddingTop,
     myAnimeListUsername,
     newsDefaultStudyMode,
+    hideNewsFuriganaByDefault,
     normalizedEmail,
     offlineAudioCacheFileCount,
     offlineAudioCacheSizeBytes,
@@ -3064,7 +2999,6 @@ export function useSettingsController() {
     reviewWrapUpTargetStep,
     reviewWrapUpTargetSubjects,
     router,
-    saveSelectedVoice,
     scrollToParam,
     scrollToSection,
     scrollViewRef,
@@ -3076,7 +3010,6 @@ export function useSettingsController() {
     selectAllLevelAnalyticsLevels,
     selectedLevelAnalyticsLevels,
     selectedSectionKey,
-    selectedVoice,
     selectSrsProgressionCardMode,
     selectVocabularyAudioVoice,
     setAcceptAnyKanjiOnyomiReading,
@@ -3116,6 +3049,7 @@ export function useSettingsController() {
     setHapticFeedbackEnabled,
     setHasStoredJpdbApiKey,
     setHideContextSentenceTranslations,
+    setHideContextSentenceTranslationsCompletely,
     setHideVocabularyTooltipMeanings,
     setHideVocabularyTooltipReadings,
     setIsAnalyzingCache,
@@ -3134,6 +3068,7 @@ export function useSettingsController() {
     setLevelAnalyticsExportFormat,
     setMyAnimeListUsername,
     setNewsDefaultStudyMode,
+    setHideNewsFuriganaByDefault,
     setOfflineAudioCacheFileCount,
     setOfflineAudioCacheSizeBytes,
     setOfflineAudioProgress,
@@ -3159,7 +3094,6 @@ export function useSettingsController() {
     setSectionOffsets,
     setSelectedLevelAnalyticsLevels,
     setSelectedSectionKey,
-    setSelectedVoice,
     setShowAddSynonymButton,
     setShowAnswerStopDetailsPreview,
     setShowAnswerStopSubjectDetails,
@@ -3190,14 +3124,12 @@ export function useSettingsController() {
     setShowStrokeOrder,
     setShowVocabContextSentencesInReviews,
     setShowVocabularyVoiceMenu,
-    setShowVoiceModal,
     setSinglePageLessonView,
     setSkipCustomLessonQuiz,
     setSongsLyricsDefaultStudyMode,
     setSongsPlaybackSource,
     setSrsProgressionCardDisplayMode,
     setStrokeLeniency,
-    setTestingVoiceId,
     setThemeMode,
     settingsBottomPadding,
     setVisuallySimilarKanjiSource,
@@ -3239,7 +3171,6 @@ export function useSettingsController() {
     showStrokeOrder,
     showVocabContextSentencesInReviews,
     showVocabularyVoiceMenu,
-    showVoiceModal,
     showWidgetsSection,
     signOut,
     singlePageLessonView,
@@ -3251,6 +3182,9 @@ export function useSettingsController() {
     spotifyAuthStatus,
     spotifyDisplayName,
     spotifyRedirectUri,
+    spotifyClientId,
+    saveSpotifyClientId,
+    isSpotifyConfiguring,
     SRS_PROGRESSION_CARD_MODE_OPTIONS,
     srsProgressionCardDisplayMode,
     STOP_DETAILS_PREVIEW_IMAGE,
@@ -3258,8 +3192,6 @@ export function useSettingsController() {
     STUDY_MODE_DEFAULT_OPTIONS,
     StyleSheet,
     submitBunproSurveyResponse,
-    testingVoiceId,
-    testVoice,
     theme,
     themeMode,
     toggleLevelAnalyticsLevelSelection,

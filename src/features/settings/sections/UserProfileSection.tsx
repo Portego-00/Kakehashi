@@ -232,6 +232,23 @@ export function UserProfileSection() {
 
         {isPortegoUser && (
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Open notebooks"
+            style={[styles.settingItem, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }]}
+            onPress={() => router.push("/notebook-workspace")}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="document-text-outline" size={22} color={theme.primary} style={styles.settingIcon} />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>Notebooks</Text>
+              <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Your study notes and vocabulary, shared with the web</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+
+        {isPortegoUser && (
+          <TouchableOpacity
             style={[
               styles.settingItem,
               {

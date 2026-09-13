@@ -2134,7 +2134,6 @@ export default function CrosswordSessionScreen() {
               ref={inputRef}
               onKanaChange={(kana) => setInputValue(kana)}
               useJapaneseKeyboard={autoSwitchKeyboard}
-              preferUncontrolledAndroidInput
               placeholder={
                 expectedLength > 0
                   ? `Enter ${expectedLength} character${

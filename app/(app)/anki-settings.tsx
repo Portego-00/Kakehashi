@@ -26,6 +26,8 @@ const ANKI_SCOPE_OPTIONS: { value: AnkiScope; label: string }[] = [
 export default function AnkiSettingsScreen() {
   const { theme } = useTheme();
   const {
+    ankiDroidExportEnabled,
+    setAnkiDroidExportEnabled,
     ankiCardModeScope,
     setAnkiCardModeScope,
     ankiGroupQuestions,
@@ -386,7 +388,14 @@ export default function AnkiSettingsScreen() {
               Send vocabulary context sentences directly to your AnkiDroid
               collection.
             </Text>
-            <AnkiDroidExportSettingsButton />
+            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>Enable Anki export</Text>
+                <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Show Anki export buttons beside context sentences.</Text>
+              </View>
+              <Switch accessibilityLabel="Enable Anki export" value={ankiDroidExportEnabled} onValueChange={setAnkiDroidExportEnabled} trackColor={{ true: theme.primary }} />
+            </View>
+            {ankiDroidExportEnabled && <AnkiDroidExportSettingsButton />}
           </View>
         )}
       </ScrollView>

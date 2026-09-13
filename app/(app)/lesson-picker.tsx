@@ -82,7 +82,7 @@ export default function LessonPickerScreen() {
       // Create lesson picker items by combining assignment and subject data
       const items: LessonPickerItem[] = [];
 
-      lessonsResponse.data.forEach((assignment, index) => {
+      lessonsResponse.data.forEach((assignment) => {
         const subject = subjectsResponse.data.find(
           (s) => s.id === assignment.data.subject_id
         );
@@ -104,13 +104,14 @@ export default function LessonPickerScreen() {
         }
 
         items.push({
-          id: index, // Use index to match with lessons screen
+          id: assignment.id,
           assignmentId: assignment.id,
           subjectId: assignment.data.subject_id,
           subject: {
             id: subject.id,
             object: subject.object,
             data: {
+              parts_of_speech: subject.data.parts_of_speech,
               characters: subject.data.characters,
               meanings: subject.data.meanings,
               readings: subject.data.readings ?? undefined,
@@ -149,7 +150,9 @@ export default function LessonPickerScreen() {
     router.replace({
       pathname: "/lessons",
       params: {
-        selectedLessonIds: JSON.stringify(selectedLessons.map((l) => l.id)),
+        selectedLessonIds: JSON.stringify(
+          selectedLessons.map((lesson) => lesson.assignmentId)
+        ),
       },
     });
   }, []);

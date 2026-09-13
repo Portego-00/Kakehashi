@@ -416,15 +416,17 @@ export function checkAnswerWithDetails(
       
       // Only check if user entered a reading AFTER checking if it's a valid meaning
       // This ensures that if a reading matches a meaning, the correct answer takes precedence
-      if (subject.data.readings) {
+      const meaningQuestionReadings = subject.data.readings?.map((reading) => reading.reading)
+        ?? (subject.object === 'kana_vocabulary' && subject.data.characters ? [subject.data.characters] : []);
+      if (meaningQuestionReadings.length) {
         // Convert the user answer to kana for comparison
         // Try both direct kana conversion and romaji-to-hiragana conversion
         const originalAnswer = answer.trim();
         const hiraganaAnswer = convertKatakanaToHiragana(originalAnswer);
         const romajiToHiraganaAnswer = convertRomajiToHiragana(originalAnswer);
         
-        for (const reading of subject.data.readings) {
-          const hiraganaReading = convertKatakanaToHiragana(reading.reading);
+        for (const reading of meaningQuestionReadings) {
+          const hiraganaReading = convertKatakanaToHiragana(reading);
           
           // Check direct kana match
           if (hiraganaAnswer === hiraganaReading) {

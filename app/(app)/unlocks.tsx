@@ -32,6 +32,7 @@ import { pickBestImage, useRemoteSvg } from "../../src/utils/radicalSvg";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
+import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 
 // Extended type for kana vocabulary
 type ItemType = WaniKaniItemType | "kana_vocabulary";
@@ -135,6 +136,11 @@ export default function UnlocksScreen() {
   const [error, setError] = useState<string | null>(null);
   const [allUnlockItems, setAllUnlockItems] = useState<UnlockItem[]>([]);
   const [filter, setFilter] = useState<ItemType | "all">("all");
+  const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
+  const vocabularySubjects = useMemo(() => allUnlockItems.map((item) => ({
+    object: item.type,
+    data: { parts_of_speech: item.partsOfSpeech },
+  })), [allUnlockItems]);
   const [timeRange, setTimeRange] = useState<number>(30); // Default: last 30 days
   const [appliedFilter, setAppliedFilter] = useState<ItemType | "all">("all");
   const [startedFilter, setStartedFilter] =
@@ -161,10 +167,10 @@ export default function UnlocksScreen() {
 
   // Get filtered and sectioned items from the computed unlockItems
   const sectionedItems = useMemo(() => {
-    const filteredByType =
-      appliedFilter === "all"
-        ? unlockItems
-        : unlockItems.filter((item) => item.type === appliedFilter);
+    const filteredByType = unlockItems.filter((item) =>
+      (appliedFilter === "all" || item.type === appliedFilter) &&
+      matchesVocabularyTypes({ object: item.type, data: { parts_of_speech: item.partsOfSpeech } }, vocabularyTypes),
+    );
     const filteredItems =
       appliedStartedFilter === "not_started"
         ? filteredByType.filter((item) => !item.startedAt)
@@ -202,7 +208,7 @@ export default function UnlocksScreen() {
           new Date(a.data[0].dateUnlocked).getTime()
         );
       });
-  }, [unlockItems, appliedFilter, appliedStartedFilter]);
+  }, [unlockItems, appliedFilter, appliedStartedFilter, vocabularyTypes]);
 
   // Transform sectioned data into flat list format with section headers included
   const flatListData = useMemo(() => {
@@ -311,6 +317,7 @@ export default function UnlocksScreen() {
             characters: subject.data.characters,
             meaning: subject.data.meanings[0].meaning,
             type: subject.object as WaniKaniItemType,
+            partsOfSpeech: subject.data.parts_of_speech,
             dateUnlocked: assignment.data.unlocked_at || "",
             startedAt: assignment.data.started_at,
             character_images: subject.data.character_images,
@@ -362,6 +369,7 @@ export default function UnlocksScreen() {
 
   const handleApplyFilters = (values: Record<string, any>) => {
     setFilter(values.subjectType);
+    setVocabularyTypes(values.vocabularyTypes);
     setTimeRange(values.timeRange);
     setStartedFilter(values.startedState);
   };
@@ -510,9 +518,12 @@ export default function UnlocksScreen() {
         onApply={handleApplyFilters}
         currentValues={{
           subjectType: filter,
+          vocabularyTypes,
           timeRange: timeRange,
           startedState: startedFilter,
         }}
+        showVocabularyTypes
+        subjects={vocabularySubjects}
         sections={filterSections}
         title="Filter Unlocks"
       />
@@ -549,7 +560,7 @@ export default function UnlocksScreen() {
             No unlocks found
           </Text>
           <Text style={[styles.emptySubtext, { color: theme.textLight }]}>
-            {appliedFilter === "all" && appliedStartedFilter === "all"
+            {appliedFilter === "all" && appliedStartedFilter === "all" && vocabularyTypes.length === 0
               ? `No items have been unlocked in the last ${timeRange} days.`
               : "No items match your current filters."}
           </Text>

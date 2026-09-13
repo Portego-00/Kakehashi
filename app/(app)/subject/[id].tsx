@@ -18,11 +18,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AddToSubjectListsModal from "../../../src/components/AddToSubjectListsModal";
 import KanjiDetails from "../../../src/components/KanjiDetails";
 import RadicalDetails from "../../../src/components/RadicalDetails";
 import VocabularyDetails from "../../../src/components/VocabularyDetails";
-import { FormattedNoteEditor } from "../../../src/components/formatted-note";
+import {
+  FormattedNoteEditor,
+  type FormattedNoteEditorHandle,
+} from "../../../src/components/formatted-note";
+import { parseFormattedNote } from "../../../src/utils/note-formatting";
+import { getNoteVisualEditorRunsSignature } from "../../../src/components/note-visual-editor-model";
 import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
 import {
   createStudyMaterial,
@@ -123,6 +129,7 @@ function mergeStudyMaterial(
 }
 
 export default function SubjectDetailsScreen() {
+  const noteModalInsets = useSafeAreaInsets();
   const { id, initialTab, from } = useLocalSearchParams<{
     id: string;
     initialTab?: string;
@@ -145,6 +152,8 @@ export default function SubjectDetailsScreen() {
   );
   const [reviewStatistics, setReviewStatistics] = useState<any>(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  // Reset on open, keeping the editor intact during iOS modal dismissal.
+  const [noteEditorSession, setNoteEditorSession] = useState(0);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [noteType, setNoteType] = useState<"meaning" | "reading">("meaning");
   const [noteText, setNoteText] = useState("");
@@ -157,6 +166,9 @@ export default function SubjectDetailsScreen() {
   } = useSubjectLists();
   const requestIdRef = useRef(0);
   const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
+  const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
+  const originalNoteSignatureRef = useRef("");
+  const checkingNoteChangesRef = useRef(false);
   const isBookmarked = subjectData
     ? subjectLists.some((list) => list.subjectIds.includes(subjectData.id))
     : false;
@@ -668,12 +680,17 @@ export default function SubjectDetailsScreen() {
 
     setIsSavingNote(true);
     try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? noteText;
+      if (currentNoteText !== noteText) {
+        setNoteText(currentNoteText);
+      }
       // Prepare updates for the note
       const updates: any = {};
       if (noteType === "meaning") {
-        updates.meaning_note = noteText;
+        updates.meaning_note = currentNoteText;
       } else {
-        updates.reading_note = noteText;
+        updates.reading_note = currentNoteText;
       }
 
       let savedMaterial: any;
@@ -739,17 +756,16 @@ export default function SubjectDetailsScreen() {
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteEditorSession((session) => session + 1);
     setNoteType(type);
-    // Set initial value based on existing notes
-    if (studyMaterial && studyMaterial.data) {
-      if (type === "meaning") {
-        setNoteText(studyMaterial.data.meaning_note || "");
-      } else {
-        setNoteText(studyMaterial.data.reading_note || "");
-      }
-    } else {
-      setNoteText("");
-    }
+    const initialNoteText =
+      (type === "meaning"
+        ? studyMaterial?.data?.meaning_note
+        : studyMaterial?.data?.reading_note) || "";
+    originalNoteSignatureRef.current = getNoteVisualEditorRunsSignature(
+      parseFormattedNote(initialNoteText),
+    );
+    setNoteText(initialNoteText);
     setShowNoteModal(true);
   };
 
@@ -1070,9 +1086,38 @@ export default function SubjectDetailsScreen() {
     subjectData?.data?.characters ||
     undefined;
 
-  const closeNoteModal = () => {
-    if (!isSavingNote) {
-      setShowNoteModal(false);
+  const closeNoteModal = async () => {
+    if (noteEditorRef.current?.closeLinkPicker()) return;
+    if (isSavingNote || checkingNoteChangesRef.current) return;
+
+    checkingNoteChangesRef.current = true;
+    try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? noteText;
+      if (
+        getNoteVisualEditorRunsSignature(parseFormattedNote(currentNoteText)) ===
+        originalNoteSignatureRef.current
+      ) {
+        setShowNoteModal(false);
+        return;
+      }
+
+      setNoteText(currentNoteText);
+      Alert.alert("Discard note changes?", "Your changes will not be saved.", [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => setShowNoteModal(false),
+        },
+      ]);
+    } catch {
+      Alert.alert(
+        "Unable to close note",
+        "Please try again. Your changes are still here.",
+      );
+    } finally {
+      checkingNoteChangesRef.current = false;
     }
   };
 
@@ -1084,9 +1129,11 @@ export default function SubjectDetailsScreen() {
       onRequestClose={closeNoteModal}
     >
       <KeyboardAvoidingView
-        style={styles.modalOverlay}
+        style={[
+          styles.modalOverlay,
+          { paddingTop: Math.max(16, noteModalInsets.top) },
+        ]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
       >
         <View
           style={[
@@ -1118,7 +1165,8 @@ export default function SubjectDetailsScreen() {
           </View>
 
           <FormattedNoteEditor
-            key={`${noteType}:${showNoteModal}`}
+            ref={noteEditorRef}
+            key={noteEditorSession}
             containerStyle={styles.noteEditor}
             style={[
               styles.noteInput,
@@ -1338,16 +1386,18 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     padding: 16,
   },
   modalContent: {
+    flex: 1,
     borderRadius: 16,
     padding: 16,
     width: "100%",
     maxWidth: 450,
-    maxHeight: "85%",
+    maxHeight: 640,
+    flexShrink: 1,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1382,6 +1432,8 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   noteEditor: {
+    flex: 1,
+    minHeight: 0,
     marginBottom: 16,
   },
   modalButtons: {

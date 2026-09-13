@@ -9,24 +9,916 @@ import Foundation
 import UserNotifications
 import React
 import WidgetKit
+import WatchConnectivity
+
+let kakehashiAppGroupIdentifier = "group.com.kakehashi.reviewdata"
+let kakehashiReviewDataKey = "waniKaniReviewData"
+let kakehashiHomeWidgetKind = "KakehashiHomeWidget"
+let kakehashiStoredAPITokenKey = "wanikani_api_token"
+let kakehashiVacationModeKey = "wanikani_is_on_vacation"
+let kakehashiVacationStartedAtKey = "wanikani_vacation_started_at"
+let kakehashiReviewNotificationCategoryIdentifier = "REVIEW_CATEGORY"
+let kakehashiReviewNotificationThreadIdentifier = "kakehashi-reviews"
+let kakehashiReviewNotificationMarkerKey = "kakehashiReviewNotification"
+let kakehashiReviewAlertMarkerKey = "kakehashiReviewAlert"
+
+struct KakehashiNativeAuthSessionSnapshot {
+  let apiToken: String
+  let generation: UInt64
+}
+
+final class KakehashiNativeAuthSession {
+  static let shared = KakehashiNativeAuthSession()
+
+  private let lock = NSLock()
+  private var apiToken: String?
+  private var generation: UInt64 = 0
+  private var didLoadStoredToken = false
+
+  private init() {}
+
+  private func normalizedToken(_ value: String?) -> String? {
+    let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return normalized?.isEmpty == false ? normalized : nil
+  }
+
+  private func loadStoredTokenIfNeeded() {
+    guard !didLoadStoredToken else {
+      return
+    }
+    apiToken = normalizedToken(
+      UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey)
+    )
+    didLoadStoredToken = true
+  }
+
+  func update(apiToken value: String?) {
+    lock.lock()
+    defer { lock.unlock() }
+    loadStoredTokenIfNeeded()
+
+    let normalized = normalizedToken(value)
+    if normalized != apiToken {
+      generation &+= 1
+      apiToken = normalized
+    }
+  }
+
+  func snapshot() -> KakehashiNativeAuthSessionSnapshot? {
+    lock.lock()
+    defer { lock.unlock() }
+    loadStoredTokenIfNeeded()
+
+    guard let apiToken else {
+      return nil
+    }
+    return KakehashiNativeAuthSessionSnapshot(
+      apiToken: apiToken,
+      generation: generation
+    )
+  }
+
+  func isCurrent(_ snapshot: KakehashiNativeAuthSessionSnapshot) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    loadStoredTokenIfNeeded()
+    return snapshot.generation == generation && snapshot.apiToken == apiToken
+  }
+}
+
+private let kakehashiLegacyReviewNotificationPrefixes = [
+  "review-",
+  "badge-update-",
+]
+
+func isKakehashiReviewNotification(_ request: UNNotificationRequest) -> Bool {
+  if request.content.categoryIdentifier == kakehashiReviewNotificationCategoryIdentifier {
+    return true
+  }
+
+  if request.content.userInfo[kakehashiReviewNotificationMarkerKey] as? Bool == true {
+    return true
+  }
+
+  return kakehashiLegacyReviewNotificationPrefixes.contains { prefix in
+    request.identifier.hasPrefix(prefix)
+  }
+}
+
+func isKakehashiReviewAlertNotification(_ request: UNNotificationRequest) -> Bool {
+  if let isAlert = request.content.userInfo[
+    kakehashiReviewAlertMarkerKey
+  ] as? Bool {
+    return isAlert
+  }
+
+  if request.content.categoryIdentifier == kakehashiReviewNotificationCategoryIdentifier {
+    return true
+  }
+
+  let hasVisibleContent =
+    !request.content.title.isEmpty ||
+    !request.content.body.isEmpty ||
+    request.content.sound != nil
+
+  if request.content.userInfo[kakehashiReviewNotificationMarkerKey] as? Bool == true {
+    return hasVisibleContent
+  }
+
+  // Older native schedules used both review-* and badge-update-* for visible
+  // alerts, so visible content distinguishes them from silent badge updates.
+  return kakehashiLegacyReviewNotificationPrefixes.contains { prefix in
+    request.identifier.hasPrefix(prefix)
+  } && hasVisibleContent
+}
+
+private func kakehashiReviewNotificationInteger(_ value: Any?) -> Int? {
+  if let value = value as? Int {
+    return value
+  }
+
+  return (value as? NSNumber)?.intValue
+}
+
+private func preservedKakehashiReviewTrigger(
+  _ trigger: UNNotificationTrigger?
+) -> UNNotificationTrigger? {
+  guard let trigger else {
+    return nil
+  }
+
+  guard let intervalTrigger = trigger as? UNTimeIntervalNotificationTrigger,
+        !intervalTrigger.repeats else {
+    return trigger
+  }
+
+  guard let nextTriggerDate = intervalTrigger.nextTriggerDate() else {
+    return nil
+  }
+
+  let remainingInterval = nextTriggerDate.timeIntervalSinceNow
+  guard remainingInterval > 1 else {
+    return nil
+  }
+
+  return UNTimeIntervalNotificationTrigger(
+    timeInterval: remainingInterval,
+    repeats: false
+  )
+}
+
+private func transformedKakehashiReviewRequest(
+  _ request: UNNotificationRequest,
+  showAlert: Bool,
+  updateBadge: Bool,
+  playSound: Bool
+) -> UNNotificationRequest? {
+  guard let content = request.content.mutableCopy() as? UNMutableNotificationContent else {
+    return nil
+  }
+  guard let trigger = preservedKakehashiReviewTrigger(request.trigger) else {
+    return nil
+  }
+
+  var userInfo = content.userInfo
+  let reviewCount = kakehashiReviewNotificationInteger(
+    userInfo["reviewCount"]
+  ) ?? content.badge?.intValue
+  let newReviews = kakehashiReviewNotificationInteger(
+    userInfo["newReviews"]
+  )
+  let hasVisibleContent =
+    !content.title.isEmpty ||
+    !content.body.isEmpty ||
+    content.sound != nil
+  let canShowAlert = showAlert && (hasVisibleContent || reviewCount != nil)
+
+  if canShowAlert {
+    if content.title.isEmpty {
+      if let newReviews {
+        let newlyAvailable = max(0, newReviews)
+        content.title = "\(newlyAvailable) new review\(newlyAvailable == 1 ? "" : "s") available"
+      } else {
+        content.title = "Reviews available"
+      }
+    }
+    if content.body.isEmpty, let reviewCount {
+      content.body = "You have \(reviewCount) review\(reviewCount == 1 ? "" : "s") waiting"
+    }
+    content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+    content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
+    content.sound = playSound ? UNNotificationSound.default : nil
+  } else {
+    content.title = ""
+    content.subtitle = ""
+    content.body = ""
+    content.categoryIdentifier = ""
+    content.threadIdentifier = ""
+    content.sound = nil
+  }
+
+  if updateBadge {
+    if let reviewCount {
+      content.badge = NSNumber(value: max(0, reviewCount))
+    }
+  } else {
+    content.badge = nil
+  }
+
+  let willUpdateBadge = updateBadge && content.badge != nil
+  guard canShowAlert || willUpdateBadge else {
+    return nil
+  }
+
+  userInfo[kakehashiReviewNotificationMarkerKey] = true
+  userInfo[kakehashiReviewAlertMarkerKey] = canShowAlert
+  content.userInfo = userInfo
+
+  return UNNotificationRequest(
+    identifier: request.identifier,
+    content: content,
+    trigger: trigger
+  )
+}
+
+func removeDeliveredKakehashiReviewNotifications(
+  from center: UNUserNotificationCenter = UNUserNotificationCenter.current()
+) {
+  center.getDeliveredNotifications { notifications in
+    let identifiers = notifications
+      .map(\.request)
+      .filter(isKakehashiReviewNotification)
+      .map(\.identifier)
+
+    guard !identifiers.isEmpty else {
+      return
+    }
+
+    center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    print("🗑️ Removed \(identifiers.count) delivered review notifications")
+  }
+}
+
+private let waniKaniAPIBaseURL = "https://api.wanikani.com/v2"
+private let waniKaniAPIRevision = "20170710"
+
+func makeKakehashiReviewPayload(
+  currentReviews: Int,
+  upcomingReviews: [Int],
+  upcomingReviewTimes: [String: Int]?,
+  lastUpdated: TimeInterval = Date().timeIntervalSince1970,
+  isOnVacation: Bool = false,
+  vacationStartedAt: String? = nil
+) -> [String: Any] {
+  let normalizedUpcomingReviews = upcomingReviews.map { max(0, $0) }
+  let effectiveUpcomingReviews = isOnVacation
+    ? Array(repeating: 0, count: max(normalizedUpcomingReviews.count, 24))
+    : normalizedUpcomingReviews
+  let effectiveUpcomingReviewTimes: [String: Int] = isOnVacation ? [:] : (upcomingReviewTimes ?? [:])
+
+  var payload: [String: Any] = [
+    "kind": "reviewSnapshot",
+    "currentReviews": isOnVacation ? 0 : max(0, currentReviews),
+    "upcomingReviews": effectiveUpcomingReviews,
+    "upcomingReviewTimes": effectiveUpcomingReviewTimes,
+    "lastUpdated": lastUpdated,
+    "isOnVacation": isOnVacation,
+  ]
+
+  if let vacationStartedAt {
+    payload["vacationStartedAt"] = vacationStartedAt
+  }
+
+  return payload
+}
+
+@discardableResult
+func saveKakehashiReviewSnapshot(
+  currentReviews: Int,
+  upcomingReviews: [Int],
+  upcomingReviewTimes: [String: Int]?,
+  isOnVacation: Bool = false,
+  vacationStartedAt: String? = nil,
+  logPrefix: String = "Kakehashi"
+) -> Bool {
+  let payload = makeKakehashiReviewPayload(
+    currentReviews: currentReviews,
+    upcomingReviews: upcomingReviews,
+    upcomingReviewTimes: upcomingReviewTimes,
+    isOnVacation: isOnVacation,
+    vacationStartedAt: vacationStartedAt
+  )
+
+  KakehashiWatchBridge.shared.update(with: payload)
+
+  guard let sharedDefaults = UserDefaults(suiteName: kakehashiAppGroupIdentifier) else {
+    print("❌ \(logPrefix): Failed to access App Group UserDefaults")
+    return false
+  }
+
+  sharedDefaults.set(payload, forKey: kakehashiReviewDataKey)
+  let syncSuccess = sharedDefaults.synchronize()
+  print("✅ \(logPrefix): Saved review data - \(currentReviews) reviews (sync: \(syncSuccess))")
+  return syncSuccess
+}
+
+final class KakehashiWatchBridge: NSObject {
+  static let shared = KakehashiWatchBridge()
+
+  private let payloadQueue = DispatchQueue(label: "com.kakehashi.watch.payload")
+  private var cachedPayload: [String: Any] = [:]
+  private var didConfigureSession = false
+
+  private override init() {
+    super.init()
+  }
+
+  func activate() {
+    _ = configureSession()
+    if let payload = latestPayload(), !payload.isEmpty {
+      update(with: payload)
+    }
+  }
+
+  func update(with payload: [String: Any]) {
+    payloadQueue.async {
+      self.cachedPayload = payload
+    }
+
+    guard let session = configureSession() else {
+      return
+    }
+
+    guard session.activationState == .activated else {
+      return
+    }
+
+    #if os(iOS)
+    guard session.isPaired && session.isWatchAppInstalled else {
+      return
+    }
+    #endif
+
+    do {
+      try session.updateApplicationContext(payload)
+    } catch {
+      print("⚠️ KakehashiWatchBridge: Unable to update watch context: \(error.localizedDescription)")
+    }
+
+    if session.isReachable {
+      session.sendMessage(payload, replyHandler: nil) { error in
+        print("⚠️ KakehashiWatchBridge: Unable to send live watch message: \(error.localizedDescription)")
+      }
+    }
+  }
+
+  private func configureSession() -> WCSession? {
+    guard WCSession.isSupported() else {
+      return nil
+    }
+
+    let session = WCSession.default
+    if !didConfigureSession {
+      didConfigureSession = true
+      session.delegate = self
+      session.activate()
+    }
+
+    return session
+  }
+
+  private func latestPayload() -> [String: Any]? {
+    let memoryPayload = payloadQueue.sync { cachedPayload }
+    if !memoryPayload.isEmpty {
+      return memoryPayload
+    }
+
+    return UserDefaults(suiteName: kakehashiAppGroupIdentifier)?
+      .dictionary(forKey: kakehashiReviewDataKey)
+  }
+
+  private func markSubmittedReviewInPayload() {
+    guard let payload = latestPayload() else {
+      return
+    }
+
+    let currentReviews = max(0, (payload["currentReviews"] as? Int ?? 0) - 1)
+    let upcomingReviews = payload["upcomingReviews"] as? [Int] ?? Array(repeating: 0, count: 24)
+    let upcomingReviewTimes = payload["upcomingReviewTimes"] as? [String: Int]
+    let isOnVacation = payload["isOnVacation"] as? Bool ?? false
+    let vacationStartedAt = payload["vacationStartedAt"] as? String
+
+    _ = saveKakehashiReviewSnapshot(
+      currentReviews: currentReviews,
+      upcomingReviews: upcomingReviews,
+      upcomingReviewTimes: upcomingReviewTimes,
+      isOnVacation: isOnVacation,
+      vacationStartedAt: vacationStartedAt,
+      logPrefix: "KakehashiWatchBridge"
+    )
+  }
+}
+
+private enum KakehashiWatchReviewAPI {
+  private struct WatchAssignment {
+    let assignmentId: Int
+    let subjectId: Int
+    let srsStage: Int
+    let availableAt: String?
+  }
+
+  static func loadReviewSession(limit: Int, completion: @escaping ([String: Any]) -> Void) {
+    guard let apiToken = UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey),
+          !apiToken.isEmpty else {
+      completion([
+        "kind": "reviewSession",
+        "cards": [],
+        "error": "Open Kakehashi on iPhone once so the watch can sync your account.",
+      ])
+      return
+    }
+
+    if UserDefaults.standard.bool(forKey: kakehashiVacationModeKey) {
+      completion([
+        "kind": "reviewSession",
+        "cards": [],
+        "isOnVacation": true,
+        "error": "Vacation mode is on.",
+      ])
+      return
+    }
+
+    fetchAvailableAssignments(apiToken: apiToken) { assignmentResult in
+      switch assignmentResult {
+      case .success(let assignments):
+        let boundedLimit = min(max(limit, 1), 20)
+        let limitedAssignments = Array(assignments.prefix(boundedLimit))
+        let subjectIds = Array(Set(limitedAssignments.map { $0.subjectId }))
+
+        guard !limitedAssignments.isEmpty, !subjectIds.isEmpty else {
+          completion([
+            "kind": "reviewSession",
+            "cards": [],
+          ])
+          return
+        }
+
+        fetchSubjects(apiToken: apiToken, subjectIds: subjectIds) { subjectResult in
+          switch subjectResult {
+          case .success(let subjects):
+            completion([
+              "kind": "reviewSession",
+              "cards": buildCards(assignments: limitedAssignments, subjects: subjects),
+            ])
+          case .failure(let error):
+            completion(reviewSessionError(error.localizedDescription))
+          }
+        }
+
+      case .failure(let error):
+        completion(reviewSessionError(error.localizedDescription))
+      }
+    }
+  }
+
+  static func submitReview(
+    assignmentId: Int,
+    meaningIncorrect: Int,
+    readingIncorrect: Int,
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    guard let apiToken = UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey),
+          !apiToken.isEmpty else {
+      completion([
+        "kind": "reviewSubmission",
+        "success": false,
+        "error": "Open Kakehashi on iPhone once so the watch can sync your account.",
+      ])
+      return
+    }
+
+    guard let url = URL(string: "\(waniKaniAPIBaseURL)/reviews") else {
+      completion(reviewSubmissionError("Could not build the review submission URL."))
+      return
+    }
+
+    var request = authorizedRequest(url: url, apiToken: apiToken)
+    request.httpMethod = "POST"
+    request.httpBody = try? JSONSerialization.data(withJSONObject: [
+      "review": [
+        "assignment_id": assignmentId,
+        "incorrect_meaning_answers": max(0, meaningIncorrect),
+        "incorrect_reading_answers": max(0, readingIncorrect),
+      ],
+    ])
+
+    URLSession.shared.dataTask(with: request) { data, response, error in
+      if let error {
+        completion(reviewSubmissionError(error.localizedDescription))
+        return
+      }
+
+      guard let httpResponse = response as? HTTPURLResponse else {
+        completion(reviewSubmissionError("WaniKani did not return an HTTP response."))
+        return
+      }
+
+      guard (200..<300).contains(httpResponse.statusCode) else {
+        completion(reviewSubmissionError(apiErrorMessage(from: data) ?? "WaniKani returned HTTP \(httpResponse.statusCode)."))
+        return
+      }
+
+      completion([
+        "kind": "reviewSubmission",
+        "success": true,
+        "assignmentId": assignmentId,
+      ])
+    }.resume()
+  }
+
+  private static func fetchAvailableAssignments(
+    apiToken: String,
+    completion: @escaping (Result<[WatchAssignment], Error>) -> Void
+  ) {
+    guard var components = URLComponents(string: "\(waniKaniAPIBaseURL)/assignments") else {
+      completion(.failure(apiError("Could not build the assignments URL.")))
+      return
+    }
+
+    components.queryItems = [
+      URLQueryItem(name: "immediately_available_for_review", value: "true"),
+      URLQueryItem(name: "hidden", value: "false"),
+    ]
+
+    guard let url = components.url else {
+      completion(.failure(apiError("Could not build the assignments URL.")))
+      return
+    }
+
+    performJSONRequest(url: url, apiToken: apiToken) { result in
+      switch result {
+      case .success(let json):
+        let rawAssignments = json["data"] as? [[String: Any]] ?? []
+        let now = Date()
+        let assignments = rawAssignments.compactMap(parseAssignment)
+          .filter { assignment in
+            guard let availableAt = assignment.availableAt,
+                  let date = parseISODate(availableAt) else {
+              return true
+            }
+
+            return date <= now
+          }
+          .sorted { first, second in
+            first.srsStage == second.srsStage
+              ? first.assignmentId < second.assignmentId
+              : first.srsStage < second.srsStage
+          }
+
+        completion(.success(assignments))
+
+      case .failure(let error):
+        completion(.failure(error))
+      }
+    }
+  }
+
+  private static func fetchSubjects(
+    apiToken: String,
+    subjectIds: [Int],
+    completion: @escaping (Result<[[String: Any]], Error>) -> Void
+  ) {
+    guard var components = URLComponents(string: "\(waniKaniAPIBaseURL)/subjects") else {
+      completion(.failure(apiError("Could not build the subjects URL.")))
+      return
+    }
+
+    components.queryItems = [
+      URLQueryItem(name: "ids", value: subjectIds.sorted().map(String.init).joined(separator: ",")),
+    ]
+
+    guard let url = components.url else {
+      completion(.failure(apiError("Could not build the subjects URL.")))
+      return
+    }
+
+    performJSONRequest(url: url, apiToken: apiToken) { result in
+      switch result {
+      case .success(let json):
+        completion(.success(json["data"] as? [[String: Any]] ?? []))
+      case .failure(let error):
+        completion(.failure(error))
+      }
+    }
+  }
+
+  private static func performJSONRequest(
+    url: URL,
+    apiToken: String,
+    completion: @escaping (Result<[String: Any], Error>) -> Void
+  ) {
+    let request = authorizedRequest(url: url, apiToken: apiToken)
+
+    URLSession.shared.dataTask(with: request) { data, response, error in
+      if let error {
+        completion(.failure(error))
+        return
+      }
+
+      guard let httpResponse = response as? HTTPURLResponse else {
+        completion(.failure(apiError("WaniKani did not return an HTTP response.")))
+        return
+      }
+
+      guard (200..<300).contains(httpResponse.statusCode) else {
+        completion(.failure(apiError(apiErrorMessage(from: data) ?? "WaniKani returned HTTP \(httpResponse.statusCode).")))
+        return
+      }
+
+      guard let data else {
+        completion(.failure(apiError("WaniKani returned an empty response.")))
+        return
+      }
+
+      do {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+          completion(.failure(apiError("WaniKani returned an unexpected response.")))
+          return
+        }
+
+        completion(.success(json))
+      } catch {
+        completion(.failure(error))
+      }
+    }.resume()
+  }
+
+  private static func authorizedRequest(url: URL, apiToken: String) -> URLRequest {
+    var request = URLRequest(url: url)
+    request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue(waniKaniAPIRevision, forHTTPHeaderField: "Wanikani-Revision")
+    request.setValue("Kakehashi-Watch", forHTTPHeaderField: "User-Agent")
+    return request
+  }
+
+  private static func parseAssignment(_ rawAssignment: [String: Any]) -> WatchAssignment? {
+    guard let assignmentId = intValue(rawAssignment["id"]),
+          let assignmentData = rawAssignment["data"] as? [String: Any],
+          let subjectId = intValue(assignmentData["subject_id"]) else {
+      return nil
+    }
+
+    let hidden = assignmentData["hidden"] as? Bool ?? false
+    let srsStage = intValue(assignmentData["srs_stage"]) ?? 0
+    guard !hidden, srsStage < 9 else {
+      return nil
+    }
+
+    return WatchAssignment(
+      assignmentId: assignmentId,
+      subjectId: subjectId,
+      srsStage: srsStage,
+      availableAt: assignmentData["available_at"] as? String
+    )
+  }
+
+  private static func buildCards(
+    assignments: [WatchAssignment],
+    subjects: [[String: Any]]
+  ) -> [[String: Any]] {
+    let subjectsById = Dictionary(
+      uniqueKeysWithValues: subjects.compactMap { subject -> (Int, [String: Any])? in
+        guard let subjectId = intValue(subject["id"]) else {
+          return nil
+        }
+
+        return (subjectId, subject)
+      }
+    )
+
+    return assignments.compactMap { assignment in
+      guard let subject = subjectsById[assignment.subjectId],
+            let subjectData = subject["data"] as? [String: Any] else {
+        return nil
+      }
+
+      let subjectType = subject["object"] as? String ?? "vocabulary"
+      let meanings = answerStrings(from: subjectData["meanings"], field: "meaning")
+      let allReadings = answerStrings(from: subjectData["readings"], field: "reading")
+      let hasReading = subjectType != "radical" && subjectType != "kana_vocabulary" && !allReadings.isEmpty
+      let displayCharacters = (subjectData["characters"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+      let characters: String
+      if let displayCharacters, !displayCharacters.isEmpty {
+        characters = displayCharacters
+      } else {
+        characters = meanings.first ?? "Review"
+      }
+
+      return [
+        "id": "\(assignment.assignmentId)",
+        "assignmentId": assignment.assignmentId,
+        "subjectId": assignment.subjectId,
+        "subjectType": subjectType,
+        "characters": characters,
+        "meanings": meanings,
+        "readings": hasReading ? allReadings : [],
+        "hasReading": hasReading,
+        "srsStage": assignment.srsStage,
+        "availableAt": assignment.availableAt ?? "",
+      ]
+    }
+  }
+
+  private static func answerStrings(from value: Any?, field: String) -> [String] {
+    guard let answers = value as? [[String: Any]] else {
+      return []
+    }
+
+    let sortedAnswers = answers.sorted { first, second in
+      let firstPrimary = first["primary"] as? Bool ?? false
+      let secondPrimary = second["primary"] as? Bool ?? false
+      if firstPrimary != secondPrimary {
+        return firstPrimary
+      }
+
+      let firstAccepted = first["accepted_answer"] as? Bool ?? true
+      let secondAccepted = second["accepted_answer"] as? Bool ?? true
+      if firstAccepted != secondAccepted {
+        return firstAccepted
+      }
+
+      return (first[field] as? String ?? "") < (second[field] as? String ?? "")
+    }
+
+    let acceptedAnswers = sortedAnswers.filter { $0["accepted_answer"] as? Bool ?? true }
+    let candidates = acceptedAnswers.isEmpty ? sortedAnswers : acceptedAnswers
+
+    return candidates.compactMap { answer in
+      guard let value = answer[field] as? String else {
+        return nil
+      }
+
+      let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? nil : trimmed
+    }
+  }
+
+  private static func intValue(_ value: Any?) -> Int? {
+    if let value = value as? Int {
+      return value
+    }
+
+    if let value = value as? NSNumber {
+      return value.intValue
+    }
+
+    if let value = value as? String {
+      return Int(value)
+    }
+
+    return nil
+  }
+
+  private static func parseISODate(_ string: String) -> Date? {
+    let fractionalFormatter = ISO8601DateFormatter()
+    fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = fractionalFormatter.date(from: string) {
+      return date
+    }
+
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: string)
+  }
+
+  private static func apiErrorMessage(from data: Data?) -> String? {
+    guard let data, !data.isEmpty else {
+      return nil
+    }
+
+    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+      return json["error"] as? String ??
+        json["message"] as? String ??
+        (json["error"] as? [String: Any])?["message"] as? String
+    }
+
+    return String(data: data, encoding: .utf8)
+  }
+
+  private static func apiError(_ message: String) -> NSError {
+    NSError(domain: "KakehashiWatchReviewAPI", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+  }
+
+  private static func reviewSessionError(_ message: String) -> [String: Any] {
+    [
+      "kind": "reviewSession",
+      "cards": [],
+      "error": message,
+    ]
+  }
+
+  private static func reviewSubmissionError(_ message: String) -> [String: Any] {
+    [
+      "kind": "reviewSubmission",
+      "success": false,
+      "error": message,
+    ]
+  }
+}
+
+extension KakehashiWatchBridge: WCSessionDelegate {
+  func session(
+    _ session: WCSession,
+    activationDidCompleteWith activationState: WCSessionActivationState,
+    error: Error?
+  ) {
+    if let error {
+      print("⚠️ KakehashiWatchBridge: Activation failed: \(error.localizedDescription)")
+      return
+    }
+
+    if activationState == .activated, let payload = latestPayload(), !payload.isEmpty {
+      update(with: payload)
+    }
+  }
+
+  func sessionDidBecomeInactive(_ session: WCSession) {}
+
+  func sessionDidDeactivate(_ session: WCSession) {
+    session.activate()
+  }
+
+  func session(
+    _ session: WCSession,
+    didReceiveMessage message: [String: Any],
+    replyHandler: @escaping ([String: Any]) -> Void
+  ) {
+    guard let command = message["command"] as? String else {
+      replyHandler([:])
+      return
+    }
+
+    switch command {
+    case "requestReviewData":
+      replyHandler(
+        latestPayload() ??
+          makeKakehashiReviewPayload(
+            currentReviews: 0,
+            upcomingReviews: Array(repeating: 0, count: 24),
+            upcomingReviewTimes: nil,
+            lastUpdated: 0
+          )
+      )
+
+    case "requestReviewSession":
+      let limit = (message["limit"] as? Int) ?? (message["limit"] as? NSNumber)?.intValue ?? 10
+      KakehashiWatchReviewAPI.loadReviewSession(limit: limit, completion: replyHandler)
+
+    case "submitWatchReview":
+      guard let assignmentId = (message["assignmentId"] as? Int) ?? (message["assignmentId"] as? NSNumber)?.intValue else {
+        replyHandler([
+          "kind": "reviewSubmission",
+          "success": false,
+          "error": "Missing review assignment.",
+        ])
+        return
+      }
+
+      KakehashiWatchReviewAPI.submitReview(
+        assignmentId: assignmentId,
+        meaningIncorrect: (message["meaningIncorrect"] as? Int) ?? (message["meaningIncorrect"] as? NSNumber)?.intValue ?? 0,
+        readingIncorrect: (message["readingIncorrect"] as? Int) ?? (message["readingIncorrect"] as? NSNumber)?.intValue ?? 0
+      ) { [weak self] reply in
+        if reply["success"] as? Bool == true {
+          self?.markSubmittedReviewInPayload()
+        }
+
+        replyHandler(reply)
+      }
+
+    default:
+      replyHandler([:])
+    }
+  }
+}
 
 // Simple widget data storage for notifications
-private func saveWidgetData(currentReviews: Int, upcomingReviews: [Int], upcomingReviewTimes: [String: Int]?) {
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
-        print("❌ Failed to access App Group UserDefaults")
-        return
-    }
-    
-    let data: [String: Any] = [
-        "currentReviews": currentReviews,
-        "upcomingReviews": upcomingReviews,
-        "upcomingReviewTimes": upcomingReviewTimes ?? [:],
-        "lastUpdated": Date().timeIntervalSince1970
-    ]
-    
-    sharedDefaults.set(data, forKey: "waniKaniReviewData")
-    sharedDefaults.synchronize()
-    print("✅ Saved review data to App Group: \(currentReviews) reviews")
+private func saveWidgetData(
+  currentReviews: Int,
+  upcomingReviews: [Int],
+  upcomingReviewTimes: [String: Int]?,
+  isOnVacation: Bool = false,
+  vacationStartedAt: String? = nil
+) {
+    _ = saveKakehashiReviewSnapshot(
+      currentReviews: currentReviews,
+      upcomingReviews: upcomingReviews,
+      upcomingReviewTimes: upcomingReviewTimes,
+      isOnVacation: isOnVacation,
+      vacationStartedAt: vacationStartedAt,
+      logPrefix: "ReviewNotificationManager"
+    )
 }
 
 @objc(ReviewNotificationManager)
@@ -44,6 +936,139 @@ class ReviewNotificationManager: NSObject {
       self.processReviewData(reviewData, resolve: resolve, reject: reject)
     }
   }
+
+  @objc func clearReviewAlerts(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter _: @escaping RCTPromiseRejectBlock
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getPendingNotificationRequests { pendingRequests in
+      let pendingIdentifiers = pendingRequests
+        .filter(isKakehashiReviewAlertNotification)
+        .map(\.identifier)
+      center.removePendingNotificationRequests(
+        withIdentifiers: pendingIdentifiers
+      )
+
+      center.getDeliveredNotifications { deliveredNotifications in
+        let deliveredIdentifiers = deliveredNotifications
+          .map(\.request)
+          .filter(isKakehashiReviewAlertNotification)
+          .map(\.identifier)
+        center.removeDeliveredNotifications(
+          withIdentifiers: deliveredIdentifiers
+        )
+
+        DispatchQueue.main.async {
+          resolve([
+            "success": true,
+            "pendingRemoved": pendingIdentifiers.count,
+            "deliveredRemoved": deliveredIdentifiers.count,
+          ])
+        }
+      }
+    }
+  }
+
+  @objc func applyReviewNotificationSettings(
+    _ notificationSettings: [String: Any],
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter _: @escaping RCTPromiseRejectBlock
+  ) {
+    let defaults = UserDefaults.standard
+    if let badgeEnabled = notificationSettings["badgeEnabled"] as? Bool {
+      defaults.set(badgeEnabled, forKey: "badge_notifications_enabled")
+    }
+    if let alertsEnabled = notificationSettings["alertsEnabled"] as? Bool {
+      defaults.set(alertsEnabled, forKey: "review_notifications_enabled")
+    }
+    if let soundsEnabled = notificationSettings["soundsEnabled"] as? Bool {
+      defaults.set(soundsEnabled, forKey: "notification_sounds_enabled")
+    }
+
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationSettings { systemSettings in
+      center.getPendingNotificationRequests { pendingRequests in
+        // Read the persisted values here so overlapping setting changes always
+        // converge on the most recent preferences.
+        let badgeEnabled = defaults.object(
+          forKey: "badge_notifications_enabled"
+        ) as? Bool ?? true
+        let alertsEnabled = defaults.object(
+          forKey: "review_notifications_enabled"
+        ) as? Bool ?? false
+        let soundsEnabled = defaults.object(
+          forKey: "notification_sounds_enabled"
+        ) as? Bool ?? true
+        let shouldShowAlert =
+          alertsEnabled && systemSettings.alertSetting == .enabled
+        let shouldUpdateBadge =
+          badgeEnabled && systemSettings.badgeSetting == .enabled
+        let shouldPlaySound =
+          shouldShowAlert &&
+          soundsEnabled &&
+          systemSettings.soundSetting == .enabled
+
+        var identifiersToRemove: [String] = []
+        var replacementRequests: [UNNotificationRequest] = []
+
+        for request in pendingRequests where isKakehashiReviewNotification(request) {
+          // Immediate Expo availability notifications are handled by the Expo
+          // cleanup path. Re-adding a nil-trigger request would deliver it again.
+          guard request.trigger != nil else {
+            if !shouldShowAlert {
+              identifiersToRemove.append(request.identifier)
+            }
+            continue
+          }
+
+          if let replacement = transformedKakehashiReviewRequest(
+            request,
+            showAlert: shouldShowAlert,
+            updateBadge: shouldUpdateBadge,
+            playSound: shouldPlaySound
+          ) {
+            replacementRequests.append(replacement)
+          } else {
+            identifiersToRemove.append(request.identifier)
+          }
+        }
+
+        if !identifiersToRemove.isEmpty {
+          center.removePendingNotificationRequests(
+            withIdentifiers: identifiersToRemove
+          )
+        }
+
+        let updateGroup = DispatchGroup()
+        let resultQueue = DispatchQueue(
+          label: "com.kakehashi.review-notification-settings-result"
+        )
+        var updateFailures = 0
+
+        for request in replacementRequests {
+          updateGroup.enter()
+          center.add(request) { error in
+            if error != nil {
+              resultQueue.sync {
+                updateFailures += 1
+              }
+            }
+            updateGroup.leave()
+          }
+        }
+
+        updateGroup.notify(queue: .main) {
+          resolve([
+            "success": updateFailures == 0,
+            "pendingUpdated": replacementRequests.count - updateFailures,
+            "pendingRemoved": identifiersToRemove.count,
+            "updateFailures": updateFailures,
+          ])
+        }
+      }
+    }
+  }
   
   private func processReviewData(
     _ reviewData: [String: Any],
@@ -57,75 +1082,157 @@ class ReviewNotificationManager: NSObject {
       return
     }
     
-    let badgeEnabled = notificationSettings["badgeEnabled"] ?? false
-    let alertsEnabled = notificationSettings["alertsEnabled"] ?? false
-    let soundsEnabled = notificationSettings["soundsEnabled"] ?? false
-    let upcomingReviewTimes = reviewData["upcomingReviewTimes"] as? [String: Int]
-    
-    UNUserNotificationCenter.current().getNotificationSettings { settings in
-      DispatchQueue.main.async {
-        // Update badge count
-        if settings.badgeSetting == .enabled && badgeEnabled {
-          UIApplication.shared.applicationIconBadgeNumber = currentReviews
-        } else {
-          UIApplication.shared.applicationIconBadgeNumber = 0
-        }
+	    let badgeEnabled = notificationSettings["badgeEnabled"] ?? false
+	    let alertsEnabled = notificationSettings["alertsEnabled"] ?? false
+	    let soundsEnabled = notificationSettings["soundsEnabled"] ?? false
+	    let widgetBackgroundRefreshEnabled = notificationSettings["widgetBackgroundRefreshEnabled"] ?? true
+	    let upcomingReviewTimes = reviewData["upcomingReviewTimes"] as? [String: Int]
+	    let isOnVacation = reviewData["isOnVacation"] as? Bool ?? false
+	    let vacationStartedAt = reviewData["vacationStartedAt"] as? String
+	    let effectiveCurrentReviews = isOnVacation ? 0 : currentReviews
+	    let effectiveUpcomingReviews = isOnVacation
+	      ? Array(repeating: 0, count: max(upcomingReviews.count, 24))
+	      : upcomingReviews
+	    let effectiveUpcomingReviewTimes: [String: Int]? = isOnVacation ? [:] : upcomingReviewTimes
+    let defaults = UserDefaults.standard
+    let authSessionSnapshot = KakehashiNativeAuthSession.shared.snapshot()
 
-        // Clear existing review notifications first, then schedule new ones
-        // This prevents race conditions where old notifications fire alongside new ones
-        UNUserNotificationCenter.current().getPendingNotificationRequests { existingRequests in
-          let reviewNotificationIds = existingRequests
-            .filter {
-              $0.identifier.hasPrefix("review-") ||
-              $0.identifier.hasPrefix("badge-update-")
-            }
+    // The bridge normally patches these defaults before invoking this method.
+    // Seed only missing keys so an older in-flight payload cannot overwrite a
+    // setting the user changed after the request started.
+    if defaults.object(forKey: "badge_notifications_enabled") == nil {
+      defaults.set(badgeEnabled, forKey: "badge_notifications_enabled")
+    }
+    if defaults.object(forKey: "review_notifications_enabled") == nil {
+      defaults.set(alertsEnabled, forKey: "review_notifications_enabled")
+    }
+    if defaults.object(forKey: "notification_sounds_enabled") == nil {
+      defaults.set(soundsEnabled, forKey: "notification_sounds_enabled")
+    }
+    if defaults.object(forKey: "widget_background_refresh_enabled") == nil {
+      defaults.set(
+        widgetBackgroundRefreshEnabled,
+        forKey: "widget_background_refresh_enabled"
+      )
+    }
+
+	    defaults.set(isOnVacation, forKey: kakehashiVacationModeKey)
+	    if let vacationStartedAt {
+	      defaults.set(vacationStartedAt, forKey: kakehashiVacationStartedAtKey)
+	    } else {
+	      defaults.removeObject(forKey: kakehashiVacationStartedAtKey)
+	    }
+
+	    UNUserNotificationCenter.current().getNotificationSettings { settings in
+	      DispatchQueue.main.async {
+
+        // Replace the pending review schedule. Delivered alerts remain available
+        // until the user opens the app, and iOS groups them under one thread.
+	        UNUserNotificationCenter.current().getPendingNotificationRequests { existingRequests in
+	          guard let authSessionSnapshot,
+	                KakehashiNativeAuthSession.shared.isCurrent(authSessionSnapshot) else {
+	            resolve([
+	              "success": true,
+	              "currentReviews": 0,
+	              "badgeSet": false,
+	              "notificationsScheduled": false,
+	              "cancelledForLogout": true,
+	            ])
+	            return
+	          }
+
+	          let reviewNotificationIds = existingRequests
+            .filter(isKakehashiReviewNotification)
             .map { $0.identifier }
 
           UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: reviewNotificationIds)
           print("🗑️ Removed \(reviewNotificationIds.count) existing review/badge notifications")
 
-          // Small delay to ensure removal completes before scheduling new notifications
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            // Schedule new notifications if enabled
-            if (settings.alertSetting == .enabled && alertsEnabled) ||
-               (settings.badgeSetting == .enabled && badgeEnabled) {
+	          // Small delay to ensure removal completes before scheduling new notifications
+	          DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+	              guard KakehashiNativeAuthSession.shared.isCurrent(authSessionSnapshot) else {
+	                resolve([
+	                  "success": true,
+	                  "currentReviews": 0,
+	                  "badgeSet": false,
+	                  "notificationsScheduled": false,
+	                  "cancelledForLogout": true,
+	                ])
+	                return
+	              }
 
-              // Use exact timing if available, otherwise fall back to hourly
-              if let exactTimes = upcomingReviewTimes {
-                self.scheduleExactNotifications(
-                  currentReviews: currentReviews,
-                  upcomingReviewTimes: exactTimes,
-                  settings: settings,
-                  alertsEnabled: alertsEnabled,
-                  badgeEnabled: badgeEnabled,
-                  soundsEnabled: soundsEnabled
-                )
+	              // Re-read the native preferences at the final mutation point. A
+              // settings toggle may have completed while this refresh waited on
+              // notification-center callbacks.
+              let latestBadgeEnabled = defaults.object(
+                forKey: "badge_notifications_enabled"
+              ) as? Bool ?? badgeEnabled
+              let latestAlertsEnabled = defaults.object(
+                forKey: "review_notifications_enabled"
+              ) as? Bool ?? alertsEnabled
+              let latestSoundsEnabled = defaults.object(
+                forKey: "notification_sounds_enabled"
+              ) as? Bool ?? soundsEnabled
+              let latestWidgetBackgroundRefreshEnabled = defaults.object(
+                forKey: "widget_background_refresh_enabled"
+              ) as? Bool ?? widgetBackgroundRefreshEnabled
+              let shouldShowAlert =
+                settings.alertSetting == .enabled && latestAlertsEnabled
+              let shouldUpdateBadge =
+                settings.badgeSetting == .enabled && latestBadgeEnabled
+
+              if shouldUpdateBadge {
+                UIApplication.shared.applicationIconBadgeNumber = effectiveCurrentReviews
               } else {
-                self.scheduleUpcomingNotifications(
-                  currentReviews: currentReviews,
-                  upcomingReviews: upcomingReviews,
-                  settings: settings,
-                  alertsEnabled: alertsEnabled,
-                  badgeEnabled: badgeEnabled,
-                  soundsEnabled: soundsEnabled
+                UIApplication.shared.applicationIconBadgeNumber = 0
+              }
+
+	            // Schedule new notifications if enabled
+	            if !isOnVacation && (shouldShowAlert || shouldUpdateBadge) {
+
+	              // Use exact timing if available, otherwise fall back to hourly
+	              if let exactTimes = effectiveUpcomingReviewTimes {
+	                self.scheduleExactNotifications(
+	                  currentReviews: effectiveCurrentReviews,
+	                  upcomingReviewTimes: exactTimes,
+	                  settings: settings,
+	                  alertsEnabled: latestAlertsEnabled,
+	                  badgeEnabled: latestBadgeEnabled,
+	                  soundsEnabled: latestSoundsEnabled
+	                )
+	              } else {
+	                self.scheduleUpcomingNotifications(
+	                  currentReviews: effectiveCurrentReviews,
+	                  upcomingReviews: effectiveUpcomingReviews,
+	                  settings: settings,
+	                  alertsEnabled: latestAlertsEnabled,
+	                  badgeEnabled: latestBadgeEnabled,
+	                  soundsEnabled: latestSoundsEnabled
                 )
               }
             }
 
-            // Update widget with review data
-            saveWidgetData(
-              currentReviews: currentReviews,
-              upcomingReviews: upcomingReviews,
-              upcomingReviewTimes: upcomingReviewTimes
-            )
-            WidgetCenter.shared.reloadAllTimelines()
+	            // The shared snapshot also feeds the Apple Watch bridge, so keep
+	            // it current even when automatic Home Widget reloads are disabled.
+	            saveWidgetData(
+	              currentReviews: effectiveCurrentReviews,
+	              upcomingReviews: effectiveUpcomingReviews,
+	              upcomingReviewTimes: effectiveUpcomingReviewTimes,
+	              isOnVacation: isOnVacation,
+	              vacationStartedAt: vacationStartedAt
+	            )
 
-            resolve([
-              "success": true,
-              "currentReviews": currentReviews,
-              "badgeSet": badgeEnabled,
-              "notificationsScheduled": alertsEnabled
-            ])
+	            if latestWidgetBackgroundRefreshEnabled {
+	              WidgetCenter.shared.reloadAllTimelines()
+	            }
+
+	            resolve([
+	              "success": true,
+	              "currentReviews": effectiveCurrentReviews,
+	              "badgeSet": shouldUpdateBadge,
+	              "notificationsScheduled": !isOnVacation && shouldShowAlert,
+	              "isOnVacation": isOnVacation
+	            ])
           }
         }
       }
@@ -165,24 +1272,38 @@ class ReviewNotificationManager: NSObject {
         continue
       }
       
-      let identifier = "review-\(hour)"
+      let shouldShowAlert =
+        settings.alertSetting == .enabled &&
+        alertsEnabled
+      let shouldUpdateBadge = settings.badgeSetting == .enabled && badgeEnabled
+      guard shouldShowAlert || shouldUpdateBadge else {
+        continue
+      }
+
+      let identifier = shouldShowAlert
+        ? "review-hourly-\(hour)"
+        : "badge-update-hourly-\(hour)"
       let content = UNMutableNotificationContent()
-      
-      if settings.alertSetting == .enabled && alertsEnabled {
+
+      if shouldShowAlert {
         content.title = "\(reviews) new review\(reviews == 1 ? "" : "s") available"
         content.body = "You have \(cumulativeReviews) review\(cumulativeReviews == 1 ? "" : "s") waiting"
-        content.categoryIdentifier = "REVIEW_CATEGORY"
-        content.userInfo = [
-          "reviewCount": cumulativeReviews,
-          "newReviews": reviews
-        ]
+        content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+        content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
       }
-      
-      if settings.badgeSetting == .enabled && badgeEnabled {
+
+      content.userInfo = [
+        kakehashiReviewNotificationMarkerKey: true,
+        kakehashiReviewAlertMarkerKey: shouldShowAlert,
+        "reviewCount": cumulativeReviews,
+        "newReviews": reviews,
+      ]
+
+      if shouldUpdateBadge {
         content.badge = NSNumber(value: cumulativeReviews)
       }
-      
-      if settings.soundSetting == .enabled && soundsEnabled {
+
+      if shouldShowAlert && settings.soundSetting == .enabled && soundsEnabled {
         content.sound = UNNotificationSound.default
       }
       
@@ -263,25 +1384,39 @@ class ReviewNotificationManager: NSObject {
       print("✅ Will schedule notification for: \(availableAt) with \(reviewCount) reviews")
       cumulativeReviews += reviewCount
       
-      let identifier = "review-exact-\(timeString)"
+      let shouldShowAlert =
+        settings.alertSetting == .enabled &&
+        alertsEnabled
+      let shouldUpdateBadge = settings.badgeSetting == .enabled && badgeEnabled
+      guard shouldShowAlert || shouldUpdateBadge else {
+        continue
+      }
+
+      let identifier = shouldShowAlert
+        ? "review-exact-\(timeString)"
+        : "badge-update-exact-\(timeString)"
       let content = UNMutableNotificationContent()
-      
-      if settings.alertSetting == .enabled && alertsEnabled {
+
+      if shouldShowAlert {
         content.title = "\(reviewCount) new review\(reviewCount == 1 ? "" : "s") available"
         content.body = "You now have \(cumulativeReviews) review\(cumulativeReviews == 1 ? "" : "s") waiting"
-        content.categoryIdentifier = "REVIEW_CATEGORY"
-        content.userInfo = [
-          "reviewCount": cumulativeReviews,
-          "newReviews": reviewCount,
-          "exactTime": true
-        ]
+        content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+        content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
       }
-      
-      if settings.badgeSetting == .enabled && badgeEnabled {
+
+      content.userInfo = [
+        kakehashiReviewNotificationMarkerKey: true,
+        kakehashiReviewAlertMarkerKey: shouldShowAlert,
+        "reviewCount": cumulativeReviews,
+        "newReviews": reviewCount,
+        "exactTime": true,
+      ]
+
+      if shouldUpdateBadge {
         content.badge = NSNumber(value: cumulativeReviews)
       }
-      
-      if settings.soundSetting == .enabled && soundsEnabled {
+
+      if shouldShowAlert && settings.soundSetting == .enabled && soundsEnabled {
         content.sound = UNNotificationSound.default
       }
       
@@ -317,13 +1452,22 @@ class ReviewNotificationManager: NSObject {
     )
     
     let category = UNNotificationCategory(
-      identifier: "REVIEW_CATEGORY",
+      identifier: kakehashiReviewNotificationCategoryIdentifier,
       actions: [reviewAction],
       intentIdentifiers: [],
+      hiddenPreviewsBodyPlaceholder: "Review update",
+      categorySummaryFormat: "%u review updates",
       options: []
     )
-    
-    UNUserNotificationCenter.current().setNotificationCategories([category])
+
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationCategories { existingCategories in
+      var categories = Set(existingCategories.filter {
+        $0.identifier != kakehashiReviewNotificationCategoryIdentifier
+      })
+      categories.insert(category)
+      center.setNotificationCategories(categories)
+    }
   }
   
   @objc func requestPermissions(
@@ -353,9 +1497,6 @@ class ReviewNotificationManager: NSObject {
           return
         }
         
-        // Clear existing notifications
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
-        
         // Set badge to 99 for testing
         UIApplication.shared.applicationIconBadgeNumber = 99
         
@@ -365,8 +1506,11 @@ class ReviewNotificationManager: NSObject {
         content.body = "This is a test! You have 42 new reviews available."
         content.badge = NSNumber(value: 142) // Will change badge to 142 when notification arrives
         content.sound = UNNotificationSound.default
-        content.categoryIdentifier = "REVIEW_CATEGORY"
+        content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
+        content.threadIdentifier = kakehashiReviewNotificationThreadIdentifier
         content.userInfo = [
+          kakehashiReviewNotificationMarkerKey: true,
+          kakehashiReviewAlertMarkerKey: true,
           "reviewCount": 42,
           "isTest": true
         ]
@@ -491,27 +1635,19 @@ class ReviewNotificationManager: NSObject {
     print("📱 ReviewNotificationManager.updateWidgetData called at \(timestamp) with: currentReviews=\(currentReviews)")
     NSLog("📱 ReviewNotificationManager.updateWidgetData called at %@ with: currentReviews=%d", timestamp, currentReviews)
     
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata") else {
-      print("❌ Failed to access App Group UserDefaults")
-      return
-    }
-    
-    let data: [String: Any] = [
-      "currentReviews": currentReviews,
-      "upcomingReviews": upcomingReviews,
-      "upcomingReviewTimes": upcomingReviewTimes ?? [:],
-      "lastUpdated": Date().timeIntervalSince1970
-    ]
-    
-    sharedDefaults.set(data, forKey: "waniKaniReviewData")
-    let syncSuccess = sharedDefaults.synchronize()
+    let syncSuccess = saveKakehashiReviewSnapshot(
+      currentReviews: currentReviews,
+      upcomingReviews: upcomingReviews,
+      upcomingReviewTimes: upcomingReviewTimes,
+      logPrefix: "ReviewNotificationManager"
+    )
     print("✅ ReviewNotificationManager: Saved widget data - \(currentReviews) reviews (sync: \(syncSuccess))")
     NSLog("✅ ReviewNotificationManager: Saved widget data - %d reviews (sync: %@)", currentReviews, syncSuccess ? "success" : "failed")
     
     // Tell WidgetKit to reload widgets
     DispatchQueue.main.async {
       WidgetCenter.shared.reloadAllTimelines()
-      WidgetCenter.shared.reloadTimelines(ofKind: "WaniKaniWidget")
+      WidgetCenter.shared.reloadTimelines(ofKind: kakehashiHomeWidgetKind)
       print("🔄 ReviewNotificationManager: Widget reload requested")
       NSLog("🔄 ReviewNotificationManager: Widget reload requested")
     }
@@ -703,8 +1839,8 @@ class ReviewNotificationManager: NSObject {
     print("🧪 ReviewNotificationManager: Scheduling test widget updates")
     
     // Get current review data
-    guard let sharedDefaults = UserDefaults(suiteName: "group.com.wanikani.reviewdata"),
-          let currentData = sharedDefaults.object(forKey: "waniKaniReviewData") as? [String: Any],
+    guard let sharedDefaults = UserDefaults(suiteName: kakehashiAppGroupIdentifier),
+          let currentData = sharedDefaults.object(forKey: kakehashiReviewDataKey) as? [String: Any],
           let currentReviews = currentData["currentReviews"] as? Int else {
       // Use default values if no current data
       scheduleTestUpdatesWithCurrentReviews(0, resolve: resolve, reject: reject)

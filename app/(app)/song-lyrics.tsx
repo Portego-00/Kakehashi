@@ -30,6 +30,7 @@ import {
   TextInput,
   TouchableOpacity,
   UIManager,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, {
@@ -322,9 +323,12 @@ export default function SongLyricsScreen() {
     spotifyAuthStatus,
     songsLyricsDefaultStudyMode,
     songsLyricsLineTranslationsEnabled,
+    appTextSizeScale,
     setSongsLyricsDefaultStudyMode,
     setSongsLyricsLineTranslationsEnabled,
   } = useSettingsStore();
+  const { fontScale } = useWindowDimensions();
+  const useLargeTextLayout = appTextSizeScale > 1 || fontScale > 1;
   const userLevel = userData?.level || 0;
   const {
     songId,
@@ -622,12 +626,7 @@ export default function SongLyricsScreen() {
       lyricsQuizModeEnabled
         ? buildLyricsQuizQuestions(timedLyrics, vocabularyMatches, userLevel)
         : [],
-    [
-      lyricsQuizModeEnabled,
-      timedLyrics,
-      userLevel,
-      vocabularyMatches,
-    ],
+    [lyricsQuizModeEnabled, timedLyrics, userLevel, vocabularyMatches],
   );
   const lyricsQuizQuestionsByLine = useMemo(
     () =>
@@ -822,10 +821,7 @@ export default function SongLyricsScreen() {
           : Haptics.NotificationFeedbackType.Error,
       );
 
-      if (
-        isCorrectAnswer &&
-        lyricsQuizPausedLineIndex === question.lineIndex
-      ) {
+      if (isCorrectAnswer && lyricsQuizPausedLineIndex === question.lineIndex) {
         rearmLyricsQuizQuestions(lyricsQuizSessionKey);
         setIsPlaying(true);
       }
@@ -2244,12 +2240,7 @@ export default function SongLyricsScreen() {
         console.error("Error seeking to time:", error);
       }
     },
-    [
-      lyricsQuizSessionKey,
-      playerRef,
-      rearmLyricsQuizQuestions,
-      setCurrentTime,
-    ],
+    [lyricsQuizSessionKey, playerRef, rearmLyricsQuizQuestions, setCurrentTime],
   );
 
   const handleLyricsQuizReplay = useCallback(
@@ -2264,12 +2255,7 @@ export default function SongLyricsScreen() {
       await seekToTime(seekTimeSeconds);
       setIsPlaying(true);
     },
-    [
-      activeLyricsTimingOffsetMs,
-      seekToTime,
-      setIsPlaying,
-      timedLyrics,
-    ],
+    [activeLyricsTimingOffsetMs, seekToTime, setIsPlaying, timedLyrics],
   );
 
   const handleLyricsQuizSkip = useCallback(() => {
@@ -2279,11 +2265,7 @@ export default function SongLyricsScreen() {
 
   // Auto-scroll to current timed lyric line (only if autoscroll is enabled)
   useEffect(() => {
-    if (
-      !isTimedMode ||
-      timedLyrics.length === 0 ||
-      !isAutoscrollEnabled
-    )
+    if (!isTimedMode || timedLyrics.length === 0 || !isAutoscrollEnabled)
       return;
 
     const adjustedCurrentTimeMs =
@@ -2659,7 +2641,7 @@ export default function SongLyricsScreen() {
           const translatedLineText =
             lyricsQuizModeEnabled && quizQuestion && !isQuizQuestionComplete
               ? null
-              : timedLineTranslationsForDisplay[index] ?? null;
+              : (timedLineTranslationsForDisplay[index] ?? null);
           const seekTimeSeconds = Math.max(
             0,
             (line.startTimeMs + activeLyricsTimingOffsetMs) / 1000,
@@ -3115,7 +3097,6 @@ export default function SongLyricsScreen() {
                               : theme.textSecondary,
                           },
                         ]}
-                        numberOfLines={1}
                       >
                         {isLyricsTimingAdjustmentEnabled &&
                         lyricsTimingOffsetMs !== 0
@@ -3157,8 +3138,7 @@ export default function SongLyricsScreen() {
                       disabled={lyricsQuizModeEnabled}
                     />
                   </View>
-                  {lyricsQuizModeEnabled &&
-                  lyricsQuizQuestions.length > 0 ? (
+                  {lyricsQuizModeEnabled && lyricsQuizQuestions.length > 0 ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`${completedLyricsQuizQuestionCount} of ${lyricsQuizQuestions.length} lyric quiz answers correct`}
@@ -3408,10 +3388,7 @@ export default function SongLyricsScreen() {
             timedLyrics.length > 0 &&
             lyricsQuizQuestions.length === 0 ? (
               <View
-                style={[
-                  styles.infoMessage,
-                  { backgroundColor: theme.border },
-                ]}
+                style={[styles.infoMessage, { backgroundColor: theme.border }]}
               >
                 <View style={styles.infoMessageContent}>
                   <Ionicons
@@ -3524,489 +3501,521 @@ export default function SongLyricsScreen() {
               </TouchableOpacity>
             </View>
 
-            {!supportsNativeHeaderStudyMenu && (
-              <>
-                <View
-                  style={[
-                    styles.analysisModeRow,
-                    { borderBottomColor: theme.border },
-                  ]}
-                >
-                  <View style={styles.analysisModeInfo}>
-                    <Text
-                      style={[
-                        styles.analysisModeTitle,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      Study mode
-                    </Text>
-                    <Text
-                      style={[
-                        styles.analysisModeSubtitle,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      Choose plain lyrics, vocabulary help, JPDB analysis, or a
-                      timed fill-the-blank challenge.
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.analysisModeSelector,
-                    { borderBottomColor: theme.border },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.analysisModeSelectorButton,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor:
-                          activeStudyMode === "none"
-                            ? theme.primary
-                            : "transparent",
-                      },
-                    ]}
-                    onPress={() => selectStudyMode("none")}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.analysisModeSelectorButtonText,
-                        {
-                          color:
-                            activeStudyMode === "none"
-                              ? "#fff"
-                              : theme.textColor,
-                        },
-                      ]}
-                    >
-                      Normal
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.analysisModeSelectorButton,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor:
-                          activeStudyMode === "quiz"
-                            ? theme.primary
-                            : "transparent",
-                      },
-                    ]}
-                    onPress={() => selectStudyMode("quiz")}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.analysisModeSelectorButtonText,
-                        {
-                          color:
-                            activeStudyMode === "quiz"
-                              ? "#fff"
-                              : theme.textColor,
-                        },
-                      ]}
-                    >
-                      Quiz
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.analysisModeSelectorButton,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor:
-                          activeStudyMode === "wk"
-                            ? theme.primary
-                            : "transparent",
-                      },
-                    ]}
-                    onPress={() => selectStudyMode("wk")}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.analysisModeSelectorButtonText,
-                        {
-                          color:
-                            activeStudyMode === "wk" ? "#fff" : theme.textColor,
-                        },
-                      ]}
-                    >
-                      Vocab
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.analysisModeSelectorButton,
-                      !hasStoredJpdbApiKey &&
-                        styles.analysisModeSelectorButtonDisabled,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor:
-                          activeStudyMode === "full"
-                            ? theme.primary
-                            : "transparent",
-                      },
-                    ]}
-                    onPress={() => selectStudyMode("full")}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.analysisModeSelectorButtonText,
-                        {
-                          color:
-                            activeStudyMode === "full"
-                              ? "#fff"
-                              : theme.textColor,
-                        },
-                      ]}
-                    >
-                      Full
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View
-                  style={[
-                    styles.analysisModeRow,
-                    styles.analysisModeRowWithTopPadding,
-                    { borderBottomColor: theme.border },
-                  ]}
-                >
-                  <View style={styles.analysisModeInfo}>
-                    <Text
-                      style={[
-                        styles.analysisModeTitle,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      English line translations
-                    </Text>
-                    <Text
-                      style={[
-                        styles.analysisModeSubtitle,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      {hasStoredJpdbApiKey
-                        ? "Use JPDB machine translation and show English under each lyric line."
-                        : "Requires a saved JPDB API key in Settings"}
-                    </Text>
-                  </View>
-                  <Switch
-                    value={lineTranslationsEnabled}
-                    onValueChange={(enabled) => {
-                      if (!hasStoredJpdbApiKey) {
-                        return;
-                      }
-                      setSongsLyricsLineTranslationsEnabled(enabled);
-                    }}
-                    trackColor={{ false: "#767577", true: theme.primary }}
-                    thumbColor="#f4f3f4"
-                    disabled={!hasStoredJpdbApiKey}
-                  />
-                </View>
-              </>
-            )}
-
-            {/* Tabs */}
-            <View
-              style={[
-                styles.tabsContainer,
-                { borderBottomColor: theme.border },
-              ]}
-            >
-              {!isAppleMusicFlow && (
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeOverrideMode === "video" && styles.activeTab,
-                    activeOverrideMode === "video" && {
-                      borderBottomColor: theme.primary,
-                    },
-                  ]}
-                  onPress={() => setActiveOverrideMode("video")}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name="videocam"
-                    size={20}
-                    color={
-                      activeOverrideMode === "video"
-                        ? theme.primary
-                        : theme.textSecondary
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.tabText,
-                      {
-                        color:
-                          activeOverrideMode === "video"
-                            ? theme.primary
-                            : theme.textSecondary,
-                      },
-                    ]}
-                  >
-                    Video Source
-                  </Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  activeOverrideMode === "lyrics" && styles.activeTab,
-                  activeOverrideMode === "lyrics" && {
-                    borderBottomColor: theme.primary,
-                  },
-                ]}
-                onPress={() => setActiveOverrideMode("lyrics")}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="musical-notes"
-                  size={20}
-                  color={
-                    activeOverrideMode === "lyrics"
-                      ? theme.primary
-                      : theme.textSecondary
-                  }
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    {
-                      color:
-                        activeOverrideMode === "lyrics"
-                          ? theme.primary
-                          : theme.textSecondary,
-                    },
-                  ]}
-                >
-                  Lyrics
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Sticky Search Area for Lyrics */}
-            {activeOverrideMode === "lyrics" && (
-              <View
-                style={[
-                  styles.stickySearchArea,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderBottomColor: theme.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.overrideSectionDescription,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Search and select different synced lyrics from LRCLIB
-                </Text>
-
-                {/* Song Search Input */}
-                <View
-                  style={[
-                    styles.searchContainer,
-                    {
-                      backgroundColor: theme.backgroundColor,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="musical-note"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.textColor }]}
-                    placeholder="Song name (optional)"
-                    placeholderTextColor={theme.textSecondary}
-                    value={lyricsSearchSong}
-                    onChangeText={setLyricsSearchSong}
-                    onSubmitEditing={() =>
-                      searchLyrics(lyricsSearchSong, lyricsSearchArtist)
-                    }
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  {lyricsSearchSong.length > 0 && (
-                    <TouchableOpacity onPress={() => setLyricsSearchSong("")}>
-                      <Ionicons
-                        name="close-circle"
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Artist Search Input */}
-                <View
-                  style={[
-                    styles.searchContainer,
-                    {
-                      backgroundColor: theme.backgroundColor,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="person"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.textColor }]}
-                    placeholder="Artist name (optional)"
-                    placeholderTextColor={theme.textSecondary}
-                    value={lyricsSearchArtist}
-                    onChangeText={setLyricsSearchArtist}
-                    onSubmitEditing={() =>
-                      searchLyrics(lyricsSearchSong, lyricsSearchArtist)
-                    }
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  {lyricsSearchArtist.length > 0 && (
-                    <TouchableOpacity onPress={() => setLyricsSearchArtist("")}>
-                      <Ionicons
-                        name="close-circle"
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.searchButton,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={() =>
-                    searchLyrics(lyricsSearchSong, lyricsSearchArtist)
-                  }
-                  activeOpacity={0.7}
-                >
-                  {isSearchingLyrics ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <>
-                      <Ionicons name="search" size={18} color="white" />
-                      <Text style={styles.searchButtonText}>Search Lyrics</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Sticky Search Area for Video */}
-            {!isAppleMusicFlow && activeOverrideMode === "video" && (
-              <View
-                style={[
-                  styles.stickySearchArea,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderBottomColor: theme.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.overrideSectionDescription,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Search and select a different YouTube video
-                </Text>
-
-                {/* Search Input */}
-                <View
-                  style={[
-                    styles.searchContainer,
-                    {
-                      backgroundColor: theme.backgroundColor,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="search"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.textColor }]}
-                    placeholder={`Search for "${songTitle}" videos...`}
-                    placeholderTextColor={theme.textSecondary}
-                    value={videoSearchQuery}
-                    onChangeText={setVideoSearchQuery}
-                    onSubmitEditing={() => searchVideos(videoSearchQuery)}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  {videoSearchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setVideoSearchQuery("")}>
-                      <Ionicons
-                        name="close-circle"
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.searchButton,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={() =>
-                    searchVideos(videoSearchQuery || `${songTitle} ${artist}`)
-                  }
-                  activeOpacity={0.7}
-                >
-                  {isSearchingVideos ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <>
-                      <Ionicons name="search" size={18} color="white" />
-                      <Text style={styles.searchButtonText}>Search Videos</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
             <ScrollView
               style={styles.overrideModalScroll}
               contentContainerStyle={styles.overrideModalScrollContent}
+              stickyHeaderIndices={useLargeTextLayout ? undefined : [0]}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
             >
+              <View
+                style={[
+                  styles.overrideModalControls,
+                  { backgroundColor: theme.cardBackground },
+                ]}
+              >
+                {!supportsNativeHeaderStudyMenu && (
+                  <>
+                    <View
+                      style={[
+                        styles.analysisModeRow,
+                        { borderBottomColor: theme.border },
+                      ]}
+                    >
+                      <View style={styles.analysisModeInfo}>
+                        <Text
+                          style={[
+                            styles.analysisModeTitle,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          Study mode
+                        </Text>
+                        <Text
+                          style={[
+                            styles.analysisModeSubtitle,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Choose plain lyrics, vocabulary help, JPDB analysis,
+                          or a timed fill-the-blank challenge.
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.analysisModeSelector,
+                        useLargeTextLayout &&
+                          styles.analysisModeSelectorLargeText,
+                        { borderBottomColor: theme.border },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.analysisModeSelectorButton,
+                          useLargeTextLayout &&
+                            styles.analysisModeSelectorButtonLargeText,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor:
+                              activeStudyMode === "none"
+                                ? theme.primary
+                                : "transparent",
+                          },
+                        ]}
+                        onPress={() => selectStudyMode("none")}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.analysisModeSelectorButtonText,
+                            {
+                              color:
+                                activeStudyMode === "none"
+                                  ? "#fff"
+                                  : theme.textColor,
+                            },
+                          ]}
+                        >
+                          Normal
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.analysisModeSelectorButton,
+                          useLargeTextLayout &&
+                            styles.analysisModeSelectorButtonLargeText,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor:
+                              activeStudyMode === "quiz"
+                                ? theme.primary
+                                : "transparent",
+                          },
+                        ]}
+                        onPress={() => selectStudyMode("quiz")}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.analysisModeSelectorButtonText,
+                            {
+                              color:
+                                activeStudyMode === "quiz"
+                                  ? "#fff"
+                                  : theme.textColor,
+                            },
+                          ]}
+                        >
+                          Quiz
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.analysisModeSelectorButton,
+                          useLargeTextLayout &&
+                            styles.analysisModeSelectorButtonLargeText,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor:
+                              activeStudyMode === "wk"
+                                ? theme.primary
+                                : "transparent",
+                          },
+                        ]}
+                        onPress={() => selectStudyMode("wk")}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.analysisModeSelectorButtonText,
+                            {
+                              color:
+                                activeStudyMode === "wk"
+                                  ? "#fff"
+                                  : theme.textColor,
+                            },
+                          ]}
+                        >
+                          Vocab
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.analysisModeSelectorButton,
+                          useLargeTextLayout &&
+                            styles.analysisModeSelectorButtonLargeText,
+                          !hasStoredJpdbApiKey &&
+                            styles.analysisModeSelectorButtonDisabled,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor:
+                              activeStudyMode === "full"
+                                ? theme.primary
+                                : "transparent",
+                          },
+                        ]}
+                        onPress={() => selectStudyMode("full")}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.analysisModeSelectorButtonText,
+                            {
+                              color:
+                                activeStudyMode === "full"
+                                  ? "#fff"
+                                  : theme.textColor,
+                            },
+                          ]}
+                        >
+                          Full
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.analysisModeRow,
+                        styles.analysisModeRowWithTopPadding,
+                        { borderBottomColor: theme.border },
+                      ]}
+                    >
+                      <View style={styles.analysisModeInfo}>
+                        <Text
+                          style={[
+                            styles.analysisModeTitle,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          English line translations
+                        </Text>
+                        <Text
+                          style={[
+                            styles.analysisModeSubtitle,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          {hasStoredJpdbApiKey
+                            ? "Use JPDB machine translation and show English under each lyric line."
+                            : "Requires a saved JPDB API key in Settings"}
+                        </Text>
+                      </View>
+                      <Switch
+                        value={lineTranslationsEnabled}
+                        onValueChange={(enabled) => {
+                          if (!hasStoredJpdbApiKey) {
+                            return;
+                          }
+                          setSongsLyricsLineTranslationsEnabled(enabled);
+                        }}
+                        trackColor={{ false: "#767577", true: theme.primary }}
+                        thumbColor="#f4f3f4"
+                        disabled={!hasStoredJpdbApiKey}
+                      />
+                    </View>
+                  </>
+                )}
+
+                {/* Tabs */}
+                <View
+                  style={[
+                    styles.tabsContainer,
+                    { borderBottomColor: theme.border },
+                  ]}
+                >
+                  {!isAppleMusicFlow && (
+                    <TouchableOpacity
+                      style={[
+                        styles.tab,
+                        activeOverrideMode === "video" && styles.activeTab,
+                        activeOverrideMode === "video" && {
+                          borderBottomColor: theme.primary,
+                        },
+                      ]}
+                      onPress={() => setActiveOverrideMode("video")}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="videocam"
+                        size={20}
+                        color={
+                          activeOverrideMode === "video"
+                            ? theme.primary
+                            : theme.textSecondary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.tabText,
+                          {
+                            color:
+                              activeOverrideMode === "video"
+                                ? theme.primary
+                                : theme.textSecondary,
+                          },
+                        ]}
+                      >
+                        Video Source
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[
+                      styles.tab,
+                      activeOverrideMode === "lyrics" && styles.activeTab,
+                      activeOverrideMode === "lyrics" && {
+                        borderBottomColor: theme.primary,
+                      },
+                    ]}
+                    onPress={() => setActiveOverrideMode("lyrics")}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="musical-notes"
+                      size={20}
+                      color={
+                        activeOverrideMode === "lyrics"
+                          ? theme.primary
+                          : theme.textSecondary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.tabText,
+                        {
+                          color:
+                            activeOverrideMode === "lyrics"
+                              ? theme.primary
+                              : theme.textSecondary,
+                        },
+                      ]}
+                    >
+                      Lyrics
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Sticky Search Area for Lyrics */}
+                {activeOverrideMode === "lyrics" && (
+                  <View
+                    style={[
+                      styles.stickySearchArea,
+                      {
+                        backgroundColor: theme.cardBackground,
+                        borderBottomColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.overrideSectionDescription,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Search and select different synced lyrics from LRCLIB
+                    </Text>
+
+                    {/* Song Search Input */}
+                    <View
+                      style={[
+                        styles.searchContainer,
+                        {
+                          backgroundColor: theme.backgroundColor,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="musical-note"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                      <TextInput
+                        style={[styles.searchInput, { color: theme.textColor }]}
+                        placeholder="Song name (optional)"
+                        placeholderTextColor={theme.textSecondary}
+                        value={lyricsSearchSong}
+                        onChangeText={setLyricsSearchSong}
+                        onSubmitEditing={() =>
+                          searchLyrics(lyricsSearchSong, lyricsSearchArtist)
+                        }
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {lyricsSearchSong.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setLyricsSearchSong("")}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={theme.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Artist Search Input */}
+                    <View
+                      style={[
+                        styles.searchContainer,
+                        {
+                          backgroundColor: theme.backgroundColor,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                      <TextInput
+                        style={[styles.searchInput, { color: theme.textColor }]}
+                        placeholder="Artist name (optional)"
+                        placeholderTextColor={theme.textSecondary}
+                        value={lyricsSearchArtist}
+                        onChangeText={setLyricsSearchArtist}
+                        onSubmitEditing={() =>
+                          searchLyrics(lyricsSearchSong, lyricsSearchArtist)
+                        }
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {lyricsSearchArtist.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setLyricsSearchArtist("")}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={theme.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.searchButton,
+                        { backgroundColor: theme.primary },
+                      ]}
+                      onPress={() =>
+                        searchLyrics(lyricsSearchSong, lyricsSearchArtist)
+                      }
+                      activeOpacity={0.7}
+                    >
+                      {isSearchingLyrics ? (
+                        <ActivityIndicator color="white" />
+                      ) : (
+                        <>
+                          <Ionicons name="search" size={18} color="white" />
+                          <Text style={styles.searchButtonText}>
+                            Search Lyrics
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Sticky Search Area for Video */}
+                {!isAppleMusicFlow && activeOverrideMode === "video" && (
+                  <View
+                    style={[
+                      styles.stickySearchArea,
+                      {
+                        backgroundColor: theme.cardBackground,
+                        borderBottomColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.overrideSectionDescription,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Search and select a different YouTube video
+                    </Text>
+
+                    {/* Search Input */}
+                    <View
+                      style={[
+                        styles.searchContainer,
+                        {
+                          backgroundColor: theme.backgroundColor,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="search"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                      <TextInput
+                        style={[styles.searchInput, { color: theme.textColor }]}
+                        placeholder={`Search for "${songTitle}" videos...`}
+                        placeholderTextColor={theme.textSecondary}
+                        value={videoSearchQuery}
+                        onChangeText={setVideoSearchQuery}
+                        onSubmitEditing={() => searchVideos(videoSearchQuery)}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {videoSearchQuery.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setVideoSearchQuery("")}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={theme.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.searchButton,
+                        { backgroundColor: theme.primary },
+                      ]}
+                      onPress={() =>
+                        searchVideos(
+                          videoSearchQuery || `${songTitle} ${artist}`,
+                        )
+                      }
+                      activeOpacity={0.7}
+                    >
+                      {isSearchingVideos ? (
+                        <ActivityIndicator color="white" />
+                      ) : (
+                        <>
+                          <Ionicons name="search" size={18} color="white" />
+                          <Text style={styles.searchButtonText}>
+                            Search Videos
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
               {activeOverrideMode === "lyrics" && (
                 /* Lyrics Section */
                 <View style={styles.overrideSection}>
@@ -4285,6 +4294,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    flexWrap: "wrap",
+    rowGap: 8,
     marginBottom: 16,
   },
   lyricsTitle: {
@@ -4295,6 +4306,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
+    flexWrap: "wrap",
     gap: 8,
     flexShrink: 1,
   },
@@ -4308,10 +4320,10 @@ const styles = StyleSheet.create({
   },
   lyricsTimingToggleButton: {
     minHeight: 32,
-    maxWidth: 126,
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 9,
+    paddingVertical: 4,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -4321,6 +4333,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     flexShrink: 1,
+    textAlign: "center",
   },
   lyricsTimingControl: {
     borderTopWidth: 1,
@@ -4489,10 +4502,12 @@ const styles = StyleSheet.create({
     // Wrapper to keep chip inline in text flow
     display: "inline-flex" as any,
     position: "relative",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipWrapperWithBadge: {
-    // Extra margin for chips with level badges to prevent overlap
-    marginRight: 6,
+    marginRight: 2,
   },
   inlineChip: {
     position: "relative",
@@ -4503,6 +4518,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
     justifyContent: "center",
     alignItems: "center",
+    flexDirection: "row",
     transform: [{ translateY: 6 }], // Vertically align with text baseline
     borderWidth: 1.5,
     borderColor: "rgba(255, 255, 255, 0.4)",
@@ -4512,6 +4528,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     overflow: "visible",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   inlineChipText: {
     color: "white",
@@ -4519,14 +4538,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     includeFontPadding: false as any,
     textAlignVertical: "center" as any,
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   levelBadgeChip: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 18,
+    minHeight: 18,
+    marginLeft: 4,
+    flexShrink: 0,
+    borderRadius: 999,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
@@ -4601,18 +4622,26 @@ const styles = StyleSheet.create({
   },
   analysisModeSelector: {
     flexDirection: "row",
+    alignItems: "stretch",
     gap: 8,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
   },
+  analysisModeSelectorLargeText: {
+    flexWrap: "wrap",
+  },
   analysisModeSelectorButton: {
     flex: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  analysisModeSelectorButtonLargeText: {
+    flexBasis: "45%",
   },
   analysisModeSelectorButtonDisabled: {
     opacity: 0.6,
@@ -4620,6 +4649,9 @@ const styles = StyleSheet.create({
   analysisModeSelectorButtonText: {
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
+    maxWidth: "100%",
+    minWidth: 0,
   },
   analysisModeInfo: {
     flex: 1,
@@ -4637,16 +4669,21 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
+  overrideModalControls: {
+    zIndex: 1,
+  },
   tabsContainer: {
     flexDirection: "row",
     borderBottomWidth: 1,
   },
   tab: {
     flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
+    paddingHorizontal: 8,
     gap: 8,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
@@ -4657,6 +4694,8 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 15,
     fontWeight: "600",
+    textAlign: "center",
+    flexShrink: 1,
   },
   overrideModalScroll: {
     flex: 1,
@@ -4803,10 +4842,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   syncBadgeText: {
     color: "white",
     fontSize: 10,
     fontWeight: "600",
+    flexShrink: 1,
   },
 });

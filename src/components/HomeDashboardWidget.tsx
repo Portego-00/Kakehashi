@@ -216,10 +216,14 @@ export default function HomeDashboardWidget({
         return [withAlpha(theme.accent, 0.86), withAlpha(theme.primary, 0.78)];
       case "context-sentence-practice":
         return [withAlpha(theme.primary, 0.82), withAlpha(theme.secondary, 0.7)];
+      case "jlpt-quiz":
+        return [withAlpha(theme.primary, 0.9), withAlpha(theme.secondary, 0.76)];
       case "writing-practice":
         return [withAlpha(theme.secondary, 0.8), withAlpha(theme.accent, 0.72)];
       case "crossword":
         return [withAlpha(theme.accent, 0.9), withAlpha(theme.primary, 0.7)];
+      case "word-search":
+        return [withAlpha(theme.primary, 0.9), withAlpha(theme.accent, 0.72)];
       case "wordle":
         return [withAlpha(theme.secondary, 0.9), withAlpha(theme.primary, 0.75)];
       case "custom-review":

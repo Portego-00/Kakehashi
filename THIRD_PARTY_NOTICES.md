@@ -1,7 +1,8 @@
 # Third-party notices
 
-These notices cover third-party components and data distributed with
-Kakehashi. They do not change the MIT license of the rest of the application.
+These notices cover bundled data, build-time inputs, and runtime components
+identified below. They do not change the MIT license of the rest of the
+Kakehashi application.
 
 ## AnkiDroid API
 
@@ -14,6 +15,39 @@ The Android context-sentence export integration uses the AnkiDroid API:
 
 The API is linked as a replaceable Gradle library and communicates with the
 separately installed AnkiDroid application through its public content provider.
+
+## Notebook editor
+
+The web notebook uses the unmodified BlockNote core, React, and Mantine packages
+(0.54.0), licensed under Mozilla Public License 2.0:
+
+- Source: https://github.com/TypeCellOS/BlockNote
+- License copy: `licenses/BLOCKNOTE_MPL_2_0.txt`
+
+Its Mantine UI dependencies (9.6.0) are MIT licensed, copyright Vitaly Rtishchev:
+
+- Source: https://github.com/mantinedev/mantine
+- License copy: `licenses/MANTINE_MIT.txt`
+
+Kakehashi adds its own vocabulary, sentence, and page integrations through the
+editor's extension interfaces. No BlockNote XL packages are included.
+
+## Notebook emoji catalog
+
+The notebook emoji picker bundles English emoji names, keywords, shortcodes,
+and Unicode characters from emojibase-data 17.0.0:
+
+- Source: https://github.com/milesj/emojibase
+- Copyright: Miles Johnson, 2017–2019
+- License: MIT; copy: `licenses/EMOJIBASE_MIT.txt`
+
+The underlying Unicode and CLDR data are covered by the Unicode data license:
+
+- Source and license: https://www.unicode.org/license.txt
+- License copy: `licenses/UNICODE_DATA_LICENSE.txt`
+
+Kakehashi indexes this data locally and renders native emoji using the device's
+fonts.
 
 ## Make Me a Hanzi
 
@@ -95,3 +129,31 @@ Coverage is based on the public kanji level pages:
 The snapshot contains only the kanji character and level needed to prove
 coverage. It contains no WaniKani mnemonics, readings, meanings, or vocabulary.
 Kakehashi is not affiliated with WaniKani or Tofugu LLC.
+
+## Manga import and OCR runtime
+
+The web manga reader uses these permissively licensed runtime components:
+
+- fflate 0.8.3 for capped CBZ/ZIP extraction (MIT): https://github.com/101arrowz/fflate
+- PDF.js 4.10.38 for local PDF parsing and page rendering (Apache-2.0): https://github.com/mozilla/pdf.js
+- ONNX Runtime Web 1.29.0 for in-browser inference (MIT): https://github.com/microsoft/onnxruntime
+- Baberu OCR for manga speech-bubble recognition (Apache-2.0): https://huggingface.co/genshiai-daichi/baberu-ocr
+
+The Baberu ONNX model and vocabulary are fetched on first OCR use from pinned
+revision `d9cc13153e9a1cd8fdfa3b7b1cc329da2020aeae`. Manga page pixels stay in the
+browser and are not sent to the model host.
+
+## Local Japanese text-to-speech
+
+Normal vocabulary context sentences can use an optional, entirely local voice:
+
+- Supertonic browser inference example (MIT; `licenses/SUPERTONIC_MIT.txt`): https://github.com/supertone-inc/supertonic/tree/main/web
+- Supertonic 3 model and F3 voice style (BigScience Open RAIL-M): https://huggingface.co/Supertone/supertonic-3
+- ONNX Runtime Web 1.29.0 (MIT): https://github.com/microsoft/onnxruntime
+
+The model, selected voice style, and model license are fetched only after the
+user asks for them, directly from pinned revision
+`3cadd1ee6394adea1bd021217a0e650ede09a323`, and are stored in the browser's
+site data. Text and generated audio stay on the device. The model's Open
+RAIL-M license includes use-based restrictions; the pinned license is included
+in the browser download and remains available at the model link above.

@@ -1,0 +1,32 @@
+diff --git a/node_modules/expo-modules-core/android/cmake/main.cmake b/node_modules/expo-modules-core/android/cmake/main.cmake
+index c79b8c6..a911656 100644
+--- a/node_modules/expo-modules-core/android/cmake/main.cmake
++++ b/node_modules/expo-modules-core/android/cmake/main.cmake
+@@ -69,24 +69,12 @@ target_link_libraries(
+ )
+ 
+ if (REACT_NATIVE_WORKLETS_DIR)
+-  add_library(worklets SHARED IMPORTED)
+-
+-  if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
+-    set(BUILD_TYPE "debug")
+-  else ()
+-    set(BUILD_TYPE "release")
+-  endif ()
+-
+-  set_target_properties(
+-    worklets
+-    PROPERTIES
+-    IMPORTED_LOCATION
+-    "${REACT_NATIVE_WORKLETS_DIR}/android/build/intermediates/cmake/${BUILD_TYPE}/obj/${ANDROID_ABI}/libworklets.so"
+-  )
++  # Worklets 0.7.2 publishes its library through Prefab.
++  find_package(react-native-worklets REQUIRED CONFIG)
+ 
+   target_link_libraries(
+     expo-modules-core
+     PRIVATE
+-    worklets
++    react-native-worklets::worklets
+   )
+ endif ()

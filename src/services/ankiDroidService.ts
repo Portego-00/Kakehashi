@@ -114,14 +114,24 @@ export function buildAnkiDroidFields(
   data: AnkiDroidExportData
 ): string[] {
   const values = config.fields.map(() => "");
-  values[config.japaneseFieldIndex] = data.japanese.trim();
-  values[config.englishFieldIndex] = data.english.trim();
+  values[config.japaneseFieldIndex] = escapeAnkiField(data.japanese);
+  values[config.englishFieldIndex] = escapeAnkiField(data.english);
   return values;
+}
+
+function escapeAnkiField(value: string): string {
+  return value.trim()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/\r\n?|\n/g, "<br>");
 }
 
 export async function ensureAnkiDroidAccess(): Promise<void> {
   if (!AnkiDroid) {
-    throw new Error("AnkiDroid export requires the Android development build.");
+    throw new Error("AnkiDroid export requires an Android build with AnkiDroid support.");
   }
   if (!(await AnkiDroid.isAvailable())) {
     throw new Error("Install AnkiDroid to export context sentences.");
@@ -152,9 +162,22 @@ export async function exportContextSentenceToAnkiDroid(
   config: AnkiDroidExportConfig,
   data: AnkiDroidExportData
 ): Promise<string> {
-  await ensureAnkiDroidAccess();
+  if (!isValidAnkiDroidExportConfig(config)) {
+    throw new Error("Invalid AnkiDroid export configuration");
+  }
   if (!data.japanese.trim() || !data.english.trim()) {
     throw new Error("Both the Japanese sentence and translation are required.");
+  }
+  await ensureAnkiDroidAccess();
+  const currentFields = await AnkiDroid!.getFields(config.noteTypeId);
+  if (
+    currentFields.length !== config.fields.length ||
+    currentFields.some((field, index) => field !== config.fields[index])
+  ) {
+    throw Object.assign(
+      new Error("The fields in the selected AnkiDroid note type have changed. Configure export again."),
+      { code: "FIELDS_CHANGED" }
+    );
   }
   return AnkiDroid!.addNote(
     config.deckId,

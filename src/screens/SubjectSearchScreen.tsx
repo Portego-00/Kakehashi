@@ -50,6 +50,7 @@ import {
   sortSubjectsByLevelAndType,
 } from "../utils/subjectSearch";
 import { useTheme } from "../utils/theme";
+import { matchesVocabularyTypes } from "../utils/vocabularyTypeFilter";
 
 interface SearchResultReading {
   reading: string;
@@ -206,6 +207,11 @@ export default function SubjectSearchScreen({
     typeof params.query === "string" ? params.query : "";
   const showInlineSearchBar = forceInlineSearchBar || !usesNativeTabSearch;
   const headerIconColor = theme.isDark ? theme.headerText : "#000000";
+  const activeFilterCount =
+    Number(filters.types.size !== 4) +
+    Number(filters.srsStages.size !== 10) +
+    Number(filters.minLevel !== 1 || filters.maxLevel !== 60) +
+    Number(filters.vocabularyTypes.length > 0);
 
   useEffect(() => {
     if (!usesNativeTabSearch) {
@@ -332,6 +338,7 @@ export default function SubjectSearchScreen({
         .filter((subject) =>
           filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
         )
+        .filter((subject) => matchesVocabularyTypes(subject, filters.vocabularyTypes))
         .slice(0, 200)
         .map(subjectToSearchResult);
 
@@ -381,6 +388,7 @@ export default function SubjectSearchScreen({
         .filter((subject) =>
           filters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
         )
+        .filter((subject) => matchesVocabularyTypes(subject, filters.vocabularyTypes))
         .slice(0, 200)
         .map(subjectToSearchResult);
 
@@ -521,6 +529,9 @@ export default function SubjectSearchScreen({
           )
           .filter((subject) =>
             searchFilters.srsStages.has(subjectSrsStageMap.get(subject.id) ?? 0)
+          )
+          .filter((subject) =>
+            matchesVocabularyTypes(subject, searchFilters.vocabularyTypes)
           );
 
         const searchConfig = getDefaultSubjectSearchConfig(query.length);
@@ -795,6 +806,31 @@ export default function SubjectSearchScreen({
     setShowFilters(false);
   }, []);
 
+  const filterButtonContent = (
+    <View
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={
+        activeFilterCount > 0
+          ? `Search filters, ${activeFilterCount} active`
+          : "Search filters"
+      }
+      onAccessibilityTap={() => setShowFilters(true)}
+      style={styles.filterButtonContent}
+    >
+      <Ionicons
+        name="options"
+        size={22}
+        color={activeFilterCount > 0 ? theme.primary : headerIconColor}
+      />
+      {activeFilterCount > 0 ? (
+        <View style={[styles.filterCount, { backgroundColor: theme.primary }]}>
+          <Text style={styles.filterCountText}>{activeFilterCount}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
   const handleApplyFilters = useCallback(
     async (newFilters: SearchFilters) => {
       setFilters(newFilters);
@@ -929,6 +965,16 @@ export default function SubjectSearchScreen({
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={handleScrollBeginDrag}
           scrollEventThrottle={16}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                No subjects match these filters
+              </Text>
+              <Text style={[styles.emptySubtext, { color: theme.textLight }]}>
+                Try clearing a filter
+              </Text>
+            </View>
+          }
         />
       );
     } else if (isLoading) {
@@ -1038,7 +1084,9 @@ export default function SubjectSearchScreen({
               onPress={() => {
                 setShowFilters(true);
               }}
-            />
+            >
+              {filterButtonContent}
+            </GlassButton>
             <Animated.View
               style={{
                 opacity: buttonOpacity,
@@ -1095,7 +1143,9 @@ export default function SubjectSearchScreen({
                 onPress={() => {
                   setShowFilters(true);
                 }}
-              />
+              >
+                {filterButtonContent}
+              </GlassButton>
               <GlassButton
                 iconName="language"
                 iconSize={22}
@@ -1134,7 +1184,9 @@ export default function SubjectSearchScreen({
             onPress={() => {
               setShowFilters(true);
             }}
-          />
+          >
+            {filterButtonContent}
+          </GlassButton>
           <GlassButton
             iconName="language"
             iconSize={22}
@@ -1156,6 +1208,7 @@ export default function SubjectSearchScreen({
       <SearchFilterModal
         visible={showFilters}
         currentFilters={filters}
+        subjects={allSubjects ?? undefined}
         onClose={handleCloseFilters}
         onApply={handleApplyFilters}
       />
@@ -1383,6 +1436,29 @@ const styles = StyleSheet.create({
   },
   inlineButton: {
     marginLeft: 8,
+  },
+  filterButtonContent: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterCount: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterCountText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   // Filter Panel Styles
   filterPanelBackdrop: {

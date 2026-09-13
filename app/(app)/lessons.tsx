@@ -184,7 +184,6 @@ export default function LessonsScreen() {
     ? "meaning"
     : "reading";
   const { selectedLessonIds } = useLocalSearchParams();
-  const hasSelectedLessonFilterParam = selectedLessonIds !== undefined;
   const [isLoading, setIsLoading] = useState(true);
   const [allLessons, setAllLessons] = useState<LessonItem[]>([]);
   const [lessonBatches, setLessonBatches] = useState<LessonBatch[]>([]);
@@ -333,13 +332,18 @@ export default function LessonsScreen() {
   }, []);
 
   const refreshPendingLessonCount = useCallback(async () => {
+    if (!apiToken) {
+      setPendingLessonCount(0);
+      return;
+    }
+
     try {
-      const counts = await getPendingProgressCounts();
+      const counts = await getPendingProgressCounts(apiToken);
       setPendingLessonCount(counts.lesson);
     } catch (error) {
       console.warn("[Lessons] Failed to load pending lesson queue count:", error);
     }
-  }, []);
+  }, [apiToken]);
 
   // Load lessons when the component mounts
   useEffect(() => {
@@ -381,7 +385,6 @@ export default function LessonsScreen() {
   useEffect(() => {
     if (
       isLoading ||
-      hasSelectedLessonFilterParam ||
       allLessons.length === 0 ||
       lessonBatches.length === 0
     ) {
@@ -424,7 +427,6 @@ export default function LessonsScreen() {
     currentBatchIndex,
     currentItemIndex,
     currentQuestion,
-    hasSelectedLessonFilterParam,
     isFinalBatchComplete,
     isLoading,
     lessonBatches,
@@ -523,7 +525,7 @@ export default function LessonsScreen() {
       setShowSaveCurrentLessonsModal(false);
       setLessonSessionCreatedAt(null);
 
-      // Parse selected lesson IDs if provided
+      // The picker passes stable assignment IDs, independent of lesson ordering.
       const selectedIds: number[] | null = selectedLessonIds
         ? JSON.parse(
             Array.isArray(selectedLessonIds)
@@ -552,7 +554,7 @@ export default function LessonsScreen() {
             const [availableAssignmentIds, pendingProgressIds] =
               await Promise.all([
                 getLiveLessonAssignmentIds(apiToken),
-                getPendingProgressAssignmentIds().catch(() => ({
+                getPendingProgressAssignmentIds(apiToken).catch(() => ({
                   lesson: new Set<number>(),
                   review: new Set<number>(),
                 })),
@@ -660,10 +662,10 @@ export default function LessonsScreen() {
       }
 
       const selectedAssignments = lessonsResponse.data.filter(
-        (_, index) => !selectedIdSet || selectedIdSet.has(index)
+        (assignment) => !selectedIdSet || selectedIdSet.has(assignment.id)
       );
       const pendingProgressAssignmentIds =
-        await getPendingProgressAssignmentIds().catch(() => ({
+        await getPendingProgressAssignmentIds(apiToken).catch(() => ({
           lesson: new Set<number>(),
           review: new Set<number>(),
         }));

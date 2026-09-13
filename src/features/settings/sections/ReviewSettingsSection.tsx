@@ -1,4 +1,5 @@
 import React from "react";
+import { useSettingsStore } from "../../../utils/store";
 import SrsProgressionSettingIcon from "../../../components/SrsProgressionSettingIcon";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
@@ -11,6 +12,8 @@ import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
 export function ReviewSettingsSection() {
+  const multipleChoiceEnabled = useSettingsStore((state) => state.reviewMultipleChoiceEnabled);
+  const setMultipleChoiceEnabled = useSettingsStore((state) => state.setReviewMultipleChoiceEnabled);
   const {
     acceptAnyKanjiOnyomiReading,
     acceptUserSynonymsAsAnswers,
@@ -311,6 +314,23 @@ export function ReviewSettingsSection() {
             />
           </TouchableOpacity>
         )}
+
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons name="list-circle-outline" size={24} color={theme.primary} style={styles.settingIcon} />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>Multiple Choice</Text>
+            <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
+              Choose from similar readings and related meanings instead of typing. Anki questions keep their current behavior.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Multiple Choice"
+            value={multipleChoiceEnabled}
+            onValueChange={setMultipleChoiceEnabled}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
 
         <View
           style={[

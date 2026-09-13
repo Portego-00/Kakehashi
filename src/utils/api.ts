@@ -2,6 +2,11 @@ import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from 'react-native';
 import WaniKaniBackgroundFetch from '../modules/WaniKaniBackgroundFetch';
+import { resumeNotificationSession } from './notificationSession';
+import {
+  captureAssignmentCacheMutationRevision,
+  persistAssignmentCollectionInCaches,
+} from '../services/assignmentCacheCoordinator';
 import { apiDebugger } from "./apiDebugger";
 import { isIOSOnMac } from "./platformSupport";
 import {
@@ -21,10 +26,7 @@ import {
     saveToCache
 } from "./cache";
 import { startPerformanceTimer } from "./performanceLogger";
-import {
-  getAssignmentsFromPermanentStorage,
-  saveAssignmentsToPermanentStorage,
-} from "./permanentStorage";
+import { getAssignmentsFromPermanentStorage } from "./permanentStorage";
 import { startupDiagnostics } from "./startupDiagnostics";
 
 export const API_BASE_URL = "https://api.wanikani.com/v2";
@@ -36,6 +38,17 @@ const API_RATE_LIMIT_PER_MINUTE = 60;
 const API_RATE_LIMIT_SAFETY_BUFFER = 1;
 const STUDY_MATERIAL_SUBJECT_BATCH_SIZE = 100;
 const ENABLE_API_TRACKER_LOGS = __DEV__;
+export const WANI_KANI_REQUEST_TIMEOUT_MS = 15_000;
+
+const responseDeadlineFinalizers = new WeakMap<Response, () => void>();
+
+function finishWaniKaniApiResponse(response: Response): void {
+  const finish = responseDeadlineFinalizers.get(response);
+  if (!finish) return;
+
+  responseDeadlineFinalizers.delete(response);
+  finish();
+}
 
 type ReservedApiSlot = {
   reservationId: number;
@@ -321,16 +334,123 @@ async function fetchWaniKaniApi(
   const label = trackerLabel ?? inferApiOperationLabel(input, method);
   const slot = await reserveApiRequestSlot(label);
   const requestStartedAtMs = Date.now();
+  const requestController = new AbortController();
+  const upstreamSignal = fetchInit.signal;
+  let didTimeOut = false;
+  let deadlineIsActive = true;
+
+  const forwardUpstreamAbort = () => requestController.abort();
+  if (upstreamSignal?.aborted) {
+    forwardUpstreamAbort();
+  } else {
+    upstreamSignal?.addEventListener("abort", forwardUpstreamAbort, {
+      once: true,
+    });
+  }
+
+  const timeoutId = setTimeout(() => {
+    didTimeOut = true;
+    requestController.abort();
+    cleanupRequestDeadline();
+  }, WANI_KANI_REQUEST_TIMEOUT_MS);
+
+  function cleanupRequestDeadline() {
+    if (!deadlineIsActive) return;
+
+    deadlineIsActive = false;
+    clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener("abort", forwardUpstreamAbort);
+  }
+
+  function normalizeRequestError(error: unknown): unknown {
+    return didTimeOut
+      ? new Error(
+          `WaniKani request timed out after ${WANI_KANI_REQUEST_TIMEOUT_MS}ms`,
+          { cause: error }
+        )
+      : error;
+  }
+
+  function wrapResponseBodyWithDeadline(
+    rawResponse: Response,
+    completesRequest = true
+  ): Response {
+    const readBody = async <T>(reader: () => Promise<T>): Promise<T> => {
+      try {
+        return await reader();
+      } catch (error) {
+        throw normalizeRequestError(error);
+      } finally {
+        if (completesRequest) {
+          cleanupRequestDeadline();
+        }
+      }
+    };
+
+    const wrappedResponse = new Proxy(rawResponse, {
+      get(target, property) {
+        switch (property) {
+          case "arrayBuffer":
+            return () => readBody(() => target.arrayBuffer());
+          case "blob":
+            return () => readBody(() => target.blob());
+          case "formData":
+            return () => readBody(() => target.formData());
+          case "json":
+            return () => readBody(() => target.json());
+          case "text":
+            return () => readBody(() => target.text());
+          case "clone":
+            // Diagnostic readers consume a clone before the caller receives the
+            // primary response. Reading that clone must not end the request
+            // deadline while the real response body is still unread.
+            return () => wrapResponseBodyWithDeadline(target.clone(), false);
+          default: {
+            const value = Reflect.get(target, property, target);
+            return typeof value === "function" ? value.bind(target) : value;
+          }
+        }
+      },
+    });
+
+    if (completesRequest) {
+      responseDeadlineFinalizers.set(
+        wrappedResponse,
+        cleanupRequestDeadline
+      );
+    }
+    return wrappedResponse;
+  }
+
+  const requestInit: RequestInit = {
+    ...fetchInit,
+    signal: requestController.signal,
+  };
 
   let response: Response | undefined;
+  let responseWithDeadline: Response | undefined;
   let requestError: unknown;
   try {
-    response = await fetch(input.toString(), fetchInit);
-    return response;
+    response = await fetch(input.toString(), requestInit);
+    if (
+      method === "HEAD" ||
+      response.status === 204 ||
+      response.status === 205 ||
+      response.status === 304
+    ) {
+      // These responses cannot have a body for the caller to consume, so the
+      // request is complete as soon as the headers arrive.
+      cleanupRequestDeadline();
+    }
+    responseWithDeadline = wrapResponseBodyWithDeadline(response);
+    return responseWithDeadline;
   } catch (error) {
-    requestError = error;
-    throw error;
+    requestError = normalizeRequestError(error);
+    throw requestError;
   } finally {
+    if (!response) {
+      cleanupRequestDeadline();
+    }
     await finalizeApiRequestSlot(slot, requestStartedAtMs, response);
     try {
       await apiDebugger.logNetworkCall({
@@ -338,8 +458,8 @@ async function fetchWaniKaniApi(
         requestUrl: input.toString(),
         operation: label,
         durationMs: Date.now() - requestStartedAtMs,
-        requestInit: fetchInit,
-        response,
+        requestInit,
+        response: responseWithDeadline ?? response,
         error: requestError,
       });
     } catch (loggingError) {
@@ -574,6 +694,7 @@ export type Subject = {
         }[]
       | null;
     parts_of_speech: string[] | null;
+    context_sentences?: { ja: string; en: string }[] | null;
     component_subject_ids: number[] | null;
     amalgamation_subject_ids: number[] | null;
     visually_similar_subject_ids: number[] | null;
@@ -720,17 +841,24 @@ async function getPermanentAssignmentsCollection(): Promise<
   );
 }
 
-async function saveAssignmentsCollectionForOfflineUse(
-  assignments: CollectionResponse<Assignment>
-): Promise<void> {
+async function getCachedAssignmentsCollection(): Promise<
+  CollectionResponse<Assignment> | null
+> {
   try {
-    await saveAssignmentsToPermanentStorage(
-      assignments.data,
-      assignments.data_updated_at
-    );
-  } catch (error) {
-    console.warn("[API] Failed to persist assignments for offline use:", error);
+    const cachedAssignments =
+      await getFromCache<CollectionResponse<Assignment>>(
+        "assignments_all",
+        undefined,
+        { ignoreTTL: true }
+      );
+    if (cachedAssignments?.data) {
+      return cachedAssignments.data;
+    }
+  } catch {
+    // The permanent snapshot below is an independent fallback.
   }
+
+  return getPermanentAssignmentsCollection();
 }
 
 // Note: WaniKani doesn't provide a direct email/password API
@@ -886,6 +1014,7 @@ export async function getUserData(
           });
           
           if (!freshResponse.ok) {
+            finishWaniKaniApiResponse(freshResponse);
             throw new Error(`API error: ${freshResponse.status}`);
           }
           
@@ -907,12 +1036,14 @@ export async function getUserData(
             duration: Date.now() - startTime,
             error: error.message,
           });
+          finishWaniKaniApiResponse(response);
           throw error;
         }
 
         // Extract and save cache headers
         const newETag = getResponseHeader(response, 'ETag');
         const newLastModified = getResponseHeader(response, 'Last-Modified');
+        const result = await response.json();
         
         if (newETag) {
           await saveETag(url, newETag);
@@ -925,8 +1056,6 @@ export async function getUserData(
         const rateLimitRemaining = getResponseHeader(response, 'RateLimit-Remaining');
         const rateLimitLimit = getResponseHeader(response, 'RateLimit-Limit');
         const rateLimitReset = getResponseHeader(response, 'RateLimit-Reset');
-
-        const result = await response.json();
 
         // Save to in-memory cache
         inMemoryCache.set(cacheKey, {
@@ -1074,6 +1203,7 @@ export async function getSummary(
           });
 
           if (!freshResponse.ok) {
+            finishWaniKaniApiResponse(freshResponse);
             throw new Error(`API error: ${freshResponse.status}`);
           }
 
@@ -1095,12 +1225,14 @@ export async function getSummary(
             duration: Date.now() - startTime,
             error: error.message,
           });
+          finishWaniKaniApiResponse(response);
           throw error;
         }
 
         // Extract and save cache headers
         const newETag = getResponseHeader(response, 'ETag');
         const newLastModified = getResponseHeader(response, 'Last-Modified');
+        const result = await response.json();
         
         if (newETag) {
           await saveETag(url, newETag);
@@ -1113,8 +1245,6 @@ export async function getSummary(
         const rateLimitRemaining = getResponseHeader(response, 'RateLimit-Remaining');
         const rateLimitLimit = getResponseHeader(response, 'RateLimit-Limit');
         const rateLimitReset = getResponseHeader(response, 'RateLimit-Reset');
-
-        const result = await response.json();
 
         // Save to in-memory cache
         inMemoryCache.set(cacheKey, {
@@ -1338,6 +1468,8 @@ export async function getAssignmentsOptimized(
   }
 
   const cacheKey = 'assignments_all';
+  const fetchStartMutationRevision =
+    captureAssignmentCacheMutationRevision();
 
   const requestPromise = (async (): Promise<CollectionResponse<Assignment>> => {
     try {
@@ -1374,16 +1506,17 @@ export async function getAssignmentsOptimized(
               data_updated_at: allUpdated.data_updated_at,
             };
 
-            await saveToCache(cacheKey, mergedData, allUpdated.data_updated_at);
-            await saveAssignmentsCollectionForOfflineUse(mergedData);
-            await saveDataUpdatedAt('assignments', allUpdated.data_updated_at);
+            const persistedData = await persistAssignmentCollectionInCaches(
+              mergedData,
+              fetchStartMutationRevision
+            );
 
             timer.end({
               result: 'incremental_update',
               updatedCount: allUpdated.data.length,
-              totalCount: mergedData.data.length,
+              totalCount: persistedData.data.length,
             });
-            return mergedData;
+            return persistedData;
           }
         } else {
           // Return cached data
@@ -1393,8 +1526,12 @@ export async function getAssignmentsOptimized(
             { ignoreTTL: true }
           );
           if (cached?.data) {
+            const persistedData = await persistAssignmentCollectionInCaches(
+              cached.data,
+              fetchStartMutationRevision
+            );
             timer.end({ result: 'no_updates' });
-            return cached.data;
+            return persistedData;
           }
         }
       }
@@ -1403,13 +1540,13 @@ export async function getAssignmentsOptimized(
       const response = await getAssignments(apiToken, params);
       const allAssignments = await fetchAllPages(response, apiToken);
 
-      // Save to cache
-      await saveToCache(cacheKey, allAssignments, allAssignments.data_updated_at);
-      await saveAssignmentsCollectionForOfflineUse(allAssignments);
-      await saveDataUpdatedAt('assignments', allAssignments.data_updated_at);
+      const persistedAssignments = await persistAssignmentCollectionInCaches(
+        allAssignments,
+        fetchStartMutationRevision
+      );
 
-      timer.end({ result: 'full_fetch', count: allAssignments.data.length });
-      return allAssignments;
+      timer.end({ result: 'full_fetch', count: persistedAssignments.data.length });
+      return persistedAssignments;
     } catch (error) {
       // Fallback to cache on error
       const cached = await getFromCache<CollectionResponse<Assignment>>(
@@ -1516,6 +1653,8 @@ export async function getAllAssignmentsCached(
             const first = await resp.json();
             const complete = await fetchAllPages(first, apiToken);
             await saveToCache(cacheKey, complete, complete.data_updated_at);
+          } else {
+            finishWaniKaniApiResponse(resp);
           }
         } catch { /* ignore background errors */ }
       })();
@@ -1549,10 +1688,10 @@ export async function getAllAssignmentsCached(
 
         const newEtag = getResponseHeader(response, "ETag");
         const newLast = getResponseHeader(response, "Last-Modified");
+        const firstPage: CollectionResponse<Assignment> = await response.json();
         if (newEtag) await saveETag(url.toString(), newEtag);
         if (newLast) await saveLastModified(url.toString(), newLast);
 
-        const firstPage: CollectionResponse<Assignment> = await response.json();
         const complete = await fetchAllPages(firstPage, apiToken);
         await saveToCache(cacheKey, complete, complete.data_updated_at);
         timer.end({ source: 'api', totalItems: complete.data.length });
@@ -1603,12 +1742,16 @@ export async function getAllAssignmentsCached(
 export async function fetchAllPages<T>(
   initialResponse: CollectionResponse<T>,
   apiToken: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  options: { maxPageAttempts?: number } = {}
 ): Promise<CollectionResponse<T>> {
   const timer = startPerformanceTimer('fetchAllPages pagination', 'api.ts');
 
   // Retry configuration
-  const MAX_PAGE_RETRIES = 3;
+  const maxPageAttempts = Math.max(
+    1,
+    Math.floor(options.maxPageAttempts ?? 3)
+  );
   const INITIAL_RETRY_DELAY = 500; // ms
 
   try {
@@ -1637,7 +1780,7 @@ export async function fetchAllPages<T>(
       let lastError: Error | null = null;
 
       // Retry loop for each page
-      for (let attempt = 1; attempt <= MAX_PAGE_RETRIES && !pageSuccess; attempt++) {
+      for (let attempt = 1; attempt <= maxPageAttempts && !pageSuccess; attempt++) {
         try {
           if (attempt > 1) {
             const retryDelay = INITIAL_RETRY_DELAY * Math.pow(2, attempt - 2);
@@ -1716,7 +1859,7 @@ export async function fetchAllPages<T>(
 
       // If all retries failed for this page, throw an error instead of returning partial data
       if (!pageSuccess) {
-        const errorMsg = `Pagination failed at page ${pageCount + 1} after ${MAX_PAGE_RETRIES} attempts: ${lastError?.message}`;
+        const errorMsg = `Pagination failed at page ${pageCount + 1} after ${maxPageAttempts} attempts: ${lastError?.message}`;
         timer.end({ error: errorMsg, totalPages: pageCount, totalItems: allItems.length }, false);
         throw new Error(errorMsg);
       }
@@ -1969,12 +2112,6 @@ export async function getSubjects(
           );
         }
 
-        // Update validators for future conditional requests
-        const newEtag = getResponseHeader(response, "ETag");
-        const newLast = getResponseHeader(response, "Last-Modified");
-        if (newEtag) await saveETag(url.toString(), newEtag);
-        if (newLast) await saveLastModified(url.toString(), newLast);
-
         // Fall through to the normal processing logic
       }
     }
@@ -1990,6 +2127,10 @@ export async function getSubjects(
     }
 
     const data: CollectionResponse<Subject> = await response.json();
+    const newEtag = getResponseHeader(response, "ETag");
+    const newLast = getResponseHeader(response, "Last-Modified");
+    if (newEtag) await saveETag(url.toString(), newEtag);
+    if (newLast) await saveLastModified(url.toString(), newLast);
 
     // CRITICAL FIX: Fetch ALL pages before caching
     let completeData = data;
@@ -2195,6 +2336,7 @@ export async function saveApiToken(apiToken: string): Promise<void> {
   // Store token securely
   await SecureStore.setItemAsync(TOKEN_STORAGE_KEY, apiToken);
   global.apiToken = apiToken;
+  resumeNotificationSession();
   
   // Store in native module for background fetch on iOS
   if (
@@ -2254,25 +2396,30 @@ export async function getStoredApiToken(): Promise<string | null> {
 }
 
 export async function clearApiToken(): Promise<void> {
+  // In-memory and native invalidation must not depend on a fallible Keychain
+  // delete. This stops background work immediately even if iOS rejects the
+  // SecureStore operation while the device is transitioning lock state.
+  global.apiToken = null;
+
+  if (
+    Platform.OS === 'ios' &&
+    !isIOSOnMac() &&
+    WaniKaniBackgroundFetch &&
+    typeof WaniKaniBackgroundFetch.storeApiToken === 'function'
+  ) {
+    try {
+      WaniKaniBackgroundFetch.storeApiToken('');
+    } catch {
+      // Best effort only; the JS session is already unauthenticated.
+    }
+  }
+
   try {
     await SecureStore.deleteItemAsync(TOKEN_STORAGE_KEY);
-    global.apiToken = null;
-    
-    // Clear from native module on iOS
-    if (
-      Platform.OS === 'ios' &&
-      !isIOSOnMac() &&
-      WaniKaniBackgroundFetch &&
-      typeof WaniKaniBackgroundFetch.storeApiToken === 'function'
-    ) {
-      try {
-        WaniKaniBackgroundFetch.storeApiToken('');
-      } catch {
-        // Best effort only.
-      }
-    }
   } catch {
-    // Silent failure for token clearing
+    // An empty value is still treated as signed out after restart and prevents
+    // a failed delete from reviving the previous account token.
+    await SecureStore.setItemAsync(TOKEN_STORAGE_KEY, '').catch(() => {});
   }
 }
 
@@ -2611,6 +2758,7 @@ export async function getStudyMaterials(
           requestedSubjectIds.length === 0 &&
           responseCoversRequestedSubjects &&
           isCompleteResponse,
+        dataUpdatedAt: collection?.data_updated_at,
       }
     );
   };
@@ -2683,10 +2831,10 @@ export async function getStudyMaterials(
 
     const newEtag = getResponseHeader(response, "ETag");
     const newLast = getResponseHeader(response, "Last-Modified");
+    const initialData = await response.json();
     if (newEtag) await saveETag(url.toString(), newEtag);
     if (newLast) await saveLastModified(url.toString(), newLast);
 
-    const initialData = await response.json();
     const data = initialData?.pages?.next_url
       ? await fetchAllPages(initialData, apiToken)
       : initialData;
@@ -2765,10 +2913,10 @@ export async function getSpacedRepetitionSystems(
 
   const newEtag = getResponseHeader(response, "ETag");
   const newLast = getResponseHeader(response, "Last-Modified");
+  const data = await response.json();
   if (newEtag) await saveETag(url.toString(), newEtag);
   if (newLast) await saveLastModified(url.toString(), newLast);
 
-  const data = await response.json();
   await saveToCache(cacheKey, data, data.data_updated_at);
   return data;
 }
@@ -2811,7 +2959,10 @@ export async function createStudyMaterial(
   await saveStudyMaterialsToPermanentCache(
     [params.subject_id],
     [data],
-    { completeResponse: true }
+    {
+      completeResponse: true,
+      dataUpdatedAt: data?.data_updated_at,
+    }
   ).catch(() => {});
   return data;
 }
@@ -2856,7 +3007,10 @@ export async function updateStudyMaterial(
     await saveStudyMaterialsToPermanentCache(
       [subjectId],
       [data],
-      { completeResponse: true }
+      {
+        completeResponse: true,
+        dataUpdatedAt: data?.data_updated_at,
+      }
     ).catch(() => {});
   }
   return data;
@@ -2981,10 +3135,10 @@ export async function getReviewStatistics(
 
   const newEtag = getResponseHeader(response, "ETag");
   const newLast = getResponseHeader(response, "Last-Modified");
+  const data = await response.json();
   if (newEtag) await saveETag(url.toString(), newEtag);
   if (newLast) await saveLastModified(url.toString(), newLast);
 
-  const data = await response.json();
   await saveToCache(cacheKey, data, data.data_updated_at);
   return data;
 }
@@ -3309,18 +3463,31 @@ function buildAvailableLessonsFromAssignments(
   };
 }
 
-async function getAvailableReviewsFromCachedAssignments(
-  apiToken: string
-): Promise<CollectionResponse<Assignment>> {
-  const cachedAssignments = await getAssignmentsOptimized(
-    apiToken,
-    {},
-    { forceFullRefresh: false }
-  );
+/**
+ * Read the locally persisted assignment snapshot and derive reviews that are
+ * available now. This helper never starts a network request.
+ */
+export async function getCachedAvailableReviews(): Promise<
+  CollectionResponse<Assignment> | null
+> {
+  const cachedAssignments = await getCachedAssignmentsCollection();
+  if (!cachedAssignments) {
+    return null;
+  }
   return buildAvailableReviewsFromAssignments(cachedAssignments);
 }
 
-async function getAvailableLessonsFromCachedAssignments(
+async function getAvailableLessonsFromCachedAssignments(): Promise<
+  CollectionResponse<Assignment>
+> {
+  const cachedAssignments = await getCachedAssignmentsCollection();
+  if (!cachedAssignments) {
+    throw new Error("No cached assignments are available");
+  }
+  return buildAvailableLessonsFromAssignments(cachedAssignments);
+}
+
+async function refreshAvailableLessonsFromAssignments(
   apiToken: string
 ): Promise<CollectionResponse<Assignment>> {
   const cachedAssignments = await getAssignmentsOptimized(
@@ -3332,23 +3499,42 @@ async function getAvailableLessonsFromCachedAssignments(
 }
 
 /**
+ * Get the live assignment rows currently available for formal reviews.
+ *
+ * This deliberately has no cache fallback. Callers that reconcile an
+ * already-rendered offline queue need a failed request to remain a failure;
+ * otherwise an older cached snapshot can be mistaken for authoritative live
+ * state and remove valid local work.
+ */
+export async function getLiveAvailableReviews(
+  apiToken: string
+): Promise<CollectionResponse<Assignment>> {
+  const initialResponse = await getAssignments(apiToken, {
+    immediately_available_for_review: true,
+    hidden: false,
+  });
+
+  return fetchAllPages(initialResponse, apiToken, undefined, {
+    maxPageAttempts: 1,
+  });
+}
+
+/**
  * Get assignments that are available for formal reviews (will count towards SRS)
  */
 export async function getAvailableReviews(
   apiToken: string
 ): Promise<CollectionResponse<Assignment>> {
   try {
-    // Get assignments that are immediately available for review
-    const initialResponse = await getAssignments(apiToken, {
-      immediately_available_for_review: true,
-      hidden: false,
-    });
-
-    // Handle pagination to get all pages
-    return fetchAllPages(initialResponse, apiToken);
+    return await getLiveAvailableReviews(apiToken);
   } catch {
-    // Offline/cache fallback: use locally cached assignments if possible.
-    return getAvailableReviewsFromCachedAssignments(apiToken);
+    // The live request has already failed. Read local data directly instead of
+    // starting another request before falling back to the same cache.
+    const cachedReviews = await getCachedAvailableReviews();
+    if (!cachedReviews) {
+      throw new Error("No cached assignments are available");
+    }
+    return cachedReviews;
   }
 }
 
@@ -3366,13 +3552,15 @@ export async function getAvailableLessons(
     });
 
     // Handle pagination to get all pages
-    const liveLessons = await fetchAllPages(initialResponse, apiToken);
+    const liveLessons = await fetchAllPages(initialResponse, apiToken, undefined, {
+      maxPageAttempts: 1,
+    });
     if (liveLessons.data.length > 0) {
       return liveLessons;
     }
 
     try {
-      const cachedLessons = await getAvailableLessonsFromCachedAssignments(
+      const cachedLessons = await refreshAvailableLessonsFromAssignments(
         apiToken
       );
       if (cachedLessons.data.length > 0) {
@@ -3390,8 +3578,9 @@ export async function getAvailableLessons(
 
     return liveLessons;
   } catch {
-    // Offline/cache fallback: use locally cached assignments if possible.
-    return getAvailableLessonsFromCachedAssignments(apiToken);
+    // The live request has already failed. Read local data directly instead of
+    // starting another request before falling back to the same cache.
+    return getAvailableLessonsFromCachedAssignments();
   }
 }
 
@@ -3604,7 +3793,9 @@ export async function getAllSubjectsFromAPI(
  * This function fetches hidden-filtered assignments and returns the count of
  * immediately available visible reviews.
  */
-export async function getReviewCount(apiToken: string): Promise<number> {
+export async function getReviewCountIfAvailable(
+  apiToken: string
+): Promise<number | null> {
   try {
     // Use assignments so hidden reviews are excluded (summary has no hidden filter).
     const response = await getAssignments(apiToken, {
@@ -3617,20 +3808,39 @@ export async function getReviewCount(apiToken: string): Promise<number> {
     return buildVisibleReviewDataFromAssignments(response.data).currentReviews;
   } catch (error) {
     try {
-      // Offline/cache fallback.
-      const cachedAssignments = await getAssignmentsOptimized(
-        apiToken,
-        {},
-        { forceFullRefresh: false }
-      );
+      // The count request has already failed. Read local data directly so a
+      // degraded connection costs one deadline rather than several in series.
+      const cachedAssignments = await getCachedAssignmentsCollection();
+      if (!cachedAssignments) {
+        return null;
+      }
       return buildVisibleReviewDataFromAssignments(cachedAssignments.data)
         .currentReviews;
     } catch (fallbackError) {
       console.error("Error fetching review count:", error);
       console.error("Error fetching cached review count:", fallbackError);
-      return 0; // Return 0 if there's an error to avoid breaking the app
+      return null;
     }
   }
+}
+
+export async function getCachedReviewCountIfAvailable(): Promise<
+  number | null
+> {
+  try {
+    const cachedAssignments = await getCachedAssignmentsCollection();
+    if (!cachedAssignments) {
+      return null;
+    }
+    return buildVisibleReviewDataFromAssignments(cachedAssignments.data)
+      .currentReviews;
+  } catch {
+    return null;
+  }
+}
+
+export async function getReviewCount(apiToken: string): Promise<number> {
+  return (await getReviewCountIfAvailable(apiToken)) ?? 0;
 }
 
 export type VisibleReviewData = {

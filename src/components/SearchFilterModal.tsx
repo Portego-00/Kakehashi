@@ -4,7 +4,9 @@ import { BlurView } from "expo-blur";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +19,7 @@ import SrsLevelIcon from "./SrsLevelIcon";
 import { JLPT_LEVELS, type JLPTLevel } from "../utils/jlptClassification";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
+import { VocabularyTypeFilter } from "./vocabulary-type-filter";
 
 // Duplicate the type here to avoid circular dependency if it's not exported centrally
 // In a real scenario, this should be imported from a shared types file
@@ -41,6 +44,7 @@ export interface SearchFilters {
   srsStages: Set<number>;
   jlptLevels: Set<JLPTLevel>;
   maxFrequencyRank: number | null;
+  vocabularyTypes: string[];
 }
 
 export const createDefaultSearchFilters = (): SearchFilters => ({
@@ -50,6 +54,7 @@ export const createDefaultSearchFilters = (): SearchFilters => ({
   srsStages: new Set(ALL_SEARCH_SRS_STAGES),
   jlptLevels: new Set(),
   maxFrequencyRank: null,
+  vocabularyTypes: [],
 });
 
 interface SearchFilterModalProps {
@@ -57,6 +62,7 @@ interface SearchFilterModalProps {
   currentFilters: SearchFilters;
   onClose: () => void;
   onApply: (filters: SearchFilters) => void;
+  subjects?: React.ComponentProps<typeof VocabularyTypeFilter>["subjects"];
   showJlptFilters?: boolean;
   showFrequencyFilters?: boolean;
   frequencyFiltersEnabled?: boolean;
@@ -68,6 +74,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   currentFilters,
   onClose,
   onApply,
+  subjects,
   showJlptFilters = false,
   showFrequencyFilters = false,
   frequencyFiltersEnabled = true,
@@ -86,6 +93,15 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   // Animation values
   const filterPanelAnimation = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const filterSectionsRef = useRef<ScrollView>(null);
+  const vocabularySectionY = useRef(0);
+
+  const focusVocabularySearch = useCallback(() => {
+    filterSectionsRef.current?.scrollTo({
+      y: vocabularySectionY.current,
+      animated: true,
+    });
+  }, []);
 
   // Picker states
   const [showMinLevelPicker, setShowMinLevelPicker] = useState(false);
@@ -99,6 +115,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
         srsStages: new Set(currentFilters.srsStages ?? ALL_SEARCH_SRS_STAGES),
         jlptLevels: new Set(currentFilters.jlptLevels ?? []),
         maxFrequencyRank: currentFilters.maxFrequencyRank ?? null,
+        vocabularyTypes: [...(currentFilters.vocabularyTypes ?? [])],
       });
       setFrequencyRankInput(
         currentFilters.maxFrequencyRank?.toString() ?? "",
@@ -236,6 +253,12 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
     });
   }, []);
 
+  const handleVocabularyTypesChange = useCallback((vocabularyTypes: string[]) => {
+    setPendingFilters((previous) =>
+      previous ? { ...previous, vocabularyTypes } : null,
+    );
+  }, []);
+
   const handleMaximumFrequencyRankChange = useCallback((value: string) => {
     setFrequencyRankInput(value);
     const normalizedValue = value.trim();
@@ -291,6 +314,12 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
       </Animated.View>
 
       {/* Filter Panel */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardContainer}
+        pointerEvents="box-none"
+      >
+        <View style={styles.keyboardContent} pointerEvents="box-none">
       <Animated.View
         style={[
           styles.filterPanel,
@@ -341,6 +370,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
           </View>
 
           <ScrollView
+            ref={filterSectionsRef}
             style={styles.filterSectionsScroll}
             contentContainerStyle={styles.filterSectionsContent}
             showsVerticalScrollIndicator={false}
@@ -426,6 +456,20 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                 );
               })}
             </View>
+          </View>
+
+          <View
+            style={styles.filterSection}
+            onLayout={(event) => {
+              vocabularySectionY.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <VocabularyTypeFilter
+              subjects={subjects}
+              selected={filtersToDisplay.vocabularyTypes ?? []}
+              onChange={handleVocabularyTypesChange}
+              onSearchFocus={focusVocabularySearch}
+            />
           </View>
 
           {showJlptFilters && (
@@ -856,6 +900,8 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
           </View>
         </View>
       </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* Min Level Picker Modal */}
       <Modal
@@ -999,6 +1045,13 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  keyboardContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+  },
+  keyboardContent: {
+    flex: 1,
+  },
   filterPanelBackdrop: {
     position: "absolute",
     top: 0,

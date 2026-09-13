@@ -1703,7 +1703,8 @@ export default function BunproLessonScreen() {
           {
             backgroundColor: theme.headerBackground,
             paddingTop: insets.top + 8,
-            height: insets.top + 68,
+            paddingBottom: 8,
+            minHeight: insets.top + 68,
           },
           stickyHeaderStyle,
         ]}
@@ -1845,16 +1846,20 @@ const styles = StyleSheet.create({
   },
   stickyContent: {
     flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
   },
   stickyKindBox: {
-    width: 44,
-    height: 44,
+    minWidth: 44,
+    minHeight: 44,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    flexShrink: 0,
   },
   stickyKindText: {
     fontSize: 18,
@@ -1862,6 +1867,7 @@ const styles = StyleSheet.create({
   },
   stickyTextContainer: {
     flex: 1,
+    minWidth: 0,
     justifyContent: "center",
   },
   stickyTitle: {
@@ -1875,17 +1881,23 @@ const styles = StyleSheet.create({
   },
   stickyLevelBadge: {
     minWidth: 36,
-    height: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 8,
     paddingHorizontal: 8,
+    paddingVertical: 6,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
+    flexShrink: 1,
     backgroundColor: "rgba(255,255,255,0.14)",
   },
   stickyLevelText: {
+    minWidth: 0,
+    maxWidth: "100%",
     fontSize: 12,
     fontWeight: "800",
+    textAlign: "center",
   },
   iconButton: {
     width: 38,

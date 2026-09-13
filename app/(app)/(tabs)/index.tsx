@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { GlassButton } from "../../../src/components/GlassButton";
 import HomeDashboardWidget from "../../../src/components/HomeDashboardWidget";
+import CustomSrsDashboardCard from "../../../src/features/custom-srs/CustomSrsDashboardCard";
 import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
 import OpenSourceModal from "../../../src/components/OpenSourceModal";
 import { BunproSwitchIcon } from "../../../src/components/SwitchModeIcons";
@@ -43,7 +44,10 @@ import {
 import {
   filterRecentLessonAssignments,
 } from "../../../src/utils/recentLessonsWindow";
-import { hasExtraStudySessionState } from "../../../src/utils/extraStudySessionPersistence";
+import {
+  getAccountScopedExtraStudySessionStorageKey,
+  hasExtraStudySessionState,
+} from "../../../src/utils/extraStudySessionPersistence";
 import { loadPersistedLessonSession } from "../../../src/utils/lessonSessionPersistence";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import {
@@ -69,6 +73,7 @@ import {
 } from "../../../src/utils/openSourceAnnouncement";
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import { useTheme } from "../../../src/utils/theme";
+import { loadNativeJlptSession } from "../../../src/features/jlpt/storage";
 import {
   reloadHomeWidget,
   updateHomeWidgetSnapshot,
@@ -708,12 +713,39 @@ export default function StudyTab() {
       }
 
       const refreshExtraStudySessionIndicators = async () => {
-        const sessionStates = await Promise.all(
+        const regularSessionStates = await Promise.all(
           RESUMABLE_EXTRA_STUDY_MODE_SESSION_ENTRIES.map(
-            async ([modeId, storageKey]) =>
-              [modeId, await hasExtraStudySessionState(storageKey)] as const,
+            async ([modeId, storageKey]) => {
+              if (modeId === "context-sentence-practice" || modeId === "audio-vocab") {
+                if (!userData?.id) {
+                  return [modeId, false] as const;
+                }
+
+                const accountScopedKey =
+                  getAccountScopedExtraStudySessionStorageKey(
+                    storageKey,
+                    userData.id,
+                  );
+                return [
+                  modeId,
+                  await hasExtraStudySessionState(accountScopedKey),
+                ] as const;
+              }
+
+              return [
+                modeId,
+                await hasExtraStudySessionState(storageKey),
+              ] as const;
+            },
           ),
         );
+        const jlptSession = await loadNativeJlptSession(
+          userData?.id ?? userData?.username ?? "anonymous",
+        );
+        const sessionStates: readonly (readonly [ExtraStudyModeId, boolean])[] = [
+          ...regularSessionStates,
+          ["jlpt-quiz", Boolean(jlptSession && jlptSession.status !== "complete")],
+        ];
 
         if (isFocused) {
           setActiveExtraStudySessionModeIds(
@@ -753,6 +785,7 @@ export default function StudyTab() {
       refreshLessonsReviewsCounts,
       refreshStreakIfCalendarDayChanged,
       userData?.id,
+      userData?.username,
     ]),
   );
 
@@ -1354,6 +1387,7 @@ export default function StudyTab() {
               </TouchableOpacity>
             )}
           {renderHomeWidgets()}
+          {isPortegoUsername(userData?.username) && <CustomSrsDashboardCard />}
         </View>
       </ScrollView>
     </View>

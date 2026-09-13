@@ -29,7 +29,9 @@ export type ActivityKey =
   | "context_sentence"
   | "listening_practice"
   | "crossword"
+  | "word_search"
   | "wordle"
+  | "jlpt"
   | "news"
   | "songs"
   | "epub"
@@ -61,7 +63,9 @@ export const CATEGORY_BY_ACTIVITY: Record<ActivityKey, ActivityCategory> = {
   context_sentence: "extra_study",
   listening_practice: "extra_study",
   crossword: "extra_study",
+  word_search: "extra_study",
   wordle: "extra_study",
+  jlpt: "extra_study",
   news: "news",
   songs: "songs",
   epub: "epub",
@@ -195,6 +199,18 @@ export class TimeTrackingCore {
       (registration) => registration.token !== token
     );
     this.refreshCurrentActivity();
+  }
+
+  /**
+   * End every registered activity without resetting the token sequence. Used
+   * when account ownership changes so an old screen cannot accrue into, or
+   * later end a token belonging to, the next account.
+   */
+  clearActivityRegistrations(): void {
+    this.fold();
+    this.registrations = [];
+    this.currentActivity = null;
+    this.activityMarkMs = null;
   }
 
   /**

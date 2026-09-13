@@ -19,6 +19,7 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(bunpro-tabs)" />
+      <Stack.Screen name="custom-vocabulary" />
       <Stack.Screen name="bunpro-reviews" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="bunpro-lessons" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       {/* Disable swipe-to-go-back on active study flows that require explicit exit confirmation */}
@@ -44,8 +45,13 @@ export default function AppLayout() {
         name="listening-practice-session"
         options={INTENTIONAL_EXIT_SCREEN_OPTIONS}
       />
+      <Stack.Screen name="jlpt-session" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen
         name="crossword-session"
+        options={INTENTIONAL_EXIT_SCREEN_OPTIONS}
+      />
+      <Stack.Screen
+        name="word-search-session"
         options={INTENTIONAL_EXIT_SCREEN_OPTIONS}
       />
       <Stack.Screen

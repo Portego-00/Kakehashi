@@ -27,7 +27,8 @@ type TabId =
   | "analytics"
   | "epubs"
   | "videos"
-  | "mangas";
+  | "mangas"
+  | "notebooks";
 
 interface TabInfo {
   id: TabId;
@@ -95,6 +96,13 @@ const TAB_INFO: TabInfo[] = [
     sfIcon: "books.vertical.fill",
   },
   {
+    id: "notebooks",
+    label: "Notebooks",
+    description: "Study notes, linked vocabulary, and shared notebook pages",
+    icon: "document-text",
+    sfIcon: "note.text",
+  },
+  {
     id: "news",
     label: "News",
     description: "Latest updates from WaniKani",
@@ -151,6 +159,7 @@ export default function TabSettings() {
     return TAB_INFO.filter(tab => {
       if (tab.requiresFeatureFlag && !showSongsTab) return false;
       if (tab.id === "mangas" && !canAccessMangaTab) return false;
+      if (tab.id === "notebooks" && !canAccessMangaTab) return false;
       return true;
     });
   }, [canAccessMangaTab, showSongsTab]);

@@ -1,0 +1,6024 @@
+[
+  {
+    "id": 1,
+    "object": "radical",
+    "slug": "ground",
+    "characters": "一",
+    "meanings": [
+      "Ground"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/ground",
+    "amalgamationSubjectIds": [
+      440,
+      449,
+      450,
+      451,
+      468,
+      488,
+      495,
+      531,
+      533,
+      568,
+      590,
+      609,
+      633,
+      635,
+      709,
+      710,
+      724,
+      783,
+      808,
+      885,
+      913,
+      932,
+      965,
+      971,
+      1000,
+      1020,
+      1085,
+      1119,
+      1126,
+      1137
+    ]
+  },
+  {
+    "id": 2,
+    "object": "radical",
+    "slug": "fins",
+    "characters": "ハ",
+    "meanings": [
+      "Fins"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/fins",
+    "amalgamationSubjectIds": [
+      446,
+      471,
+      499,
+      501,
+      594,
+      671,
+      710,
+      756,
+      778,
+      889,
+      971,
+      975,
+      1000,
+      1126
+    ]
+  },
+  {
+    "id": 3,
+    "object": "radical",
+    "slug": "drop",
+    "characters": "丶",
+    "meanings": [
+      "Drop"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/drop",
+    "amalgamationSubjectIds": [
+      467,
+      489,
+      537,
+      585,
+      611,
+      613,
+      621,
+      653,
+      802,
+      805,
+      856,
+      913,
+      922,
+      1520
+    ]
+  },
+  {
+    "id": 4,
+    "object": "radical",
+    "slug": "seven",
+    "characters": "七",
+    "meanings": [
+      "Seven"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/seven",
+    "amalgamationSubjectIds": [
+      443,
+      502
+    ]
+  },
+  {
+    "id": 5,
+    "object": "radical",
+    "slug": "slide",
+    "characters": "丿",
+    "meanings": [
+      "Slide"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/slide",
+    "amalgamationSubjectIds": [
+      468,
+      503,
+      506,
+      539,
+      543,
+      588,
+      628,
+      654,
+      655,
+      682,
+      689,
+      846,
+      853,
+      1031
+    ]
+  },
+  {
+    "id": 6,
+    "object": "radical",
+    "slug": "barb",
+    "characters": "亅",
+    "meanings": [
+      "Barb"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/barb",
+    "amalgamationSubjectIds": [
+      465,
+      468,
+      689,
+      775
+    ]
+  },
+  {
+    "id": 7,
+    "object": "radical",
+    "slug": "two",
+    "characters": "二",
+    "meanings": [
+      "Two"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/two",
+    "amalgamationSubjectIds": [
+      441,
+      449
+    ]
+  },
+  {
+    "id": 8,
+    "object": "radical",
+    "slug": "lid",
+    "characters": "亠",
+    "meanings": [
+      "Lid"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/lid",
+    "amalgamationSubjectIds": [
+      471,
+      472,
+      522,
+      565,
+      658,
+      666,
+      897,
+      969,
+      1091
+    ]
+  },
+  {
+    "id": 9,
+    "object": "radical",
+    "slug": "person",
+    "characters": "人",
+    "meanings": [
+      "Person"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/person",
+    "amalgamationSubjectIds": [
+      444,
+      653,
+      687,
+      897,
+      1041,
+      1090
+    ]
+  },
+  {
+    "id": 10,
+    "object": "radical",
+    "slug": "toe",
+    "characters": "ト",
+    "meanings": [
+      "Toe"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/toe",
+    "amalgamationSubjectIds": [
+      450,
+      451,
+      521
+    ]
+  },
+  {
+    "id": 11,
+    "object": "radical",
+    "slug": "nine",
+    "characters": "九",
+    "meanings": [
+      "Nine"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/nine",
+    "amalgamationSubjectIds": [
+      442,
+      467,
+      688,
+      1100
+    ]
+  },
+  {
+    "id": 12,
+    "object": "radical",
+    "slug": "enter",
+    "characters": "入",
+    "meanings": [
+      "Enter"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/enter",
+    "amalgamationSubjectIds": [
+      445
+    ]
+  },
+  {
+    "id": 13,
+    "object": "radical",
+    "slug": "power",
+    "characters": "力",
+    "meanings": [
+      "Power"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/power",
+    "amalgamationSubjectIds": [
+      447,
+      680,
+      738,
+      787,
+      788,
+      806,
+      809,
+      813,
+      827,
+      898,
+      1057,
+      1129
+    ]
+  },
+  {
+    "id": 14,
+    "object": "radical",
+    "slug": "prison",
+    "characters": "勹",
+    "meanings": [
+      "Prison"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/prison",
+    "amalgamationSubjectIds": [
+      495,
+      533,
+      733,
+      775,
+      780,
+      785,
+      856,
+      970,
+      989,
+      1044
+    ]
+  },
+  {
+    "id": 15,
+    "object": "radical",
+    "slug": "cross",
+    "characters": "十",
+    "meanings": [
+      "Cross"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/cross",
+    "amalgamationSubjectIds": [
+      448,
+      538,
+      547,
+      605,
+      648,
+      695,
+      708,
+      897,
+      898,
+      935,
+      991,
+      1091,
+      1113,
+      9343
+    ]
+  },
+  {
+    "id": 16,
+    "object": "radical",
+    "slug": "mouth",
+    "characters": "口",
+    "meanings": [
+      "Mouth"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/mouth",
+    "amalgamationSubjectIds": [
+      452,
+      484,
+      485,
+      515,
+      520,
+      533,
+      538,
+      544,
+      569,
+      585,
+      594,
+      614,
+      621,
+      631,
+      648,
+      650,
+      666,
+      671,
+      682,
+      684,
+      708,
+      712,
+      722,
+      723,
+      764,
+      766,
+      785,
+      789,
+      812,
+      821,
+      859,
+      862,
+      866,
+      884,
+      901,
+      902,
+      960,
+      976,
+      983,
+      1001,
+      1002,
+      1010,
+      1011,
+      1031,
+      1055,
+      1057,
+      1059,
+      1076,
+      1085,
+      1086,
+      1093,
+      1105,
+      8838,
+      8839,
+      9343
+    ]
+  },
+  {
+    "id": 18,
+    "object": "radical",
+    "slug": "big",
+    "characters": "大",
+    "meanings": [
+      "Big"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/big",
+    "amalgamationSubjectIds": [
+      453,
+      732,
+      876,
+      899,
+      1010,
+      1034,
+      1055,
+      1111,
+      1883
+    ]
+  },
+  {
+    "id": 19,
+    "object": "radical",
+    "slug": "woman",
+    "characters": "女",
+    "meanings": [
+      "Woman"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/woman",
+    "amalgamationSubjectIds": [
+      454,
+      612,
+      623,
+      624,
+      703,
+      713,
+      737,
+      779,
+      787,
+      925,
+      1104,
+      1113,
+      1125
+    ]
+  },
+  {
+    "id": 20,
+    "object": "radical",
+    "slug": "mountain",
+    "characters": "山",
+    "meanings": [
+      "Mountain"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/mountain",
+    "amalgamationSubjectIds": [
+      455,
+      483,
+      609,
+      790,
+      822,
+      929,
+      1137
+    ]
+  },
+  {
+    "id": 21,
+    "object": "radical",
+    "slug": "river",
+    "characters": "川",
+    "meanings": [
+      "River"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/river",
+    "amalgamationSubjectIds": [
+      456,
+      613,
+      818,
+      1028,
+      1060
+    ]
+  },
+  {
+    "id": 22,
+    "object": "radical",
+    "slug": "sun",
+    "characters": "日",
+    "meanings": [
+      "Sun"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/sun",
+    "amalgamationSubjectIds": [
+      476,
+      547,
+      549,
+      605,
+      606,
+      638,
+      662,
+      695,
+      701,
+      774,
+      792,
+      797,
+      838,
+      842,
+      864,
+      872,
+      893,
+      931,
+      932,
+      933,
+      947,
+      958,
+      961,
+      962,
+      992,
+      1015,
+      1067,
+      1077,
+      1078,
+      1081,
+      1112
+    ]
+  },
+  {
+    "id": 23,
+    "object": "radical",
+    "slug": "tree",
+    "characters": "木",
+    "meanings": [
+      "Tree"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/tree",
+    "amalgamationSubjectIds": [
+      478,
+      542,
+      554,
+      600,
+      649,
+      658,
+      693,
+      704,
+      730,
+      750,
+      754,
+      768,
+      770,
+      817,
+      831,
+      840,
+      857,
+      861,
+      865,
+      866,
+      879,
+      880,
+      909,
+      911,
+      920,
+      972,
+      983,
+      1007,
+      1051,
+      1054,
+      1069,
+      1086,
+      1090,
+      1102,
+      1130,
+      1134,
+      1143,
+      1145,
+      1296,
+      1810
+    ]
+  },
+  {
+    "id": 25,
+    "object": "radical",
+    "slug": "construction",
+    "characters": "工",
+    "meanings": [
+      "Construction"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/construction",
+    "amalgamationSubjectIds": [
+      457,
+      486,
+      601,
+      806,
+      939,
+      1029
+    ]
+  },
+  {
+    "id": 8761,
+    "object": "radical",
+    "slug": "stick",
+    "characters": "丨",
+    "meanings": [
+      "Stick"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/stick",
+    "amalgamationSubjectIds": [
+      507,
+      586,
+      588,
+      990,
+      1107
+    ]
+  },
+  {
+    "id": 8762,
+    "object": "radical",
+    "slug": "gun",
+    "characters": "𠂉",
+    "meanings": [
+      "Gun"
+    ],
+    "level": 1,
+    "sourceUrl": "https://www.wanikani.com/radicals/gun",
+    "amalgamationSubjectIds": [
+      546,
+      572,
+      640,
+      816,
+      830,
+      1002,
+      1007
+    ]
+  },
+  {
+    "id": 17,
+    "object": "radical",
+    "slug": "dirt",
+    "characters": "土",
+    "meanings": [
+      "Dirt"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/dirt",
+    "amalgamationSubjectIds": [
+      459,
+      532,
+      543,
+      591,
+      608,
+      635,
+      694,
+      724,
+      917,
+      938,
+      1001,
+      1002,
+      1031,
+      1033,
+      1041,
+      1056,
+      1106,
+      1107,
+      1148,
+      1725
+    ]
+  },
+  {
+    "id": 24,
+    "object": "radical",
+    "slug": "sword",
+    "characters": "刀",
+    "meanings": [
+      "Sword"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/sword",
+    "amalgamationSubjectIds": [
+      458,
+      501,
+      502,
+      651,
+      784,
+      986,
+      1055,
+      1150
+    ]
+  },
+  {
+    "id": 26,
+    "object": "radical",
+    "slug": "narwhal",
+    "characters": "ナ",
+    "meanings": [
+      "Narwhal"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/narwhal",
+    "amalgamationSubjectIds": [
+      484,
+      486,
+      504,
+      615,
+      905,
+      990,
+      1062,
+      1107
+    ]
+  },
+  {
+    "id": 27,
+    "object": "radical",
+    "slug": "street",
+    "characters": "丁",
+    "meanings": [
+      "Street"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/street",
+    "amalgamationSubjectIds": [
+      464,
+      536,
+      556,
+      629,
+      854
+    ]
+  },
+  {
+    "id": 28,
+    "object": "radical",
+    "slug": "legs",
+    "characters": "儿",
+    "meanings": [
+      "Legs"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/legs",
+    "amalgamationSubjectIds": [
+      485,
+      515,
+      543,
+      587,
+      828,
+      831,
+      1891
+    ]
+  },
+  {
+    "id": 29,
+    "object": "radical",
+    "slug": "head",
+    "characters": "冂",
+    "meanings": [
+      "Head"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/head",
+    "amalgamationSubjectIds": [
+      472,
+      609,
+      1137,
+      1296
+    ]
+  },
+  {
+    "id": 31,
+    "object": "radical",
+    "slug": "treasure",
+    "characters": "メ",
+    "meanings": [
+      "Treasure"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/treasure",
+    "amalgamationSubjectIds": [
+      548,
+      585,
+      808,
+      880,
+      905,
+      937
+    ]
+  },
+  {
+    "id": 32,
+    "object": "radical",
+    "slug": "thousand",
+    "characters": "千",
+    "meanings": [
+      "Thousand"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/thousand",
+    "amalgamationSubjectIds": [
+      460
+    ]
+  },
+  {
+    "id": 33,
+    "object": "radical",
+    "slug": "evening",
+    "characters": "夕",
+    "meanings": [
+      "Evening"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/evening",
+    "amalgamationSubjectIds": [
+      461,
+      521,
+      544,
+      570,
+      1108
+    ]
+  },
+  {
+    "id": 34,
+    "object": "radical",
+    "slug": "child",
+    "characters": "子",
+    "meanings": [
+      "Child"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/child",
+    "amalgamationSubjectIds": [
+      462,
+      545,
+      599,
+      779,
+      903,
+      990,
+      1112
+    ]
+  },
+  {
+    "id": 35,
+    "object": "radical",
+    "slug": "small",
+    "characters": "小",
+    "meanings": [
+      "Small"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/small",
+    "amalgamationSubjectIds": [
+      463,
+      506,
+      628,
+      731
+    ]
+  },
+  {
+    "id": 36,
+    "object": "radical",
+    "slug": "bow",
+    "characters": "弓",
+    "meanings": [
+      "Bow"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/bow",
+    "amalgamationSubjectIds": [
+      507,
+      588,
+      661,
+      667,
+      1030
+    ]
+  },
+  {
+    "id": 37,
+    "object": "radical",
+    "slug": "flag",
+    "characters": "尸",
+    "meanings": [
+      "Flag"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/flag",
+    "amalgamationSubjectIds": [
+      586,
+      684,
+      724,
+      1100,
+      1101
+    ]
+  },
+  {
+    "id": 38,
+    "object": "radical",
+    "slug": "hair",
+    "characters": "彡",
+    "meanings": [
+      "Hair"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/hair",
+    "amalgamationSubjectIds": [
+      589,
+      772,
+      899
+    ]
+  },
+  {
+    "id": 39,
+    "object": "radical",
+    "slug": "five",
+    "characters": "五",
+    "meanings": [
+      "Five"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/five",
+    "amalgamationSubjectIds": [
+      470,
+      764
+    ]
+  },
+  {
+    "id": 40,
+    "object": "radical",
+    "slug": "heaven",
+    "characters": "天",
+    "meanings": [
+      "Heaven"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/heaven",
+    "amalgamationSubjectIds": [
+      473,
+      734,
+      866,
+      980,
+      982
+    ]
+  },
+  {
+    "id": 41,
+    "object": "radical",
+    "slug": "hand",
+    "characters": "手",
+    "meanings": [
+      "Hand"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/hand",
+    "amalgamationSubjectIds": [
+      474,
+      1126
+    ]
+  },
+  {
+    "id": 42,
+    "object": "radical",
+    "slug": "writing",
+    "characters": "文",
+    "meanings": [
+      "Writing"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/writing",
+    "amalgamationSubjectIds": [
+      475,
+      683
+    ]
+  },
+  {
+    "id": 43,
+    "object": "radical",
+    "slug": "moon",
+    "characters": "月",
+    "meanings": [
+      "Moon"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/moon",
+    "amalgamationSubjectIds": [
+      477,
+      615,
+      633,
+      695,
+      716,
+      738,
+      795,
+      819,
+      823,
+      839,
+      881,
+      908,
+      921,
+      924,
+      1044,
+      1045,
+      1309
+    ]
+  },
+  {
+    "id": 44,
+    "object": "radical",
+    "slug": "stop",
+    "characters": "止",
+    "meanings": [
+      "Stop"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/stop",
+    "amalgamationSubjectIds": [
+      488,
+      514,
+      628,
+      841,
+      1069,
+      1153
+    ]
+  },
+  {
+    "id": 45,
+    "object": "radical",
+    "slug": "water",
+    "characters": "水",
+    "meanings": [
+      "Water"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/water",
+    "amalgamationSubjectIds": [
+      479,
+      537,
+      767,
+      849,
+      865,
+      868,
+      913,
+      1077
+    ]
+  },
+  {
+    "id": 46,
+    "object": "radical",
+    "slug": "fire",
+    "characters": "火",
+    "meanings": [
+      "Fire"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/fire",
+    "amalgamationSubjectIds": [
+      480,
+      736,
+      934,
+      1040,
+      1056,
+      1089
+    ]
+  },
+  {
+    "id": 47,
+    "object": "radical",
+    "slug": "dog",
+    "characters": "犬",
+    "meanings": [
+      "Dog"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/dog",
+    "amalgamationSubjectIds": [
+      481,
+      881
+    ]
+  },
+  {
+    "id": 48,
+    "object": "radical",
+    "slug": "king",
+    "characters": "王",
+    "meanings": [
+      "King"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/king",
+    "amalgamationSubjectIds": [
+      482,
+      489,
+      610,
+      621,
+      669,
+      814,
+      832,
+      846,
+      908,
+      1142,
+      1520
+    ]
+  },
+  {
+    "id": 49,
+    "object": "radical",
+    "slug": "middle",
+    "characters": "中",
+    "meanings": [
+      "Middle"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/middle",
+    "amalgamationSubjectIds": [
+      469,
+      776
+    ]
+  },
+  {
+    "id": 50,
+    "object": "radical",
+    "slug": "book",
+    "characters": "本",
+    "meanings": [
+      "Book"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/book",
+    "amalgamationSubjectIds": [
+      487,
+      583
+    ]
+  },
+  {
+    "id": 51,
+    "object": "radical",
+    "slug": "rice-paddy",
+    "characters": "田",
+    "meanings": [
+      "Rice Paddy"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/rice-paddy",
+    "amalgamationSubjectIds": [
+      490,
+      556,
+      629,
+      637,
+      696,
+      706,
+      728,
+      808,
+      959,
+      986,
+      991,
+      996,
+      998,
+      1883
+    ]
+  },
+  {
+    "id": 52,
+    "object": "radical",
+    "slug": "white",
+    "characters": "白",
+    "meanings": [
+      "White"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/white",
+    "amalgamationSubjectIds": [
+      491,
+      704,
+      746,
+      767,
+      835,
+      849,
+      895,
+      914
+    ]
+  },
+  {
+    "id": 53,
+    "object": "radical",
+    "slug": "eye",
+    "characters": "目",
+    "meanings": [
+      "Eye"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/eye",
+    "amalgamationSubjectIds": [
+      492,
+      659,
+      710,
+      730,
+      731,
+      762,
+      846,
+      861,
+      972,
+      992,
+      1147
+    ]
+  },
+  {
+    "id": 55,
+    "object": "radical",
+    "slug": "stand",
+    "characters": "立",
+    "meanings": [
+      "Stand"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/stand",
+    "amalgamationSubjectIds": [
+      494,
+      606,
+      770,
+      772,
+      782,
+      804,
+      824,
+      828,
+      833,
+      857,
+      887,
+      950,
+      1109
+    ]
+  },
+  {
+    "id": 126,
+    "object": "radical",
+    "slug": "cow",
+    "characters": "牛",
+    "meanings": [
+      "Cow"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/cow",
+    "amalgamationSubjectIds": [
+      511,
+      546,
+      718,
+      807,
+      1128,
+      1135,
+      1150
+    ]
+  },
+  {
+    "id": 140,
+    "object": "radical",
+    "slug": "private",
+    "characters": "ム",
+    "meanings": [
+      "Private"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/private",
+    "amalgamationSubjectIds": [
+      499,
+      520,
+      523,
+      532,
+      635,
+      667,
+      724,
+      899,
+      921,
+      923,
+      956,
+      984,
+      986,
+      1608
+    ]
+  },
+  {
+    "id": 8763,
+    "object": "radical",
+    "slug": "leaf",
+    "characters": "丆",
+    "meanings": [
+      "Leaf"
+    ],
+    "level": 2,
+    "sourceUrl": "https://www.wanikani.com/radicals/leaf",
+    "amalgamationSubjectIds": [
+      549,
+      659
+    ]
+  },
+  {
+    "id": 30,
+    "object": "radical",
+    "slug": "stool",
+    "characters": "又",
+    "meanings": [
+      "Stool"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/stool",
+    "amalgamationSubjectIds": [
+      504,
+      711,
+      716,
+      725,
+      774,
+      787,
+      823,
+      855,
+      966,
+      1035
+    ]
+  },
+  {
+    "id": 54,
+    "object": "radical",
+    "slug": "stone",
+    "characters": "石",
+    "meanings": [
+      "Stone"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/stone",
+    "amalgamationSubjectIds": [
+      493,
+      691,
+      929,
+      1103
+    ]
+  },
+  {
+    "id": 57,
+    "object": "radical",
+    "slug": "spoon",
+    "characters": "匕",
+    "meanings": [
+      "Spoon"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/spoon",
+    "amalgamationSubjectIds": [
+      557,
+      617,
+      781,
+      797,
+      894,
+      921
+    ]
+  },
+  {
+    "id": 60,
+    "object": "radical",
+    "slug": "winter",
+    "characters": "夂",
+    "meanings": [
+      "Winter"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/winter",
+    "amalgamationSubjectIds": [
+      516,
+      598,
+      636,
+      659,
+      668,
+      703,
+      723,
+      745,
+      791,
+      863,
+      944,
+      985,
+      1004,
+      1021,
+      1023,
+      1051,
+      1082,
+      1123,
+      1129,
+      1145
+    ]
+  },
+  {
+    "id": 61,
+    "object": "radical",
+    "slug": "dry",
+    "characters": "干",
+    "meanings": [
+      "Dry"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/dry",
+    "amalgamationSubjectIds": [
+      503,
+      518,
+      535,
+      790,
+      1014,
+      1072,
+      1553
+    ]
+  },
+  {
+    "id": 62,
+    "object": "radical",
+    "slug": "canopy",
+    "characters": "广",
+    "meanings": [
+      "Canopy"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/canopy",
+    "amalgamationSubjectIds": [
+      523,
+      625,
+      814,
+      977,
+      1020,
+      1041,
+      1810
+    ]
+  },
+  {
+    "id": 63,
+    "object": "radical",
+    "slug": "fingers",
+    "characters": "扌",
+    "meanings": [
+      "Fingers"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/fingers",
+    "amalgamationSubjectIds": [
+      536,
+      686,
+      727,
+      796,
+      797,
+      907,
+      919,
+      1141,
+      1608
+    ]
+  },
+  {
+    "id": 65,
+    "object": "radical",
+    "slug": "heart",
+    "characters": "心",
+    "meanings": [
+      "Heart"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/heart",
+    "amalgamationSubjectIds": [
+      508,
+      637,
+      655,
+      811,
+      815,
+      829,
+      837,
+      861,
+      862,
+      906,
+      970,
+      1021,
+      1024,
+      1042,
+      1131,
+      1152
+    ]
+  },
+  {
+    "id": 66,
+    "object": "radical",
+    "slug": "direction",
+    "characters": "方",
+    "meanings": [
+      "Direction"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/direction",
+    "amalgamationSubjectIds": [
+      510,
+      791,
+      816,
+      830,
+      1117
+    ]
+  },
+  {
+    "id": 67,
+    "object": "radical",
+    "slug": "fur",
+    "characters": "毛",
+    "meanings": [
+      "Fur"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/fur",
+    "amalgamationSubjectIds": [
+      513,
+      1101
+    ]
+  },
+  {
+    "id": 68,
+    "object": "radical",
+    "slug": "father",
+    "characters": "父",
+    "meanings": [
+      "Father"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/father",
+    "amalgamationSubjectIds": [
+      512,
+      565,
+      658
+    ]
+  },
+  {
+    "id": 69,
+    "object": "radical",
+    "slug": "old",
+    "characters": "古",
+    "meanings": [
+      "Old"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/old",
+    "amalgamationSubjectIds": [
+      519,
+      719,
+      902,
+      1105
+    ]
+  },
+  {
+    "id": 71,
+    "object": "radical",
+    "slug": "task",
+    "characters": "用",
+    "meanings": [
+      "Task"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/task",
+    "amalgamationSubjectIds": [
+      525,
+      665
+    ]
+  },
+  {
+    "id": 72,
+    "object": "radical",
+    "slug": "arrow",
+    "characters": "矢",
+    "meanings": [
+      "Arrow"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/arrow",
+    "amalgamationSubjectIds": [
+      526,
+      631,
+      681,
+      830,
+      847,
+      894,
+      1134,
+      8838
+    ]
+  },
+  {
+    "id": 73,
+    "object": "radical",
+    "slug": "door",
+    "characters": "戸",
+    "meanings": [
+      "Door"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/door",
+    "amalgamationSubjectIds": [
+      509,
+      707
+    ]
+  },
+  {
+    "id": 78,
+    "object": "radical",
+    "slug": "roof",
+    "characters": "宀",
+    "meanings": [
+      "Roof"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/roof",
+    "amalgamationSubjectIds": [
+      545,
+      612,
+      635,
+      714,
+      715,
+      723,
+      744,
+      836,
+      860,
+      873,
+      904,
+      968,
+      1018,
+      1019,
+      1061,
+      1072,
+      1073,
+      1093,
+      1520
+    ]
+  },
+  {
+    "id": 87,
+    "object": "radical",
+    "slug": "poop",
+    "characters": "幺",
+    "meanings": [
+      "Poop"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/poop",
+    "amalgamationSubjectIds": [
+      636,
+      1027,
+      1090,
+      1091
+    ]
+  },
+  {
+    "id": 102,
+    "object": "radical",
+    "slug": "towel",
+    "characters": "巾",
+    "meanings": [
+      "Towel"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/towel",
+    "amalgamationSubjectIds": [
+      522,
+      905,
+      1003,
+      1011,
+      1062,
+      1128
+    ]
+  },
+  {
+    "id": 107,
+    "object": "radical",
+    "slug": "window",
+    "characters": "毋",
+    "meanings": [
+      "Window"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/window",
+    "amalgamationSubjectIds": [
+      524,
+      572,
+      640,
+      948,
+      1007,
+      8963
+    ]
+  },
+  {
+    "id": 123,
+    "object": "radical",
+    "slug": "ice",
+    "characters": "冫",
+    "meanings": [
+      "Ice"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/ice",
+    "amalgamationSubjectIds": [
+      516,
+      616,
+      661,
+      704,
+      745,
+      836
+    ]
+  },
+  {
+    "id": 210,
+    "object": "radical",
+    "slug": "life",
+    "characters": "生",
+    "meanings": [
+      "Life"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/life",
+    "amalgamationSubjectIds": [
+      638,
+      850,
+      918,
+      1109
+    ]
+  },
+  {
+    "id": 238,
+    "object": "radical",
+    "slug": "now",
+    "characters": "今",
+    "meanings": [
+      "Now"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/now",
+    "amalgamationSubjectIds": [
+      497,
+      906
+    ]
+  },
+  {
+    "id": 327,
+    "object": "radical",
+    "slug": "north",
+    "characters": "北",
+    "meanings": [
+      "North"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/north",
+    "amalgamationSubjectIds": [
+      517
+    ]
+  },
+  {
+    "id": 357,
+    "object": "radical",
+    "slug": "bright",
+    "characters": "明",
+    "meanings": [
+      "Bright"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/bright",
+    "amalgamationSubjectIds": [
+      626
+    ]
+  },
+  {
+    "id": 411,
+    "object": "radical",
+    "slug": "fat",
+    "characters": "太",
+    "meanings": [
+      "Fat"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/fat",
+    "amalgamationSubjectIds": [
+      505
+    ]
+  },
+  {
+    "id": 8764,
+    "object": "radical",
+    "slug": "hat",
+    "characters": "𠆢",
+    "meanings": [
+      "Hat"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/hat",
+    "amalgamationSubjectIds": [
+      594,
+      610,
+      643,
+      885,
+      1094,
+      1119,
+      1153
+    ]
+  },
+  {
+    "id": 8765,
+    "object": "radical",
+    "slug": "triceratops",
+    "characters": "⺌",
+    "meanings": [
+      "Triceratops"
+    ],
+    "level": 3,
+    "sourceUrl": "https://www.wanikani.com/radicals/triceratops",
+    "amalgamationSubjectIds": [
+      518,
+      567,
+      571,
+      819
+    ]
+  },
+  {
+    "id": 64,
+    "object": "radical",
+    "slug": "origin",
+    "characters": "元",
+    "meanings": [
+      "Origin"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/origin",
+    "amalgamationSubjectIds": [
+      498,
+      744,
+      904,
+      927
+    ]
+  },
+  {
+    "id": 74,
+    "object": "radical",
+    "slug": "measurement",
+    "characters": "寸",
+    "meanings": [
+      "Measurement"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/measurement",
+    "amalgamationSubjectIds": [
+      554,
+      652,
+      683,
+      892,
+      968,
+      991,
+      1076
+    ]
+  },
+  {
+    "id": 75,
+    "object": "radical",
+    "slug": "leader",
+    "characters": "ｲ",
+    "meanings": [
+      "Leader"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/leader",
+    "amalgamationSubjectIds": [
+      529,
+      530,
+      542,
+      557,
+      564,
+      582,
+      583,
+      584,
+      652,
+      679,
+      709,
+      739,
+      776,
+      777,
+      782,
+      783,
+      808,
+      809,
+      820,
+      860,
+      875,
+      890,
+      896,
+      940,
+      956,
+      965,
+      973,
+      983,
+      999,
+      1039,
+      1046,
+      1068,
+      1105,
+      1110,
+      1135,
+      1142,
+      1883,
+      1890,
+      8838
+    ]
+  },
+  {
+    "id": 76,
+    "object": "radical",
+    "slug": "forehead",
+    "characters": "冖",
+    "meanings": [
+      "Forehead"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/forehead",
+    "amalgamationSubjectIds": [
+      531,
+      587,
+      711,
+      752,
+      831,
+      924,
+      954,
+      993,
+      1021,
+      1103,
+      1108
+    ]
+  },
+  {
+    "id": 77,
+    "object": "radical",
+    "slug": "alligator",
+    "characters": "也",
+    "meanings": [
+      "Alligator"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/alligator",
+    "amalgamationSubjectIds": [
+      529,
+      573,
+      608
+    ]
+  },
+  {
+    "id": 79,
+    "object": "radical",
+    "slug": "ceremony",
+    "characters": "弋",
+    "meanings": [
+      "Ceremony"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/ceremony",
+    "amalgamationSubjectIds": [
+      530,
+      939,
+      1029
+    ]
+  },
+  {
+    "id": 80,
+    "object": "radical",
+    "slug": "spirit",
+    "characters": "ネ",
+    "meanings": [
+      "Spirit"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/spirit",
+    "amalgamationSubjectIds": [
+      541,
+      591,
+      799,
+      867,
+      1036,
+      1047
+    ]
+  },
+  {
+    "id": 81,
+    "object": "radical",
+    "slug": "branch",
+    "characters": "支",
+    "meanings": [
+      "Branch"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/branch",
+    "amalgamationSubjectIds": [
+      539,
+      678,
+      919
+    ]
+  },
+  {
+    "id": 82,
+    "object": "radical",
+    "slug": "energy",
+    "characters": "气",
+    "meanings": [
+      "Energy"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/energy",
+    "amalgamationSubjectIds": [
+      548,
+      1038
+    ]
+  },
+  {
+    "id": 83,
+    "object": "radical",
+    "slug": "world",
+    "characters": "世",
+    "meanings": [
+      "World"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/world",
+    "amalgamationSubjectIds": [
+      527,
+      750,
+      9259
+    ]
+  },
+  {
+    "id": 84,
+    "object": "radical",
+    "slug": "plate",
+    "characters": "皿",
+    "meanings": [
+      "Plate"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/plate",
+    "amalgamationSubjectIds": [
+      540,
+      842,
+      1002
+    ]
+  },
+  {
+    "id": 85,
+    "object": "radical",
+    "slug": "bamboo",
+    "characters": "竹",
+    "meanings": [
+      "Bamboo"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/bamboo",
+    "amalgamationSubjectIds": [
+      550,
+      697,
+      762,
+      825,
+      972,
+      980,
+      1037,
+      1058,
+      1121
+    ]
+  },
+  {
+    "id": 86,
+    "object": "radical",
+    "slug": "thread",
+    "characters": "糸",
+    "meanings": [
+      "Thread"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/thread",
+    "amalgamationSubjectIds": [
+      551,
+      663,
+      670,
+      698,
+      745,
+      767,
+      801,
+      868,
+      869,
+      915,
+      952,
+      965,
+      996,
+      1009,
+      1083,
+      1087,
+      1120,
+      1131,
+      1138,
+      9246
+    ]
+  },
+  {
+    "id": 88,
+    "object": "radical",
+    "slug": "ear",
+    "characters": "耳",
+    "meanings": [
+      "Ear"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/ear",
+    "amalgamationSubjectIds": [
+      552,
+      763,
+      774,
+      966,
+      9451
+    ]
+  },
+  {
+    "id": 89,
+    "object": "radical",
+    "slug": "insect",
+    "characters": "虫",
+    "meanings": [
+      "Insect"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/insect",
+    "amalgamationSubjectIds": [
+      553,
+      667,
+      853
+    ]
+  },
+  {
+    "id": 90,
+    "object": "radical",
+    "slug": "flowers",
+    "characters": "艹",
+    "meanings": [
+      "Flowers"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/flowers",
+    "amalgamationSubjectIds": [
+      557,
+      605,
+      643,
+      719,
+      749,
+      750,
+      916,
+      953,
+      959,
+      973,
+      997,
+      1065,
+      1108,
+      1553,
+      8963,
+      8990
+    ]
+  },
+  {
+    "id": 91,
+    "object": "radical",
+    "slug": "see",
+    "characters": "見",
+    "meanings": [
+      "See"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/see",
+    "amalgamationSubjectIds": [
+      558,
+      770,
+      887,
+      1025
+    ]
+  },
+  {
+    "id": 92,
+    "object": "radical",
+    "slug": "red",
+    "characters": "赤",
+    "meanings": [
+      "Red"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/red",
+    "amalgamationSubjectIds": [
+      560
+    ]
+  },
+  {
+    "id": 93,
+    "object": "radical",
+    "slug": "car",
+    "characters": "車",
+    "meanings": [
+      "Car"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/car",
+    "amalgamationSubjectIds": [
+      562,
+      747,
+      751,
+      752,
+      885,
+      954,
+      1084,
+      9246
+    ]
+  },
+  {
+    "id": 94,
+    "object": "radical",
+    "slug": "shellfish",
+    "characters": "貝",
+    "meanings": [
+      "Shellfish"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/shellfish",
+    "amalgamationSubjectIds": [
+      559,
+      699,
+      733,
+      821,
+      884,
+      999,
+      1004,
+      1064,
+      1133,
+      9259
+    ]
+  },
+  {
+    "id": 95,
+    "object": "radical",
+    "slug": "foot",
+    "characters": "足",
+    "meanings": [
+      "Foot"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/foot",
+    "amalgamationSubjectIds": [
+      561,
+      758
+    ]
+  },
+  {
+    "id": 96,
+    "object": "radical",
+    "slug": "not",
+    "characters": "不",
+    "meanings": [
+      "Not"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/not",
+    "amalgamationSubjectIds": [
+      563
+    ]
+  },
+  {
+    "id": 97,
+    "object": "radical",
+    "slug": "samurai",
+    "characters": "士",
+    "meanings": [
+      "Samurai"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/samurai",
+    "amalgamationSubjectIds": [
+      564,
+      586,
+      587,
+      877
+    ]
+  },
+  {
+    "id": 98,
+    "object": "radical",
+    "slug": "rice",
+    "characters": "米",
+    "meanings": [
+      "Rice"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/rice",
+    "amalgamationSubjectIds": [
+      574,
+      590,
+      703,
+      841,
+      878,
+      1034,
+      1139
+    ]
+  },
+  {
+    "id": 99,
+    "object": "radical",
+    "slug": "loiter",
+    "characters": "彳",
+    "meanings": [
+      "Loiter"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/loiter",
+    "amalgamationSubjectIds": [
+      636,
+      685,
+      726,
+      1080,
+      1081,
+      1285,
+      1594
+    ]
+  },
+  {
+    "id": 100,
+    "object": "radical",
+    "slug": "bed",
+    "characters": "巴",
+    "meanings": [
+      "Bed"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/bed",
+    "amalgamationSubjectIds": []
+  },
+  {
+    "id": 101,
+    "object": "radical",
+    "slug": "pi",
+    "characters": "兀",
+    "meanings": [
+      "Pi"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/pi",
+    "amalgamationSubjectIds": [
+      567
+    ]
+  },
+  {
+    "id": 116,
+    "object": "radical",
+    "slug": "cliff",
+    "characters": "厂",
+    "meanings": [
+      "Cliff"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/cliff",
+    "amalgamationSubjectIds": [
+      772,
+      790,
+      855,
+      989,
+      1069,
+      1106,
+      1109,
+      1112,
+      1136
+    ]
+  },
+  {
+    "id": 154,
+    "object": "radical",
+    "slug": "master",
+    "characters": "主",
+    "meanings": [
+      "Master"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/master",
+    "amalgamationSubjectIds": [
+      528,
+      679,
+      794
+    ]
+  },
+  {
+    "id": 170,
+    "object": "radical",
+    "slug": "hole",
+    "characters": "穴",
+    "meanings": [
+      "Hole"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/hole",
+    "amalgamationSubjectIds": [
+      601,
+      688,
+      1118
+    ]
+  },
+  {
+    "id": 211,
+    "object": "radical",
+    "slug": "umbrella",
+    "characters": "乚",
+    "meanings": [
+      "Umbrella"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/umbrella",
+    "amalgamationSubjectIds": [
+      541,
+      649,
+      706,
+      1079,
+      1883
+    ]
+  },
+  {
+    "id": 231,
+    "object": "radical",
+    "slug": "center",
+    "characters": "央",
+    "meanings": [
+      "Center"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/center",
+    "amalgamationSubjectIds": [
+      534,
+      893,
+      953
+    ]
+  },
+  {
+    "id": 243,
+    "object": "radical",
+    "slug": "man",
+    "characters": "男",
+    "meanings": [
+      "Man"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/man",
+    "amalgamationSubjectIds": [
+      555
+    ]
+  },
+  {
+    "id": 346,
+    "object": "radical",
+    "slug": "inside",
+    "characters": "内",
+    "meanings": [
+      "Inside"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/inside",
+    "amalgamationSubjectIds": [
+      500
+    ]
+  },
+  {
+    "id": 8766,
+    "object": "radical",
+    "slug": "beggar",
+    "characters": null,
+    "meanings": [
+      "Beggar"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/beggar",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/8v0hjy2gh2dnmh1cgbcg8cedpd58",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      531,
+      576
+    ]
+  },
+  {
+    "id": 8767,
+    "object": "radical",
+    "slug": "horns",
+    "characters": "丷",
+    "meanings": [
+      "Horns"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/horns",
+    "amalgamationSubjectIds": [
+      535,
+      588,
+      633,
+      734,
+      846,
+      982,
+      1085,
+      1137
+    ]
+  },
+  {
+    "id": 8768,
+    "object": "radical",
+    "slug": "spikes",
+    "characters": "业",
+    "meanings": [
+      "Spikes"
+    ],
+    "level": 4,
+    "sourceUrl": "https://www.wanikani.com/radicals/spikes",
+    "amalgamationSubjectIds": [
+      756
+    ]
+  },
+  {
+    "id": 103,
+    "object": "radical",
+    "slug": "tsunami",
+    "characters": "氵",
+    "meanings": [
+      "Tsunami"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/tsunami",
+    "amalgamationSubjectIds": [
+      573,
+      639,
+      640,
+      687,
+      717,
+      743,
+      749,
+      757,
+      793,
+      794,
+      798,
+      818,
+      819,
+      831,
+      842,
+      843,
+      844,
+      949,
+      950,
+      951,
+      978,
+      979,
+      1016,
+      1038,
+      1043,
+      1059,
+      1078,
+      1124,
+      1136
+    ]
+  },
+  {
+    "id": 104,
+    "object": "radical",
+    "slug": "coffin",
+    "characters": "耂",
+    "meanings": [
+      "Coffin"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/coffin",
+    "amalgamationSubjectIds": [
+      576,
+      781
+    ]
+  },
+  {
+    "id": 105,
+    "object": "radical",
+    "slug": "wolverine",
+    "characters": "ヨ",
+    "meanings": [
+      "Wolverine"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/wolverine",
+    "amalgamationSubjectIds": [
+      571,
+      673,
+      682,
+      708,
+      775,
+      868,
+      961,
+      970,
+      1113
+    ]
+  },
+  {
+    "id": 106,
+    "object": "radical",
+    "slug": "twenty",
+    "characters": "廾",
+    "meanings": [
+      "Twenty"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/twenty",
+    "amalgamationSubjectIds": [
+      614,
+      762,
+      984,
+      998,
+      1102
+    ]
+  },
+  {
+    "id": 108,
+    "object": "radical",
+    "slug": "meat",
+    "characters": "肉",
+    "meanings": [
+      "Meat"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/meat",
+    "amalgamationSubjectIds": [
+      577
+    ]
+  },
+  {
+    "id": 109,
+    "object": "radical",
+    "slug": "self",
+    "characters": "自",
+    "meanings": [
+      "Self"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/self",
+    "amalgamationSubjectIds": [
+      578,
+      689,
+      815,
+      998,
+      1111
+    ]
+  },
+  {
+    "id": 110,
+    "object": "radical",
+    "slug": "color",
+    "characters": "色",
+    "meanings": [
+      "Color"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/color",
+    "amalgamationSubjectIds": [
+      579
+    ]
+  },
+  {
+    "id": 111,
+    "object": "radical",
+    "slug": "go",
+    "characters": "行",
+    "meanings": [
+      "Go"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/go",
+    "amalgamationSubjectIds": [
+      580,
+      922
+    ]
+  },
+  {
+    "id": 112,
+    "object": "radical",
+    "slug": "west",
+    "characters": "西",
+    "meanings": [
+      "West"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/west",
+    "amalgamationSubjectIds": [
+      581
+    ]
+  },
+  {
+    "id": 113,
+    "object": "radical",
+    "slug": "lip-ring",
+    "characters": "可",
+    "meanings": [
+      "Lip Ring"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/lip-ring",
+    "amalgamationSubjectIds": [
+      582,
+      761,
+      973,
+      1049,
+      8990
+    ]
+  },
+  {
+    "id": 114,
+    "object": "radical",
+    "slug": "scooter",
+    "characters": "⻌",
+    "meanings": [
+      "Scooter"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/scooter",
+    "amalgamationSubjectIds": [
+      596,
+      651,
+      665,
+      672,
+      700,
+      734,
+      741,
+      748,
+      752,
+      802,
+      858,
+      886,
+      963,
+      1033,
+      1084
+    ]
+  },
+  {
+    "id": 115,
+    "object": "radical",
+    "slug": "axe",
+    "characters": "斤",
+    "meanings": [
+      "Axe"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/axe",
+    "amalgamationSubjectIds": [
+      596,
+      707,
+      857,
+      907,
+      1000,
+      1036,
+      1139,
+      8884
+    ]
+  },
+  {
+    "id": 117,
+    "object": "radical",
+    "slug": "say",
+    "characters": "言",
+    "meanings": [
+      "Say"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/say",
+    "amalgamationSubjectIds": [
+      593,
+      664,
+      705,
+      736,
+      764,
+      765,
+      769,
+      870,
+      883,
+      892,
+      935,
+      940,
+      987,
+      1012,
+      1023,
+      1026,
+      1028,
+      1029,
+      1050,
+      1066,
+      1114,
+      1119,
+      1132,
+      1152,
+      1412,
+      1837
+    ]
+  },
+  {
+    "id": 118,
+    "object": "radical",
+    "slug": "gold",
+    "characters": "金",
+    "meanings": [
+      "Gold"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/gold",
+    "amalgamationSubjectIds": [
+      602,
+      760,
+      871,
+      887
+    ]
+  },
+  {
+    "id": 119,
+    "object": "radical",
+    "slug": "rain",
+    "characters": "雨",
+    "meanings": [
+      "Rain"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/rain",
+    "amalgamationSubjectIds": [
+      603,
+      673,
+      702,
+      706,
+      926,
+      1099
+    ]
+  },
+  {
+    "id": 120,
+    "object": "radical",
+    "slug": "blue",
+    "characters": "青",
+    "meanings": [
+      "Blue"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/blue",
+    "amalgamationSubjectIds": [
+      604,
+      891,
+      933,
+      1052
+    ]
+  },
+  {
+    "id": 121,
+    "object": "radical",
+    "slug": "mustache",
+    "characters": "冋",
+    "meanings": [
+      "Mustache"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/mustache",
+    "amalgamationSubjectIds": [
+      568,
+      611,
+      666,
+      828,
+      866,
+      924
+    ]
+  },
+  {
+    "id": 122,
+    "object": "radical",
+    "slug": "key",
+    "characters": "乍",
+    "meanings": [
+      "Key"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/key",
+    "amalgamationSubjectIds": [
+      584,
+      947
+    ]
+  },
+  {
+    "id": 124,
+    "object": "radical",
+    "slug": "run",
+    "characters": "走",
+    "meanings": [
+      "Run"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/run",
+    "amalgamationSubjectIds": [
+      595,
+      740,
+      1080
+    ]
+  },
+  {
+    "id": 125,
+    "object": "radical",
+    "slug": "village",
+    "characters": "里",
+    "meanings": [
+      "Village"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/village",
+    "amalgamationSubjectIds": [
+      597,
+      669,
+      833,
+      848,
+      1725
+    ]
+  },
+  {
+    "id": 155,
+    "object": "radical",
+    "slug": "meet",
+    "characters": "会",
+    "meanings": [
+      "Meet"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/meet",
+    "amalgamationSubjectIds": [
+      566,
+      698
+    ]
+  },
+  {
+    "id": 171,
+    "object": "radical",
+    "slug": "lantern",
+    "characters": "开",
+    "meanings": [
+      "Lantern"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/lantern",
+    "amalgamationSubjectIds": [
+      589,
+      691,
+      729,
+      753
+    ]
+  },
+  {
+    "id": 213,
+    "object": "radical",
+    "slug": "feathers",
+    "characters": "羽",
+    "meanings": [
+      "Feathers"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/feathers",
+    "amalgamationSubjectIds": [
+      575,
+      746
+    ]
+  },
+  {
+    "id": 233,
+    "object": "radical",
+    "slug": "pig",
+    "characters": "豕",
+    "meanings": [
+      "Pig"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/pig",
+    "amalgamationSubjectIds": [
+      1309,
+      1569
+    ]
+  },
+  {
+    "id": 281,
+    "object": "radical",
+    "slug": "angle",
+    "characters": "角",
+    "meanings": [
+      "Angle"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/angle",
+    "amalgamationSubjectIds": [
+      592,
+      1150
+    ]
+  },
+  {
+    "id": 342,
+    "object": "radical",
+    "slug": "night",
+    "characters": "夜",
+    "meanings": [
+      "Night"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/night",
+    "amalgamationSubjectIds": [
+      622
+    ]
+  },
+  {
+    "id": 8769,
+    "object": "radical",
+    "slug": "viking",
+    "characters": "龸",
+    "meanings": [
+      "Viking"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/viking",
+    "amalgamationSubjectIds": [
+      599,
+      788,
+      884,
+      1001,
+      1011,
+      1025
+    ]
+  },
+  {
+    "id": 8770,
+    "object": "radical",
+    "slug": "kick",
+    "characters": null,
+    "meanings": [
+      "Kick"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/kick",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/0dhu1giyf87t64fcp993ltgsrf5v",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      720
+    ]
+  },
+  {
+    "id": 9452,
+    "object": "radical",
+    "slug": "rib-cage",
+    "characters": null,
+    "meanings": [
+      "Rib Cage"
+    ],
+    "level": 5,
+    "sourceUrl": "https://www.wanikani.com/radicals/rib-cage",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/w2i6pg4t17keomaoftbc1dqmot8k",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      598,
+      720,
+      948,
+      1055,
+      1093,
+      1138
+    ]
+  },
+  {
+    "id": 56,
+    "object": "radical",
+    "slug": "lion",
+    "characters": "L",
+    "meanings": [
+      "Lion"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/lion",
+    "amalgamationSubjectIds": [
+      653,
+      731,
+      1139
+    ]
+  },
+  {
+    "id": 128,
+    "object": "radical",
+    "slug": "knife",
+    "characters": "刂",
+    "meanings": [
+      "Knife"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/knife",
+    "amalgamationSubjectIds": [
+      633,
+      785,
+      786,
+      896,
+      930,
+      936,
+      999,
+      1110,
+      1127,
+      1128,
+      1296,
+      1569
+    ]
+  },
+  {
+    "id": 129,
+    "object": "radical",
+    "slug": "ladle",
+    "characters": "斗",
+    "meanings": [
+      "Ladle"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/ladle",
+    "amalgamationSubjectIds": [
+      642,
+      878
+    ]
+  },
+  {
+    "id": 130,
+    "object": "radical",
+    "slug": "angel",
+    "characters": "ホ",
+    "meanings": [
+      "Angel"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/angel",
+    "amalgamationSubjectIds": [
+      643,
+      922
+    ]
+  },
+  {
+    "id": 131,
+    "object": "radical",
+    "slug": "boil",
+    "characters": "灬",
+    "meanings": [
+      "Boil"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/boil",
+    "amalgamationSubjectIds": [
+      641,
+      881,
+      882
+    ]
+  },
+  {
+    "id": 132,
+    "object": "radical",
+    "slug": "yakuza",
+    "characters": "歹",
+    "meanings": [
+      "Yakuza"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/yakuza",
+    "amalgamationSubjectIds": [
+      617,
+      896,
+      912,
+      936
+    ]
+  },
+  {
+    "id": 134,
+    "object": "radical",
+    "slug": "jet",
+    "characters": "未",
+    "meanings": [
+      "Jet"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/jet",
+    "amalgamationSubjectIds": [
+      623,
+      656,
+      657,
+      812
+    ]
+  },
+  {
+    "id": 135,
+    "object": "radical",
+    "slug": "grain",
+    "characters": "禾",
+    "meanings": [
+      "Grain"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/grain",
+    "amalgamationSubjectIds": [
+      642,
+      712,
+      722,
+      786,
+      800,
+      903,
+      923,
+      934,
+      1032,
+      1125,
+      1149
+    ]
+  },
+  {
+    "id": 136,
+    "object": "radical",
+    "slug": "sheep",
+    "characters": "羊",
+    "meanings": [
+      "Sheep"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/sheep",
+    "amalgamationSubjectIds": [
+      618,
+      732,
+      756,
+      798,
+      865,
+      889,
+      1033,
+      1085,
+      1412,
+      8880
+    ]
+  },
+  {
+    "id": 137,
+    "object": "radical",
+    "slug": "blood",
+    "characters": "血",
+    "meanings": [
+      "Blood"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/blood",
+    "amalgamationSubjectIds": [
+      619
+    ]
+  },
+  {
+    "id": 138,
+    "object": "radical",
+    "slug": "long",
+    "characters": "長",
+    "meanings": [
+      "Long"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/long",
+    "amalgamationSubjectIds": [
+      632
+    ]
+  },
+  {
+    "id": 139,
+    "object": "radical",
+    "slug": "eat",
+    "characters": "食",
+    "meanings": [
+      "Eat"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/eat",
+    "amalgamationSubjectIds": [
+      644,
+      755,
+      873,
+      955,
+      8840,
+      9451
+    ]
+  },
+  {
+    "id": 141,
+    "object": "radical",
+    "slug": "mama",
+    "characters": "マ",
+    "meanings": [
+      "Mama"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/mama",
+    "amalgamationSubjectIds": [
+      665,
+      854,
+      894
+    ]
+  },
+  {
+    "id": 143,
+    "object": "radical",
+    "slug": "fortune",
+    "characters": "占",
+    "meanings": [
+      "Fortune"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/fortune",
+    "amalgamationSubjectIds": [
+      625,
+      641
+    ]
+  },
+  {
+    "id": 156,
+    "object": "radical",
+    "slug": "neck",
+    "characters": "首",
+    "meanings": [
+      "Neck"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/neck",
+    "amalgamationSubjectIds": [
+      645,
+      700
+    ]
+  },
+  {
+    "id": 174,
+    "object": "radical",
+    "slug": "tongue",
+    "characters": "舌",
+    "meanings": [
+      "Tongue"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/tongue",
+    "amalgamationSubjectIds": [
+      639,
+      705,
+      981,
+      1070,
+      1079,
+      9381
+    ]
+  },
+  {
+    "id": 212,
+    "object": "radical",
+    "slug": "death",
+    "characters": "亡",
+    "meanings": [
+      "Death"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/death",
+    "amalgamationSubjectIds": [
+      851,
+      908,
+      1042,
+      1074
+    ]
+  },
+  {
+    "id": 224,
+    "object": "radical",
+    "slug": "east",
+    "characters": "東",
+    "meanings": [
+      "East"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/east",
+    "amalgamationSubjectIds": [
+      627,
+      869
+    ]
+  },
+  {
+    "id": 267,
+    "object": "radical",
+    "slug": "city",
+    "characters": "市",
+    "meanings": [
+      "City"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/city",
+    "amalgamationSubjectIds": [
+      624
+    ]
+  },
+  {
+    "id": 311,
+    "object": "radical",
+    "slug": "change",
+    "characters": "化",
+    "meanings": [
+      "Change"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/change",
+    "amalgamationSubjectIds": [
+      607
+    ]
+  },
+  {
+    "id": 398,
+    "object": "radical",
+    "slug": "house",
+    "characters": "家",
+    "meanings": [
+      "House"
+    ],
+    "level": 6,
+    "sourceUrl": "https://www.wanikani.com/radicals/house",
+    "amalgamationSubjectIds": [
+      660
+    ]
+  },
+  {
+    "id": 127,
+    "object": "radical",
+    "slug": "box",
+    "characters": "凵",
+    "meanings": [
+      "Box"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/box",
+    "amalgamationSubjectIds": [
+      629,
+      841
+    ]
+  },
+  {
+    "id": 142,
+    "object": "radical",
+    "slug": "lack",
+    "characters": "欠",
+    "meanings": [
+      "Lack"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/lack",
+    "amalgamationSubjectIds": [
+      616,
+      646,
+      755,
+      761
+    ]
+  },
+  {
+    "id": 145,
+    "object": "radical",
+    "slug": "stamp",
+    "characters": "卩",
+    "meanings": [
+      "Stamp"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/stamp",
+    "amalgamationSubjectIds": [
+      716,
+      1035,
+      1058,
+      8839
+    ]
+  },
+  {
+    "id": 146,
+    "object": "radical",
+    "slug": "husband",
+    "characters": "夫",
+    "meanings": [
+      "Husband"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/husband",
+    "amalgamationSubjectIds": [
+      654,
+      945
+    ]
+  },
+  {
+    "id": 147,
+    "object": "radical",
+    "slug": "clan",
+    "characters": "氏",
+    "meanings": [
+      "Clan"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/clan",
+    "amalgamationSubjectIds": [
+      647,
+      650,
+      663,
+      783,
+      1020,
+      9381
+    ]
+  },
+  {
+    "id": 149,
+    "object": "radical",
+    "slug": "boat",
+    "characters": "舟",
+    "meanings": [
+      "Boat"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/boat",
+    "amalgamationSubjectIds": [
+      671
+    ]
+  },
+  {
+    "id": 150,
+    "object": "radical",
+    "slug": "fish",
+    "characters": "魚",
+    "meanings": [
+      "Fish"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/fish",
+    "amalgamationSubjectIds": [
+      674
+    ]
+  },
+  {
+    "id": 151,
+    "object": "radical",
+    "slug": "bird",
+    "characters": "鳥",
+    "meanings": [
+      "Bird"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/bird",
+    "amalgamationSubjectIds": [
+      675,
+      766,
+      822
+    ]
+  },
+  {
+    "id": 152,
+    "object": "radical",
+    "slug": "yellow",
+    "characters": "黄",
+    "meanings": [
+      "Yellow"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/yellow",
+    "amalgamationSubjectIds": [
+      676,
+      768
+    ]
+  },
+  {
+    "id": 153,
+    "object": "radical",
+    "slug": "black",
+    "characters": "黒",
+    "meanings": [
+      "Black"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/black",
+    "amalgamationSubjectIds": [
+      677
+    ]
+  },
+  {
+    "id": 169,
+    "object": "radical",
+    "slug": "circumference",
+    "characters": "周",
+    "meanings": [
+      "Circumference"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/circumference",
+    "amalgamationSubjectIds": [
+      672,
+      769,
+      900
+    ]
+  },
+  {
+    "id": 173,
+    "object": "radical",
+    "slug": "wing",
+    "characters": "勿",
+    "meanings": [
+      "Wing"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/wing",
+    "amalgamationSubjectIds": [
+      718
+    ]
+  },
+  {
+    "id": 177,
+    "object": "radical",
+    "slug": "table",
+    "characters": "几",
+    "meanings": [
+      "Table"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/table",
+    "amalgamationSubjectIds": [
+      853,
+      993
+    ]
+  },
+  {
+    "id": 192,
+    "object": "radical",
+    "slug": "temple",
+    "characters": "寺",
+    "meanings": [
+      "Temple"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/temple",
+    "amalgamationSubjectIds": [
+      662,
+      726,
+      727,
+      807,
+      870,
+      928,
+      1037,
+      1081
+    ]
+  },
+  {
+    "id": 214,
+    "object": "radical",
+    "slug": "gate",
+    "characters": "門",
+    "meanings": [
+      "Gate"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/gate",
+    "amalgamationSubjectIds": [
+      701,
+      753,
+      763,
+      859,
+      964,
+      982,
+      1068,
+      1514
+    ]
+  },
+  {
+    "id": 228,
+    "object": "radical",
+    "slug": "oneself",
+    "characters": "己",
+    "meanings": [
+      "Oneself"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/oneself",
+    "amalgamationSubjectIds": [
+      664,
+      740,
+      742,
+      843,
+      886,
+      952,
+      1082
+    ]
+  },
+  {
+    "id": 361,
+    "object": "radical",
+    "slug": "south",
+    "characters": "南",
+    "meanings": [
+      "South"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/south",
+    "amalgamationSubjectIds": [
+      634
+    ]
+  },
+  {
+    "id": 418,
+    "object": "radical",
+    "slug": "teacher",
+    "characters": "孝",
+    "meanings": [
+      "Teacher"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/teacher",
+    "amalgamationSubjectIds": [
+      668
+    ]
+  },
+  {
+    "id": 419,
+    "object": "radical",
+    "slug": "top-hat",
+    "characters": "且",
+    "meanings": [
+      "Top Hat"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/top-hat",
+    "amalgamationSubjectIds": [
+      670,
+      680,
+      1130
+    ]
+  },
+  {
+    "id": 8823,
+    "object": "radical",
+    "slug": "elephant",
+    "characters": "象",
+    "meanings": [
+      "Elephant"
+    ],
+    "level": 7,
+    "sourceUrl": "https://www.wanikani.com/radicals/elephant",
+    "amalgamationSubjectIds": [
+      890,
+      1237
+    ]
+  },
+  {
+    "id": 157,
+    "object": "radical",
+    "slug": "hook",
+    "characters": "ユ",
+    "meanings": [
+      "Hook"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/hook",
+    "amalgamationSubjectIds": [
+      687,
+      8838
+    ]
+  },
+  {
+    "id": 158,
+    "object": "radical",
+    "slug": "snake",
+    "characters": "巳",
+    "meanings": [
+      "Snake"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/snake",
+    "amalgamationSubjectIds": [
+      989,
+      1115
+    ]
+  },
+  {
+    "id": 159,
+    "object": "radical",
+    "slug": "cloud",
+    "characters": "云",
+    "meanings": [
+      "Cloud"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/cloud",
+    "amalgamationSubjectIds": [
+      702,
+      747,
+      777,
+      916
+    ]
+  },
+  {
+    "id": 160,
+    "object": "radical",
+    "slug": "weapon",
+    "characters": "殳",
+    "meanings": [
+      "Weapon"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/weapon",
+    "amalgamationSubjectIds": [
+      685,
+      686,
+      880,
+      1132,
+      9246
+    ]
+  },
+  {
+    "id": 161,
+    "object": "radical",
+    "slug": "compare",
+    "characters": "比",
+    "meanings": [
+      "Compare"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/compare",
+    "amalgamationSubjectIds": [
+      835,
+      895,
+      1067,
+      1078,
+      1088,
+      1141
+    ]
+  },
+  {
+    "id": 163,
+    "object": "radical",
+    "slug": "net",
+    "characters": "罒",
+    "meanings": [
+      "Net"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/net",
+    "amalgamationSubjectIds": [
+      699,
+      1022,
+      1108,
+      1116
+    ]
+  },
+  {
+    "id": 164,
+    "object": "radical",
+    "slug": "sickle",
+    "characters": "釆",
+    "meanings": [
+      "Sickle"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/sickle",
+    "amalgamationSubjectIds": [
+      696
+    ]
+  },
+  {
+    "id": 165,
+    "object": "radical",
+    "slug": "horse",
+    "characters": "馬",
+    "meanings": [
+      "Horse"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/horse",
+    "amalgamationSubjectIds": [
+      692,
+      874,
+      1048
+    ]
+  },
+  {
+    "id": 172,
+    "object": "radical",
+    "slug": "easy",
+    "characters": "易",
+    "meanings": [
+      "Easy"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/easy",
+    "amalgamationSubjectIds": [
+      694,
+      834,
+      844,
+      1063
+    ]
+  },
+  {
+    "id": 203,
+    "object": "radical",
+    "slug": "someone",
+    "characters": "者",
+    "meanings": [
+      "Someone"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/someone",
+    "amalgamationSubjectIds": [
+      690,
+      826,
+      838,
+      1022
+    ]
+  },
+  {
+    "id": 216,
+    "object": "radical",
+    "slug": "suit",
+    "characters": "合",
+    "meanings": [
+      "Suit"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/suit",
+    "amalgamationSubjectIds": [
+      697,
+      796,
+      852
+    ]
+  },
+  {
+    "id": 217,
+    "object": "radical",
+    "slug": "cage",
+    "characters": "匚",
+    "meanings": [
+      "Cage"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/cage",
+    "amalgamationSubjectIds": [
+      681,
+      937,
+      1891
+    ]
+  },
+  {
+    "id": 299,
+    "object": "radical",
+    "slug": "capital",
+    "characters": "京",
+    "meanings": [
+      "Capital"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/capital",
+    "amalgamationSubjectIds": [
+      620
+    ]
+  },
+  {
+    "id": 8780,
+    "object": "radical",
+    "slug": "cape",
+    "characters": "𠃌",
+    "meanings": [
+      "Cape"
+    ],
+    "level": 8,
+    "sourceUrl": "https://www.wanikani.com/radicals/cape",
+    "amalgamationSubjectIds": [
+      684,
+      943,
+      1027
+    ]
+  },
+  {
+    "id": 166,
+    "object": "radical",
+    "slug": "jammed-in",
+    "characters": "介",
+    "meanings": [
+      "Jammed In"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/jammed-in",
+    "amalgamationSubjectIds": [
+      728
+    ]
+  },
+  {
+    "id": 167,
+    "object": "radical",
+    "slug": "history",
+    "characters": "史",
+    "meanings": [
+      "History"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/history",
+    "amalgamationSubjectIds": [
+      709,
+      1122
+    ]
+  },
+  {
+    "id": 168,
+    "object": "radical",
+    "slug": "tent",
+    "characters": "癶",
+    "meanings": [
+      "Tent"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/tent",
+    "amalgamationSubjectIds": [
+      729,
+      845
+    ]
+  },
+  {
+    "id": 175,
+    "object": "radical",
+    "slug": "clown",
+    "characters": "咅",
+    "meanings": [
+      "Clown"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/clown",
+    "amalgamationSubjectIds": [
+      721,
+      820
+    ]
+  },
+  {
+    "id": 176,
+    "object": "radical",
+    "slug": "building",
+    "characters": "阝",
+    "meanings": [
+      "Building"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/building",
+    "amalgamationSubjectIds": [
+      721,
+      744,
+      826,
+      834,
+      835,
+      988,
+      994,
+      1117,
+      1151
+    ]
+  },
+  {
+    "id": 178,
+    "object": "radical",
+    "slug": "spicy",
+    "characters": "辛",
+    "meanings": [
+      "Spicy"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/spicy",
+    "amalgamationSubjectIds": [
+      969,
+      981,
+      1880
+    ]
+  },
+  {
+    "id": 188,
+    "object": "radical",
+    "slug": "heavy",
+    "characters": "重",
+    "meanings": [
+      "Heavy"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/heavy",
+    "amalgamationSubjectIds": [
+      735,
+      809,
+      827,
+      1032
+    ]
+  },
+  {
+    "id": 218,
+    "object": "radical",
+    "slug": "anti",
+    "characters": "反",
+    "meanings": [
+      "Anti"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/anti",
+    "amalgamationSubjectIds": [
+      739,
+      858,
+      938,
+      955,
+      994
+    ]
+  },
+  {
+    "id": 220,
+    "object": "radical",
+    "slug": "brush",
+    "characters": "聿",
+    "meanings": [
+      "Brush"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/brush",
+    "amalgamationSubjectIds": [
+      946,
+      962
+    ]
+  },
+  {
+    "id": 229,
+    "object": "radical",
+    "slug": "correct",
+    "characters": "正",
+    "meanings": [
+      "Correct"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/correct",
+    "amalgamationSubjectIds": [
+      863,
+      985,
+      987
+    ]
+  },
+  {
+    "id": 417,
+    "object": "radical",
+    "slug": "machine",
+    "characters": "台",
+    "meanings": [
+      "Machine"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/machine",
+    "amalgamationSubjectIds": [
+      713,
+      978,
+      8840
+    ]
+  },
+  {
+    "id": 420,
+    "object": "radical",
+    "slug": "coat-rack",
+    "characters": "疋",
+    "meanings": [
+      "Coat Rack"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/coat-rack",
+    "amalgamationSubjectIds": [
+      714,
+      872,
+      894,
+      1015
+    ]
+  },
+  {
+    "id": 424,
+    "object": "radical",
+    "slug": "helicopter",
+    "characters": "覀",
+    "meanings": [
+      "Helicopter"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/helicopter",
+    "amalgamationSubjectIds": [
+      737,
+      879,
+      1056
+    ]
+  },
+  {
+    "id": 8772,
+    "object": "radical",
+    "slug": "cleat",
+    "characters": "⺤",
+    "meanings": [
+      "Cleat"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/cleat",
+    "amalgamationSubjectIds": [
+      711,
+      925,
+      1021
+    ]
+  },
+  {
+    "id": 8779,
+    "object": "radical",
+    "slug": "spring",
+    "characters": "𡗗",
+    "meanings": [
+      "Spring"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/spring",
+    "amalgamationSubjectIds": [
+      715,
+      836,
+      931
+    ]
+  },
+  {
+    "id": 8785,
+    "object": "radical",
+    "slug": "squid",
+    "characters": "㑒",
+    "meanings": [
+      "Squid"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/squid",
+    "amalgamationSubjectIds": [
+      988,
+      1048,
+      1143
+    ]
+  },
+  {
+    "id": 8787,
+    "object": "radical",
+    "slug": "yurt",
+    "characters": null,
+    "meanings": [
+      "Yurt"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/yurt",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/15z81qc4c77tmjeypri69yrtipgd",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      725,
+      1003
+    ]
+  },
+  {
+    "id": 8819,
+    "object": "radical",
+    "slug": "gladiator",
+    "characters": "龹",
+    "meanings": [
+      "Gladiator"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/gladiator",
+    "amalgamationSubjectIds": [
+      738
+    ]
+  },
+  {
+    "id": 8820,
+    "object": "radical",
+    "slug": "eternity",
+    "characters": "永",
+    "meanings": [
+      "Eternity"
+    ],
+    "level": 9,
+    "sourceUrl": "https://www.wanikani.com/radicals/eternity",
+    "amalgamationSubjectIds": [
+      717
+    ]
+  },
+  {
+    "id": 179,
+    "object": "radical",
+    "slug": "tombstone",
+    "characters": "圣",
+    "meanings": [
+      "Tombstone"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/tombstone",
+    "amalgamationSubjectIds": [
+      751,
+      1120
+    ]
+  },
+  {
+    "id": 180,
+    "object": "radical",
+    "slug": "kiss",
+    "characters": "各",
+    "meanings": [
+      "Kiss"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/kiss",
+    "amalgamationSubjectIds": [
+      749,
+      758,
+      920,
+      1087
+    ]
+  },
+  {
+    "id": 181,
+    "object": "radical",
+    "slug": "beans",
+    "characters": "豆",
+    "meanings": [
+      "Beans"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/beans",
+    "amalgamationSubjectIds": [
+      771,
+      845,
+      847
+    ]
+  },
+  {
+    "id": 182,
+    "object": "radical",
+    "slug": "alcohol",
+    "characters": "酉",
+    "meanings": [
+      "Alcohol"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/alcohol",
+    "amalgamationSubjectIds": [
+      742,
+      743
+    ]
+  },
+  {
+    "id": 183,
+    "object": "radical",
+    "slug": "landslide",
+    "characters": "辰",
+    "meanings": [
+      "Landslide"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/landslide",
+    "amalgamationSubjectIds": [
+      759,
+      1099
+    ]
+  },
+  {
+    "id": 184,
+    "object": "radical",
+    "slug": "geoduck",
+    "characters": "頁",
+    "meanings": [
+      "Geoduck"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/geoduck",
+    "amalgamationSubjectIds": [
+      771,
+      772,
+      872,
+      888,
+      927,
+      1034,
+      1060,
+      9051
+    ]
+  },
+  {
+    "id": 185,
+    "object": "radical",
+    "slug": "music",
+    "characters": "曲",
+    "meanings": [
+      "Music"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/music",
+    "amalgamationSubjectIds": [
+      759,
+      975
+    ]
+  },
+  {
+    "id": 186,
+    "object": "radical",
+    "slug": "dynamite",
+    "characters": "丙",
+    "meanings": [
+      "Dynamite"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/dynamite",
+    "amalgamationSubjectIds": [
+      773
+    ]
+  },
+  {
+    "id": 187,
+    "object": "radical",
+    "slug": "sick",
+    "characters": "疒",
+    "meanings": [
+      "Sick"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/sick",
+    "amalgamationSubjectIds": [
+      773,
+      1926
+    ]
+  },
+  {
+    "id": 200,
+    "object": "radical",
+    "slug": "stairs",
+    "characters": "乃",
+    "meanings": [
+      "Stairs"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/stairs",
+    "amalgamationSubjectIds": []
+  },
+  {
+    "id": 219,
+    "object": "radical",
+    "slug": "bundle",
+    "characters": "束",
+    "meanings": [
+      "Bundle"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/bundle",
+    "amalgamationSubjectIds": [
+      741,
+      863,
+      910
+    ]
+  },
+  {
+    "id": 240,
+    "object": "radical",
+    "slug": "turkey",
+    "characters": "隹",
+    "meanings": [
+      "Turkey"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/turkey",
+    "amalgamationSubjectIds": [
+      748,
+      754,
+      961,
+      1095,
+      1103,
+      1134,
+      1837
+    ]
+  },
+  {
+    "id": 275,
+    "object": "radical",
+    "slug": "fault",
+    "characters": "失",
+    "meanings": [
+      "Fault"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/fault",
+    "amalgamationSubjectIds": [
+      760
+    ]
+  },
+  {
+    "id": 439,
+    "object": "radical",
+    "slug": "sell",
+    "characters": "売",
+    "meanings": [
+      "Sell"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/sell",
+    "amalgamationSubjectIds": [
+      765,
+      1083
+    ]
+  },
+  {
+    "id": 8773,
+    "object": "radical",
+    "slug": "pope",
+    "characters": null,
+    "meanings": [
+      "Pope"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/pope",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/zjrb5pypsqst01qqzrf7ikowyrs1",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      971
+    ]
+  },
+  {
+    "id": 8774,
+    "object": "radical",
+    "slug": "chinese",
+    "characters": "𦰩",
+    "meanings": [
+      "Chinese"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/chinese",
+    "amalgamationSubjectIds": [
+      757,
+      1095
+    ]
+  },
+  {
+    "id": 8821,
+    "object": "radical",
+    "slug": "straight",
+    "characters": "直",
+    "meanings": [
+      "Straight"
+    ],
+    "level": 10,
+    "sourceUrl": "https://www.wanikani.com/radicals/straight",
+    "amalgamationSubjectIds": [
+      630,
+      840
+    ]
+  },
+  {
+    "id": 189,
+    "object": "radical",
+    "slug": "orders",
+    "characters": "令",
+    "meanings": [
+      "Orders"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/orders",
+    "amalgamationSubjectIds": [
+      789,
+      810
+    ]
+  },
+  {
+    "id": 190,
+    "object": "radical",
+    "slug": "humble",
+    "characters": "申",
+    "meanings": [
+      "Humble"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/humble",
+    "amalgamationSubjectIds": [
+      799
+    ]
+  },
+  {
+    "id": 191,
+    "object": "radical",
+    "slug": "older-brother",
+    "characters": "兄",
+    "meanings": [
+      "Older Brother"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/older-brother",
+    "amalgamationSubjectIds": [
+      804
+    ]
+  },
+  {
+    "id": 193,
+    "object": "radical",
+    "slug": "escalator",
+    "characters": "及",
+    "meanings": [
+      "Escalator"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/escalator",
+    "amalgamationSubjectIds": [
+      801
+    ]
+  },
+  {
+    "id": 194,
+    "object": "radical",
+    "slug": "drunkard",
+    "characters": "戈",
+    "meanings": [
+      "Drunkard"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/drunkard",
+    "amalgamationSubjectIds": [
+      780,
+      803,
+      1012,
+      1068,
+      1090,
+      1102
+    ]
+  },
+  {
+    "id": 195,
+    "object": "radical",
+    "slug": "skin",
+    "characters": "皮",
+    "meanings": [
+      "Skin"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/skin",
+    "amalgamationSubjectIds": [
+      793,
+      1097,
+      1594,
+      1926
+    ]
+  },
+  {
+    "id": 196,
+    "object": "radical",
+    "slug": "root",
+    "characters": "艮",
+    "meanings": [
+      "Root"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/root",
+    "amalgamationSubjectIds": [
+      805,
+      817,
+      871,
+      1058
+    ]
+  },
+  {
+    "id": 197,
+    "object": "radical",
+    "slug": "sound",
+    "characters": "音",
+    "meanings": [
+      "Sound"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/sound",
+    "amalgamationSubjectIds": [
+      811,
+      864,
+      1012
+    ]
+  },
+  {
+    "id": 198,
+    "object": "radical",
+    "slug": "few",
+    "characters": "少",
+    "meanings": [
+      "Few"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/few",
+    "amalgamationSubjectIds": [
+      800,
+      1147
+    ]
+  },
+  {
+    "id": 199,
+    "object": "radical",
+    "slug": "simple",
+    "characters": "単",
+    "meanings": [
+      "Simple"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/simple",
+    "amalgamationSubjectIds": [
+      803,
+      942,
+      1047
+    ]
+  },
+  {
+    "id": 8775,
+    "object": "radical",
+    "slug": "blackjack",
+    "characters": "龷",
+    "meanings": [
+      "Blackjack"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/blackjack",
+    "amalgamationSubjectIds": [
+      778,
+      792
+    ]
+  },
+  {
+    "id": 8776,
+    "object": "radical",
+    "slug": "trash",
+    "characters": "𠫓",
+    "meanings": [
+      "Trash"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/trash",
+    "amalgamationSubjectIds": [
+      795,
+      818
+    ]
+  },
+  {
+    "id": 8777,
+    "object": "radical",
+    "slug": "bear",
+    "characters": "㠯",
+    "meanings": [
+      "Bear"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/bear",
+    "amalgamationSubjectIds": [
+      802,
+      873,
+      1018
+    ]
+  },
+  {
+    "id": 9392,
+    "object": "radical",
+    "slug": "outfit",
+    "characters": "衤",
+    "meanings": [
+      "Outfit"
+    ],
+    "level": 11,
+    "sourceUrl": "https://www.wanikani.com/radicals/outfit",
+    "amalgamationSubjectIds": [
+      784,
+      1097,
+      1098
+    ]
+  },
+  {
+    "id": 201,
+    "object": "radical",
+    "slug": "early",
+    "characters": "早",
+    "meanings": [
+      "Early"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/early",
+    "amalgamationSubjectIds": [
+      824
+    ]
+  },
+  {
+    "id": 202,
+    "object": "radical",
+    "slug": "younger-brother",
+    "characters": "弟",
+    "meanings": [
+      "Younger Brother"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/younger-brother",
+    "amalgamationSubjectIds": [
+      825
+    ]
+  },
+  {
+    "id": 204,
+    "object": "radical",
+    "slug": "asia",
+    "characters": "亜",
+    "meanings": [
+      "Asia"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/asia",
+    "amalgamationSubjectIds": [
+      829
+    ]
+  },
+  {
+    "id": 205,
+    "object": "radical",
+    "slug": "crab",
+    "characters": "其",
+    "meanings": [
+      "Crab"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/crab",
+    "amalgamationSubjectIds": [
+      839,
+      917
+    ]
+  },
+  {
+    "id": 206,
+    "object": "radical",
+    "slug": "yoga",
+    "characters": "廴",
+    "meanings": [
+      "Yoga"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/yoga",
+    "amalgamationSubjectIds": [
+      814,
+      946
+    ]
+  },
+  {
+    "id": 207,
+    "object": "radical",
+    "slug": "jackhammer",
+    "characters": "示",
+    "meanings": [
+      "Jackhammer"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/jackhammer",
+    "amalgamationSubjectIds": [
+      823,
+      879,
+      1054,
+      1094
+    ]
+  },
+  {
+    "id": 208,
+    "object": "radical",
+    "slug": "excuse",
+    "characters": "免",
+    "meanings": [
+      "Excuse"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/excuse",
+    "amalgamationSubjectIds": [
+      813,
+      958
+    ]
+  },
+  {
+    "id": 269,
+    "object": "radical",
+    "slug": "together",
+    "characters": "共",
+    "meanings": [
+      "Together"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/together",
+    "amalgamationSubjectIds": [
+      843,
+      886,
+      1077
+    ]
+  },
+  {
+    "id": 339,
+    "object": "radical",
+    "slug": "beforehand",
+    "characters": "予",
+    "meanings": [
+      "Beforehand"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/beforehand",
+    "amalgamationSubjectIds": [
+      848
+    ]
+  },
+  {
+    "id": 390,
+    "object": "radical",
+    "slug": "business",
+    "characters": "業",
+    "meanings": [
+      "Business"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/business",
+    "amalgamationSubjectIds": [
+      1890
+    ]
+  },
+  {
+    "id": 399,
+    "object": "radical",
+    "slug": "request",
+    "characters": "求",
+    "meanings": [
+      "Request"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/request",
+    "amalgamationSubjectIds": [
+      832
+    ]
+  },
+  {
+    "id": 8778,
+    "object": "radical",
+    "slug": "tofu",
+    "characters": null,
+    "meanings": [
+      "Tofu"
+    ],
+    "level": 12,
+    "sourceUrl": "https://www.wanikani.com/radicals/tofu",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/w371b37nk3fbuf2p4bfclqu33ayr",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      816,
+      1136
+    ]
+  },
+  {
+    "id": 215,
+    "object": "radical",
+    "slug": "shrimp",
+    "characters": "尺",
+    "meanings": [
+      "Shrimp"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/shrimp",
+    "amalgamationSubjectIds": [
+      874,
+      932
+    ]
+  },
+  {
+    "id": 221,
+    "object": "radical",
+    "slug": "idea",
+    "characters": "意",
+    "meanings": [
+      "Idea"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/idea",
+    "amalgamationSubjectIds": [
+      875
+    ]
+  },
+  {
+    "id": 222,
+    "object": "radical",
+    "slug": "womb",
+    "characters": "坴",
+    "meanings": [
+      "Womb"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/womb",
+    "amalgamationSubjectIds": [
+      882
+    ]
+  },
+  {
+    "id": 223,
+    "object": "radical",
+    "slug": "circle",
+    "characters": "丸",
+    "meanings": [
+      "Circle"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/circle",
+    "amalgamationSubjectIds": [
+      882
+    ]
+  },
+  {
+    "id": 226,
+    "object": "radical",
+    "slug": "bookshelf",
+    "characters": "冊",
+    "meanings": [
+      "Bookshelf"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/bookshelf",
+    "amalgamationSubjectIds": [
+      885,
+      1071,
+      1119
+    ]
+  },
+  {
+    "id": 227,
+    "object": "radical",
+    "slug": "products",
+    "characters": "品",
+    "meanings": [
+      "Products"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/products",
+    "amalgamationSubjectIds": [
+      876,
+      967
+    ]
+  },
+  {
+    "id": 230,
+    "object": "radical",
+    "slug": "original",
+    "characters": "原",
+    "meanings": [
+      "Original"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/original",
+    "amalgamationSubjectIds": [
+      888,
+      995
+    ]
+  },
+  {
+    "id": 232,
+    "object": "radical",
+    "slug": "soul",
+    "characters": "忄",
+    "meanings": [
+      "Soul"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/soul",
+    "amalgamationSubjectIds": [
+      891,
+      918,
+      1074
+    ]
+  },
+  {
+    "id": 234,
+    "object": "radical",
+    "slug": "body",
+    "characters": "身",
+    "meanings": [
+      "Body"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/body",
+    "amalgamationSubjectIds": [
+      892
+    ]
+  },
+  {
+    "id": 235,
+    "object": "radical",
+    "slug": "fruit",
+    "characters": "果",
+    "meanings": [
+      "Fruit"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/fruit",
+    "amalgamationSubjectIds": [
+      883,
+      1005
+    ]
+  },
+  {
+    "id": 239,
+    "object": "radical",
+    "slug": "hundred",
+    "characters": "百",
+    "meanings": [
+      "Hundred"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/hundred",
+    "amalgamationSubjectIds": [
+      860
+    ]
+  },
+  {
+    "id": 392,
+    "object": "radical",
+    "slug": "can",
+    "characters": "缶",
+    "meanings": [
+      "Can"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/can",
+    "amalgamationSubjectIds": [
+      1898
+    ]
+  },
+  {
+    "id": 8781,
+    "object": "radical",
+    "slug": "creeper",
+    "characters": null,
+    "meanings": [
+      "Creeper"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/creeper",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/nb178l9s3p19munbl7unsn8x00k6",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      943
+    ]
+  },
+  {
+    "id": 8822,
+    "object": "radical",
+    "slug": "good",
+    "characters": "良",
+    "meanings": [
+      "Good"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/good",
+    "amalgamationSubjectIds": [
+      889,
+      8967
+    ]
+  },
+  {
+    "id": 9389,
+    "object": "radical",
+    "slug": "canine",
+    "characters": "戌",
+    "meanings": [
+      "Canine"
+    ],
+    "level": 13,
+    "sourceUrl": "https://www.wanikani.com/radicals/canine",
+    "amalgamationSubjectIds": [
+      862,
+      1059
+    ]
+  },
+  {
+    "id": 144,
+    "object": "radical",
+    "slug": "animal",
+    "characters": "犭",
+    "meanings": [
+      "Animal"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/animal",
+    "amalgamationSubjectIds": [
+      959,
+      1115,
+      8967
+    ]
+  },
+  {
+    "id": 236,
+    "object": "radical",
+    "slug": "pool",
+    "characters": "勺",
+    "meanings": [
+      "Pool"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/pool",
+    "amalgamationSubjectIds": [
+      914,
+      915
+    ]
+  },
+  {
+    "id": 237,
+    "object": "radical",
+    "slug": "public",
+    "characters": "公",
+    "meanings": [
+      "Public"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/public",
+    "amalgamationSubjectIds": [
+      911,
+      1131
+    ]
+  },
+  {
+    "id": 246,
+    "object": "radical",
+    "slug": "well",
+    "characters": "井",
+    "meanings": [
+      "Well"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/well",
+    "amalgamationSubjectIds": [
+      901,
+      1918
+    ]
+  },
+  {
+    "id": 247,
+    "object": "radical",
+    "slug": "part",
+    "characters": "分",
+    "meanings": [
+      "Part"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/part",
+    "amalgamationSubjectIds": [
+      926
+    ]
+  },
+  {
+    "id": 264,
+    "object": "radical",
+    "slug": "talent",
+    "characters": "才",
+    "meanings": [
+      "Talent"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/talent",
+    "amalgamationSubjectIds": [
+      909,
+      1064,
+      1514
+    ]
+  },
+  {
+    "id": 8782,
+    "object": "radical",
+    "slug": "bar",
+    "characters": "㦮",
+    "meanings": [
+      "Bar"
+    ],
+    "level": 14,
+    "sourceUrl": "https://www.wanikani.com/radicals/bar",
+    "amalgamationSubjectIds": [
+      912,
+      951
+    ]
+  },
+  {
+    "id": 242,
+    "object": "radical",
+    "slug": "paragraph",
+    "characters": "句",
+    "meanings": [
+      "Paragraph"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/paragraph",
+    "amalgamationSubjectIds": [
+      1053
+    ]
+  },
+  {
+    "id": 244,
+    "object": "radical",
+    "slug": "past",
+    "characters": "去",
+    "meanings": [
+      "Past"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/past",
+    "amalgamationSubjectIds": [
+      949
+    ]
+  },
+  {
+    "id": 245,
+    "object": "radical",
+    "slug": "walk",
+    "characters": "歩",
+    "meanings": [
+      "Walk"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/walk",
+    "amalgamationSubjectIds": [
+      1016
+    ]
+  },
+  {
+    "id": 408,
+    "object": "radical",
+    "slug": "height",
+    "characters": "丈",
+    "meanings": [
+      "Height"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/height",
+    "amalgamationSubjectIds": [
+      2083
+    ]
+  },
+  {
+    "id": 437,
+    "object": "radical",
+    "slug": "courage",
+    "characters": "勇",
+    "meanings": [
+      "Courage"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/courage",
+    "amalgamationSubjectIds": [
+      941
+    ]
+  },
+  {
+    "id": 8783,
+    "object": "radical",
+    "slug": "grass",
+    "characters": "𭕄",
+    "meanings": [
+      "Grass"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/grass",
+    "amalgamationSubjectIds": [
+      1045,
+      1126
+    ]
+  },
+  {
+    "id": 8824,
+    "object": "radical",
+    "slug": "scarecrow",
+    "characters": "畐",
+    "meanings": [
+      "Scarecrow"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/scarecrow",
+    "amalgamationSubjectIds": [
+      867
+    ]
+  },
+  {
+    "id": 9329,
+    "object": "radical",
+    "slug": "again",
+    "characters": "亦",
+    "meanings": [
+      "Again"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/again",
+    "amalgamationSubjectIds": [
+      944,
+      1024
+    ]
+  },
+  {
+    "id": 9391,
+    "object": "radical",
+    "slug": "broom",
+    "characters": "帚",
+    "meanings": [
+      "Broom"
+    ],
+    "level": 15,
+    "sourceUrl": "https://www.wanikani.com/radicals/broom",
+    "amalgamationSubjectIds": [
+      930
+    ]
+  },
+  {
+    "id": 248,
+    "object": "radical",
+    "slug": "attach",
+    "characters": "付",
+    "meanings": [
+      "Attach"
+    ],
+    "level": 16,
+    "sourceUrl": "https://www.wanikani.com/radicals/attach",
+    "amalgamationSubjectIds": [
+      977
+    ]
+  },
+  {
+    "id": 249,
+    "object": "radical",
+    "slug": "valley",
+    "characters": "谷",
+    "meanings": [
+      "Valley"
+    ],
+    "level": 16,
+    "sourceUrl": "https://www.wanikani.com/radicals/valley",
+    "amalgamationSubjectIds": [
+      979,
+      1061,
+      1098
+    ]
+  },
+  {
+    "id": 250,
+    "object": "radical",
+    "slug": "face",
+    "characters": "面",
+    "meanings": [
+      "Face"
+    ],
+    "level": 16,
+    "sourceUrl": "https://www.wanikani.com/radicals/face",
+    "amalgamationSubjectIds": [
+      974
+    ]
+  },
+  {
+    "id": 421,
+    "object": "radical",
+    "slug": "drum",
+    "characters": "壴",
+    "meanings": [
+      "Drum"
+    ],
+    "level": 16,
+    "sourceUrl": "https://www.wanikani.com/radicals/drum",
+    "amalgamationSubjectIds": [
+      976
+    ]
+  },
+  {
+    "id": 8784,
+    "object": "radical",
+    "slug": "zombie",
+    "characters": "袁",
+    "meanings": [
+      "Zombie"
+    ],
+    "level": 16,
+    "sourceUrl": "https://www.wanikani.com/radicals/zombie",
+    "amalgamationSubjectIds": [
+      960,
+      963
+    ]
+  },
+  {
+    "id": 209,
+    "object": "radical",
+    "slug": "criminal",
+    "characters": "非",
+    "meanings": [
+      "Criminal"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/criminal",
+    "amalgamationSubjectIds": [
+      837,
+      1013,
+      1116
+    ]
+  },
+  {
+    "id": 251,
+    "object": "radical",
+    "slug": "comfort",
+    "characters": "楽",
+    "meanings": [
+      "Comfort"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/comfort",
+    "amalgamationSubjectIds": [
+      997
+    ]
+  },
+  {
+    "id": 252,
+    "object": "radical",
+    "slug": "nothing",
+    "characters": "無",
+    "meanings": [
+      "Nothing"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/nothing",
+    "amalgamationSubjectIds": [
+      1008
+    ]
+  },
+  {
+    "id": 253,
+    "object": "radical",
+    "slug": "good-luck",
+    "characters": "吉",
+    "meanings": [
+      "Good Luck"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/good-luck",
+    "amalgamationSubjectIds": [
+      1009
+    ]
+  },
+  {
+    "id": 254,
+    "object": "radical",
+    "slug": "tiger",
+    "characters": "虍",
+    "meanings": [
+      "Tiger"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/tiger",
+    "amalgamationSubjectIds": [
+      1569
+    ]
+  },
+  {
+    "id": 255,
+    "object": "radical",
+    "slug": "poem",
+    "characters": "苟",
+    "meanings": [
+      "Poem"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/poem",
+    "amalgamationSubjectIds": [
+      1023
+    ]
+  },
+  {
+    "id": 422,
+    "object": "radical",
+    "slug": "guard",
+    "characters": "兑",
+    "meanings": [
+      "Guard"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/guard",
+    "amalgamationSubjectIds": [
+      1026,
+      1149
+    ]
+  },
+  {
+    "id": 8825,
+    "object": "radical",
+    "slug": "festival",
+    "characters": "祭",
+    "meanings": [
+      "Festival"
+    ],
+    "level": 17,
+    "sourceUrl": "https://www.wanikani.com/radicals/festival",
+    "amalgamationSubjectIds": [
+      1019,
+      1151
+    ]
+  },
+  {
+    "id": 256,
+    "object": "radical",
+    "slug": "long-ago",
+    "characters": "昔",
+    "meanings": [
+      "Long Ago"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/long-ago",
+    "amalgamationSubjectIds": [
+      1039
+    ]
+  },
+  {
+    "id": 257,
+    "object": "radical",
+    "slug": "gambler",
+    "characters": "尭",
+    "meanings": [
+      "Gambler"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/gambler",
+    "amalgamationSubjectIds": [
+      1040
+    ]
+  },
+  {
+    "id": 258,
+    "object": "radical",
+    "slug": "previous",
+    "characters": "先",
+    "meanings": [
+      "Previous"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/previous",
+    "amalgamationSubjectIds": [
+      1043
+    ]
+  },
+  {
+    "id": 259,
+    "object": "radical",
+    "slug": "mask",
+    "characters": "曽",
+    "meanings": [
+      "Mask"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/mask",
+    "amalgamationSubjectIds": [
+      1046,
+      1148
+    ]
+  },
+  {
+    "id": 260,
+    "object": "radical",
+    "slug": "happiness",
+    "characters": "幸",
+    "meanings": [
+      "Happiness"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/happiness",
+    "amalgamationSubjectIds": [
+      1035
+    ]
+  },
+  {
+    "id": 261,
+    "object": "radical",
+    "slug": "conflict",
+    "characters": "争",
+    "meanings": [
+      "Conflict"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/conflict",
+    "amalgamationSubjectIds": [
+      1052
+    ]
+  },
+  {
+    "id": 262,
+    "object": "radical",
+    "slug": "treasure-chest",
+    "characters": "凶",
+    "meanings": [
+      "Treasure Chest"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/treasure-chest",
+    "amalgamationSubjectIds": [
+      1044,
+      1045
+    ]
+  },
+  {
+    "id": 415,
+    "object": "radical",
+    "slug": "noon",
+    "characters": "午",
+    "meanings": [
+      "Noon"
+    ],
+    "level": 18,
+    "sourceUrl": "https://www.wanikani.com/radicals/noon",
+    "amalgamationSubjectIds": [
+      1050
+    ]
+  },
+  {
+    "id": 263,
+    "object": "radical",
+    "slug": "become",
+    "characters": "成",
+    "meanings": [
+      "Become"
+    ],
+    "level": 19,
+    "sourceUrl": "https://www.wanikani.com/radicals/become",
+    "amalgamationSubjectIds": []
+  },
+  {
+    "id": 265,
+    "object": "radical",
+    "slug": "black-hole",
+    "characters": "复",
+    "meanings": [
+      "Black Hole"
+    ],
+    "level": 19,
+    "sourceUrl": "https://www.wanikani.com/radicals/black-hole",
+    "amalgamationSubjectIds": [
+      1285
+    ]
+  },
+  {
+    "id": 266,
+    "object": "radical",
+    "slug": "director",
+    "characters": "司",
+    "meanings": [
+      "Director"
+    ],
+    "level": 19,
+    "sourceUrl": "https://www.wanikani.com/radicals/director",
+    "amalgamationSubjectIds": [
+      1066
+    ]
+  },
+  {
+    "id": 268,
+    "object": "radical",
+    "slug": "reason",
+    "characters": "由",
+    "meanings": [
+      "Reason"
+    ],
+    "level": 19,
+    "sourceUrl": "https://www.wanikani.com/radicals/reason",
+    "amalgamationSubjectIds": [
+      1073,
+      1121
+    ]
+  },
+  {
+    "id": 272,
+    "object": "radical",
+    "slug": "ego",
+    "characters": "我",
+    "meanings": [
+      "Ego"
+    ],
+    "level": 19,
+    "sourceUrl": "https://www.wanikani.com/radicals/ego",
+    "amalgamationSubjectIds": []
+  },
+  {
+    "id": 362,
+    "object": "radical",
+    "slug": "right",
+    "characters": "右",
+    "meanings": [
+      "Right"
+    ],
+    "level": 19,
+    "sourceUrl": "https://www.wanikani.com/radicals/right",
+    "amalgamationSubjectIds": [
+      1065
+    ]
+  },
+  {
+    "id": 270,
+    "object": "radical",
+    "slug": "fly",
+    "characters": "飛",
+    "meanings": [
+      "Fly"
+    ],
+    "level": 20,
+    "sourceUrl": "https://www.wanikani.com/radicals/fly",
+    "amalgamationSubjectIds": [
+      1092
+    ]
+  },
+  {
+    "id": 271,
+    "object": "radical",
+    "slug": "mona-lisa",
+    "characters": "兼",
+    "meanings": [
+      "Mona Lisa"
+    ],
+    "level": 20,
+    "sourceUrl": "https://www.wanikani.com/radicals/mona-lisa",
+    "amalgamationSubjectIds": [
+      1104
+    ]
+  },
+  {
+    "id": 273,
+    "object": "radical",
+    "slug": "flood",
+    "characters": "巛",
+    "meanings": [
+      "Flood"
+    ],
+    "level": 20,
+    "sourceUrl": "https://www.wanikani.com/radicals/flood",
+    "amalgamationSubjectIds": [
+      1089
+    ]
+  },
+  {
+    "id": 274,
+    "object": "radical",
+    "slug": "mole",
+    "characters": "至",
+    "meanings": [
+      "Mole"
+    ],
+    "level": 20,
+    "sourceUrl": "https://www.wanikani.com/radicals/mole",
+    "amalgamationSubjectIds": [
+      1110
+    ]
+  },
+  {
+    "id": 383,
+    "object": "radical",
+    "slug": "righteousness",
+    "characters": "義",
+    "meanings": [
+      "Righteousness"
+    ],
+    "level": 20,
+    "sourceUrl": "https://www.wanikani.com/radicals/righteousness",
+    "amalgamationSubjectIds": [
+      1114,
+      1154
+    ]
+  },
+  {
+    "id": 8788,
+    "object": "radical",
+    "slug": "explosion",
+    "characters": null,
+    "meanings": [
+      "Explosion"
+    ],
+    "level": 20,
+    "sourceUrl": "https://www.wanikani.com/radicals/explosion",
+    "characterImages": [
+      {
+        "url": "https://files.wanikani.com/c4mr6dvhrg2vozxgg7252hbtkhg9",
+        "content_type": "image/svg+xml",
+        "metadata": {
+          "inline_styles": false
+        }
+      }
+    ],
+    "amalgamationSubjectIds": [
+      1091
+    ]
+  },
+  {
+    "id": 148,
+    "object": "radical",
+    "slug": "spear",
+    "characters": "矛",
+    "meanings": [
+      "Spear"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/spear",
+    "amalgamationSubjectIds": [
+      1129
+    ]
+  },
+  {
+    "id": 276,
+    "object": "radical",
+    "slug": "mohawk",
+    "characters": "啇",
+    "meanings": [
+      "Mohawk"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/mohawk",
+    "amalgamationSubjectIds": [
+      1123
+    ]
+  },
+  {
+    "id": 277,
+    "object": "radical",
+    "slug": "simultaneous",
+    "characters": "斉",
+    "meanings": [
+      "Simultaneous"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/simultaneous",
+    "amalgamationSubjectIds": [
+      1124
+    ]
+  },
+  {
+    "id": 278,
+    "object": "radical",
+    "slug": "next",
+    "characters": "次",
+    "meanings": [
+      "Next"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/next",
+    "amalgamationSubjectIds": [
+      1133,
+      8880
+    ]
+  },
+  {
+    "id": 280,
+    "object": "radical",
+    "slug": "number",
+    "characters": "番",
+    "meanings": [
+      "Number"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/number",
+    "amalgamationSubjectIds": []
+  },
+  {
+    "id": 305,
+    "object": "radical",
+    "slug": "half",
+    "characters": "半",
+    "meanings": [
+      "Half"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/half",
+    "amalgamationSubjectIds": [
+      1127
+    ]
+  },
+  {
+    "id": 321,
+    "object": "radical",
+    "slug": "blame",
+    "characters": "責",
+    "meanings": [
+      "Blame"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/blame",
+    "amalgamationSubjectIds": [
+      1146
+    ]
+  },
+  {
+    "id": 393,
+    "object": "radical",
+    "slug": "blade",
+    "characters": "刃",
+    "meanings": [
+      "Blade"
+    ],
+    "level": 21,
+    "sourceUrl": "https://www.wanikani.com/radicals/blade",
+    "amalgamationSubjectIds": [
+      1152
+    ]
+  }
+]

@@ -16,6 +16,70 @@ jest.mock("@expo/vector-icons", () => {
   };
 });
 
+describe("SearchFilterModal vocabulary types", () => {
+  const subjects = [
+    { object: "vocabulary", data: { parts_of_speech: ["verbal noun", "noun"] } },
+    { object: "vocabulary", data: { parts_of_speech: ["proper noun"] } },
+  ];
+
+  it("keeps selections pending until Apply and clears them without changing subject types", () => {
+    const currentFilters = createDefaultSearchFilters();
+    const onApply = jest.fn();
+    const screen = render(
+      <SearchFilterModal
+        visible
+        currentFilters={currentFilters}
+        subjects={subjects}
+        onClose={jest.fn()}
+        onApply={onApply}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Verbal noun vocabulary type")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Vocab type: All"));
+    fireEvent.press(screen.getByLabelText("Verbal noun vocabulary type"));
+    fireEvent.press(screen.getByLabelText("Proper noun vocabulary type"));
+
+    expect(screen.getByLabelText("Vocab type: 2 selected")).toBeTruthy();
+    expect(currentFilters.vocabularyTypes).toEqual([]);
+    expect(onApply).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByRole("button", { name: "Apply Filters" }));
+    expect(onApply.mock.calls[0][0].vocabularyTypes).toEqual([
+      "verbal noun",
+      "proper noun",
+    ]);
+    expect(onApply.mock.calls[0][0].types).toEqual(currentFilters.types);
+
+    fireEvent.press(screen.getByLabelText("Clear vocabulary types"));
+    fireEvent.press(screen.getByRole("button", { name: "Apply Filters" }));
+    expect(onApply.mock.calls[1][0].vocabularyTypes).toEqual([]);
+  });
+
+  it("discards pending changes when closed and reopened", () => {
+    const currentFilters = {
+      ...createDefaultSearchFilters(),
+      vocabularyTypes: ["proper noun"],
+    };
+    const props = {
+      currentFilters,
+      subjects,
+      onClose: jest.fn(),
+      onApply: jest.fn(),
+    };
+    const screen = render(<SearchFilterModal {...props} visible />);
+
+    fireEvent.press(screen.getByLabelText("Vocab type: Proper noun"));
+    fireEvent.press(screen.getByLabelText("Verbal noun vocabulary type"));
+    screen.rerender(<SearchFilterModal {...props} visible={false} />);
+    screen.rerender(<SearchFilterModal {...props} visible />);
+
+    expect(screen.getByLabelText("Vocab type: Proper noun")).toBeTruthy();
+    expect(currentFilters.vocabularyTypes).toEqual(["proper noun"]);
+    expect(props.onApply).not.toHaveBeenCalled();
+  });
+});
+
 jest.mock("expo-blur", () => {
   const { View } = jest.requireActual("react-native");
   return { BlurView: View };

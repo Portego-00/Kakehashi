@@ -15,7 +15,7 @@ interface PrivacyPolicyModalProps {
   onClose: () => void;
 }
 
-const LAST_UPDATED = 'July 22, 2026';
+const LAST_UPDATED = 'August 26, 2026';
 const APP_NAME = 'Kakehashi';
 const CONTACT_EMAIL = 'kakehashi.app@gmail.com';
 
@@ -56,7 +56,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
               {APP_NAME} uses the WaniKani service for Japanese language learning. To use our app, you must have a WaniKani account. We collect and store:
             </Text>
             <BulletList items={[
-              'Your WaniKani API token (stored securely in encrypted device storage)',
+              'Your WaniKani API token (stored securely in encrypted device storage and not retained by Kakehashi after account verification)',
               'Your WaniKani username and profile information',
               'Your learning progress, including lessons, reviews, and statistics',
             ]} />
@@ -70,6 +70,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
               'Assignment data and review schedules',
               'Study materials and user notes',
               'Review statistics and level progressions',
+              'Study-time totals scoped to your account and device',
               'Vocabulary frequency results and lookup timestamps',
               'App preferences and settings',
             ]} />
@@ -97,6 +98,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
             <BulletList items={[
               'Authenticate you with the WaniKani service',
               'Display your learning progress and statistics',
+              'Verify your WaniKani identity and combine study-time history across your devices',
               'Provide offline access to your study materials',
               'Look up and cache vocabulary frequency ranks',
               'Send you notifications about available reviews (if enabled)',
@@ -112,6 +114,11 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
             <Text style={styles.subheading}>WaniKani (Tofugu LLC)</Text>
             <Text style={styles.paragraph}>
               We access the WaniKani API to retrieve and sync your learning data. Your use of WaniKani is subject to their own Privacy Policy and Terms of Service.
+            </Text>
+
+            <Text style={styles.subheading}>Kakehashi Backend</Text>
+            <Text style={styles.paragraph}>
+              For account-backed features such as combined study-time history, your WaniKani API token is sent over HTTPS to Kakehashi solely to verify your WaniKani identity. The token is not stored by Kakehashi. Daily study-time totals are stored by account and device so your devices can show one combined history.
             </Text>
 
             <Text style={styles.subheading}>Google ML Kit</Text>
@@ -131,6 +138,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
             </Text>
             <BulletList items={[
               'Your WaniKani API token is stored in encrypted device storage (iOS Keychain)',
+              'Kakehashi does not retain your WaniKani API token after backend identity verification',
               'Cached learning data is stored in encrypted local storage',
               'All network communications use secure HTTPS connections',
               'We do not store your WaniKani password',
@@ -146,6 +154,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
             </Text>
             <BulletList items={[
               'Cached learning data is refreshed periodically and deleted upon logout',
+              'Account-backed study-time totals may remain on Kakehashi after logout or uninstall until they are deleted under our retention practices or at your request',
               'Vocabulary frequency results are refreshed periodically and remain on the device until the app data is cleared or the app is uninstalled',
               'Local preferences are cleared when you uninstall the app',
             ]} />
@@ -160,6 +169,7 @@ export default function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyMo
               'Deny or revoke device permissions through your device settings',
               'Disable notifications through your device settings',
               'Delete the app to remove all locally stored data',
+              `Contact ${CONTACT_EMAIL} to request deletion of account-backed records stored by Kakehashi`,
               'Manage your WaniKani account directly on wanikani.com',
             ]} />
           </Section>

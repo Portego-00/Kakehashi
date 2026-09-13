@@ -1,13 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "@/src/utils/haptics";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-  Dimensions,
-  GestureResponderEvent,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
   FadeOut,
@@ -15,8 +21,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { useSettingsStore } from "../../utils/store";
 
 // Auto-advance time per slide in ms
 const SLIDE_DURATION = 8000;
@@ -36,17 +41,22 @@ export function WrappedContainer({
   interactiveSlideIndex,
 }: WrappedContainerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
+  const { fontScale, width: screenWidth } = useWindowDimensions();
+  const usesLargeText = appTextSizeScale > 1 || fontScale > 1;
   const totalSlides = children.length;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isInteractiveSlide = interactiveSlideIndex !== undefined && currentIndex === interactiveSlideIndex;
+  const isInteractiveSlide =
+    interactiveSlideIndex !== undefined &&
+    currentIndex === interactiveSlideIndex;
 
   // Start / restart the timer for the current slide
   const startTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    // Don't auto-advance on interactive slides
-    if (isInteractiveSlide) return;
+    // Larger text may need scrolling and more reading time, so it advances manually.
+    if (isInteractiveSlide || usesLargeText) return;
 
     timerRef.current = setTimeout(() => {
       setCurrentIndex((prev) => {
@@ -58,7 +68,7 @@ export function WrappedContainer({
         return prev + 1;
       });
     }, SLIDE_DURATION);
-  }, [currentIndex, totalSlides, onFinish, isInteractiveSlide]);
+  }, [totalSlides, onFinish, isInteractiveSlide, usesLargeText]);
 
   useEffect(() => {
     startTimer();
@@ -89,41 +99,47 @@ export function WrappedContainer({
   }, []);
 
   const handleTap = useCallback(
-    (e: GestureResponderEvent) => {
-      const x = e.nativeEvent.locationX;
-      if (x < SCREEN_WIDTH * 0.3) {
+    (x: number) => {
+      if (x < screenWidth * 0.3) {
         goPrev();
       } else {
         goNext();
       }
     },
-    [goPrev, goNext]
+    [goPrev, goNext, screenWidth],
+  );
+
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .enabled(!isInteractiveSlide)
+        .maxDuration(450)
+        .maxDistance(12)
+        .cancelsTouchesInView(false)
+        .runOnJS(true)
+        .onEnd((event, success) => {
+          if (success) {
+            handleTap(event.x);
+          }
+        }),
+    [handleTap, isInteractiveSlide],
   );
 
   return (
     <View style={styles.container}>
       {/* Slide content */}
       <View style={styles.slideContainer}>
-        <Animated.View
-          key={currentIndex}
-          entering={FadeIn.duration(400)}
-          exiting={FadeOut.duration(200)}
-          style={styles.slide}
-        >
-          {children[currentIndex]}
-        </Animated.View>
+        <GestureDetector gesture={tapGesture}>
+          <Animated.View
+            key={currentIndex}
+            entering={FadeIn.duration(400)}
+            exiting={FadeOut.duration(200)}
+            style={styles.slide}
+          >
+            {children[currentIndex]}
+          </Animated.View>
+        </GestureDetector>
       </View>
-
-      {/* Touch zones — hidden on interactive slides so buttons are tappable */}
-      {!isInteractiveSlide && (
-        <View style={styles.touchLayer} onStartShouldSetResponder={() => true}>
-          <View
-            style={styles.touchZone}
-            onStartShouldSetResponder={() => true}
-            onResponderRelease={handleTap}
-          />
-        </View>
-      )}
 
       {/* Progress bar */}
       <View style={styles.progressBarContainer}>
@@ -134,10 +150,10 @@ export function WrappedContainer({
               i < currentIndex
                 ? "completed"
                 : i === currentIndex
-                ? isInteractiveSlide
-                  ? "completed"
-                  : "active"
-                : "inactive"
+                  ? isInteractiveSlide || usesLargeText
+                    ? "completed"
+                    : "active"
+                  : "inactive"
             }
             duration={SLIDE_DURATION}
           />
@@ -179,7 +195,7 @@ function ProgressSegment({
     } else {
       progress.value = 0;
     }
-  }, [state, duration]);
+  }, [state, duration, progress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,
@@ -201,13 +217,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slide: {
-    flex: 1,
-  },
-  touchLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 10,
-  },
-  touchZone: {
     flex: 1,
   },
   progressBarContainer: {

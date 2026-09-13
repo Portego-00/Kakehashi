@@ -9,10 +9,13 @@ export type ExtraStudyModeId =
   | "similar-kanji"
   | "kana-kanji-test"
   | "listening-practice"
+  | "audio-vocab"
   | "context-sentence-practice"
+  | "jlpt-quiz"
   | "text-analysis"
   | "writing-practice"
   | "crossword"
+  | "word-search"
   | "wordle"
   | "custom-review"
   | "custom-lessons"
@@ -75,6 +78,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     route: "/kana-kanji-config",
   },
   {
+    id: "audio-vocab",
+    title: "Audio Vocab",
+    subtitle: "Listen to a word and recall its English meaning",
+    icon: "volume-high",
+    route: "/audio-vocab",
+  },
+  {
     id: "listening-practice",
     title: "Listening Practice",
     subtitle: "Learn from anime context with audio",
@@ -87,6 +97,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     subtitle: "Fill the missing vocab from sentence context",
     icon: "chatbubble-ellipses",
     route: "/context-sentence-practice-config",
+  },
+  {
+    id: "jlpt-quiz",
+    title: "JLPT Quiz",
+    subtitle: "Quick quizzes and timed N5–N1 mock exams",
+    icon: "school",
+    route: "/jlpt",
   },
   {
     id: "text-analysis",
@@ -108,6 +125,13 @@ export const EXTRA_STUDY_MODE_DEFINITIONS: ExtraStudyModeDefinition[] = [
     subtitle: "Solve a hiragana crossword from English clues",
     icon: "grid",
     route: "/crossword-config",
+  },
+  {
+    id: "word-search",
+    title: "Word Search",
+    subtitle: "Find kana readings or kanji from vocabulary clues",
+    icon: "search",
+    route: "/word-search-config",
   },
   {
     id: "wordle",
@@ -157,6 +181,7 @@ export const DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER: ExtraStudyModeId[] =
 export const RESUMABLE_EXTRA_STUDY_MODE_SESSION_KEYS: Partial<
   Record<ExtraStudyModeId, string>
 > = {
+  "audio-vocab": EXTRA_STUDY_SESSION_STORAGE_KEYS.AUDIO_VOCAB,
   "random-test": EXTRA_STUDY_SESSION_STORAGE_KEYS.RANDOM_TEST,
   "reading-test": EXTRA_STUDY_SESSION_STORAGE_KEYS.MEANING_READING,
   "hiragana-vocab-meaning":
@@ -168,6 +193,7 @@ export const RESUMABLE_EXTRA_STUDY_MODE_SESSION_KEYS: Partial<
     EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE,
   "writing-practice": EXTRA_STUDY_SESSION_STORAGE_KEYS.WRITING_PRACTICE,
   crossword: EXTRA_STUDY_SESSION_STORAGE_KEYS.CROSSWORD,
+  "word-search": EXTRA_STUDY_SESSION_STORAGE_KEYS.WORD_SEARCH,
   wordle: EXTRA_STUDY_SESSION_STORAGE_KEYS.WORDLE,
   "custom-review": EXTRA_STUDY_SESSION_STORAGE_KEYS.CUSTOM_REVIEW,
 };

@@ -1,25 +1,69 @@
-import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
-import { getAssignmentsOptimized, getReviewCount, getStoredApiToken } from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supportsBadgeAndReviewNotifications } from './platformSupport';
-import { shouldUseNativeReviewNotificationSystem } from './reviewNotificationIntegration';
-import { getLessonsStartedToday } from './dailyLessonLimit';
+import * as Notifications from "expo-notifications";
+import * as TaskManager from "expo-task-manager";
+import {
+  getAssignmentsOptimized,
+  getReviewCountIfAvailable,
+  getStoredApiToken,
+} from "./api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supportsBadgeAndReviewNotifications } from "./platformSupport";
+import {
+  clearNativeReviewAlerts,
+  shouldUseNativeReviewNotificationSystem,
+} from "./reviewNotificationIntegration";
+import { getLessonsStartedToday } from "./dailyLessonLimit";
+import {
+  cancelReviewAvailabilityNotifications,
+  presentCombinedReviewAvailabilityNotification,
+} from "./reviewAvailabilityNotifications";
+import { isNotificationSessionActive } from "./notificationSession";
 
-const REVIEW_CHECK_TASK = 'check-new-reviews';
-const LAST_REVIEW_COUNT_KEY = 'last-review-count';
+const REVIEW_CHECK_TASK = "check-new-reviews";
+const LAST_REVIEW_COUNT_KEY = "last-review-count";
 const DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY =
-  'daily-review-reminder-notification-id';
+  "daily-review-reminder-notification-id";
 const DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY =
-  'daily-lesson-reminder-notification-id';
+  "daily-lesson-reminder-notification-id";
 const DAILY_REVIEW_REMINDER_MESSAGE_DAY_KEY =
-  'daily-review-reminder-message-day';
+  "daily-review-reminder-message-day";
 const DAILY_REVIEW_REMINDER_MESSAGE_INDEX_KEY =
-  'daily-review-reminder-message-index';
-const REVIEW_NOTIFICATION_RUNTIME_SUPPORTED = supportsBadgeAndReviewNotifications();
+  "daily-review-reminder-message-index";
+const REVIEW_NOTIFICATION_RUNTIME_SUPPORTED =
+  supportsBadgeAndReviewNotifications();
 const USE_NATIVE_REVIEW_NOTIFICATION_SYSTEM =
   shouldUseNativeReviewNotificationSystem();
 let lastReviewCountUpdateInFlight: Promise<void> | null = null;
+let reviewNotificationWorkGeneration = 0;
+const activeReviewNotificationWork = new Set<Promise<unknown>>();
+
+function isCurrentReviewNotificationWork(generation: number): boolean {
+  return (
+    isNotificationSessionActive() &&
+    generation === reviewNotificationWorkGeneration
+  );
+}
+
+async function trackReviewNotificationWork<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  const work = operation();
+  activeReviewNotificationWork.add(work);
+  try {
+    return await work;
+  } finally {
+    activeReviewNotificationWork.delete(work);
+  }
+}
+
+export async function invalidateReviewNotificationWorkForLogout(): Promise<void> {
+  reviewNotificationWorkGeneration += 1;
+  await Promise.allSettled([
+    ...activeReviewNotificationWork,
+    ...(lastReviewCountUpdateInFlight
+      ? [lastReviewCountUpdateInFlight]
+      : []),
+  ]);
+}
 type UpdateLastReviewCountOptions = {
   reviewCount?: number;
 };
@@ -55,28 +99,28 @@ const DAILY_REVIEW_REMINDER_MESSAGES: {
   body: string;
 }[] = [
   {
-    title: 'Review reminder',
-    body: 'You still have reviews waiting. Time to study!',
+    title: "Review reminder",
+    body: "You still have reviews waiting. Time to study!",
   },
   {
-    title: 'Keep your streak strong',
-    body: 'A quick review session now will make tomorrow easier.',
+    title: "Keep your streak strong",
+    body: "A quick review session now will make tomorrow easier.",
   },
   {
-    title: 'Small session, big progress',
-    body: 'You have pending reviews ready whenever you are.',
+    title: "Small session, big progress",
+    body: "You have pending reviews ready whenever you are.",
   },
   {
-    title: 'Review time',
-    body: 'Knock out a few reviews and keep momentum going.',
+    title: "Review time",
+    body: "Knock out a few reviews and keep momentum going.",
   },
   {
-    title: 'Your reviews are ready',
-    body: 'Take a few minutes now and future you will thank you.',
+    title: "Your reviews are ready",
+    body: "Take a few minutes now and future you will thank you.",
   },
   {
-    title: 'Study nudge',
-    body: 'Pending reviews are waiting. Let’s clear some!',
+    title: "Study nudge",
+    body: "Pending reviews are waiting. Let’s clear some!",
   },
 ];
 
@@ -94,7 +138,7 @@ function getStoredNotificationIds(storedValue: string | null): string[] {
     if (Array.isArray(parsedValue)) {
       return parsedValue.filter(
         (notificationId): notificationId is string =>
-          typeof notificationId === 'string' && notificationId.length > 0
+          typeof notificationId === "string" && notificationId.length > 0,
       );
     }
   } catch {
@@ -105,10 +149,10 @@ function getStoredNotificationIds(storedValue: string | null): string[] {
 }
 
 function getScheduledNotificationData(
-  request: ScheduledNotificationRequest
+  request: ScheduledNotificationRequest,
 ): Record<string, unknown> | null {
   const data = request.content?.data;
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
     return null;
   }
 
@@ -129,7 +173,7 @@ async function cancelDailyReminderNotification({
   try {
     const notificationIdsToCancel = new Set<string>();
     const storedNotificationIds = getStoredNotificationIds(
-      await AsyncStorage.getItem(storageKey)
+      await AsyncStorage.getItem(storageKey),
     );
     storedNotificationIds.forEach((notificationId) => {
       notificationIdsToCancel.add(notificationId);
@@ -150,8 +194,8 @@ async function cancelDailyReminderNotification({
 
     await Promise.all(
       Array.from(notificationIdsToCancel).map((notificationId) =>
-        Notifications.cancelScheduledNotificationAsync(notificationId)
-      )
+        Notifications.cancelScheduledNotificationAsync(notificationId),
+      ),
     );
   } catch {
     // Silent failure
@@ -165,21 +209,21 @@ async function cancelDailyReminderNotification({
 }
 
 function clampDailyReminderHour(hour: unknown): number {
-  if (typeof hour !== 'number') {
+  if (typeof hour !== "number") {
     return 20;
   }
   return Math.min(23, Math.max(0, Math.floor(hour)));
 }
 
 function clampDailyReminderMinute(minute: unknown): number {
-  if (typeof minute !== 'number') {
+  if (typeof minute !== "number") {
     return 0;
   }
   return Math.min(59, Math.max(0, Math.floor(minute)));
 }
 
 function clampDailyLessonReminderMinimum(minimumLessons: unknown): number {
-  if (typeof minimumLessons !== 'number') {
+  if (typeof minimumLessons !== "number") {
     return 5;
   }
   return Math.min(100, Math.max(5, Math.floor(minimumLessons)));
@@ -188,7 +232,7 @@ function clampDailyLessonReminderMinimum(minimumLessons: unknown): number {
 // Helper function to check if review notifications are enabled
 async function isReviewNotificationsEnabled(): Promise<boolean> {
   try {
-    const settings = await AsyncStorage.getItem('wanikani-settings');
+    const settings = await AsyncStorage.getItem("wanikani-settings");
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       return parsedSettings.state?.enableReviewNotifications ?? false;
@@ -201,14 +245,14 @@ async function isReviewNotificationsEnabled(): Promise<boolean> {
 
 async function getDailyReviewReminderConfig(): Promise<DailyReviewReminderConfig> {
   try {
-    const settings = await AsyncStorage.getItem('wanikani-settings');
+    const settings = await AsyncStorage.getItem("wanikani-settings");
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       const hour = clampDailyReminderHour(
-        parsedSettings.state?.dailyReviewReminderHour
+        parsedSettings.state?.dailyReviewReminderHour,
       );
       const minute = clampDailyReminderMinute(
-        parsedSettings.state?.dailyReviewReminderMinute
+        parsedSettings.state?.dailyReviewReminderMinute,
       );
 
       return {
@@ -230,20 +274,20 @@ async function getDailyReviewReminderConfig(): Promise<DailyReviewReminderConfig
 
 async function getDailyLessonReminderConfig(): Promise<DailyLessonReminderConfig> {
   try {
-    const settings = await AsyncStorage.getItem('wanikani-settings');
+    const settings = await AsyncStorage.getItem("wanikani-settings");
     if (settings) {
       const parsedSettings = JSON.parse(settings);
       const hour = clampDailyReminderHour(
-        parsedSettings.state?.dailyReviewReminderHour
+        parsedSettings.state?.dailyReviewReminderHour,
       );
       const minute = clampDailyReminderMinute(
-        parsedSettings.state?.dailyReviewReminderMinute
+        parsedSettings.state?.dailyReviewReminderMinute,
       );
 
       return {
         enabled: parsedSettings.state?.dailyLessonReminderEnabled ?? false,
         minimumLessons: clampDailyLessonReminderMinimum(
-          parsedSettings.state?.dailyLessonReminderMinimum
+          parsedSettings.state?.dailyLessonReminderMinimum,
         ),
         includeWeekends:
           parsedSettings.state?.dailyLessonReminderIncludeWeekends ?? true,
@@ -266,8 +310,8 @@ async function getDailyLessonReminderConfig(): Promise<DailyLessonReminderConfig
 
 function getDayKeyForDate(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -284,7 +328,7 @@ function getNextReminderDate(hour: number, minute: number): Date {
 }
 
 async function getReminderMessageForDay(
-  targetDate: Date
+  targetDate: Date,
 ): Promise<{ title: string; body: string }> {
   const dayKey = getDayKeyForDate(targetDate);
 
@@ -306,7 +350,7 @@ async function getReminderMessageForDay(
 
     const previousIndex = hasValidStoredIndex ? storedIndex : -1;
     const randomIndex = Math.floor(
-      Math.random() * DAILY_REVIEW_REMINDER_MESSAGES.length
+      Math.random() * DAILY_REVIEW_REMINDER_MESSAGES.length,
     );
     const nextIndex =
       DAILY_REVIEW_REMINDER_MESSAGES.length > 1 && randomIndex === previousIndex
@@ -317,14 +361,14 @@ async function getReminderMessageForDay(
       AsyncStorage.setItem(DAILY_REVIEW_REMINDER_MESSAGE_DAY_KEY, dayKey),
       AsyncStorage.setItem(
         DAILY_REVIEW_REMINDER_MESSAGE_INDEX_KEY,
-        String(nextIndex)
+        String(nextIndex),
       ),
     ]);
 
     return DAILY_REVIEW_REMINDER_MESSAGES[nextIndex];
   } catch {
     const fallbackIndex = Math.floor(
-      Math.random() * DAILY_REVIEW_REMINDER_MESSAGES.length
+      Math.random() * DAILY_REVIEW_REMINDER_MESSAGES.length,
     );
     return DAILY_REVIEW_REMINDER_MESSAGES[fallbackIndex];
   }
@@ -345,77 +389,110 @@ export async function cancelDailyLessonReminderNotification(): Promise<void> {
 }
 
 export async function syncDailyReviewReminderNotification(
-  options: SyncDailyReviewReminderOptions = {}
+  options: SyncDailyReviewReminderOptions = {},
 ): Promise<void> {
-  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
+  if (!isNotificationSessionActive()) {
     return;
   }
-
-  try {
-    await cancelDailyReviewReminderNotification();
-
-    const reminderConfig = {
-      ...(await getDailyReviewReminderConfig()),
-      ...options.reminderConfig,
-    };
-    if (!reminderConfig.enabled) {
+  const workGeneration = reviewNotificationWorkGeneration;
+  await trackReviewNotificationWork(async () => {
+    if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
       return;
     }
 
-    const permissions = await Notifications.getPermissionsAsync();
-    if (permissions.status !== 'granted') {
-      return;
-    }
-
-    let reviewCount =
-      typeof options.reviewCount === 'number'
-        ? Math.max(0, options.reviewCount)
-        : null;
-
-    if (reviewCount === null) {
-      const apiToken = await getStoredApiToken();
-      if (!apiToken) {
+    try {
+      await cancelDailyReviewReminderNotification();
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
         return;
       }
-      reviewCount = await getReviewCount(apiToken);
+
+      const reminderConfig = {
+        ...(await getDailyReviewReminderConfig()),
+        ...options.reminderConfig,
+      };
+      if (
+        !reminderConfig.enabled ||
+        !isCurrentReviewNotificationWork(workGeneration)
+      ) {
+        return;
+      }
+
+      const permissions = await Notifications.getPermissionsAsync();
+      if (
+        permissions.status !== "granted" ||
+        !isCurrentReviewNotificationWork(workGeneration)
+      ) {
+        return;
+      }
+
+      const apiToken = await getStoredApiToken();
+      if (!apiToken || !isCurrentReviewNotificationWork(workGeneration)) {
+        return;
+      }
+
+      let reviewCount =
+        typeof options.reviewCount === "number"
+          ? Math.max(0, options.reviewCount)
+          : null;
+
+      if (reviewCount === null) {
+        reviewCount = await getReviewCountIfAvailable(apiToken);
+        if (
+          reviewCount === null ||
+          !isCurrentReviewNotificationWork(workGeneration)
+        ) {
+          return;
+        }
+      }
+
+      if (reviewCount <= 0) {
+        return;
+      }
+
+      const nextReminderDate = getNextReminderDate(
+        reminderConfig.hour,
+        reminderConfig.minute,
+      );
+      const reminderMessage = await getReminderMessageForDay(nextReminderDate);
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
+        return;
+      }
+
+      const scheduledNotificationId =
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: reminderMessage.title,
+            body: reminderMessage.body,
+            data: {
+              dailyReminder: true,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: reminderConfig.hour,
+            minute: reminderConfig.minute,
+          },
+        });
+
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
+        await Notifications.cancelScheduledNotificationAsync(
+          scheduledNotificationId,
+        ).catch(() => {});
+        return;
+      }
+
+      await AsyncStorage.setItem(
+        DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY,
+        scheduledNotificationId,
+      );
+    } catch {
+      // Silent failure
     }
-
-    if (reviewCount <= 0) {
-      return;
-    }
-
-    const nextReminderDate = getNextReminderDate(
-      reminderConfig.hour,
-      reminderConfig.minute
-    );
-    const reminderMessage = await getReminderMessageForDay(nextReminderDate);
-
-    const scheduledNotificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: reminderMessage.title,
-        body: reminderMessage.body,
-        data: {
-          dailyReminder: true,
-        },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: reminderConfig.hour,
-        minute: reminderConfig.minute,
-      },
-    });
-
-    await AsyncStorage.setItem(
-      DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY,
-      scheduledNotificationId
-    );
-  } catch {
-    // Silent failure
-  }
+  });
 }
 
 function normalizeLessonReminderProgress(
-  progress: LessonReminderProgress | undefined
+  progress: LessonReminderProgress | undefined,
 ): LessonReminderProgress | null {
   if (!progress) {
     return null;
@@ -439,9 +516,11 @@ function normalizeLessonReminderProgress(
 }
 
 async function getLessonReminderProgress(
-  options: SyncDailyLessonReminderOptions
+  options: SyncDailyLessonReminderOptions,
 ): Promise<LessonReminderProgress | null> {
-  const providedProgress = normalizeLessonReminderProgress(options.lessonProgress);
+  const providedProgress = normalizeLessonReminderProgress(
+    options.lessonProgress,
+  );
   if (providedProgress) {
     return providedProgress;
   }
@@ -454,7 +533,7 @@ async function getLessonReminderProgress(
   const assignments = await getAssignmentsOptimized(
     apiToken,
     {},
-    { forceFullRefresh: false }
+    { forceFullRefresh: false },
   );
   const assignmentsData = Array.isArray(assignments?.data)
     ? assignments.data
@@ -463,8 +542,8 @@ async function getLessonReminderProgress(
     const assignmentData = assignment?.data;
     return Boolean(
       assignmentData?.unlocked_at &&
-        !assignmentData?.started_at &&
-        !assignmentData?.hidden
+      !assignmentData?.started_at &&
+      !assignmentData?.hidden,
     );
   }).length;
   const lessonsStartedToday = getLessonsStartedToday(assignmentsData);
@@ -476,90 +555,126 @@ async function getLessonReminderProgress(
 }
 
 export async function syncDailyLessonReminderNotification(
-  options: SyncDailyLessonReminderOptions = {}
+  options: SyncDailyLessonReminderOptions = {},
 ): Promise<void> {
-  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
+  if (!isNotificationSessionActive()) {
     return;
   }
-
-  try {
-    await cancelDailyLessonReminderNotification();
-
-    const reminderConfig = {
-      ...(await getDailyLessonReminderConfig()),
-      ...options.reminderConfig,
-    };
-    if (!reminderConfig.enabled) {
+  const workGeneration = reviewNotificationWorkGeneration;
+  await trackReviewNotificationWork(async () => {
+    if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
       return;
     }
 
-    const permissions = await Notifications.getPermissionsAsync();
-    if (permissions.status !== 'granted') {
-      return;
-    }
+    try {
+      await cancelDailyLessonReminderNotification();
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
+        return;
+      }
 
-    const lessonProgress = await getLessonReminderProgress(options);
-    if (!lessonProgress) {
-      return;
-    }
+      const reminderConfig = {
+        ...(await getDailyLessonReminderConfig()),
+        ...options.reminderConfig,
+      };
+      if (
+        !reminderConfig.enabled ||
+        !isCurrentReviewNotificationWork(workGeneration)
+      ) {
+        return;
+      }
 
-    if (lessonProgress.remainingLessons <= 0) {
-      return;
-    }
+      const permissions = await Notifications.getPermissionsAsync();
+      if (
+        permissions.status !== "granted" ||
+        !isCurrentReviewNotificationWork(workGeneration)
+      ) {
+        return;
+      }
 
-    if (lessonProgress.lessonsStartedToday >= reminderConfig.minimumLessons) {
-      return;
-    }
+      const lessonProgress = await getLessonReminderProgress(options);
+      if (
+        !lessonProgress ||
+        !isCurrentReviewNotificationWork(workGeneration)
+      ) {
+        return;
+      }
 
-    const minimumLessonsLabel =
-      reminderConfig.minimumLessons === 1 ? 'lesson' : 'lessons';
-    const reminderContent = {
-      title: 'Lesson reminder',
-      body: `You are below your daily goal of ${reminderConfig.minimumLessons} ${minimumLessonsLabel}. Keep your lesson streak moving.`,
-      data: {
-        dailyLessonReminder: true,
-        minimumDailyLessons: reminderConfig.minimumLessons,
-      },
-    };
-    const reminderTriggers = reminderConfig.includeWeekends
-      ? [
-          {
-            type: Notifications.SchedulableTriggerInputTypes.DAILY as const,
+      if (lessonProgress.remainingLessons <= 0) {
+        return;
+      }
+
+      if (lessonProgress.lessonsStartedToday >= reminderConfig.minimumLessons) {
+        return;
+      }
+
+      const minimumLessonsLabel =
+        reminderConfig.minimumLessons === 1 ? "lesson" : "lessons";
+      const reminderContent = {
+        title: "Lesson reminder",
+        body: `You are below your daily goal of ${reminderConfig.minimumLessons} ${minimumLessonsLabel}. Keep your lesson streak moving.`,
+        data: {
+          dailyLessonReminder: true,
+          minimumDailyLessons: reminderConfig.minimumLessons,
+        },
+      };
+      const reminderTriggers = reminderConfig.includeWeekends
+        ? [
+            {
+              type: Notifications.SchedulableTriggerInputTypes.DAILY as const,
+              hour: reminderConfig.hour,
+              minute: reminderConfig.minute,
+            },
+          ]
+        : [2, 3, 4, 5, 6].map((weekday) => ({
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY as const,
+            weekday,
             hour: reminderConfig.hour,
             minute: reminderConfig.minute,
-          },
-        ]
-      : [2, 3, 4, 5, 6].map((weekday) => ({
-          type: Notifications.SchedulableTriggerInputTypes.WEEKLY as const,
-          weekday,
-          hour: reminderConfig.hour,
-          minute: reminderConfig.minute,
-        }));
-    const scheduledNotificationIds = await Promise.all(
-      reminderTriggers.map((trigger) =>
-        Notifications.scheduleNotificationAsync({
-          content: reminderContent,
-          trigger,
-        })
-      )
-    );
+          }));
+      const scheduledNotificationIds = await Promise.all(
+        reminderTriggers.map((trigger) =>
+          Notifications.scheduleNotificationAsync({
+            content: reminderContent,
+            trigger,
+          }),
+        ),
+      );
 
-    await AsyncStorage.setItem(
-      DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY,
-      JSON.stringify(scheduledNotificationIds)
-    );
-  } catch {
-    // Silent failure
-  }
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
+        await Promise.all(
+          scheduledNotificationIds.map((identifier) =>
+            Notifications.cancelScheduledNotificationAsync(identifier).catch(
+              () => {},
+            ),
+          ),
+        );
+        return;
+      }
+
+      await AsyncStorage.setItem(
+        DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY,
+        JSON.stringify(scheduledNotificationIds),
+      );
+    } catch {
+      // Silent failure
+    }
+  });
 }
 
 export async function syncDailyReminderNotifications(
-  options: SyncDailyReminderNotificationsOptions = {}
+  options: SyncDailyReminderNotificationsOptions = {},
 ): Promise<void> {
+  if (!isNotificationSessionActive()) {
+    return;
+  }
+  const workGeneration = reviewNotificationWorkGeneration;
   await syncDailyReviewReminderNotification({
     reviewCount: options.reviewCount,
     reminderConfig: options.dailyReviewReminderConfig,
   });
+  if (!isCurrentReviewNotificationWork(workGeneration)) {
+    return;
+  }
   await syncDailyLessonReminderNotification({
     lessonProgress: options.lessonProgress,
     reminderConfig: options.dailyLessonReminderConfig,
@@ -570,51 +685,68 @@ if (REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
   // Background task to check for new reviews.
   // Guard against re-defining after OTA/JS reload to avoid runtime collisions.
   const isReviewCheckTaskAlreadyDefined =
-    typeof TaskManager.isTaskDefined === 'function' &&
+    typeof TaskManager.isTaskDefined === "function" &&
     TaskManager.isTaskDefined(REVIEW_CHECK_TASK);
 
   if (!isReviewCheckTaskAlreadyDefined) {
-    TaskManager.defineTask(REVIEW_CHECK_TASK, async () => {
+    TaskManager.defineTask(REVIEW_CHECK_TASK, () => {
+      const workGeneration = reviewNotificationWorkGeneration;
+      return trackReviewNotificationWork(async () => {
       try {
         // Check if review notifications are enabled
         const isEnabled = await isReviewNotificationsEnabled();
-        if (!isEnabled) {
-          return { backgroundFetchResult: 'noData' };
+        if (
+          !isEnabled ||
+          !isCurrentReviewNotificationWork(workGeneration)
+        ) {
+          return { backgroundFetchResult: "noData" };
         }
 
         const apiToken = await getStoredApiToken();
-        if (!apiToken) {
-          return { backgroundFetchResult: 'failed' };
+        if (!apiToken || !isCurrentReviewNotificationWork(workGeneration)) {
+          return { backgroundFetchResult: "failed" };
         }
 
         // Get current visible review count (hidden items excluded).
-        const currentReviewCount = await getReviewCount(apiToken);
+        const currentReviewCount = await getReviewCountIfAvailable(apiToken);
+        if (
+          currentReviewCount === null ||
+          !isCurrentReviewNotificationWork(workGeneration)
+        ) {
+          return { backgroundFetchResult: "failed" };
+        }
 
         // Get last known review count
         const lastCountStr = await AsyncStorage.getItem(LAST_REVIEW_COUNT_KEY);
+        if (!isCurrentReviewNotificationWork(workGeneration)) {
+          return { backgroundFetchResult: "noData" };
+        }
         const lastReviewCount = lastCountStr ? parseInt(lastCountStr, 10) : 0;
 
         // If we have more reviews than before, send notification
         if (currentReviewCount > lastReviewCount && currentReviewCount > 0) {
           const newReviews = currentReviewCount - lastReviewCount;
 
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'New Reviews Available! 📚',
-              body: `You have ${newReviews} new review${newReviews > 1 ? 's' : ''} ready. Time to study!`,
-              data: { reviewCount: currentReviewCount, newReviews },
-            },
-            trigger: null, // Send immediately
+          await presentCombinedReviewAvailabilityNotification({
+            reviewCount: currentReviewCount,
+            newReviews,
           });
+          if (!isCurrentReviewNotificationWork(workGeneration)) {
+            return { backgroundFetchResult: "noData" };
+          }
         }
 
         // Update last review count
-        await AsyncStorage.setItem(LAST_REVIEW_COUNT_KEY, currentReviewCount.toString());
+        await AsyncStorage.setItem(
+          LAST_REVIEW_COUNT_KEY,
+          currentReviewCount.toString(),
+        );
 
-        return { backgroundFetchResult: 'newData' };
+        return { backgroundFetchResult: "newData" };
       } catch {
-        return { backgroundFetchResult: 'failed' };
+        return { backgroundFetchResult: "failed" };
       }
+      });
     });
   }
 }
@@ -632,23 +764,24 @@ export async function initializeReviewNotifications(): Promise<void> {
     }
 
     // Request notification permissions
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
+
+    if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    
-    if (finalStatus !== 'granted') {
+
+    if (finalStatus !== "granted") {
       return;
     }
 
     // Set up notification categories
-    await Notifications.setNotificationCategoryAsync('reviews', [
+    await Notifications.setNotificationCategoryAsync("reviews", [
       {
-        identifier: 'open_reviews',
-        buttonTitle: 'Study Now',
+        identifier: "open_reviews",
+        buttonTitle: "Study Now",
         options: { opensAppToForeground: true },
       },
     ]);
@@ -661,9 +794,12 @@ export async function initializeReviewNotifications(): Promise<void> {
 }
 
 export async function updateLastReviewCount(
-  options: UpdateLastReviewCountOptions = {}
+  options: UpdateLastReviewCountOptions = {},
 ): Promise<void> {
-  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
+  if (
+    !REVIEW_NOTIFICATION_RUNTIME_SUPPORTED ||
+    !isNotificationSessionActive()
+  ) {
     return;
   }
 
@@ -671,17 +807,29 @@ export async function updateLastReviewCount(
     return lastReviewCountUpdateInFlight;
   }
 
+  const workGeneration = reviewNotificationWorkGeneration;
   lastReviewCountUpdateInFlight = (async () => {
     try {
       const apiToken = await getStoredApiToken();
-      if (!apiToken) return;
+      if (!apiToken || !isCurrentReviewNotificationWork(workGeneration)) return;
 
       const currentReviewCount =
-        typeof options.reviewCount === 'number'
+        typeof options.reviewCount === "number"
           ? Math.max(0, options.reviewCount)
-          : await getReviewCount(apiToken);
+          : await getReviewCountIfAvailable(apiToken);
 
-      await AsyncStorage.setItem(LAST_REVIEW_COUNT_KEY, currentReviewCount.toString());
+      if (currentReviewCount === null) {
+        return;
+      }
+
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
+        return;
+      }
+
+      await AsyncStorage.setItem(
+        LAST_REVIEW_COUNT_KEY,
+        currentReviewCount.toString(),
+      );
     } catch {
       // Silent failure
     } finally {
@@ -703,11 +851,8 @@ export async function scheduleReviewChecks(): Promise<void> {
   }
 
   try {
-    // Cancel any existing expo notifications
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    await AsyncStorage.removeItem(DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY);
-    await AsyncStorage.removeItem(DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY);
-    
+    await cancelReviewAvailabilityNotifications();
+
     const isEnabled = await isReviewNotificationsEnabled();
     if (!isEnabled) {
       return;
@@ -725,15 +870,12 @@ export async function cancelReviewNotifications(): Promise<void> {
   }
 
   try {
-    // Cancel expo notifications
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    await AsyncStorage.removeItem(DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY);
-    await AsyncStorage.removeItem(DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY);
-    
-    // Also cancel native notifications by clearing them
+    await cancelReviewAvailabilityNotifications();
+
+    // Native cleanup must not depend on fetching review data: users can turn
+    // alerts off while offline, and badge-only updates should remain intact.
     try {
-      const { updateBadgeAndScheduleNotifications } = await import('./reviewNotificationIntegration');
-      await updateBadgeAndScheduleNotifications(); // This will clear existing and not schedule new ones if settings are disabled
+      await clearNativeReviewAlerts();
     } catch {
       // Silent failure for clearing native notifications
     }
@@ -742,46 +884,96 @@ export async function cancelReviewNotifications(): Promise<void> {
   }
 }
 
+/**
+ * Remove every notification and per-account notification cursor during logout.
+ * Alert-setting changes use cancelReviewNotifications() so badge-only requests
+ * survive; logout must also remove those requests and daily reminders.
+ */
+export async function cancelAllNotificationsForLogout(): Promise<void> {
+  await invalidateReviewNotificationWorkForLogout();
+
+  if (REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+    } catch {
+      // Continue so delivered notifications and stored cursors are still reset.
+    }
+
+    try {
+      await Notifications.dismissAllNotificationsAsync();
+    } catch {
+      // Stored notification state is still cleared below.
+    }
+  }
+
+  await Promise.all(
+    [
+      LAST_REVIEW_COUNT_KEY,
+      DAILY_REVIEW_REMINDER_NOTIFICATION_ID_KEY,
+      DAILY_LESSON_REMINDER_NOTIFICATION_ID_KEY,
+      DAILY_REVIEW_REMINDER_MESSAGE_DAY_KEY,
+      DAILY_REVIEW_REMINDER_MESSAGE_INDEX_KEY,
+    ].map((key) => AsyncStorage.removeItem(key).catch(() => {})),
+  );
+}
+
 // Function to manually trigger a review check (for testing or immediate updates)
 export async function checkForNewReviews(): Promise<void> {
-  if (!REVIEW_NOTIFICATION_RUNTIME_SUPPORTED) {
+  if (
+    !REVIEW_NOTIFICATION_RUNTIME_SUPPORTED ||
+    !isNotificationSessionActive()
+  ) {
     return;
   }
 
-  try {
+  const workGeneration = reviewNotificationWorkGeneration;
+  await trackReviewNotificationWork(async () => {
+    try {
     const isEnabled = await isReviewNotificationsEnabled();
-    if (!isEnabled) return;
+    if (!isEnabled || !isCurrentReviewNotificationWork(workGeneration)) return;
 
     // Execute the same logic as the background task manually
     const apiToken = await getStoredApiToken();
-    if (!apiToken) {
+    if (!apiToken || !isCurrentReviewNotificationWork(workGeneration)) {
       return;
     }
 
     // Get current visible review count (hidden items excluded).
-    const currentReviewCount = await getReviewCount(apiToken);
+    const currentReviewCount = await getReviewCountIfAvailable(apiToken);
+    if (
+      currentReviewCount === null ||
+      !isCurrentReviewNotificationWork(workGeneration)
+    ) {
+      return;
+    }
 
     // Get last known review count
     const lastCountStr = await AsyncStorage.getItem(LAST_REVIEW_COUNT_KEY);
+    if (!isCurrentReviewNotificationWork(workGeneration)) {
+      return;
+    }
     const lastReviewCount = lastCountStr ? parseInt(lastCountStr, 10) : 0;
 
     // If we have more reviews than before, send notification
     if (currentReviewCount > lastReviewCount && currentReviewCount > 0) {
       const newReviews = currentReviewCount - lastReviewCount;
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'New Reviews Available! 📚',
-          body: `You have ${newReviews} new review${newReviews > 1 ? 's' : ''} ready. Time to study!`,
-          data: { reviewCount: currentReviewCount, newReviews },
-        },
-        trigger: null, // Send immediately
+      await presentCombinedReviewAvailabilityNotification({
+        reviewCount: currentReviewCount,
+        newReviews,
       });
+      if (!isCurrentReviewNotificationWork(workGeneration)) {
+        return;
+      }
     }
 
     // Update last review count
-    await AsyncStorage.setItem(LAST_REVIEW_COUNT_KEY, currentReviewCount.toString());
-  } catch {
-    // Silent failure
-  }
+    await AsyncStorage.setItem(
+      LAST_REVIEW_COUNT_KEY,
+      currentReviewCount.toString(),
+    );
+    } catch {
+      // Silent failure
+    }
+  });
 }

@@ -26,6 +26,7 @@ import {
   SearchFilters,
 } from "../../../src/components/SearchFilterModal";
 import { CommonFilterModal } from "../../../src/components/CommonFilterModal";
+import { matchesVocabularyTypes } from "../../../src/utils/vocabularyTypeFilter";
 import { GlassButton } from "../../../src/components/GlassButton";
 import TransferSubjectListsModal from "../../../src/components/TransferSubjectListsModal";
 import { WaniKaniItemType } from "../../../src/types/wanikani";
@@ -300,6 +301,7 @@ export default function SubjectListEditorScreen() {
     }
 
     const filteredByFacets = allSubjects
+      .filter((subject) => matchesVocabularyTypes(subject, filters.vocabularyTypes))
       .filter((subject) =>
         filters.types.has(subject.object as WaniKaniItemType)
       )
@@ -390,13 +392,19 @@ export default function SubjectListEditorScreen() {
     [selectedSubjectSortMode]
   );
 
+  const selectedFilterValues = useMemo(
+    () => ({ vocabularyTypes: filters.vocabularyTypes }),
+    [filters.vocabularyTypes],
+  );
+
   const selectedSubjects = useMemo(() => {
     if (!allSubjects) {
       return [];
     }
 
     const onlySelected = allSubjects.filter((subject) =>
-      selectedSubjectIds.has(subject.id)
+      selectedSubjectIds.has(subject.id) &&
+      matchesVocabularyTypes(subject, filters.vocabularyTypes)
     );
     const query = searchQuery.trim();
 
@@ -422,6 +430,7 @@ export default function SubjectListEditorScreen() {
     selectedSubjectIds,
     selectedSubjectOrderIndex,
     selectedSubjectSortMode,
+    filters.vocabularyTypes,
     subjectSrsStageMap,
   ]);
 
@@ -454,7 +463,8 @@ export default function SubjectListEditorScreen() {
     filters.maxLevel < 60 ||
     filters.types.size < 4 ||
     hasNonDefaultSrsSelection ||
-    filters.jlptLevels.size > 0;
+    filters.jlptLevels.size > 0 ||
+    filters.vocabularyTypes.length > 0;
 
   const toggleSelectAllMatching = () => {
     if (matchingSubjectIds.length === 0) return;
@@ -1169,17 +1179,19 @@ export default function SubjectListEditorScreen() {
               </TouchableOpacity>
             )}
           </View>
-          {activeTab === "browse" ? (
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                { backgroundColor: theme.cardBackground, borderColor: theme.border },
-              ]}
-              onPress={() => setShowFilters(true)}
-            >
-              <Ionicons name="options" size={20} color={theme.textSecondary} />
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              { backgroundColor: theme.cardBackground, borderColor: theme.border },
+            ]}
+            onPress={() => setShowFilters(true)}
+            accessibilityRole="button"
+            accessibilityLabel={filters.vocabularyTypes.length > 0
+              ? `Filters, ${filters.vocabularyTypes.length} vocabulary types selected`
+              : "Filters"}
+          >
+            <Ionicons name="options" size={20} color={filters.vocabularyTypes.length > 0 ? theme.primary : theme.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         {activeTab === "browse" ? (
@@ -1419,6 +1431,23 @@ export default function SubjectListEditorScreen() {
             setShowFilters(false);
           }}
           showJlptFilters
+          subjects={allSubjects ?? []}
+        />
+        <CommonFilterModal
+          visible={showFilters && activeTab === "selected"}
+          title="Filter List"
+          currentValues={selectedFilterValues}
+          sections={[]}
+          showVocabularyTypes
+          subjects={allSubjects ?? []}
+          onClose={() => setShowFilters(false)}
+          onApply={(values) => {
+            setFilters((previous) => ({
+              ...previous,
+              vocabularyTypes: values.vocabularyTypes,
+            }));
+            setShowFilters(false);
+          }}
         />
         <CommonFilterModal
           visible={showSelectedSortModal && activeTab === "selected"}

@@ -1,0 +1,13 @@
+/* Hallmark · genre: modern-minimal · tone: focused/familiar · anchor: vocabulary purple · macrostructure: Focused Subject / identity stage + reading panels · theme: studied-DNA (source: Kakehashi design.md + existing subject details) · enrichment: none · pre-emit: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · nav: existing N10 · footer: none · slop/mobile: pass (1–58) */
+
+.page .hero h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 42rem) {
+  .page .hero {
+    min-height: 22rem;
+    padding-block-end: calc(var(--space-2xl) + var(--space-lg));
+  }
+}

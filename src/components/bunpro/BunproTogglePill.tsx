@@ -36,7 +36,13 @@ export default function BunproTogglePill({
       ]}
     >
       <TouchableOpacity
-        style={[styles.toggleButton, activeSide === "left" && { backgroundColor: accent }]}
+        style={[
+          styles.toggleButton,
+          styles.toggleButtonLeft,
+          isCompact && styles.toggleButtonCompactSize,
+          compactLayout && styles.toggleButtonCompactLayout,
+          activeSide === "left" && { backgroundColor: accent },
+        ]}
         onPress={onLeftPress}
       >
         <Text
@@ -52,7 +58,13 @@ export default function BunproTogglePill({
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.toggleButton, activeSide === "right" && { backgroundColor: accent }]}
+        style={[
+          styles.toggleButton,
+          styles.toggleButtonRight,
+          isCompact && styles.toggleButtonCompactSize,
+          compactLayout && styles.toggleButtonCompactLayout,
+          activeSide === "right" && { backgroundColor: accent },
+        ]}
         onPress={onRightPress}
       >
         <Text
@@ -72,31 +84,47 @@ export default function BunproTogglePill({
 
 const styles = StyleSheet.create({
   togglePill: {
-    height: 32,
-    borderRadius: 12,
+    minHeight: 32,
+    minWidth: 154,
+    borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
-    overflow: "hidden",
-    width: 154,
     maxWidth: "100%",
     marginLeft: "auto",
   },
   togglePillCompactSize: {
-    height: 28,
-    width: 128,
-    borderRadius: 10,
+    minHeight: 28,
+    minWidth: 128,
   },
   togglePillCompactLayout: {
-    width: 136,
+    minWidth: 136,
   },
   toggleButton: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  toggleButtonCompactSize: {
+    paddingHorizontal: 8,
+  },
+  toggleButtonCompactLayout: {
+    paddingHorizontal: 8,
+  },
+  toggleButtonLeft: {
+    borderTopLeftRadius: 999,
+    borderBottomLeftRadius: 999,
+  },
+  toggleButtonRight: {
+    borderTopRightRadius: 999,
+    borderBottomRightRadius: 999,
   },
   toggleLabel: {
     fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
   },
   toggleLabelCompactSize: {
     fontSize: 11,

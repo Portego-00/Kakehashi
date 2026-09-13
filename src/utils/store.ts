@@ -9,7 +9,10 @@ import {
   recoverAuthentication,
   saveApiToken,
 } from "./api";
-import { clearBadgeCount } from "./badgeNotifications";
+import {
+  clearBadgeCount,
+  invalidateBadgeNotificationUpdatesForLogout,
+} from "./badgeNotifications";
 import { clearCache } from "./cache";
 import {
   PERMANENT_KEYS,
@@ -35,7 +38,15 @@ import {
   type ReviewCorrectKeyboardShortcutSettings,
   type ReviewIncorrectKeyboardShortcutSettings,
 } from "./reviewKeyboardShortcuts";
-import { cancelReviewNotifications } from "./reviewNotifications";
+import {
+  cancelAllNotificationsForLogout,
+  invalidateReviewNotificationWorkForLogout,
+} from "./reviewNotifications";
+import { invalidateReviewNotificationSyncsForLogout } from "./reviewNotificationIntegration";
+import {
+  resumeNotificationSession,
+  suspendNotificationSessionForLogout,
+} from "./notificationSession";
 import {
   DEFAULT_WIDGET_CARD_STYLE_COLORS,
   type WidgetCardStyleColorKey,
@@ -61,6 +72,10 @@ import {
 import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
+import {
+  invalidateAssignmentCacheWrites,
+  withAssignmentCacheLock,
+} from "../services/assignmentCacheCoordinator";
 
 export {
   APP_TEXT_SIZE_OPTIONS,
@@ -118,6 +133,7 @@ export type CustomTabId =
   | "epubs"
   | "videos"
   | "mangas"
+  | "notebooks"
   | "bunpro";
 
 const ALL_CUSTOM_TAB_IDS: CustomTabId[] = [
@@ -130,6 +146,7 @@ const ALL_CUSTOM_TAB_IDS: CustomTabId[] = [
   "epubs",
   "videos",
   "mangas",
+  "notebooks",
   "bunpro",
 ];
 const DEFAULT_CUSTOM_TAB_ORDER: CustomTabId[] = [
@@ -152,7 +169,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 17;
+const SETTINGS_STORE_SCHEMA_VERSION = 21;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -404,6 +421,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: true });
           const token = await getStoredApiToken();
           if (token) {
+            resumeNotificationSession();
             set({ apiToken: token, isAuthenticated: true });
             set({ isLoading: false });
             return token;
@@ -444,28 +462,42 @@ export const useAuthStore = create<AuthState>()(
       setLastWrappedLevel: (level) => set({ lastWrappedLevel: level }),
 
       logout: async () => {
+        // Invalidate synchronously so requests started by the outgoing account
+        // cannot recreate its assignment cache after the clear finishes.
+        invalidateAssignmentCacheWrites();
+        suspendNotificationSessionForLogout();
+        // Invalidate first, then wait for any native bridge call already in
+        // progress so the cancellation below is the final notification update.
+        const notificationDrains = Promise.all([
+          invalidateBadgeNotificationUpdatesForLogout(),
+          invalidateReviewNotificationSyncsForLogout(),
+          invalidateReviewNotificationWorkForLogout(),
+        ]);
         await clearApiToken();
+        await notificationDrains;
         await clearBadgeCount(); // Clear the app badge when logging out
-        await cancelReviewNotifications(); // Cancel review notifications when logging out
+        await cancelAllNotificationsForLogout();
 
         // Clear user-scoped caches so a subsequent login never hydrates data
         // from a previous account.
         clearInMemoryCache();
-        await clearCache();
-        await Promise.all(
-          [
-            PERMANENT_KEYS.DASHBOARD_DATA,
-            PERMANENT_KEYS.ALL_ASSIGNMENTS,
-            PERMANENT_KEYS.ALL_SUBJECTS,
-            PERMANENT_KEYS.SUBJECTS_METADATA,
-            PERMANENT_KEYS.STUDY_MATERIALS,
-            PERMANENT_KEYS.REVIEW_STATISTICS,
-            PERMANENT_KEYS.LEVEL_PROGRESSIONS,
-            PERMANENT_KEYS.SRS_SYSTEMS,
-          ].map((key) =>
-            removeFromPermanentStorage(key).catch(() => {})
-          )
-        );
+        await withAssignmentCacheLock(async () => {
+          await clearCache();
+          await Promise.all(
+            [
+              PERMANENT_KEYS.DASHBOARD_DATA,
+              PERMANENT_KEYS.ALL_ASSIGNMENTS,
+              PERMANENT_KEYS.ALL_SUBJECTS,
+              PERMANENT_KEYS.SUBJECTS_METADATA,
+              PERMANENT_KEYS.STUDY_MATERIALS,
+              PERMANENT_KEYS.REVIEW_STATISTICS,
+              PERMANENT_KEYS.LEVEL_PROGRESSIONS,
+              PERMANENT_KEYS.SRS_SYSTEMS,
+            ].map((key) =>
+              removeFromPermanentStorage(key).catch(() => {})
+            )
+          );
+        });
         await clearOfflineVocabularyAudioCache().catch(() => {});
 
         set({
@@ -505,6 +537,7 @@ type SettingsState = {
   guruLessonThreshold: number; // Block home-page lessons above this Guru count (0 = disabled)
   lessonPickerViewMode: LessonPickerViewMode; // Default visual style for lesson picker subject selection
   singlePageLessonView: boolean; // Show all lesson content in a single scrollable page instead of tabs
+  lessonSearchButtonEnabled: boolean; // Show quick search on lesson details cards
   skipCustomLessonQuiz: boolean; // Skip custom lesson quiz and jump straight to batch completion
   excludeKanaVocabularyFromLessons: boolean; // Hide kana vocabulary from lesson queue and lesson counts
 
@@ -521,6 +554,8 @@ type SettingsState = {
   reviewQuestionOrderEnabled: boolean; // Force meaning/reading order when available
   skipKanjiReadings: boolean;
   minimizeReviewPenalty: boolean;
+  reviewMultipleChoiceEnabled: boolean; // Offer answer choices for questions not using Anki
+  ankiDroidExportEnabled: boolean;
   ankiCardMode: boolean;
   ankiGroupQuestions: boolean;
   ankiCardModeScope: "both" | "meaning" | "reading";
@@ -554,6 +589,8 @@ type SettingsState = {
   showVocabContextSentencesInReviews: boolean; // Show the on-demand context sentence hint on vocabulary review questions
   reviewAnimatePreviousQuestion: boolean; // Animate the previous answered card from center to top-left during reviews
   hapticFeedbackEnabled: boolean; // Enable haptic feedback throughout the app
+  advancedNoteEditorEnabled: boolean; // Enable formatting and subject links for plain study notes
+  noteLinkIncludeCharacters: boolean; // Append subject characters when linking selected note text
 
   // UI settings
   appTextSizeScale: number;
@@ -569,6 +606,7 @@ type SettingsState = {
   showSingleKanjiVocabularySimilarKanji: boolean;
   showMediaContextSentences: boolean;
   hideContextSentenceTranslations: boolean;
+  hideContextSentenceTranslationsCompletely: boolean;
   showContextSentenceSpeedControl: boolean;
   showMnemonicIllustrations: boolean; // Show radical mnemonic illustrations in subject details and lessons
   showInlineRadicalReminders: boolean; // Expand radical mnemonics inline from kanji details
@@ -614,6 +652,7 @@ type SettingsState = {
   // Reading settings
   newsSourcePreference: NewsSourcePreference;
   newsDefaultStudyMode: StudyModePreference;
+  hideNewsFuriganaByDefault: boolean;
   hideVocabularyTooltipMeanings: boolean;
   hideVocabularyTooltipReadings: boolean;
 
@@ -630,6 +669,7 @@ type SettingsState = {
     | "unknown";
   spotifyAuthStatus: SpotifyAuthStatus;
   spotifyDisplayName: string | null;
+  spotifyClientId: string;
 
   // Patch notes tracking
   lastSeenPatchNotesVersion: string | null;
@@ -650,6 +690,7 @@ type SettingsState = {
   // Widget customization
   widgetContentMode: WidgetContentMode;
   widgetStreakGradient: WidgetStreakGradientPreset;
+  widgetBackgroundRefreshEnabled: boolean;
   widgetCardsFollowTheme: boolean;
   widgetLessonCardFollowTheme: boolean;
   widgetReviewCardFollowTheme: boolean;
@@ -689,6 +730,7 @@ type SettingsState = {
   setGuruLessonThreshold: (threshold: number) => void;
   setLessonPickerViewMode: (mode: LessonPickerViewMode) => void;
   setSinglePageLessonView: (enabled: boolean) => void;
+  setLessonSearchButtonEnabled: (enabled: boolean) => void;
   setSkipCustomLessonQuiz: (enabled: boolean) => void;
   setExcludeKanaVocabularyFromLessons: (enabled: boolean) => void;
   setReviewBatchSizeEnabled: (enabled: boolean) => void;
@@ -703,6 +745,8 @@ type SettingsState = {
   setReviewQuestionOrderEnabled: (enabled: boolean) => void;
   setSkipKanjiReadings: (skip: boolean) => void;
   setMinimizeReviewPenalty: (minimize: boolean) => void;
+  setReviewMultipleChoiceEnabled: (enabled: boolean) => void;
+  setAnkiDroidExportEnabled: (enabled: boolean) => void;
   setAnkiCardMode: (ankiMode: boolean) => void;
   setAnkiGroupQuestions: (group: boolean) => void;
   setAnkiCardModeScope: (scope: "both" | "meaning" | "reading") => void;
@@ -730,6 +774,8 @@ type SettingsState = {
   setAutoSwitchKeyboard: (enabled: boolean) => void;
   setVoiceReviewAnswersEnabled: (enabled: boolean) => void;
   setHapticFeedbackEnabled: (enabled: boolean) => void;
+  setAdvancedNoteEditorEnabled: (enabled: boolean) => void;
+  setNoteLinkIncludeCharacters: (enabled: boolean) => void;
   setReviewIncorrectKeyboardShortcuts: (
     shortcuts: Partial<ReviewIncorrectKeyboardShortcutSettings>,
   ) => void;
@@ -755,6 +801,7 @@ type SettingsState = {
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
   setShowMediaContextSentences: (show: boolean) => void;
   setHideContextSentenceTranslations: (hide: boolean) => void;
+  setHideContextSentenceTranslationsCompletely: (hide: boolean) => void;
   setShowContextSentenceSpeedControl: (show: boolean) => void;
   setShowMnemonicIllustrations: (show: boolean) => void;
   setShowInlineRadicalReminders: (show: boolean) => void;
@@ -790,6 +837,7 @@ type SettingsState = {
   setListeningAutoPlayAudio: (autoplay: boolean) => void;
   setNewsSourcePreference: (source: NewsSourcePreference) => void;
   setNewsDefaultStudyMode: (mode: StudyModePreference) => void;
+  setHideNewsFuriganaByDefault: (hide: boolean) => void;
   setHideVocabularyTooltipMeanings: (hide: boolean) => void;
   setHideVocabularyTooltipReadings: (hide: boolean) => void;
   setSongsMusicSource: (source: "spotify" | "apple") => void;
@@ -806,6 +854,7 @@ type SettingsState = {
   ) => void;
   setSpotifyAuthStatus: (status: SpotifyAuthStatus) => void;
   setSpotifyDisplayName: (displayName: string | null) => void;
+  setSpotifyClientId: (clientId: string) => void;
   setLastSeenPatchNotesVersion: (version: string | null) => void;
   setBunproSurveyCompleted: (completed: boolean) => void;
   setCustomTabOrder: (tabs: CustomTabId[]) => void;
@@ -823,6 +872,7 @@ type SettingsState = {
   ) => void;
   setWidgetContentMode: (mode: WidgetContentMode) => void;
   setWidgetStreakGradient: (preset: WidgetStreakGradientPreset) => void;
+  setWidgetBackgroundRefreshEnabled: (enabled: boolean) => void;
   setWidgetCardsFollowTheme: (follow: boolean) => void;
   setWidgetLessonCardFollowTheme: (follow: boolean) => void;
   setWidgetReviewCardFollowTheme: (follow: boolean) => void;
@@ -851,6 +901,7 @@ export const useSettingsStore = create<SettingsState>()(
       guruLessonThreshold: 0, // 0 means no Guru threshold
       lessonPickerViewMode: "cards", // Default to card grid selection in lesson picker
       singlePageLessonView: false, // Default to tab-based view
+      lessonSearchButtonEnabled: false,
       skipCustomLessonQuiz: false, // Default to false - keep custom lesson review quiz enabled
       excludeKanaVocabularyFromLessons: false, // Default to disabled so kana vocabulary stays in lessons
       reviewBatchSizeEnabled: false, // Disabled by default - all reviews loaded
@@ -865,6 +916,8 @@ export const useSettingsStore = create<SettingsState>()(
       reviewQuestionOrderEnabled: false, // Default to disabled - keep legacy random/back-to-back behavior
       skipKanjiReadings: false,
       minimizeReviewPenalty: true,
+      reviewMultipleChoiceEnabled: false,
+      ankiDroidExportEnabled: false,
       ankiCardMode: false, // Default to disabled (traditional WaniKani mode)
       ankiGroupQuestions: false, // Default to disabled (show questions separately)
       ankiCardModeScope: "both", // Default to Anki behavior for both meaning and reading
@@ -892,6 +945,8 @@ export const useSettingsStore = create<SettingsState>()(
       autoSwitchKeyboard: false, // Default to disabled (use wanakana romaji-to-kana conversion)
       voiceReviewAnswersEnabled: false, // Default to disabled (manual typing)
       hapticFeedbackEnabled: true, // Default to enabled for tactile feedback
+      advancedNoteEditorEnabled: false,
+      noteLinkIncludeCharacters: false,
       reviewIncorrectKeyboardShortcuts: {
         ...DEFAULT_REVIEW_INCORRECT_KEYBOARD_SHORTCUTS,
       },
@@ -915,6 +970,7 @@ export const useSettingsStore = create<SettingsState>()(
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
       showMediaContextSentences: true, // Default to enabled (show media context sentences)
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
+      hideContextSentenceTranslationsCompletely: false, // Default to blurred hidden translations
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
       showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
@@ -957,6 +1013,7 @@ export const useSettingsStore = create<SettingsState>()(
       listeningAutoPlayAudio: true, // Default to true - auto-play audio when moving between questions
       newsSourcePreference: "easy", // Keep the existing beginner-friendly feed until users opt in
       newsDefaultStudyMode: "none", // Default to the rendered article view
+      hideNewsFuriganaByDefault: false, // Preserve the existing behavior of showing article furigana
       hideVocabularyTooltipMeanings: false, // Default to showing tooltip meanings immediately
       hideVocabularyTooltipReadings: false, // Default to showing tooltip readings immediately
       songsMusicSource: "spotify", // Default to Spotify for backwards compatibility
@@ -964,8 +1021,9 @@ export const useSettingsStore = create<SettingsState>()(
       songsLyricsDefaultStudyMode: "wk", // Default to WK chips for inline lyrics analysis
       songsLyricsLineTranslationsEnabled: false, // Default to hidden machine translations
       appleMusicAuthStatus: "notDetermined",
-      spotifyAuthStatus: "notConnected",
+      spotifyAuthStatus: "notConfigured",
       spotifyDisplayName: null,
+      spotifyClientId: "",
 
       immersionKitAnimes: null, // Custom list of selected animes for Immersion Kit
 
@@ -980,6 +1038,7 @@ export const useSettingsStore = create<SettingsState>()(
       homeSrsBreakdownDisplayMode: "combined",
       widgetContentMode: "reviews",
       widgetStreakGradient: "sunset",
+      widgetBackgroundRefreshEnabled: true,
       widgetCardsFollowTheme: true,
       widgetLessonCardFollowTheme: true,
       widgetReviewCardFollowTheme: true,
@@ -1048,6 +1107,8 @@ export const useSettingsStore = create<SettingsState>()(
       setLessonPickerViewMode: (mode) =>
         set({ lessonPickerViewMode: normalizeLessonPickerViewMode(mode) }),
       setSinglePageLessonView: (enabled) => set({ singlePageLessonView: enabled }),
+      setLessonSearchButtonEnabled: (enabled) =>
+        set({ lessonSearchButtonEnabled: enabled }),
       setSkipCustomLessonQuiz: (enabled) => set({ skipCustomLessonQuiz: enabled }),
       setExcludeKanaVocabularyFromLessons: (enabled) =>
         set({ excludeKanaVocabularyFromLessons: enabled }),
@@ -1077,6 +1138,8 @@ export const useSettingsStore = create<SettingsState>()(
       setSkipKanjiReadings: (skip) => set({ skipKanjiReadings: skip }),
       setMinimizeReviewPenalty: (minimize) =>
         set({ minimizeReviewPenalty: minimize }),
+      setReviewMultipleChoiceEnabled: (enabled) => set({ reviewMultipleChoiceEnabled: enabled }),
+      setAnkiDroidExportEnabled: (enabled) => set({ ankiDroidExportEnabled: enabled }),
       setAnkiCardMode: (ankiMode) => set({ ankiCardMode: ankiMode }),
       setAnkiGroupQuestions: (group) => set({ ankiGroupQuestions: group }),
       setAnkiCardModeScope: (scope) => set({ ankiCardModeScope: scope }),
@@ -1121,6 +1184,10 @@ export const useSettingsStore = create<SettingsState>()(
         set({ voiceReviewAnswersEnabled: enabled }),
       setHapticFeedbackEnabled: (enabled) =>
         set({ hapticFeedbackEnabled: enabled }),
+      setAdvancedNoteEditorEnabled: (enabled) =>
+        set({ advancedNoteEditorEnabled: enabled }),
+      setNoteLinkIncludeCharacters: (enabled) =>
+        set({ noteLinkIncludeCharacters: enabled }),
       setReviewIncorrectKeyboardShortcuts: (shortcuts) =>
         set((state) => ({
           reviewIncorrectKeyboardShortcuts: {
@@ -1166,6 +1233,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showMediaContextSentences: show }),
       setHideContextSentenceTranslations: (hide) =>
         set({ hideContextSentenceTranslations: hide }),
+      setHideContextSentenceTranslationsCompletely: (hide) =>
+        set({ hideContextSentenceTranslationsCompletely: hide }),
       setShowContextSentenceSpeedControl: (show) =>
         set({ showContextSentenceSpeedControl: show }),
       setShowMnemonicIllustrations: (show) =>
@@ -1229,6 +1298,8 @@ export const useSettingsStore = create<SettingsState>()(
       setNewsSourcePreference: (source) =>
         set({ newsSourcePreference: normalizeNewsSourcePreference(source) }),
       setNewsDefaultStudyMode: (mode) => set({ newsDefaultStudyMode: mode }),
+      setHideNewsFuriganaByDefault: (hide) =>
+        set({ hideNewsFuriganaByDefault: hide }),
       setHideVocabularyTooltipMeanings: (hide) =>
         set({ hideVocabularyTooltipMeanings: hide }),
       setHideVocabularyTooltipReadings: (hide) =>
@@ -1242,6 +1313,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAppleMusicAuthStatus: (status) => set({ appleMusicAuthStatus: status }),
       setSpotifyAuthStatus: (status) => set({ spotifyAuthStatus: status }),
       setSpotifyDisplayName: (displayName) => set({ spotifyDisplayName: displayName }),
+      setSpotifyClientId: (clientId) => set({ spotifyClientId: clientId }),
       setLastSeenPatchNotesVersion: (version) => set({ lastSeenPatchNotesVersion: version }),
       setBunproSurveyCompleted: (completed) => set({ bunproSurveyCompleted: completed }),
       setCustomTabOrder: (tabs) =>
@@ -1337,6 +1409,8 @@ export const useSettingsStore = create<SettingsState>()(
       setWidgetContentMode: (mode) => set({ widgetContentMode: mode }),
       setWidgetStreakGradient: (preset) =>
         set({ widgetStreakGradient: preset }),
+      setWidgetBackgroundRefreshEnabled: (enabled) =>
+        set({ widgetBackgroundRefreshEnabled: enabled }),
       setWidgetCardsFollowTheme: (follow) =>
         set({ widgetCardsFollowTheme: follow }),
       setWidgetLessonCardFollowTheme: (follow) =>
@@ -1374,13 +1448,17 @@ export const useSettingsStore = create<SettingsState>()(
           reviewCharacterFontScale?: unknown;
           reviewInputFontScale?: unknown;
           appTextSizeScale?: unknown;
+          hideNewsFuriganaByDefault?: unknown;
           hideVocabularyTooltipMeanings?: unknown;
           hideVocabularyTooltipReadings?: unknown;
           songsPlaybackSource?: unknown;
           spotifyAuthStatus?: unknown;
           spotifyDisplayName?: unknown;
+          spotifyClientId?: unknown;
           kanjiReadingTextToSpeechEnabled?: unknown;
           newsSourcePreference?: unknown;
+          advancedNoteEditorEnabled?: unknown;
+          noteLinkIncludeCharacters?: unknown;
         };
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
@@ -1485,6 +1563,12 @@ export const useSettingsStore = create<SettingsState>()(
           migratedRecord.appTextSizeScale
         );
         if (
+          version < 18 ||
+          typeof migratedRecord.hideNewsFuriganaByDefault !== "boolean"
+        ) {
+          migratedRecord.hideNewsFuriganaByDefault = false;
+        }
+        if (
           version < 11 ||
           typeof migratedRecord.hideVocabularyTooltipMeanings !== "boolean"
         ) {
@@ -1514,6 +1598,22 @@ export const useSettingsStore = create<SettingsState>()(
         if (typeof migratedRecord.spotifyDisplayName !== "string") {
           migratedRecord.spotifyDisplayName = null;
         }
+        const restoredSpotifyClientId =
+          typeof migratedRecord.spotifyClientId === "string"
+            ? migratedRecord.spotifyClientId.trim()
+            : "";
+        migratedRecord.spotifyClientId =
+          version >= 19 && /^[a-f0-9]{32}$/i.test(restoredSpotifyClientId)
+            ? restoredSpotifyClientId
+            : "";
+        // Legacy connections used the shared app and must be linked again.
+        if (!migratedRecord.spotifyClientId) {
+          migratedRecord.spotifyAuthStatus = "notConfigured";
+          migratedRecord.spotifyDisplayName = null;
+          if (migratedRecord.songsPlaybackSource === "spotify") {
+            migratedRecord.songsPlaybackSource = "youtube";
+          }
+        }
         if (
           typeof migratedRecord.kanjiReadingTextToSpeechEnabled !== "boolean"
         ) {
@@ -1522,6 +1622,12 @@ export const useSettingsStore = create<SettingsState>()(
         migratedRecord.newsSourcePreference = normalizeNewsSourcePreference(
           migratedRecord.newsSourcePreference
         );
+        if (typeof migratedRecord.advancedNoteEditorEnabled !== "boolean") {
+          migratedRecord.advancedNoteEditorEnabled = false;
+        }
+        if (typeof migratedRecord.noteLinkIncludeCharacters !== "boolean") {
+          migratedRecord.noteLinkIncludeCharacters = false;
+        }
 
         return migrated;
       },

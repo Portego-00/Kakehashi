@@ -7,6 +7,9 @@ node_modules/
 .expo/
 dist/
 web-build/
+.next/
+playwright-report/
+test-results/
 expo-env.d.ts
 
 # Native
@@ -37,9 +40,17 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+web/.data/
+
+# Local proof screenshots, previews, exports, audio, and operator/QA records.
+/output/
+
+# Local Supabase CLI project metadata.
+/supabase/.temp/
 
 # python
 __pycache__/
 *.py[cod]
 
 app-example
+.vercel

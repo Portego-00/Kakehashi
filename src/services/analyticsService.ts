@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { confirmUsageStreakSession } from './usageStreakService';
 
 const LAST_SESSION_KEY = 'analytics_last_session';
 const SESSION_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes between sessions
@@ -49,18 +50,22 @@ class AnalyticsService {
       const appVersion = Constants.expoConfig?.version ?? null;
       const platform = Platform.OS;
 
-      const { error } = await supabase.from('app_sessions').insert({
+      const { data, error } = await supabase.from('app_sessions').insert({
         user_id: userId,
         user_name: username ?? null,
         user_level: userLevel ?? null,
         app_version: appVersion,
         platform: platform,
-      });
+      }).select('session_started_at').single();
 
       if (error) {
         // Table might not exist yet - this is fine, just log and continue
         console.log('📊 Could not log session:', error.message);
         return;
+      }
+
+      if (typeof data?.session_started_at === 'string') {
+        await confirmUsageStreakSession(userId, data.session_started_at);
       }
 
       // Store timestamp of this session

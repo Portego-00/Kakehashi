@@ -1,4 +1,4 @@
-import {
+import type {
   Assignment,
   CollectionResponse,
 } from "../utils/api";
@@ -8,6 +8,10 @@ import {
   PERMANENT_KEYS,
   saveAssignmentsToPermanentStorage,
 } from "../utils/permanentStorage";
+import {
+  reserveAssignmentCacheMutation,
+  withAssignmentCacheLock,
+} from "./assignmentCacheCoordinator";
 
 const ASSIGNMENTS_CACHE_KEY = "assignments_all";
 const LESSON_FIRST_REVIEW_INTERVAL_HOURS = 4;
@@ -26,7 +30,7 @@ const SRS_INTERVALS_HOURS: Record<number, number | null> = {
 
 type AssignmentCacheMutation = {
   assignmentId: number;
-  mutate: (assignment: Assignment, nowIso: string) => Assignment;
+  mutate: (assignment: Assignment) => Assignment;
 };
 
 function addHours(dateIso: string, hours: number): string {
@@ -66,8 +70,7 @@ function getNextReviewAvailableAt(
 
 function updateAssignmentsArray(
   assignments: Assignment[],
-  mutation: AssignmentCacheMutation,
-  nowIso: string
+  mutation: AssignmentCacheMutation
 ): { assignments: Assignment[]; changed: boolean } {
   let changed = false;
   const updatedAssignments = assignments.map((assignment) => {
@@ -76,16 +79,15 @@ function updateAssignmentsArray(
     }
 
     changed = true;
-    return mutation.mutate(assignment, nowIso);
+    return mutation.mutate(assignment);
   });
 
   return { assignments: updatedAssignments, changed };
 }
 
-async function updateAssignmentCaches(
+async function updateAssignmentCachesUnlocked(
   mutation: AssignmentCacheMutation
 ): Promise<void> {
-  const nowIso = new Date().toISOString();
   let latestAssignments: Assignment[] | null = null;
 
   const cachedCollection = await getFromCache<CollectionResponse<Assignment>>(
@@ -97,8 +99,7 @@ async function updateAssignmentCaches(
   if (cachedCollection?.data?.data) {
     const updated = updateAssignmentsArray(
       cachedCollection.data.data,
-      mutation,
-      nowIso
+      mutation
     );
 
     if (updated.changed) {
@@ -122,8 +123,7 @@ async function updateAssignmentCaches(
   if (permanentEntry?.data) {
     const updated = updateAssignmentsArray(
       permanentEntry.data,
-      mutation,
-      nowIso
+      mutation
     );
 
     if (updated.changed) {
@@ -134,8 +134,20 @@ async function updateAssignmentCaches(
       );
     }
   } else if (latestAssignments) {
-    await saveAssignmentsToPermanentStorage(latestAssignments, nowIso);
+    await saveAssignmentsToPermanentStorage(
+      latestAssignments,
+      cachedCollection?.data?.data_updated_at ?? new Date().toISOString()
+    );
   }
+}
+
+async function updateAssignmentCaches(
+  mutation: AssignmentCacheMutation
+): Promise<void> {
+  reserveAssignmentCacheMutation(mutation.assignmentId);
+  await withAssignmentCacheLock(async () => {
+    await updateAssignmentCachesUnlocked(mutation);
+  });
 }
 
 export async function markLessonStartedInAssignmentCaches({
@@ -147,11 +159,10 @@ export async function markLessonStartedInAssignmentCaches({
 }): Promise<void> {
   await updateAssignmentCaches({
     assignmentId,
-    mutate: (assignment, nowIso) => {
+    mutate: (assignment) => {
       const effectiveStartedAt = assignment.data.started_at ?? startedAt;
       return {
         ...assignment,
-        data_updated_at: nowIso,
         data: {
           ...assignment.data,
           started_at: effectiveStartedAt,
@@ -185,7 +196,7 @@ export async function markReviewSubmittedInAssignmentCaches({
 }): Promise<void> {
   await updateAssignmentCaches({
     assignmentId,
-    mutate: (assignment, nowIso) => {
+    mutate: (assignment) => {
       const endingStage =
         endingSrsStage ??
         calculateOptimisticReviewEndingStage(
@@ -198,7 +209,6 @@ export async function markReviewSubmittedInAssignmentCaches({
 
       return {
         ...assignment,
-        data_updated_at: nowIso,
         data: {
           ...assignment.data,
           srs_stage: endingStage,

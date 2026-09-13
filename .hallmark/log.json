@@ -1,0 +1,77 @@
+[
+  {
+    "date": "2026-08-25",
+    "phase": "responsive-dashboard-data-parity",
+    "scope": "dashboard widget motion, app streak, subject lists, review statistics, and responsive dashboard rows",
+    "macrostructure": "Workbench / Responsive Widget Mosaic",
+    "theme": "studied-DNA (source: installed Kakehashi mobile and macOS app plus supplied references)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "interpolated concentric level rings with reduced-motion fallback; paginated mobile-parity app-session history plus public and local fallbacks; canonical live subject-list repository; compact review-stat comparison; dashboard-density level timing; narrow-card Today’s Study reflow; persisted inline row starts; no horizontal overflow at 1280; semantic tokens; visible focus; 102 test files with 367 passing and 1 skipped test; lint pass"
+  },
+  {
+    "date": "2026-08-24",
+    "phase": "native-login-branding",
+    "scope": "web login, startup, app chrome, and browser icons",
+    "macrostructure": "Native Welcome / Workbench",
+    "theme": "studied-DNA (source: installed Kakehashi mobile app)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "native crab-throne artwork and login palette; canonical crab-on-bridge mark in login, startup, authenticated app bar, favicon, and Apple icon; no horizontal overflow at 320/375/414/768/1280; single-line narrow-screen actions; live token sign-in; reduced motion; 61 test files and 187 tests; production build"
+  },
+  {
+    "date": "2026-08-17",
+    "phase": "study-session-parity-correction",
+    "scope": "extra-study sessions and typed reading inputs",
+    "macrostructure": "Focused Prompt / Workbench",
+    "theme": "studied-DNA (source: installed Kakehashi app and supplied reference)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "full-viewport subject stage; native-positioned differentiated Meaning and Reading strip; exactly aligned 56px answer row; restrained inline incorrect feedback; WanaKana live composition in reviews, extra study, Wordle, and crossword; zero desktop overflow and console errors; 47 unit files and 150 tests; production build"
+  },
+  {
+    "date": "2026-08-17",
+    "phase": "full-app-interaction-redesign",
+    "scope": "app",
+    "macrostructure": "Workbench / Native Prompt Stack / Grouped Inventory",
+    "theme": "studied-DNA (source: installed Kakehashi app and supplied WaniKani references)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "proportional fixed-track charts; equal-height dashboard rows; edge-reaching Extra Study rail; semantic subject-colour review, lesson, and focused-study stages; pre-answer concealment; grouped rule-bounded content, community, progress, settings, and subject surfaces; monochrome inline Lucide icons; semantic tokens; reduced motion; visible focus; serious and critical axe checks; zero horizontal overflow at 320/375/414/768; 44 unit files and 144 tests; 51 production routes; 26 browser cases passed with 2 intentional project-specific skips"
+  },
+  {
+    "date": "2026-08-06",
+    "macrostructure": "Workbench",
+    "theme": "custom",
+    "theme_axes": "light / geometric-sans / cool",
+    "vibe": "WaniKani signals, soft ink, exact controls",
+    "enrichment": "none",
+    "brief": "Kakehashi web app parity build"
+  },
+  {
+    "date": "2026-08-06",
+    "phase": "final-audit",
+    "score": "P5 H5 E5 S5 R5 V4",
+    "result": "pass",
+    "checks": "single main landmarks; mobile overflow at 320/390; sticky offsets; semantic tokens; reduced motion; visible focus; task-specific reader, library, media, community, study, and progress structures"
+  },
+  {
+    "date": "2026-08-07",
+    "phase": "full-app-redesign",
+    "macrostructure": "Index-First",
+    "theme": "custom",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "centralized tokens and atoms; restrained rail and mobile dock; flat list hierarchy; semantic subject color; named progress indicators; serious and critical axe checks on desktop and mobile; horizontal-overflow coverage at 320/375/414/768; reduced motion; visible focus; 57 production routes; static slop scan"
+  },
+  {
+    "date": "2026-08-17",
+    "phase": "native-parity-redesign",
+    "scope": "app",
+    "macrostructure": "Workbench / Focused Prompt / Long Document",
+    "theme": "studied-DNA (source: installed Kakehashi app)",
+    "score": "P5 H5 E5 S5 R5 V5",
+    "result": "pass",
+    "checks": "installed app inspected across home, level, settings, news, article, community, and study configuration; native hierarchy and navigation; flat surface hierarchy; centralized atoms and tokens; reduced motion; visible focus; serious and critical axe checks on desktop and mobile; overflow at 320/375/414/768; 138 unit tests; 26 passing browser cases with two intentional project-specific skips; production build"
+  }
+]

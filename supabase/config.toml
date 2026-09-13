@@ -1,2 +1,12 @@
 [functions.sync-nhk-regular-news]
 verify_jwt = false
+
+[functions.study-time-history]
+verify_jwt = false
+
+[functions.study-time-sync]
+verify_jwt = false
+
+[functions.custom-srs]
+# Native clients authenticate with their WaniKani token inside this function.
+verify_jwt = false

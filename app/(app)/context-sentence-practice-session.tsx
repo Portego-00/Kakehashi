@@ -3,7 +3,13 @@ import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +36,7 @@ import { parseSelectedListIds } from "../../src/utils/extraStudySubjectLists";
 import {
   EXTRA_STUDY_SESSION_STORAGE_KEYS,
   clearExtraStudySessionState,
+  getAccountScopedExtraStudySessionStorageKey,
   loadExtraStudySessionState,
   saveExtraStudySessionState,
 } from "../../src/utils/extraStudySessionPersistence";
@@ -49,6 +56,7 @@ const CONTEXT_SENTENCE_PRACTICE_SESSION_KEY =
   EXTRA_STUDY_SESSION_STORAGE_KEYS.CONTEXT_SENTENCE_PRACTICE;
 
 interface ContextSentencePracticeSavedSession {
+  userId: string;
   savedAt: number;
   questions: ContextSentenceQuestion[];
   currentIndex: number;
@@ -132,23 +140,51 @@ export default function ContextSentencePracticeSession() {
   const [enableJpdbSentenceBreakdown, setEnableJpdbSentenceBreakdown] =
     useState(false);
   const [stopAfterAnswer, setStopAfterAnswer] = useState(true);
+  const questionLoadGenerationRef = useRef(0);
+  const loadedSessionConfigRef =
+    useRef<ContextSentencePracticeConfig | null>(null);
+  const contextSentencePracticeSessionKey = useMemo(
+    () =>
+      userData?.id
+        ? getAccountScopedExtraStudySessionStorageKey(
+            CONTEXT_SENTENCE_PRACTICE_SESSION_KEY,
+            userData.id,
+          )
+        : null,
+    [userData?.id],
+  );
 
   const clearSavedContextSentencePracticeSession = useCallback(async () => {
-    await clearExtraStudySessionState(CONTEXT_SENTENCE_PRACTICE_SESSION_KEY);
-  }, []);
+    if (contextSentencePracticeSessionKey) {
+      await clearExtraStudySessionState(contextSentencePracticeSessionKey);
+    }
+  }, [contextSentencePracticeSessionKey]);
 
   const restoreSavedContextSentencePracticeSession = useCallback(
-    async (): Promise<boolean> => {
+    async (isCurrent: () => boolean = () => true): Promise<boolean> => {
+      if (!contextSentencePracticeSessionKey || !userData?.id) {
+        return false;
+      }
+
       const savedSession =
         await loadExtraStudySessionState<ContextSentencePracticeSavedSession>(
-          CONTEXT_SENTENCE_PRACTICE_SESSION_KEY,
+          contextSentencePracticeSessionKey,
         );
       if (!savedSession) {
         return false;
       }
 
+      if (savedSession.userId !== userData.id) {
+        await clearSavedContextSentencePracticeSession();
+        return false;
+      }
+
       if (!Array.isArray(savedSession.questions) || savedSession.questions.length === 0) {
         await clearSavedContextSentencePracticeSession();
+        return false;
+      }
+
+      if (!isCurrent()) {
         return false;
       }
 
@@ -174,12 +210,18 @@ export default function ContextSentencePracticeSession() {
       setIsLoading(false);
       return true;
     },
-    [clearSavedContextSentencePracticeSession],
+    [
+      clearSavedContextSentencePracticeSession,
+      contextSentencePracticeSessionKey,
+      userData?.id,
+    ],
   );
 
   const saveContextSentencePracticeSessionForLater = useCallback(
     async (): Promise<boolean> => {
       if (
+        !contextSentencePracticeSessionKey ||
+        !userData?.id ||
         isComplete ||
         questions.length === 0 ||
         currentIndex < 0 ||
@@ -189,6 +231,7 @@ export default function ContextSentencePracticeSession() {
       }
 
       const payload: ContextSentencePracticeSavedSession = {
+        userId: userData.id,
         savedAt: Date.now(),
         questions,
         currentIndex,
@@ -201,12 +244,16 @@ export default function ContextSentencePracticeSession() {
         stopAfterAnswer,
       };
 
-      return saveExtraStudySessionState(CONTEXT_SENTENCE_PRACTICE_SESSION_KEY, payload);
+      return saveExtraStudySessionState(
+        contextSentencePracticeSessionKey,
+        payload,
+      );
     },
     [
       answers,
       autoPlaySentenceAudio,
       currentIndex,
+      contextSentencePracticeSessionKey,
       enableSentenceAudio,
       enableJpdbSentenceBreakdown,
       hideTranslationUntilTap,
@@ -214,6 +261,7 @@ export default function ContextSentencePracticeSession() {
       questions,
       solutionMode,
       stopAfterAnswer,
+      userData?.id,
     ],
   );
 
@@ -221,6 +269,10 @@ export default function ContextSentencePracticeSession() {
     const userLevel = userData?.level ?? 60;
 
     if (params.sessionId) {
+      if (loadedSessionConfigRef.current) {
+        return loadedSessionConfigRef.current;
+      }
+
       const stored = await AsyncStorage.getItem(
         `context_sentence_config_${params.sessionId}`,
       );
@@ -230,11 +282,11 @@ export default function ContextSentencePracticeSession() {
       }
 
       const parsed = JSON.parse(stored);
-      await AsyncStorage.removeItem(`context_sentence_config_${params.sessionId}`);
 
-      return {
+      const loadedConfig: ContextSentencePracticeConfig = {
         includeVocabulary: Boolean(parsed.includeVocabulary),
         includeKanaVocabulary: Boolean(parsed.includeKanaVocabulary),
+        customSentencesOnly: Boolean(parsed.customSentencesOnly),
         solutionMode: parseSolutionMode(parsed.solutionMode),
         numberOfQuestions:
           Number.parseInt(String(parsed.numberOfQuestions), 10) || 15,
@@ -253,11 +305,15 @@ export default function ContextSentencePracticeSession() {
         selectedListIds: parseSelectedListIds(parsed.selectedListIds),
         devSelectedSubjectIds: parseSubjectIds(parsed.devSelectedSubjectIds),
       };
+      loadedSessionConfigRef.current = loadedConfig;
+      await AsyncStorage.removeItem(`context_sentence_config_${params.sessionId}`);
+      return loadedConfig;
     }
 
     return {
       includeVocabulary: parseBoolean(params.includeVocabulary, true),
       includeKanaVocabulary: parseBoolean(params.includeKanaVocabulary, false),
+      customSentencesOnly: parseBoolean(params.customSentencesOnly, false),
       solutionMode: parseSolutionMode(params.solutionMode),
       numberOfQuestions: parseNumber(params.numberOfQuestions, 15),
       enableSentenceAudio: parseBoolean(params.enableSentenceAudio, false),
@@ -295,6 +351,7 @@ export default function ContextSentencePracticeSession() {
     params.enableJpdbSentenceBreakdown,
     params.includeKanaVocabulary,
     params.includeVocabulary,
+    params.customSentencesOnly,
     params.hideTranslationUntilTap,
     params.maxLevel,
     params.minLevel,
@@ -313,11 +370,19 @@ export default function ContextSentencePracticeSession() {
   ]);
 
   const loadQuestions = useCallback(
-    async (token: string) => {
+    async (token: string, requestGeneration: number, userId: string) => {
+      const isCurrentRequest = () =>
+        questionLoadGenerationRef.current === requestGeneration;
+
       try {
         const shouldResume = params.resume === "true";
         if (shouldResume) {
-          const restored = await restoreSavedContextSentencePracticeSession();
+          const restored = await restoreSavedContextSentencePracticeSession(
+            isCurrentRequest,
+          );
+          if (!isCurrentRequest()) {
+            return;
+          }
           if (restored) {
             return;
           }
@@ -337,6 +402,9 @@ export default function ContextSentencePracticeSession() {
         }
 
         await clearSavedContextSentencePracticeSession();
+        if (!isCurrentRequest()) {
+          return;
+        }
         setIsLoading(true);
         setQuestions([]);
         setAnswers([]);
@@ -344,6 +412,9 @@ export default function ContextSentencePracticeSession() {
         setIsComplete(false);
 
         const config = await loadConfig();
+        if (!isCurrentRequest()) {
+          return;
+        }
         setSolutionMode(config.solutionMode);
         setEnableSentenceAudio(config.enableSentenceAudio);
         setAutoPlaySentenceAudio(config.autoPlaySentenceAudio);
@@ -354,12 +425,18 @@ export default function ContextSentencePracticeSession() {
         const generatedQuestions = await generateContextSentenceQuestions(
           config,
           token,
+          userId,
         );
+        if (!isCurrentRequest()) {
+          return;
+        }
 
         if (generatedQuestions.length === 0) {
           Alert.alert(
             "No Questions Available",
-            "Could not find learned vocabulary with context sentences for your selected filters.",
+            config.customSentencesOnly
+              ? "Could not find any of your saved sentences for the selected filters."
+              : "Could not find learned vocabulary with context sentences for your selected filters.",
             [{ text: "OK", onPress: () => router.back() }],
           );
           return;
@@ -367,6 +444,9 @@ export default function ContextSentencePracticeSession() {
 
         setQuestions(generatedQuestions);
       } catch (error) {
+        if (!isCurrentRequest()) {
+          return;
+        }
         console.error("[ContextSentenceSession] Failed to load questions:", error);
         Alert.alert(
           "Error",
@@ -374,7 +454,9 @@ export default function ContextSentencePracticeSession() {
           [{ text: "OK", onPress: () => router.back() }],
         );
       } finally {
-        setIsLoading(false);
+        if (isCurrentRequest()) {
+          setIsLoading(false);
+        }
       }
     },
     [
@@ -391,13 +473,21 @@ export default function ContextSentencePracticeSession() {
       return;
     }
 
-    if (!apiToken) {
+    if (!apiToken || !userData?.id) {
       setIsLoading(false);
       return;
     }
 
-    void loadQuestions(apiToken);
-  }, [apiToken, isAuthLoading, loadQuestions]);
+    const requestGeneration = questionLoadGenerationRef.current + 1;
+    questionLoadGenerationRef.current = requestGeneration;
+    void loadQuestions(apiToken, requestGeneration, userData.id);
+
+    return () => {
+      if (questionLoadGenerationRef.current === requestGeneration) {
+        questionLoadGenerationRef.current += 1;
+      }
+    };
+  }, [apiToken, isAuthLoading, loadQuestions, userData?.id]);
 
   const handleAnswer = (isCorrect: boolean, answer: string) => {
     const currentQuestion = questions[currentIndex];
@@ -567,9 +657,18 @@ function SummaryAnswerCard({
 
   const renderHighlightedSentence = () => {
     const sentence = answer.sentence;
-    const parts = sentence.split(vocabText);
+    const readingCandidates = Array.isArray(answer.vocab.data.readings)
+      ? answer.vocab.data.readings
+          .map((reading) => reading?.reading?.trim() || "")
+          .filter(Boolean)
+      : [];
+    const matchedVocabText = [vocabText, ...readingCandidates]
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length)
+      .find((candidate) => sentence.includes(candidate));
+    const parts = matchedVocabText ? sentence.split(matchedVocabText) : [sentence];
 
-    if (parts.length === 1 || !vocabText) {
+    if (parts.length === 1 || !matchedVocabText) {
       return (
         <Text
           style={[
@@ -598,9 +697,9 @@ function SummaryAnswerCard({
             { color: answer.isCorrect ? "#4caf50" : "#f44336" },
           ]}
         >
-          {vocabText}
+          {matchedVocabText}
         </Text>
-        {parts.slice(1).join(vocabText)}
+        {parts.slice(1).join(matchedVocabText)}
       </Text>
     );
   };

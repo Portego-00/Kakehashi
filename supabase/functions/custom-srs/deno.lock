@@ -1,0 +1,16 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:ts-fsrs@5.4.1": "5.4.1"
+  },
+  "npm": {
+    "ts-fsrs@5.4.1": {
+      "integrity": "sha512-mOp9+oexJexBTkwjg/jQI1aSUQRLIAvbimeKHLSmVdNJPwObugFNKmZkoggH5d6kZ0uaWLboP1Al1DnXAfIb9w=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:ts-fsrs@5.4.1"
+    ]
+  }
+}

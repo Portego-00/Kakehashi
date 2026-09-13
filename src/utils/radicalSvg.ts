@@ -1,5 +1,7 @@
 import React from 'react';
 
+export { pickBestImage, pickBestPng } from './radicalImage';
+
 // Cache for downloaded SVG XML strings
 const svgCache: Record<string, string> = {};
 
@@ -166,72 +168,4 @@ export function useRemoteSvg(url?: string | null, color: string = '#3c9bff') {
   }, [url, color]);
 
   return xml;
-}
-
-// Pick the best image from WaniKani's character_images array
-// 1. Prefer SVG
-// 2. Else prefer a PNG of roughly 256 px (good balance of clarity & size)
-export function pickBestImage(images?: Array<{
-  url: string;
-  content_type?: string;
-  metadata?: {
-    inline_styles?: boolean;
-    color?: string;
-    dimensions?: string;
-    style_name?: string;
-  };
-}>) {
-  if (!images?.length) return null;
-  
-  // Find SVG with proper null checking
-  const svg = images.find(img => img.content_type === 'image/svg+xml');
-  if (svg) return { type: 'svg' as const, url: svg.url };
-
-  // Filter PNGs that carry dimension metadata like "256x256"
-  const pngs = images
-    .filter(img => img.content_type && img.content_type.includes('png'))
-    .map(img => ({
-      ...img,
-      dimension:
-        Number(img.metadata?.dimensions?.split('x')[0]) ||
-        Number(img.metadata?.style_name?.replace('px', '')) ||
-        0,
-    }))
-    .sort((a, b) => Math.abs(256 - a.dimension) - Math.abs(256 - b.dimension));
-
-  if (pngs.length) return { type: 'png' as const, url: pngs[0].url };
-  
-  // Final fallback - find any image with a URL
-  const fallbackImage = images.find(img => img.url);
-  if (fallbackImage) return { type: 'png' as const, url: fallbackImage.url };
-  
-  return null; // No usable images found
-}
-
-// Pick the best PNG specifically (ignoring SVG), useful as a fallback while SVG downloads
-export function pickBestPng(images?: Array<{
-  url: string;
-  content_type?: string;
-  metadata?: {
-    inline_styles?: boolean;
-    color?: string;
-    dimensions?: string;
-    style_name?: string;
-  };
-}>) {
-  if (!images?.length) return null;
-  const pngs = images
-    .filter(img => img.content_type && img.content_type.includes('png'))
-    .map(img => ({
-      ...img,
-      dimension:
-        Number(img.metadata?.dimensions?.split('x')[0]) ||
-        Number(img.metadata?.style_name?.replace('px', '')) ||
-        0,
-    }))
-    .sort((a, b) => Math.abs(256 - a.dimension) - Math.abs(256 - b.dimension));
-
-  if (pngs.length) return { type: 'png' as const, url: pngs[0].url };
-  const fallback = images.find(img => img.content_type?.includes('png'));
-  return fallback ? { type: 'png' as const, url: fallback.url } : null;
 }

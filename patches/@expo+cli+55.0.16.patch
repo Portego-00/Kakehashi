@@ -1,0 +1,28 @@
+diff --git a/node_modules/@expo/cli/build/src/export/exportApp.js b/node_modules/@expo/cli/build/src/export/exportApp.js
+index 48751a8..8719302 100644
+--- a/node_modules/@expo/cli/build/src/export/exportApp.js
++++ b/node_modules/@expo/cli/build/src/export/exportApp.js
+@@ -251,7 +251,7 @@ async function exportAppAsync(projectRoot, { platforms, outputDir, clear, dev, d
+                     });
+                     domComponentAssetsMetadata[platform] = [
+                         ...domComponentAssetsMetadata[platform] || [],
+-                        ...await (0, _exportDomComponents.addDomBundleToMetadataAsync)(platformDomComponentsBundle),
++                        ...(0, _exportDomComponents.addDomBundleToMetadataAsync)(platformDomComponentsBundle),
+                         ...(0, _exportDomComponents.transformDomEntryForMd5Filename)({
+                             files,
+                             htmlOutputName
+diff --git a/node_modules/@expo/cli/build/src/export/exportDomComponents.js b/node_modules/@expo/cli/build/src/export/exportDomComponents.js
+index f46d6af..9a8b581 100644
+--- a/node_modules/@expo/cli/build/src/export/exportDomComponents.js
++++ b/node_modules/@expo/cli/build/src/export/exportDomComponents.js
+@@ -83,7 +83,9 @@ async function exportDomComponentAsync({ filePath, projectRoot, dev, devServer,
+     const bundle = await devServer.legacySinglePageExportBundleAsync({
+         platform: 'web',
+         domRoot: encodeURI(relativeImport),
+-        splitChunks: !_env.env.EXPO_NO_BUNDLE_SPLITTING,
++        // OTA assets are renamed by content hash below; Metro's lazy chunk
++        // paths retain their original filenames, so keep MD5 exports together.
++        splitChunks: !useMd5Filename && !_env.env.EXPO_NO_BUNDLE_SPLITTING,
+         mainModuleName: (0, _filePath.resolveRealEntryFilePath)(projectRoot, virtualEntry),
+         mode: dev ? 'development' : 'production',
+         engine: isHermes ? 'hermes' : undefined,

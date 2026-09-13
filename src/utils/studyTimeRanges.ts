@@ -1,10 +1,21 @@
 import { startOfMonth, startOfWeek } from "date-fns";
 import {
+  emptyRangeSummary,
   getLocalDateKey,
   type ActivityCategory,
   type RangeSummary,
 } from "../services/timeTrackingCore";
+import {
+  mergeOtherDeviceDaysIntoSummary,
+  type OtherDeviceStudyTimeDay,
+} from "../services/studyTimeHistoryCore";
+import {
+  getCachedOtherDeviceStudyTimeDays,
+} from "../services/studyTimeHistoryService";
 import { timeTrackingService } from "../services/timeTrackingService";
+import { normalizeStudyTimeUserId } from "../services/studyTimeStorageScope";
+import { getDeviceId } from "../services/timeTrackingSyncService";
+import { useAuthStore } from "./store";
 
 export type StudyTimeRangeId = "today" | "week" | "month" | "all";
 export type StudyTimeChartUnit = "day" | "week" | "month";
@@ -65,7 +76,12 @@ export function daysBetweenInclusive(startKey: string, endKey: string): number {
   return Math.max(1, diff + 1);
 }
 
-function getRangeStartKey(range: StudyTimeRangeId, now: Date): string {
+function getRangeStartKey(
+  range: StudyTimeRangeId,
+  now: Date,
+  otherDeviceDays: OtherDeviceStudyTimeDay[],
+  includeLocal: boolean,
+): string {
   if (range === "week") {
     return getLocalDateKey(startOfWeek(now, { weekStartsOn: 1 }).getTime());
   }
@@ -75,11 +91,36 @@ function getRangeStartKey(range: StudyTimeRangeId, now: Date): string {
   }
 
   if (range === "all") {
-    const { firstDayKey } = timeTrackingService.getAllTimeSummary();
-    return firstDayKey ?? getLocalDateKey(now.getTime());
+    const firstDayKey = includeLocal
+      ? timeTrackingService.getAllTimeSummary().firstDayKey
+      : null;
+    const firstOtherDeviceDay = otherDeviceDays[0]?.day ?? null;
+    if (firstDayKey && firstOtherDeviceDay) {
+      return firstDayKey < firstOtherDeviceDay ? firstDayKey : firstOtherDeviceDay;
+    }
+    return firstDayKey ?? firstOtherDeviceDay ?? getLocalDateKey(now.getTime());
   }
 
   return getLocalDateKey(now.getTime());
+}
+
+function readCombinedSummary(
+  startKey: string,
+  endKey: string,
+  otherDeviceDays: OtherDeviceStudyTimeDay[],
+  includeLocal: boolean,
+): RangeSummary {
+  const localSummary = includeLocal
+    ? timeTrackingService.getSummaryBetween(startKey, endKey)
+    : emptyRangeSummary();
+
+  return mergeOtherDeviceDaysIntoSummary(
+    localSummary,
+    otherDeviceDays,
+    startKey,
+    endKey,
+    (day) => includeLocal && timeTrackingService.hasStudyOnDay(day),
+  );
 }
 
 function formatDayLabel(date: Date): string {
@@ -108,14 +149,24 @@ function formatFullDate(date: Date): string {
   });
 }
 
-function buildDayBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[] {
+function buildDayBuckets(
+  now: Date,
+  bucketCount: number,
+  otherDeviceDays: OtherDeviceStudyTimeDay[],
+  includeLocal: boolean,
+): StudyTimeChartBucket[] {
   const todayKey = getLocalDateKey(now.getTime());
 
   return Array.from({ length: bucketCount }, (_, index) => {
     const offset = bucketCount - 1 - index;
     const date = addDays(now, -offset);
     const dateKey = getLocalDateKey(date.getTime());
-    const summary = timeTrackingService.getSummaryBetween(dateKey, dateKey);
+    const summary = readCombinedSummary(
+      dateKey,
+      dateKey,
+      otherDeviceDays,
+      includeLocal,
+    );
 
     return {
       id: dateKey,
@@ -130,7 +181,12 @@ function buildDayBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[]
   });
 }
 
-function buildWeekBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[] {
+function buildWeekBuckets(
+  now: Date,
+  bucketCount: number,
+  otherDeviceDays: OtherDeviceStudyTimeDay[],
+  includeLocal: boolean,
+): StudyTimeChartBucket[] {
   const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
   const todayKey = getLocalDateKey(now.getTime());
 
@@ -140,7 +196,12 @@ function buildWeekBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[
     const end = offset === 0 ? now : addDays(start, 6);
     const startKey = getLocalDateKey(start.getTime());
     const endKey = getLocalDateKey(end.getTime());
-    const summary = timeTrackingService.getSummaryBetween(startKey, endKey);
+    const summary = readCombinedSummary(
+      startKey,
+      endKey,
+      otherDeviceDays,
+      includeLocal,
+    );
 
     return {
       id: `${startKey}:${endKey}`,
@@ -155,7 +216,12 @@ function buildWeekBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[
   });
 }
 
-function buildMonthBuckets(now: Date, bucketCount: number): StudyTimeChartBucket[] {
+function buildMonthBuckets(
+  now: Date,
+  bucketCount: number,
+  otherDeviceDays: OtherDeviceStudyTimeDay[],
+  includeLocal: boolean,
+): StudyTimeChartBucket[] {
   const currentMonthStart = startOfMonth(now);
   const todayKey = getLocalDateKey(now.getTime());
 
@@ -166,7 +232,12 @@ function buildMonthBuckets(now: Date, bucketCount: number): StudyTimeChartBucket
     const end = offset === 0 ? now : monthEnd;
     const startKey = getLocalDateKey(start.getTime());
     const endKey = getLocalDateKey(end.getTime());
-    const summary = timeTrackingService.getSummaryBetween(startKey, endKey);
+    const summary = readCombinedSummary(
+      startKey,
+      endKey,
+      otherDeviceDays,
+      includeLocal,
+    );
 
     return {
       id: `${startKey}:${endKey}`,
@@ -205,17 +276,36 @@ export function readStudyTimeRangeData(
 ): StudyTimeRangeData {
   const now = new Date();
   const todayKey = getLocalDateKey(now.getTime());
-  const startKey = getRangeStartKey(range, now);
+  const userId = normalizeStudyTimeUserId(
+    useAuthStore.getState().userData?.id,
+  );
+  const deviceId = userId ? getDeviceId() : null;
+  const includeLocal = timeTrackingService.isScopedToUserDevice(
+    userId,
+    deviceId,
+  );
+  const otherDeviceDays = getCachedOtherDeviceStudyTimeDays();
+  const startKey = getRangeStartKey(
+    range,
+    now,
+    otherDeviceDays,
+    includeLocal,
+  );
   const { chartTitle, chartUnit } = getStudyTimeChartConfig(range);
   const series =
     chartUnit === "week"
-      ? buildWeekBuckets(now, bucketCount)
+      ? buildWeekBuckets(now, bucketCount, otherDeviceDays, includeLocal)
       : chartUnit === "month"
-        ? buildMonthBuckets(now, bucketCount)
-        : buildDayBuckets(now, bucketCount);
+        ? buildMonthBuckets(now, bucketCount, otherDeviceDays, includeLocal)
+        : buildDayBuckets(now, bucketCount, otherDeviceDays, includeLocal);
 
   return {
-    summary: timeTrackingService.getSummaryBetween(startKey, todayKey),
+    summary: readCombinedSummary(
+      startKey,
+      todayKey,
+      otherDeviceDays,
+      includeLocal,
+    ),
     startKey,
     endKey: todayKey,
     elapsedDays: daysBetweenInclusive(startKey, todayKey),

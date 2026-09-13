@@ -9,6 +9,7 @@ interface ReviewData {
     badgeEnabled: boolean;
     alertsEnabled: boolean;
     soundsEnabled: boolean;
+    widgetBackgroundRefreshEnabled?: boolean;
   };
 }
 
@@ -34,6 +35,19 @@ interface UpdateResult {
   currentReviews: number;
   badgeSet: boolean;
   notificationsScheduled: boolean;
+}
+
+interface ClearReviewAlertsResult {
+  success: boolean;
+  pendingRemoved: number;
+  deliveredRemoved: number;
+}
+
+interface ApplyReviewNotificationSettingsResult {
+  success: boolean;
+  pendingUpdated: number;
+  pendingRemoved: number;
+  updateFailures: number;
 }
 
 interface TestNotificationResult {
@@ -66,6 +80,12 @@ interface ReviewNotificationManagerInterface {
   updateBadgeAndScheduleNotifications(
     reviewData: ReviewData
   ): Promise<UpdateResult>;
+  clearReviewAlerts(): Promise<ClearReviewAlertsResult>;
+  applyReviewNotificationSettings(settings: {
+    badgeEnabled?: boolean;
+    alertsEnabled?: boolean;
+    soundsEnabled?: boolean;
+  }): Promise<ApplyReviewNotificationSettingsResult>;
   requestPermissions(): Promise<NotificationPermissionResult>;
   getNotificationSettings(): Promise<NotificationSettings>;
   scheduleTestNotification(): Promise<TestNotificationResult>;
@@ -80,8 +100,10 @@ const reviewNotificationManagerModule =
 
 export default reviewNotificationManagerModule as ReviewNotificationManagerInterface;
 export type {
+  ApplyReviewNotificationSettingsResult,
   NotificationPermissionResult,
   NotificationSettings,
+  ClearReviewAlertsResult,
   PendingNotification,
   PendingNotificationsResult,
   ReviewData,

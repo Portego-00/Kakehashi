@@ -56,6 +56,150 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.13",
+    date: "2026-09-12",
+    changes: [
+      {
+        type: "feature",
+        title: "Fully Hidden Translations",
+        description:
+          "Added an option to completely hide context sentence translations until you tap to reveal them, instead of showing a blurred preview.",
+      },
+      {
+        type: "fix",
+        title: "Multiple Choice Answers",
+        description:
+          "Multiple choice reviews now fill missing options with answers from learned items, while keeping similar choices first.",
+      },
+    ],
+  },
+  {
+    version: "1.4.12",
+    date: "2026-09-08",
+    changes: [
+      {
+        type: "feature",
+        title: "Advanced Note Editor Setting",
+        description:
+          "Notes use plain text by default. Enable formatting and subject links in Settings → Notes; existing formatted notes keep rich editing.",
+      },
+      {
+        type: "improvement",
+        title: "Smoother Note Editing",
+        description:
+          "More writing space, controls closer to the keyboard, and cleaner scrolling. Cursor position is preserved when switching modes or editing links.",
+      },
+      {
+        type: "improvement",
+        title: "More Flexible Note Links",
+        description:
+          "Optionally add Japanese text when linking a selection, with your choice remembered. Toggle linked typing without removing the existing link.",
+      },
+    ],
+  },
+  {
+    version: "1.4.11",
+    date: "2026-09-07",
+    changes: [
+      {
+        type: "feature",
+        title: "Vocabulary Type Filters",
+        description:
+          "Filter vocabulary by parts of speech, including proper nouns and verbal nouns, across Search, subject lists, and study pickers.",
+      },
+    ],
+  },
+  {
+    version: "1.4.10",
+    date: "2026-09-05",
+    changes: [
+      {
+        type: "feature",
+        title: "Multiple Choice Reviews",
+        description:
+          "Enable Multiple Choice in Review Settings to choose from similar readings and related meanings instead of typing.",
+      },
+      {
+        type: "feature",
+        title: "Lesson Search Button",
+        description:
+          "Look up subjects from lesson cards without losing your place. Enable in advanced Lesson Settings; off by default.",
+      },
+      {
+        type: "improvement",
+        title: "Audio Vocab Answers",
+        description:
+          "Audio Vocab quizzes now reveal the English meaning and Japanese reading together on mobile and web.",
+      },
+    ],
+  },
+  {
+    version: "1.4.9",
+    date: "2026-09-03",
+    changes: [
+      {
+        type: "feature",
+        title: "Audio Vocab",
+        description:
+          "Listen to WaniKani recordings or text-to-speech context sentences and recall the target word’s English meaning in Extra Study.",
+        link: {
+          route: "/audio-vocab",
+          label: "Open Audio Vocab",
+        },
+      },
+      {
+        type: "fix",
+        title: "JLPT Quiz Results",
+        description:
+          "Fixed a crash when finishing JLPT quizzes in the mobile app.",
+      },
+    ],
+  },
+  {
+    version: "1.4.8",
+    date: "2026-08-31",
+    changes: [
+      {
+        type: "feature",
+        title: "JLPT Quizzes",
+        description:
+          "Practice N5 through N1 with quick mixed-skill quizzes or timed mock exams, including listening, detailed results, and weak-area review.",
+        link: {
+          route: "/jlpt",
+          label: "Open JLPT Quizzes",
+        },
+      },
+      {
+        type: "feature",
+        title: "Personal Context Sentences",
+        description:
+          "Add your own Japanese and English examples from the + button in Context Sentences, with automatic translation, kana, audio, and dedicated review practice. Sentences are saved locally on this device.",
+      },
+      {
+        type: "feature",
+        title: "News Furigana Default",
+        description:
+          "News articles can now open with furigana hidden by default when using No Study Mode.",
+      },
+    ],
+  },
+  {
+    version: "1.4.7",
+    date: "2026-08-30",
+    changes: [
+      {
+        type: "feature",
+        title: "Word Search",
+        description:
+          "Find Japanese vocabulary hidden in a grid by matching kanji clues to kana readings, or kana clues to written words.",
+        link: {
+          route: "/word-search-config",
+          label: "Play Word Search",
+        },
+      },
+    ],
+  },
+  {
     version: "1.3.1",
     date: "2026-08-23",
     changes: [

@@ -62,13 +62,23 @@ import { azureSpeechService } from "../utils/azureSpeech";
 import { SynonymsModal } from "./SynonymsModal";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import {
+  CustomContextSentencesSection,
+  type CustomContextSentencesSectionHandle,
+} from "./CustomContextSentencesSection";
+import {
   FormattedNoteEditor,
   FormattedNoteText,
+  type FormattedNoteEditorHandle,
 } from "./formatted-note";
+import { parseFormattedNote } from "../utils/note-formatting";
+import { getNoteVisualEditorRunsSignature } from "./note-visual-editor-model";
+import { NoteFieldContainer } from "./note-field-container";
 import { fontStyles } from "../utils/fonts";
 import { hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import { getNiaiSimilarKanjiSubjects } from "../utils/niaiSimilarKanji";
+import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
+import { useIsNoteSubjectPreviewOpen } from "../utils/note-subject-preview-state";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
 import {
@@ -82,6 +92,7 @@ import {
 } from "../utils/pronunciationAudio";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { resolveOfflineVocabularyAudioUri } from "../services/offlineVocabularyAudioService";
+import { resolveCustomVocabularyAudioForPlayback } from "../features/custom-srs/audio-cache";
 import {
   type SubjectColors,
   useSubjectColors,
@@ -93,6 +104,7 @@ import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import KanjiLessonEtymologySection from "./KanjiLessonEtymologySection";
 import KanjiReadingExamples from "./KanjiReadingExamples";
+import LessonMeaningPill from "./LessonMeaningPill";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
@@ -139,6 +151,7 @@ const MAX_INITIAL_SIMILAR_VOCAB_ITEMS = 12;
 const CLOSE_BUTTON_HIT_SLOP = { top: 10, right: 10, bottom: 10, left: 10 };
 const HEADER_TOP_OFFSET = 64;
 const CLOSE_BUTTON_SIZE = 40;
+const SUBJECT_DISPLAY_VERTICAL_PADDING = 24;
 const EMPTY_BOOKMARKED_SUBJECT_IDS: ReadonlySet<number> = new Set<number>();
 // iOS keyCode values use UIKeyboardHIDUsage; Android/Web use platform key codes.
 const IOS_LEFT_ARROW_KEY_CODE = 80;
@@ -367,6 +380,8 @@ const SubjectContent = ({
   showAllSections?: boolean;
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
+  const customContextSentencesRef =
+    useRef<CustomContextSentencesSectionHandle>(null);
   const {
     groupKanjiVocabularyExamplesByReading,
     showPitchAccent,
@@ -375,6 +390,7 @@ const SubjectContent = ({
     showSingleKanjiVocabularySimilarKanji,
     showMediaContextSentences,
     hideContextSentenceTranslations,
+    hideContextSentenceTranslationsCompletely,
     showContextSentenceSpeedControl,
     showMnemonicIllustrations,
     myAnimeListUsername,
@@ -496,6 +512,9 @@ const SubjectContent = ({
   const [meaningNote, setMeaningNote] = useState("");
   const [readingNote, setReadingNote] = useState("");
   const [noteModalVisible, setNoteModalVisible] = useState(false);
+  // Reset on open, keeping the editor intact during iOS modal dismissal.
+  const [noteEditorSession, setNoteEditorSession] = useState(0);
+  const noteModalInsets = useSafeAreaInsets();
   const [editingNoteType, setEditingNoteType] = useState<
     "meaning" | "reading"
   >("meaning");
@@ -508,6 +527,9 @@ const SubjectContent = ({
     useState(0);
   const { apiToken } = useAuthStore();
   const mountedRef = useRef(true);
+  const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
+  const originalNoteSignatureRef = useRef("");
+  const checkingNoteChangesRef = useRef(false);
 
   // Visually similar kanji state (for Niai source)
   const [niaiSimilarKanji, setNiaiSimilarKanji] = useState<any[]>([]);
@@ -1191,6 +1213,8 @@ const SubjectContent = ({
       meaning_note?: string;
       reading_note?: string;
     }) => {
+      // Negative IDs belong to custom SRS, never to the WaniKani API.
+      if (subject.id <= 0) throw new Error("Custom vocabulary does not use WaniKani notes");
       if (!apiToken) throw new Error("Missing API token");
 
       if (studyMaterialId) {
@@ -1224,7 +1248,7 @@ const SubjectContent = ({
 
   // Fetch study materials for user synonyms and notes
   useEffect(() => {
-    if (!apiToken || !subject.id || !shouldLoadStudyMaterials) {
+    if (!apiToken || subject.id <= 0 || !shouldLoadStudyMaterials) {
       return deferStateUpdate(() => applyStudyMaterialState(null));
     }
 
@@ -1257,9 +1281,49 @@ const SubjectContent = ({
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteEditorSession((session) => session + 1);
     setEditingNoteType(type);
-    setEditingNoteText(type === "meaning" ? meaningNote : readingNote);
+    const initialNoteText = type === "meaning" ? meaningNote : readingNote;
+    originalNoteSignatureRef.current = getNoteVisualEditorRunsSignature(
+      parseFormattedNote(initialNoteText),
+    );
+    setEditingNoteText(initialNoteText);
     setNoteModalVisible(true);
+  };
+
+  const handleCloseNote = async () => {
+    if (noteEditorRef.current?.closeLinkPicker()) return;
+    if (isSavingNote || checkingNoteChangesRef.current) return;
+
+    checkingNoteChangesRef.current = true;
+    try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? editingNoteText;
+      if (
+        getNoteVisualEditorRunsSignature(parseFormattedNote(currentNoteText)) ===
+        originalNoteSignatureRef.current
+      ) {
+        setNoteModalVisible(false);
+        return;
+      }
+
+      setEditingNoteText(currentNoteText);
+      Alert.alert("Discard note changes?", "Your changes will not be saved.", [
+        { text: "Keep editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => setNoteModalVisible(false),
+        },
+      ]);
+    } catch {
+      Alert.alert(
+        "Unable to close note",
+        "Please try again. Your changes are still here.",
+      );
+    } finally {
+      checkingNoteChangesRef.current = false;
+    }
   };
 
   const handleSaveNote = async () => {
@@ -1267,10 +1331,15 @@ const SubjectContent = ({
 
     setIsSavingNote(true);
     try {
+      const currentNoteText =
+        (await noteEditorRef.current?.flush()) ?? editingNoteText;
+      if (currentNoteText !== editingNoteText) {
+        setEditingNoteText(currentNoteText);
+      }
       const updates =
         editingNoteType === "meaning"
-          ? { meaning_note: editingNoteText }
-          : { reading_note: editingNoteText };
+          ? { meaning_note: currentNoteText }
+          : { reading_note: currentNoteText };
       const savedMaterial = await upsertStudyMaterial(updates);
       applyStudyMaterialState(savedMaterial);
       setNoteModalVisible(false);
@@ -1687,12 +1756,16 @@ const SubjectContent = ({
         style={styles.translationRevealContainer}
         onPress={() => revealTranslation(translationId)}
       >
-        <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
-        <BlurView
-          tint={theme.isDark ? "dark" : "light"}
-          intensity={24}
-          style={styles.translationBlurOverlay}
-        />
+        {!hideContextSentenceTranslationsCompletely && (
+          <>
+            <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
+            <BlurView
+              tint={theme.isDark ? "dark" : "light"}
+              intensity={24}
+              style={styles.translationBlurOverlay}
+            />
+          </>
+        )}
         <View style={styles.translationRevealHint}>
           <Ionicons name="eye-outline" size={14} color={theme.textSecondary} />
           <Text
@@ -2083,17 +2156,31 @@ const SubjectContent = ({
     renderHintSection("Reading Hint", subject.data?.reading_hint);
 
   const renderNoteCard = (type: "meaning" | "reading") => {
+    if (subject.id <= 0) return null;
     const noteValue = type === "meaning" ? meaningNote : readingNote;
     const noteLabel = type === "meaning" ? "Meaning Note" : "Reading Note";
     return (
-      <TouchableOpacity
-        style={styles.infoSection}
-        onPress={() => handleEditNote(type)}
+      <NoteFieldContainer
         activeOpacity={0.85}
+        addAccessibilityLabel={`Add ${type} note`}
+        hasContent={Boolean(noteValue)}
+        onAdd={() => handleEditNote(type)}
+        style={styles.infoSection}
       >
         <View style={styles.noteCardHeader}>
           <Text style={styles.noteCardTitle}>{noteLabel}</Text>
-          <Ionicons name="pencil" size={16} color={theme.textSecondary} />
+          <TouchableOpacity
+            accessible={Boolean(noteValue)}
+            accessibilityLabel={`Edit ${type} note`}
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={(event) => {
+              event.stopPropagation();
+              handleEditNote(type);
+            }}
+          >
+            <Ionicons name="pencil" size={16} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
         {noteValue ? (
           <FormattedNoteText text={noteValue} style={styles.noteCardBody} />
@@ -2102,7 +2189,7 @@ const SubjectContent = ({
             {`Tap to add ${type} note`}
           </Text>
         )}
-      </TouchableOpacity>
+      </NoteFieldContainer>
     );
   };
 
@@ -2210,12 +2297,44 @@ const SubjectContent = ({
     );
   };
 
+  const renderCustomContextSentences = () => subject.id > 0 ? (
+    <CustomContextSentencesSection
+      ref={customContextSentencesRef}
+      subjectId={subject.id}
+      subjectCharacters={
+        typeof subject.data.characters === "string"
+          ? subject.data.characters
+          : ""
+      }
+      subjectReadings={Array.from(subjectReadingSet)}
+      accentColor={subjectColors.vocabulary}
+    />
+  ) : null;
+
+  const renderContextSentencesHeader = () => (
+    <View style={styles.contextSentencesHeader}>
+      <Text style={[styles.sectionTitle, styles.contextSentencesTitle]}>
+        Context Sentences
+      </Text>
+      {subject.id > 0 && <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Add context sentence"
+        activeOpacity={0.55}
+        hitSlop={8}
+        onPress={() => customContextSentencesRef.current?.openNewEditor()}
+        style={styles.contextSentenceAddButton}
+      >
+        <Ionicons name="add" size={18} color={subjectColors.vocabulary} />
+      </TouchableOpacity>}
+    </View>
+  );
+
   // Render all sections in a single scrollable page (when showAllSections is true)
   const renderAllSections = () => {
     const subjectType = subject.object;
 
     // Helper to render user synonyms section
-    const renderUserSynonyms = () => (
+    const renderUserSynonyms = () => subject.id > 0 ? (
       <View style={styles.infoSection}>
         <Text style={styles.sectionTitle}>User Synonyms</Text>
         <View style={styles.synonymsRow}>
@@ -2236,81 +2355,84 @@ const SubjectContent = ({
           </TouchableOpacity>
         </View>
       </View>
-    );
+    ) : null;
 
     // Helper to render context sentences (for vocabulary)
     const renderContextSentences = () => (
-      <View style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>Context Sentences</Text>
-        {subject.data.context_sentences &&
-        subject.data.context_sentences.length > 0 ? (
-          <View style={styles.sentencesContainer}>
-            {subject.data.context_sentences.map(
-              (sentence: any, idx: number) => {
-                const sentenceId = `sentence-${subject.id}-${idx}`;
-                return (
-                  <View key={sentenceId} style={styles.sentenceItem}>
-                    <View style={styles.japaneseSentenceContainer}>
-                      <Text
-                        selectable
-                        style={[
-                          styles.japaneseSentence,
-                          styles.japaneseSentenceWithButton,
-                        ]}
-                      >
-                        {sentence.ja}
-                      </Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.speakButtonFixed,
-                          speakingSentenceId === sentenceId &&
-                            styles.speakingButtonFixed,
-                        ]}
-                        onPress={() =>
-                          speakJapanese(
-                            sentence.ja,
-                            sentenceId,
-                            getSentenceSpeed(sentenceId)
-                          )
-                        }
-                      >
-                        <Ionicons
-                          name={
-                            speakingSentenceId === sentenceId
-                              ? "stop-circle"
-                              : "volume-high"
+      <>
+        <View style={styles.infoSection}>
+          {renderContextSentencesHeader()}
+          {subject.data.context_sentences &&
+          subject.data.context_sentences.length > 0 ? (
+            <View style={styles.sentencesContainer}>
+              {subject.data.context_sentences.map(
+                (sentence: any, idx: number) => {
+                  const sentenceId = `sentence-${subject.id}-${idx}`;
+                  return (
+                    <View key={sentenceId} style={styles.sentenceItem}>
+                      <View style={styles.japaneseSentenceContainer}>
+                        <Text
+                          selectable
+                          style={[
+                            styles.japaneseSentence,
+                            styles.japaneseSentenceWithButton,
+                          ]}
+                        >
+                          {sentence.ja}
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.speakButtonFixed,
+                            speakingSentenceId === sentenceId &&
+                              styles.speakingButtonFixed,
+                          ]}
+                          onPress={() =>
+                            speakJapanese(
+                              sentence.ja,
+                              sentenceId,
+                              getSentenceSpeed(sentenceId)
+                            )
                           }
-                          size={20}
-                          color={
-                            speakingSentenceId === sentenceId
-                              ? "white"
-                              : subjectColors.vocabulary
-                          }
-                        />
-                      </TouchableOpacity>
+                        >
+                          <Ionicons
+                            name={
+                              speakingSentenceId === sentenceId
+                                ? "stop-circle"
+                                : "volume-high"
+                            }
+                            size={20}
+                            color={
+                              speakingSentenceId === sentenceId
+                                ? "white"
+                                : subjectColors.vocabulary
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      {renderTranslation(
+                        sentence.en,
+                        `wk-${subject.id}-${idx}`,
+                        styles.englishSentence
+                      )}
+                      <AnkiDroidExportButton
+                        japanese={sentence.ja}
+                        english={sentence.en}
+                        style={styles.ankiExportAction}
+                      />
+                      {renderSentenceSpeedControl(sentenceId)}
                     </View>
-                    {renderTranslation(
-                      sentence.en,
-                      `wk-${subject.id}-${idx}`,
-                      styles.englishSentence
-                    )}
-                    <AnkiDroidExportButton
-                      japanese={sentence.ja}
-                      english={sentence.en}
-                      style={styles.ankiExportAction}
-                    />
-                    {renderSentenceSpeedControl(sentenceId)}
-                  </View>
-                );
-              }
-            )}
-          </View>
-        ) : (
-          <Text style={styles.noteText}>
-            No context sentences available for this vocabulary.
-          </Text>
-        )}
-      </View>
+                  );
+                }
+              )}
+            </View>
+          ) : (
+            <Text style={styles.noteText}>
+              No context sentences available for this vocabulary.
+            </Text>
+          )}
+          {renderCustomContextSentences()}
+        </View>
+      </>
     );
 
     // Helper to render media context sentences
@@ -2915,7 +3037,7 @@ const SubjectContent = ({
                                 )}
                                 <Text style={styles.audioButtonText}>
                                   {audio.metadata?.voice_actor_name || "Audio"}
-                                  {audio.metadata?.gender
+                                  {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                     ? ` (${audio.metadata.gender})`
                                     : ""}
                                 </Text>
@@ -3030,7 +3152,7 @@ const SubjectContent = ({
                                 )}
                                 <Text style={styles.audioButtonText}>
                                   {audio.metadata?.voice_actor_name || "Audio"}
-                                  {audio.metadata?.gender
+                                  {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                     ? ` (${audio.metadata.gender})`
                                     : ""}
                                 </Text>
@@ -3125,7 +3247,7 @@ const SubjectContent = ({
                   {renderReadingHintSection()}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3295,7 +3417,7 @@ const SubjectContent = ({
                   {renderNoteCard("meaning")}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3537,7 +3659,7 @@ const SubjectContent = ({
                   {renderNoteCard("meaning")}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -3651,7 +3773,7 @@ const SubjectContent = ({
                                     <Text style={styles.audioButtonText}>
                                       {audio.metadata?.voice_actor_name ||
                                         "Audio"}
-                                      {audio.metadata?.gender
+                                      {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                         ? ` (${audio.metadata.gender})`
                                         : ""}
                                     </Text>
@@ -3692,7 +3814,7 @@ const SubjectContent = ({
                 // Context tab
                 <View>
                   {renderUsagePatternSection()}
-                  <Text style={styles.sectionTitle}>Context Sentences</Text>
+                  {renderContextSentencesHeader()}
 
                   {subject.data.context_sentences &&
                   subject.data.context_sentences.length > 0 ? (
@@ -3762,6 +3884,8 @@ const SubjectContent = ({
                       No context sentences available for this vocabulary.
                     </Text>
                   )}
+
+                  {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
                   {showMediaContextSentences && (
@@ -4041,7 +4165,7 @@ const SubjectContent = ({
                                     <Text style={styles.audioButtonText}>
                                       {audio.metadata?.voice_actor_name ||
                                         "Audio"}
-                                      {audio.metadata?.gender
+                                      {subject.id < 0 ? " · AI-generated" : audio.metadata?.gender
                                         ? ` (${audio.metadata.gender})`
                                         : ""}
                                     </Text>
@@ -4070,7 +4194,7 @@ const SubjectContent = ({
                   {renderReadingHintSection()}
 
                   {/* User Synonyms */}
-                  <View style={styles.infoSection}>
+                  <View style={[styles.infoSection, subject.id <= 0 && { display: "none" }]}>
                     <Text style={styles.sectionTitle}>User Synonyms</Text>
                     <View style={styles.synonymsRow}>
                       <Text
@@ -4097,7 +4221,7 @@ const SubjectContent = ({
                 // Context tab
                 <View>
                   {renderUsagePatternSection()}
-                  <Text style={styles.sectionTitle}>Context Sentences</Text>
+                  {renderContextSentencesHeader()}
 
                   {subject.data.context_sentences &&
                   subject.data.context_sentences.length > 0 ? (
@@ -4167,6 +4291,8 @@ const SubjectContent = ({
                       No context sentences available for this vocabulary.
                     </Text>
                   )}
+
+                  {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
                   {showMediaContextSentences && (
@@ -4424,28 +4550,27 @@ const SubjectContent = ({
         visible={noteModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setNoteModalVisible(false)}
+        onRequestClose={handleCloseNote}
       >
         <KeyboardAvoidingView
-          style={styles.noteModalOverlay}
+          style={[
+            styles.noteModalOverlay,
+            {
+              paddingTop: Math.max(16, noteModalInsets.top),
+              paddingBottom: 16 + androidKeyboardLift,
+            },
+          ]}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
           onLayout={handleNoteModalOverlayLayout}
         >
-          <View
-            style={[
-              styles.noteModalContent,
-              Platform.OS === "android" &&
-                androidKeyboardLift > 0 && {
-                  transform: [{ translateY: -androidKeyboardLift }],
-                },
-            ]}
-          >
+          <View style={styles.noteModalContent}>
             <Text style={styles.noteModalTitle}>
               {editingNoteType === "meaning" ? "Meaning Note" : "Reading Note"}
             </Text>
             <FormattedNoteEditor
-              key={`${editingNoteType}:${noteModalVisible}`}
+              ref={noteEditorRef}
+              key={noteEditorSession}
+              containerStyle={styles.noteEditor}
               style={styles.noteInput}
               value={editingNoteText}
               onChangeText={setEditingNoteText}
@@ -4459,7 +4584,7 @@ const SubjectContent = ({
             <View style={styles.noteModalButtons}>
               <TouchableOpacity
                 style={styles.noteModalButton}
-                onPress={() => setNoteModalVisible(false)}
+                onPress={handleCloseNote}
                 disabled={isSavingNote}
               >
                 <Text style={styles.noteModalButtonText}>Cancel</Text>
@@ -4517,10 +4642,14 @@ export default function LessonDetailScreen({
   bookmarkedSubjectIds = EMPTY_BOOKMARKED_SUBJECT_IDS,
 }: LessonDetailScreenProps) {
   const { theme } = useTheme();
+  const isScreenFocused = useOptionalScreenIsFocused();
+  const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const insets = useSafeAreaInsets();
   const subjectColors = useSubjectColors();
   const {
+    appTextSizeScale,
     singlePageLessonView,
+    lessonSearchButtonEnabled,
     autoplayLessonReadingAudio,
     vocabularyAudioVoice,
   } = useSettingsStore();
@@ -4537,6 +4666,11 @@ export default function LessonDetailScreen({
   // Ref for PagerView to enable programmatic page changes
   const pagerRef = useRef<PagerView>(null);
   const layout = useWindowDimensions();
+  const usesLargeText = appTextSizeScale > 1 || layout.fontScale > 1;
+  const subjectDisplayMaxHeight = Math.max(
+    160,
+    Math.floor(layout.height * 0.46)
+  );
   const navigationBottomPadding =
     Platform.OS === "android" ? Math.max(insets.bottom, 16) : 16;
 
@@ -4652,7 +4786,10 @@ export default function LessonDetailScreen({
 
       let playbackUri = audioUrl;
       if (typeof subjectId === "number" && Number.isFinite(subjectId)) {
-        const cachedAudioUri = await resolveOfflineVocabularyAudioUri(
+        const resolveAudio = subjectId < 0
+          ? resolveCustomVocabularyAudioForPlayback
+          : resolveOfflineVocabularyAudioUri;
+        const cachedAudioUri = await resolveAudio(
           subjectId,
           pronunciationAudio ?? { url: audioUrl }
         );
@@ -4704,18 +4841,20 @@ export default function LessonDetailScreen({
   }
 
   const maybeAutoplayLessonReadingTab = (subjectForPage: any, routeKey?: string) => {
-    if (!autoplayLessonReadingAudio || routeKey !== "reading") {
-      if (routeKey !== "reading") {
+    const isCustomKana = subjectForPage?.id < 0 && subjectForPage?.object === "kana_vocabulary";
+    const pronunciationTab = isCustomKana ? "meaning" : "reading";
+    if (!autoplayLessonReadingAudio || routeKey !== pronunciationTab) {
+      if (routeKey !== pronunciationTab) {
         lastLessonReadingAutoplayKeyRef.current = null;
       }
       return;
     }
 
-    if (subjectForPage?.object !== "vocabulary") {
+    if (subjectForPage?.object !== "vocabulary" && !isCustomKana) {
       return;
     }
 
-    const autoplayKey = `${subjectForPage.id}:reading`;
+    const autoplayKey = `${subjectForPage.id}:${pronunciationTab}`;
     if (lastLessonReadingAutoplayKeyRef.current === autoplayKey) {
       return;
     }
@@ -4801,6 +4940,36 @@ export default function LessonDetailScreen({
 
   // Setup state for TabView (tab index within current subject)
   const [index, setIndex] = useState(0);
+  const activeLessonSubject = batchItems[currentBatchIndex ?? 0]?.subject ?? item.subject;
+  useEffect(() => {
+    if (!isScreenFocused || noteSubjectPreviewOpen || index !== 0
+      || activeLessonSubject.id >= 0 || activeLessonSubject.object !== "kana_vocabulary") return;
+    maybeAutoplayLessonReadingTab(activeLessonSubject, "meaning");
+    // The ref inside the existing autoplay handler prevents replay on unrelated renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLessonSubject, autoplayLessonReadingAudio, index, isScreenFocused, noteSubjectPreviewOpen, vocabularyAudioVoice]);
+  const [subjectDisplayContentHeights, setSubjectDisplayContentHeights] =
+    useState<Record<number, number>>({});
+  const recordSubjectDisplayContentHeight = useCallback(
+    (subjectId: number, event: LayoutChangeEvent) => {
+      const { y, height: markerHeight } = event.nativeEvent.layout;
+      const requiredHeight = Math.ceil(
+        y + markerHeight + SUBJECT_DISPLAY_VERTICAL_PADDING
+      );
+
+      setSubjectDisplayContentHeights((currentHeights) => {
+        if (currentHeights[subjectId] === requiredHeight) {
+          return currentHeights;
+        }
+
+        return {
+          ...currentHeights,
+          [subjectId]: requiredHeight,
+        };
+      });
+    },
+    []
+  );
   const keyboardNavigationRef = useRef<KeyboardExtendedViewType | null>(null);
   const tabIndexRef = useRef(0);
   const activePageIndexRef = useRef(currentBatchIndex ?? 0);
@@ -4981,6 +5150,10 @@ export default function LessonDetailScreen({
   };
 
   const handleLessonShortcutKeyDown = (event: OnKeyPress) => {
+    if (!isScreenFocused || noteSubjectPreviewOpen) {
+      return;
+    }
+
     const keyCode = event.nativeEvent?.keyCode;
     if (typeof keyCode !== "number") {
       return;
@@ -5058,6 +5231,10 @@ export default function LessonDetailScreen({
   }, [currentBatchIndex]);
 
   useEffect(() => {
+    if (!isScreenFocused || noteSubjectPreviewOpen) {
+      return;
+    }
+
     const focusTimer = setTimeout(() => {
       keyboardNavigationRef.current?.focus();
     }, 90);
@@ -5068,6 +5245,8 @@ export default function LessonDetailScreen({
   }, [
     currentBatchIndex,
     index,
+    isScreenFocused,
+    noteSubjectPreviewOpen,
     singlePageLessonView,
   ]);
 
@@ -5080,14 +5259,20 @@ export default function LessonDetailScreen({
     return subjectColors.getColorForType(item.subject.object);
   };
 
+  const handleOpenLessonSearch = () => {
+    Keyboard.dismiss();
+    router.push("/review-search");
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <KeyboardExtendedBaseView
         ref={keyboardNavigationRef}
         style={styles.container}
         onKeyDownPress={handleLessonShortcutKeyDown}
-        autoFocus
-        focusable
+        autoFocus={isScreenFocused && !noteSubjectPreviewOpen}
+        canBeFocused={isScreenFocused && !noteSubjectPreviewOpen}
+        focusable={isScreenFocused && !noteSubjectPreviewOpen}
       >
       <View style={styles.container} ref={containerRef}>
         <StatusBar style="light" />
@@ -5149,12 +5334,42 @@ export default function LessonDetailScreen({
           return (
             <View key={batchItem.id} style={styles.pageContainer}>
               {/* Character/Subject Display Section */}
-              <View
+              <ScrollView
                 style={[
-                  styles.subjectDisplaySection,
+                  styles.subjectDisplayScroll,
                   { backgroundColor: pageBackgroundColor },
+                  usesLargeText
+                    ? { maxHeight: subjectDisplayMaxHeight }
+                    : null,
                 ]}
+                contentContainerStyle={[
+                  styles.subjectDisplaySection,
+                  subjectDisplayContentHeights[batchItem.id]
+                    ? {
+                        minHeight:
+                          subjectDisplayContentHeights[batchItem.id],
+                      }
+                    : null,
+                ]}
+                contentInsetAdjustmentBehavior="never"
+                nestedScrollEnabled
+                alwaysBounceVertical={false}
+                showsVerticalScrollIndicator
+                testID="lesson-subject-summary"
               >
+                {lessonSearchButtonEnabled && (
+                  <TouchableOpacity
+                    style={styles.lessonSearchButton}
+                    onPress={handleOpenLessonSearch}
+                    hitSlop={CLOSE_BUTTON_HIT_SLOP}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open search"
+                    accessibilityHint="Look up subjects, then go back to continue this lesson"
+                  >
+                    <Ionicons name="search" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+
                 {onAddSubjectToList && (
                   <TouchableOpacity
                     style={styles.addToListButton}
@@ -5173,12 +5388,12 @@ export default function LessonDetailScreen({
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
+                {pageSubject.id > 0 && <TouchableOpacity
                   style={styles.constellationButton}
                   onPress={() => handleConstellationPress(pageSubject.id)}
                 >
                   <Ionicons name="planet-outline" size={24} color="#fff" />
-                </TouchableOpacity>
+                </TouchableOpacity>}
 
                 <View
                   ref={(node) => {
@@ -5227,14 +5442,14 @@ export default function LessonDetailScreen({
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.subjectMeaningContainer}>
-                  <Text style={styles.subjectMeaningText}>
-                    {pageSubject.data.meanings.find((m: any) => m.primary)
+                <LessonMeaningPill
+                  meaning={
+                    pageSubject.data.meanings.find((m: any) => m.primary)
                       ?.meaning ||
-                      pageSubject.data.meanings[0]?.meaning ||
-                      "No meaning available"}
-                  </Text>
-                </View>
+                    pageSubject.data.meanings[0]?.meaning ||
+                    "No meaning available"
+                  }
+                />
                 {(pageSubject.object === "vocabulary" ||
                   pageSubject.object === "kana_vocabulary") && (
                   <VocabularyFrequencyBadge subject={pageSubject} />
@@ -5255,7 +5470,13 @@ export default function LessonDetailScreen({
                         ?.reading || pageSubject.data.readings[0]?.reading}
                     </Text>
                   )}
-              </View>
+                <View
+                  onLayout={(event) =>
+                    recordSubjectDisplayContentHeight(batchItem.id, event)
+                  }
+                  style={styles.subjectDisplayEndMarker}
+                />
+              </ScrollView>
 
               {/* Content area - either TabView or scrollable single page */}
               <View style={styles.contentContainer}>
@@ -5313,8 +5534,26 @@ export default function LessonDetailScreen({
                         {...props}
                         indicatorStyle={{ backgroundColor: pageBackgroundColor }}
                         style={{ backgroundColor: theme.cardBackground }}
-                        tabStyle={{ flex: 1 }}
-                        contentContainerStyle={{ width: "100%" }}
+                        scrollEnabled={usesLargeText}
+                        tabStyle={
+                          usesLargeText
+                            ? styles.scrollableLessonTab
+                            : styles.equalLessonTab
+                        }
+                        contentContainerStyle={
+                          usesLargeText
+                            ? styles.scrollableLessonTabs
+                            : styles.equalLessonTabs
+                        }
+                        options={Object.fromEntries(
+                          pageRoutes.map((route) => [
+                            route.key,
+                            {
+                              labelText: route.title,
+                              labelStyle: styles.lessonTabLabel,
+                            },
+                          ])
+                        )}
                         activeColor={pageBackgroundColor}
                         inactiveColor={theme.textLight}
                         pressColor={
@@ -5526,12 +5765,34 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       alignItems: "center",
       justifyContent: "space-between",
     },
-    subjectDisplaySection: {
-      paddingHorizontal: 20,
-      paddingVertical: 24,
-      alignItems: "center",
+    subjectDisplayScroll: {
+      flexGrow: 0,
+      flexShrink: 1,
       borderBottomLeftRadius: 20,
       borderBottomRightRadius: 20,
+      overflow: "hidden",
+    },
+    subjectDisplaySection: {
+      minWidth: "100%",
+      paddingHorizontal: 20,
+      paddingVertical: SUBJECT_DISPLAY_VERTICAL_PADDING,
+      alignItems: "center",
+    },
+    subjectDisplayEndMarker: {
+      width: 1,
+      height: 1,
+    },
+    lessonSearchButton: {
+      position: "absolute",
+      top: 16,
+      left: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: "rgba(0,0,0,0.2)",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 20,
     },
     addToListButton: {
       position: "absolute",
@@ -5593,23 +5854,6 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       color: "rgba(255, 255, 255, 0.7)",
       textAlign: "center",
     },
-    subjectMeaningContainer: {
-      backgroundColor: "rgba(255, 255, 255, 0.15)",
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.2)",
-    },
-    subjectMeaningText: {
-      color: "white",
-      fontSize: 16,
-      fontWeight: "600",
-      textAlign: "center",
-      textShadowColor: "rgba(0, 0, 0, 0.2)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
     subjectReadingText: {
       color: "rgba(255, 255, 255, 0.85)",
       fontSize: 16,
@@ -5638,14 +5882,18 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     },
     lessonTypeCountsContainer: {
       flexDirection: "row",
+      flexWrap: "wrap",
       alignItems: "center",
       justifyContent: "flex-end",
+      columnGap: 16,
+      rowGap: 4,
+      flexShrink: 1,
       marginLeft: "auto",
     },
     typeCountItem: {
       flexDirection: "row",
       alignItems: "center",
-      marginLeft: 16,
+      flexShrink: 0,
     },
     typeCountLetter: {
       color: "white",
@@ -5662,6 +5910,23 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     contentContainer: {
       flex: 1,
       backgroundColor: theme.backgroundColor,
+    },
+    equalLessonTabs: {
+      width: "100%",
+    },
+    equalLessonTab: {
+      flex: 1,
+    },
+    scrollableLessonTabs: {
+      paddingHorizontal: 4,
+    },
+    scrollableLessonTab: {
+      width: "auto",
+      minWidth: 96,
+      paddingHorizontal: 12,
+    },
+    lessonTabLabel: {
+      textAlign: "center",
     },
     tabContentContainer: {
       flex: 1,
@@ -5765,6 +6030,22 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       letterSpacing: -0.3,
       textTransform: "uppercase",
     },
+    contextSentencesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 20,
+    },
+    contextSentencesTitle: {
+      flex: 1,
+      marginBottom: 0,
+    },
+    contextSentenceAddButton: {
+      width: 28,
+      height: 28,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     meaningText: {
       fontSize: 28,
       color: theme.textColor,
@@ -5859,13 +6140,16 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     noteModalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       alignItems: "center",
       padding: 16,
     },
     noteModalContent: {
+      flex: 1,
       width: "100%",
       maxWidth: 460,
+      maxHeight: 640,
+      flexShrink: 1,
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
       padding: 16,
@@ -5888,6 +6172,10 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       backgroundColor: theme.isDark ? "rgba(255,255,255,0.05)" : "#ffffff",
       fontSize: 16,
       textAlignVertical: "top",
+    },
+    noteEditor: {
+      flex: 1,
+      minHeight: 0,
     },
     noteModalButtons: {
       marginTop: 16,
@@ -5988,10 +6276,13 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       paddingHorizontal: 12,
       paddingVertical: 6,
       margin: 4,
+      maxWidth: "100%",
+      flexShrink: 1,
     },
     readingBadgeContent: {
       alignItems: "center",
       flexDirection: "row",
+      flexShrink: 1,
     },
     readingBadgeAudioIcon: {
       marginLeft: 6,
@@ -6002,6 +6293,7 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       fontFamily: "SourceHanSansJP-Regular",
       includeFontPadding: false,
       textAlignVertical: "center",
+      flexShrink: 1,
     },
     primaryReadingBadgeText: {
       color: "white",
@@ -6103,6 +6395,8 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       paddingHorizontal: 12,
       paddingVertical: 7,
       backgroundColor: theme.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+      maxWidth: "100%",
+      flexShrink: 1,
     },
     patternPillActive: {
       borderColor: subjectColors.vocabulary,
@@ -6112,6 +6406,8 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       fontSize: 13,
       fontWeight: "600",
       color: theme.textSecondary,
+      maxWidth: "100%",
+      minWidth: 0,
     },
     patternPillTextActive: {
       color: subjectColors.vocabulary,

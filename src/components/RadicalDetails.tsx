@@ -45,6 +45,7 @@ import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { FormattedNoteText } from "./formatted-note";
+import { NoteFieldContainer } from "./note-field-container";
 import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
 
@@ -501,23 +502,29 @@ export default function RadicalDetails({
             <Ionicons name="arrow-back" size={24} color={radicalHeaderTextColor} />
           </TouchableOpacity>
 
-          {onAddToList && (
-            <TouchableOpacity
-              onPress={onAddToList}
-              style={styles.addToListButton}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isBookmarked ? "Edit saved lists" : "Add to saved lists"
-              }
-              accessibilityState={{ selected: isBookmarked }}
-            >
-              <Ionicons
-                name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                size={20}
-                color={radicalHeaderTextColor}
-              />
-            </TouchableOpacity>
-          )}
+          <View style={styles.headerActions}>
+            {onAddToList && (
+              <TouchableOpacity
+                onPress={onAddToList}
+                style={styles.addToListButton}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isBookmarked ? "Edit saved lists" : "Add to saved lists"
+                }
+                accessibilityState={{ selected: isBookmarked }}
+              >
+                <Ionicons
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  size={20}
+                  color={radicalHeaderTextColor}
+                />
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{radical.level}</Text>
+            </View>
+          </View>
 
           {onOpenConstellation && (
             <TouchableOpacity
@@ -531,10 +538,6 @@ export default function RadicalDetails({
               />
             </TouchableOpacity>
           )}
-
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{radical.level}</Text>
-          </View>
 
           <TouchableOpacity
             ref={mainCharacterRef}
@@ -657,47 +660,59 @@ export default function RadicalDetails({
             Notes
           </Text>
           {radical.meaningNote ? (
-            <TouchableOpacity
+            <NoteFieldContainer
+              addAccessibilityLabel="Add meaning note"
+              hasContent
               style={[
                 styles.infoBox,
                 styles.noteBox,
                 { backgroundColor: theme.cardBackground },
               ]}
-              onPress={radical.onEditNote}
             >
               <View style={styles.noteContainer}>
                 <View style={styles.noteHeader}>
                   <Text style={[styles.noteTitle, { color: theme.textColor }]}>
                     Meaning Note
                   </Text>
-                  <View style={styles.editButton}>
+                  <TouchableOpacity
+                    accessibilityLabel="Edit meaning note"
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      radical.onEditNote?.();
+                    }}
+                    style={styles.editButton}
+                  >
                     <Ionicons
                       name="pencil"
                       size={16}
                       color={theme.textSecondary}
                       style={{ fontWeight: "bold" }}
                     />
-                  </View>
+                  </TouchableOpacity>
                 </View>
                 <FormattedNoteText
                   text={radical.meaningNote}
                   style={[styles.noteContent, { color: theme.textColor }]}
                 />
               </View>
-            </TouchableOpacity>
+            </NoteFieldContainer>
           ) : (
-            <TouchableOpacity
+            <NoteFieldContainer
+              addAccessibilityLabel="Add meaning note"
+              hasContent={false}
               style={[
                 styles.infoBox,
                 styles.noteBox,
                 { backgroundColor: theme.cardBackground },
               ]}
-              onPress={radical.onEditNote}
+              onAdd={radical.onEditNote}
             >
               <Text style={[styles.noteText, { color: theme.textLight }]}>
                 Click to add note
               </Text>
-            </TouchableOpacity>
+            </NoteFieldContainer>
           )}
         </View>
 
@@ -1023,7 +1038,7 @@ export default function RadicalDetails({
               backgroundColor: subjectColors.radical,
               paddingTop: insets.top + 8,
               paddingBottom: 8,
-              height: insets.top + 68,
+              minHeight: insets.top + 68,
             },
             stickyHeaderStyle,
           ]}
@@ -1161,17 +1176,21 @@ const createStyles = (subjectColors: SubjectColors) => {
   },
   stickyContent: {
     flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
   },
   stickyCharacterBox: {
-    width: 44,
-    height: 44,
+    minWidth: 44,
+    minHeight: 44,
     backgroundColor: "white",
     borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    flexShrink: 0,
   },
   stickyCharacter: {
     fontSize: 24,
@@ -1190,6 +1209,7 @@ const createStyles = (subjectColors: SubjectColors) => {
   },
   stickyTextContainer: {
     flex: 1,
+    minWidth: 0,
     justifyContent: "center",
   },
   stickyMeaning: {
@@ -1200,9 +1220,12 @@ const createStyles = (subjectColors: SubjectColors) => {
   },
   stickyLevelBadge: {
     backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
     borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
@@ -1238,22 +1261,27 @@ const createStyles = (subjectColors: SubjectColors) => {
     alignItems: "center",
     zIndex: 10,
   },
-  levelBadge: {
-    backgroundColor: "rgba(0,0,0,0.2)",
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
+  headerActions: {
     position: "absolute",
     top: HEADER_TOP_OFFSET,
     right: 16,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  levelBadge: {
+    backgroundColor: "rgba(0,0,0,0.2)",
+    minWidth: 32,
+    minHeight: 32,
+    maxWidth: "100%",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   addToListButton: {
-    position: "absolute",
-    top: HEADER_TOP_OFFSET,
-    right: 56,
-    zIndex: 10,
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -1430,9 +1458,12 @@ const createStyles = (subjectColors: SubjectColors) => {
     position: "absolute",
     top: -8,
     right: -8,
-    width: 26,
-    height: 26,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
     borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     backgroundColor: subjectColors.kanji,
     justifyContent: "center",
     alignItems: "center",

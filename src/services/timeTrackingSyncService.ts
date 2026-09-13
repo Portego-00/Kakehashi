@@ -1,6 +1,5 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
-import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { useAuthStore } from "../utils/store";
 import {
   APP_TOTAL_KEY,
@@ -9,10 +8,19 @@ import {
   type ActivityKey,
   type DayRecord,
 } from "./timeTrackingCore";
+import {
+  isStudyTimeRpcConfigured,
+  syncStudyTimeDaysRpc,
+} from "./studyTimeRpcClient";
+import {
+  getUserPushedSumsKey,
+  isValidStudyTimeDeviceId,
+  normalizeStudyTimeUserId,
+} from "./studyTimeStorageScope";
 import { timeTrackingService, timeTrackingStorage } from "./timeTrackingService";
 
 /**
- * Pushes time tracking totals to Supabase for developer analytics.
+ * Pushes this device's time tracking totals through the verified account sync.
  *
  * Reliability properties:
  * - Rows carry ABSOLUTE day totals keyed by (user_id, device_id, day) and are
@@ -23,16 +31,14 @@ import { timeTrackingService, timeTrackingStorage } from "./timeTrackingService"
  */
 
 const DEVICE_ID_KEY = "ttv1.device_id";
-const PUSHED_SUMS_KEY = "ttv1.sync.pushed_sums";
-const TABLE_NAME = "study_time_days";
-const UPSERT_FUNCTION_NAME = "upsert_study_time_days";
 
 const MIN_SYNC_INTERVAL_MS = 90 * 1000;
 const MAX_DAYS_PER_SYNC = 14;
 
 let lastAttemptAtMs = 0;
 let isSyncing = false;
-let didWarnAboutMissingTable = false;
+let activeSync: Promise<void> | null = null;
+let resolvedDeviceId: string | null = null;
 
 export type StudyTimeSyncStatus = {
   state: "never" | "syncing" | "success" | "skipped" | "error";
@@ -63,43 +69,43 @@ export function getStudyTimeSyncStatus(): StudyTimeSyncStatus {
   return syncStatus;
 }
 
-function isMissingSyncTargetError(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const code = String((error as { code?: unknown }).code ?? "");
-  const message = String((error as { message?: unknown }).message ?? "").toLowerCase();
-  return (
-    code === "42P01" || // table missing
-    code === "42883" || // function missing
-    code === "PGRST202" || // PostgREST: function not in schema cache
-    (message.includes("does not exist") && message.includes(TABLE_NAME)) ||
-    (message.includes("could not find the function") &&
-      message.includes(UPSERT_FUNCTION_NAME))
-  );
+function generateDeviceId(): string {
+  return `${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function getDeviceId(): string {
+  if (resolvedDeviceId) {
+    return resolvedDeviceId;
+  }
+
   try {
     const existing = timeTrackingStorage.getString(DEVICE_ID_KEY);
-    if (existing) {
-      return existing;
+    if (isValidStudyTimeDeviceId(existing)) {
+      resolvedDeviceId = existing;
+      return resolvedDeviceId;
     }
 
-    const generated = `${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+    // Regeneration changes the local ledger scope as well as the upload key.
+    // The old verified rows then safely appear as OTHER-device history.
+    const generated = generateDeviceId();
     timeTrackingStorage.set(DEVICE_ID_KEY, generated);
-    return generated;
+    resolvedDeviceId = generated;
+    return resolvedDeviceId;
   } catch {
-    return "unknown-device";
+    // Stable for this process even if persistent storage is temporarily
+    // unavailable; unlike a shared sentinel, it cannot collapse devices.
+    resolvedDeviceId = generateDeviceId();
+    return resolvedDeviceId;
   }
 }
 
-function readPushedSums(): Record<string, number> {
+function readPushedSums(userId: string, deviceId: string): Record<string, number> {
   try {
-    const raw = timeTrackingStorage.getString(PUSHED_SUMS_KEY);
+    const raw = timeTrackingStorage.getString(
+      getUserPushedSumsKey(userId, deviceId),
+    );
     if (!raw) {
       return {};
     }
@@ -110,9 +116,16 @@ function readPushedSums(): Record<string, number> {
   }
 }
 
-function writePushedSums(sums: Record<string, number>): void {
+function writePushedSums(
+  userId: string,
+  deviceId: string,
+  sums: Record<string, number>,
+): void {
   try {
-    timeTrackingStorage.set(PUSHED_SUMS_KEY, JSON.stringify(sums));
+    timeTrackingStorage.set(
+      getUserPushedSumsKey(userId, deviceId),
+      JSON.stringify(sums),
+    );
   } catch {
     // Best effort; worst case we re-push identical absolute values.
   }
@@ -141,14 +154,20 @@ function buildActivityMs(record: DayRecord): Partial<Record<ActivityKey, number>
 }
 
 async function syncNow(): Promise<void> {
-  if (!isSupabaseConfigured) {
+  if (!isStudyTimeRpcConfigured()) {
     setSyncStatus("skipped", "Supabase is not configured in this build");
     return;
   }
 
-  const userData = useAuthStore.getState().userData;
-  if (!userData?.id) {
-    setSyncStatus("skipped", "Waiting for login (no user data yet)");
+  const { apiToken, userData } = useAuthStore.getState();
+  const userId = normalizeStudyTimeUserId(userData?.id);
+  if (!apiToken || !userId) {
+    setSyncStatus("skipped", "Waiting for login");
+    return;
+  }
+  const deviceId = getDeviceId();
+  if (!timeTrackingService.isScopedToUserDevice(userId, deviceId)) {
+    setSyncStatus("skipped", "Waiting for the account-scoped local ledger");
     return;
   }
 
@@ -157,100 +176,98 @@ async function syncNow(): Promise<void> {
   // Persist the running clocks so the rows below reflect everything.
   timeTrackingService.foldNow();
 
-  const recentDays = timeTrackingService.getRecentDayRecords(MAX_DAYS_PER_SYNC);
-  const pushedSums = readPushedSums();
+  const retainedDays = timeTrackingService.getAllRetainedDayRecords();
+  const storedPushedSums = readPushedSums(userId, deviceId);
+  const retainedKeys = new Set(retainedDays.map(({ dateKey }) => dateKey));
+  const pushedSums: Record<string, number> = {};
+  for (const [dateKey, sum] of Object.entries(storedPushedSums)) {
+    if (retainedKeys.has(dateKey)) {
+      pushedSums[dateKey] = sum;
+    }
+  }
+  const prunedStaleMarkers =
+    Object.keys(pushedSums).length !== Object.keys(storedPushedSums).length;
 
-  const dirtyDays = recentDays.filter(({ dateKey, record }) => {
-    const sum = recordSum(record);
-    return sum > 0 && sum > (pushedSums[dateKey] ?? 0);
-  });
+  const dirtyDays = retainedDays
+    .filter(({ dateKey, record }) => {
+      const sum = recordSum(record);
+      return sum > 0 && sum > (pushedSums[dateKey] ?? 0);
+    })
+    // Secure current/recent data first. A partial failure can then resume the
+    // older tail without making the user wait for recent totals to appear.
+    .reverse();
 
   if (dirtyDays.length === 0) {
+    if (prunedStaleMarkers) {
+      writePushedSums(userId, deviceId, pushedSums);
+    }
     setSyncStatus("success", "Up to date — nothing new to push");
     return;
   }
 
-  const deviceId = getDeviceId();
   const appVersion = Constants.expoConfig?.version ?? null;
-  const nowIso = new Date().toISOString();
 
-  const rows = dirtyDays.map(({ dateKey, record }) => ({
-    user_id: userData.id,
-    device_id: deviceId,
-    day: dateKey,
-    activity_ms: buildActivityMs(record),
-    study_total_ms: Math.round(studyMsOfRecord(record)),
-    app_total_ms: Math.round(record[APP_TOTAL_KEY] ?? 0),
-    user_name: userData.username ?? null,
-    user_level: userData.level ?? null,
-    app_version: appVersion,
-    platform: Platform.OS,
-    updated_at: nowIso,
-  }));
+  const nextPushedSums = { ...pushedSums };
+  let pushedDayCount = 0;
 
-  // A security definer RPC is the only write path: clients have no table
-  // privileges at all, which keeps the data unreadable and avoids the SELECT
-  // requirement PostgREST upserts have for conflict detection.
-  const { error } = await supabase.rpc(UPSERT_FUNCTION_NAME, { rows });
+  for (let offset = 0; offset < dirtyDays.length; offset += MAX_DAYS_PER_SYNC) {
+    const batch = dirtyDays.slice(offset, offset + MAX_DAYS_PER_SYNC);
+    const days = batch.map(({ dateKey, record }) => ({
+      day: dateKey,
+      activityMs: buildActivityMs(record),
+      studyTotalMs: Math.round(studyMsOfRecord(record)),
+      appTotalMs: Math.round(record[APP_TOTAL_KEY] ?? 0),
+      appVersion,
+      platform: Platform.OS,
+    }));
 
-  if (error) {
-    if (isMissingSyncTargetError(error)) {
-      // Keep retrying on later opportunities (the migration may be applied
-      // while the app is running); only the warning is one-time.
-      if (!didWarnAboutMissingTable) {
-        didWarnAboutMissingTable = true;
-        console.warn(
-          `Time tracking sync target is missing. Run the ${TABLE_NAME} migration to enable it.`
-        );
-      }
-      setSyncStatus(
-        "error",
-        `Function "${UPSERT_FUNCTION_NAME}" not found — run the latest migration in Supabase`
-      );
-      return;
+    // Await each acknowledgement before advancing. If a later request fails,
+    // markers for every acknowledged batch remain durable and retries resume
+    // from the first unacknowledged day.
+    await syncStudyTimeDaysRpc(apiToken, userId, deviceId, days);
+    for (const { dateKey, record } of batch) {
+      nextPushedSums[dateKey] = recordSum(record);
     }
-    // Leave pushed sums untouched; the next opportunity re-sends the same
-    // absolute values, which is safe.
-    console.log("📊 Could not sync study time:", error.message);
-    setSyncStatus("error", error.message);
-    return;
+    writePushedSums(userId, deviceId, nextPushedSums);
+
+    pushedDayCount += batch.length;
+    if (pushedDayCount < dirtyDays.length) {
+      setSyncStatus(
+        "syncing",
+        `Pushed ${pushedDayCount} of ${dirtyDays.length} days…`,
+      );
+    }
   }
 
   setSyncStatus(
     "success",
-    `Pushed ${dirtyDays.length} day${dirtyDays.length === 1 ? "" : "s"}`
+    `Pushed ${dirtyDays.length} day${dirtyDays.length === 1 ? "" : "s"}`,
   );
-
-  const nextPushedSums = { ...pushedSums };
-  for (const { dateKey, record } of dirtyDays) {
-    nextPushedSums[dateKey] = recordSum(record);
-  }
-  // Drop markers for days outside the sync window to keep the blob tiny.
-  const windowKeys = new Set(recentDays.map(({ dateKey }) => dateKey));
-  for (const key of Object.keys(nextPushedSums)) {
-    if (!windowKeys.has(key)) {
-      delete nextPushedSums[key];
-    }
-  }
-  writePushedSums(nextPushedSums);
 }
 
-export function maybeSyncStudyTime(options: { force?: boolean } = {}): void {
+export function maybeSyncStudyTime(
+  options: { force?: boolean } = {},
+): Promise<void> {
   const now = Date.now();
-  if (isSyncing || (!options.force && now - lastAttemptAtMs < MIN_SYNC_INTERVAL_MS)) {
-    return;
+  if (isSyncing) {
+    return activeSync ?? Promise.resolve();
+  }
+  if (!options.force && now - lastAttemptAtMs < MIN_SYNC_INTERVAL_MS) {
+    return Promise.resolve();
   }
 
   lastAttemptAtMs = now;
   isSyncing = true;
-  syncNow()
+  activeSync = syncNow()
     .catch((error) => {
       console.log("📊 Study time sync failed:", error?.message ?? error);
       setSyncStatus("error", String(error?.message ?? error));
     })
     .finally(() => {
       isSyncing = false;
+      activeSync = null;
     });
+  return activeSync;
 }
 
 /** Wires the sync into the tracker's opportunity callback. Idempotent. */

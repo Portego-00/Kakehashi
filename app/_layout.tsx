@@ -3,7 +3,6 @@ import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { Slot, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import * as Updates from "expo-updates";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -26,10 +25,19 @@ import { MusicPlayerProvider } from "../src/contexts/MusicPlayerContext";
 import { DashboardProvider } from "../src/hooks/useDashboardData";
 import { analyticsService } from "../src/services/analyticsService";
 import { featureFlagsService } from "../src/services/featureFlagsService";
-import { syncPendingProgress } from "../src/services/offlineStudyProgressService";
+import {
+  hasPendingProgressAccountBinding,
+  registerPendingProgressAccount,
+  syncPendingProgress,
+} from "../src/services/offlineStudyProgressService";
 import { queueOfflineVocabularyAudioDownloads } from "../src/services/offlineVocabularyAudioService";
+import { maybeRefreshStudyTimeHistory } from "../src/services/studyTimeHistoryService";
+import { normalizeStudyTimeUserId } from "../src/services/studyTimeStorageScope";
 import { timeTrackingService } from "../src/services/timeTrackingService";
-import { initializeTimeTrackingSync } from "../src/services/timeTrackingSyncService";
+import {
+  getDeviceId,
+  initializeTimeTrackingSync,
+} from "../src/services/timeTrackingSyncService";
 import {
   applyAppTextSizeScale,
   installAppTextSizePreprocessors,
@@ -66,6 +74,16 @@ if (__DEV__) {
 SplashScreen.preventAutoHideAsync();
 installAppTextSizePreprocessors();
 
+async function verifyAccountAndSyncPendingProgress(
+  apiToken: string,
+): Promise<void> {
+  if (!(await hasPendingProgressAccountBinding(apiToken))) {
+    const verifiedUser = await getUserData(apiToken, { forceRefresh: true });
+    await registerPendingProgressAccount(apiToken, verifiedUser.data.id);
+  }
+  await syncPendingProgress(apiToken);
+}
+
 type PendingDeepLinkIntent =
   | {
       kind: "ocr-image";
@@ -83,9 +101,6 @@ function RootLayoutContentInner() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [showLoader, setShowLoader] = useState(true);
   const [cachingProgress, setCachingProgress] = useState(0);
-  const [loaderStatusMessage, setLoaderStatusMessage] = useState<string | null>(
-    null
-  );
   const startupSessionInitializedRef = useRef(false);
   const startupPrepareStartedRef = useRef(false);
   const appReadyRequestedRef = useRef(false);
@@ -268,7 +283,7 @@ function RootLayoutContentInner() {
           tasks.push(updateLastReviewCount());
         }
         if (apiToken) {
-          tasks.push(syncPendingProgress(apiToken));
+          tasks.push(verifyAccountAndSyncPendingProgress(apiToken));
         }
 
         if (userData?.id) {
@@ -305,11 +320,31 @@ function RootLayoutContentInner() {
     errorService.initializeGlobalHandlers();
   }, []);
 
+  // Keep the local ledger bound to the verified WaniKani account and exact
+  // device identity. This effect is declared before initialization so the
+  // first foreground span never touches another account or device ledger.
+  useEffect(() => {
+    const userId = normalizeStudyTimeUserId(userData?.id);
+    timeTrackingService.setUserDeviceScope(
+      userId,
+      userId ? getDeviceId() : null,
+    );
+  }, [userData?.id]);
+
   // Start the app/study time tracker (MMKV ledger + AppState heartbeat)
   useEffect(() => {
     timeTrackingService.initialize();
     initializeTimeTrackingSync();
   }, []);
+
+  // Warm the per-user, per-device other-device cache off the startup path.
+  // Focused Study Time views also refresh it on a five-minute cadence.
+  useEffect(() => {
+    if (!apiToken || !normalizeStudyTimeUserId(userData?.id)) {
+      return;
+    }
+    void maybeRefreshStudyTimeHistory();
+  }, [apiToken, userData?.id]);
 
   // Set user info for error attribution
   useEffect(() => {
@@ -681,74 +716,6 @@ function RootLayoutContentInner() {
         });
       };
 
-      const applyStartupUpdateIfAvailable = async (): Promise<boolean> => {
-        if (__DEV__ || !Updates.isEnabled) {
-          startupDiagnostics.markEvent("prepare.ota.skipped", {
-            reason: __DEV__ ? "development_mode" : "updates_disabled",
-          });
-          return false;
-        }
-
-        try {
-          setLoaderStatusMessage("Checking for updates...");
-
-          const updateCheck = await runTrackedOperation(
-            "prepare.ota.checkForUpdate",
-            () => Updates.checkForUpdateAsync()
-          );
-
-          startupDiagnostics.markEvent("prepare.ota.checkCompleted", {
-            isAvailable: updateCheck.isAvailable,
-            isRollBackToEmbedded: updateCheck.isRollBackToEmbedded,
-          });
-
-          if (!updateCheck.isAvailable && !updateCheck.isRollBackToEmbedded) {
-            setLoaderStatusMessage(null);
-            return false;
-          }
-
-          setLoaderStatusMessage("Applying update...");
-
-          const fetchResult = await runTrackedOperation(
-            "prepare.ota.fetchUpdate",
-            () => Updates.fetchUpdateAsync()
-          );
-          const shouldReloadNow =
-            fetchResult.isNew || fetchResult.isRollBackToEmbedded;
-
-          startupDiagnostics.markEvent("prepare.ota.fetchCompleted", {
-            isNew: fetchResult.isNew,
-            isRollBackToEmbedded: fetchResult.isRollBackToEmbedded,
-            shouldReloadNow,
-          });
-
-          if (!shouldReloadNow) {
-            setLoaderStatusMessage(null);
-            return false;
-          }
-
-          await runTrackedOperation("prepare.ota.reload", () =>
-            Updates.reloadAsync({
-              reloadScreenOptions: {
-                backgroundColor: theme.backgroundColor,
-                image: require("../assets/images/splash-icon.png"),
-                imageResizeMode: "contain",
-                fade: true,
-                spinner: { enabled: false },
-              },
-            })
-          );
-          return true;
-        } catch (error) {
-          console.error("Startup OTA check failed:", error);
-          startupDiagnostics.markEvent("prepare.ota.failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          setLoaderStatusMessage(null);
-          return false;
-        }
-      };
-
       startupDiagnostics.markEvent("root.prepare.begin", {
         fontsLoaded,
         hasFontError: Boolean(fontError),
@@ -802,11 +769,6 @@ function RootLayoutContentInner() {
             // Silent failure for splash screen
           });
 
-        const didTriggerReload = await applyStartupUpdateIfAvailable();
-        if (didTriggerReload) {
-          return;
-        }
-
         const token = session;
 
         // Non-blocking startup tasks: keep loader focused on rendering dashboard quickly.
@@ -829,8 +791,9 @@ function RootLayoutContentInner() {
         );
 
         if (token) {
-          runPostLoaderOperation("prepare.syncPendingProgress.background", () =>
-            syncPendingProgress(token)
+          runPostLoaderOperation(
+            "prepare.verifyAndSyncPendingProgress.background",
+            () => verifyAccountAndSyncPendingProgress(token),
           );
         }
 
@@ -1098,7 +1061,6 @@ function RootLayoutContentInner() {
           shouldDismiss={appIsReady}
           onLoadingComplete={handleLoadingComplete}
           cachingProgress={cachingProgress}
-          statusMessage={loaderStatusMessage}
         />
       )}
     </>

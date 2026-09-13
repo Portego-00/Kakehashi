@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const EXTRA_STUDY_SESSION_STORAGE_KEYS = {
+  AUDIO_VOCAB: "extra_study_session:audio_vocab",
   CUSTOM_REVIEW: "extra_study_session:custom_review",
   MEANING_READING: "extra_study_session:meaning_reading",
   HIRAGANA_VOCAB_MEANING: "extra_study_session:hiragana_vocab_meaning",
@@ -13,7 +14,20 @@ export const EXTRA_STUDY_SESSION_STORAGE_KEYS = {
   WRITING_PRACTICE: "extra_study_session:writing_practice",
   CROSSWORD: "extra_study_session:crossword",
   WORDLE: "extra_study_session:wordle",
+  WORD_SEARCH: "extra_study_session:word_search",
 } as const;
+
+export function getAccountScopedExtraStudySessionStorageKey(
+  key: string,
+  userId: string,
+): string {
+  const normalizedUserId = userId.trim();
+  if (!normalizedUserId) {
+    throw new TypeError("A user ID is required for account-scoped study data.");
+  }
+
+  return `${key}:user:${encodeURIComponent(normalizedUserId)}`;
+}
 
 export async function loadExtraStudySessionState<T extends object>(
   key: string,
