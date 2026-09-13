@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, typ
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Bookmark, Download, ExternalLink, Headphones, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
+import { AnkiExportButton } from "../../anki-export/AnkiExportButton";
 import { Button, type ButtonState } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TextAreaField } from "@/components/ui/Field";
@@ -381,7 +382,7 @@ function UsagePatterns({ patterns }: { patterns: UsagePattern[] }) {
         selectPattern(nextIndex, true);
       }}
     >{pattern.name}</button>)}</div>
-    <div id={`${id}-pattern-panel`} className={styles.patternExamples} role="tabpanel" aria-labelledby={`${id}-pattern-tab-${selected}`}>{active.examples.map((example, index) => <blockquote key={`${example.ja}-${index}`}><p lang="ja">{example.ja}</p><footer>{example.en}</footer></blockquote>)}</div>
+    <div id={`${id}-pattern-panel`} className={styles.patternExamples} role="tabpanel" aria-labelledby={`${id}-pattern-tab-${selected}`}>{active.examples.map((example, index) => <blockquote key={`${example.ja}-${index}`}><p lang="ja">{example.ja}</p><footer>{example.en}</footer><AnkiExportButton japanese={example.ja} english={example.en} /></blockquote>)}</div>
   </div></DetailSection>;
 }
 
@@ -423,6 +424,7 @@ export function ContextSentences({ sentences }: { sentences: ContextSentence[] }
           </button>
         </div>
         <footer>{sentence.en}</footer>
+        <AnkiExportButton japanese={sentence.ja} english={sentence.en} />
       </blockquote>;
     })}</div>
   </DetailSection>;
@@ -473,6 +475,7 @@ function AnimeContext({ examples, query, loading, failed }: { examples: Immersio
         </div>
         <p lang="ja"><HighlightedJapanese value={example.sentence} query={query} /></p>
         <span>{example.translation}</span>
+        <AnkiExportButton japanese={example.sentence} english={example.translation} />
       </figcaption>
     </figure>;
   })}</div>{visibleCount < examples.length ? <Button className={styles.immersionMore} type="button" tone="ghost" onClick={() => setVisibleCount((count) => Math.min(count + 10, examples.length))}>Show more scenes</Button> : null}</DetailSection>;

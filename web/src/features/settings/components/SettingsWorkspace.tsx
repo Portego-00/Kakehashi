@@ -1,5 +1,7 @@
 "use client";
 
+import { AnkiExportSettingsButton } from "../../anki-export/AnkiExportButton";
+
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, BookOpenText, Check, Download, ExternalLink, EyeOff, FileUp, GripVertical, HeartHandshake, KeyRound, Keyboard, LayoutDashboard, LogOut, Moon, Palette, Plus, RotateCcw, SlidersHorizontal, Trash2, Type, UserRound, Volume2 } from "lucide-react";
@@ -382,6 +384,9 @@ export function SettingsWorkspace() {
           <ToggleRow label="Show pitch accent graph" description="Add the mobile-style pitch contour after revealing a reading." checked={settings.study.ankiShowPitchAccentGraph} onChange={(value) => updateStudy("ankiShowPitchAccentGraph", value)} />
           <ToggleRow label="Show replay audio button" description="Add a pronunciation replay action beside the revealed answer." checked={settings.study.ankiShowReplayAudioButton} onChange={(value) => updateStudy("ankiShowReplayAudioButton", value)} />
         </> : null}
+
+        <div className={styles.subsectionHead}><h3>Anki export</h3><p>Send Japanese sentences and translations to desktop Anki through AnkiConnect.</p></div>
+        <AnkiExportSettingsButton />
 
         <div className={styles.subsectionHead}><h3>Vocabulary audio</h3><p>Choose automatic pronunciation and the preferred voice.</p></div>
         <ToggleRow label="Autoplay vocabulary audio" description="Play pronunciation after a correct reading or when an Anki reading is revealed." checked={settings.study.autoplayAudio} onChange={(value) => updateStudy("autoplayAudio", value)} />

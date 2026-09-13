@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { AnkiDroidExportSettingsButton } from "../../src/components/AnkiDroidExportButton";
 import { useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
@@ -24,6 +26,8 @@ const ANKI_SCOPE_OPTIONS: { value: AnkiScope; label: string }[] = [
 export default function AnkiSettingsScreen() {
   const { theme } = useTheme();
   const {
+    ankiDroidExportEnabled,
+    setAnkiDroidExportEnabled,
     ankiCardModeScope,
     setAnkiCardModeScope,
     ankiGroupQuestions,
@@ -360,6 +364,40 @@ export default function AnkiSettingsScreen() {
             />
           </View>
         </View>
+
+        {Platform.OS === "android" && (
+          <View
+            style={[
+              styles.section,
+              styles.exportSection,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+              External Export
+            </Text>
+            <Text
+              style={[
+                styles.exportDescription,
+                { color: theme.textSecondary },
+              ]}
+            >
+              Send vocabulary context sentences directly to your AnkiDroid
+              collection.
+            </Text>
+            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>Enable Anki export</Text>
+                <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Show Anki export buttons beside context sentences.</Text>
+              </View>
+              <Switch accessibilityLabel="Enable Anki export" value={ankiDroidExportEnabled} onValueChange={setAnkiDroidExportEnabled} trackColor={{ true: theme.primary }} />
+            </View>
+            {ankiDroidExportEnabled && <AnkiDroidExportSettingsButton />}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -412,6 +450,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 10,
+  },
+  exportSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  exportDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    paddingBottom: 12,
   },
   settingRow: {
     flexDirection: "row",

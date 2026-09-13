@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, ExternalLink, Headphones, LoaderCircle, Plus, RotateCcw, Search, SkipForward, Volume2, X } from "lucide-react";
+import { AnkiExportButton } from "../../anki-export/AnkiExportButton";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { LoadingState } from "@/components/ui/States";
 import { AnkiAnswerContent, type AnkiAnswerContentProps } from "@/features/core-study/AnkiAnswerContent";
@@ -768,7 +769,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
           {showReviewMetadata ? <div className={styles.reviewPromptMetadata} aria-label="Question status"><span>Level {currentSubject.data.level}</span>{currentAssignment ? <span><SrsStageIcon stage={currentAssignment.data.srs_stage} size={16} />{srsStageLabel(currentAssignment.data.srs_stage)}</span> : null}</div> : null}
         </div> : null}
         {showContextHint ? <div className={styles.reviewContextHint}>
-          <div>{contextSentences.map((sentence, index) => <div key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <p>• {sentence.en}</p> : null}</div>)}</div>
+          <div>{contextSentences.map((sentence, index) => <div key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <><p>• {sentence.en}</p><AnkiExportButton japanese={sentence.ja} english={sentence.en} /></> : null}</div>)}</div>
           {contextSentences.some((sentence) => sentence.en.trim()) ? <button className={styles.textButton} type="button" aria-expanded={contextTranslationOpen} onClick={() => setContextTranslationOpen((open) => !open)}>{contextTranslationOpen ? "Hide translations" : "Show translations"}</button> : null}
         </div> : null}
         {question.sentenceAudioEnabled ? <button className={styles.textButton} type="button" onClick={() => speakJapanese(question.sentence?.ja)}><Volume2 size={16} /> Play sentence</button> : null}
@@ -846,6 +847,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
             {canAddSynonym && currentSubject ? <AddMeaningSynonymButton subject={currentSubject} synonym={synonymCandidate} existingMaterial={currentStudyMaterial} disabled={advancingQuestion} onSaved={acceptSavedSynonym} /> : null}
 
+            {answer && question.sentence ? <AnkiExportButton japanese={question.sentence.ja} english={question.sentence.en} /> : null}
             {answer && question.sentence && currentSubject ? <NotebookCaptureButton subject={currentSubject} sentence={{ japanese: question.sentence.ja, english: question.sentence.en }} label="Add this sentence to notebook" /> : null}
 
             {detailsAvailable && currentSubject ? <div className={styles.itemDetailsRegion} data-open={detailsOpen}>

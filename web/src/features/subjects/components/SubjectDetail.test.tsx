@@ -194,7 +194,8 @@ describe("normal vocabulary context speech", () => {
     const first = screen.getByRole("button", { name: "Play Japanese context sentence 1: これは普通の例文です。" });
     expect(screen.getByRole("button", { name: "Play Japanese context sentence 2: 毎朝、電車で本を読みます。" })).toBeEnabled();
     expect(screen.queryByText("Saved in this browser")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Play Japanese context sentence/u })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Add sentence to Anki" })).not.toBeInTheDocument();
     expect(container.querySelector("audio")).not.toBeInTheDocument();
 
     fireEvent.click(first);

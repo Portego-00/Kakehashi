@@ -1,5 +1,7 @@
 "use client";
 
+import { AnkiExportButton } from "../anki-export/AnkiExportButton";
+
 import Link from "next/link";
 import { useId, useState, type FormEvent } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
@@ -41,6 +43,7 @@ function AccessibleSubjectNotebookSection({ subject }: { subject: Subject }) {
             <div className={styles.sentenceHeader}><p lang="ja">{sentence.japanese}</p><button type="button" className={styles.iconButton} aria-label={`Edit sentence: ${sentence.japanese}`} onClick={() => setEditingId(sentence.id)}><Pencil size={16} aria-hidden /></button></div>
             {sentence.kana ? <p lang="ja" className={styles.hint}>{sentence.kana}</p> : null}
             <p>{sentence.english}</p>
+            <AnkiExportButton japanese={sentence.japanese} english={sentence.english} />
             <SentenceActions subject={subject} sentence={sentence} mutate={notebook.mutate} />
           </>}
         </div>)}

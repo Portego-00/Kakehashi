@@ -108,6 +108,7 @@ import LessonMeaningPill from "./LessonMeaningPill";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 // Get screen dimensions
 const { height } = Dimensions.get("window");
@@ -2282,6 +2283,11 @@ const SubjectContent = ({
                     translationId,
                     styles.englishSentence
                   )}
+                  <AnkiDroidExportButton
+                    japanese={example.ja}
+                    english={example.en}
+                    style={styles.ankiExportAction}
+                  />
                 </View>
               );
             })}
@@ -2408,6 +2414,11 @@ const SubjectContent = ({
                         `wk-${subject.id}-${idx}`,
                         styles.englishSentence
                       )}
+                      <AnkiDroidExportButton
+                        japanese={sentence.ja}
+                        english={sentence.en}
+                        style={styles.ankiExportAction}
+                      />
                       {renderSentenceSpeedControl(sentenceId)}
                     </View>
                   );
@@ -2523,6 +2534,11 @@ const SubjectContent = ({
                           `media-${subject.id}-${sentence.id ?? idx}`,
                           styles.mediaTranslationText
                         )}
+                        <AnkiDroidExportButton
+                          japanese={sentence.sentence}
+                          english={sentence.translation}
+                          style={styles.ankiExportAction}
+                        />
                         {renderSentenceSpeedControl(
                           `media-${subject.id}-${sentence.id ?? idx}`
                         )}
@@ -3852,6 +3868,11 @@ const SubjectContent = ({
                                 `wk-${subject.id}-${index}`,
                                 styles.englishSentence
                               )}
+                              <AnkiDroidExportButton
+                                japanese={sentence.ja}
+                                english={sentence.en}
+                                style={styles.ankiExportAction}
+                              />
                               {renderSentenceSpeedControl(sentenceId)}
                             </View>
                           );
@@ -3992,6 +4013,11 @@ const SubjectContent = ({
                                         `media-${subject.id}-${sentence.id ?? index}`,
                                         styles.mediaTranslationText
                                       )}
+                                      <AnkiDroidExportButton
+                                        japanese={sentence.sentence}
+                                        english={sentence.translation}
+                                        style={styles.ankiExportAction}
+                                      />
                                       {renderSentenceSpeedControl(
                                         `media-${subject.id}-${sentence.id ?? index}`
                                       )}
@@ -4249,6 +4275,11 @@ const SubjectContent = ({
                                 `wk-${subject.id}-${index}`,
                                 styles.englishSentence
                               )}
+                              <AnkiDroidExportButton
+                                japanese={sentence.ja}
+                                english={sentence.en}
+                                style={styles.ankiExportAction}
+                              />
                               {renderSentenceSpeedControl(sentenceId)}
                             </View>
                           );
@@ -4389,6 +4420,11 @@ const SubjectContent = ({
                                         `media-${subject.id}-${sentence.id ?? index}`,
                                         styles.mediaTranslationText
                                       )}
+                                      <AnkiDroidExportButton
+                                        japanese={sentence.sentence}
+                                        english={sentence.translation}
+                                        style={styles.ankiExportAction}
+                                      />
                                       {renderSentenceSpeedControl(
                                         `media-${subject.id}-${sentence.id ?? index}`
                                       )}
@@ -6468,6 +6504,10 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
       fontStyle: "normal",
     },
     sentenceSpeedControl: {
+      marginTop: 8,
+    },
+    ankiExportAction: {
+      alignSelf: "flex-end",
       marginTop: 8,
     },
     sentenceSpeedToggle: {

@@ -4,6 +4,18 @@ These notices cover bundled data, build-time inputs, and runtime components
 identified below. They do not change the MIT license of the rest of the
 Kakehashi application.
 
+## AnkiDroid API
+
+The Android context-sentence export integration uses the AnkiDroid API:
+
+- Project: https://github.com/ankidroid/Anki-Android
+- API version: `api-v1.1.0`
+- License: GNU Lesser General Public License, version 3 or later
+- License copy: `licenses/MAKE_ME_A_HANZI_LGPL.txt`
+
+The API is linked as a replaceable Gradle library and communicates with the
+separately installed AnkiDroid application through its public content provider.
+
 ## Notebook editor
 
 The web notebook uses the unmodified BlockNote core, React, and Mantine packages

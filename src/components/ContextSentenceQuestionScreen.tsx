@@ -40,6 +40,7 @@ import { useTheme } from "../utils/theme";
 import { VocabularyTooltip } from "./VocabularyTooltip";
 import KanaInput from "./TextToKanaInput";
 import * as wanakana from "wanakana";
+import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 const { width } = Dimensions.get("window");
 const { height } = Dimensions.get("window");
@@ -1749,6 +1750,12 @@ export default function ContextSentenceQuestionScreen({
                   {showExpectedAnswer ? "Hide Answer" : "Show Answer"}
                 </Text>
               </TouchableOpacity>
+              <AnkiDroidExportButton
+                japanese={question.sentence}
+                english={question.translation}
+                compact
+                style={styles.resultAnkiButton}
+              />
             </View>
           )}
 
@@ -2282,6 +2289,12 @@ const styles = StyleSheet.create({
   resultActionButtonText: {
     fontSize: 13,
     fontWeight: "600",
+  },
+  resultAnkiButton: {
+    width: 42,
+    minWidth: 42,
+    height: 42,
+    borderRadius: 14,
   },
   questionWrapper: {
     paddingHorizontal: 16,
