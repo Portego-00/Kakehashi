@@ -3222,11 +3222,17 @@ export default function VocabularyDetails({
     );
   };
 
+  const tabScrollRefs = {
+    meaning: meaningScrollRef,
+    reading: readingScrollRef,
+    context: contextScrollRef,
+  };
+
   const renderPage = (
     tab: "meaning" | "reading" | "context",
     scrollRef: typeof meaningScrollRef
   ) => (
-    <View style={styles.page}>
+    <View key={tab} style={styles.page}>
       <Animated.ScrollView
         ref={scrollRef}
         style={[
@@ -3388,9 +3394,7 @@ export default function VocabularyDetails({
           initialPage={getTabIndex(activeTab)}
           onPageSelected={onTabPageSelected}
         >
-          {renderPage("meaning", meaningScrollRef)}
-          {vocabulary.object !== "kana_vocabulary" && renderPage("reading", readingScrollRef)}
-          {renderPage("context", contextScrollRef)}
+          {tabOrder.map((tab) => renderPage(tab, tabScrollRefs[tab]))}
         </PagerView>
       </View>
 

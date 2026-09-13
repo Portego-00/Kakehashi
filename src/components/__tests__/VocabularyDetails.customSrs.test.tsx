@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { StyleSheet } from "react-native";
+import PagerView from "react-native-pager-view";
 import { searchImmersionKit } from "../../services/immersionKitService";
 import { CustomContextSentencesSection } from "../CustomContextSentencesSection";
 import VocabularyDetails from "../VocabularyDetails";
@@ -35,9 +36,11 @@ jest.mock("react-native-reanimated", () => {
 jest.mock("react-native-pager-view", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  // Exercise the shipped iOS child handling; a plain View hides null-page crashes.
+  const { childrenWithOverriddenStyle } = jest.requireActual("react-native-pager-view/lib/commonjs/utils.ios");
   const Pager = React.forwardRef((props: React.ComponentProps<typeof View>, ref: React.ForwardedRef<{ setPage: (index: number) => void }>) => {
     React.useImperativeHandle(ref, () => ({ setPage: mockSetPage }));
-    return <View {...props} />;
+    return <View {...props}>{childrenWithOverriddenStyle(props.children)}</View>;
   });
   Pager.displayName = "MockPager";
   return Pager;
@@ -87,6 +90,37 @@ beforeEach(() => {
   mockSettings.hideContextSentenceTranslations = false;
   mockSettings.hideContextSentenceTranslationsCompletely = false;
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
+});
+
+it.each([false, true])("renders ドキドキ with working kana tabs (embedded: %s)", async (embedded) => {
+  const screen = render(
+    <VocabularyDetails
+      embedded={embedded}
+      vocabulary={{
+        ...vocabulary,
+        id: 9232,
+        characters: "ドキドキ",
+        meanings: [{ meaning: "Pounding Heart", primary: true }],
+        meaningMnemonic: "A <vocabulary>pounding heart</vocabulary> goes ドキドキ.",
+        contextSentences: [{ ja: "心臓がドキドキする。", en: "My heart is pounding." }],
+      }}
+      progressionStatus="success"
+    />,
+  );
+
+  expect(screen.getAllByText("Pounding Heart").length).toBeGreaterThan(0);
+  const pager = screen.UNSAFE_getByType(PagerView);
+  expect(React.Children.toArray(pager.props.children)).toHaveLength(2);
+  expect(pager.props.initialPage).toBe(0);
+
+  fireEvent.press(screen.getByText("Context"));
+  expect(mockSetPage).toHaveBeenLastCalledWith(1);
+  expect(screen.getByText("My heart is pounding.")).toBeTruthy();
+  fireEvent.press(screen.getAllByText("Meaning")[0]);
+  expect(mockSetPage).toHaveBeenLastCalledWith(0);
+  fireEvent(pager, "pageSelected", { nativeEvent: { position: 1 } });
+  expect(StyleSheet.flatten(screen.getByText("Context").props.style).color).toBe("white");
+  await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
 it("fully conceals hidden translations until they are revealed", () => {
