@@ -15,6 +15,7 @@ const mockSettings = {
   showSingleKanjiVocabularySimilarKanji: false,
   showMediaContextSentences: true,
   hideContextSentenceTranslations: false,
+  hideContextSentenceTranslationsCompletely: false,
   showContextSentenceSpeedControl: false,
   myAnimeListUsername: "",
   immersionKitAnimes: [],
@@ -83,7 +84,26 @@ const vocabulary = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSettings.hideContextSentenceTranslations = false;
+  mockSettings.hideContextSentenceTranslationsCompletely = false;
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
+});
+
+it("fully conceals hidden translations until they are revealed", () => {
+  mockSettings.hideContextSentenceTranslations = true;
+  mockSettings.hideContextSentenceTranslationsCompletely = true;
+
+  const screen = render(
+    <VocabularyDetails
+      vocabulary={vocabulary}
+      progressionStatus="success"
+      initialTab="context"
+    />,
+  );
+
+  expect(screen.queryByText(vocabulary.contextSentences[0].en)).toBeNull();
+  fireEvent.press(screen.getAllByText("Tap to reveal translation")[0]);
+  expect(screen.getByText(vocabulary.contextSentences[0].en)).toBeTruthy();
 });
 
 it("shows only Meaning and Context for custom kana, rendering mnemonic tags as styled text", async () => {

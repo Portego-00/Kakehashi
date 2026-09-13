@@ -25,6 +25,23 @@ describe("patch notes", () => {
     });
   });
 
+  it("preserves both announcements in the September 12 release", () => {
+    expect(PATCH_NOTES[0]).toMatchObject({
+      version: "1.4.13",
+      date: "2026-09-12",
+      changes: expect.arrayContaining([
+        expect.objectContaining({
+          type: "feature",
+          title: "Fully Hidden Translations",
+        }),
+        expect.objectContaining({
+          type: "fix",
+          title: "Multiple Choice Answers",
+        }),
+      ]),
+    });
+  });
+
   it("preserves the Word Search announcement in its original release", () => {
     const wordSearchRelease = PATCH_NOTES.find((note) => note.version === "1.4.7");
     expect(wordSearchRelease).toMatchObject({

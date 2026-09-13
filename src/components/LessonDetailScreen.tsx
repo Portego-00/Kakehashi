@@ -389,6 +389,7 @@ const SubjectContent = ({
     showSingleKanjiVocabularySimilarKanji,
     showMediaContextSentences,
     hideContextSentenceTranslations,
+    hideContextSentenceTranslationsCompletely,
     showContextSentenceSpeedControl,
     showMnemonicIllustrations,
     myAnimeListUsername,
@@ -1754,12 +1755,16 @@ const SubjectContent = ({
         style={styles.translationRevealContainer}
         onPress={() => revealTranslation(translationId)}
       >
-        <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
-        <BlurView
-          tint={theme.isDark ? "dark" : "light"}
-          intensity={24}
-          style={styles.translationBlurOverlay}
-        />
+        {!hideContextSentenceTranslationsCompletely && (
+          <>
+            <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
+            <BlurView
+              tint={theme.isDark ? "dark" : "light"}
+              intensity={24}
+              style={styles.translationBlurOverlay}
+            />
+          </>
+        )}
         <View style={styles.translationRevealHint}>
           <Ionicons name="eye-outline" size={14} color={theme.textSecondary} />
           <Text

@@ -12,8 +12,10 @@ import { styles } from "../styles";
 export function VocabularyContextSection() {
   const {
     hideContextSentenceTranslations,
+    hideContextSentenceTranslationsCompletely,
     router,
     setHideContextSentenceTranslations,
+    setHideContextSentenceTranslationsCompletely,
     setShowContextSentenceSpeedControl,
     setShowMediaContextSentences,
     setShowPatternsOfUse,
@@ -110,6 +112,36 @@ export function VocabularyContextSection() {
             onValueChange={setHideContextSentenceTranslations}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
+          />
+        </View>
+
+        <View
+          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+        >
+          <Ionicons
+            name="remove-circle-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Hide translations completely
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show no translation text before you tap to reveal it, instead of
+              displaying a blurred preview
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Hide context sentence translations completely"
+            value={hideContextSentenceTranslationsCompletely}
+            onValueChange={setHideContextSentenceTranslationsCompletely}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+            disabled={!hideContextSentenceTranslations}
           />
         </View>
 

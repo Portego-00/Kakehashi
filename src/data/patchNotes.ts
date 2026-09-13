@@ -57,8 +57,14 @@ export const getCurrentPatchNotesVersion = (): string => {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: "1.4.13",
-    date: "2026-09-10",
+    date: "2026-09-12",
     changes: [
+      {
+        type: "feature",
+        title: "Fully Hidden Translations",
+        description:
+          "Added an option to completely hide context sentence translations until you tap to reveal them, instead of showing a blurred preview.",
+      },
       {
         type: "fix",
         title: "Multiple Choice Answers",
