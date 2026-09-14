@@ -73,3 +73,9 @@ The main checkout remains at marketing version 1.4.7, with an iOS-only runtime o
 ## Pencil controls correction (2026-09-10)
 
 The controls correction is a native/mobile-only release; it uses the existing deployed API and asset format. Evidence is under `output/notebooks-mobile/native-pencil-controls-2026-09-10/`. The new iOS runtimes separate these native fixes from the preceding binary. No backend deployment or EAS Update is required for the direct iPad installation.
+
+## Done hit testing and selection (2026-09-14)
+
+Native paper geometry follows captured ancestor scroll events as well as size/viewport changes. Programmatic scrolling, including focus and scroll anchoring while text input is locked, can move the paper without resizing it. Previously the native drawing surface stayed at its old coordinates and could cover Done; the same scroll now updates its rectangle through the host layout callback. The drawing selection has no blue fill or thick inset outline, only a subtle change to the existing paper border. Other block selections and keyboard focus indicators retain their behavior.
+
+These changes affect the mobile DOM code and CSS only; they require no new native module, runtime bump, backend deployment or asset migration. Release preparation uses the current app sources and runtime `1.4.8`. Evidence, including the failing regression and browser geometry before/after, is under `output/notebooks-mobile/done-selection-2026-09-14/`.

@@ -4,7 +4,8 @@
 
 # Android/IntelliJ
 #
-build/
+# Match directories and SSD symlinks so local build output stays out of EAS uploads.
+build
 .idea
 .gradle
 local.properties

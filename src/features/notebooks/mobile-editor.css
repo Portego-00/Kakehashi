@@ -34,6 +34,18 @@ button { touch-action: manipulation; }
 .nb-mobile .bn-container { color: var(--nb-text); --bn-colors-editor-background: var(--nb-bg); --bn-colors-editor-text: var(--nb-text); --bn-font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif; }
 .nb-mobile .bn-editor { max-width: 740px; margin-inline: auto; padding: 0 24px 160px; min-height: 260px; font-family: inherit; font-size: 17px; line-height: 1.7; background: var(--nb-bg); color: var(--nb-text); caret-color: var(--nb-primary); overflow-wrap: anywhere; }
 .nb-mobile .bn-block-content { padding-block: 4px; }
+/* Keep a selected drawing legible without tinting its paper or ink. */
+.nb-mobile .bn-block-content[data-content-type='handwriting'].ProseMirror-selectednode > *::after,
+.nb-mobile .ProseMirror-selectednode > .bn-block-content[data-content-type='handwriting'] > *::after,
+.nb-mobile .bn-block-content[data-content-type='handwriting'] .ProseMirror-selectednode::after {
+  background-color: transparent;
+  box-shadow: none;
+}
+.nb-mobile .bn-block-content[data-content-type='handwriting'].ProseMirror-selectednode .nb-handwriting,
+.nb-mobile .ProseMirror-selectednode > .bn-block-content[data-content-type='handwriting'] .nb-handwriting,
+.nb-mobile .bn-block-content[data-content-type='handwriting'] .nb-handwriting.ProseMirror-selectednode {
+  border-color: color-mix(in srgb, var(--nb-muted) 25%, transparent);
+}
 .nb-mobile .bn-block-content[data-content-type='heading'] { padding-top: 20px; padding-bottom: 5px; }
 .nb-mobile .bn-block-content[data-content-type='heading'][data-level='1'] { font-size: 27px; line-height: 1.35; }
 .nb-mobile .bn-block-content[data-content-type='heading'][data-level='2'] { font-size: 23px; line-height: 1.4; }

@@ -123,8 +123,12 @@ export function NativeHandwriting(props: Props) {
     update(); const observer = new ResizeObserver(update);
     const element = paper(); if (element) observer.observe(element);
     const scroll = root.current?.closest<HTMLElement>(".nb-scroll"); if (scroll) observer.observe(scroll);
+    // Focus and scroll anchoring can move paper even while user scrolling is
+    // locked. Capture ancestor scroll events (which do not bubble) so the
+    // native canvas cannot remain over the toolbar at its previous position.
+    window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update); window.visualViewport?.addEventListener("resize", update); window.visualViewport?.addEventListener("scroll", update);
-    return () => { if (frame) cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("resize", update); window.visualViewport?.removeEventListener("resize", update); window.visualViewport?.removeEventListener("scroll", update); };
+    return () => { if (frame) cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("scroll", update, true); window.removeEventListener("resize", update); window.visualViewport?.removeEventListener("resize", update); window.visualViewport?.removeEventListener("scroll", update); };
   }, [active, dimensions.width, dimensions.height, geometry, paper, scale, fullscreen]);
   const start = async () => {
     if (busy || active || props.nativeHandwritingState) return;

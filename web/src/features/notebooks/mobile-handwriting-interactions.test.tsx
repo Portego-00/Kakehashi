@@ -89,6 +89,23 @@ describe("native PencilKit handwriting in the notebook", () => {
     expect(editor.onNativeHandwritingCommand).toHaveBeenCalledWith(block.id, "redo", undefined);
     expect(editor.onNativeHandwritingCommand).toHaveBeenCalledWith(block.id, "finger", true);
   });
+  it("keeps the native paper off Done when the notebook scroll position changes after drawing", async () => {
+    const editor = props(); const view = render(<NotebookEditor {...editor} />); const block = await activate(editor, view);
+    const paper = document.querySelector<HTMLElement>("[data-handwriting-paper]")!;
+    const scroll = document.querySelector<HTMLElement>(".nb-scroll")!;
+    const initial = paper.getBoundingClientRect();
+    let top = 180;
+    vi.spyOn(paper, "getBoundingClientRect").mockImplementation(() => ({ ...initial, y: top, top, bottom: top + initial.height }));
+    fireEvent(window, new Event("resize"));
+    await waitFor(() => expect(vi.mocked(editor.onNativeHandwritingLayout!).mock.calls.at(-1)![1].rect.y).toBe(180));
+    // A completed native stroke updates metadata, while focus/scroll anchoring
+    // can move the block without changing the paper or viewport dimensions.
+    view.rerender(<NotebookEditor {...editor} nativeHandwritingState={{ ...state(block.id), revision: 2 }} />);
+    top = 300;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(vi.mocked(editor.onNativeHandwritingLayout!).mock.calls.at(-1)![1].rect.y).toBe(300));
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+  });
   it("saves native ink in the same block and acknowledges only after the notebook persists", async () => {
     const persisted = deferred<void>();
     const onChange = vi.fn().mockImplementation((blocks) => blocks.some((block: { props?: { drawingId?: string } }) => block.props?.drawingId === saved.drawingId) ? persisted.promise : Promise.resolve());

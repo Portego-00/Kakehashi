@@ -75,6 +75,17 @@ npm run lint
 npm test
 ```
 
+## Kanji composition in Anki reviews
+
+Enable **Settings → Anki Advanced Settings → Show Kanji Composition** to see a
+vocabulary word's component kanji and their primary meanings alongside its
+revealed answer in compact cards. Tap a card to open that kanji's details;
+returning keeps the review answer revealed. On Android, the settings entry is
+**Anki Settings & Export**.
+The option is off by default and works with grouped, meaning, and reading Anki
+cards. Components appear in word order, using the saved subject catalog for
+offline review; unavailable components are omitted.
+
 ## Connecting Spotify
 
 The mobile app includes a personal Spotify setup guide in **Settings → Music

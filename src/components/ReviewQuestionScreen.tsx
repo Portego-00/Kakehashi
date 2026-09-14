@@ -1041,6 +1041,7 @@ export default function ReviewQuestionScreen({
     ankiButtonlessMode,
     ankiShowReplayAudioButton,
     ankiShowOtherAcceptedAnswersAndUserSynonyms,
+    ankiShowKanjiComposition,
     ankiShowWaniKaniGrammarTags,
     ankiShowPitchAccentNumbers,
     ankiShowPitchAccentGraph,
@@ -1220,7 +1221,8 @@ export default function ReviewQuestionScreen({
   const [iosKeyboardVisible, setIosKeyboardVisible] = useState(false);
   const [iosKeyboardAvoidingEnabled, setIosKeyboardAvoidingEnabled] = useState(true);
   const [androidQuestionLayoutHeight, setAndroidQuestionLayoutHeight] = useState(0);
-  const [ankiButtonlessOverlayWidth, setAnkiButtonlessOverlayWidth] = useState(0);
+  const buttonlessGestureContainerRef = useRef<View | null>(null);
+  const buttonlessGestureBoundsRef = useRef({ left: 0, width: windowWidth });
   const androidBaselineQuestionHeightRef = useRef(0);
   const interfaceIdiom = (
     Platform.constants as { interfaceIdiom?: string } | undefined
@@ -1612,6 +1614,68 @@ export default function ReviewQuestionScreen({
   }, [cancelVoiceRecognition, currentQuestionKey]);
   const isCurrentQuestionAnkiRevealed =
     ankiAnswerRevealed && ankiRevealQuestionKey === currentQuestionKey;
+  const showAnkiKanjiComposition = Boolean(
+    effectiveAnkiCardMode &&
+      ankiShowKanjiComposition &&
+      isCurrentQuestionAnkiRevealed &&
+      subject.object === "vocabulary" &&
+      subject.id > 0,
+  );
+  const [ankiKanjiComposition, setAnkiKanjiComposition] = useState<{
+    questionKey: string;
+    components: { id: number; characters: string; meaning: string }[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!showAnkiKanjiComposition) return;
+    let cancelled = false;
+
+    const loadComposition = async () => {
+      const currentSubject = latestReviewSubjectRef.current;
+      // Some review queues carry only the question fields. Recover component
+      // IDs from the local catalog without requiring a connection during review.
+      const compositionSubject = Array.isArray(currentSubject.data.component_subject_ids)
+        ? currentSubject
+        : normalizeCachedSubject(await getSubjectById(currentSubject.id)) ?? currentSubject;
+      if (cancelled) return;
+
+      const componentIds = [...new Set(
+        getSubjectIdList(compositionSubject.data.component_subject_ids),
+      )];
+      const components = (await loadCachedSubjectsByIds(componentIds))
+        .filter((component) => component.object === "kanji" && component.data.characters)
+        .map((component) => {
+          const meanings = getSubjectMeanings(component);
+          return {
+            id: component.id,
+            characters: component.data.characters!,
+            meaning: (meanings.find((meaning) => meaning.primary) ?? meanings[0])?.meaning ?? "",
+          };
+        });
+      const vocabularyCharacters = compositionSubject.data.characters ?? "";
+      const position = (characters: string) => {
+        const index = vocabularyCharacters.indexOf(characters);
+        return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+      };
+      components.sort((left, right) => position(left.characters) - position(right.characters));
+
+      if (!cancelled) {
+        setAnkiKanjiComposition({ questionKey: currentQuestionKey, components });
+      }
+    };
+
+    void loadComposition().catch(() => {
+      if (!cancelled) setAnkiKanjiComposition(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentQuestionKey, showAnkiKanjiComposition]);
+
+  const currentAnkiKanjiComposition =
+    showAnkiKanjiComposition && ankiKanjiComposition?.questionKey === currentQuestionKey
+      ? ankiKanjiComposition.components
+      : [];
   const emitAnswer = useCallback(
     (
       answeredQuestionType: QuestionType,
@@ -1672,6 +1736,8 @@ export default function ReviewQuestionScreen({
   const hasContextHint = !audioPrompt && displayedContextSentencesHint.length > 0;
   const isContextHintVisible =
     hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
+  const useContentSizedAnkiCard =
+    effectiveAnkiCardMode && isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode;
   const shouldShowReviewItemMetadataInLayout =
     subjectJLPTLevel !== null ||
     (shouldShowReviewItemMetadata && !isContextHintVisible);
@@ -4691,11 +4757,10 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    const hitAreaWidth =
-      ankiButtonlessOverlayWidth > 0
-        ? ankiButtonlessOverlayWidth
-        : Math.max(windowWidth, 1);
-    const isLeftHalfTap = event.nativeEvent.locationX < hitAreaWidth / 2;
+    // A bubbling touch can originate in a text child, so locationX is not
+    // necessarily relative to the review pane.
+    const { left, width: hitAreaWidth } = buttonlessGestureBoundsRef.current;
+    const isLeftHalfTap = event.nativeEvent.pageX < left + hitAreaWidth / 2;
     handleAnkiAnswerButton(!isLeftHalfTap);
   };
 
@@ -5760,6 +5825,39 @@ export default function ReviewQuestionScreen({
         onLayout={handleQuestionContainerLayout}
       >
         <Animated.View
+          ref={buttonlessGestureContainerRef}
+          onLayout={(event) => {
+            buttonlessGestureBoundsRef.current.width = event.nativeEvent.layout.width;
+            buttonlessGestureContainerRef.current?.measureInWindow((left, _top, paneWidth) => {
+              if (paneWidth > 0) {
+                buttonlessGestureBoundsRef.current = { left, width: paneWidth };
+              }
+            });
+          }}
+          onStartShouldSetResponder={() =>
+            effectiveAnkiButtonlessMode &&
+            isCurrentQuestionAnkiRevealed &&
+            !navigatingToDetail &&
+            !pendingAnkiSubmitCallbackRef.current
+          }
+          onMoveShouldSetResponder={() => false}
+          onResponderGrant={beginButtonlessAnkiGesture}
+          onResponderMove={trackButtonlessAnkiGesture}
+          onResponderRelease={releaseButtonlessAnkiGesture}
+          onResponderTerminate={() => {
+            buttonlessGestureDeltaRef.current = { dx: 0, dy: 0 };
+          }}
+          onResponderTerminationRequest={() => false}
+          accessibilityLabel={
+            effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed
+              ? "Buttonless anki controls"
+              : undefined
+          }
+          accessibilityHint={
+            effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed
+              ? "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
+              : undefined
+          }
           layout={
             effectiveShowAnswerStopSubjectDetails
               ? pausedDetailsLayoutTransition
@@ -5767,6 +5865,7 @@ export default function ReviewQuestionScreen({
           }
           style={[
             styles.reviewInteractionPane,
+            useContentSizedAnkiCard && styles.ankiContentSizedPane,
             shouldShowPausedSubjectDetails &&
               styles.reviewInteractionPaneWithDetails,
           ]}
@@ -5774,7 +5873,12 @@ export default function ReviewQuestionScreen({
         {/* Character display (or overridden prompt) */}
         <ScrollView
           key={currentQuestionKey}
-          style={[styles.characterScrollView, hideTypedAnswerInput && !isPausedOnAnswer && { minHeight: Math.max(110, windowHeight * 0.17) }]}
+          style={[
+            styles.characterScrollView,
+            useContentSizedAnkiCard && styles.ankiContentSizedPrompt,
+            useContentSizedAnkiCard && isContextHintVisible && styles.ankiContextHintPrompt,
+            hideTypedAnswerInput && !isPausedOnAnswer && { minHeight: Math.max(110, windowHeight * 0.17) },
+          ]}
           contentContainerStyle={[
             styles.characterWrapper,
             isContextHintVisible && styles.characterWrapperWithOpenHint,
@@ -5929,9 +6033,21 @@ export default function ReviewQuestionScreen({
 
         {effectiveAnkiCardMode ? (
           /* Anki Card Mode */
-          <View style={styles.ankiCardContainer}>
+          <View
+            style={[
+              styles.ankiCardContainer,
+              useContentSizedAnkiCard && styles.ankiContentSizedCard,
+              effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed &&
+                styles.ankiButtonlessNaturalHeight,
+            ]}
+          >
             <TouchableOpacity
-              style={styles.ankiAnswerContainer}
+              style={[
+                styles.ankiAnswerContainer,
+                useContentSizedAnkiCard && styles.ankiContentSizedCard,
+                effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed &&
+                  styles.ankiButtonlessNaturalHeight,
+              ]}
               onPress={
                 !isCurrentQuestionAnkiRevealed ? handleAnkiRevealAnswer : undefined
               }
@@ -6078,11 +6194,22 @@ export default function ReviewQuestionScreen({
               style={[
                 styles.ankiContentContainer,
                 ankiContainerStyle,
+                effectiveAnkiButtonlessMode && styles.ankiButtonlessNaturalHeight,
                 theme.isDark && { backgroundColor: "#000000" },
               ]}
             >
               {/* Answer display area */}
-              <View style={styles.ankiAnswerSection}>
+              <ScrollView
+                key={currentQuestionKey}
+                style={[
+                  styles.ankiAnswerScroll,
+                  effectiveAnkiButtonlessMode && styles.ankiButtonlessNaturalHeight,
+                ]}
+                contentContainerStyle={styles.ankiAnswerSection}
+                scrollEnabled={isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode}
+                keyboardShouldPersistTaps="always"
+                bounces={false}
+              >
                 <View style={styles.ankiBlurContainer}>
                   {!shouldFullyHideAnkiAnswer && (
                     <>
@@ -6171,6 +6298,57 @@ export default function ReviewQuestionScreen({
                             ))}
                           </View>
                         )}
+                      {currentAnkiKanjiComposition.length > 0 && (
+                        <View style={styles.ankiSupplementaryAnswersContainer}>
+                          <Text
+                            style={[
+                              styles.ankiSupplementaryAnswerLabel,
+                              theme.isDark && { color: "rgba(255, 255, 255, 0.62)" },
+                            ]}
+                          >
+                            Kanji Composition
+                          </Text>
+                          <View style={styles.ankiKanjiComposition}>
+                            {currentAnkiKanjiComposition.map((component) => (
+                              <TouchableOpacity
+                                key={component.id}
+                                style={[
+                                  styles.ankiKanjiComponent,
+                                  {
+                                    backgroundColor: getSubjectTypeColor("kanji"),
+                                    width: Math.min(68 + component.meaning.length * 2, 108),
+                                  },
+                                ]}
+                                onPress={() => {
+                                  if (!navigatingToDetail && !pendingAnkiSubmitCallbackRef.current) {
+                                    handleEmbeddedSubjectPress(component.id);
+                                  }
+                                }}
+                                disabled={navigatingToDetail}
+                                activeOpacity={0.7}
+                                accessibilityRole="button"
+                                accessibilityLabel={`View kanji ${component.characters}: ${component.meaning}`}
+                              >
+                                <Text
+                                  style={styles.ankiKanjiCharacter}
+                                  numberOfLines={1}
+                                  adjustsFontSizeToFit
+                                  minimumFontScale={0.75}
+                                >
+                                  {component.characters}
+                                </Text>
+                                <Text
+                                  style={styles.ankiKanjiMeaning}
+                                  numberOfLines={2}
+                                  ellipsizeMode="tail"
+                                >
+                                  {component.meaning}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
                       {!isCurrentQuestionAnkiRevealed &&
                         (Platform.OS === "ios" ? (
                           <BlurView
@@ -6206,7 +6384,7 @@ export default function ReviewQuestionScreen({
                     </Text>
                   </View>
                 )}
-              </View>
+              </ScrollView>
 
               {showAnkiReplayButton && (
                 <View style={styles.ankiReplaySection}>
@@ -6977,34 +7155,6 @@ export default function ReviewQuestionScreen({
         </Animated.View>
 
         {effectiveAnkiCardMode &&
-          isCurrentQuestionAnkiRevealed &&
-          effectiveAnkiButtonlessMode && (
-            <View
-              style={styles.ankiButtonlessOverlay}
-              onLayout={(event) =>
-                setAnkiButtonlessOverlayWidth(event.nativeEvent.layout.width)
-              }
-              onStartShouldSetResponder={() =>
-                !navigatingToDetail &&
-                !pendingAnkiSubmitCallbackRef.current
-              }
-              onMoveShouldSetResponder={() =>
-                !navigatingToDetail &&
-                !pendingAnkiSubmitCallbackRef.current
-              }
-              onResponderGrant={beginButtonlessAnkiGesture}
-              onResponderMove={trackButtonlessAnkiGesture}
-              onResponderRelease={releaseButtonlessAnkiGesture}
-              onResponderTerminate={() => {
-                buttonlessGestureDeltaRef.current = { dx: 0, dy: 0 };
-              }}
-              onResponderTerminationRequest={() => false}
-              accessibilityLabel="Buttonless anki controls"
-              accessibilityHint="Tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
-            />
-          )}
-
-        {effectiveAnkiCardMode &&
           isScreenFocused &&
           !noteSubjectPreviewOpen && (
             <TextInput
@@ -7736,6 +7886,27 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     justifyContent: "flex-end",
   },
+  // After reveal, reserve the prompt's intrinsic height and give the answer
+  // its natural height before letting its contents scroll. Unrevealed cards
+  // keep the large tap area.
+  ankiContentSizedPane: {
+    justifyContent: "space-between",
+  },
+  ankiContentSizedPrompt: {
+    flex: 0,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: "auto",
+  },
+  ankiContextHintPrompt: {
+    maxHeight: "50%",
+  },
+  ankiContentSizedCard: {
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: "auto",
+  },
   ankiSrsProgressionOverlay: {
     position: "absolute",
     left: 0,
@@ -7807,6 +7978,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   ankiContentContainer: {
+    flexShrink: 1,
     backgroundColor: "white",
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
@@ -7821,6 +7993,18 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  ankiAnswerScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  // Buttonless swipes control grading and navigation. Give its answer the
+  // space it needs instead of requiring a conflicting scroll gesture.
+  ankiButtonlessNaturalHeight: {
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
   },
   ankiBlurContainer: {
     position: "relative",
@@ -7863,6 +8047,36 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginTop: 6,
     maxWidth: "100%",
+  },
+  ankiKanjiComposition: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  ankiKanjiComponent: {
+    height: 64,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    flexShrink: 0,
+    maxWidth: "100%",
+  },
+  ankiKanjiCharacter: {
+    ...fontStyles.japaneseBold,
+    fontSize: 20,
+    color: "white",
+  },
+  ankiKanjiMeaning: {
+    fontSize: 11,
+    lineHeight: 13,
+    color: "white",
+    textAlign: "center",
+    fontWeight: "500",
+    marginTop: 2,
+    paddingHorizontal: 2,
   },
   ankiBlurOverlay: {
     position: "absolute",
@@ -7920,10 +8134,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingTop: 4,
     gap: 12,
-  },
-  ankiButtonlessOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 30,
   },
   ankiButton: {
     flex: 1,

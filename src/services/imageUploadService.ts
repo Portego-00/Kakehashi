@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system";
+import { File } from "expo-file-system";
 
 import { supabase } from "../lib/supabase";
 
@@ -83,20 +83,45 @@ function createStoragePath(media: UploadableIssueMedia, mediaType: "image" | "vi
 }
 
 async function resolveMediaSizeBytes(media: UploadableIssueMedia) {
-  if (typeof media.fileSize === "number" && Number.isFinite(media.fileSize)) {
+  if (
+    typeof media.fileSize === "number" &&
+    Number.isFinite(media.fileSize) &&
+    media.fileSize >= 0
+  ) {
     return media.fileSize;
   }
 
+  if (!isLocalMediaUri(media.uri)) return null;
+
   try {
-    const info = await FileSystem.getInfoAsync(media.uri);
-    if ("size" in info && typeof info.size === "number") {
-      return info.size;
+    const size = new File(media.uri).size;
+    if (typeof size === "number" && Number.isFinite(size) && size >= 0) {
+      return size;
     }
   } catch (error) {
     console.warn("Could not read selected media size:", error);
   }
 
   return null;
+}
+
+function isLocalMediaUri(uri: string) {
+  return /^(file|content):\/\//i.test(uri);
+}
+
+async function readMediaBytes(uri: string): Promise<ArrayBuffer> {
+  if (isLocalMediaUri(uri)) {
+    // Android's HTTP reader rejects picker file/content URIs. Read their bytes
+    // with the native file API and keep Supabase's upload body an ArrayBuffer.
+    return new File(uri).arrayBuffer();
+  }
+
+  // Browser pickers use blob/data URLs, which are handled by fetch.
+  const response = await fetch(uri);
+  if (!response.ok) {
+    throw new Error(`Could not read selected media (HTTP ${response.status}).`);
+  }
+  return response.arrayBuffer();
 }
 
 function createIssueMediaTooLargeError() {
@@ -168,8 +193,7 @@ export const imageUploadService = {
       throw createIssueMediaTooLargeError();
     }
 
-    const fileResponse = await fetch(media.uri);
-    const arrayBuffer = await fileResponse.arrayBuffer();
+    const arrayBuffer = await readMediaBytes(media.uri);
     const uploadSize = arrayBuffer.byteLength;
 
     if (uploadSize > ISSUE_MEDIA_MAX_BYTES) {

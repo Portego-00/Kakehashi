@@ -561,6 +561,7 @@ type SettingsState = {
   ankiCardModeScope: "both" | "meaning" | "reading";
   ankiHideAnswerCompletely: boolean;
   ankiShowOtherAcceptedAnswersAndUserSynonyms: boolean;
+  ankiShowKanjiComposition: boolean;
   ankiShowWaniKaniGrammarTags: boolean;
   ankiShowPitchAccentNumbers: boolean;
   ankiShowPitchAccentGraph: boolean;
@@ -753,6 +754,7 @@ type SettingsState = {
   setAnkiCardModeScope: (scope: "both" | "meaning" | "reading") => void;
   setAnkiHideAnswerCompletely: (hide: boolean) => void;
   setAnkiShowOtherAcceptedAnswersAndUserSynonyms: (show: boolean) => void;
+  setAnkiShowKanjiComposition: (show: boolean) => void;
   setAnkiShowWaniKaniGrammarTags: (show: boolean) => void;
   setAnkiShowPitchAccentNumbers: (show: boolean) => void;
   setAnkiShowPitchAccentGraph: (show: boolean) => void;
@@ -925,6 +927,7 @@ export const useSettingsStore = create<SettingsState>()(
       ankiCardModeScope: "both", // Default to Anki behavior for both meaning and reading
       ankiHideAnswerCompletely: false, // Default to false - keep blurred reveal style
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false, // Default to false - only show primary answer on Anki cards
+      ankiShowKanjiComposition: false, // Show vocabulary component kanji only when enabled
       ankiShowWaniKaniGrammarTags: false, // Default to false - keep Anki cards free of grammar metadata
       ankiShowPitchAccentNumbers: false, // Default to false - keep compact pitch notation opt-in
       ankiShowPitchAccentGraph: false, // Default to false - graph stays opt-in on compact Anki reveals
@@ -1150,6 +1153,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ ankiHideAnswerCompletely: hide }),
       setAnkiShowOtherAcceptedAnswersAndUserSynonyms: (show) =>
         set({ ankiShowOtherAcceptedAnswersAndUserSynonyms: show }),
+      setAnkiShowKanjiComposition: (show) =>
+        set({ ankiShowKanjiComposition: show }),
       setAnkiShowWaniKaniGrammarTags: (show) =>
         set({ ankiShowWaniKaniGrammarTags: show }),
       setAnkiShowPitchAccentNumbers: (show) =>

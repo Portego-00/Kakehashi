@@ -3,6 +3,20 @@
  * API Documentation: https://lrclib.net/docs
  * Free, no authentication required
  */
+import { expo } from "../../app.json";
+import { Platform } from "react-native";
+
+const CLIENT_IDENTITY = `Kakehashi/${expo.version} (https://kakehashiapp.com)`;
+
+export class LyricsServiceError extends Error {
+  constructor(
+    code: "LYRICS_NOT_FOUND" | "LYRICS_UNAVAILABLE",
+    public readonly status?: number,
+  ) {
+    super(code);
+    this.name = "LyricsServiceError";
+  }
+}
 
 export interface TimedLyricsLine {
   startTimeMs: number;
@@ -37,6 +51,28 @@ interface LRCLIBResponse {
 
 class LyricsService {
   private baseUrl = "https://lrclib.net/api";
+
+  private async fetchJson<T>(url: string): Promise<T> {
+    try {
+      const response = await fetch(url, {
+        // Android's generic user agent is rejected. Browser requests use the
+        // alternative identity header allowed by LRCLIB's CORS policy.
+        headers: Platform.OS === "web"
+          ? { "Lrclib-Client": CLIENT_IDENTITY }
+          : { "User-Agent": CLIENT_IDENTITY },
+      });
+      if (!response.ok) {
+        throw new LyricsServiceError(
+          response.status === 404 ? "LYRICS_NOT_FOUND" : "LYRICS_UNAVAILABLE",
+          response.status,
+        );
+      }
+      return await response.json();
+    } catch (error) {
+      if (error instanceof LyricsServiceError) throw error;
+      throw new LyricsServiceError("LYRICS_UNAVAILABLE");
+    }
+  }
 
   /**
    * Parse LRC format lyrics into timed lines
@@ -79,6 +115,7 @@ class LyricsService {
     artistName: string
   ): Promise<LyricsResult> {
     console.log("🔍 Fetching lyrics for:", { trackName, artistName });
+    let requestError: unknown = null;
 
     // Step 1: Try exact match with song + artist
     try {
@@ -88,22 +125,21 @@ class LyricsService {
       });
 
       const url = `${this.baseUrl}/get?${params.toString()}`;
-      const response = await fetch(url);
-
-      if (response.ok) {
-        const data: LRCLIBResponse = await response.json();
-        if (data.plainLyrics) {
-          console.log("✅ Found lyrics via exact match");
-          return {
-            plainLyrics: data.plainLyrics,
-            timedLyrics: data.syncedLyrics
-              ? this.parseLRCLyrics(data.syncedLyrics)
-              : [],
-            duration: data.duration || 0,
-          };
-        }
+      const data = await this.fetchJson<LRCLIBResponse>(url);
+      if (data.plainLyrics) {
+        console.log("✅ Found lyrics via exact match");
+        return {
+          plainLyrics: data.plainLyrics,
+          timedLyrics: data.syncedLyrics
+            ? this.parseLRCLyrics(data.syncedLyrics)
+            : [],
+          duration: data.duration || 0,
+        };
       }
-    } catch {
+    } catch (error) {
+      if (!(error instanceof LyricsServiceError) || error.message !== "LYRICS_NOT_FOUND") {
+        requestError = error;
+      }
       console.log("Exact match failed, trying search...");
     }
 
@@ -112,29 +148,30 @@ class LyricsService {
       const searchUrl = `${this.baseUrl}/search?q=${encodeURIComponent(
         `${trackName} ${artistName}`
       )}`;
-      const response = await fetch(searchUrl);
+      const results = await this.fetchJson<LRCLIBResponse[]>(searchUrl);
+      const match = results.find((r) => r.plainLyrics);
 
-      if (response.ok) {
-        const results: LRCLIBResponse[] = await response.json();
-        const match = results.find((r) => r.plainLyrics);
-
-        if (match) {
-          console.log("✅ Found lyrics via search");
-          return {
-            plainLyrics: match.plainLyrics,
-            timedLyrics: match.syncedLyrics
-              ? this.parseLRCLyrics(match.syncedLyrics)
-              : [],
-            duration: match.duration || 0,
-          };
-        }
+      if (match) {
+        console.log("✅ Found lyrics via search");
+        return {
+          plainLyrics: match.plainLyrics,
+          timedLyrics: match.syncedLyrics
+            ? this.parseLRCLyrics(match.syncedLyrics)
+            : [],
+          duration: match.duration || 0,
+        };
       }
     } catch (error) {
+      // A missing fallback must not disguise an earlier request failure.
+      if (!requestError || !(error instanceof LyricsServiceError) || error.message !== "LYRICS_NOT_FOUND") {
+        requestError = error;
+      }
       console.log("Search failed:", error);
     }
 
+    if (requestError) throw requestError;
     console.log("❌ No lyrics found");
-    throw new Error("LYRICS_NOT_FOUND");
+    throw new LyricsServiceError("LYRICS_NOT_FOUND");
   }
 
   /**
@@ -173,13 +210,7 @@ class LyricsService {
       const url = `${this.baseUrl}/search?${params.toString()}`;
       console.log("Searching LRCLIB for:", { trackName, artistName });
 
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`LRCLIB API error: ${response.status}`);
-      }
-
-      const data: LRCLIBResponse[] = await response.json();
+      const data = await this.fetchJson<LRCLIBResponse[]>(url);
 
       // Filter to only include results with synced lyrics
       const results: LyricsSearchResult[] = data
@@ -211,13 +242,7 @@ class LyricsService {
       const url = `${this.baseUrl}/get/${id}`;
       console.log("Fetching LRCLIB lyrics by ID:", id);
 
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`LRCLIB API error: ${response.status}`);
-      }
-
-      const data: LRCLIBResponse = await response.json();
+      const data = await this.fetchJson<LRCLIBResponse>(url);
 
       const timedLines = data.syncedLyrics
         ? this.parseLRCLyrics(data.syncedLyrics)
