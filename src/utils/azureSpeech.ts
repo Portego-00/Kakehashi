@@ -3,6 +3,7 @@ import { Audio } from '@/src/utils/expoAvCompat';
 import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
 import AudioSessionManager from '../modules/AudioSessionManager';
+import { prepareNativeSpeech } from './prepareNativeSpeech';
 import {
   azureSpeechKeyService,
   type AzureSpeechActiveKey,
@@ -382,6 +383,8 @@ export class AzureSpeechService {
         }
 
         this.isSpeaking = true;
+        await prepareNativeSpeech();
+        this.assertPlaybackCurrent(playbackGeneration, signal);
         await this.speakWithExpoFallback(text, options);
         this.assertPlaybackCurrent(playbackGeneration, signal);
         playbackCompleted = true;

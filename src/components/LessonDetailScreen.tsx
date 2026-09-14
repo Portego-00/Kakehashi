@@ -108,6 +108,8 @@ import LessonMeaningPill from "./LessonMeaningPill";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
 import SubjectMetadataRows from "./SubjectMetadataRows";
+import JLPTLevelChip from "./JLPTLevelChip";
+import { getJLPTLevelForSubject } from "../utils/jlptClassification";
 import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 // Get screen dimensions
@@ -4655,6 +4657,7 @@ export default function LessonDetailScreen({
   const {
     appTextSizeScale,
     singlePageLessonView,
+    showJLPTLevel,
     lessonSearchButtonEnabled,
     autoplayLessonReadingAudio,
     vocabularyAudioVoice,
@@ -5336,6 +5339,9 @@ export default function LessonDetailScreen({
           const isBookmarked = bookmarkedSubjectIds.has(pageSubject.id);
           const pageRoutes = getTabRoutesForSubject(pageSubject);
           const pageBackgroundColor = getSubjectBackgroundColor(pageSubject);
+          const pageJLPTLevel = showJLPTLevel
+            ? getJLPTLevelForSubject(pageSubject)
+            : null;
 
           return (
             <View key={batchItem.id} style={styles.pageContainer}>
@@ -5472,6 +5478,11 @@ export default function LessonDetailScreen({
                         ?.reading || pageSubject.data.readings[0]?.reading}
                     </Text>
                   )}
+                {pageJLPTLevel !== null && (
+                  <View style={styles.subjectJLPTChip}>
+                    <JLPTLevelChip level={pageJLPTLevel} />
+                  </View>
+                )}
                 <View
                   onLayout={(event) =>
                     recordSubjectDisplayContentHeight(batchItem.id, event)
@@ -5783,6 +5794,11 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     subjectDisplayEndMarker: {
       width: 1,
       height: 1,
+    },
+    subjectJLPTChip: {
+      alignSelf: "flex-start",
+      marginTop: 12,
+      marginRight: 56,
     },
     lessonSearchButton: {
       position: "absolute",

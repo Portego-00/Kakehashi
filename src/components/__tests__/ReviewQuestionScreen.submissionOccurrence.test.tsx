@@ -72,6 +72,7 @@ const mockSettings = {
   reviewCorrectKeyboardShortcuts: undefined,
   showAnswerStopSubjectDetails: false,
   showReviewItemLevelAndSrsStage: false,
+  showJLPTLevel: false,
   reviewAnimatePreviousQuestion: false,
   reviewSearchButtonEnabled: false,
   reviewCharacterFontScale: 1,
@@ -454,6 +455,84 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnWrong = false;
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
+  });
+
+  it.each([false, true])("stacks the JLPT chip above level and SRS (Anki: %s)", (anki) => {
+    mockSettings.ankiCardMode = anki;
+    mockSettings.showJLPTLevel = true;
+    mockSettings.showReviewItemLevelAndSrsStage = true;
+    const item = {
+      id: 2,
+      srsStage: 5,
+      subject: {
+        id: 2,
+        object: "vocabulary" as const,
+        data: {
+          characters: "香水",
+          level: 37,
+          meanings: [{ meaning: "Perfume", primary: true, accepted_answer: true }],
+          readings: [{ reading: "こうすい", primary: true, accepted_answer: true }],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.getByLabelText("JLPT level N2")).toBeTruthy();
+    expect(screen.getAllByText(/^(JLPT N2|Level 37|Guru I)$/).map(
+      ({ props }) => React.Children.toArray(props.children).join(""),
+    )).toEqual(["JLPT N2", "Level 37", "Guru I"]);
+
+    mockSettings.showJLPTLevel = false;
+    screen.rerender(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByLabelText("JLPT level N2")).toBeNull();
+    expect(screen.getByText("Level 37")).toBeTruthy();
+    expect(screen.getByText("Guru I")).toBeTruthy();
+  });
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])("shows JLPT with level/SRS disabled (Anki: %s, lesson quiz: %s)", (anki, isLessonFlow) => {
+    mockSettings.ankiCardMode = anki;
+    mockSettings.showJLPTLevel = true;
+    const item = {
+      id: 2,
+      subject: {
+        id: 2,
+        object: "kanji" as const,
+        data: {
+          characters: "語",
+          meanings: [{ meaning: "Language", primary: true, accepted_answer: true }],
+          readings: [{ reading: "ご", primary: true, accepted_answer: true, type: "onyomi" }],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} isLessonFlow={isLessonFlow} />);
+    expect(screen.getByLabelText("JLPT level N5")).toBeTruthy();
+    expect(screen.queryByText(/^Level /)).toBeNull();
+  });
+
+  it("updates the JLPT chip as subjects change, including kana vocabulary and missing levels", () => {
+    mockSettings.showJLPTLevel = true;
+    const item = {
+      id: 2,
+      subject: {
+        id: 2,
+        object: "kana_vocabulary" as const,
+        data: {
+          characters: "テレビ",
+          meanings: [{ meaning: "Television", primary: true, accepted_answer: true }],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} contextSentencesHint={[{ ja: "テレビを見る。" }]} contextHintDisplayMode="visible" />);
+    expect(screen.getByLabelText("JLPT level N5")).toBeTruthy();
+    const unknownItem = { ...item, id: 3, subject: { ...item.subject, id: 3, data: { ...item.subject.data, characters: "未掲載の単語" } } };
+    screen.rerender(<ReviewQuestionScreen item={unknownItem} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByText(/^JLPT N/)).toBeNull();
+    screen.rerender(<ReviewQuestionScreen item={radicalItem} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByText(/^JLPT N/)).toBeNull();
   });
 
   it("closes an unchanged review note without asking to discard", async () => {

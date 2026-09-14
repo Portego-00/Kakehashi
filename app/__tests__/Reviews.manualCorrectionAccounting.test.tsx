@@ -25,6 +25,8 @@ const mockMarkReviewSubmittedInAssignmentCaches = jest.fn(
 const mockRefresh = jest.fn(async () => {});
 let mockAnkiCardMode = false;
 let mockAnkiGroupQuestions = false;
+let mockReviewBatchSizeEnabled = false;
+let mockReviewBatchSize = 5;
 const mockSubject = {
   id: 1,
   object: "vocabulary",
@@ -106,7 +108,8 @@ jest.mock("../../src/utils/store", () => ({
     meaningFirst: true,
     srsProgressionCardDisplayMode: "hidden",
     backToBackImmediateRetryIncorrect: true,
-    reviewBatchSizeEnabled: false,
+    reviewBatchSizeEnabled: mockReviewBatchSizeEnabled,
+    reviewBatchSize: mockReviewBatchSize,
     reviewWrapUpTargetSubjects: 10,
     autoplayVocabularyAudio: false,
     showAnswerStopSubjectDetails: false,
@@ -206,12 +209,32 @@ async function answerCurrentAndWaitForNextQuestion() {
   });
 }
 
+function addCachedReviews(totalCount: number) {
+  for (let index = 1; index < totalCount; index += 1) {
+    mockDashboard.subjects.push({
+      ...mockSubject,
+      id: index + 1,
+      data: { ...mockSubject.data, characters: `subject-${index + 1}` },
+    });
+    mockDashboard.assignments.push({
+      id: 10 + index,
+      data: {
+        subject_id: index + 1,
+        srs_stage: 3,
+        available_at: "2020-01-01T00:00:00Z",
+      },
+    });
+  }
+}
+
 describe("review parent manual-correction accounting", () => {
   beforeEach(() => {
     mockDashboard.subjects.splice(1);
     mockDashboard.assignments.splice(1);
     mockAnkiCardMode = false;
     mockAnkiGroupQuestions = false;
+    mockReviewBatchSizeEnabled = false;
+    mockReviewBatchSize = 5;
     mockAcceptUserSynonymsAsAnswers = false;
     mockQuestionProps = null;
     mockQueueProgress.mockReset();
@@ -265,6 +288,120 @@ describe("review parent manual-correction accounting", () => {
     expect(mockGetLiveAvailableReviews).toHaveBeenCalledWith("test-token");
     screen.unmount();
   });
+
+  it.each([
+    { label: "without a batch limit", batchSize: undefined },
+    { label: "with a 1-item batch", batchSize: 1 },
+    { label: "with a 5-item batch", batchSize: 5 },
+  ])(
+    "keeps the first visible question when an unchanged live queue refreshes $label",
+    async ({ batchSize }) => {
+      mockReviewBatchSizeEnabled = batchSize !== undefined;
+      mockReviewBatchSize = batchSize ?? 5;
+      const availableCount = (batchSize ?? 5) + 1;
+      const expectedBatchCount = batchSize ?? availableCount;
+      addCachedReviews(availableCount);
+      let finishLiveReviews:
+        | ((response: { data: typeof mockDashboard.assignments }) => void)
+        | undefined;
+      mockGetLiveAvailableReviews.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishLiveReviews = resolve;
+          }),
+      );
+      const randomSpy = jest.spyOn(Math, "random").mockReturnValue(0.99);
+      const screen = render(<ReviewScreen />);
+
+      try {
+        await screen.findByTestId("accounting-question");
+        expect(currentQuestion().item.id).toBe(10);
+        const firstQuestionType = currentQuestion().questionType;
+        expect(currentQuestion().totalItems).toBe(expectedBatchCount);
+
+        // The response contains exactly the same due reviews. Only the random
+        // tie-break order changes between the cached and live preparations.
+        randomSpy.mockReturnValue(0);
+        await act(async () => {
+          finishLiveReviews?.({ data: [...mockDashboard.assignments] });
+        });
+
+        expect(mockGetLiveAvailableReviews).toHaveBeenCalledTimes(1);
+        expect(mockGetPendingProgressAssignmentIds).toHaveBeenCalledTimes(2);
+        expect(currentQuestion().item.id).toBe(10);
+        expect(currentQuestion().questionType).toBe(firstQuestionType);
+        expect(currentQuestion().totalItems).toBe(expectedBatchCount);
+        expect(mockPersistProgress).not.toHaveBeenCalled();
+
+        // The rest of the selected batch must stay stable as well.
+        for (let index = 0; index < expectedBatchCount; index += 1) {
+          expect(currentQuestion().item.id).toBe(10 + index);
+          await answerCurrent(true);
+          expect(currentQuestion().item.id).toBe(10 + index);
+          await answerCurrent(true);
+        }
+        await screen.findByText("Results");
+        expect(mockPersistProgress).toHaveBeenCalledTimes(expectedBatchCount);
+      } finally {
+        screen.unmount();
+        randomSpy.mockRestore();
+      }
+    },
+  );
+
+  it.each([10, 11])(
+    "replaces stale assignment %i without replacing eligible members of the batch",
+    async (staleAssignmentId) => {
+      mockReviewBatchSizeEnabled = true;
+      addCachedReviews(7);
+      let finishLiveReviews:
+        | ((response: { data: typeof mockDashboard.assignments }) => void)
+        | undefined;
+      mockGetLiveAvailableReviews.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishLiveReviews = resolve;
+          }),
+      );
+      const randomSpy = jest.spyOn(Math, "random").mockReturnValue(0.99);
+      const screen = render(<ReviewScreen />);
+
+      try {
+        await screen.findByTestId("accounting-question");
+        expect(currentQuestion().item.id).toBe(10);
+        randomSpy.mockReturnValue(0);
+        await act(async () => {
+          finishLiveReviews?.({
+            data: mockDashboard.assignments.filter(
+              (assignment) => assignment.id !== staleAssignmentId,
+            ),
+          });
+        });
+
+        const expectedAssignmentIds = [10, 11, 12, 13, 14, 15].filter(
+          (id) => id !== staleAssignmentId,
+        );
+        expect(currentQuestion().totalItems).toBe(5);
+        for (const assignmentId of expectedAssignmentIds) {
+          expect(currentQuestion().item.id).toBe(assignmentId);
+          await answerCurrent(true);
+          expect(currentQuestion().item.id).toBe(assignmentId);
+          await answerCurrent(true);
+        }
+        await screen.findByText("Results");
+        expect(mockPersistProgress).toHaveBeenCalledTimes(5);
+        expectedAssignmentIds.forEach((assignmentId, index) => {
+          expect(mockPersistProgress).toHaveBeenNthCalledWith(
+            index + 1,
+            expect.objectContaining({ assignmentId }),
+          );
+        });
+      } finally {
+        screen.unmount();
+        randomSpy.mockRestore();
+      }
+    },
+  );
 
   it("starts from durable assignments while the dashboard provider is still cold", async () => {
     const originalAssignments = [...mockDashboard.assignments];

@@ -11,6 +11,10 @@ jest.mock("expo-speech", () => ({
   stop: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock("expo-audio", () => ({
+  setIsAudioActiveAsync: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock("@/src/utils/expoAvCompat", () => ({
   Audio: {
     setAudioModeAsync: jest.fn(() => Promise.resolve()),

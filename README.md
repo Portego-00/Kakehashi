@@ -14,8 +14,9 @@ affiliated with WaniKani or Tofugu LLC.
 When cached assignments are available, review sessions open without waiting for
 a network check. Completed reviews are saved on the device before the next
 question appears, and queued results sync with WaniKani when a connection is
-available. Requests that reach an unresponsive connection time out instead of
-holding the app indefinitely.
+available. Background refresh keeps the selected review batch stable, replacing
+only unstarted reviews that are no longer due. Requests that reach an
+unresponsive connection time out instead of holding the app indefinitely.
 
 On iOS, widget refresh uses Expo's processing task. Keep `processing` in
 `UIBackgroundModes`, and keep `com.expo.modules.backgroundtask.processing` in

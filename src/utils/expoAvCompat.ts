@@ -189,7 +189,7 @@ function unregisterAutoDuckSound(soundId: number): void {
 function toPlaybackStatus(
   status: ExpoAudioStatus,
   progressUpdateIntervalMillis: number,
-  player: AudioPlayer,
+  volume: number,
 ): AVPlaybackStatus {
   if (!status.isLoaded) {
     return {
@@ -210,7 +210,7 @@ function toPlaybackStatus(
     isBuffering: status.isBuffering,
     rate: status.playbackRate,
     shouldCorrectPitch: status.shouldCorrectPitch,
-    volume: player.volume,
+    volume,
     isMuted: status.mute,
     isLooping: status.loop,
     didJustFinish: status.didJustFinish,
@@ -227,6 +227,8 @@ class AudioSoundCompat {
   private statusSubscription: { remove: () => void } | null = null;
   private statusListener: ((status: AVPlaybackStatus) => void) | null = null;
   private progressUpdateIntervalMillis = DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
+  private volume = 1;
+  private latestStatus: AVPlaybackStatus = { isLoaded: false };
 
   constructor(
     source: AVPlaybackSource,
@@ -259,6 +261,7 @@ class AudioSoundCompat {
     }
     if (typeof initialStatus.volume === 'number') {
       this.player.volume = initialStatus.volume;
+      this.volume = initialStatus.volume;
     }
     if (typeof initialStatus.rate === 'number') {
       try {
@@ -286,7 +289,7 @@ class AudioSoundCompat {
       const playbackStatus = toPlaybackStatus(
         status,
         this.progressUpdateIntervalMillis,
-        currentPlayer,
+        this.volume,
       );
       this.syncPlayingState(playbackStatus);
       this.emitStatus(playbackStatus);
@@ -312,11 +315,11 @@ class AudioSoundCompat {
       duckOthers,
     );
 
-    if (shouldPlay) {
-      await sound.playAsync();
-    }
-
-    const status = await sound.getStatusAsync();
+    // playAsync already reads the status. Re-reading it here synchronously
+    // waits for Android's UI thread a second time before Play can finish.
+    const status = shouldPlay
+      ? await sound.playAsync()
+      : await sound.getStatusAsync();
     sound.emitStatus(status);
     return { sound, status };
   }
@@ -326,7 +329,10 @@ class AudioSoundCompat {
   ): void {
     this.statusListener = callback;
     if (callback) {
-      void this.getStatusAsync().then((status) => {
+      // The native event already supplies status. Attaching a listener must
+      // not make another blocking currentStatus/volume round-trip on Android.
+      void Promise.resolve().then(() => {
+        const status = this.latestStatus;
         this.syncPlayingState(status);
         this.emitStatus(status);
       });
@@ -387,7 +393,13 @@ class AudioSoundCompat {
     if (!player) {
       return this.getUnloadedStatus('Sound is unloaded');
     }
-    return toPlaybackStatus(player.currentStatus, this.progressUpdateIntervalMillis, player);
+    const status = toPlaybackStatus(
+      player.currentStatus,
+      this.progressUpdateIntervalMillis,
+      this.volume,
+    );
+    this.latestStatus = status;
+    return status;
   }
 
   async unloadAsync(): Promise<void> {
@@ -403,6 +415,7 @@ class AudioSoundCompat {
   }
 
   private emitStatus(status: AVPlaybackStatus): void {
+    this.latestStatus = status;
     this.statusListener?.(status);
   }
 

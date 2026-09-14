@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import React from "react";
 import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from "react-native";
 
@@ -179,6 +179,10 @@ jest.mock("../../utils/azureSpeech", () => ({
     speak: jest.fn(),
     stop: jest.fn(() => Promise.resolve()),
   },
+}));
+
+jest.mock("../../utils/kanjiPronunciationSpeech", () => ({
+  speakKanjiReading: jest.fn(),
 }));
 
 jest.mock("../../utils/store", () => ({
@@ -616,6 +620,7 @@ describe("LessonDetailScreen large-text summary", () => {
 
     const summary = screen.getByTestId("lesson-subject-summary");
     const summaryStyle = StyleSheet.flatten(summary.props.style);
+    expect(within(summary).queryByText(/^JLPT N/)).toBeNull();
 
     expect(screen.getByText(longMeaning)).toBeTruthy();
     expect(summaryStyle.maxHeight).toBeGreaterThan(0);
@@ -684,6 +689,7 @@ describe("LessonDetailScreen subject metadata", () => {
     );
     expect(screen.getByText("JLPT Level")).toBeTruthy();
     expect(screen.getByText("N5")).toBeTruthy();
+    expect(within(screen.getByTestId("lesson-subject-summary")).getByLabelText("JLPT level N5")).toBeTruthy();
     if (object === "kanji") expect(screen.queryByText("Frequency")).toBeNull();
     else expect(screen.getByText("Frequency")).toBeTruthy();
   });

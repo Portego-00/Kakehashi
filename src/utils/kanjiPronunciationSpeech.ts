@@ -1,4 +1,5 @@
 import * as Speech from "expo-speech";
+import { prepareNativeSpeech } from "./prepareNativeSpeech";
 
 const KANJI_READING_SPEECH_OPTIONS = {
   language: "ja-JP",
@@ -15,10 +16,21 @@ let mostRecentSpeechRequest = 0;
 export async function speakKanjiReading(reading: string): Promise<void> {
   const requestId = ++mostRecentSpeechRequest;
 
-  await Speech.stop();
-  if (requestId !== mostRecentSpeechRequest) {
-    return;
-  }
+  try {
+    await Speech.stop();
+    if (requestId !== mostRecentSpeechRequest) {
+      return;
+    }
 
-  Speech.speak(reading, KANJI_READING_SPEECH_OPTIONS);
+    await prepareNativeSpeech();
+    if (requestId !== mostRecentSpeechRequest) {
+      return;
+    }
+
+    Speech.speak(reading, KANJI_READING_SPEECH_OPTIONS);
+  } catch (error) {
+    if (requestId === mostRecentSpeechRequest) {
+      console.warn("Failed to play kanji pronunciation:", error);
+    }
+  }
 }

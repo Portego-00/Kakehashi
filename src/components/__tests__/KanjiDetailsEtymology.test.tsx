@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 
 import { useSettingsStore } from "../../utils/store";
@@ -11,6 +11,10 @@ jest.mock("@expo/vector-icons", () => ({
 jest.mock("expo-speech", () => ({
   speak: jest.fn(),
   stop: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock("../../utils/prepareNativeSpeech", () => ({
+  prepareNativeSpeech: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock("expo-router", () => ({
@@ -211,13 +215,13 @@ describe("KanjiDetails etymology integration", () => {
       screen.getByLabelText("Speak Japanese pronunciation きゅう")
     );
 
-    await Promise.resolve();
-
-    expect(Speech.stop).toHaveBeenCalledTimes(1);
-    expect(Speech.speak).toHaveBeenCalledWith("きゅう", {
-      language: "ja-JP",
-      pitch: 1,
-      rate: 0.8,
+    await waitFor(() => {
+      expect(Speech.stop).toHaveBeenCalledTimes(1);
+      expect(Speech.speak).toHaveBeenCalledWith("きゅう", {
+        language: "ja-JP",
+        pitch: 1,
+        rate: 0.8,
+      });
     });
   });
 });

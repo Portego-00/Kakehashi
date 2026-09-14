@@ -117,6 +117,8 @@ import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import VocabularyDetails from "./VocabularyDetails";
 import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import JLPTLevelChip from "./JLPTLevelChip";
+import { getJLPTLevelForSubject } from "../utils/jlptClassification";
 import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 import {
   FormattedNoteEditor,
@@ -1169,6 +1171,7 @@ export default function ReviewQuestionScreen({
     reviewCorrectKeyboardShortcuts,
     showAnswerStopSubjectDetails,
     showReviewItemLevelAndSrsStage,
+    showJLPTLevel,
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
     reviewCharacterFontScale,
@@ -1744,6 +1747,9 @@ export default function ReviewQuestionScreen({
     },
     [currentQuestionKey, finishQuestionOccurrence, item, onAnswer],
   );
+  const subjectJLPTLevel = showJLPTLevel
+    ? getJLPTLevelForSubject(subject)
+    : null;
   const reviewSubjectLevel =
     typeof subject.data.level === "number" && subject.data.level > 0
       ? subject.data.level : null;
@@ -1764,9 +1770,11 @@ export default function ReviewQuestionScreen({
   const isContextHintVisible =
     hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
   const shouldShowReviewItemMetadataInLayout =
-    shouldShowReviewItemMetadata && !isContextHintVisible;
+    subjectJLPTLevel !== null ||
+    (shouldShowReviewItemMetadata && !isContextHintVisible);
   const shouldShowAnkiReviewItemMetadata =
-    effectiveAnkiCardMode && shouldShowReviewItemMetadata;
+    effectiveAnkiCardMode &&
+    (shouldShowReviewItemMetadata || subjectJLPTLevel !== null);
   const contextHintPromptSize = isContextHintVisible
     ? Math.min(reviewPromptCharacterSize, 96)
     : reviewPromptCharacterSize;
@@ -5513,7 +5521,9 @@ export default function ReviewQuestionScreen({
         : "flex-start";
 
   const renderReviewMetadata = (inRow = false) => {
-    if (!shouldShowReviewItemMetadata || !reviewSrsStageInfo) {
+    const showLevelAndSrs =
+      shouldShowReviewItemMetadata && (inRow || !isContextHintVisible);
+    if (!showLevelAndSrs && subjectJLPTLevel === null) {
       return null;
     }
 
@@ -5522,16 +5532,17 @@ export default function ReviewQuestionScreen({
         style={[styles.reviewMetadataStack, inRow && styles.reviewMetadataStackInRow]}
         pointerEvents="none"
       >
-        {reviewSubjectLevel !== null && <View style={styles.reviewMetadataPill}>
+        <JLPTLevelChip level={subjectJLPTLevel} />
+        {showLevelAndSrs && reviewSubjectLevel !== null && <View style={styles.reviewMetadataPill}>
           <Ionicons name="school-outline" size={13} color="white" />
           <Text style={styles.reviewMetadataText}>{`Level ${reviewSubjectLevel}${subject.id <= 0 ? "+" : ""}`}</Text>
         </View>}
-        <View style={styles.reviewMetadataPill}>
+        {showLevelAndSrs && reviewSrsStageInfo && <View style={styles.reviewMetadataPill}>
           <View style={styles.reviewMetadataSrsIcon}>
             <SrsLevelIcon level={reviewSrsStageInfo.iconLevel} size={14} color="white" />
           </View>
           <Text style={styles.reviewMetadataText}>{reviewSrsStageInfo.label}</Text>
-        </View>
+        </View>}
       </View>
     );
   };

@@ -378,6 +378,32 @@ describe("api offline assignment fallbacks", () => {
     }
   });
 
+  it("does not present a stale cached review count as a live count", async () => {
+    const cachedAssignments = makeAssignmentsCollection([makeAssignment(1, {
+      srs_stage: 3,
+      started_at: "2026-05-27T08:00:00.000Z",
+      available_at: "2026-05-28T08:00:00.000Z",
+    })]);
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+    const { api, getFromCacheMock } = loadApi({ cachedAssignments });
+
+    await expect(api.getLiveReviewCount("test-token")).rejects.toThrow("offline");
+    expect(getFromCacheMock).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("subtracts pending reviews only if the live response still includes them (already sent: %s)", async (alreadySent) => {
+    const assignments = Array.from({ length: 51 }, (_, index) => makeAssignment(index + 1, {
+      srs_stage: 3,
+      started_at: "2026-05-27T08:00:00.000Z",
+      available_at: "2026-05-28T08:00:00.000Z",
+    }));
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      mockResponse(makeAssignmentsCollection(alreadySent ? assignments.slice(20) : assignments)));
+    const { api } = loadApi();
+    const pendingIds = new Set(assignments.slice(0, 20).map(({ id }) => id));
+    await expect(api.getLiveReviewCount("test-token", pendingIds)).resolves.toBe(31);
+  });
+
   it("uses one live attempt before reading cached available reviews", async () => {
     const availableReview = makeAssignment(1, {
       srs_stage: 3,

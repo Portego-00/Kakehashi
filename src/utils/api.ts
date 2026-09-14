@@ -3797,15 +3797,7 @@ export async function getReviewCountIfAvailable(
   apiToken: string
 ): Promise<number | null> {
   try {
-    // Use assignments so hidden reviews are excluded (summary has no hidden filter).
-    const response = await getAssignments(apiToken, {
-      immediately_available_for_review: true,
-      hidden: false,
-    });
-    if (typeof response.total_count === "number") {
-      return Math.max(0, response.total_count);
-    }
-    return buildVisibleReviewDataFromAssignments(response.data).currentReviews;
+    return await getLiveReviewCount(apiToken);
   } catch (error) {
     try {
       // The count request has already failed. Read local data directly so a
@@ -3822,6 +3814,26 @@ export async function getReviewCountIfAvailable(
       return null;
     }
   }
+}
+
+/** Fetch a server-visible count without mistaking cached assignments for live state. */
+export async function getLiveReviewCount(
+  apiToken: string,
+  excludedAssignmentIds: ReadonlySet<number> = new Set()
+): Promise<number> {
+  let response = await getAssignments(apiToken, {
+    immediately_available_for_review: true,
+    hidden: false,
+  });
+  if (excludedAssignmentIds.size > 0 && response.pages?.next_url) {
+    response = await fetchAllPages(response, apiToken, undefined, { maxPageAttempts: 1 });
+  }
+  const count = typeof response.total_count === "number"
+    ? Math.max(0, response.total_count)
+    : buildVisibleReviewDataFromAssignments(response.data).currentReviews;
+  const excludedCount = response.data.reduce((total, assignment) =>
+    total + (excludedAssignmentIds.has(assignment.id) ? 1 : 0), 0);
+  return Math.max(0, count - excludedCount);
 }
 
 export async function getCachedReviewCountIfAvailable(): Promise<

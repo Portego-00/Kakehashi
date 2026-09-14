@@ -192,8 +192,8 @@ export function VocabularyContextSection() {
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
-              Show estimated JLPT levels for kanji and vocabulary in details and
-              lessons, using offline study lists
+              Show estimated JLPT levels for kanji and vocabulary in details,
+              reviews, and lessons, using offline study lists
             </Text>
           </View>
           <Switch
