@@ -5,8 +5,10 @@ import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, Vie
 import LessonDetailScreen from "../LessonDetailScreen";
 import { searchImmersionKit } from "../../services/immersionKitService";
 import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
+import { createStudyMaterial, getStudyMaterials, updateStudyMaterial } from "../../utils/api";
 
 let mockFlushedNoteText: string | undefined;
+let mockLessonSynonymsProps: { currentSynonyms: string[]; onSave: (edited: string[], original: string[]) => Promise<void> };
 const mockEditorFlush = jest.fn((value?: string) =>
   Promise.resolve(mockFlushedNoteText ?? value ?? ""),
 );
@@ -276,7 +278,15 @@ jest.mock("../KanjiLessonEtymologySection", () => () => null);
 jest.mock("../KanjiReadingExamples", () => () => null);
 jest.mock("../PitchAccentVisualization", () => () => null);
 jest.mock("../StrokeOrderAnimation", () => () => null);
-jest.mock("../SynonymsModal", () => ({ SynonymsModal: () => null }));
+jest.mock("../SynonymsModal", () => ({ SynonymsModal: (props: typeof mockLessonSynonymsProps) => {
+  mockLessonSynonymsProps = props;
+  return null;
+} }));
+jest.mock("../../utils/api", () => ({
+  getStudyMaterials: jest.fn(async () => ({ data: [] })),
+  createStudyMaterial: jest.fn(),
+  updateStudyMaterial: jest.fn(),
+}));
 jest.mock("../VocabularyFrequencyBadge", () => () => null);
 jest.mock("../CustomContextSentencesSection", () => ({ CustomContextSentencesSection: () => null }));
 jest.mock("../../utils/wanikaniVocabularyPatterns", () => ({ getWaniKaniVocabularyPatterns: jest.fn(() => []) }));
@@ -358,7 +368,7 @@ describe("LessonDetailScreen Japanese-only examples", () => {
   });
 });
 
-function renderNoteLesson() {
+function renderNoteLesson(openNote = true) {
   mockSinglePageLessonView = true;
   const subject = {
     id: 1,
@@ -382,7 +392,7 @@ function renderNoteLesson() {
       onExit={jest.fn()}
     />,
   );
-  fireEvent.press(screen.getByLabelText("Add meaning note"));
+  if (openNote) fireEvent.press(screen.getByLabelText("Add meaning note"));
   return screen;
 }
 
@@ -693,4 +703,118 @@ describe("LessonDetailScreen subject metadata", () => {
     if (object === "kanji") expect(screen.queryByText("Frequency")).toBeNull();
     else expect(screen.getByText("Frequency")).toBeTruthy();
   });
+});
+
+
+describe("LessonDetailScreen synonym safety", () => {
+  afterEach(() => {
+    jest.mocked(getStudyMaterials).mockReset().mockResolvedValue({ data: [] });
+    jest.mocked(updateStudyMaterial).mockReset();
+    jest.mocked(createStudyMaterial).mockReset();
+    mockSinglePageLessonView = false;
+  });
+
+  it("preserves unseen synonyms and ignores an older lesson read after saving (#83)", async () => {
+    let resolveInitial!: (value: any) => void;
+    const pendingInitial = new Promise((resolve) => { resolveInitial = resolve; });
+    const remoteMaterial = { id: 77, data: { subject_id: 1, meaning_synonyms: ["existing on WaniKani"] } };
+    jest.mocked(getStudyMaterials)
+      .mockReturnValueOnce(pendingInitial)
+      .mockResolvedValue({ data: [remoteMaterial] });
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => ({
+      ...remoteMaterial, data: { ...remoteMaterial.data, ...updates },
+    }));
+    const screen = renderNoteLesson(false);
+    await act(async () => { await mockLessonSynonymsProps.onSave(["bridge synonym"], []); });
+    expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", 77, {
+      meaning_synonyms: ["existing on WaniKani", "bridge synonym"],
+    });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    await act(async () => { resolveInitial({ data: [remoteMaterial] }); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    screen.unmount();
+  });
+  it.each(["synonym", "note"])("still applies a pending lesson read when a %s save fails", async (action) => {
+    let resolveInitial!: (value: any) => void;
+    const remoteMaterial = { id: 77, data: { subject_id: 1, meaning_synonyms: ["existing on WaniKani"] } };
+    jest.mocked(getStudyMaterials)
+      .mockReturnValueOnce(new Promise(resolve => { resolveInitial = resolve; }))
+      .mockRejectedValueOnce(new Error("Network unavailable"));
+    jest.mocked(createStudyMaterial).mockRejectedValueOnce(new Error("Network unavailable"));
+    const screen = renderNoteLesson(action === "note");
+    if (action === "synonym") {
+      await act(async () => {
+        await expect(mockLessonSynonymsProps.onSave(["bridge synonym"], []))
+          .rejects.toThrow("Network unavailable");
+      });
+    } else {
+      fireEvent.changeText(screen.getByLabelText("Meaning note text"), "New note");
+      await act(async () => { fireEvent.press(screen.getByText("Save")); });
+      expect(createStudyMaterial).toHaveBeenCalled();
+    }
+    await act(async () => { resolveInitial({ data: [remoteMaterial] }); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani"]);
+    screen.unmount();
+  });
+
+
+  it("keeps a newer lesson note when an earlier synonym save response arrives last", async () => {
+    let serverMaterial = { id: 77, data: {
+      subject_id: 1, meaning_synonyms: ["existing on WaniKani"], meaning_note: "Original note",
+    } };
+    let finishSynonymSave!: () => void;
+    jest.mocked(getStudyMaterials).mockImplementation(async () => ({ data: [serverMaterial] }));
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => {
+      serverMaterial = { ...serverMaterial, data: { ...serverMaterial.data, ...updates } };
+      const savedSnapshot = serverMaterial;
+      if (updates.meaning_synonyms) {
+        await new Promise<void>(resolve => { finishSynonymSave = resolve; });
+      }
+      return savedSnapshot;
+    });
+    const screen = renderNoteLesson(false);
+    await act(async () => {});
+    let saveSynonyms!: Promise<void>;
+    await act(async () => {
+      saveSynonyms = mockLessonSynonymsProps.onSave(["bridge synonym"], []);
+    });
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
+    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { finishSynonymSave(); await saveSynonyms; });
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe("My newer saved note");
+    expect(serverMaterial.data.meaning_note).toBe("My newer saved note");
+    screen.unmount();
+  });
+
+
+  it("keeps newer lesson synonyms when an earlier note save response arrives last", async () => {
+    let serverMaterial = { id: 77, data: {
+      subject_id: 1, meaning_synonyms: ["existing on WaniKani"], meaning_note: "Original note",
+    } };
+    let finishNoteSave!: () => void;
+    jest.mocked(getStudyMaterials).mockImplementation(async () => ({ data: [serverMaterial] }));
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => {
+      serverMaterial = { ...serverMaterial, data: { ...serverMaterial.data, ...updates } };
+      const savedSnapshot = serverMaterial;
+      if (updates.meaning_note) {
+        await new Promise<void>(resolve => { finishNoteSave = resolve; });
+      }
+      return savedSnapshot;
+    });
+    const screen = renderNoteLesson(false);
+    await act(async () => {});
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
+    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { await mockLessonSynonymsProps.onSave(["bridge synonym"], []); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    await act(async () => { finishNoteSave(); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe("My newer saved note");
+    screen.unmount();
+  });
+
 });

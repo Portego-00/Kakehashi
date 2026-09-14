@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { GlassButton } from "../../src/components/GlassButton";
 import { getAllSubjects } from "../../src/utils/cache";
+import { fontStyles } from "../../src/utils/fonts";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useTheme } from "../../src/utils/theme";
 import {
@@ -889,6 +890,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   previewChipText: {
+    ...fontStyles.japaneseChip,
     color: "#fff",
     fontSize: 14,
     lineHeight: 16,

@@ -1,10 +1,25 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Font from "expo-font";
+
 import {
   getCustomJitaiFontFileValidationError,
   getInstalledJitaiFonts,
+  getCachedDownloadedJitaiFonts,
+  loadDownloadedJitaiFonts,
+  removeDownloadedJitaiFont,
   JITAI_DOWNLOADABLE_FONTS,
   MAX_CUSTOM_JITAI_FONT_SIZE_BYTES,
   type DownloadedJitaiFont,
 } from "../jitaiFonts";
+
+jest.mock("expo-file-system/legacy", () => ({
+  documentDirectory: "file:///documents/",
+  getInfoAsync: jest.fn(async (uri: string) => ({
+    exists: uri.endsWith(".ttf"),
+    isDirectory: false,
+  })),
+  deleteAsync: jest.fn(async () => {}),
+}));
 
 describe("Jitai fonts", () => {
   it("offers the additional calligraphy fonts", () => {
@@ -78,4 +93,27 @@ describe("Jitai fonts", () => {
       "downloaded",
     );
   });
+});
+
+
+it("reuses startup's font snapshot and invalidates it when an installed font is removed", async () => {
+  const storedFont: DownloadedJitaiFont = {
+    id: "custom-example",
+    family: "JitaiCustom_example",
+    displayName: "Japanese Brush",
+    fileUri: "file:///documents/jitai-fonts/custom-example.ttf",
+    downloadedAt: "2026-07-23T10:00:00.000Z",
+    origin: "custom",
+  };
+  jest.mocked(AsyncStorage.getItem).mockResolvedValue(JSON.stringify([storedFont]));
+  jest.mocked(Font.isLoaded).mockReturnValue(true);
+
+  expect(await loadDownloadedJitaiFonts()).toEqual([storedFont]);
+  expect(getCachedDownloadedJitaiFonts()).toEqual([storedFont]);
+  await removeDownloadedJitaiFont(storedFont.id);
+  expect(getCachedDownloadedJitaiFonts()).toBeNull();
+
+  jest.mocked(AsyncStorage.getItem).mockResolvedValue("[]");
+  expect(await loadDownloadedJitaiFonts()).toEqual([]);
+  expect(getCachedDownloadedJitaiFonts()).toEqual([]);
 });

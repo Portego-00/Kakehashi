@@ -60,6 +60,7 @@ import {
   updateStudyMaterial,
   getStudyMaterials,
 } from "../utils/api";
+import { saveMeaningSynonyms } from "../utils/studyMaterialSynonyms";
 import {
   clearStudyMaterialsCache,
   getAllSubjects,
@@ -67,12 +68,6 @@ import {
 } from "../utils/cache";
 import { getAssignmentsFromPermanentStorage } from "../utils/permanentStorage";
 import { fontStyles } from "../utils/fonts";
-import {
-  DEFAULT_JITAI_FONT_FAMILY,
-  getJitaiFontFamiliesForSelection,
-  loadDownloadedJitaiFonts,
-  type DownloadedJitaiFont,
-} from "../utils/jitaiFonts";
 import { pickPreferredPronunciationAudios } from "../utils/pronunciationAudio";
 import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
 import { useIsNoteSubjectPreviewOpen } from "../utils/note-subject-preview-state";
@@ -111,6 +106,7 @@ import {
 } from "../utils/review-multiple-choice";
 import KanjiDetails from "./KanjiDetails";
 import ReviewAnswerChoices from "./review-answer-choices";
+import ReviewPromptCharacters from "./ReviewPromptCharacters";
 import RadicalDetails from "./RadicalDetails";
 import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
 import KanaInput, { type KanaInputHandle } from "./TextToKanaInput";
@@ -931,113 +927,6 @@ const useAnimatedPercentage = (
   return animatedValue;
 };
 
-// Stable, memoized character renderer to avoid unmount/remount on parent re-renders
-const RadicalCharacterDisplay = React.memo(
-  function RadicalCharacterDisplay({
-    subject,
-    size = Math.min(width * 0.25, 120),
-    forceDefaultFont = false,
-  }: {
-    subject: WKSubject;
-    size?: number;
-    forceDefaultFont?: boolean;
-  }) {
-    const { jitaiEnabled, jitaiSelectedFontIds } = useSettingsStore();
-    const [downloadedJitaiFonts, setDownloadedJitaiFonts] = useState<
-      DownloadedJitaiFont[]
-    >([]);
-    const isRadical = subject.object === "radical";
-
-    const bestImg =
-      isRadical && subject.data.character_images?.length
-        ? pickBestImage(subject.data.character_images)
-        : null;
-    const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
-    const svgXml = useRemoteSvg(svgUrl, "#ffffff");
-
-    useEffect(() => {
-      let cancelled = false;
-
-      loadDownloadedJitaiFonts()
-        .then((fonts) => {
-          if (!cancelled) {
-            setDownloadedJitaiFonts(fonts);
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to load downloaded Jitai fonts:", error);
-        });
-
-      return () => {
-        cancelled = true;
-      };
-    }, []);
-
-    // Randomize font if enabled (Jitai)
-    const selectedRandomFont = React.useMemo(() => {
-      if (!jitaiEnabled) {
-        return DEFAULT_JITAI_FONT_FAMILY;
-      }
-
-      const availableFonts = getJitaiFontFamiliesForSelection(
-        jitaiSelectedFontIds,
-        downloadedJitaiFonts,
-      );
-      const randomIndex = Math.floor(Math.random() * availableFonts.length);
-      const subjectOffset = subject.id % availableFonts.length;
-      return (
-        availableFonts[(randomIndex + subjectOffset) % availableFonts.length] ??
-        DEFAULT_JITAI_FONT_FAMILY
-      );
-    }, [subject.id, jitaiEnabled, jitaiSelectedFontIds, downloadedJitaiFonts]);
-
-    const fontToUse = forceDefaultFont
-      ? DEFAULT_JITAI_FONT_FAMILY
-      : selectedRandomFont;
-
-    if (subject.data.characters) {
-      return (
-        <Text
-          key={`${subject.id}-${subject.data.characters}-${fontToUse}-${size}`}
-          selectable
-          style={[
-            styles.characterText,
-            fontStyles.japaneseText,
-            { fontFamily: fontToUse, fontSize: size },
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.5}
-        >
-          {subject.data.characters}
-        </Text>
-      );
-    }
-
-    if (svgXml) {
-      return <SvgXml xml={svgXml} width={size} height={size} />;
-    }
-
-    if (svgUrl) {
-      return null; // loading svg
-    }
-
-    return (
-      <Text
-        style={styles.placeholderText}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {subject.data.meanings[0]?.meaning || ""}
-      </Text>
-    );
-  },
-  (prev, next) =>
-    prev.subject.id === next.subject.id &&
-    prev.size === next.size &&
-    prev.forceDefaultFont === next.forceDefaultFont,
-);
-
 const AnsweredItemCharacterDisplay = React.memo(function AnsweredItemCharacterDisplay({
   subject,
   fallbackText,
@@ -1672,6 +1561,20 @@ export default function ReviewQuestionScreen({
       ? "Meaning & Reading"
       : questionTypeDisplayLabel;
   const currentQuestionKey = `${item.id}:${questionType}:${currentItem}:${questionOccurrenceId}`;
+  const studyMaterialContextRef = useRef({
+    apiToken, subjectId: item.subject.id, questionKey: currentQuestionKey,
+  });
+  useEffect(() => {
+    studyMaterialContextRef.current = {
+      apiToken, subjectId: item.subject.id, questionKey: currentQuestionKey,
+    };
+    setIsAddingSynonym(false);
+  }, [apiToken, item.subject.id, currentQuestionKey]);
+  const isCurrentStudyMaterialQuestion = useCallback(() => {
+    const current = studyMaterialContextRef.current;
+    return mountedRef.current && current.apiToken === apiToken &&
+      current.subjectId === item.subject.id && current.questionKey === currentQuestionKey;
+  }, [apiToken, item.subject.id, currentQuestionKey]);
   const answerChoices = useMemo(
     () => usesMultipleChoice && choiceCatalog !== null
       ? createReviewAnswerChoices({
@@ -3549,33 +3452,27 @@ export default function ReviewQuestionScreen({
   );
 
   const handleReviewDetailSynonymsChange = useCallback(
-    async (synonyms: string[]) => {
+    async (synonyms: string[], originalSynonyms: string[]) => {
       if (!apiToken || item.subject.id <= 0) {
         throw new Error("Missing API token");
       }
 
       const subjectId = item.subject.id;
-      const studyMaterialsResponse = await getStudyMaterials(
-        apiToken,
-        { subject_ids: [subjectId] },
-        { skipCache: true },
+      const savedMaterial = await saveMeaningSynonyms(
+        apiToken, subjectId, originalSynonyms, synonyms
       );
-      const existingMaterial = studyMaterialsResponse?.data?.[0];
-
-      if (existingMaterial) {
-        await updateStudyMaterial(apiToken, existingMaterial.id, {
-          meaning_synonyms: synonyms,
-        });
-      } else {
-        await createStudyMaterial(apiToken, {
-          subject_id: subjectId,
-          meaning_synonyms: synonyms,
-        });
+      const savedSynonyms = savedMaterial.data.meaning_synonyms;
+      if (!mountedRef.current || studyMaterialContextRef.current.apiToken !== apiToken) return;
+      onSynonymAdded?.(subjectId, savedSynonyms);
+      if (isCurrentStudyMaterialQuestion()) {
+        setLocalStudyMaterials((previousStudyMaterials) => ({
+          ...(studyMaterials || {}),
+          ...(previousStudyMaterials || {}),
+          meaning_synonyms: savedSynonyms,
+        }));
       }
-
-      onSynonymAdded?.(subjectId, synonyms);
     },
-    [apiToken, item.subject.id, onSynonymAdded],
+    [apiToken, item.subject.id, onSynonymAdded, studyMaterials, isCurrentStudyMaterialQuestion],
   );
 
   const handleReviewDetailNotePress = useCallback(
@@ -4296,37 +4193,21 @@ export default function ReviewQuestionScreen({
         return;
       }
 
-      const updatedSynonyms = [...existingSynonyms, newSynonym];
+      const savedMaterial = await saveMeaningSynonyms(
+        apiToken, subjectId, existingSynonyms, [...existingSynonyms, newSynonym]
+      );
+      const updatedSynonyms = savedMaterial.data.meaning_synonyms;
 
-      // Check if study material exists for this subject
-      const studyMaterialsResponse = await getStudyMaterials(apiToken, {
-        subject_ids: [subjectId],
-      }, { skipCache: true });
-
-      const existingMaterial = studyMaterialsResponse?.data?.[0];
-
-      if (existingMaterial) {
-        // Update existing study material
-        await updateStudyMaterial(apiToken, existingMaterial.id, {
-          meaning_synonyms: updatedSynonyms,
-        });
-      } else {
-        // Create new study material
-        await createStudyMaterial(apiToken, {
-          subject_id: subjectId,
-          meaning_synonyms: updatedSynonyms,
-        });
-      }
-
-      // Notify parent to update its studyMaterialsMap
+      if (!mountedRef.current || studyMaterialContextRef.current.apiToken !== apiToken) return;
+      // The parent map is scoped by subject, while this screen may already show
+      // a different question by the time the save finishes.
+      onSynonymAdded?.(subjectId, updatedSynonyms);
+      if (!isCurrentStudyMaterialQuestion()) return;
       setLocalStudyMaterials((previousStudyMaterials) => ({
         ...(studyMaterials || {}),
         ...(previousStudyMaterials || {}),
         meaning_synonyms: updatedSynonyms,
       }));
-      if (onSynonymAdded) {
-        onSynonymAdded(subjectId, updatedSynonyms);
-      }
 
       // Mark as correct after successfully adding synonym
       handleMarkCorrect();
@@ -4334,7 +4215,7 @@ export default function ReviewQuestionScreen({
       // Show error feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setIsAddingSynonym(false);
+      if (isCurrentStudyMaterialQuestion()) setIsAddingSynonym(false);
     }
   };
 
@@ -5932,7 +5813,7 @@ export default function ReviewQuestionScreen({
                 )}
               </>
             ) : (
-              <RadicalCharacterDisplay
+              <ReviewPromptCharacters
                 subject={subject}
                 size={contextHintPromptSize}
                 forceDefaultFont={isUsingDefaultJitaiFont}
@@ -7515,16 +7396,6 @@ const styles = StyleSheet.create({
     borderRadius: FLOATING_REVIEW_TOOL_BUTTON_RADIUS,
     borderWidth: 0.5,
     borderColor: "rgba(255, 255, 255, 0.06)",
-  },
-  characterText: {
-    fontSize: Math.min(width * 0.25, 120),
-    color: "white",
-    fontWeight: "400",
-    textAlign: "center",
-    fontFamily: "SourceHanSansJP-Regular",
-    // Android-specific: remove extra font padding and center vertically
-    includeFontPadding: false,
-    textAlignVertical: "center",
   },
   placeholderText: {
     fontSize: Math.min(width * 0.09, 36),

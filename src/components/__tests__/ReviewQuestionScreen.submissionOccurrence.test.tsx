@@ -5,6 +5,7 @@ import { Alert, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import { Audio } from "../../utils/expoAvCompat";
+import { getStudyMaterials, updateStudyMaterial } from "../../utils/api";
 import { buildReviewQuestionQueue } from "../../utils/reviewOrdering";
 
 let mockFlushedNoteText: string | undefined;
@@ -22,6 +23,7 @@ const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
   async () => null,
 );
 const mockRenderedDetailSubjects: number[] = [];
+let mockReviewSynonymsChange: ((edited: string[], original: string[]) => Promise<void>) | undefined;
 const mockGetAllSubjects = jest.fn(async (): Promise<unknown[]> => []);
 const mockGetAssignments = jest.fn<Promise<unknown[] | null>, [{ ignoreTTL: boolean }]>(async () => []);
 const mockSpeechListeners = new Map<string, (event: unknown) => void>();
@@ -34,11 +36,17 @@ jest.mock("../../utils/cache", () => ({
   clearStudyMaterialsCache: jest.fn(async () => {}),
 }));
 
+jest.mock("../../utils/api", () => ({
+  getStudyMaterials: jest.fn(async () => ({ data: [] })),
+  createStudyMaterial: jest.fn(),
+  updateStudyMaterial: jest.fn(),
+}));
+
 jest.mock("../../utils/permanentStorage", () => ({
   getAssignmentsFromPermanentStorage: (options: { ignoreTTL: boolean }) => mockGetAssignments(options),
 }));
 
-const mockAuthState: { apiToken: null; userData: { username: string } | null } = {
+const mockAuthState: { apiToken: string | null; userData: { username: string } | null } = {
   apiToken: null,
   userData: { username: "Portego" },
 };
@@ -290,7 +298,8 @@ jest.mock("../VocabularyDetails", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   return {
     __esModule: true,
-    default: (props: { vocabulary: { id: number } }) => {
+    default: (props: { vocabulary: { id: number }; onSynonymsChange: typeof mockReviewSynonymsChange }) => {
+      mockReviewSynonymsChange = props.onSynonymsChange;
       mockRenderedDetailSubjects.push(props.vocabulary.id);
       return React.createElement(
         Text,
@@ -439,6 +448,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockVoicePermissionsGranted = false;
     jest.mocked(ExpoSpeechRecognitionModule.start).mockClear();
     mockAuthState.userData = { username: "Portego" };
+    mockAuthState.apiToken = null;
+    mockReviewSynonymsChange = undefined;
+    jest.mocked(getStudyMaterials).mockReset().mockResolvedValue({ data: [] });
+    jest.mocked(updateStudyMaterial).mockReset();
     mockGetSubjectById.mockReset();
     mockGetSubjectById.mockResolvedValue(null);
     mockRenderedDetailSubjects.length = 0;
@@ -1454,6 +1467,38 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getByText("Not enough distinct choices for this question. Type your answer.")).toBeTruthy();
   });
 
+  it.each([false, true])("keeps choices across unrelated meanings and reopening with an enabled preference (audio prompt=%s)", async (audioPrompt) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const subjects = ["Cat", "Dog", "Bird", "Horse", "Tatami", "Festival", "Umbrella"].map((meaning, index) => ({
+      ...audioItem.subject,
+      id: 30 + index,
+      data: { ...audioItem.subject.data, characters: String(index), meanings: [{ meaning, primary: true, accepted_answer: true }] },
+    }));
+    mockGetAllSubjects.mockResolvedValue(subjects);
+    mockGetAssignments.mockResolvedValue(subjects.map(({ id }) => ({ data: { subject_id: id, srs_stage: 5 } })));
+    const onAnswer = jest.fn();
+    const question = (index: number) => <ReviewQuestionScreen
+      item={{ id: subjects[index].id, subject: subjects[index] }}
+      questionType="meaning"
+      currentItem={index}
+      audioPrompt={audioPrompt ? <Text>Play recording</Text> : undefined}
+      onAnswer={onAnswer}
+    />;
+    const screen = render(question(0));
+    for (let index = 0; index < subjects.length; index++) {
+      screen.rerender(question(index));
+      const correctChoice = await screen.findByRole("button", { name: new RegExp(`\\d\\. ${subjects[index].data.meanings[0].meaning}$`) });
+      expect(screen.queryByText(/Not enough distinct choices/)).toBeNull();
+      expect(screen.getAllByRole("button").filter(button => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4);
+      fireEvent.press(correctChoice);
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(index + 1));
+    }
+    screen.unmount();
+    const reopened = render(question(subjects.length - 1));
+    expect(await reopened.findByRole("button", { name: /\d\. Umbrella$/ })).toBeTruthy();
+    expect(reopened.queryByText(/Not enough distinct choices/)).toBeNull();
+  });
+
   it("submits a radical name using four choices instead of requiring typing", async () => {
     mockSettings.reviewMultipleChoiceEnabled = true;
     const gun = {
@@ -1492,6 +1537,74 @@ describe("ReviewQuestionScreen question occurrences", () => {
       false,
       false,
     );
+  });
+
+  it.each(["detail editor", "quick add"])("preserves unseen WaniKani synonyms from the %s (#83)", async (action) => {
+    mockAuthState.apiToken = "fixture-token";
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = action === "detail editor";
+    mockSettings.showAddSynonymButton = true;
+    const subjectId = audioItem.subject.id;
+    const remoteMaterial = { id: 77, data: { subject_id: subjectId, meaning_synonyms: ["existing on WaniKani"] } };
+    jest.mocked(getStudyMaterials).mockResolvedValue({ data: [remoteMaterial] });
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => ({
+      ...remoteMaterial, data: { ...remoteMaterial.data, ...updates },
+    }));
+    const onSynonymAdded = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={jest.fn()} onSynonymAdded={onSynonymAdded} />);
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "dog");
+    fireEvent(input, "submitEditing");
+    if (action === "detail editor") {
+      await screen.findByTestId("paused-vocabulary-details");
+      await act(async () => { await mockReviewSynonymsChange?.(["dog"], []); });
+    } else {
+      await screen.findByText("Synonym");
+      await act(async () => { fireEvent.press(screen.getByText("Synonym")); });
+    }
+    await waitFor(() => expect(updateStudyMaterial).toHaveBeenCalledWith("fixture-token", 77, {
+      meaning_synonyms: ["existing on WaniKani", "dog"],
+    }));
+    expect(onSynonymAdded).toHaveBeenCalledWith(subjectId, ["existing on WaniKani", "dog"]);
+  });
+
+  it.each(["detail editor", "quick add"])("does not apply a delayed %s synonym save to a different review subject", async (action) => {
+    mockAuthState.apiToken = "fixture-token";
+    mockSettings.acceptUserSynonymsAsAnswers = true;
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = action === "detail editor";
+    mockSettings.showAddSynonymButton = true;
+    const material = { id: 77, data: { subject_id: audioItem.subject.id, meaning_synonyms: ["dog"] } };
+    jest.mocked(getStudyMaterials).mockResolvedValue({ data: [{ ...material, data: { ...material.data, meaning_synonyms: [] } }] });
+    let finishSave!: () => void;
+    jest.mocked(updateStudyMaterial).mockImplementation(() => new Promise(resolve => {
+      finishSave = () => resolve(material);
+    }));
+    const onAnswer = jest.fn();
+    const onSynonymAdded = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} onSynonymAdded={onSynonymAdded} />);
+    fireEvent.changeText(screen.getByTestId("answer-input"), "dog");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    let save: Promise<void> | undefined;
+    if (action === "detail editor") {
+      await screen.findByTestId("paused-vocabulary-details");
+      await act(async () => { save = mockReviewSynonymsChange!(["dog"], []); });
+    } else {
+      await screen.findByText("Synonym");
+      await act(async () => { fireEvent.press(screen.getByText("Synonym")); });
+    }
+    const nextItem = { id: 900, subject: { ...audioItem.subject, id: 900, data: {
+      ...audioItem.subject.data, characters: "鳥", meanings: [{ meaning: "Bird", primary: true, accepted_answer: true }],
+    } } };
+    mockSettings.disableAutoProgressOnWrong = false;
+    screen.rerender(<ReviewQuestionScreen item={nextItem} questionType="meaning" onAnswer={onAnswer} onSynonymAdded={onSynonymAdded} />);
+    await act(async () => { finishSave(); await save; });
+    expect(onSynonymAdded).toHaveBeenCalledWith(audioItem.subject.id, ["dog"]);
+    expect(onAnswer).not.toHaveBeenCalled();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 500)); });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "dog");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(nextItem, "meaning", false, true, false));
   });
 
   it("opens custom vocabulary details without offering WaniKani synonym writes", async () => {

@@ -400,6 +400,7 @@ const styles = StyleSheet.create({
   tooltipKanjiChipText: {
     fontSize: 14,
     fontWeight: "700",
+    ...fontStyles.japaneseChip,
   },
   tooltipPopupButton: {
     flexDirection: "row",

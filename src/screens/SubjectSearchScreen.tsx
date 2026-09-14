@@ -1413,6 +1413,7 @@ const styles = StyleSheet.create({
   readingChipText: {
     fontSize: 12,
     fontWeight: "600",
+    ...fontStyles.japaneseChip,
   },
   readingOverflowChip: {
     paddingHorizontal: 6,

@@ -2661,7 +2661,7 @@ export async function getStudyMaterials(
     subject_ids?: number[];
     updated_after?: string;
   } = {},
-  options?: { skipCache?: boolean }
+  options?: { skipCache?: boolean; allowOfflineFallback?: boolean }
 ): Promise<any> {
   const uniqueSubjectIds = Array.from(
     new Set(
@@ -2847,6 +2847,7 @@ export async function getStudyMaterials(
     });
     return data;
   } catch (error) {
+    if (options?.allowOfflineFallback === false) throw error;
     const offlineMaterials = await getStudyMaterialsFromPermanentCache(
       requestedSubjectIds
     ).catch(() => null);
@@ -2921,6 +2922,19 @@ export async function getSpacedRepetitionSystems(
   return data;
 }
 
+function studyMaterialApiError(status: number, responseText: string): Error {
+  let detail = "";
+  try {
+    const payload = JSON.parse(responseText);
+    if (typeof payload?.error === "string") {
+      detail = payload.error.trim().slice(0, 500);
+    }
+  } catch {
+    // Proxy/HTML responses aren't useful note-validation messages.
+  }
+  return new Error(`API error: ${status}${detail ? `: ${detail}` : ""}`);
+}
+
 // Create a new study material
 export async function createStudyMaterial(
   apiToken: string,
@@ -2951,7 +2965,7 @@ export async function createStudyMaterial(
       `API error ${response.status} for creating study material:`,
       errorText
     );
-    throw new Error(`API error: ${response.status}`);
+    throw studyMaterialApiError(response.status, errorText);
   }
 
   const data = await response.json();
@@ -2997,7 +3011,7 @@ export async function updateStudyMaterial(
       `API error ${response.status} for updating study material:`,
       errorText
     );
-    throw new Error(`API error: ${response.status}`);
+    throw studyMaterialApiError(response.status, errorText);
   }
 
   const data = await response.json();

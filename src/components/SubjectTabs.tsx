@@ -955,6 +955,7 @@ const createStyles = (subjectColors: SubjectColors) =>
   readingBadgeText: {
     color: "#666",
     fontSize: 16,
+    ...fontStyles.japaneseChip,
   },
   primaryReadingBadgeText: {
     color: "white",

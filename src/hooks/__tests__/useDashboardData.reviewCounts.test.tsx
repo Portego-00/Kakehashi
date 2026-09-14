@@ -235,6 +235,26 @@ describe("dashboard review count while refresh is pending", () => {
     expect(dashboard.dashboardData.reviewCount).toBe(52);
   });
 
+  it("preserves a server count when the local assignment cache is incomplete", async () => {
+    const rows = assignments(21);
+    mockCachedDashboard.mockResolvedValue({
+      reviewCount: 51,
+      reviewCountAssignmentBaseline: {
+        dueAssignmentIds: rows.map(({ id }) => id),
+        capturedAt: "2026-09-14T09:30:00Z",
+      },
+      subjects: [], assignments: [], dataLoadingState: {},
+    });
+    mockReconstructedDashboard.mockResolvedValue({
+      assignments: rows, subjects: [], dataLoadingState: {},
+    });
+    render(<DashboardProvider><Count /></DashboardProvider>);
+    await act(async () => {});
+    expect(dashboard.dashboardData.reviewCount).toBe(51);
+    await act(async () => { await dashboard.refreshLessonsAndReviews(); });
+    expect(dashboard.dashboardData.reviewCount).toBe(51);
+  });
+
   it("allows newly due reviews after a legacy cached zero while offline", async () => {
     mockCachedDashboard.mockResolvedValue({
       reviewCount: 0, subjects: [], assignments: [], dataLoadingState: {},
@@ -268,6 +288,35 @@ describe("dashboard review count while refresh is pending", () => {
     await act(async () => {});
     expect(dashboard.dashboardData.reviewCount).toBe(31);
     expect(mockGetReviewCount).toHaveBeenCalledWith("fixture-token", pendingIds);
+  });
+
+  it("keeps the baseline aligned when reviews become pending between count reads", async () => {
+    const rows = assignments(71);
+    const pendingReviews = new Set(Array.from({ length: 20 }, (_, index) => index + 1));
+    let assignmentsRequested = false;
+    let pendingReadAfterAssignments = false;
+    mockPendingIds.mockImplementation(async () => {
+      if (!assignmentsRequested) return { lesson: new Set(), review: new Set() };
+      if (!pendingReadAfterAssignments) {
+        pendingReadAfterAssignments = true;
+        return { lesson: new Set(), review: new Set() };
+      }
+      return { lesson: new Set(), review: pendingReviews };
+    });
+    mockGetReviewCount.mockImplementation(async (_token, excludedIds) => 71 - excludedIds.size);
+    mockGetSummary.mockResolvedValue({ data: { lessons: [], reviews: [] } });
+    mockGetAssignments.mockImplementation(async () => {
+      assignmentsRequested = true;
+      return { data: rows };
+    });
+    mockReconstructedDashboard.mockResolvedValue({
+      assignments: rows, subjects: [], dataLoadingState: {},
+    });
+    render(<DashboardProvider><Count /></DashboardProvider>);
+    await act(async () => {});
+    expect(dashboard.dashboardData.reviewCount).toBe(51);
+    await act(async () => { await dashboard.refreshLessonsAndReviews(); });
+    expect(dashboard.dashboardData.reviewCount).toBe(51);
   });
 
   it("does not reuse the startup count after reviews finish during summary loading", async () => {
@@ -360,6 +409,29 @@ describe("dashboard review count while refresh is pending", () => {
     });
     expect(dashboard.dashboardData.reviewCount).toBe(11);
     expect(displayedCounts.slice(displayedCounts.indexOf(11))).not.toContain(31);
+    interactions.mockRestore();
+  });
+
+  it("finishes the full dashboard when a concurrent local refresh has no queue changes", async () => {
+    const rows = assignments(51);
+    const statistics = deferred<unknown>();
+    mockGetStatistics.mockReturnValue(statistics.promise);
+    mockGetSummary.mockResolvedValue({ data: { lessons: [], reviews: [] } });
+    mockGetReviewCount.mockResolvedValue(51);
+    mockGetAssignments.mockResolvedValue({ data: rows });
+    mockReconstructedDashboard.mockResolvedValue({
+      assignments: rows, subjects: [], dataLoadingState: {},
+    });
+    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    render(<DashboardProvider><Count /></DashboardProvider>);
+    await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
+    expect(mockGetStatistics).toHaveBeenCalled();
+    await act(async () => { await dashboard.refreshLessonsAndReviews(); });
+    await act(async () => { statistics.resolve({ data: [] }); });
+    expect(dashboard.isFreshData).toBe(true);
+    expect(mockSaveDashboard.mock.calls.some(([data]: any[]) =>
+      data.dataLoadingState?.levelData === true)).toBe(true);
     interactions.mockRestore();
   });
 });

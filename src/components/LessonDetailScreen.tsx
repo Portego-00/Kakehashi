@@ -57,6 +57,7 @@ import {
   Subject as ApiSubject,
   updateStudyMaterial,
 } from "../utils/api";
+import { mergeStudyMaterialUpdate, saveMeaningSynonyms } from "../utils/studyMaterialSynonyms";
 import { getAllSubjects } from "../utils/cache";
 import { azureSpeechService } from "../utils/azureSpeech";
 import { SynonymsModal } from "./SynonymsModal";
@@ -101,6 +102,7 @@ import {
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
+import { MnemonicTag } from "./MnemonicTag";
 import KanjiPracticeModal from "./KanjiPracticeModal";
 import KanjiLessonEtymologySection from "./KanjiLessonEtymologySection";
 import KanjiReadingExamples from "./KanjiReadingExamples";
@@ -511,6 +513,8 @@ const SubjectContent = ({
   const [synonymsModalVisible, setSynonymsModalVisible] = useState(false);
   const [userSynonyms, setUserSynonyms] = useState<string[]>([]);
   const [studyMaterialId, setStudyMaterialId] = useState<number | null>(null);
+  const studyMaterialRevisionRef = useRef(0);
+  const currentStudyMaterialRef = useRef<any>(null);
   const [meaningNote, setMeaningNote] = useState("");
   const [readingNote, setReadingNote] = useState("");
   const [noteModalVisible, setNoteModalVisible] = useState(false);
@@ -1194,8 +1198,15 @@ const SubjectContent = ({
     relatedSubjects,
   ]);
 
-  const applyStudyMaterialState = (material: any | null) => {
-    if (!material) {
+  const applyStudyMaterialState = (
+    material: any | null,
+    updates?: Record<string, unknown>
+  ) => {
+    const nextMaterial = updates
+      ? mergeStudyMaterialUpdate(currentStudyMaterialRef.current, material, updates, subject.id)
+      : material;
+    currentStudyMaterialRef.current = nextMaterial;
+    if (!nextMaterial) {
       setUserSynonyms([]);
       setStudyMaterialId(null);
       setMeaningNote("");
@@ -1203,10 +1214,10 @@ const SubjectContent = ({
       return;
     }
 
-    setUserSynonyms(material.data?.meaning_synonyms || []);
-    setStudyMaterialId(material.id);
-    setMeaningNote(material.data?.meaning_note || "");
-    setReadingNote(material.data?.reading_note || "");
+    setUserSynonyms(nextMaterial.data?.meaning_synonyms || []);
+    setStudyMaterialId(nextMaterial.id);
+    setMeaningNote(nextMaterial.data?.meaning_note || "");
+    setReadingNote(nextMaterial.data?.reading_note || "");
   };
 
   const upsertStudyMaterial = useCallback(
@@ -1254,8 +1265,11 @@ const SubjectContent = ({
       return deferStateUpdate(() => applyStudyMaterialState(null));
     }
 
+    const revision = ++studyMaterialRevisionRef.current;
+    let cancelled = false;
     getStudyMaterials(apiToken, { subject_ids: [subject.id] })
       .then((response) => {
+        if (cancelled || revision !== studyMaterialRevisionRef.current) return;
         if (response?.data?.[0]) {
           applyStudyMaterialState(response.data[0]);
         } else {
@@ -1265,17 +1279,21 @@ const SubjectContent = ({
       .catch((error) => {
         console.warn("[LessonDetail] Failed to fetch study materials:", error);
       });
+    return () => { cancelled = true; };
   }, [apiToken, subject.id, shouldLoadStudyMaterials]);
 
   // Handler for saving synonyms
-  const handleSynonymsChange = async (synonyms: string[]) => {
+  const handleSynonymsChange = async (synonyms: string[], originalSynonyms: string[]) => {
     if (!apiToken) return;
 
     try {
-      const savedMaterial = await upsertStudyMaterial({
-        meaning_synonyms: synonyms,
+      const savedMaterial = await saveMeaningSynonyms(
+        apiToken, subject.id, originalSynonyms, synonyms
+      );
+      studyMaterialRevisionRef.current += 1;
+      applyStudyMaterialState(savedMaterial, {
+        meaning_synonyms: savedMaterial.data.meaning_synonyms,
       });
-      applyStudyMaterialState(savedMaterial);
     } catch (error) {
       console.error("[LessonDetail] Failed to save synonyms:", error);
       throw error;
@@ -1343,7 +1361,8 @@ const SubjectContent = ({
           ? { meaning_note: currentNoteText }
           : { reading_note: currentNoteText };
       const savedMaterial = await upsertStudyMaterial(updates);
-      applyStudyMaterialState(savedMaterial);
+      studyMaterialRevisionRef.current += 1;
+      applyStudyMaterialState(savedMaterial, updates);
       setNoteModalVisible(false);
     } catch (error) {
       console.error("[LessonDetail] Failed to save note:", error);
@@ -1545,9 +1564,9 @@ const SubjectContent = ({
       if (token.type === "radical") {
         return (
           <Text key={index}>
-            <View style={styles.inlineRadicalTag}>
-              <Text style={styles.radicalTagText}>{token.text}</Text>
-            </View>
+            <MnemonicTag style={styles.inlineRadicalTag} textStyle={styles.radicalTagText}>
+              {token.text}
+            </MnemonicTag>
           </Text>
         );
       }
@@ -1555,9 +1574,9 @@ const SubjectContent = ({
       if (token.type === "kanji") {
         return (
           <Text key={index}>
-            <View style={styles.inlineKanjiTag}>
-              <Text style={styles.kanjiTagText}>{token.text}</Text>
-            </View>
+            <MnemonicTag style={styles.inlineKanjiTag} textStyle={styles.kanjiTagText}>
+              {token.text}
+            </MnemonicTag>
           </Text>
         );
       }
@@ -1565,9 +1584,9 @@ const SubjectContent = ({
       if (token.type === "vocabulary") {
         return (
           <Text key={index}>
-            <View style={styles.inlineVocabTag}>
-              <Text style={styles.vocabTagText}>{token.text}</Text>
-            </View>
+            <MnemonicTag style={styles.inlineVocabTag} textStyle={styles.vocabTagText}>
+              {token.text}
+            </MnemonicTag>
           </Text>
         );
       }
@@ -1575,9 +1594,9 @@ const SubjectContent = ({
       if (token.type === "reading") {
         return (
           <Text key={index}>
-            <View style={styles.inlineReadingTag}>
-              <Text style={styles.readingTagText}>{token.text}</Text>
-            </View>
+            <MnemonicTag style={styles.inlineReadingTag} textStyle={styles.readingTagText}>
+              {token.text}
+            </MnemonicTag>
           </Text>
         );
       }
@@ -6662,7 +6681,7 @@ const createStyles = (theme: any, subjectColors: SubjectColors) =>
     },
     // Mnemonic formatting styles
     mnemonicTextContainer: {
-      fontSize: 16,
+      fontSize: Platform.OS === "android" ? 17 : 16,
       lineHeight: 26,
       color: theme.textSecondary,
       flexWrap: "wrap",

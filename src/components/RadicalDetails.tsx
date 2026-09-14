@@ -43,6 +43,7 @@ import {
 import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
+import { MnemonicTag } from "./MnemonicTag";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { FormattedNoteText } from "./formatted-note";
 import { NoteFieldContainer } from "./note-field-container";
@@ -99,7 +100,7 @@ interface RadicalDetailsProps {
   onAddToList?: () => void;
   isBookmarked?: boolean;
   userLevel?: number;
-  onSynonymsChange?: (synonyms: string[]) => Promise<void>;
+  onSynonymsChange?: (synonyms: string[], originalSynonyms: string[]) => Promise<void>;
   embedded?: boolean;
 }
 
@@ -412,17 +413,17 @@ export default function RadicalDetails({
 
       if (token.type === "radical") {
         return (
-          <View key={index} style={styles.inlineRadicalTag}>
-            <Text style={styles.radicalTagText}>{token.text}</Text>
-          </View>
+          <MnemonicTag key={index} style={styles.inlineRadicalTag} textStyle={styles.radicalTagText}>
+            {token.text}
+          </MnemonicTag>
         );
       }
 
       if (token.type === "reading") {
         return (
-          <View key={index} style={styles.inlineReadingTag}>
-            <Text style={styles.readingTagText}>{token.text}</Text>
-          </View>
+          <MnemonicTag key={index} style={styles.inlineReadingTag} textStyle={styles.readingTagText}>
+            {token.text}
+          </MnemonicTag>
         );
       }
 
@@ -1095,9 +1096,9 @@ export default function RadicalDetails({
       <SynonymsModal
         visible={synonymsModalVisible}
         onClose={() => setSynonymsModalVisible(false)}
-        onSave={async (synonyms) => {
+        onSave={async (synonyms, originalSynonyms) => {
           if (onSynonymsChange) {
-            await onSynonymsChange(synonyms);
+            await onSynonymsChange(synonyms, originalSynonyms);
           }
         }}
         currentSynonyms={radical.userSynonyms || []}
@@ -1391,6 +1392,7 @@ const createStyles = (subjectColors: SubjectColors) => {
     color: "#333",
   },
   mnemonicTextContainer: {
+    ...(Platform.OS === "android" ? { fontSize: 16, lineHeight: 24 } : {}),
     flexDirection: "row",
     flexWrap: "wrap",
   },

@@ -2805,6 +2805,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   tooltipKanjiChipText: {
+    ...fontStyles.japaneseChip,
     fontSize: 14,
     fontWeight: "700",
     flexShrink: 1,

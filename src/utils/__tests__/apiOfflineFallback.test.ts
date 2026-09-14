@@ -404,6 +404,34 @@ describe("api offline assignment fallbacks", () => {
     await expect(api.getLiveReviewCount("test-token", pendingIds)).resolves.toBe(31);
   });
 
+  it("finds pending review IDs beyond the first page", async () => {
+    const firstPage = makeAssignmentsCollection([makeAssignment(1), makeAssignment(2)]);
+    (global.fetch as jest.Mock)
+      .mockImplementationOnce(() => mockResponse({
+        ...firstPage,
+        total_count: 3,
+        pages: { ...firstPage.pages, next_url: "https://api.wanikani.com/v2/assignments?page_after_id=2" },
+      }))
+      .mockImplementationOnce(() => mockResponse(makeAssignmentsCollection([makeAssignment(3)])));
+    const { api } = loadApi();
+    await expect(api.getLiveReviewCount("test-token", new Set([3]))).resolves.toBe(2);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an incomplete live count when a pending-ID page cannot load", async () => {
+    const firstPage = makeAssignmentsCollection([makeAssignment(1)]);
+    (global.fetch as jest.Mock)
+      .mockImplementationOnce(() => mockResponse({
+        ...firstPage,
+        total_count: 2,
+        pages: { ...firstPage.pages, next_url: "https://api.wanikani.com/v2/assignments?page_after_id=1" },
+      }))
+      .mockRejectedValueOnce(new Error("offline"));
+    const { api } = loadApi();
+    await expect(api.getLiveReviewCount("test-token", new Set([2]))).rejects.toThrow();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("uses one live attempt before reading cached available reviews", async () => {
     const availableReview = makeAssignment(1, {
       srs_stage: 3,
@@ -868,6 +896,31 @@ describe("api offline assignment fallbacks", () => {
     expect(getStudyMaterialsFromPermanentCacheMock).toHaveBeenCalledWith([
       1001,
     ]);
+  });
+
+  it.each(["create", "update"])("preserves the server's note validation reason on %s (#87)", async (operation) => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      status: 422, ok: false, headers: { get: () => null },
+      text: async () => JSON.stringify({ error: "Meaning note is too long (maximum is 500 characters)", code: 422 }),
+    });
+    const { api } = loadApi();
+    const save = operation === "create"
+      ? api.createStudyMaterial("test-token", { subject_id: 1001, meaning_note: "Long rich note" })
+      : api.updateStudyMaterial("test-token", 77, { meaning_note: "Long rich note" });
+
+    await expect(save).rejects.toThrow("Meaning note is too long (maximum is 500 characters)");
+  });
+
+  it("rejects a failed live study-material read before a write even when offline data exists", async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("offline"));
+    const { api, getStudyMaterialsFromPermanentCacheMock } = loadApi();
+    getStudyMaterialsFromPermanentCacheMock.mockResolvedValue([]);
+
+    await expect(api.getStudyMaterials(
+      "test-token", { subject_ids: [1001] },
+      { skipCache: true, allowOfflineFallback: false }
+    )).rejects.toThrow("offline");
+    expect(getStudyMaterialsFromPermanentCacheMock).not.toHaveBeenCalled();
   });
 
   it("fails instead of returning incomplete accepted answers offline", async () => {

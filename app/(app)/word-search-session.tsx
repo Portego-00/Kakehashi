@@ -962,7 +962,7 @@ const styles = StyleSheet.create({
     gap: 5,
     justifyContent: "space-between",
   },
-  clueChipText: { flex: 1, fontSize: 17 },
+  clueChipText: { flex: 1, fontSize: 17, ...fontStyles.japaneseChip },
   clueChipMeaning: { fontSize: 11 },
   mistakeRow: {
     alignItems: "center",

@@ -288,11 +288,28 @@ export default function ContextSentenceQuestionScreen({
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [androidScreenLayoutHeight, setAndroidScreenLayoutHeight] = useState(0);
   const mountedRef = useRef(true);
+  const answerSubmittedRef = useRef(false);
+  const answerAdvancedRef = useRef(false);
+  const nextQuestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const questionGenerationRef = useRef(0);
+  const sentenceAudioGenerationRef = useRef(0);
+  const sentenceAudioActiveRef = useRef(false);
+  const resumeAutoAdvanceRef = useRef<(() => void) | null>(null);
+  const cancelSentenceAudioWaitRef = useRef<(() => void) | null>(null);
   const androidBaselineScreenHeightRef = useRef(0);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      questionGenerationRef.current += 1;
+      sentenceAudioGenerationRef.current += 1;
+      resumeAutoAdvanceRef.current = null;
+      cancelSentenceAudioWaitRef.current?.();
+      cancelSentenceAudioWaitRef.current = null;
+      if (nextQuestionTimerRef.current !== null) {
+        clearTimeout(nextQuestionTimerRef.current);
+      }
     };
   }, []);
 
@@ -363,13 +380,21 @@ export default function ContextSentenceQuestionScreen({
   }, []);
 
   const stopSentenceAudio = useCallback(async () => {
+    const generation = ++sentenceAudioGenerationRef.current;
+    sentenceAudioActiveRef.current = false;
+    // Speech initialization can outlive native Stop. Release the quiz's wait now.
+    cancelSentenceAudioWaitRef.current?.();
+    cancelSentenceAudioWaitRef.current = null;
     try {
       await azureSpeechService.stop();
     } catch {
       // no-op
     } finally {
-      setIsSentenceAudioPlaying(false);
-      setIsSentenceAudioLoading(false);
+      if (mountedRef.current && generation === sentenceAudioGenerationRef.current) {
+        setIsSentenceAudioPlaying(false);
+        setIsSentenceAudioLoading(false);
+        resumeAutoAdvanceRef.current?.();
+      }
     }
   }, []);
 
@@ -387,33 +412,62 @@ export default function ContextSentenceQuestionScreen({
     );
 
   const startSentenceAudio = useCallback(async () => {
-    if (!enableSentenceAudio) {
+    if (!enableSentenceAudio || !mountedRef.current) {
       return;
     }
+    const generation = ++sentenceAudioGenerationRef.current;
+    cancelSentenceAudioWaitRef.current?.();
+    const cancelled = new Promise<void>((resolve) => {
+      cancelSentenceAudioWaitRef.current = resolve;
+    });
+    const isCurrent = () =>
+      mountedRef.current && generation === sentenceAudioGenerationRef.current;
 
+    sentenceAudioActiveRef.current = true;
+    // A replay requested during feedback must finish before the next question.
+    if (nextQuestionTimerRef.current !== null) {
+      clearTimeout(nextQuestionTimerRef.current);
+      nextQuestionTimerRef.current = null;
+    }
     setIsSentenceAudioLoading(true);
     setIsSentenceAudioPlaying(false);
 
-    await azureSpeechService.speak(
-      question.sentence,
-      () => {
-        setIsSentenceAudioLoading(false);
-        setIsSentenceAudioPlaying(true);
-      },
-      () => {
+    try {
+      const playback = azureSpeechService.speak(
+        question.sentence,
+        () => {
+          if (!isCurrent()) return;
+          setIsSentenceAudioLoading(false);
+          setIsSentenceAudioPlaying(true);
+        },
+        () => {
+          if (!isCurrent()) return;
+          setIsSentenceAudioPlaying(false);
+          setIsSentenceAudioLoading(false);
+        },
+        () => {
+          if (!isCurrent()) return;
+          setIsSentenceAudioPlaying(false);
+          setIsSentenceAudioLoading(false);
+        },
+        {
+          speedMultiplier: shouldShowSentenceSpeedControl
+            ? sentenceAudioSpeed
+            : DEFAULT_CONTEXT_AUDIO_SPEED,
+        },
+      );
+      await Promise.race([playback, cancelled]);
+    } catch {
+      // Audio availability must not prevent answering or continuing the quiz.
+    } finally {
+      if (isCurrent()) {
+        cancelSentenceAudioWaitRef.current = null;
+        sentenceAudioActiveRef.current = false;
         setIsSentenceAudioPlaying(false);
         setIsSentenceAudioLoading(false);
-      },
-      () => {
-        setIsSentenceAudioPlaying(false);
-        setIsSentenceAudioLoading(false);
-      },
-      {
-        speedMultiplier: shouldShowSentenceSpeedControl
-          ? sentenceAudioSpeed
-          : DEFAULT_CONTEXT_AUDIO_SPEED,
-      },
-    );
+        resumeAutoAdvanceRef.current?.();
+      }
+    }
   }, [
     enableSentenceAudio,
     question.sentence,
@@ -519,6 +573,14 @@ export default function ContextSentenceQuestionScreen({
   );
 
   useEffect(() => {
+    questionGenerationRef.current += 1;
+    answerSubmittedRef.current = false;
+    answerAdvancedRef.current = false;
+    resumeAutoAdvanceRef.current = null;
+    if (nextQuestionTimerRef.current !== null) {
+      clearTimeout(nextQuestionTimerRef.current);
+      nextQuestionTimerRef.current = null;
+    }
     setSelectedChoiceIndex(null);
     setTypedAnswer("");
     setAnswerFeedback(null);
@@ -694,8 +756,6 @@ export default function ContextSentenceQuestionScreen({
         : theme.primary;
   const nextActionLabel =
     currentItem >= totalItems ? "See Results" : "Next Question";
-  const choiceSubmitLabel = isPendingAnswer ? nextActionLabel : "Submit Answer";
-  const choiceCanSubmit = isPendingAnswer || selectedChoiceIndex !== null;
   const writingCanSubmit = isPendingAnswer || Boolean(typedAnswer.trim());
   const androidAppliedKeyboardResize =
     Platform.OS === "android" &&
@@ -790,28 +850,60 @@ export default function ContextSentenceQuestionScreen({
 
     showFeedbackAnimation(isCorrect);
     setShowVocabInSentence(!stopAfterAnswer);
-    void stopSentenceAudio();
     handleCloseTooltip();
   };
 
   const completeAnswer = (isCorrect: boolean, submittedAnswer: string) => {
+    // State updates can be batched; lock synchronously before another choice tap.
+    if (answerSubmittedRef.current) return;
+    answerSubmittedRef.current = true;
     revealAnswerResult(isCorrect);
+
+    const questionGeneration = questionGenerationRef.current;
+    const isCurrent = () =>
+      mountedRef.current && questionGeneration === questionGenerationRef.current;
+    const shouldPlayAnswerAudio = isCorrect && enableSentenceAudio;
+    const answerAudio = (async () => {
+      await stopSentenceAudio();
+      if (shouldPlayAnswerAudio && isCurrent() && !answerAdvancedRef.current) {
+        await startSentenceAudio();
+      }
+    })();
 
     if (stopAfterAnswer) {
       setPendingAnswer({ isCorrect, submittedAnswer });
       return;
     }
 
-    setTimeout(() => {
-      onAnswer(isCorrect, submittedAnswer);
-    }, NEXT_QUESTION_DELAY_MS);
+    setIsAdvancing(true);
+    const feedbackStartedAt = Date.now();
+    const scheduleAdvance = () => {
+      if (!isCurrent() || answerAdvancedRef.current || sentenceAudioActiveRef.current) return;
+      if (nextQuestionTimerRef.current !== null) {
+        clearTimeout(nextQuestionTimerRef.current);
+      }
+      nextQuestionTimerRef.current = setTimeout(() => {
+        nextQuestionTimerRef.current = null;
+        if (!isCurrent() || answerAdvancedRef.current) return;
+        answerAdvancedRef.current = true;
+        onAnswer(isCorrect, submittedAnswer);
+      }, Math.max(0, NEXT_QUESTION_DELAY_MS - (Date.now() - feedbackStartedAt)));
+    };
+    resumeAutoAdvanceRef.current = scheduleAdvance;
+    // Let the sentence finish before a new question stops its playback.
+    if (shouldPlayAnswerAudio) {
+      void answerAudio.then(scheduleAdvance, scheduleAdvance);
+    } else {
+      scheduleAdvance();
+    }
   };
 
   const continueAfterPendingAnswer = () => {
-    if (!pendingAnswer || isAdvancing) {
+    if (!pendingAnswer || answerAdvancedRef.current) {
       return;
     }
 
+    answerAdvancedRef.current = true;
     setIsAdvancing(true);
     showPreviousAnswerChip(pendingAnswer.isCorrect);
     onAnswer(pendingAnswer.isCorrect, pendingAnswer.submittedAnswer);
@@ -934,30 +1026,12 @@ export default function ContextSentenceQuestionScreen({
     completeAnswer(submission.isCorrect, submission.submittedAnswer);
   };
 
-  const resolveChoiceSubmission = () => {
-    if (selectedChoiceIndex === null) {
-      return null;
-    }
-
-    const selected = question.kanjiChoices[selectedChoiceIndex];
-    return {
-      isCorrect: selected.isCorrect,
-      submittedAnswer: selected.kanji,
-    };
-  };
-
-  const handleChoiceSubmit = () => {
-    if (stopAfterAnswer && pendingAnswer) {
-      continueAfterPendingAnswer();
-      return;
-    }
-
-    const submission = resolveChoiceSubmission();
-    if (!submission) {
-      return;
-    }
-
-    completeAnswer(submission.isCorrect, submission.submittedAnswer);
+  const handleChoiceSelect = (index: number) => {
+    if (answerSubmittedRef.current) return;
+    const selected = question.kanjiChoices[index];
+    if (!selected) return;
+    setSelectedChoiceIndex(index);
+    completeAnswer(selected.isCorrect, selected.kanji);
   };
 
   const renderInlineChars = (text: string, keyPrefix: string) =>
@@ -1472,6 +1546,10 @@ export default function ContextSentenceQuestionScreen({
           <View style={styles.sentenceAudioContainer}>
             <View style={styles.sentenceAudioActionsRow}>
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={isSentenceAudioPlaying || isSentenceAudioLoading
+                  ? "Stop sentence audio"
+                  : answerSubmittedRef.current ? "Replay sentence audio" : "Play sentence audio"}
                 style={[
                   styles.sentenceAudioButton,
                   {
@@ -1492,7 +1570,7 @@ export default function ContextSentenceQuestionScreen({
                   <ActivityIndicator size="small" color={theme.textSecondary} />
                 ) : (
                   <Ionicons
-                    name={isSentenceAudioPlaying ? "stop" : "play"}
+                    name={isSentenceAudioPlaying ? "stop" : answerSubmittedRef.current ? "refresh" : "play"}
                     size={15}
                     color={isSentenceAudioPlaying ? "white" : theme.textSecondary}
                   />
@@ -1505,7 +1583,7 @@ export default function ContextSentenceQuestionScreen({
                     },
                   ]}
                 >
-                  {isSentenceAudioPlaying ? "Stop audio" : "Play audio"}
+                  {isSentenceAudioPlaying ? "Stop audio" : answerSubmittedRef.current ? "Replay audio" : "Play audio"}
                 </Text>
               </TouchableOpacity>
 
@@ -1792,13 +1870,10 @@ export default function ContextSentenceQuestionScreen({
                       },
                       stopAfterAnswer && pendingAnswer && styles.choiceButtonDisabled,
                     ]}
-                    onPress={() => {
-                      if (stopAfterAnswer && pendingAnswer) {
-                        return;
-                      }
-                      setSelectedChoiceIndex(index);
-                    }}
-                    disabled={stopAfterAnswer && pendingAnswer !== null}
+                    accessibilityRole="button"
+                    accessibilityLabel={choice.kanji}
+                    onPress={() => handleChoiceSelect(index)}
+                    disabled={pendingAnswer !== null || isAdvancing}
                     activeOpacity={0.75}
                   >
                     <Text
@@ -1814,21 +1889,17 @@ export default function ContextSentenceQuestionScreen({
                 );
               })}
             </View>
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                {
-                  backgroundColor: choiceCanSubmit ? theme.primary : theme.border,
-                  opacity: choiceCanSubmit ? 1 : 0.7,
-                },
-              ]}
-              onPress={handleChoiceSubmit}
-              disabled={!choiceCanSubmit || isAdvancing}
-              activeOpacity={0.82}
-            >
-              <Text style={styles.submitButtonText}>{choiceSubmitLabel}</Text>
-              <Ionicons name="arrow-forward" size={20} color="white" />
-            </TouchableOpacity>
+            {isPendingAnswer && (
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: theme.primary }]}
+                onPress={continueAfterPendingAnswer}
+                disabled={isAdvancing}
+                activeOpacity={0.82}
+              >
+                <Text style={styles.submitButtonText}>{nextActionLabel}</Text>
+                <Ionicons name="arrow-forward" size={20} color="white" />
+              </TouchableOpacity>
+            )}
           </View>
         </KeyboardAvoidingView>
       )}
@@ -1865,6 +1936,9 @@ export default function ContextSentenceQuestionScreen({
                   if (pendingAnswer) {
                     const shouldClearPending = nextKana.trim() !== pendingAnswer.submittedAnswer;
                     if (shouldClearPending) {
+                      answerSubmittedRef.current = false;
+                      questionGenerationRef.current += 1;
+                      void stopSentenceAudio();
                       setPendingAnswer(null);
                       setShowExpectedAnswer(false);
                       setAnswerFeedback(null);

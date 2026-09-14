@@ -42,18 +42,19 @@ import {
 } from "../../../src/utils/api";
 import {
   clearStudyMaterialsCache,
+  getStudyMaterialsFromPermanentCache,
   getSubjectById,
 } from "../../../src/utils/cache";
 import { getNiaiSimilarKanjiSubjects } from "../../../src/utils/niaiSimilarKanji";
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import { useTheme } from "../../../src/utils/theme";
+import { mergeStudyMaterialUpdate, saveMeaningSynonyms } from "../../../src/utils/studyMaterialSynonyms";
 
 type ProgressionStatus = "loading" | "success" | "offline";
 type DeferredTaskHandle = {
   cancel: () => void;
 };
 const PROGRESSION_REQUEST_TIMEOUT_MS = 9000;
-const PROGRESSION_LOADING_FAILSAFE_MS = 14000;
 
 function scheduleTaskAfterInteractions(
   task: () => void,
@@ -106,28 +107,6 @@ function withTimeout<T>(
   });
 }
 
-function getSettledValue<T>(result: PromiseSettledResult<T>): T | null {
-  return result.status === "fulfilled" ? result.value : null;
-}
-
-function mergeStudyMaterial(
-  currentMaterial: any,
-  savedMaterial: any,
-  updates: Record<string, unknown>,
-  subjectId: number
-) {
-  return {
-    ...(currentMaterial || {}),
-    ...(savedMaterial || {}),
-    data: {
-      ...(currentMaterial?.data || {}),
-      ...(savedMaterial?.data || {}),
-      subject_id: savedMaterial?.data?.subject_id || subjectId,
-      ...updates,
-    },
-  };
-}
-
 export default function SubjectDetailsScreen() {
   const noteModalInsets = useSafeAreaInsets();
   const { id, initialTab, from } = useLocalSearchParams<{
@@ -165,6 +144,7 @@ export default function SubjectDetailsScreen() {
     reload: reloadSubjectLists,
   } = useSubjectLists();
   const requestIdRef = useRef(0);
+  const studyMaterialRevisionRef = useRef(0);
   const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
   const originalNoteSignatureRef = useRef("");
@@ -204,10 +184,8 @@ export default function SubjectDetailsScreen() {
           setSubjectData(cachedSubject);
           setInitialLoading(false);
           // Still fetch fresh data in the background
-          void fetchSubjectData(false);
+          void fetchSubjectData(false, cachedSubject);
 
-          // Immediately try to load related subjects from cache if we have the main subject
-          void loadRelatedSubjectsFromCache(cachedSubject);
         } else {
           // No cached data, do a regular fetch
           void fetchSubjectData(true);
@@ -325,7 +303,7 @@ export default function SubjectDetailsScreen() {
     }
   };
 
-  const fetchSubjectData = async (showLoading = true) => {
+  const fetchSubjectData = async (showLoading = true, cachedSubject?: any) => {
     if (!apiToken || !id) {
       setError("Missing API token or subject ID");
       setInitialLoading(false);
@@ -350,8 +328,16 @@ export default function SubjectDetailsScreen() {
       }
       setError(null);
 
-      // Fetch the main subject data
-      const subject = await getSubject(apiToken, parsedId);
+      // Cached content is enough to start independent account-detail requests.
+      // Revalidating the subject itself must not hold up notes or progression.
+      const subject = cachedSubject || await getSubject(apiToken, parsedId);
+      if (cachedSubject) {
+        void getSubject(apiToken, parsedId).then((freshSubject) => {
+          if (isCurrentRequest()) setSubjectData(freshSubject);
+        }).catch((refreshError) => {
+          console.warn("Subject revalidation failed:", refreshError);
+        });
+      }
       if (!isCurrentRequest()) {
         return;
       }
@@ -364,133 +350,67 @@ export default function SubjectDetailsScreen() {
 
       // --- Parallel Data Fetching for Progression & Related Items ---
 
-      // 1. Progression Data (Assignments, Review Stats, Study Materials, SRS)
-      // We wrap this in a promise to handle progression status independently
-      const fetchProgressionData = async () => {
-        if (!isCurrentRequest()) {
-          return;
-        }
+      const fetchProgressionData = () => {
+        if (!isCurrentRequest()) return;
+        setProgressionStatus("loading");
+        const materialRevision = studyMaterialRevisionRef.current;
+        const canApplyMaterial = () => isCurrentRequest() &&
+          materialRevision === studyMaterialRevisionRef.current;
+        let receivedMaterials = false;
 
-        const progressionFailSafe = setTimeout(() => {
-          if (isCurrentRequest()) {
-            setProgressionStatus("offline");
+        // Personal data can render from the offline cache while revalidating.
+        void getStudyMaterialsFromPermanentCache([parsedId]).then((materials) => {
+          if (materials !== null && !receivedMaterials && canApplyMaterial()) {
+            setStudyMaterial(materials[0] ?? null);
           }
-        }, PROGRESSION_LOADING_FAILSAFE_MS);
+        }).catch(() => {});
+        // The API already bounds network requests. A separate progression
+        // deadline would discard personal data that arrives after a rate-limit
+        // wait, leaving synonyms blank for the lifetime of this card.
+        void getStudyMaterials(
+          apiToken, { subject_ids: [parsedId] }, { skipCache: true }
+        ).then((materials) => {
+          receivedMaterials = true;
+          if (canApplyMaterial()) setStudyMaterial(materials?.data?.[0] ?? null);
+        }).catch((loadError) => {
+          console.warn("Study materials load failed:", loadError);
+        });
 
-        try {
-          setProgressionStatus("loading");
+        void withTimeout(
+          getReviewStatistics(apiToken, { subject_ids: [parsedId] }),
+          PROGRESSION_REQUEST_TIMEOUT_MS,
+          "review_statistics"
+        ).then((statistics) => {
+          if (isCurrentRequest()) setReviewStatistics(statistics?.data?.[0] ?? null);
+        }).catch((loadError) => {
+          console.warn("Review statistics load failed:", loadError);
+        });
 
-          // Resolve each request independently so one hang/failure doesn't trap
-          // the whole progression section in "loading".
-          const [assignmentResult, studyMaterialResult, reviewStatsResult] =
-            await Promise.allSettled([
-              withTimeout(
-                getAssignmentsForSubjectsCached(apiToken, [parsedId]),
-                PROGRESSION_REQUEST_TIMEOUT_MS,
-                "assignments"
-              ),
-              withTimeout(
-                getStudyMaterials(apiToken, {
-                  subject_ids: [parsedId],
-                }),
-                PROGRESSION_REQUEST_TIMEOUT_MS,
-                "study_materials"
-              ),
-              withTimeout(
-                getReviewStatistics(apiToken, {
-                  subject_ids: [parsedId],
-                }),
-                PROGRESSION_REQUEST_TIMEOUT_MS,
-                "review_statistics"
-              ),
-            ]);
-
-          if (!isCurrentRequest()) {
-            return;
-          }
-
-          const assignments = getSettledValue(assignmentResult);
-          const studyMaterials = getSettledValue(studyMaterialResult);
-          const reviewStats = getSettledValue(reviewStatsResult);
-
-          if (assignmentResult.status === "rejected") {
-            console.warn("Assignments load failed:", assignmentResult.reason);
-          }
-          if (studyMaterialResult.status === "rejected") {
-            console.warn("Study materials load failed:", studyMaterialResult.reason);
-          }
-          if (reviewStatsResult.status === "rejected") {
-            console.warn("Review statistics load failed:", reviewStatsResult.reason);
-          }
-
-          const nextAssignmentData = assignments?.data?.[0] ?? null;
-          const nextStudyMaterial = studyMaterials?.data?.[0] ?? null;
-          const nextReviewStatistics = reviewStats?.data?.[0] ?? null;
-          let nextSrsSystem = null;
-
-          // Process Assignments & SRS
-          if (nextAssignmentData) {
-            const assignmentDataAny = nextAssignmentData.data as any;
-            const srsId = assignmentDataAny.spaced_repetition_system_id;
-            if (srsId) {
-              try {
-                const srsData = await withTimeout(
-                  getSpacedRepetitionSystems(apiToken, {
-                    ids: [srsId],
-                  }),
-                  PROGRESSION_REQUEST_TIMEOUT_MS,
-                  "spaced_repetition_systems"
-                );
-                if (!isCurrentRequest()) {
-                  return;
-                }
-                if (srsData?.data?.length > 0) {
-                  nextSrsSystem = srsData.data[0];
-                }
-              } catch (srsError) {
-                console.warn("SRS system load failed:", srsError);
-              }
-            }
-          }
-
-          if (!isCurrentRequest()) {
-            return;
-          }
-
-          const canDetermineProgression =
-            assignmentResult.status === "fulfilled";
-
-          startTransition(() => {
-            if (!isCurrentRequest()) {
-              return;
-            }
-            setAssignmentData(nextAssignmentData);
-            setStudyMaterial(nextStudyMaterial);
-            setReviewStatistics(nextReviewStatistics);
-            setSrsSystem(nextSrsSystem);
-            setProgressionStatus(
-              canDetermineProgression ? "success" : "offline"
+        void withTimeout(
+          getAssignmentsForSubjectsCached(apiToken, [parsedId]),
+          PROGRESSION_REQUEST_TIMEOUT_MS,
+          "assignments"
+        ).then(async (assignments) => {
+          if (!isCurrentRequest()) return;
+          const assignment = assignments?.data?.[0] ?? null;
+          setAssignmentData(assignment);
+          setProgressionStatus("success");
+          const srsId = (assignment?.data as any)?.spaced_repetition_system_id;
+          if (!srsId) return;
+          try {
+            const systems = await withTimeout(
+              getSpacedRepetitionSystems(apiToken, { ids: [srsId] }),
+              PROGRESSION_REQUEST_TIMEOUT_MS,
+              "spaced_repetition_systems"
             );
-          });
-        } catch (err) {
-          if (!isCurrentRequest()) {
-            return;
+            if (isCurrentRequest()) setSrsSystem(systems?.data?.[0] ?? null);
+          } catch (loadError) {
+            console.warn("SRS system load failed:", loadError);
           }
-
-          console.warn("Error fetching progression data:", err);
-          // If we fail specifically here (network?), we can set offline status
-          if (
-            err instanceof Error &&
-            (err.message.includes("Network") || err.message.includes("offline"))
-          ) {
-            setProgressionStatus("offline");
-          } else {
-            // Default to offline/error state for progression if we can't get it
-            setProgressionStatus("offline");
-          }
-        } finally {
-          clearTimeout(progressionFailSafe);
-        }
+        }).catch((loadError) => {
+          if (isCurrentRequest()) setProgressionStatus("offline");
+          console.warn("Assignments load failed:", loadError);
+        });
       };
 
       // 2. Related Subjects Revalidation (Background)
@@ -738,8 +658,9 @@ export default function SubjectDetailsScreen() {
       }
 
       await clearStudyMaterialsCache(subjectId);
+      studyMaterialRevisionRef.current += 1;
       setStudyMaterial((currentMaterial: any) =>
-        mergeStudyMaterial(currentMaterial, savedMaterial, updates, subjectId)
+        mergeStudyMaterialUpdate(currentMaterial, savedMaterial, updates, subjectId)
       );
 
       setShowNoteModal(false);
@@ -769,68 +690,24 @@ export default function SubjectDetailsScreen() {
     setShowNoteModal(true);
   };
 
-  const handleSynonymsChange = async (synonyms: string[]) => {
+  const handleSynonymsChange = async (
+    synonyms: string[],
+    originalSynonyms = studyMaterial?.data?.meaning_synonyms ?? []
+  ) => {
     if (!apiToken || !id || !subjectData) return;
 
     const subjectId = parseInt(id as string, 10);
     if (Number.isNaN(subjectId)) return;
 
     try {
-      const updates = {
-        meaning_synonyms: synonyms,
-      };
-
-      let savedMaterial: any;
-
-      if (studyMaterial && studyMaterial.id) {
-        // Update existing study material
-        savedMaterial = await updateStudyMaterial(
-          apiToken,
-          studyMaterial.id,
-          updates
-        );
-      } else {
-        // Create new study material
-        try {
-          savedMaterial = await createStudyMaterial(apiToken, {
-            subject_id: subjectId,
-            ...updates,
-          });
-        } catch (createError: any) {
-          // If we get a 422 error, study material might already exist
-          if (createError.message?.includes("422")) {
-            const studyMaterials = await getStudyMaterials(
-              apiToken,
-              {
-                subject_ids: [subjectId],
-              },
-              { skipCache: true }
-            );
-
-            if (studyMaterials.data.length > 0) {
-              const existingMaterial = studyMaterials.data[0];
-              savedMaterial = await updateStudyMaterial(
-                apiToken,
-                existingMaterial.id,
-                updates
-              );
-            } else {
-              throw createError;
-            }
-          } else {
-            throw createError;
-          }
-        }
-      }
-
-      // Update local state with the saved material
-      // Note: We don't call fetchSubjectData here because it would immediately
-      // fetch study materials from the API, which might return stale data due to
-      // eventual consistency, overwriting the freshly saved synonyms.
-      await clearStudyMaterialsCache(subjectId);
-      setStudyMaterial((currentMaterial: any) =>
-        mergeStudyMaterial(currentMaterial, savedMaterial, updates, subjectId)
+      const savedMaterial = await saveMeaningSynonyms(
+        apiToken, subjectId, originalSynonyms, synonyms
       );
+      studyMaterialRevisionRef.current += 1;
+      setStudyMaterial((currentMaterial: any) => mergeStudyMaterialUpdate(
+        currentMaterial, savedMaterial,
+        { meaning_synonyms: savedMaterial.data.meaning_synonyms }, subjectId
+      ));
     } catch (error) {
       console.error("❌ Error saving synonyms:", error);
       console.error("❌ Error details:", JSON.stringify(error, null, 2));

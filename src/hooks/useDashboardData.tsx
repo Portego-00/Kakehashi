@@ -79,7 +79,7 @@ const TOTAL_LOADING_STAGES = 9; // Number of stages excluding IDLE
 type DashboardDataType = {
   lessonCount: number;
   reviewCount: number;
-  // Local queue size corresponding to reviewCount, which may have been corrected
+  // Local queue corresponding to reviewCount, which may have been corrected
   // by the server's hidden-filtered endpoint. Retained in the minified cache.
   reviewCountAssignmentBaseline?: ReviewCountAssignmentBaseline;
   forecast: DayForecast[];
@@ -357,7 +357,10 @@ function getLessonAndReviewCountsFromAssignments(
 function getLocalLessonAndReviewCounts(
   assignments: any[],
   pendingProgressAssignmentIds: PendingProgressAssignmentIds,
-  previousData: Pick<DashboardDataType, "reviewCount" | "reviewCountAssignmentBaseline">
+  previousData: Pick<
+    DashboardDataType,
+    "reviewCount" | "reviewCountAssignmentBaseline"
+  >
 ): LessonAndReviewCounts {
   const counts = getLessonAndReviewCountsFromAssignments(
     assignments,
@@ -381,25 +384,30 @@ function getLocalLessonAndReviewCounts(
 
   const previousIds = new Set(previousBaseline.dueAssignmentIds);
   const currentIds = new Set(counts.reviewCountAssignmentBaseline.dueAssignmentIds);
-  const assignmentsById = new Map(assignments.map((assignment) => [assignment.id, assignment]));
+  const assignmentsById = new Map(
+    assignments.map((assignment) => [assignment.id, assignment])
+  );
   let completedCount = 0;
   for (const id of previousIds) {
     if (currentIds.has(id)) continue;
     const assignment = assignmentsById.get(id);
-    if (pendingProgressAssignmentIds.review.has(id) || (
-      assignment && !assignment.data.hidden && (
-        assignment.data.srs_stage === 9 ||
-        Date.parse(assignment.data.available_at) > Date.now()
-      )
-    )) {
+    if (
+      pendingProgressAssignmentIds.review.has(id) ||
+      (assignment && !assignment.data.hidden && (
+          assignment.data.srs_stage === 9 ||
+          Date.parse(assignment.data.available_at) > Date.now()
+        ))
+    ) {
       completedCount += 1;
     }
   }
   const capturedAtMs = Date.parse(previousBaseline.capturedAt);
   let newlyDueCount = 0;
   for (const id of currentIds) {
-    if (!previousIds.has(id) &&
-        Date.parse(assignmentsById.get(id)?.data.available_at) > capturedAtMs) {
+    if (
+      !previousIds.has(id) &&
+      Date.parse(assignmentsById.get(id)?.data.available_at) > capturedAtMs
+    ) {
       newlyDueCount += 1;
     }
   }
@@ -407,9 +415,7 @@ function getLocalLessonAndReviewCounts(
   // completion. Only actual schedule transitions change a server-corrected count.
   return {
     ...counts,
-    reviewCount: Math.min(counts.reviewCount, Math.max(0,
-      previousData.reviewCount - completedCount + newlyDueCount
-    )),
+    reviewCount: Math.max(0, previousData.reviewCount - completedCount + newlyDueCount),
   };
 }
 
@@ -426,6 +432,7 @@ function getLessonAndReviewCountsForUi(
   return {
     ...localCounts,
     reviewCount: authoritativeServerCounts.reviewCount,
+    reviewCountAssignmentBaseline: authoritativeServerCounts.reviewCountAssignmentBaseline,
   };
 }
 
@@ -611,7 +618,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       token: string,
       assignments: CollectionResponse<Assignment>,
       counts: LessonAndReviewCounts,
-      visibleReviewCountOverride: number | null = null
+      visibleReviewCountOverride: number | null = null,
+      overridePendingReviewIds: ReadonlySet<number> = new Set()
     ): Promise<{
       assignments: CollectionResponse<Assignment>;
       counts: LessonAndReviewCounts;
@@ -619,8 +627,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       const localCountsRevision = localReviewCountsRevisionRef.current;
       const pendingProgressAssignmentIds = await loadPendingProgressAssignmentIds();
       try {
+        const overrideHasSamePendingReviews =
+          overridePendingReviewIds.size === pendingProgressAssignmentIds.review.size &&
+          [...overridePendingReviewIds].every((id) => pendingProgressAssignmentIds.review.has(id));
         const visibleReviewCount =
-          visibleReviewCountOverride ?? (await getLiveReviewCount(token, pendingProgressAssignmentIds.review));
+          visibleReviewCountOverride !== null && overrideHasSamePendingReviews
+            ? visibleReviewCountOverride
+            : await getLiveReviewCount(token, pendingProgressAssignmentIds.review);
 
         if (localCountsRevision !== localReviewCountsRevisionRef.current) {
           return { assignments, counts };
@@ -1879,6 +1892,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             } catch (inflateError) {
               console.warn("Offline reconstruction failed:", inflateError);
             }
+            if (localCountsRevision !== localReviewCountsRevisionRef.current) {
+              pendingLessonsReviewsRefreshRef.current = true;
+              return;
+            }
             const cachedAssignments = localDashboard.assignments;
             const normalizedCounts = Array.isArray(cachedAssignments) && cachedAssignments.length > 0
               ? getLocalLessonAndReviewCounts(
@@ -1998,7 +2015,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 apiToken,
                 latestAssignments,
                 serverCounts,
-                priorityVisibleReviewCount
+                priorityVisibleReviewCount,
+                pendingProgressAssignmentIdsForCachedData.review
               ));
               if (localCountsRevision !== localReviewCountsRevisionRef.current) {
                 pendingLessonsReviewsRefreshRef.current = true;
@@ -2222,7 +2240,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               }
             }, 1000); // Delay by 1 second to prioritize UI rendering
           }
-        } else {
+        } else if (localCountsRevision === localReviewCountsRevisionRef.current) {
           console.error("Failed to process assignments: no data returned");
           setErrorStatus("Failed to process assignment data.");
         }
@@ -2369,19 +2387,24 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         dashboardDataRef.current
       );
       const nextData = {
-          ...dashboardDataRef.current,
-          lessonCount: counts.lessonCount,
-          reviewCount: counts.reviewCount,
-          reviewCountAssignmentBaseline: counts.reviewCountAssignmentBaseline,
-          nextLessonDate: counts.nextLessonDate,
-          nextReviewDate: counts.nextReviewDate,
-          pendingLessonSyncCount: pendingProgressAssignmentIds.lesson.size,
-          pendingReviewSyncCount: pendingProgressAssignmentIds.review.size,
-          assignments: offlineData.assignments,
-        };
+        ...dashboardDataRef.current,
+        lessonCount: counts.lessonCount,
+        reviewCount: counts.reviewCount,
+        reviewCountAssignmentBaseline: counts.reviewCountAssignmentBaseline,
+        nextLessonDate: counts.nextLessonDate,
+        nextReviewDate: counts.nextReviewDate,
+        pendingLessonSyncCount: pendingProgressAssignmentIds.lesson.size,
+        pendingReviewSyncCount: pendingProgressAssignmentIds.review.size,
+        assignments: offlineData.assignments,
+      };
+      const previousDueIds = new Set(
+        dashboardDataRef.current.reviewCountAssignmentBaseline?.dueAssignmentIds
+      );
+      const currentDueIds = counts.reviewCountAssignmentBaseline.dueAssignmentIds;
       if (
         nextData.reviewCount !== dashboardDataRef.current.reviewCount ||
-        nextData.reviewCountAssignmentBaseline !== dashboardDataRef.current.reviewCountAssignmentBaseline
+        previousDueIds.size !== currentDueIds.length ||
+        currentDueIds.some((id) => !previousDueIds.has(id))
       ) {
         localReviewCountsRevisionRef.current += 1;
       }
@@ -2400,6 +2423,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const refreshLessonsAndReviews = useCallback(async () => {
     if (!apiToken) return;
 
+    const previousLocalCountsRevision = localReviewCountsRevisionRef.current;
     // Review submissions update the consolidated assignment cache immediately.
     // Apply that local state before waiting on a network or startup refresh.
     await refreshLessonReviewCountsFromLocalCache();
@@ -2413,7 +2437,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
 
     if (lessonsReviewsRefreshInFlightRef.current) {
-      pendingLessonsReviewsRefreshRef.current = true;
+      if (previousLocalCountsRevision !== localReviewCountsRevisionRef.current) {
+        pendingLessonsReviewsRefreshRef.current = true;
+      }
       await lessonsReviewsRefreshInFlightRef.current;
       return;
     }
@@ -2809,6 +2835,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     dashboardForegroundFetchInFlightRef.current = false;
     dashboardBackgroundRefreshInFlightRef.current = false;
     pendingLessonsReviewsRefreshRef.current = false;
+    localReviewCountsRevisionRef.current += 1;
     pendingSyncCountsRefreshInFlightRef.current = false;
     pendingSyncLastTotalRef.current = 0;
     pendingSyncTriggeredRefreshInFlightRef.current = false;
