@@ -36,7 +36,7 @@ import { azureSpeechService } from "../utils/azureSpeech";
 import { azureTranslatorService } from "../utils/azureTranslator";
 import { tryBlankContextSentence } from "../utils/contextSentenceCloze";
 import { getReadableTextColor, withAlpha } from "../utils/subjectColors";
-import { useAuthStore } from "../utils/store";
+import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 
 const TRANSLATION_DEBOUNCE_MS = 650;
@@ -81,6 +81,9 @@ export const CustomContextSentencesSection = React.forwardRef<
 ) {
   const { theme } = useTheme();
   const userId = useAuthStore((state) => state.userData?.id ?? null);
+  const hideTranslationsCompletely = useSettingsStore(
+    (state) => state.hideContextSentenceTranslationsCompletely,
+  );
   const resolvedAccentColor = accentColor ?? theme.primary;
   const accentTextColor = getReadableTextColor(resolvedAccentColor);
 
@@ -673,12 +676,14 @@ export const CustomContextSentencesSection = React.forwardRef<
                   >
                     {displayedJapanese}
                   </Text>
-                  <Text
-                    selectable
-                    style={[styles.englishText, { color: theme.textSecondary }]}
-                  >
-                    {sentence.english}
-                  </Text>
+                  {!hideTranslationsCompletely && (
+                    <Text
+                      selectable
+                      style={[styles.englishText, { color: theme.textSecondary }]}
+                    >
+                      {sentence.english}
+                    </Text>
+                  )}
                 </View>
 
                 <View style={styles.rowActions}>

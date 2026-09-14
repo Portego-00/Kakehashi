@@ -1,10 +1,13 @@
 import { NativeModules, Platform } from "react-native";
+import type { ReviewSubjectCounts, ReviewForecastDetail } from "../utils/api";
 import { isIOSOnMac } from "../utils/platformSupport";
 
 interface ReviewData {
   currentReviews: number;
   upcomingReviews: number[];
   upcomingReviewTimes?: { [key: string]: number }; // Optional for backward compatibility
+  currentSubjectCounts?: ReviewSubjectCounts;
+  forecastBreakdown?: ReviewForecastDetail[];
   settings: {
     badgeEnabled: boolean;
     alertsEnabled: boolean;

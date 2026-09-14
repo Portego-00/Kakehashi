@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.14",
+    date: "2026-09-13",
+    changes: [
+      {
+        type: "fix",
+        title: "Vocabulary Crash",
+        description:
+          "Fixed a crash when reviewing or opening details for kana-vocabulary words like ドキドキ.",
+      },
+    ],
+  },
+  {
     version: "1.4.13",
     date: "2026-09-12",
     changes: [
@@ -63,7 +75,7 @@ export const PATCH_NOTES: PatchNote[] = [
         type: "feature",
         title: "Fully Hidden Translations",
         description:
-          "Added an option to completely hide context sentence translations until you tap to reveal them, instead of showing a blurred preview.",
+          "Added a Japanese-only option that removes translations and reveal buttons from context sentences, media examples, and patterns of use in vocabulary details and lessons.",
       },
       {
         type: "fix",

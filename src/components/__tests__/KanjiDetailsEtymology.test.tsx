@@ -150,9 +150,10 @@ const kanji = {
 
 function mockSettings(
   showKanjiEtymology: boolean,
-  kanjiReadingTextToSpeechEnabled = false
+  kanjiReadingTextToSpeechEnabled = false,
+  showJLPTLevel = false
 ) {
-  (useSettingsStore as unknown as jest.Mock).mockReturnValue({
+  const settings = {
     groupKanjiVocabularyExamplesByReading: false,
     showInlineRadicalReminders: false,
     showKanjiEtymology,
@@ -160,7 +161,12 @@ function mockSettings(
     showOnyomiInKatakana: false,
     showPitchAccent: false,
     showStrokeOrder: false,
-  });
+    showJLPTLevel,
+    showVocabularyFrequency: false,
+  };
+  (useSettingsStore as unknown as jest.Mock).mockImplementation(
+    (selector?: (state: typeof settings) => unknown) => selector ? selector(settings) : settings,
+  );
 }
 
 describe("KanjiDetails etymology integration", () => {
@@ -214,4 +220,16 @@ describe("KanjiDetails etymology integration", () => {
       rate: 0.8,
     });
   });
+});
+
+it.each([false, true])("only shows the kanji JLPT row when enabled (%s)", (enabled) => {
+  mockSettings(false, false, enabled);
+  const screen = render(<KanjiDetails kanji={kanji} progressionStatus="success" embedded />);
+  if (enabled) {
+    expect(screen.getByText("JLPT Level")).toBeTruthy();
+    expect(screen.getByText("N5")).toBeTruthy();
+  } else {
+    expect(screen.queryByText("JLPT Level")).toBeNull();
+  }
+  expect(screen.queryByText("Frequency")).toBeNull();
 });

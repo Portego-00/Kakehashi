@@ -22,6 +22,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
+import SubjectMetadataRows from "./SubjectMetadataRows";
 import { SRS_COLORS } from "../constants/srsColors";
 import { hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
@@ -1030,6 +1031,13 @@ export default function KanjiDetails({
                     </TouchableOpacity>
                   </View>
                 </View>
+                <SubjectMetadataRows
+                  subject={{
+                    id: kanji.id,
+                    object: "kanji",
+                    data: { characters: kanji.characters },
+                  }}
+                />
               </View>
             </View>
 

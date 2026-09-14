@@ -3,6 +3,12 @@ import Foundation
 struct WatchForecastBucket: Identifiable, Equatable {
   let date: Date
   let count: Int
+  var subjects: [Int]? = nil
+  var stages: [Int]? = nil
+
+  func values(for mode: WatchForecastMode) -> [Int]? {
+    mode == .subject ? subjects : stages
+  }
 
   var id: Date { date }
 }
@@ -14,6 +20,7 @@ struct WatchSnapshotPresentation {
   let forecast: [WatchForecastBucket]
   let upcomingTotal: Int
   let nextHourCount: Int
+  let hasBreakdown: Bool
 
   init(snapshot: ReviewSnapshot, connectionState: WatchConnectionState, now: Date) {
     let calendar = Calendar.current
@@ -26,8 +33,14 @@ struct WatchSnapshotPresentation {
     )
 
     let firstHour = Self.nextHour(after: now, calendar: calendar)
-    let forecastDates = (0..<8).compactMap {
+    let nextDayEnd = now.addingTimeInterval(24 * 3600)
+    var forecastDates = (0..<24).compactMap {
       calendar.date(byAdding: .hour, value: $0, to: firstHour)
+    }
+    // At 10:30 the last clock boundary is tomorrow at 10:00. Include the
+    // remaining half-hour so the rows and "Next 24h" total describe one window.
+    if forecastDates.last != nextDayEnd {
+      forecastDates.append(nextDayEnd)
     }
     let exactTimes = Self.parseExactTimes(snapshot.upcomingReviewTimes)
     let scheduledReviews: [WatchForecastBucket]
@@ -52,7 +65,6 @@ struct WatchSnapshotPresentation {
       .filter { $0.date > now && $0.count > 0 }
       .sorted { $0.date < $1.date }
     let nextHourEnd = now.addingTimeInterval(3600)
-    let nextDayEnd = now.addingTimeInterval(24 * 3600)
     nextHourCount = futureReviews
       .filter { $0.date <= nextHourEnd }
       .reduce(0) { $0 + $1.count }
@@ -61,16 +73,53 @@ struct WatchSnapshotPresentation {
       .reduce(0) { $0 + $1.count }
 
     var countsByHour: [Date: Int] = [:]
-    for review in futureReviews {
+    for review in futureReviews where review.date <= nextDayEnd {
       // Each displayed time is the end of its clock-hour interval. Reviews
       // exactly on that boundary belong there, not one hour later.
       let interval = calendar.dateInterval(of: .hour, for: review.date)
       let boundary = interval?.start == review.date ? review.date : interval?.end ?? review.date
-      countsByHour[boundary, default: 0] += review.count
+      countsByHour[min(boundary, nextDayEnd), default: 0] += review.count
     }
-    forecast = forecastDates.map {
-      WatchForecastBucket(date: $0, count: countsByHour[$0, default: 0])
+    var detailsByHour: [Date: (subjects: [Int], stages: [Int])] = [:]
+    var invalidSubjectHours = Set<Date>()
+    var invalidStageHours = Set<Date>()
+    let exactCounts = Dictionary(exactTimes.map { ($0.date, $0.count) }, uniquingKeysWith: +)
+    if hasSnapshot && !snapshot.isOnVacation {
+      for detail in snapshot.forecastBreakdown ?? [] {
+        guard let date = Self.parseDate(detail.date), date > now, date <= nextDayEnd else { continue }
+        let interval = calendar.dateInterval(of: .hour, for: date)
+        let boundary = min(interval?.start == date ? date : interval?.end ?? date, nextDayEnd)
+        var sums = detailsByHour[boundary] ?? (Array(repeating: 0, count: 3), Array(repeating: 0, count: 4))
+        // Matching only the hourly sum could hide stale detail from a different
+        // availability time. Validate the exact source slot and each dimension.
+        let matchesSource = detail.count >= 0 && exactCounts[date] == detail.count
+        if matchesSource && detail.subjects.reduce(0, +) == detail.count &&
+          [detail.radical, detail.kanji, detail.vocabulary].allSatisfy({ $0 >= 0 }) {
+          sums.subjects = zip(sums.subjects, detail.subjects).map(+)
+        } else {
+          invalidSubjectHours.insert(boundary)
+        }
+        if matchesSource && detail.stages.reduce(0, +) == detail.count &&
+          [detail.apprentice, detail.guru, detail.master, detail.enlightened].allSatisfy({ $0 >= 0 }) {
+          sums.stages = zip(sums.stages, detail.stages).map(+)
+        } else {
+          invalidStageHours.insert(boundary)
+        }
+        detailsByHour[boundary] = sums
+      }
     }
+    let buckets = forecastDates.map { date in
+      let count = countsByHour[date, default: 0]
+      let detail = detailsByHour[date]
+      let subjects = !invalidSubjectHours.contains(date) && detail?.subjects.reduce(0, +) == count
+        ? detail?.subjects : nil
+      let stages = !invalidStageHours.contains(date) && detail?.stages.reduce(0, +) == count
+        ? detail?.stages : nil
+      return WatchForecastBucket(date: date, count: count, subjects: subjects, stages: stages)
+    }
+    forecast = buckets
+    hasBreakdown = hasSnapshot && !snapshot.isOnVacation && snapshot.forecastBreakdown != nil &&
+      buckets.filter { $0.count > 0 }.allSatisfy { $0.subjects != nil && $0.stages != nil }
 
     if !hasSnapshot {
       nextReviewLabel = "Waiting for iPhone"
@@ -87,6 +136,12 @@ struct WatchSnapshotPresentation {
 
   private static func nextHour(after date: Date, calendar: Calendar) -> Date {
     calendar.dateInterval(of: .hour, for: date)?.end ?? date.addingTimeInterval(3600)
+  }
+
+  private static func parseDate(_ value: String) -> Date? {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
   }
 
   private static func parseExactTimes(_ values: [String: Int]) -> [WatchForecastBucket] {

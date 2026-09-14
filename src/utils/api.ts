@@ -3843,10 +3843,27 @@ export async function getReviewCount(apiToken: string): Promise<number> {
   return (await getReviewCountIfAvailable(apiToken)) ?? 0;
 }
 
+export type ReviewSubjectCounts = {
+  radical: number;
+  kanji: number;
+  vocabulary: number;
+};
+
+export type ReviewForecastDetail = ReviewSubjectCounts & {
+  date: string;
+  count: number;
+  apprentice: number;
+  guru: number;
+  master: number;
+  enlightened: number;
+};
+
 export type VisibleReviewData = {
   currentReviews: number;
   upcomingReviews: number[];
   upcomingReviewTimes: { [key: string]: number };
+  currentSubjectCounts?: ReviewSubjectCounts;
+  forecastBreakdown?: ReviewForecastDetail[];
 };
 
 function normalizeVisibleReviewWindow(hoursAhead: number | undefined): number {
@@ -3926,7 +3943,7 @@ export function isAssignmentInReviewQueueState(
 
   if (
     typeof assignmentData.srs_stage === "number" &&
-    assignmentData.srs_stage >= 9
+    (assignmentData.srs_stage < 1 || assignmentData.srs_stage >= 9)
   ) {
     return false;
   }
@@ -3950,6 +3967,12 @@ export function buildVisibleReviewDataFromAssignments(
   const upcomingReviews = new Array(24).fill(0);
   const upcomingReviewTimes: { [key: string]: number } = {};
   let currentReviews = 0;
+  const currentSubjectCounts: ReviewSubjectCounts = {
+    radical: 0, kanji: 0, vocabulary: 0,
+  };
+  const forecastByTime = new Map<string, ReviewForecastDetail>();
+  let currentSubjectsComplete = true;
+  let forecastComplete = true;
 
   for (const assignment of assignments) {
     const assignmentData = assignment?.data;
@@ -3962,18 +3985,43 @@ export function buildVisibleReviewDataFromAssignments(
       continue;
     }
 
+    const subjectType = assignmentData.subject_type === "kana_vocabulary"
+      ? "vocabulary"
+      : assignmentData.subject_type;
+    const subjectKey = subjectType === "radical" || subjectType === "kanji" || subjectType === "vocabulary"
+      ? subjectType
+      : null;
+    const stage = assignmentData.srs_stage;
+    const srsKey = typeof stage !== "number" || stage < 1 || stage > 8
+      ? null
+      : stage <= 4 ? "apprentice" : stage <= 6 ? "guru" : stage === 7 ? "master" : "enlightened";
+
     if (availableAtMs <= nowMs) {
       currentReviews += 1;
+      if (subjectKey) currentSubjectCounts[subjectKey] += 1;
+      else currentSubjectsComplete = false;
       continue;
     }
 
-    if (availableAtMs > horizonMs) {
+    if (availableAtMs >= horizonMs) {
       continue;
     }
 
     const availableAtDate = new Date(availableAtMs);
     const timeKey = availableAtDate.toISOString();
     upcomingReviewTimes[timeKey] = (upcomingReviewTimes[timeKey] || 0) + 1;
+    const detail = forecastByTime.get(timeKey) ?? {
+      date: timeKey, count: 0, radical: 0, kanji: 0, vocabulary: 0,
+      apprentice: 0, guru: 0, master: 0, enlightened: 0,
+    };
+    detail.count += 1;
+    if (subjectKey && srsKey) {
+      detail[subjectKey] += 1;
+      detail[srsKey] += 1;
+    } else {
+      forecastComplete = false;
+    }
+    forecastByTime.set(timeKey, detail);
 
     const hourIndex = Math.floor((availableAtMs - nowMs) / (60 * 60 * 1000));
     if (hourIndex >= 0 && hourIndex < upcomingReviews.length) {
@@ -3985,6 +4033,10 @@ export function buildVisibleReviewDataFromAssignments(
     currentReviews,
     upcomingReviews,
     upcomingReviewTimes,
+    ...(currentSubjectsComplete ? { currentSubjectCounts } : {}),
+    ...(forecastComplete ? {
+      forecastBreakdown: [...forecastByTime.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    } : {}),
   };
 }
 
@@ -4036,9 +4088,20 @@ export async function getVisibleReviewData(
     }
   );
 
+  // The current endpoint can contain only the first page. A complete count
+  // must never be paired with that partial page's subject breakdown.
+  const currentData = !currentResponse.pages?.next_url &&
+    currentResponse.data.length === currentReviews
+    ? buildVisibleReviewDataFromAssignments(currentResponse.data, { now })
+    : null;
+
   return {
     currentReviews,
     upcomingReviews: upcomingData.upcomingReviews,
     upcomingReviewTimes: upcomingData.upcomingReviewTimes,
+    forecastBreakdown: upcomingData.forecastBreakdown,
+    ...(currentData?.currentReviews === currentReviews && currentData.currentSubjectCounts
+      ? { currentSubjectCounts: currentData.currentSubjectCounts }
+      : {}),
   };
 }

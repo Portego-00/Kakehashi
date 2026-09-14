@@ -1,0 +1,56 @@
+[
+  {
+    "file": "01-home.png",
+    "width": 422,
+    "height": 514,
+    "format": "PNG RGB 8-bit",
+    "alpha_channel": false,
+    "rgb_pixels_unchanged": true,
+    "sha256": "e064fc988c5971159fac538d7c7ac51be2e711d9045f5a02d3b83fff770d3c36"
+  },
+  {
+    "file": "02-forecast-subject.png",
+    "width": 422,
+    "height": 514,
+    "format": "PNG RGB 8-bit",
+    "alpha_channel": false,
+    "rgb_pixels_unchanged": true,
+    "sha256": "b5375ed783b1da2af541446ee5a1b11f739cea8f7c5c94e4dbaf75a1298f3d3d"
+  },
+  {
+    "file": "03-forecast-srs.png",
+    "width": 422,
+    "height": 514,
+    "format": "PNG RGB 8-bit",
+    "alpha_channel": false,
+    "rgb_pixels_unchanged": true,
+    "sha256": "38f23422160c69a9238f9167f705f69f17167fc0e81ef1a70ef733f883b06c5b"
+  },
+  {
+    "file": "04-kanji-review.png",
+    "width": 422,
+    "height": 514,
+    "format": "PNG RGB 8-bit",
+    "alpha_channel": false,
+    "rgb_pixels_unchanged": true,
+    "sha256": "e6e1d4aebd360c2e1d7908e695fa6bcae0489c8af6d820bc7b36170a7a6d879b"
+  },
+  {
+    "file": "05-vocabulary-answer.png",
+    "width": 422,
+    "height": 514,
+    "format": "PNG RGB 8-bit",
+    "alpha_channel": false,
+    "rgb_pixels_unchanged": true,
+    "sha256": "ab8584420597660f0fe057ebd09611eb27938c8dc5aa4d6a542978a32964dfa4"
+  },
+  {
+    "file": "06-radical-review.png",
+    "width": 422,
+    "height": 514,
+    "format": "PNG RGB 8-bit",
+    "alpha_channel": false,
+    "rgb_pixels_unchanged": true,
+    "sha256": "a5ecbff9f7266eee8df406a76c6618d9417c3d6c32f6034b341c8c250b687431"
+  }
+]

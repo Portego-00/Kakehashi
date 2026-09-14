@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-09-13",
+    "phase": "watch-home-forecast-review-polish",
+    "scope": "native Watch dashboard, subject and SRS forecasts, and full-session reviews",
+    "macrostructure": "Native Study Dashboard / Forecast / Review Prompt",
+    "theme": "studied-DNA (source: Kakehashi mobile review card, subject colors, SRS colors, and crab artwork)",
+    "score": "P4 H4 E4 S5 R4 V3",
+    "result": "visual and automated checks pass; manual refresh gesture pending",
+    "checks": "49 mm Ultra 3 native screenshots and 40 mm default/accessibility layouts; adaptive review card; six-hour stacked forecast and full 24-hour detail; white subject text on full-bleed mobile colors; 267 automated checks; signed phone and Watch Release build with verified signatures. Manual refresh touch verification blocked by locked Mac; real-device network timing not measured."
+  },
+  {
     "date": "2026-08-25",
     "phase": "responsive-dashboard-data-parity",
     "scope": "dashboard widget motion, app streak, subject lists, review statistics, and responsive dashboard rows",

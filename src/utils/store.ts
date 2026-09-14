@@ -601,6 +601,7 @@ type SettingsState = {
   forecastShowSubjectColors: boolean;
   showPitchAccent: boolean;
   showVocabularyFrequency: boolean;
+  showJLPTLevel: boolean;
   showPatternsOfUse: boolean;
   showSimilarVocabulary: boolean;
   showSingleKanjiVocabularySimilarKanji: boolean;
@@ -796,6 +797,7 @@ type SettingsState = {
   setForecastShowSubjectColors: (show: boolean) => void;
   setShowPitchAccent: (show: boolean) => void;
   setShowVocabularyFrequency: (show: boolean) => void;
+  setShowJLPTLevel: (show: boolean) => void;
   setShowPatternsOfUse: (show: boolean) => void;
   setShowSimilarVocabulary: (show: boolean) => void;
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
@@ -965,12 +967,13 @@ export const useSettingsStore = create<SettingsState>()(
       forecastShowSubjectColors: false, // Default to disabled (traditional single color)
       showPitchAccent: false, // Default to disabled (optional pronunciation visualization)
       showVocabularyFrequency: false, // Jiten requests stay off until the user opts in
+      showJLPTLevel: false, // Optional JLPT classification in details and lessons
       showPatternsOfUse: false, // Default to disabled (optional collocation/pattern examples)
       showSimilarVocabulary: false, // Default to disabled (optional similar reading/meaning lookup)
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
       showMediaContextSentences: true, // Default to enabled (show media context sentences)
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
-      hideContextSentenceTranslationsCompletely: false, // Default to blurred hidden translations
+      hideContextSentenceTranslationsCompletely: false, // Default to keeping translations available
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
       showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
@@ -1225,6 +1228,7 @@ export const useSettingsStore = create<SettingsState>()(
       setShowPitchAccent: (show) => set({ showPitchAccent: show }),
       setShowVocabularyFrequency: (show) =>
         set({ showVocabularyFrequency: show }),
+      setShowJLPTLevel: (show) => set({ showJLPTLevel: show }),
       setShowPatternsOfUse: (show) => set({ showPatternsOfUse: show }),
       setShowSimilarVocabulary: (show) => set({ showSimilarVocabulary: show }),
       setShowSingleKanjiVocabularySimilarKanji: (show) =>

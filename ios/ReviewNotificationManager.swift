@@ -10,6 +10,10 @@ import UserNotifications
 import React
 import WidgetKit
 import WatchConnectivity
+import CryptoKit
+import UIKit
+import SDWebImage
+import SDWebImageSVGCoder
 
 let kakehashiAppGroupIdentifier = "group.com.kakehashi.reviewdata"
 let kakehashiReviewDataKey = "waniKaniReviewData"
@@ -262,13 +266,83 @@ func removeDeliveredKakehashiReviewNotifications(
 private let waniKaniAPIBaseURL = "https://api.wanikani.com/v2"
 private let waniKaniAPIRevision = "20170710"
 
+// Keep the Watch forecast and its totals in one pass over the same assignments.
+// Exact timestamps survive time-zone changes; the Watch chooses local hour labels.
+func makeKakehashiReviewPayloadFromAssignments(
+  assignments: [[String: Any]],
+  now: Date = Date(),
+  hoursAhead: Int = 24,
+  isOnVacation: Bool = false,
+  vacationStartedAt: String? = nil
+) -> [String: Any] {
+  let horizonHours = max(1, min(64, hoursAhead))
+  var upcoming = Array(repeating: 0, count: horizonHours)
+  var exactTimes: [String: Int] = [:]
+  var currentSubjects = ["radical": 0, "kanji": 0, "vocabulary": 0]
+  var details: [String: [String: Any]] = [:]
+  var currentReviews = 0
+  let formatter = ISO8601DateFormatter()
+  formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+  let fallback = ISO8601DateFormatter()
+  let horizon = now.addingTimeInterval(Double(horizonHours) * 3600)
+
+  if !isOnVacation {
+    for assignment in assignments {
+      guard let data = assignment["data"] as? [String: Any],
+            data["hidden"] as? Bool != true,
+            data["started_at"] as? String != nil,
+            let stage = (data["srs_stage"] as? NSNumber)?.intValue,
+            (1...8).contains(stage),
+            let rawType = data["subject_type"] as? String,
+            let dateString = data["available_at"] as? String,
+            let availableAt = formatter.date(from: dateString) ?? fallback.date(from: dateString) else {
+        continue
+      }
+      let subject = rawType == "kana_vocabulary" ? "vocabulary" : rawType
+      guard currentSubjects[subject] != nil else { continue }
+      if availableAt <= now {
+        currentReviews += 1
+        currentSubjects[subject, default: 0] += 1
+        continue
+      }
+      guard availableAt < horizon else { continue }
+      let hour = Int(availableAt.timeIntervalSince(now) / 3600)
+      upcoming[hour] += 1
+      let date = formatter.string(from: availableAt)
+      exactTimes[date, default: 0] += 1
+      var detail = details[date] ?? [
+        "date": date, "count": 0, "radical": 0, "kanji": 0, "vocabulary": 0,
+        "apprentice": 0, "guru": 0, "master": 0, "enlightened": 0,
+      ]
+      let srs = stage <= 4 ? "apprentice" : stage <= 6 ? "guru" : stage == 7 ? "master" : "enlightened"
+      detail["count"] = (detail["count"] as? Int ?? 0) + 1
+      detail[subject] = (detail[subject] as? Int ?? 0) + 1
+      detail[srs] = (detail[srs] as? Int ?? 0) + 1
+      details[date] = detail
+    }
+  }
+
+  return makeKakehashiReviewPayload(
+    currentReviews: currentReviews,
+    upcomingReviews: upcoming,
+    upcomingReviewTimes: exactTimes,
+    lastUpdated: now.timeIntervalSince1970,
+    isOnVacation: isOnVacation,
+    vacationStartedAt: vacationStartedAt,
+    currentSubjectCounts: currentSubjects,
+    forecastBreakdown: details.keys.sorted().compactMap { details[$0] }
+  )
+}
+
 func makeKakehashiReviewPayload(
   currentReviews: Int,
   upcomingReviews: [Int],
   upcomingReviewTimes: [String: Int]?,
   lastUpdated: TimeInterval = Date().timeIntervalSince1970,
   isOnVacation: Bool = false,
-  vacationStartedAt: String? = nil
+  vacationStartedAt: String? = nil,
+  currentSubjectCounts: [String: Int]? = nil,
+  forecastBreakdown: [[String: Any]]? = nil
 ) -> [String: Any] {
   let normalizedUpcomingReviews = upcomingReviews.map { max(0, $0) }
   let effectiveUpcomingReviews = isOnVacation
@@ -288,6 +362,17 @@ func makeKakehashiReviewPayload(
   if let vacationStartedAt {
     payload["vacationStartedAt"] = vacationStartedAt
   }
+  if isOnVacation {
+    payload["currentSubjectCounts"] = ["radical": 0, "kanji": 0, "vocabulary": 0]
+    payload["forecastBreakdown"] = [[String: Any]]()
+  } else {
+    if let currentSubjectCounts {
+      payload["currentSubjectCounts"] = currentSubjectCounts
+    }
+    if let forecastBreakdown {
+      payload["forecastBreakdown"] = forecastBreakdown
+    }
+  }
 
   return payload
 }
@@ -299,6 +384,8 @@ func saveKakehashiReviewSnapshot(
   upcomingReviewTimes: [String: Int]?,
   isOnVacation: Bool = false,
   vacationStartedAt: String? = nil,
+  currentSubjectCounts: [String: Int]? = nil,
+  forecastBreakdown: [[String: Any]]? = nil,
   logPrefix: String = "Kakehashi"
 ) -> Bool {
   let payload = makeKakehashiReviewPayload(
@@ -306,7 +393,9 @@ func saveKakehashiReviewSnapshot(
     upcomingReviews: upcomingReviews,
     upcomingReviewTimes: upcomingReviewTimes,
     isOnVacation: isOnVacation,
-    vacationStartedAt: vacationStartedAt
+    vacationStartedAt: vacationStartedAt,
+    currentSubjectCounts: currentSubjectCounts,
+    forecastBreakdown: forecastBreakdown
   )
 
   KakehashiWatchBridge.shared.update(with: payload)
@@ -340,7 +429,14 @@ final class KakehashiWatchBridge: NSObject {
     }
   }
 
-  func update(with payload: [String: Any]) {
+  func update(with incomingPayload: [String: Any]) {
+    KakehashiWatchReviewAPI.resolveSnapshot(incomingPayload) { [weak self] payload in
+      guard let payload else { return }
+      self?.sendSnapshot(payload)
+    }
+  }
+
+  private func sendSnapshot(_ payload: [String: Any]) {
     payloadQueue.async {
       self.cachedPayload = payload
     }
@@ -397,26 +493,56 @@ final class KakehashiWatchBridge: NSObject {
       .dictionary(forKey: kakehashiReviewDataKey)
   }
 
-  private func markSubmittedReviewInPayload() {
-    guard let payload = latestPayload() else {
-      return
-    }
-
-    let currentReviews = max(0, (payload["currentReviews"] as? Int ?? 0) - 1)
-    let upcomingReviews = payload["upcomingReviews"] as? [Int] ?? Array(repeating: 0, count: 24)
-    let upcomingReviewTimes = payload["upcomingReviewTimes"] as? [String: Int]
-    let isOnVacation = payload["isOnVacation"] as? Bool ?? false
-    let vacationStartedAt = payload["vacationStartedAt"] as? String
-
-    _ = saveKakehashiReviewSnapshot(
-      currentReviews: currentReviews,
-      upcomingReviews: upcomingReviews,
-      upcomingReviewTimes: upcomingReviewTimes,
-      isOnVacation: isOnVacation,
-      vacationStartedAt: vacationStartedAt,
-      logPrefix: "KakehashiWatchBridge"
-    )
+  private func publishSnapshot(_ payload: [String: Any]) {
+    UserDefaults(suiteName: kakehashiAppGroupIdentifier)?.set(payload, forKey: kakehashiReviewDataKey)
+    update(with: payload)
   }
+
+  private func finishSubmission(_ result: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+    guard result["success"] as? Bool == true else { replyHandler(result); return }
+    if let snapshot = result["snapshot"] as? [String: Any] {
+      publishSnapshot(snapshot)
+      replyHandler(result)
+    } else {
+      // After an iPhone relaunch, reconcile an acknowledged answer against fresh
+      // assignments instead of decrementing an old count a second time.
+      KakehashiWatchReviewAPI.refreshSnapshot { [weak self] payload in
+        var reply = result
+        if payload["error"] == nil {
+          var snapshot = payload
+          var identifiers = payload["acknowledgedSubmissionIds"] as? [String] ?? []
+          if let id = result["submissionId"] as? String, !identifiers.contains(id) { identifiers.insert(id, at: 0) }
+          snapshot["acknowledgedSubmissionIds"] = Array(identifiers.prefix(256))
+          self?.publishSnapshot(snapshot)
+          reply["snapshot"] = snapshot
+        }
+        replyHandler(reply)
+      }
+    }
+  }
+
+}
+
+// Reuse Expo Image's existing SVG decoder on iPhone. Watch receives a compact
+// transparent PNG with the card, so studying never needs a second image request.
+private func renderKakehashiWatchRadicalImage(_ data: Data, isSVG: Bool) -> Data? {
+  let side: CGFloat = 144
+  let image = isSVG
+    ? SDImageSVGCoder.shared.decodedImage(with: data, options: [
+        .decodeThumbnailPixelSize: NSValue(cgSize: CGSize(width: side, height: side))
+      ])
+    : UIImage(data: data)
+  guard let image, image.size.width > 0, image.size.height > 0 else { return nil }
+  let format = UIGraphicsImageRendererFormat()
+  format.scale = 1
+  format.opaque = false
+  let scale = min(side / image.size.width, side / image.size.height)
+  let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+  let rect = CGRect(x: (side - size.width) / 2, y: (side - size.height) / 2,
+                    width: size.width, height: size.height)
+  let png = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+    .pngData { _ in image.draw(in: rect) }
+  return png.count <= 16_000 ? png : nil
 }
 
 private enum KakehashiWatchReviewAPI {
@@ -427,241 +553,639 @@ private enum KakehashiWatchReviewAPI {
     let availableAt: String?
   }
 
-  static func loadReviewSession(limit: Int, completion: @escaping ([String: Any]) -> Void) {
-    guard let apiToken = UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey),
-          !apiToken.isEmpty else {
-      completion([
-        "kind": "reviewSession",
-        "cards": [],
-        "error": "Open Kakehashi on iPhone once so the watch can sync your account.",
-      ])
-      return
+  private struct PreparedSession {
+    let accountIdentifier: String
+    let assignments: [WatchAssignment]
+    let createdAt: Date
+  }
+
+  private struct SubmissionReceipt: Codable {
+    let submissionId: String
+    let assignmentId: Int
+    let availableAt: String
+    let reviewedAt: String
+    let meaningIncorrect: Int
+    let readingIncorrect: Int
+    var completedAt: Date?
+  }
+
+  private static let workQueue = DispatchQueue(label: "com.kakehashi.watch.api")
+  private static let receiptKey = "kakehashi.watch.submissionReceipts.v1"
+  private static let subjectCacheKey = "kakehashi.watch.subjectCache.v2"
+  private static var accountIdentifier: String?
+  private static var receipts: [String: SubmissionReceipt] = [:]
+  private static var inFlightSubmissions: [String: [([String: Any]) -> Void]] = [:]
+  private static var sessions: [String: PreparedSession] = [:]
+  private static var cachedAssignments: [[String: Any]]?
+  private static var assignmentsUpdatedAt = Date.distantPast
+  private static var assignmentWaiters: [String: [(Result<[[String: Any]], Error>) -> Void]] = [:]
+  private static var assignmentMutations: [Int: (assignment: [String: Any], recordedAt: Date)] = [:]
+  private static var subjectCache: [Int: [String: Any]] = [:]
+  private static var subjectsUpdatedAt = Date.distantPast
+
+  private static func accountScope(_ token: String) -> String {
+    SHA256.hash(data: Data(token.utf8)).map { String(format: "%02x", $0) }.joined()
+  }
+
+  // Every mutable value below is accessed on workQueue. Account changes invalidate
+  // prepared cards and receipts before any new request can use them.
+  private static func prepareAccount(_ auth: KakehashiNativeAuthSessionSnapshot) {
+    let scope = accountScope(auth.apiToken)
+    guard accountIdentifier != scope else { return }
+    accountIdentifier = scope
+    cachedAssignments = nil
+    assignmentsUpdatedAt = .distantPast
+    sessions.removeAll()
+    assignmentMutations.removeAll()
+    receipts.removeAll()
+    if let stored = UserDefaults.standard.dictionary(forKey: receiptKey),
+       stored["accountIdentifier"] as? String == scope,
+       let data = stored["receipts"] as? Data,
+       let saved = try? JSONDecoder().decode([String: SubmissionReceipt].self, from: data) {
+      receipts = saved
     }
-
-    if UserDefaults.standard.bool(forKey: kakehashiVacationModeKey) {
-      completion([
-        "kind": "reviewSession",
-        "cards": [],
-        "isOnVacation": true,
-        "error": "Vacation mode is on.",
-      ])
-      return
+    if subjectCache.isEmpty,
+       let stored = UserDefaults.standard.dictionary(forKey: subjectCacheKey),
+       let date = stored["updatedAt"] as? Date,
+       Date().timeIntervalSince(date) < 86_400,
+       let subjects = stored["subjects"] as? [[String: Any]] {
+      for subject in subjects {
+        if let id = intValue(subject["id"]) { subjectCache[id] = subject }
+      }
+      subjectsUpdatedAt = date
     }
+  }
 
-    fetchAvailableAssignments(apiToken: apiToken) { assignmentResult in
-      switch assignmentResult {
-      case .success(let assignments):
-        let boundedLimit = min(max(limit, 1), 20)
-        let limitedAssignments = Array(assignments.prefix(boundedLimit))
-        let subjectIds = Array(Set(limitedAssignments.map { $0.subjectId }))
+  // WatchConnectivity messages and contexts have a small payload limit. Keep
+  // exact dates normally; unusually fragmented forecasts collapse to quarter-hour
+  // ends. This also aligns with local hours in half/quarter-hour time zones.
+  private static func boundedSnapshot(_ payload: [String: Any]) -> [String: Any] {
+    guard let encoded = try? PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0),
+          encoded.count > 45_000 else { return payload }
+    let times = payload["upcomingReviewTimes"] as? [String: Int] ?? [:]
+    let details = payload["forecastBreakdown"] as? [[String: Any]] ?? []
+    let updatedAt = Date(timeIntervalSince1970: (payload["lastUpdated"] as? Double) ?? Date().timeIntervalSince1970)
+    let horizon = updatedAt.addingTimeInterval(24 * 3600)
+    var dates: [Int: Date] = [:]
+    var counts: [Int: Int] = [:]
+    var breakdown: [Int: [String: Any]] = [:]
+    func bucket(_ value: String) -> Int? {
+      guard let date = parseISODate(value), date <= horizon else { return nil }
+      let hour = Int(ceil(date.timeIntervalSince1970 / 900))
+      dates[hour] = min(Date(timeIntervalSince1970: Double(hour) * 900), horizon)
+      return hour
+    }
+    for (date, count) in times {
+      if let hour = bucket(date) { counts[hour, default: 0] += count }
+    }
+    let fields = ["count", "radical", "kanji", "vocabulary", "apprentice", "guru", "master", "enlightened"]
+    for detail in details {
+      guard let date = detail["date"] as? String, let hour = bucket(date) else { continue }
+      var value = breakdown[hour] ?? [:]
+      for field in fields { value[field] = (value[field] as? Int ?? 0) + (detail[field] as? Int ?? 0) }
+      breakdown[hour] = value
+    }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var result = payload
+    result["upcomingReviewTimes"] = Dictionary(uniqueKeysWithValues: counts.map { (formatter.string(from: dates[$0.key]!), $0.value) })
+    result["forecastPrecision"] = "quarterHour"
+    result["forecastBreakdown"] = breakdown.keys.sorted().map { hour -> [String: Any] in
+      var value = breakdown[hour]!
+      value["date"] = formatter.string(from: dates[hour]!)
+      return value
+    }
+    return result
+  }
 
-        guard !limitedAssignments.isEmpty, !subjectIds.isEmpty else {
-          completion([
-            "kind": "reviewSession",
-            "cards": [],
-          ])
-          return
+  static func decoratedSnapshot(_ payload: [String: Any]) -> [String: Any] {
+    var result = boundedSnapshot(payload)
+    if let auth = KakehashiNativeAuthSession.shared.snapshot() {
+      result["accountIdentifier"] = accountScope(auth.apiToken)
+    }
+    return result
+  }
+
+  static func resolveSnapshot(_ payload: [String: Any], completion: @escaping ([String: Any]?) -> Void) {
+    let enqueuedAuth = KakehashiNativeAuthSession.shared.snapshot()
+    workQueue.async {
+      guard let auth = enqueuedAuth else {
+        completion(KakehashiNativeAuthSession.shared.snapshot() == nil ? payload : nil)
+        return
+      }
+      guard KakehashiNativeAuthSession.shared.isCurrent(auth),
+            (payload["accountIdentifier"] as? String).map({ $0 == accountScope(auth.apiToken) }) ?? true else {
+        completion(nil)
+        return
+      }
+      prepareAccount(auth)
+      // Mobile aggregates can come from JS's cached assignments even when their
+      // timestamp is new. Once native Watch answers exist, only assignment data
+      // can prove that both counts and acknowledgements include those answers.
+      if payload["acknowledgedSubmissionIds"] != nil || !receipts.values.contains(where: { $0.completedAt != nil }) {
+        completion(decoratedSnapshot(payload))
+        return
+      }
+      fetchAssignments(auth: auth, forceRefresh: false) { result in
+        guard KakehashiNativeAuthSession.shared.isCurrent(auth) else { completion(nil); return }
+        switch result {
+        case .success(let assignments): completion(snapshotPayload(assignments: assignments))
+        case .failure: completion(nil) // Preserve the last coherent snapshot until refresh succeeds.
         }
-
-        fetchSubjects(apiToken: apiToken, subjectIds: subjectIds) { subjectResult in
-          switch subjectResult {
-          case .success(let subjects):
-            completion([
-              "kind": "reviewSession",
-              "cards": buildCards(assignments: limitedAssignments, subjects: subjects),
-            ])
-          case .failure(let error):
-            completion(reviewSessionError(error.localizedDescription))
-          }
-        }
-
-      case .failure(let error):
-        completion(reviewSessionError(error.localizedDescription))
       }
     }
+  }
+
+  static func loadReviewSession(
+    cursor: String? = nil,
+    excludedAssignmentIds: [Int] = [],
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    workQueue.async {
+      guard let auth = KakehashiNativeAuthSession.shared.snapshot() else {
+        completion(reviewSessionError("Open Kakehashi on iPhone once so the watch can sync your account."))
+        return
+      }
+      prepareAccount(auth)
+      guard !UserDefaults.standard.bool(forKey: kakehashiVacationModeKey) else {
+        completion(["kind": "reviewSession", "cards": [], "isOnVacation": true, "error": "Vacation mode is on."])
+        return
+      }
+      if let cursor {
+        let parts = cursor.split(separator: ":")
+        guard parts.count == 2, let offset = Int(parts[1]), offset >= 0,
+              let session = sessions[String(parts[0])],
+              session.accountIdentifier == accountIdentifier,
+              Date().timeIntervalSince(session.createdAt) < 86_400 else {
+          completion(reviewSessionError("Your review list expired. Open reviews again to continue."))
+          return
+        }
+        deliverPage(session: session, sessionId: String(parts[0]), offset: offset, auth: auth, completion: completion)
+        return
+      }
+      fetchAssignments(auth: auth, forceRefresh: false) { result in
+        guard KakehashiNativeAuthSession.shared.isCurrent(auth) else {
+          completion(reviewSessionError("Your iPhone account changed. Refresh to continue."))
+          return
+        }
+        switch result {
+        case .success(let rawAssignments):
+          let now = Date()
+          let excluded = Set(excludedAssignmentIds)
+          let answeredCycles = Set(receipts.values.map { "\($0.assignmentId):\($0.availableAt)" })
+          let assignments = rawAssignments.compactMap(parseAssignment).filter { assignment in
+            guard !excluded.contains(assignment.assignmentId), let availableAt = assignment.availableAt,
+                  let date = parseISODate(availableAt), date <= now else { return false }
+            return !answeredCycles.contains("\(assignment.assignmentId):\(availableAt)")
+          }.sorted { first, second in
+            first.srsStage == second.srsStage ? first.assignmentId < second.assignmentId : first.srsStage < second.srsStage
+          }
+          let session = PreparedSession(accountIdentifier: accountScope(auth.apiToken), assignments: assignments, createdAt: now)
+          let sessionId = UUID().uuidString
+          sessions = sessions.filter { now.timeIntervalSince($0.value.createdAt) < 86_400 }
+          sessions[sessionId] = session
+          if sessions.count > 4 {
+            let retained = Set(sessions.sorted { $0.value.createdAt > $1.value.createdAt }.prefix(4).map { $0.key })
+            sessions = sessions.filter { retained.contains($0.key) }
+          }
+          deliverPage(session: session, sessionId: sessionId, offset: 0, auth: auth, completion: completion)
+        case .failure(let error): completion(reviewSessionError(error.localizedDescription))
+        }
+      }
+    }
+  }
+
+  private static func deliverPage(
+    session: PreparedSession, sessionId: String, offset: Int,
+    auth: KakehashiNativeAuthSessionSnapshot,
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    let end = min(offset + 40, session.assignments.count)
+    guard offset <= end else {
+      completion(reviewSessionError("The review list could not be continued. Open reviews again."))
+      return
+    }
+    let page = Array(session.assignments[offset..<end])
+    fetchSubjects(apiToken: auth.apiToken, subjectIds: page.map { $0.subjectId }) { result in
+      guard KakehashiNativeAuthSession.shared.isCurrent(auth) else {
+        completion(reviewSessionError("Your iPhone account changed. Refresh to continue."))
+        return
+      }
+      switch result {
+      case .success(let subjects):
+        let cards = buildCards(assignments: page, subjects: subjects)
+        guard cards.count == page.count else {
+          completion(reviewSessionError("Some review subjects could not be loaded. Try again."))
+          return
+        }
+        var deliveredCards = cards
+        var reply: [String: Any] = ["kind": "reviewSession", "cards": deliveredCards,
+          "totalCount": session.assignments.count, "accountIdentifier": session.accountIdentifier]
+        while deliveredCards.count > 1,
+              (try? PropertyListSerialization.data(fromPropertyList: reply, format: .binary, options: 0).count) ?? 0 > 48_000 {
+          deliveredCards.removeLast()
+          reply["cards"] = deliveredCards
+        }
+        guard (try? PropertyListSerialization.data(fromPropertyList: reply, format: .binary, options: 0).count) ?? 0 <= 48_000 else {
+          completion(reviewSessionError("This subject is too large to send to your watch. Continue this review on iPhone."))
+          return
+        }
+        let nextOffset = offset + deliveredCards.count
+        if nextOffset < session.assignments.count { reply["nextCursor"] = "\(sessionId):\(nextOffset)" }
+        completion(reply)
+      case .failure(let error): completion(reviewSessionError(error.localizedDescription))
+      }
+    }
+  }
+
+  static func refreshSnapshot(completion: @escaping ([String: Any]) -> Void) {
+    workQueue.async {
+      guard let auth = KakehashiNativeAuthSession.shared.snapshot() else {
+        completion(["error": "Open Kakehashi on iPhone once so the watch can sync your account."])
+        return
+      }
+      prepareAccount(auth)
+      fetchAssignments(auth: auth, forceRefresh: true) { result in
+        guard KakehashiNativeAuthSession.shared.isCurrent(auth) else {
+          completion(["error": "Your iPhone account changed. Refresh to continue."])
+          return
+        }
+        switch result {
+        case .success(let assignments): completion(snapshotPayload(assignments: assignments))
+        case .failure(let error): completion(["error": error.localizedDescription])
+        }
+      }
+    }
+  }
+
+  private static func snapshotPayload(assignments: [[String: Any]]) -> [String: Any] {
+    var payload = makeKakehashiReviewPayloadFromAssignments(
+      assignments: assignments,
+      isOnVacation: UserDefaults.standard.bool(forKey: kakehashiVacationModeKey),
+      vacationStartedAt: UserDefaults.standard.string(forKey: kakehashiVacationStartedAtKey)
+    )
+    payload["acknowledgedSubmissionIds"] = acknowledgedSubmissionIds()
+    payload["accountIdentifier"] = accountIdentifier
+    return boundedSnapshot(payload)
+  }
+
+  private static func acknowledgedSubmissionIds() -> [String] {
+    receipts.values.filter { $0.completedAt != nil }
+      .sorted { $0.completedAt! > $1.completedAt! }.prefix(256).map { $0.submissionId }
   }
 
   static func submitReview(
-    assignmentId: Int,
-    meaningIncorrect: Int,
-    readingIncorrect: Int,
+    assignmentId: Int, submissionId: String, availableAt: String, reviewedAt: String,
+    account: String?, meaningIncorrect: Int, readingIncorrect: Int,
     completion: @escaping ([String: Any]) -> Void
   ) {
-    guard let apiToken = UserDefaults.standard.string(forKey: kakehashiStoredAPITokenKey),
-          !apiToken.isEmpty else {
-      completion([
-        "kind": "reviewSubmission",
-        "success": false,
-        "error": "Open Kakehashi on iPhone once so the watch can sync your account.",
-      ])
-      return
+    workQueue.async {
+      guard let auth = KakehashiNativeAuthSession.shared.snapshot() else {
+        completion(reviewSubmissionError("Open Kakehashi on iPhone once so the watch can sync your account.", submissionId: submissionId))
+        return
+      }
+      prepareAccount(auth)
+      guard account == nil || account == accountIdentifier else {
+        completion(reviewSubmissionError("This answer belongs to a different iPhone account.", submissionId: submissionId, retryable: false))
+        return
+      }
+      guard !submissionId.isEmpty, assignmentId > 0,
+            let dueDate = parseISODate(availableAt), let answerDate = parseISODate(reviewedAt),
+            answerDate >= dueDate, answerDate <= Date().addingTimeInterval(60) else {
+        completion(reviewSubmissionError("This review is missing its original due time. Refresh reviews on your watch.", submissionId: submissionId, retryable: false))
+        return
+      }
+      if let receipt = receipts[submissionId] {
+        guard receipt.assignmentId == assignmentId, receipt.availableAt == availableAt,
+              receipt.reviewedAt == reviewedAt, receipt.meaningIncorrect == meaningIncorrect,
+              receipt.readingIncorrect == readingIncorrect else {
+          completion(reviewSubmissionError("This saved answer does not match the original submission.", submissionId: submissionId, retryable: false))
+          return
+        }
+        if receipt.completedAt != nil {
+          completion(successReply(receipt: receipt, newlyAcknowledged: false))
+          return
+        }
+      }
+      if inFlightSubmissions[submissionId] != nil {
+        inFlightSubmissions[submissionId]?.append(completion)
+        return
+      }
+      let previousReceipt = receipts[submissionId]
+      let receipt = previousReceipt ?? SubmissionReceipt(submissionId: submissionId,
+        assignmentId: assignmentId, availableAt: availableAt, reviewedAt: reviewedAt,
+        meaningIncorrect: max(0, meaningIncorrect), readingIncorrect: max(0, readingIncorrect), completedAt: nil)
+      receipts[submissionId] = receipt
+      persistReceipts()
+      inFlightSubmissions[submissionId] = [completion]
+      let cachedAssignment = cachedAssignments?.first { intValue($0["id"]) == assignmentId }
+      let cachedDueAt = (cachedAssignment?["data"] as? [String: Any])?["available_at"] as? String
+      let hasCurrentCycle = Date().timeIntervalSince(assignmentsUpdatedAt) < 60 &&
+        cachedDueAt.flatMap(parseISODate) == dueDate
+      if previousReceipt != nil || !hasCurrentCycle {
+        reconcile(receipt: receipt, auth: auth, retryIfUnchanged: true)
+      } else {
+        postReview(receipt: receipt, auth: auth)
+      }
     }
+  }
 
-    guard let url = URL(string: "\(waniKaniAPIBaseURL)/reviews") else {
-      completion(reviewSubmissionError("Could not build the review submission URL."))
-      return
-    }
-
-    var request = authorizedRequest(url: url, apiToken: apiToken)
+  private static func postReview(receipt: SubmissionReceipt, auth: KakehashiNativeAuthSessionSnapshot) {
+    guard let url = URL(string: "\(waniKaniAPIBaseURL)/reviews") else { return }
+    var request = authorizedRequest(url: url, apiToken: auth.apiToken)
     request.httpMethod = "POST"
-    request.httpBody = try? JSONSerialization.data(withJSONObject: [
-      "review": [
-        "assignment_id": assignmentId,
-        "incorrect_meaning_answers": max(0, meaningIncorrect),
-        "incorrect_reading_answers": max(0, readingIncorrect),
-      ],
-    ])
-
+    request.httpBody = try? JSONSerialization.data(withJSONObject: ["review": [
+      "assignment_id": receipt.assignmentId,
+      "incorrect_meaning_answers": receipt.meaningIncorrect,
+      "incorrect_reading_answers": receipt.readingIncorrect,
+      // Binding the attempt to the original answer time also prevents a delayed
+      // retry from accidentally grading the next SRS cycle.
+      "created_at": receipt.reviewedAt,
+    ]])
     URLSession.shared.dataTask(with: request) { data, response, error in
-      if let error {
-        completion(reviewSubmissionError(error.localizedDescription))
-        return
+      workQueue.async {
+        guard KakehashiNativeAuthSession.shared.isCurrent(auth) else {
+          finishSubmission(receipt.submissionId, reply: reviewSubmissionError("Your iPhone account changed. Refresh to continue.", submissionId: receipt.submissionId, retryable: false))
+          return
+        }
+        if let error {
+          finishSubmission(receipt.submissionId, reply: reviewSubmissionError(error.localizedDescription, submissionId: receipt.submissionId))
+          return
+        }
+        guard let http = response as? HTTPURLResponse else {
+          finishSubmission(receipt.submissionId, reply: reviewSubmissionError("WaniKani did not return an HTTP response.", submissionId: receipt.submissionId))
+          return
+        }
+        if (200..<300).contains(http.statusCode) {
+          let json = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+          let assignment = (json?["resources_updated"] as? [String: Any])?["assignment"] as? [String: Any]
+          completeReceipt(receipt, assignment: assignment)
+        } else if http.statusCode == 422 {
+          reconcile(receipt: receipt, auth: auth, retryIfUnchanged: false)
+        } else {
+          finishSubmission(receipt.submissionId, reply: reviewSubmissionError(
+            apiErrorMessage(from: data) ?? "WaniKani returned HTTP \(http.statusCode).",
+            submissionId: receipt.submissionId,
+            retryable: http.statusCode == 408 || http.statusCode == 429 || http.statusCode >= 500))
+        }
       }
-
-      guard let httpResponse = response as? HTTPURLResponse else {
-        completion(reviewSubmissionError("WaniKani did not return an HTTP response."))
-        return
-      }
-
-      guard (200..<300).contains(httpResponse.statusCode) else {
-        completion(reviewSubmissionError(apiErrorMessage(from: data) ?? "WaniKani returned HTTP \(httpResponse.statusCode)."))
-        return
-      }
-
-      completion([
-        "kind": "reviewSubmission",
-        "success": true,
-        "assignmentId": assignmentId,
-      ])
     }.resume()
   }
 
-  private static func fetchAvailableAssignments(
-    apiToken: String,
-    completion: @escaping (Result<[WatchAssignment], Error>) -> Void
-  ) {
-    guard var components = URLComponents(string: "\(waniKaniAPIBaseURL)/assignments") else {
-      completion(.failure(apiError("Could not build the assignments URL.")))
-      return
-    }
-
-    components.queryItems = [
-      URLQueryItem(name: "immediately_available_for_review", value: "true"),
-      URLQueryItem(name: "hidden", value: "false"),
-    ]
-
-    guard let url = components.url else {
-      completion(.failure(apiError("Could not build the assignments URL.")))
-      return
-    }
-
-    performJSONRequest(url: url, apiToken: apiToken) { result in
+  private static func reconcile(receipt: SubmissionReceipt, auth: KakehashiNativeAuthSessionSnapshot, retryIfUnchanged: Bool) {
+    let url = URL(string: "\(waniKaniAPIBaseURL)/assignments/\(receipt.assignmentId)")!
+    performJSONRequest(url: url, apiToken: auth.apiToken) { result in
+      guard KakehashiNativeAuthSession.shared.isCurrent(auth) else {
+        finishSubmission(receipt.submissionId, reply: reviewSubmissionError("Your iPhone account changed. Refresh to continue.", submissionId: receipt.submissionId, retryable: false))
+        return
+      }
       switch result {
-      case .success(let json):
-        let rawAssignments = json["data"] as? [[String: Any]] ?? []
-        let now = Date()
-        let assignments = rawAssignments.compactMap(parseAssignment)
-          .filter { assignment in
-            guard let availableAt = assignment.availableAt,
-                  let date = parseISODate(availableAt) else {
-              return true
-            }
-
-            return date <= now
-          }
-          .sorted { first, second in
-            first.srsStage == second.srsStage
-              ? first.assignmentId < second.assignmentId
-              : first.srsStage < second.srsStage
-          }
-
-        completion(.success(assignments))
-
       case .failure(let error):
-        completion(.failure(error))
+        finishSubmission(receipt.submissionId, reply: reviewSubmissionError(error.localizedDescription, submissionId: receipt.submissionId))
+      case .success(let assignment):
+        let data = assignment["data"] as? [String: Any] ?? [:]
+        let nextDate = (data["available_at"] as? String).flatMap(parseISODate)
+        let originalDate = parseISODate(receipt.availableAt)!
+        if (nextDate != nil && nextDate! > originalDate) || intValue(data["srs_stage"]) == 9 {
+          completeReceipt(receipt, assignment: assignment)
+        } else if nextDate == originalDate && retryIfUnchanged {
+          postReview(receipt: receipt, auth: auth)
+        } else {
+          finishSubmission(receipt.submissionId, reply: reviewSubmissionError("This assignment changed or WaniKani rejected the answer. Refresh on iPhone before retrying.", submissionId: receipt.submissionId, retryable: false))
+        }
       }
     }
   }
 
-  private static func fetchSubjects(
-    apiToken: String,
-    subjectIds: [Int],
+  private static func completeReceipt(_ receipt: SubmissionReceipt, assignment: [String: Any]?) {
+    var completed = receipt
+    completed.completedAt = Date()
+    receipts[receipt.submissionId] = completed
+    if let assignment {
+      assignmentMutations[receipt.assignmentId] = (assignment, Date())
+    }
+    if let assignment, var assignments = cachedAssignments {
+      if let index = assignments.firstIndex(where: { intValue($0["id"]) == receipt.assignmentId }) {
+        assignments[index] = assignment
+      }
+      cachedAssignments = assignments
+    } else {
+      // A successful but incomplete response cannot safely become a fresh count.
+      cachedAssignments = nil
+      assignmentsUpdatedAt = .distantPast
+    }
+    persistReceipts()
+    finishSubmission(receipt.submissionId, reply: successReply(receipt: completed, newlyAcknowledged: true))
+  }
+
+  private static func successReply(receipt: SubmissionReceipt, newlyAcknowledged: Bool) -> [String: Any] {
+    var identifiers = acknowledgedSubmissionIds()
+    if !identifiers.contains(receipt.submissionId) { identifiers.insert(receipt.submissionId, at: 0) }
+    identifiers = Array(identifiers.prefix(256))
+    var reply: [String: Any] = ["kind": "reviewSubmission", "success": true,
+      "submissionId": receipt.submissionId, "assignmentId": receipt.assignmentId,
+      "newlyAcknowledged": newlyAcknowledged, "acknowledgedSubmissionIds": identifiers]
+    if let assignments = cachedAssignments {
+      var snapshot = snapshotPayload(assignments: assignments)
+      snapshot["acknowledgedSubmissionIds"] = identifiers
+      reply["snapshot"] = snapshot
+    }
+    return reply
+  }
+
+  private static func finishSubmission(_ id: String, reply: [String: Any]) {
+    let callbacks = inFlightSubmissions.removeValue(forKey: id) ?? []
+    callbacks.forEach { $0(reply) }
+  }
+
+  private static func persistReceipts() {
+    let cutoff = Date().addingTimeInterval(-30 * 86_400)
+    receipts = receipts.filter { $0.value.completedAt == nil || $0.value.completedAt! >= cutoff }
+    guard let accountIdentifier, let data = try? JSONEncoder().encode(receipts) else { return }
+    UserDefaults.standard.set(["accountIdentifier": accountIdentifier, "receipts": data], forKey: receiptKey)
+  }
+
+  private static func fetchAssignments(
+    auth: KakehashiNativeAuthSessionSnapshot, forceRefresh: Bool,
     completion: @escaping (Result<[[String: Any]], Error>) -> Void
   ) {
-    guard var components = URLComponents(string: "\(waniKaniAPIBaseURL)/subjects") else {
-      completion(.failure(apiError("Could not build the subjects URL.")))
+    if !forceRefresh, let cachedAssignments, Date().timeIntervalSince(assignmentsUpdatedAt) < 60 {
+      completion(.success(cachedAssignments))
       return
     }
-
-    components.queryItems = [
-      URLQueryItem(name: "ids", value: subjectIds.sorted().map(String.init).joined(separator: ",")),
-    ]
-
-    guard let url = components.url else {
-      completion(.failure(apiError("Could not build the subjects URL.")))
-      return
-    }
-
-    performJSONRequest(url: url, apiToken: apiToken) { result in
-      switch result {
-      case .success(let json):
-        completion(.success(json["data"] as? [[String: Any]] ?? []))
-      case .failure(let error):
-        completion(.failure(error))
+    let scope = accountScope(auth.apiToken)
+    assignmentWaiters[scope, default: []].append(completion)
+    guard assignmentWaiters[scope]?.count == 1 else { return }
+    let requestStartedAt = Date()
+    var components = URLComponents(string: "\(waniKaniAPIBaseURL)/assignments")!
+    components.queryItems = [URLQueryItem(name: "hidden", value: "false"),
+      URLQueryItem(name: "in_review", value: "true"),
+      URLQueryItem(name: "available_before", value: ISO8601DateFormatter().string(from: Date().addingTimeInterval(25 * 3600)))]
+    fetchCollection(url: components.url!, apiToken: auth.apiToken) { result in
+      var resolved = result
+      if KakehashiNativeAuthSession.shared.isCurrent(auth), case .success(let assignments) = result {
+        // A refresh started before an answer must not overwrite that answer's
+        // authoritative resources_updated.assignment when its GET finishes later.
+        let merged = assignments.map { assignment -> [String: Any] in
+          guard let id = intValue(assignment["id"]), let mutation = assignmentMutations[id],
+                mutation.recordedAt >= requestStartedAt else { return assignment }
+          return mutation.assignment
+        }
+        cachedAssignments = merged
+        assignmentsUpdatedAt = Date()
+        resolved = .success(merged)
+        assignmentMutations = assignmentMutations.filter { $0.value.recordedAt >= requestStartedAt }
       }
+      let callbacks = assignmentWaiters.removeValue(forKey: scope) ?? []
+      callbacks.forEach { $0(resolved) }
     }
   }
 
-  private static func performJSONRequest(
-    url: URL,
-    apiToken: String,
-    completion: @escaping (Result<[String: Any], Error>) -> Void
-  ) {
-    let request = authorizedRequest(url: url, apiToken: apiToken)
-
-    URLSession.shared.dataTask(with: request) { data, response, error in
-      if let error {
-        completion(.failure(error))
-        return
-      }
-
-      guard let httpResponse = response as? HTTPURLResponse else {
-        completion(.failure(apiError("WaniKani did not return an HTTP response.")))
-        return
-      }
-
-      guard (200..<300).contains(httpResponse.statusCode) else {
-        completion(.failure(apiError(apiErrorMessage(from: data) ?? "WaniKani returned HTTP \(httpResponse.statusCode).")))
-        return
-      }
-
-      guard let data else {
-        completion(.failure(apiError("WaniKani returned an empty response.")))
-        return
-      }
-
-      do {
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-          completion(.failure(apiError("WaniKani returned an unexpected response.")))
-          return
+  private static func fetchSubjects(apiToken: String, subjectIds: [Int], completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
+    if Date().timeIntervalSince(subjectsUpdatedAt) >= 86_400 {
+      subjectCache.removeAll()
+      subjectsUpdatedAt = Date()
+    }
+    let ids = Array(Set(subjectIds)).sorted()
+    let missing = ids.filter { subjectCache[$0] == nil }
+    func finish() {
+      prepareCharacterImages(subjectIds: ids) { result in
+        if case .success = result {
+          UserDefaults.standard.set(["updatedAt": subjectsUpdatedAt, "subjects": Array(subjectCache.values)], forKey: subjectCacheKey)
         }
+        completion(result.map { ids.compactMap { subjectCache[$0] } })
+      }
+    }
+    func fetchChunk(_ offset: Int) {
+      guard offset < missing.count else {
+        finish()
+        return
+      }
+      let end = min(offset + 100, missing.count)
+      var components = URLComponents(string: "\(waniKaniAPIBaseURL)/subjects")!
+      components.queryItems = [URLQueryItem(name: "ids", value: missing[offset..<end].map(String.init).joined(separator: ","))]
+      fetchCollection(url: components.url!, apiToken: apiToken) { result in
+        switch result {
+        case .success(let subjects):
+          for subject in subjects {
+            if let id = intValue(subject["id"]), let data = subject["data"] as? [String: Any] {
+              // Audio and context sentences are not used by Watch flashcards.
+              let fields = ["characters", "meanings", "readings", "character_images"]
+              subjectCache[id] = ["id": id, "object": subject["object"] as? String ?? "vocabulary",
+                "data": data.filter { fields.contains($0.key) && !($0.value is NSNull) }]
+            }
+          }
+          fetchChunk(end)
+        case .failure(let error): completion(.failure(error))
+        }
+      }
+    }
+    guard !missing.isEmpty else { finish(); return }
+    fetchChunk(0)
+  }
 
+  private static func prepareCharacterImages(
+    subjectIds: [Int], completion: @escaping (Result<Void, Error>) -> Void
+  ) {
+    func prepare(_ index: Int) {
+      guard index < subjectIds.count else { completion(.success(())); return }
+      let id = subjectIds[index]
+      guard var subject = subjectCache[id], var data = subject["data"] as? [String: Any] else {
+        completion(.failure(apiError("A review subject could not be loaded. Try again.")))
+        return
+      }
+      if let characters = data["characters"] as? String,
+         !characters.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        prepare(index + 1)
+        return
+      }
+      if let encoded = data["watch_character_image"] as? String, !encoded.isEmpty {
+        prepare(index + 1)
+        return
+      }
+      let images = data["character_images"] as? [[String: Any]] ?? []
+      let image = images.first { $0["content_type"] as? String == "image/svg+xml" }
+        ?? images.first { $0["content_type"] as? String == "image/png" }
+      guard let image, let address = image["url"] as? String,
+            let url = URL(string: address), url.scheme == "https" else {
+        completion(.failure(apiError("The radical image is unavailable. Refresh on iPhone and try again.")))
+        return
+      }
+      // Public character images need no API Authorization header.
+      var request = URLRequest(url: url)
+      request.timeoutInterval = 20
+      URLSession.shared.dataTask(with: request) { imageData, response, error in
+        workQueue.async {
+          guard error == nil, let http = response as? HTTPURLResponse,
+                (200..<300).contains(http.statusCode), let imageData, imageData.count <= 1_000_000,
+                let png = renderKakehashiWatchRadicalImage(imageData,
+                  isSVG: image["content_type"] as? String == "image/svg+xml") else {
+            completion(.failure(apiError("Couldn't load the radical image. Keep iPhone online and try again.")))
+            return
+          }
+          data["watch_character_image"] = png.base64EncodedString()
+          subject["data"] = data
+          subjectCache[id] = subject
+          prepare(index + 1)
+        }
+      }.resume()
+    }
+    prepare(0)
+  }
+
+  private static func fetchCollection(url: URL, apiToken: String, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
+    var records: [[String: Any]] = []
+    var visited = Set<URL>()
+    func fetchPage(_ pageURL: URL) {
+      guard pageURL.scheme == "https", pageURL.host == "api.wanikani.com", visited.insert(pageURL).inserted else {
+        completion(.failure(apiError("WaniKani returned an invalid next page.")))
+        return
+      }
+      performJSONRequest(url: pageURL, apiToken: apiToken) { result in
+        switch result {
+        case .success(let json):
+          guard let page = json["data"] as? [[String: Any]] else {
+            completion(.failure(apiError("WaniKani returned an unexpected review list.")))
+            return
+          }
+          records.append(contentsOf: page)
+          if let next = (json["pages"] as? [String: Any])?["next_url"] as? String,
+             let nextURL = URL(string: next) { fetchPage(nextURL) }
+          else { completion(.success(records)) }
+        case .failure(let error): completion(.failure(error))
+        }
+      }
+    }
+    fetchPage(url)
+  }
+
+  private static func performJSONRequest(url: URL, apiToken: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+    URLSession.shared.dataTask(with: authorizedRequest(url: url, apiToken: apiToken)) { data, response, error in
+      workQueue.async {
+        if let error { completion(.failure(error)); return }
+        guard let http = response as? HTTPURLResponse else {
+          completion(.failure(apiError("WaniKani did not return an HTTP response."))); return
+        }
+        guard (200..<300).contains(http.statusCode) else {
+          completion(.failure(apiError(apiErrorMessage(from: data) ?? "WaniKani returned HTTP \(http.statusCode)."))); return
+        }
+        guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+          completion(.failure(apiError("WaniKani returned an unexpected response."))); return
+        }
         completion(.success(json))
-      } catch {
-        completion(.failure(error))
       }
     }.resume()
   }
 
   private static func authorizedRequest(url: URL, apiToken: String) -> URLRequest {
     var request = URLRequest(url: url)
+    request.timeoutInterval = 25
     request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue(waniKaniAPIRevision, forHTTPHeaderField: "Wanikani-Revision")
     request.setValue("Kakehashi-Watch", forHTTPHeaderField: "User-Agent")
     return request
   }
-
   private static func parseAssignment(_ rawAssignment: [String: Any]) -> WatchAssignment? {
     guard let assignmentId = intValue(rawAssignment["id"]),
           let assignmentData = rawAssignment["data"] as? [String: Any],
@@ -671,7 +1195,7 @@ private enum KakehashiWatchReviewAPI {
 
     let hidden = assignmentData["hidden"] as? Bool ?? false
     let srsStage = intValue(assignmentData["srs_stage"]) ?? 0
-    guard !hidden, srsStage < 9 else {
+    guard !hidden, srsStage > 0, srsStage < 9 else {
       return nil
     }
 
@@ -708,14 +1232,10 @@ private enum KakehashiWatchReviewAPI {
       let allReadings = answerStrings(from: subjectData["readings"], field: "reading")
       let hasReading = subjectType != "radical" && subjectType != "kana_vocabulary" && !allReadings.isEmpty
       let displayCharacters = (subjectData["characters"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-      let characters: String
-      if let displayCharacters, !displayCharacters.isEmpty {
-        characters = displayCharacters
-      } else {
-        characters = meanings.first ?? "Review"
-      }
-
-      return [
+      let characters = displayCharacters ?? ""
+      let imageData = subjectData["watch_character_image"] as? String
+      guard !characters.isEmpty || imageData != nil else { return nil }
+      var card: [String: Any] = [
         "id": "\(assignment.assignmentId)",
         "assignmentId": assignment.assignmentId,
         "subjectId": assignment.subjectId,
@@ -727,6 +1247,8 @@ private enum KakehashiWatchReviewAPI {
         "srsStage": assignment.srsStage,
         "availableAt": assignment.availableAt ?? "",
       ]
+      if let imageData { card["characterImageData"] = imageData }
+      return card
     }
   }
 
@@ -818,10 +1340,12 @@ private enum KakehashiWatchReviewAPI {
     ]
   }
 
-  private static func reviewSubmissionError(_ message: String) -> [String: Any] {
+  private static func reviewSubmissionError(_ message: String, submissionId: String, retryable: Bool = true) -> [String: Any] {
     [
       "kind": "reviewSubmission",
       "success": false,
+      "submissionId": submissionId,
+      "retryable": retryable,
       "error": message,
     ]
   }
@@ -861,40 +1385,36 @@ extension KakehashiWatchBridge: WCSessionDelegate {
 
     switch command {
     case "requestReviewData":
-      replyHandler(
-        latestPayload() ??
-          makeKakehashiReviewPayload(
-            currentReviews: 0,
-            upcomingReviews: Array(repeating: 0, count: 24),
-            upcomingReviewTimes: nil,
-            lastUpdated: 0
-          )
-      )
-
-    case "requestReviewSession":
-      let limit = (message["limit"] as? Int) ?? (message["limit"] as? NSNumber)?.intValue ?? 10
-      KakehashiWatchReviewAPI.loadReviewSession(limit: limit, completion: replyHandler)
-
-    case "submitWatchReview":
-      guard let assignmentId = (message["assignmentId"] as? Int) ?? (message["assignmentId"] as? NSNumber)?.intValue else {
-        replyHandler([
-          "kind": "reviewSubmission",
-          "success": false,
-          "error": "Missing review assignment.",
-        ])
-        return
+      KakehashiWatchReviewAPI.refreshSnapshot { [weak self] payload in
+        if payload["error"] == nil { self?.publishSnapshot(payload) }
+        replyHandler(payload)
       }
 
-      KakehashiWatchReviewAPI.submitReview(
-        assignmentId: assignmentId,
-        meaningIncorrect: (message["meaningIncorrect"] as? Int) ?? (message["meaningIncorrect"] as? NSNumber)?.intValue ?? 0,
-        readingIncorrect: (message["readingIncorrect"] as? Int) ?? (message["readingIncorrect"] as? NSNumber)?.intValue ?? 0
-      ) { [weak self] reply in
-        if reply["success"] as? Bool == true {
-          self?.markSubmittedReviewInPayload()
-        }
+    case "requestReviewSession":
+      KakehashiWatchReviewAPI.loadReviewSession(
+        cursor: message["cursor"] as? String,
+        excludedAssignmentIds: message["excludedAssignmentIds"] as? [Int] ?? [],
+        completion: replyHandler
+      )
 
-        replyHandler(reply)
+    case "submitWatchReview":
+      guard let assignmentId = (message["assignmentId"] as? Int) ?? (message["assignmentId"] as? NSNumber)?.intValue,
+            let submissionId = message["submissionId"] as? String,
+            let availableAt = message["availableAt"] as? String,
+            let reviewedAt = message["reviewedAt"] as? String else {
+        replyHandler(["kind": "reviewSubmission", "success": false,
+          "retryable": false, "error": "Update Kakehashi on your watch to sync saved answers."])
+        return
+      }
+      KakehashiWatchReviewAPI.submitReview(
+        assignmentId: assignmentId, submissionId: submissionId,
+        availableAt: availableAt, reviewedAt: reviewedAt,
+        account: message["accountIdentifier"] as? String,
+        meaningIncorrect: (message["meaningIncorrect"] as? Int) ?? 0,
+        readingIncorrect: (message["readingIncorrect"] as? Int) ?? 0
+      ) { [weak self] reply in
+        guard let self else { replyHandler(reply); return }
+        self.finishSubmission(reply, replyHandler: replyHandler)
       }
 
     default:
@@ -909,7 +1429,9 @@ private func saveWidgetData(
   upcomingReviews: [Int],
   upcomingReviewTimes: [String: Int]?,
   isOnVacation: Bool = false,
-  vacationStartedAt: String? = nil
+  vacationStartedAt: String? = nil,
+  currentSubjectCounts: [String: Int]? = nil,
+  forecastBreakdown: [[String: Any]]? = nil
 ) {
     _ = saveKakehashiReviewSnapshot(
       currentReviews: currentReviews,
@@ -917,6 +1439,8 @@ private func saveWidgetData(
       upcomingReviewTimes: upcomingReviewTimes,
       isOnVacation: isOnVacation,
       vacationStartedAt: vacationStartedAt,
+      currentSubjectCounts: currentSubjectCounts,
+      forecastBreakdown: forecastBreakdown,
       logPrefix: "ReviewNotificationManager"
     )
 }
@@ -1087,6 +1611,8 @@ class ReviewNotificationManager: NSObject {
 	    let soundsEnabled = notificationSettings["soundsEnabled"] ?? false
 	    let widgetBackgroundRefreshEnabled = notificationSettings["widgetBackgroundRefreshEnabled"] ?? true
 	    let upcomingReviewTimes = reviewData["upcomingReviewTimes"] as? [String: Int]
+        let currentSubjectCounts = reviewData["currentSubjectCounts"] as? [String: Int]
+        let forecastBreakdown = reviewData["forecastBreakdown"] as? [[String: Any]]
 	    let isOnVacation = reviewData["isOnVacation"] as? Bool ?? false
 	    let vacationStartedAt = reviewData["vacationStartedAt"] as? String
 	    let effectiveCurrentReviews = isOnVacation ? 0 : currentReviews
@@ -1219,7 +1745,9 @@ class ReviewNotificationManager: NSObject {
 	              upcomingReviews: effectiveUpcomingReviews,
 	              upcomingReviewTimes: effectiveUpcomingReviewTimes,
 	              isOnVacation: isOnVacation,
-	              vacationStartedAt: vacationStartedAt
+	              vacationStartedAt: vacationStartedAt,
+                  currentSubjectCounts: currentSubjectCounts,
+                  forecastBreakdown: forecastBreakdown
 	            )
 
 	            if latestWidgetBackgroundRefreshEnabled {

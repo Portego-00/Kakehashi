@@ -18,6 +18,8 @@ import {
   type CustomContextSentencesSectionHandle,
 } from "../CustomContextSentencesSection";
 
+let mockHideTranslationsCompletely = false;
+
 jest.mock("react-native-safe-area-context", () => {
   const mockReact = require("react");
   const MockView = require("react-native").View;
@@ -39,6 +41,8 @@ jest.mock("@expo/vector-icons", () => {
 jest.mock("../../utils/store", () => ({
   useAuthStore: (selector: (state: { userData: { id: string } }) => unknown) =>
     selector({ userData: { id: "wk-user-1" } }),
+  useSettingsStore: (selector: (state: { hideContextSentenceTranslationsCompletely: boolean }) => unknown) =>
+    selector({ hideContextSentenceTranslationsCompletely: mockHideTranslationsCompletely }),
 }));
 
 jest.mock("../../utils/theme", () => ({
@@ -104,6 +108,7 @@ function renderSection(ref?: React.Ref<CustomContextSentencesSectionHandle>) {
 describe("CustomContextSentencesSection", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHideTranslationsCompletely = false;
     (getCustomContextSentencesForSubject as jest.Mock).mockResolvedValue([]);
     (updateCustomContextSentence as jest.Mock).mockImplementation(
       async (_userId: string, _id: string, updates: object) => ({
@@ -119,6 +124,24 @@ describe("CustomContextSentencesSection", () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it("removes personal sentence translations while retaining Japanese and audio", async () => {
+    mockHideTranslationsCompletely = true;
+    jest.mocked(getCustomContextSentencesForSubject).mockResolvedValue([storedSentence]);
+    const screen = renderSection();
+
+    expect(await screen.findByText(storedSentence.kana)).toBeTruthy();
+    expect(screen.queryByText(storedSentence.english)).toBeNull();
+    expect(screen.getByLabelText("Play sentence audio")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Show this sentence in kanji"));
+    expect(screen.getByText(storedSentence.japanese)).toBeTruthy();
+    expect(screen.queryByText(storedSentence.english)).toBeNull();
+    await waitFor(() => expect(updateCustomContextSentence).toHaveBeenCalled());
+
+    mockHideTranslationsCompletely = false;
+    screen.rerender(<CustomContextSentencesSection subjectId={42} subjectCharacters="世界" subjectReadings={["せかい"]} />);
+    expect(screen.getByText(storedSentence.english)).toBeTruthy();
   });
 
   it("uses and persists the display mode from a saved sentence", async () => {

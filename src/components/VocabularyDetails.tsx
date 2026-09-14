@@ -62,7 +62,7 @@ import SrsLevelIcon from "./SrsLevelIcon";
 import { SynonymsModal } from "./SynonymsModal";
 import { getWaniKaniPitchAccent } from "../utils/pitchAccent";
 import { getWaniKaniVocabularyPatterns } from "../utils/wanikaniVocabularyPatterns";
-import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import SubjectMetadataRows from "./SubjectMetadataRows";
 import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 // Enable Reanimated layout animations (Fabric / new‑arch friendly)
@@ -1481,6 +1481,10 @@ export default function VocabularyDetails({
     translationId: string,
     textStyle: StyleProp<TextStyle>
   ) => {
+    if (hideContextSentenceTranslationsCompletely) {
+      return null;
+    }
+
     const isRevealed =
       !hideContextSentenceTranslations || revealedTranslations.has(translationId);
 
@@ -1498,16 +1502,12 @@ export default function VocabularyDetails({
         style={styles.translationRevealContainer}
         onPress={() => revealTranslation(translationId)}
       >
-        {!hideContextSentenceTranslationsCompletely && (
-          <>
-            <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
-            <BlurView
-              tint={theme.isDark ? "dark" : "light"}
-              intensity={24}
-              style={styles.translationBlurOverlay}
-            />
-          </>
-        )}
+        <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
+        <BlurView
+          tint={theme.isDark ? "dark" : "light"}
+          intensity={24}
+          style={styles.translationBlurOverlay}
+        />
         <View style={styles.translationRevealHint}>
           <Ionicons name="eye-outline" size={14} color={theme.textSecondary} />
           <Text
@@ -2196,8 +2196,7 @@ export default function VocabularyDetails({
                     </View>
                   )}
 
-                <VocabularyFrequencyBadge
-                  variant="details"
+                <SubjectMetadataRows
                   subject={{
                     id: vocabulary.id,
                     object: vocabulary.object,

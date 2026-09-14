@@ -3,6 +3,8 @@ import React from "react";
 import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from "react-native";
 
 import LessonDetailScreen from "../LessonDetailScreen";
+import { searchImmersionKit } from "../../services/immersionKitService";
+import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
 
 let mockFlushedNoteText: string | undefined;
 const mockEditorFlush = jest.fn((value?: string) =>
@@ -17,6 +19,16 @@ function respondToDiscardAlert(action: "Keep editing" | "Discard") {
 
 let mockSinglePageLessonView = false;
 let mockRetainModalDuringDismiss = false;
+let mockRenderContextTab = false;
+let mockRenderMeaningTab = false;
+const mockContextSettings = {
+  showJLPTLevel: false,
+  showVocabularyFrequency: false,
+  showPatternsOfUse: false,
+  showMediaContextSentences: false,
+  hideContextSentenceTranslations: false,
+  hideContextSentenceTranslationsCompletely: false,
+};
 
 jest.mock("react-native/Libraries/Modal/Modal", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -124,7 +136,8 @@ jest.mock("react-native-tab-view", () => {
 
   return {
     TabBar: () => null,
-    TabView: () => <View testID="mock-tab-view" />,
+    TabView: ({ renderScene }: { renderScene: (props: { route: { key: string } }) => React.ReactNode }) =>
+      mockRenderMeaningTab ? renderScene({ route: { key: "meaning" } }) : mockRenderContextTab ? renderScene({ route: { key: "context" } }) : <View testID="mock-tab-view" />,
   };
 });
 
@@ -170,12 +183,16 @@ jest.mock("../../utils/azureSpeech", () => ({
 
 jest.mock("../../utils/store", () => ({
   useAuthStore: () => ({ apiToken: "test-token", userData: null }),
-  useSettingsStore: () => ({
-    appTextSizeScale: 1.15,
-    autoplayLessonReadingAudio: false,
-    singlePageLessonView: mockSinglePageLessonView,
-    vocabularyAudioVoice: "female",
-  }),
+  useSettingsStore: (selector?: (state: Record<string, unknown>) => unknown) => {
+    const settings = {
+      appTextSizeScale: 1.15,
+      autoplayLessonReadingAudio: false,
+      singlePageLessonView: mockSinglePageLessonView,
+      vocabularyAudioVoice: "female",
+      ...mockContextSettings,
+    };
+    return selector ? selector(settings) : settings;
+  },
 }));
 
 jest.mock("../../utils/theme", () => ({
@@ -257,6 +274,85 @@ jest.mock("../PitchAccentVisualization", () => () => null);
 jest.mock("../StrokeOrderAnimation", () => () => null);
 jest.mock("../SynonymsModal", () => ({ SynonymsModal: () => null }));
 jest.mock("../VocabularyFrequencyBadge", () => () => null);
+jest.mock("../CustomContextSentencesSection", () => ({ CustomContextSentencesSection: () => null }));
+jest.mock("../../utils/wanikaniVocabularyPatterns", () => ({ getWaniKaniVocabularyPatterns: jest.fn(() => []) }));
+jest.mock("../../services/immersionKitService", () => ({ searchImmersionKit: jest.fn(), getCategoryColor: () => "#9c38d9", getCategoryDisplayName: () => "Anime" }));
+
+describe("LessonDetailScreen Japanese-only examples", () => {
+  afterEach(() => {
+    mockRenderContextTab = false;
+    mockSinglePageLessonView = false;
+    mockContextSettings.showPatternsOfUse = false;
+    mockContextSettings.showMediaContextSentences = false;
+    mockContextSettings.hideContextSentenceTranslations = false;
+    mockContextSettings.hideContextSentenceTranslationsCompletely = false;
+    jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
+  });
+
+  it.each([
+    ["vocabulary", false, false],
+    ["vocabulary", false, true],
+    ["vocabulary", true, false],
+    ["vocabulary", true, true],
+    ["kana_vocabulary", false, false],
+    ["kana_vocabulary", false, true],
+    ["kana_vocabulary", true, false],
+    ["kana_vocabulary", true, true],
+  ] as const)("removes %s translations (single page: %s, hide until tapped: %s)", async (object, singlePage, hideUntilTapped) => {
+    mockSinglePageLessonView = singlePage;
+    mockRenderContextTab = true;
+    mockContextSettings.showPatternsOfUse = true;
+    mockContextSettings.showMediaContextSentences = true;
+    mockContextSettings.hideContextSentenceTranslations = hideUntilTapped;
+    mockContextSettings.hideContextSentenceTranslationsCompletely = true;
+    const context = { ja: "やっぱり歩いて行く。", en: "After all, I'll walk." };
+    const pattern = { ja: "やっぱりそうだ。", en: "It is as I thought." };
+    const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime", imageUrl: "https://example.com/anime.jpg" };
+    jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([{ name: "やっぱり〜", examples: [pattern] }]);
+    jest.mocked(searchImmersionKit).mockResolvedValue({ results: [media], nextOffset: 1 });
+    const subject = { id: -2026, object, data: { characters: "やっぱり", level: 1, meanings: [{ meaning: "As Expected", primary: true }], readings: [], context_sentences: [context] } };
+    const lesson = (
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />
+    );
+    const screen = render(lesson);
+    expect(await screen.findByText(media.sentence)).toBeTruthy();
+    for (const sentence of [context, pattern, { ja: media.sentence, en: media.translation }]) {
+      expect(screen.getByText(sentence.ja)).toBeTruthy();
+      expect(screen.queryByText(sentence.en)).toBeNull();
+    }
+    expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+
+    mockContextSettings.hideContextSentenceTranslationsCompletely = false;
+    screen.rerender(React.cloneElement(lesson));
+    expect(screen.getByText(context.en)).toBeTruthy();
+    expect(screen.getByText(pattern.en)).toBeTruthy();
+    expect(screen.getByText(media.translation)).toBeTruthy();
+    if (hideUntilTapped) {
+      expect(screen.getAllByText("Tap to reveal translation")).toHaveLength(3);
+      fireEvent.press(screen.getAllByText("Tap to reveal translation")[0]);
+      expect(screen.getAllByText("Tap to reveal translation")).toHaveLength(2);
+    } else {
+      expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+    }
+
+    mockContextSettings.hideContextSentenceTranslationsCompletely = true;
+    screen.rerender(React.cloneElement(lesson));
+    expect(screen.queryByText(context.en)).toBeNull();
+    expect(screen.queryByText(pattern.en)).toBeNull();
+    expect(screen.queryByText(media.translation)).toBeNull();
+    expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+  });
+});
 
 function renderNoteLesson() {
   mockSinglePageLessonView = true;
@@ -551,3 +647,44 @@ describe("LessonDetailScreen large-text summary", () => {
 });
 
 afterAll(() => mockAlert.mockRestore());
+
+describe("LessonDetailScreen subject metadata", () => {
+  afterEach(() => {
+    mockRenderMeaningTab = false;
+    mockSinglePageLessonView = false;
+    mockContextSettings.showJLPTLevel = false;
+    mockContextSettings.showVocabularyFrequency = false;
+  });
+
+  it.each([
+    ["kanji", "語", false],
+    ["kanji", "語", true],
+    ["vocabulary", "テレビ", false],
+    ["vocabulary", "テレビ", true],
+    ["kana_vocabulary", "テレビ", false],
+    ["kana_vocabulary", "テレビ", true],
+  ] as const)("shows labeled metadata for %s %s (single page: %s)", (object, characters, singlePage) => {
+    mockRenderMeaningTab = true;
+    mockSinglePageLessonView = singlePage;
+    mockContextSettings.showJLPTLevel = true;
+    mockContextSettings.showVocabularyFrequency = true;
+    const subject = { id: 1, object, data: { characters, meanings: [{ meaning: "Example", primary: true }], readings: [] } };
+    const screen = render(
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("JLPT Level")).toBeTruthy();
+    expect(screen.getByText("N5")).toBeTruthy();
+    if (object === "kanji") expect(screen.queryByText("Frequency")).toBeNull();
+    else expect(screen.getByText("Frequency")).toBeTruthy();
+  });
+});

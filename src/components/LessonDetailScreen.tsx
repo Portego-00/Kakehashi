@@ -107,7 +107,7 @@ import KanjiReadingExamples from "./KanjiReadingExamples";
 import LessonMeaningPill from "./LessonMeaningPill";
 import PitchAccentVisualization from "./PitchAccentVisualization";
 import StrokeOrderAnimation from "./StrokeOrderAnimation";
-import VocabularyFrequencyBadge from "./VocabularyFrequencyBadge";
+import SubjectMetadataRows from "./SubjectMetadataRows";
 import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
 // Get screen dimensions
@@ -1739,6 +1739,10 @@ const SubjectContent = ({
     translationId: string,
     textStyle: StyleProp<TextStyle>
   ) => {
+    if (hideContextSentenceTranslationsCompletely) {
+      return null;
+    }
+
     const isRevealed =
       !hideContextSentenceTranslations || revealedTranslations.has(translationId);
 
@@ -1756,16 +1760,12 @@ const SubjectContent = ({
         style={styles.translationRevealContainer}
         onPress={() => revealTranslation(translationId)}
       >
-        {!hideContextSentenceTranslationsCompletely && (
-          <>
-            <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
-            <BlurView
-              tint={theme.isDark ? "dark" : "light"}
-              intensity={24}
-              style={styles.translationBlurOverlay}
-            />
-          </>
-        )}
+        <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
+        <BlurView
+          tint={theme.isDark ? "dark" : "light"}
+          intensity={24}
+          style={styles.translationBlurOverlay}
+        />
         <View style={styles.translationRevealHint}>
           <Ionicons name="eye-outline" size={14} color={theme.textSecondary} />
           <Text
@@ -2691,6 +2691,7 @@ const SubjectContent = ({
         return (
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
+              <SubjectMetadataRows subject={subject} style={styles.infoSection} />
               {/* Radicals Section */}
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Radicals</Text>
@@ -2864,6 +2865,7 @@ const SubjectContent = ({
         return (
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
+              <SubjectMetadataRows subject={subject} style={styles.infoSection} />
               {/* Kanji Composition Section */}
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Kanji Composition</Text>
@@ -3078,6 +3080,7 @@ const SubjectContent = ({
         return (
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
+              <SubjectMetadataRows subject={subject} style={styles.infoSection} />
               {/* Meaning Section */}
               {(subject.data.meanings.length > 1 ||
                 (subject.data.parts_of_speech &&
@@ -3396,6 +3399,7 @@ const SubjectContent = ({
               ) : tabIndex === 1 ? (
                 // Meaning tab
                 <View>
+                  <SubjectMetadataRows subject={subject} style={styles.infoSection} />
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
@@ -3607,6 +3611,7 @@ const SubjectContent = ({
               ) : tabIndex === 1 ? (
                 // Meaning tab
                 <View>
+                  <SubjectMetadataRows subject={subject} style={styles.infoSection} />
                   {(subject.data.meanings.length > 1 ||
                     (subject.data.parts_of_speech &&
                       subject.data.parts_of_speech.length > 0)) && (
@@ -4088,6 +4093,7 @@ const SubjectContent = ({
               {tabIndex === 0 ? (
                 // Meaning tab
                 <View>
+                  <SubjectMetadataRows subject={subject} style={styles.infoSection} />
                   {(subject.data.meanings.length > 1 ||
                     (subject.data.parts_of_speech &&
                       subject.data.parts_of_speech.length > 0)) && (
@@ -5450,10 +5456,6 @@ export default function LessonDetailScreen({
                     "No meaning available"
                   }
                 />
-                {(pageSubject.object === "vocabulary" ||
-                  pageSubject.object === "kana_vocabulary") && (
-                  <VocabularyFrequencyBadge subject={pageSubject} />
-                )}
                 {/* Show reading in header for vocabulary/kanji in single page view */}
                 {singlePageLessonView &&
                   (pageSubject.object === "vocabulary" ||
