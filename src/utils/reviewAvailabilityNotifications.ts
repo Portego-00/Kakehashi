@@ -81,6 +81,23 @@ export async function presentCombinedReviewAvailabilityNotification({
   reviewCount: number;
   newReviews: number;
 }): Promise<void> {
+  // A count-only background fallback must not replace the native pending
+  // reminder: its badge belongs to a future review time. Both paths share the
+  // delivered identity, so keep the native schedule until a full refresh can
+  // rebuild it safely.
+  try {
+    const pending = await Notifications.getAllScheduledNotificationsAsync();
+    if (pending.some((request) =>
+      request.identifier === REVIEW_AVAILABILITY_NOTIFICATION_IDENTIFIER &&
+      notificationData(request)?.[NATIVE_REVIEW_NOTIFICATION_MARKER] === true
+    )) {
+      return;
+    }
+  } catch {
+    // Preserve an existing native schedule when its status is unavailable.
+    return;
+  }
+
   await dismissDeliveredReviewAvailabilityNotifications();
 
   await Notifications.scheduleNotificationAsync({

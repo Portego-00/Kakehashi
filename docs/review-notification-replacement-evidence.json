@@ -1,0 +1,546 @@
+{
+  "device": "iPhone 17 Pro",
+  "os": "iOS 27.0",
+  "authorization": "provisional",
+  "terminatedAppGrouping": {
+    "A-unique-scheduled-before-force-termination": {
+      "applicationState": 0,
+      "delivered": [],
+      "pending": [
+        {
+          "body": "A1: 10 reviews",
+          "identifier": "unique-first",
+          "thread": "review-availability"
+        },
+        {
+          "body": "A2: 20 reviews",
+          "identifier": "unique-second",
+          "thread": "review-availability"
+        }
+      ],
+      "timestamp": 1789371386.778961
+    },
+    "authorization": {
+      "applicationState": 1,
+      "granted": true,
+      "status": 3,
+      "timestamp": 1789371408.9668531
+    },
+    "inspection": {
+      "applicationState": 1,
+      "delivered": [
+        {
+          "body": "A1: 10 reviews",
+          "identifier": "unique-first",
+          "thread": "review-availability"
+        },
+        {
+          "body": "A2: 20 reviews",
+          "identifier": "unique-second",
+          "thread": "review-availability"
+        }
+      ],
+      "pending": [],
+      "timestamp": 1789371408.968676
+    }
+  },
+  "backgroundReplacement": {
+    "B-first-delivered": {
+      "applicationState": 2,
+      "delivered": [
+        {
+          "body": "B1: 10 reviews",
+          "identifier": "replacement",
+          "thread": "review-availability"
+        }
+      ],
+      "pending": [],
+      "timestamp": 1789371340.697772
+    },
+    "B-second-replaced-delivered": {
+      "applicationState": 2,
+      "delivered": [
+        {
+          "body": "B2: 20 reviews",
+          "identifier": "replacement",
+          "thread": "review-availability"
+        }
+      ],
+      "pending": [],
+      "timestamp": 1789371343.774545
+    },
+    "C-first-trigger-no-delivery": {
+      "applicationState": 2,
+      "delivered": [],
+      "pending": [
+        {
+          "body": "C2: last pending",
+          "identifier": "same-pending",
+          "thread": "review-availability"
+        }
+      ],
+      "timestamp": 1789371347.8357182
+    },
+    "C-last-trigger-delivered": {
+      "applicationState": 2,
+      "delivered": [
+        {
+          "body": "C2: last pending",
+          "identifier": "same-pending",
+          "thread": "review-availability"
+        }
+      ],
+      "pending": [],
+      "timestamp": 1789371350.914305
+    },
+    "C-two-future-same-id-pending": {
+      "applicationState": 2,
+      "delivered": [],
+      "pending": [
+        {
+          "body": "C2: last pending",
+          "identifier": "same-pending",
+          "thread": "review-availability"
+        }
+      ],
+      "timestamp": 1789371344.796299
+    }
+  },
+  "localFixSimulator": {
+    "device": "iPhone 17 Pro simulator",
+    "os": "iOS 26.3",
+    "sourceProvenance": {
+      "source": "/Users/pedroortego/Code/Kakehashi/ios/ReviewNotificationManager.swift",
+      "sourceSHA256": "af77a6124736645e0cb3d906041d48c8a382b49f095724154a3541bb8c4adb5c",
+      "extractedMethodSHA256": {
+        "scheduleUpcomingNotifications": "b9e621ccd0d199f8d8f2140aa48d4a1756db4c0c3c8646ea8848823f8dc2ef40",
+        "scheduleExactNotifications": "1c6c9bb1bfaf93d1f047b6e402c56f65b830144f7a9136a1d596e139d9f67358"
+      }
+    },
+    "terminatedForecast": {
+      "A-scheduled": {
+        "applicationIconBadgeNumber": 7,
+        "applicationState": 0,
+        "delivered": [],
+        "pending": [
+          {
+            "badge": 12,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:55:43.627Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372543.932385,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 3,
+              "reviewCount": 12
+            }
+          },
+          {
+            "badge": 17,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:55:53.627Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372553.932272,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 5,
+              "reviewCount": 17
+            }
+          },
+          {
+            "badge": 9,
+            "body": "You now have 9 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "2 new reviews available",
+            "triggerDate": 1789372533.933118,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 2,
+              "reviewCount": 9
+            }
+          }
+        ],
+        "timestamp": 1789372523.959818
+      },
+      "authorization": {
+        "alertSetting": 2,
+        "applicationIconBadgeNumber": 17,
+        "applicationState": 1,
+        "badgeSetting": 2,
+        "granted": true,
+        "soundSetting": 2,
+        "status": 2,
+        "timestamp": 1789372556.796421
+      },
+      "inspection-after-a": {
+        "applicationIconBadgeNumber": 17,
+        "applicationState": 1,
+        "delivered": [
+          {
+            "badge": 9,
+            "body": "You now have 9 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "2 new reviews available",
+            "triggerDate": 1789372566.777717,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 2,
+              "reviewCount": 9
+            }
+          }
+        ],
+        "pending": [],
+        "timestamp": 1789372556.8044128
+      },
+      "scenario": {
+        "baseTimestamp": 1789372523.6271958,
+        "name": "A",
+        "upcomingReviewTimes": {
+          "2026-09-14T07:55:33.627Z": 2,
+          "2026-09-14T07:55:43.627Z": 3,
+          "2026-09-14T07:55:53.627Z": 5
+        }
+      }
+    },
+    "replacementAfterRefresh": {
+      "app-backgrounded": {
+        "applicationIconBadgeNumber": 9,
+        "applicationState": 2,
+        "timestamp": 1789372571.960675
+      },
+      "authorization": {
+        "alertSetting": 2,
+        "applicationIconBadgeNumber": 9,
+        "applicationState": 1,
+        "badgeSetting": 2,
+        "granted": true,
+        "soundSetting": 2,
+        "status": 2,
+        "timestamp": 1789372568.754475
+      },
+      "B-after-refresh-scheduled": {
+        "applicationIconBadgeNumber": 9,
+        "applicationState": 0,
+        "delivered": [
+          {
+            "badge": 9,
+            "body": "You now have 9 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "2 new reviews available",
+            "triggerDate": 1789372575.1842718,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 2,
+              "reviewCount": 9
+            }
+          }
+        ],
+        "pending": [
+          {
+            "badge": 17,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:56:24.751Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372585.061997,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 5,
+              "reviewCount": 17
+            }
+          },
+          {
+            "badge": 12,
+            "body": "You now have 12 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "3 new reviews available",
+            "triggerDate": 1789372577.062399,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 3,
+              "reviewCount": 12
+            }
+          }
+        ],
+        "timestamp": 1789372569.1869102
+      },
+      "B-before-refresh": {
+        "applicationIconBadgeNumber": 9,
+        "applicationState": 1,
+        "delivered": [
+          {
+            "badge": 9,
+            "body": "You now have 9 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "2 new reviews available",
+            "triggerDate": 1789372574.764257,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 2,
+              "reviewCount": 9
+            }
+          }
+        ],
+        "pending": [
+          {
+            "badge": 12,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:56:16.751Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372586.763884,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 3,
+              "reviewCount": 12
+            }
+          },
+          {
+            "badge": 17,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:56:24.751Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372594.763774,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 5,
+              "reviewCount": 17
+            }
+          }
+        ],
+        "timestamp": 1789372568.7668939
+      },
+      "B-final-background": {
+        "applicationIconBadgeNumber": 17,
+        "applicationState": 2,
+        "delivered": [
+          {
+            "badge": 12,
+            "body": "You now have 12 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "3 new reviews available",
+            "triggerDate": 1789372597.004085,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 3,
+              "reviewCount": 12
+            }
+          }
+        ],
+        "pending": [],
+        "timestamp": 1789372589.128588
+      },
+      "B-scheduled": {
+        "applicationIconBadgeNumber": 7,
+        "applicationState": 0,
+        "delivered": [],
+        "pending": [
+          {
+            "badge": 12,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:56:16.751Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372577.062317,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 3,
+              "reviewCount": 12
+            }
+          },
+          {
+            "badge": 17,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:56:24.751Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372585.062231,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 5,
+              "reviewCount": 17
+            }
+          },
+          {
+            "badge": 9,
+            "body": "You now have 9 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "2 new reviews available",
+            "triggerDate": 1789372565.0627108,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 2,
+              "reviewCount": 9
+            }
+          }
+        ],
+        "timestamp": 1789372559.0653791
+      },
+      "B-second-trigger-background": {
+        "applicationIconBadgeNumber": 12,
+        "applicationState": 2,
+        "delivered": [
+          {
+            "badge": 12,
+            "body": "You now have 12 reviews waiting",
+            "identifier": "review-available",
+            "isReviewAlert": true,
+            "isReviewNotification": true,
+            "thread": "kakehashi-reviews",
+            "title": "3 new reviews available",
+            "triggerDate": 1789372588.659582,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": true,
+              "kakehashiReviewNotification": true,
+              "newReviews": 3,
+              "reviewCount": 12
+            }
+          }
+        ],
+        "pending": [
+          {
+            "badge": 17,
+            "body": "",
+            "identifier": "badge-update-exact-2026-09-14T07:56:24.751Z",
+            "isReviewAlert": false,
+            "isReviewNotification": true,
+            "thread": "",
+            "title": "",
+            "triggerDate": 1789372596.659178,
+            "userInfo": {
+              "exactTime": true,
+              "kakehashiReviewAlert": false,
+              "kakehashiReviewNotification": true,
+              "newReviews": 5,
+              "reviewCount": 17
+            }
+          }
+        ],
+        "timestamp": 1789372580.784075
+      },
+      "complete": {
+        "applicationIconBadgeNumber": 17,
+        "applicationState": 2,
+        "scenario": "B",
+        "timestamp": 1789372589.134073
+      },
+      "scenario": {
+        "baseTimestamp": 1789372558.751023,
+        "name": "B",
+        "upcomingReviewTimes": {
+          "2026-09-14T07:56:04.751Z": 2,
+          "2026-09-14T07:56:16.751Z": 3,
+          "2026-09-14T07:56:24.751Z": 5
+        }
+      }
+    }
+  },
+  "localFixPhysicalRetest": {
+    "status": "not-completed-device-notification-authorization-inconsistent",
+    "device": "iPhone 17 Pro",
+    "os": "iOS 27.0",
+    "bundleIdentifier": "com.portego00.kakehashi.notificationprobe",
+    "userGrantedFullNotificationPermission": true,
+    "authorization": {
+      "alertSetting": 2,
+      "applicationIconBadgeNumber": 7,
+      "applicationState": 1,
+      "badgeSetting": 2,
+      "granted": true,
+      "soundSetting": 2,
+      "status": 2,
+      "timestamp": 1789373518.2787042
+    },
+    "genericNotificationDiagnostic": {
+      "applicationIconBadgeNumber": 7,
+      "applicationState": 0,
+      "error": "Error Domain=UNErrorDomain Code=2003 \"Repository could not save notification. Source is not authorized.\" UserInfo={NSLocalizedDescription=Repository could not save notification. Source is not authorized., UNAuthorizationStatus=Denied}",
+      "timestamp": 1789373519.292881
+    },
+    "pendingAfterDiagnostic": [],
+    "deliveredAfterDiagnostic": [],
+    "investigation": [
+      "Reinstalled the isolated signed probe after prior cleanup.",
+      "Verified real notification settings returned authorized (2), alert enabled (2), badge enabled (2), sound enabled (2).",
+      "Attempted exact production scheduling methods; every add failed with UNErrorDomain 2003 and UNAuthorizationStatus=Denied.",
+      "Registered exact production notification actions and attempted a plain title/body local notification without category, badge, thread, or userInfo; same error."
+    ],
+    "limitation": "No latest-code physical delivery pass claimed. Simulator production scenarios and earlier physical API behavior probes passed.",
+    "productionAppDataUntouched": true
+  },
+  "productionBuild": {
+    "provider": "EAS",
+    "status": "finished",
+    "platform": "ios",
+    "appVersion": "1.4.8",
+    "buildNumber": "82",
+    "url": "https://expo.dev/accounts/portego00/projects/kakehashi/builds/7046cbf1-3e42-4acb-8a5b-44b0c3455994"
+  }
+}

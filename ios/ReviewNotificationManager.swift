@@ -23,6 +23,8 @@ let kakehashiVacationModeKey = "wanikani_is_on_vacation"
 let kakehashiVacationStartedAtKey = "wanikani_vacation_started_at"
 let kakehashiReviewNotificationCategoryIdentifier = "REVIEW_CATEGORY"
 let kakehashiReviewNotificationThreadIdentifier = "kakehashi-reviews"
+// Shared with the Expo count-only fallback in reviewAvailabilityNotifications.ts.
+let kakehashiReviewNotificationIdentifier = "review-available"
 let kakehashiReviewNotificationMarkerKey = "kakehashiReviewNotification"
 let kakehashiReviewAlertMarkerKey = "kakehashiReviewAlert"
 
@@ -144,6 +146,18 @@ private func kakehashiReviewNotificationInteger(_ value: Any?) -> Int? {
   return (value as? NSNumber)?.intValue
 }
 
+private func nextKakehashiReviewTriggerDate(
+  _ trigger: UNNotificationTrigger?
+) -> Date? {
+  if let interval = trigger as? UNTimeIntervalNotificationTrigger {
+    return interval.nextTriggerDate()
+  }
+  if let calendar = trigger as? UNCalendarNotificationTrigger {
+    return calendar.nextTriggerDate()
+  }
+  return nil
+}
+
 private func preservedKakehashiReviewTrigger(
   _ trigger: UNNotificationTrigger?
 ) -> UNNotificationTrigger? {
@@ -239,10 +253,44 @@ private func transformedKakehashiReviewRequest(
   content.userInfo = userInfo
 
   return UNNotificationRequest(
-    identifier: request.identifier,
+    identifier: canShowAlert
+      ? kakehashiReviewNotificationIdentifier
+      : (request.identifier.hasPrefix("badge-update-")
+          ? request.identifier
+          : "badge-update-\(request.identifier)"),
     content: content,
     trigger: trigger
   )
+}
+
+private func plannedKakehashiReviewSettingRequests(
+  _ pendingRequests: [UNNotificationRequest],
+  showAlert: Bool,
+  updateBadge: Bool,
+  playSound: Bool
+) -> [UNNotificationRequest] {
+  let reviewRequests = pendingRequests.filter {
+    isKakehashiReviewNotification($0) && $0.trigger != nil
+  }.sorted {
+    let firstDate = nextKakehashiReviewTriggerDate($0.trigger) ?? .distantFuture
+    let secondDate = nextKakehashiReviewTriggerDate($1.trigger) ?? .distantFuture
+    return firstDate == secondDate
+      ? $0.identifier < $1.identifier
+      : firstDate < secondDate
+  }
+  var hasPlannedAlert = false
+  return reviewRequests.compactMap { request in
+    guard let replacement = transformedKakehashiReviewRequest(
+      request,
+      showAlert: showAlert && !hasPlannedAlert,
+      updateBadge: updateBadge,
+      playSound: playSound
+    ) else { return nil }
+    if isKakehashiReviewAlertNotification(replacement) {
+      hasPlannedAlert = true
+    }
+    return replacement
+  }
 }
 
 func removeDeliveredKakehashiReviewNotifications(
@@ -1533,30 +1581,20 @@ class ReviewNotificationManager: NSObject {
           soundsEnabled &&
           systemSettings.soundSetting == .enabled
 
-        var identifiersToRemove: [String] = []
-        var replacementRequests: [UNNotificationRequest] = []
-
-        for request in pendingRequests where isKakehashiReviewNotification(request) {
-          // Immediate Expo availability notifications are handled by the Expo
-          // cleanup path. Re-adding a nil-trigger request would deliver it again.
-          guard request.trigger != nil else {
-            if !shouldShowAlert {
-              identifiersToRemove.append(request.identifier)
-            }
-            continue
-          }
-
-          if let replacement = transformedKakehashiReviewRequest(
-            request,
-            showAlert: shouldShowAlert,
-            updateBadge: shouldUpdateBadge,
-            playSound: shouldPlaySound
-          ) {
-            replacementRequests.append(replacement)
-          } else {
-            identifiersToRemove.append(request.identifier)
-          }
-        }
+        let replacementRequests = plannedKakehashiReviewSettingRequests(
+          pendingRequests,
+          showAlert: shouldShowAlert,
+          updateBadge: shouldUpdateBadge,
+          playSound: shouldPlaySound
+        )
+        // Migrate old per-slot alert IDs as well as settings changes. Remove
+        // originals first so promoting a badge request to the shared alert ID
+        // cannot leave a duplicate request behind. Never re-add an immediate
+        // Expo notification: that would present it a second time.
+        let identifiersToRemove = pendingRequests.filter {
+          isKakehashiReviewNotification($0) &&
+            ($0.trigger != nil || !shouldShowAlert)
+        }.map(\.identifier)
 
         if !identifiersToRemove.isEmpty {
           center.removePendingNotificationRequests(
@@ -1652,8 +1690,9 @@ class ReviewNotificationManager: NSObject {
 	    UNUserNotificationCenter.current().getNotificationSettings { settings in
 	      DispatchQueue.main.async {
 
-        // Replace the pending review schedule. Delivered alerts remain available
-        // until the user opens the app, and iOS groups them under one thread.
+        // Keep one future visible reminder under a stable identifier. When a
+        // refresh re-arms it, delivery replaces the previous review alert. The
+        // rest of the forecast updates the badge without accumulating alerts.
 	        UNUserNotificationCenter.current().getPendingNotificationRequests { existingRequests in
 	          guard let authSessionSnapshot,
 	                KakehashiNativeAuthSession.shared.isCurrent(authSessionSnapshot) else {
@@ -1786,6 +1825,7 @@ class ReviewNotificationManager: NSObject {
     
     let startInterval = startDate.timeIntervalSinceNow
     var cumulativeReviews = currentReviews
+    var hasScheduledAlert = false
     
     for hour in 0..<min(upcomingReviews.count, 64) { // Limit to 64 hours
       let reviews = upcomingReviews[hour]
@@ -1802,18 +1842,19 @@ class ReviewNotificationManager: NSObject {
       
       let shouldShowAlert =
         settings.alertSetting == .enabled &&
-        alertsEnabled
+        alertsEnabled && !hasScheduledAlert
       let shouldUpdateBadge = settings.badgeSetting == .enabled && badgeEnabled
       guard shouldShowAlert || shouldUpdateBadge else {
         continue
       }
 
       let identifier = shouldShowAlert
-        ? "review-hourly-\(hour)"
+        ? kakehashiReviewNotificationIdentifier
         : "badge-update-hourly-\(hour)"
       let content = UNMutableNotificationContent()
 
       if shouldShowAlert {
+        hasScheduledAlert = true
         content.title = "\(reviews) new review\(reviews == 1 ? "" : "s") available"
         content.body = "You have \(cumulativeReviews) review\(cumulativeReviews == 1 ? "" : "s") waiting"
         content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
@@ -1869,6 +1910,8 @@ class ReviewNotificationManager: NSObject {
     let nc = UNUserNotificationCenter.current()
     let now = Date()
     var cumulativeReviews = currentReviews
+    var hasScheduledAlert = false
+    var notificationsScheduled = 0
     
     // Sort times chronologically
     let dateFormatter = ISO8601DateFormatter()
@@ -1914,18 +1957,19 @@ class ReviewNotificationManager: NSObject {
       
       let shouldShowAlert =
         settings.alertSetting == .enabled &&
-        alertsEnabled
+        alertsEnabled && !hasScheduledAlert
       let shouldUpdateBadge = settings.badgeSetting == .enabled && badgeEnabled
       guard shouldShowAlert || shouldUpdateBadge else {
         continue
       }
 
       let identifier = shouldShowAlert
-        ? "review-exact-\(timeString)"
+        ? kakehashiReviewNotificationIdentifier
         : "badge-update-exact-\(timeString)"
       let content = UNMutableNotificationContent()
 
       if shouldShowAlert {
+        hasScheduledAlert = true
         content.title = "\(reviewCount) new review\(reviewCount == 1 ? "" : "s") available"
         content.body = "You now have \(cumulativeReviews) review\(cumulativeReviews == 1 ? "" : "s") waiting"
         content.categoryIdentifier = kakehashiReviewNotificationCategoryIdentifier
@@ -1966,6 +2010,8 @@ class ReviewNotificationManager: NSObject {
           print("✅ Scheduled exact notification for \(availableAt) with badge \(cumulativeReviews), identifier: \(identifier)")
         }
       }
+      notificationsScheduled += 1
+      if notificationsScheduled >= 64 { break }
     }
     
     // Set up notification actions

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { REVIEW_AVAILABILITY_NOTIFICATION_IDENTIFIER } from "../reviewAvailabilityNotifications";
 
 const reviewNotificationManager = fs.readFileSync(
   path.join(process.cwd(), "ios/ReviewNotificationManager.swift"),
@@ -26,7 +27,7 @@ const settingsController = fs.readFileSync(
 );
 
 describe("iOS review notification coalescing", () => {
-  it("groups hourly and exact review alerts into one notification thread", () => {
+  it("uses the shared review notification identity for native alerts", () => {
     expect(reviewNotificationManager).toContain(
       'let kakehashiReviewNotificationThreadIdentifier = "kakehashi-reviews"',
     );
@@ -35,9 +36,8 @@ describe("iOS review notification coalescing", () => {
         /content\.threadIdentifier = kakehashiReviewNotificationThreadIdentifier/g,
       ),
     ).toHaveLength(4);
-    expect(reviewNotificationManager).toContain('? "review-hourly-\\(hour)"');
     expect(reviewNotificationManager).toContain(
-      '? "review-exact-\\(timeString)"',
+      `let kakehashiReviewNotificationIdentifier = "${REVIEW_AVAILABILITY_NOTIFICATION_IDENTIFIER}"`,
     );
     expect(reviewNotificationManager).not.toContain("content.summaryArgument");
   });
@@ -95,9 +95,7 @@ describe("iOS review notification coalescing", () => {
     expect(objectiveCBridge).toContain(
       "RCT_EXTERN_METHOD(applyReviewNotificationSettings:",
     );
-    expect(reviewNotificationManager).toContain(
-      "for request in pendingRequests where isKakehashiReviewNotification(request)",
-    );
+    expect(reviewNotificationManager).toContain("plannedKakehashiReviewSettingRequests(");
     expect(reviewNotificationManager).toContain("content.title = \"\"");
     expect(reviewNotificationManager).toContain("content.body = \"\"");
     expect(reviewNotificationManager).toContain("content.threadIdentifier = \"\"");
