@@ -37,7 +37,7 @@ begin
   insert into public.issue_likes (id, issue_id, user_id) values (v_issue_like, v_issue, v_other);
   insert into public.comment_likes (id, comment_id, user_id) values (v_comment_like, v_comment, v_other);
   select count(*) into v_count from private.issue_activity_push_outbox;
-  if v_count <> 4 then raise exception 'Expected four activities with owner excluded, got %', v_count; end if;
+  if v_count <> 5 then raise exception 'Expected five activities including owner activity, got %', v_count; end if;
   if not exists (select 1 from private.issue_activity_push_outbox where source_id = v_issue and body = 'Fixture: Untitled issue') then
     raise exception 'Nullable issue title was not handled';
   end if;
@@ -48,11 +48,11 @@ begin
   update public.issues set title = 'Changed' where id = v_issue;
   delete from public.issue_likes where id = v_issue_like;
   select count(*) into v_count from private.issue_activity_push_outbox;
-  if v_count <> 4 then raise exception 'Updates/deletes incorrectly enqueued notifications'; end if;
+  if v_count <> 5 then raise exception 'Updates/deletes incorrectly enqueued notifications'; end if;
   if public.claim_issue_activity_push(v_other, v_installation) <> '[]'::jsonb then raise exception 'Wrong owner claimed events'; end if;
   if public.claim_issue_activity_push(v_owner, gen_random_uuid()) <> '[]'::jsonb then raise exception 'Wrong phone claimed events'; end if;
   v_claims := public.claim_issue_activity_push(v_owner, v_installation, 10);
-  if jsonb_array_length(v_claims) <> 4 then raise exception 'Expected four claimed notifications'; end if;
+  if jsonb_array_length(v_claims) <> 5 then raise exception 'Expected five claimed notifications'; end if;
   if public.claim_issue_activity_push(v_owner, v_installation, 10) <> '[]'::jsonb then raise exception 'Already claimed notifications were claimed twice'; end if;
   v_claim := v_claims->0;
   if public.finish_issue_activity_push((v_claim->>'id')::uuid, gen_random_uuid(), 'delivered') then raise exception 'Stale claim completed notification'; end if;
@@ -71,7 +71,7 @@ begin
 
   update private.issue_activity_push_outbox set locked_at = now() - interval '6 minutes' where status = 'sending';
   v_claims := public.claim_issue_activity_push(v_owner, v_installation, 10);
-  if jsonb_array_length(v_claims) <> 3 then raise exception 'Expired claims were not recovered'; end if;
+  if jsonb_array_length(v_claims) <> 4 then raise exception 'Expired claims were not recovered'; end if;
   v_claim := v_claims->0;
   if v_claim->>'push_token' <> 'ExpoPushToken[test-rotated]' then raise exception 'Recovered send did not use current approved token'; end if;
   perform public.finish_issue_activity_push((v_claim->>'id')::uuid, (v_claim->>'claim_id')::uuid, 'failed', 'DeviceNotRegistered');

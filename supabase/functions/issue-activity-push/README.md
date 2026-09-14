@@ -3,7 +3,8 @@
 Inserts on issues, comments, issue likes and comment likes enter a private outbox.
 A database webhook wakes this function immediately; a one-minute database cron
 retries due jobs. The only destination is one server-approved iPhone installation.
-Owner actions are excluded by the immutable WaniKani user ID, not username.
+Activity from all accounts, including the owner’s own website/app actions, is
+reported. The verified owner ID restricts registration and delivery, not events.
 
 ## Configuration
 
@@ -78,3 +79,7 @@ pg_net request in a rolled-back transaction and sends no test pushes.
 Primary implementation references:
 [Expo push tickets and receipts](https://docs.expo.dev/push-notifications/sending-notifications/)
 and [Supabase Vault-authenticated scheduling](https://supabase.com/docs/guides/functions/schedule-functions).
+
+Run `owner_activity_test.sql` with the approved phone configured to verify that
+all four owner activity types are both enqueued and claimed for delivery. It
+rolls back all fixtures and network requests.
