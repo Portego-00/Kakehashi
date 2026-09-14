@@ -359,8 +359,9 @@ function RootLayoutContentInner() {
     return startIssueActivityNotifications({
       currentUserId: userData?.id ?? null,
       currentUsername: userData?.username ?? null,
+      apiToken,
     });
-  }, [userData?.id, userData?.username]);
+  }, [apiToken, userData?.id, userData?.username]);
 
   const getQueryParamValue = useCallback((value: unknown): string | null => {
     if (Array.isArray(value)) {

@@ -10,3 +10,7 @@ verify_jwt = false
 [functions.custom-srs]
 # Native clients authenticate with their WaniKani token inside this function.
 verify_jwt = false
+
+[functions.issue-activity-push]
+# Registration verifies WaniKani; queue delivery verifies its Vault webhook secret.
+verify_jwt = false
