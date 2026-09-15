@@ -16,6 +16,7 @@ const voiceMock = vi.hoisted(() => ({
   cancelDownload: vi.fn(),
 }));
 const sessionMock = vi.hoisted(() => ({
+  status: "authenticated",
   user: { data: { username: "Tester" } },
   isDemo: false,
   signOut: vi.fn<() => Promise<void>>(),
@@ -39,6 +40,7 @@ vi.mock("@/features/dashboard/DashboardWidgetPreview", () => ({ DashboardWidgetP
 vi.mock("@/features/speech/use-japanese-voice", () => ({ useJapaneseVoice: () => voiceMock }));
 
 beforeEach(() => {
+  sessionMock.status = "authenticated";
   sessionMock.user.data.username = "Tester";
   sessionMock.isDemo = false;
   Object.assign(voiceMock, {
@@ -153,8 +155,7 @@ describe("listening preferences", () => {
 describe("navbar tab preferences", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("exposes all candidates to Portego and persists any number of selected tabs", () => {
-    sessionMock.user.data.username = "Portego";
+  it("exposes notebooks to any signed-in account and persists any number of selected tabs", () => {
     render(<SettingsWorkspace />);
 
     const heading = screen.getByRole("heading", { level: 3, name: "Desktop navbar tabs" });
@@ -185,16 +186,17 @@ describe("navbar tab preferences", () => {
       fireEvent.click(optional);
       expect(optional).toBeChecked();
     }
-    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Portego")) ?? "{}").workspace.navbarTabs).toEqual([
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").workspace.navbarTabs).toEqual([
       "home", "level", "items", "analytics", "news", "epubs", "video", "manga", "music", "notebooks",
     ]);
   });
 
   it.each([
-    { username: "Tester", isDemo: false },
-    { username: "PortegoFan", isDemo: false },
-    { username: "Portego", isDemo: true },
-  ])("hides notebooks settings for $username with demo=$isDemo without erasing saved tabs", async ({ username, isDemo }) => {
+    { username: "Tester", isDemo: true, status: "authenticated" },
+    { username: "Portego", isDemo: true, status: "authenticated" },
+    { username: "Tester", isDemo: false, status: "anonymous" },
+  ])("hides notebooks settings for $status / $username with demo=$isDemo without erasing saved tabs", async ({ username, isDemo, status }) => {
+    sessionMock.status = status;
     sessionMock.user.data.username = username;
     sessionMock.isDemo = isDemo;
     const key = settingsStorageKey(username);

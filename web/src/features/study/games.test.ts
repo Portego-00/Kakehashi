@@ -94,6 +94,23 @@ describe("study games", () => {
     expect(kanjiPuzzle!.entries.every((entry) => entry.prompt === entry.reading && entry.answer === entry.characters)).toBe(true);
   });
 
+  it.each(["kanji-to-kana", "kana-to-kanji"] as const)("varies vocabulary across new %s puzzles with different word lengths", (direction) => {
+    const pool = Array.from({ length: 7 }, (_, index) =>
+      vocabulary(100 + index, "日".repeat(index + 2), "あ".repeat(index + 2), `Word ${index + 1}`));
+    const selections = [17, 42, 1234, 9000].map((initialSeed) => {
+      let seed = initialSeed;
+      const random = () => {
+        seed = (seed * 48271) % 2147483647;
+        return seed / 2147483647;
+      };
+      const puzzle = generateWordSearch(pool, direction, 10, 3, random);
+      expect(puzzle?.entries).toHaveLength(3);
+      return puzzle!.entries.map((entry) => entry.subjectId).sort((a, b) => a - b).join(",");
+    });
+
+    expect(new Set(selections).size).toBeGreaterThan(1);
+  });
+
   it("recognizes straight word-search selections in either direction", () => {
     const path = wordSearchSelectionPath({ row: 1, col: 1 }, { row: 3, col: 3 });
     expect(path).toEqual([{ row: 1, col: 1 }, { row: 2, col: 2 }, { row: 3, col: 3 }]);

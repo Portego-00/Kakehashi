@@ -7,9 +7,9 @@ import { useId, useState, type FormEvent } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/session";
+import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import type { Subject } from "@/types/wanikani";
 import type { NotebookSentence } from "./model";
-import { canAccessNotebooks } from "./access";
 import { NotebookCaptureButton } from "./NotebookCaptureDialog";
 import { notebookPagesForSubject } from "./study-integration";
 import { useNotebooks } from "./use-notebooks";
@@ -17,8 +17,8 @@ import styles from "./capture.module.css";
 
 export function SubjectNotebookSection({ subject }: { subject: Subject }) {
   const { user, status, isDemo } = useSession();
-  if (status !== "authenticated" || isDemo || !canAccessNotebooks(user?.data.username)) return null;
-  return <AccessibleSubjectNotebookSection subject={subject} />;
+  if (status !== "authenticated" || isDemo) return null;
+  return <AccessibleSubjectNotebookSection key={waniKaniUserId(user)} subject={subject} />;
 }
 
 function AccessibleSubjectNotebookSection({ subject }: { subject: Subject }) {

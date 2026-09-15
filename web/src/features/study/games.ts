@@ -144,9 +144,14 @@ function availableWordSearchPlacements(grid: Array<Array<string | null>>, charac
 export function generateWordSearch(subjects: Subject[], direction: WordSearchDirection = "kanji-to-kana", size = 10, maxWords = 10, random: () => number = Math.random): WordSearchPuzzle | null {
   const boardSize = Math.min(13, Math.max(7, Math.round(size)));
   const targetWords = Math.min(15, Math.max(3, Math.round(maxWords)));
-  const candidates = shuffle(wordSearchCandidates(subjects, direction, boardSize), random)
-    .toSorted((left, right) => wordSearchAnswerCharacters(right.answer, direction).length - wordSearchAnswerCharacters(left.answer, direction).length);
-  if (candidates.length < 2) return null;
+  const shuffled = shuffle(wordSearchCandidates(subjects, direction, boardSize), random);
+  if (shuffled.length < 2) return null;
+  // Choose the vocabulary before ordering longer words for easier placement.
+  const candidates = [
+    ...shuffled.slice(0, targetWords)
+      .toSorted((left, right) => wordSearchAnswerCharacters(right.answer, direction).length - wordSearchAnswerCharacters(left.answer, direction).length),
+    ...shuffled.slice(targetWords),
+  ];
 
   const grid = Array.from({ length: boardSize }, () => Array<string | null>(boardSize).fill(null));
   const entries: WordSearchEntry[] = [];

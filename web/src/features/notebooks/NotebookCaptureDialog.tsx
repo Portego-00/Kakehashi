@@ -5,9 +5,9 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { BookOpen, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/session";
+import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import type { Subject } from "@/types/wanikani";
 import type { NotebookBlock } from "./model";
-import { canAccessNotebooks } from "./access";
 import { useNotebooks } from "./use-notebooks";
 import styles from "./capture.module.css";
 
@@ -27,8 +27,8 @@ export interface NotebookCaptureDialogProps {
 
 export function NotebookCaptureDialog({ open, onClose, ...props }: NotebookCaptureDialogProps) {
   const { user, status, isDemo } = useSession();
-  if (status !== "authenticated" || isDemo || !canAccessNotebooks(user?.data.username)) return null;
-  return <AccessibleNotebookCaptureDialog open={open} onClose={onClose} {...props} />;
+  if (status !== "authenticated" || isDemo) return null;
+  return <AccessibleNotebookCaptureDialog key={waniKaniUserId(user)} open={open} onClose={onClose} {...props} />;
 }
 
 function AccessibleNotebookCaptureDialog({ open, onClose, ...props }: NotebookCaptureDialogProps) {
@@ -137,7 +137,11 @@ function CaptureContent({ subject, sentence, titleId, onClose }: Omit<NotebookCa
 
 export function NotebookCaptureButton({ subject, sentence, label = "Add to notebook" }: { subject: Subject; sentence?: NotebookCaptureSentence; label?: string }) {
   const { user, status, isDemo } = useSession();
+  if (status !== "authenticated" || isDemo) return null;
+  return <AccessibleNotebookCaptureButton key={waniKaniUserId(user)} subject={subject} sentence={sentence} label={label} />;
+}
+
+function AccessibleNotebookCaptureButton({ subject, sentence, label }: { subject: Subject; sentence?: NotebookCaptureSentence; label: string }) {
   const [open, setOpen] = useState(false);
-  if (status !== "authenticated" || isDemo || !canAccessNotebooks(user?.data.username)) return null;
   return <><Button type="button" tone="ghost" size="small" onClick={() => setOpen(true)}><BookOpen size={16} aria-hidden />{label}</Button><NotebookCaptureDialog subject={subject} sentence={sentence} open={open} onClose={() => setOpen(false)} /></>;
 }

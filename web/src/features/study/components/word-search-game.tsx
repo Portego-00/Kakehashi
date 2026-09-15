@@ -4,15 +4,44 @@ import { Check, Lightbulb, RotateCcw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { filterStudySubjects } from "../engine";
 import { findWordSearchEntry, generateWordSearch, wordSearchSelectionPath } from "../games";
+import { getModeDefaultFilters } from "../mode-config";
 import { loadModeState, saveModeState, type StudyStorageScope } from "../storage";
 import type { StudyDataset, StudyFilters, WordSearchCell, WordSearchPuzzle } from "../types";
 import styles from "../study.module.css";
 
-interface SavedWordSearch {
+export interface SavedWordSearch {
   puzzle: WordSearchPuzzle;
   foundEntryIds: string[];
   mistakes: number;
   signature: string;
+  filters?: StudyFilters;
+}
+
+export function loadSavedWordSearch(scope: StudyStorageScope): SavedWordSearch | null {
+  const stored = loadModeState<SavedWordSearch>(scope, "word-search", "game");
+  if (!stored?.puzzle?.entries?.length || !Array.isArray(stored.foundEntryIds)) return null;
+  return stored.puzzle.entries.some((entry) => !stored.foundEntryIds.includes(entry.id)) ? stored : null;
+}
+
+export function savedWordSearchFilters(saved: SavedWordSearch, maxLevel: number): StudyFilters | null {
+  if (saved.filters) return saved.filters;
+  try {
+    // Older puzzles saved their effective filters in the signature only.
+    const signature = JSON.parse(saved.signature) as { count: number; srs: StudyFilters["srsGroups"]; levels: number[]; ids: number[] };
+    if (!Number.isFinite(signature.count) || !Array.isArray(signature.srs) || !Array.isArray(signature.ids) || signature.levels?.length !== 2) return null;
+    return {
+      ...getModeDefaultFilters("word-search", maxLevel),
+      count: signature.count,
+      srsGroups: signature.srs,
+      useCustomLevelRange: true,
+      minLevel: signature.levels[0],
+      maxLevel: signature.levels[1],
+      selectedSubjectIds: signature.ids,
+      wordSearchDirection: saved.puzzle.direction,
+    };
+  } catch {
+    return null;
+  }
 }
 
 type SelectionFeedback = "idle" | "correct" | "incorrect";
@@ -30,7 +59,7 @@ function cellKey(cell: WordSearchCell) {
 function createWordSearchGame(dataset: StudyDataset, filters: StudyFilters, signature: string): SavedWordSearch | null {
   const subjects = filterStudySubjects(dataset, filters);
   const puzzle = generateWordSearch(subjects, filters.wordSearchDirection, boardSizeForWordCount(filters.count), filters.count);
-  return puzzle ? { puzzle, foundEntryIds: [], mistakes: 0, signature } : null;
+  return puzzle ? { puzzle, foundEntryIds: [], mistakes: 0, signature, filters } : null;
 }
 
 export function WordSearchGame({ dataset, filters, scope, onExit }: { dataset: StudyDataset; filters: StudyFilters; scope: StudyStorageScope; onExit: () => void }) {
@@ -42,7 +71,7 @@ export function WordSearchGame({ dataset, filters, scope, onExit }: { dataset: S
     ids: filters.selectedSubjectIds,
   });
   const [game, setGame] = useState<SavedWordSearch | null>(() => {
-    const stored = loadModeState<SavedWordSearch>(scope, "word-search", "game");
+    const stored = loadSavedWordSearch(scope);
     if (stored?.signature === signature && stored.puzzle?.direction === filters.wordSearchDirection && stored.puzzle.entries?.length) return stored;
     return createWordSearchGame(dataset, filters, signature);
   });
@@ -187,6 +216,11 @@ export function WordSearchGame({ dataset, filters, scope, onExit }: { dataset: S
   };
 
   const startNewPuzzle = () => {
+    if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+    const drag = dragRef.current;
+    dragRef.current = null;
+    ignoreClickRef.current = false;
+    if (drag && gridRef.current?.hasPointerCapture(drag.pointerId)) gridRef.current.releasePointerCapture(drag.pointerId);
     const next = createWordSearchGame(dataset, filters, signature);
     setGame(next);
     setActiveEntryId(next?.puzzle.entries[0]?.id ?? null);
@@ -245,6 +279,7 @@ export function WordSearchGame({ dataset, filters, scope, onExit }: { dataset: S
         <div><h2>Word search</h2><p>Words can run in any straight line, forwards or backwards.</p></div>
         <div className={styles.wordSearchHeaderActions}>
           <span><b>{foundIds.size}</b> / {puzzle.entries.length} found</span>
+          <button type="button" className={styles.textButton} onClick={startNewPuzzle}><RotateCcw size={16} /> New puzzle</button>
           <button className={styles.iconButton} onClick={onExit} aria-label="Pause word search"><X size={19} /></button>
         </div>
       </header>

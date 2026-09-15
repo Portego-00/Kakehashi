@@ -56,6 +56,30 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.15",
+    date: "2026-09-15",
+    changes: [
+      {
+        type: "improvement",
+        title: "General Improvements for Android",
+        description:
+          "Improved text layouts, audio playback, Spotify sign-in, and attachment uploads on Android.",
+      },
+      {
+        type: "feature",
+        title: "Apple Watch App (Beta)",
+        description:
+          "Review on your Apple Watch and check upcoming reviews, with progress synced through your iPhone.",
+      },
+      {
+        type: "improvement",
+        title: "More Reliable Offline Studying",
+        description:
+          "Study from cached reviews, save answers locally, and sync your progress when you're back online.",
+      },
+    ],
+  },
+  {
     version: "1.4.14",
     date: "2026-09-13",
     changes: [

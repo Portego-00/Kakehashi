@@ -23,20 +23,15 @@ const pages = [
 describe.each(pages)("notebook $name page access", ({ render }) => {
   beforeEach(() => {
     mocks.cookie.mockReset().mockImplementation((name) => name === "kakehashi_wk_session" ? { value: "sealed-session" } : undefined);
-    mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Portego", level: 12 });
+    mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Learner", level: 12 });
     mocks.notFound.mockClear();
   });
 
-  it.each(["Portego", " PORTEGO "])("renders for the verified username %j", async (username) => {
+  it.each(["Learner", "Portego", " PORTEGO ", "", undefined])("renders for a verified account regardless of username %j", async (username) => {
     mocks.identity.mockResolvedValue({ id: "123", username, level: 12 });
     expect(await render()).toBeTruthy();
     expect(mocks.identity).toHaveBeenCalledWith("sealed-session");
     expect(mocks.notFound).not.toHaveBeenCalled();
-  });
-
-  it.each(["Tester", "PortegoFan", "", undefined])("hides direct links from username %j", async (username) => {
-    mocks.identity.mockResolvedValue({ id: "123", username, level: 12 });
-    await expect(render()).rejects.toThrow("not found");
   });
 
   it("hides direct links without a session", async () => {
@@ -51,8 +46,8 @@ describe.each(pages)("notebook $name page access", ({ render }) => {
     expect(mocks.identity).not.toHaveBeenCalled();
   });
 
-  it("rejects a demo identity even if its username is Portego", async () => {
-    mocks.identity.mockResolvedValue({ id: "demo-level-21", username: "Portego", level: 21 });
+  it("rejects a demo identity", async () => {
+    mocks.identity.mockResolvedValue({ id: "demo-level-21", username: "Learner", level: 21 });
     await expect(render()).rejects.toThrow("not found");
   });
 

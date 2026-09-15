@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo } from "react";
 import { cancelHandwriting, clearHandwritingDraft, editHandwriting, isHandwritingAvailable } from "../../../modules/notebook-handwriting";
-import { isPortegoUsername } from "../../utils/portegoAccess";
 import { useAuthStore } from "../../utils/store";
 import { loadNotebookDrawing, saveNotebookDrawing } from "./handwriting-api";
 import { createHandwritingDraftSession, handwritingDraftKey } from "./handwriting-drafts";
@@ -17,7 +16,7 @@ export function useHandwriting(accountId: string | null, pageId: string | undefi
   }, [scope]);
   const credentials = useCallback(() => {
     const { apiToken, userData } = useAuthStore.getState();
-    if (!scope.active || !accountId || !pageId || !apiToken || String(userData?.id) !== accountId || !isPortegoUsername(userData?.username)) {
+    if (!scope.active || !accountId || !pageId || !apiToken || String(userData?.id) !== accountId) {
       throw new Error("Your account or page changed. Reopen your notebook to continue.");
     }
     return { token: apiToken, accountId };

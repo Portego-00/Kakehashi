@@ -8,7 +8,7 @@ import { encodeInlineInk, type InlineInkDocument } from "../../../../web/src/fea
 import type { NativeCanvasExport, NativeCanvasHandle, NativeCanvasProps, NativeCanvasState } from "../native-inline-view";
 import type { NativeInkStart } from "../native-inline-contract";
 
-let mockAuth = { apiToken: "token", userData: { id: 42, username: "Portego" } };
+let mockAuth = { apiToken: "token", userData: { id: 42, username: "ordinary-user" } };
 let mockAvailable = true;
 let mockCanvasProps: NativeCanvasProps | null = null;
 let mockHandle: jest.Mocked<NativeCanvasHandle>;
@@ -55,7 +55,7 @@ async function save(sourceId = "") {
 }
 beforeEach(() => {
   jest.clearAllMocks(); cache = new Map(); mockAvailable = true; mockCanvasProps = null;
-  mockAuth = { apiToken: "token", userData: { id: 42, username: "Portego" } };
+  mockAuth = { apiToken: "token", userData: { id: 42, username: "ordinary-user" } };
   jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => cache.get(key) ?? null);
   jest.mocked(AsyncStorage.setItem).mockImplementation(async (key, value) => { cache.set(key, value); });
   jest.mocked(AsyncStorage.removeItem).mockImplementation(async (key) => { cache.delete(key); });
@@ -236,8 +236,8 @@ it("keeps the original private recovery if the account changes during page persi
   expect(mockHandle.acknowledgeSave).not.toHaveBeenCalled();
 });
 
-it("checks the current Portego account before opening an iPad canvas", async () => {
-  render(<Harness />); mockAuth.userData.username = "SomeoneElse";
+it("requires authentication before opening an iPad canvas", async () => {
+  render(<Harness />); mockAuth.apiToken = "";
   await expect(actions.onNativeHandwritingStart!(input)).rejects.toThrow("account or page changed");
   expect(mockCanvasProps).toBeNull(); expect(loadNotebookDrawing).not.toHaveBeenCalled();
 });

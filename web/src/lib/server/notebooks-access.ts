@@ -3,7 +3,6 @@ import "server-only";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { DEMO_SESSION_COOKIE } from "@/features/demo/constants";
-import { canAccessNotebooks } from "@/features/notebooks/access";
 import { analyticsIdentityFromSealedSession } from "@/lib/server/analytics-server";
 import { WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 
@@ -15,5 +14,5 @@ export async function requireNotebooksPageAccess() {
   if (!sealed) notFound();
 
   const identity = await analyticsIdentityFromSealedSession(sealed).catch(() => null);
-  if (!identity || identity.id === "demo-level-21" || !canAccessNotebooks(identity.username)) notFound();
+  if (!identity || identity.id === "demo-level-21") notFound();
 }

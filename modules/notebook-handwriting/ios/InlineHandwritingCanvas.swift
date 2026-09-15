@@ -203,14 +203,14 @@ final class InlineHandwritingCanvas: UIView, PKCanvasViewDelegate, UIScribbleInt
     // identical transforms while PencilKit draws can interrupt its recognizer.
     guard lastDisplayBounds != bounds || lastLayoutPaperSize != paperSize else { return }
     lastDisplayBounds = bounds; lastLayoutPaperSize = paperSize
-    // Parent must supply the full paper frame and clip that frame externally.
-    // An independent x/y transform is intentional: the web frame can be scaled
-    // by viewport zoom, but the saved paper dimensions never change implicitly.
+    // Paper and display height can arrive in separate layout turns. Keep ink
+    // uniformly scaled from width and anchored to the paper origin.
+    let scale = bounds.width / paperSize.width
     canvas.transform = .identity
     canvas.bounds = CGRect(origin: .zero, size: paperSize)
-    canvas.center = CGPoint(x: bounds.midX, y: bounds.midY)
+    canvas.center = CGPoint(x: bounds.midX, y: bounds.minY + paperSize.height * scale / 2)
     canvas.contentSize = paperSize
-    canvas.transform = CGAffineTransform(scaleX: bounds.width / paperSize.width, y: bounds.height / paperSize.height)
+    canvas.transform = CGAffineTransform(scaleX: scale, y: scale)
   }
 
   func setActive(_ active: Bool) {
@@ -383,22 +383,10 @@ final class InlineHandwritingCanvas: UIView, PKCanvasViewDelegate, UIScribbleInt
   private static func exportIncludingBlank(drawing: PKDrawing, paperSize: CGSize) throws -> [String: Any] {
     let ink = drawing.dataRepresentation()
     guard ink.count <= HandwritingViewController.maximumBytes else { throw HandwritingError.inkTooLarge }
-    let rect = CGRect(origin: .zero, size: paperSize)
-    func preview(style: UIUserInterfaceStyle) throws -> String {
-      let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = false
-      var png: Data?
-      UITraitCollection(userInterfaceStyle: style).performAsCurrent {
-        let image = UIGraphicsImageRenderer(size: paperSize, format: format).image { context in
-          context.cgContext.clear(rect)
-          drawing.image(from: rect, scale: 1).draw(in: rect)
-        }
-        png = image.pngData()
-      }
-      guard let png, png.count <= HandwritingViewController.maximumBytes else { throw HandwritingError.previewTooLarge }
-      return png.base64EncodedString()
-    }
-    return ["inkBase64": ink.base64EncodedString(), "previewBase64": try preview(style: .light),
-            "darkPreviewBase64": try preview(style: .dark), "previewFormat": "themed-v1",
+    let previews = try HandwritingPreviewRenderer.render(drawing: drawing, paperSize: paperSize,
+                                                         styles: [.light, .dark], opaque: false)
+    return ["inkBase64": ink.base64EncodedString(), "previewBase64": previews[0].base64EncodedString(),
+            "darkPreviewBase64": previews[1].base64EncodedString(), "previewFormat": "themed-v1",
             "width": Int(paperSize.width), "height": Int(paperSize.height)]
   }
 

@@ -30,7 +30,12 @@ function pngCrc(bytes: Buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 function validatePng(bytes: Buffer, width: number, height: number) {
-  if (bytes.length < 45 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR" || bytes.readUInt32BE(16) !== width || bytes.readUInt32BE(20) !== height) invalid("The handwriting preview must be a PNG matching the canvas size.");
+  if (bytes.length < 45 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR") invalid("The handwriting preview must be a PNG matching the canvas size.");
+  const pixelWidth = bytes.readUInt32BE(16); const pixelHeight = bytes.readUInt32BE(20);
+  const scale = pixelWidth / width;
+  // Paper coordinates stay in points; Retina previews carry more pixels without
+  // changing the ink or the stored paper size. Keep decoded images bounded too.
+  if (!isNotebookDrawingSize(pixelWidth, pixelHeight) || !Number.isInteger(scale) || scale < 1 || scale > 3 || pixelHeight !== height * scale) invalid("The handwriting preview must match the paper at 1×, 2× or 3× resolution.");
   // Bound every PNG chunk and require image data and an end marker. PNG bytes
   // are served only as image/png with nosniff, never interpreted as markup.
   let offset = 8;
@@ -42,7 +47,7 @@ function validatePng(bytes: Buffer, width: number, height: number) {
     const type = bytes.toString("ascii", offset + 4, offset + 8);
     if (type === "IDAT" && length) imageData = true;
     offset += length + 12;
-    if (type === "IEND") { if (length !== 0 || !imageData || offset !== bytes.length) invalid(); return; }
+    if (type === "IEND") { if (length !== 0 || !imageData || offset !== bytes.length) invalid(); return scale; }
   }
   invalid("The handwriting preview is incomplete.");
 }
@@ -63,9 +68,9 @@ export function parseNotebookDrawingUpload(payload: unknown) {
     } catch { invalid("This inline handwriting is invalid or too large."); }
   }
   const preview = decodeBase64(source.previewBase64, NOTEBOOK_DRAWING_MAX_PREVIEW_BYTES);
-  validatePng(preview, width, height);
+  const previewScale = validatePng(preview, width, height);
   const darkPreview = previewFormat === "themed-v1" ? decodeBase64(source.darkPreviewBase64, NOTEBOOK_DRAWING_MAX_PREVIEW_BYTES) : undefined;
-  if (darkPreview) validatePng(darkPreview, width, height);
+  if (darkPreview && validatePng(darkPreview, width, height) !== previewScale) invalid("Both handwriting appearances must use the same preview resolution.");
   return { ink, preview, darkPreview, width, height, inkFormat, previewFormat: previewFormat as NotebookPreviewFormat | undefined };
 }
 async function backend(path: string, init?: RequestInit) {

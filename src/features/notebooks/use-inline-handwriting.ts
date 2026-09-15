@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Platform } from "react-native";
 import type { InlineInkDocument } from "../../../web/src/features/notebooks/inline-ink";
-import { isPortegoUsername } from "../../utils/portegoAccess";
 import { useAuthStore } from "../../utils/store";
 import { drawingPayload, loadNotebookDrawing, saveNotebookDrawing, type NotebookDrawingPayload } from "./handwriting-api";
 import { createInlineHandwritingDraftSession, inlineHandwritingDraftKey } from "./inline-handwriting-drafts";
@@ -18,7 +17,7 @@ export function useInlineHandwriting(accountId: string | null, pageId: string | 
   }, [scope]);
   const credentials = useCallback(() => {
     const { apiToken, userData } = useAuthStore.getState();
-    if (!scope.active || !accountId || !pageId || !apiToken || String(userData?.id) !== accountId || !isPortegoUsername(userData?.username)) throw new Error("Your account or page changed. Reopen your notebook to continue.");
+    if (!scope.active || !accountId || !pageId || !apiToken || String(userData?.id) !== accountId) throw new Error("Your account or page changed. Reopen your notebook to continue.");
     return { token: apiToken, accountId };
   }, [accountId, pageId, scope]);
   const session = useCallback((blockId: string) => {

@@ -12,7 +12,6 @@ import { Card } from "@/components/ui/Card";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import type { AnimeListProvider } from "@/features/anime/types";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
-import { canAccessNotebooks } from "@/features/notebooks/access";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -146,10 +145,10 @@ function moveRadio(event: KeyboardEvent<HTMLButtonElement>, index: number, total
 
 export function SettingsWorkspace() {
   const router = useRouter();
-  const { user, signOut, isDemo } = useSession();
+  const { user, status, signOut, isDemo } = useSession();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const username = user?.data.username ?? "anonymous";
-  const notebooksAllowed = !isDemo && canAccessNotebooks(username);
+  const notebooksAllowed = status === "authenticated" && !isDemo;
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_WEB_SETTINGS);
   const [saved, setSaved] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);

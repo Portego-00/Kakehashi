@@ -5,7 +5,7 @@ import { useInlineHandwriting } from "../use-inline-handwriting";
 import { inlineHandwritingDraftKey } from "../inline-handwriting-drafts";
 import { encodeInlineInk, type InlineInkDocument } from "../../../../web/src/features/notebooks/inline-ink";
 
-let mockAuth = { apiToken: "token", userData: { id: 42, username: "Portego" } };
+let mockAuth = { apiToken: "token", userData: { id: 42, username: "ordinary-user" } };
 jest.mock("../../../utils/store", () => ({ useAuthStore: { getState: () => mockAuth } }));
 jest.mock("../handwriting-api", () => ({ ...jest.requireActual("../handwriting-api"), loadNotebookDrawing: jest.fn(), saveNotebookDrawing: jest.fn() }));
 const ink: InlineInkDocument = { version: 1, width: 768, height: 384, strokes: [] };
@@ -17,7 +17,7 @@ beforeEach(() => {
   jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => cache.get(key) ?? null);
   jest.mocked(AsyncStorage.setItem).mockImplementation(async (key, value) => { cache.set(key, value); });
   jest.mocked(AsyncStorage.removeItem).mockImplementation(async (key) => { cache.delete(key); });
-  mockAuth = { apiToken: "token", userData: { id: 42, username: "Portego" } };
+  mockAuth = { apiToken: "token", userData: { id: 42, username: "ordinary-user" } };
   jest.mocked(saveNotebookDrawing).mockResolvedValue(saved);
   jest.mocked(loadNotebookDrawing).mockResolvedValue({ ...saved, ...payload });
 });
@@ -35,7 +35,7 @@ it("preserves delayed final local strokes after unmount, but rejects all late ne
   expect(saveNotebookDrawing).not.toHaveBeenCalled(); expect(loadNotebookDrawing).not.toHaveBeenCalled();
 });
 
-it("binds delayed recovery to the original account/page and requires current Portego access for cloud saves", async () => {
+it("binds delayed recovery to the original account/page and requires the current authenticated account for cloud saves", async () => {
   const { result } = renderHook(() => useInlineHandwriting("42", "page", async () => undefined));
   await result.current.onLoadInlineHandwriting("block", "");
   mockAuth.userData.id = 43;
@@ -43,7 +43,15 @@ it("binds delayed recovery to the original account/page and requires current Por
   expect(cache.has(inlineHandwritingDraftKey("42", "page", "block"))).toBe(true);
   expect(cache.has(inlineHandwritingDraftKey("43", "page", "block"))).toBe(false);
   expect(() => result.current.onSaveInlineHandwriting("block", "", payload)).toThrow();
-  mockAuth.userData.id = 42; mockAuth.userData.username = "SomeoneElse";
+  mockAuth.userData.id = 42; mockAuth.apiToken = "";
   expect(() => result.current.onSaveInlineHandwriting("block", "", payload)).toThrow();
   expect(saveNotebookDrawing).not.toHaveBeenCalled();
+});
+
+it("loads and saves inline handwriting for an ordinary signed-in account", async () => {
+  const { result } = renderHook(() => useInlineHandwriting("42", "page", async () => undefined));
+  await result.current.onLoadInlineHandwriting("block", saved.drawingId);
+  expect(loadNotebookDrawing).toHaveBeenCalledWith("token", "42", saved.drawingId, expect.any(AbortSignal));
+  expect(await result.current.onSaveInlineHandwriting("block", saved.drawingId, payload)).toEqual(saved);
+  expect(saveNotebookDrawing).toHaveBeenCalledWith("token", "42", payload, expect.any(AbortSignal));
 });

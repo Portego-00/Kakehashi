@@ -1,7 +1,6 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { DEMO_SESSION_COOKIE } from "@/features/demo/constants";
-import { canAccessNotebooks } from "@/features/notebooks/access";
 import { NOTEBOOK_DRAWING_MAX_REQUEST_BYTES } from "@/features/notebooks/handwriting";
 import { NotebookError } from "@/features/notebooks/model";
 import { readBoundedJson } from "@/features/content/server-security";
@@ -45,7 +44,7 @@ export async function webDrawingIdentity(request: NextRequest) {
   if (!sealed) throw new NativeNotebookAccessError("Sign in to access your notebooks.", "unauthorized", 401);
   limit(opaqueRateLimitKey("notebooks-drawings-web", sealed), 240);
   const user = await analyticsIdentityFromSealedSession(sealed);
-  if (user.id === "demo-level-21" || !/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(user.id) || !canAccessNotebooks(user.username)) throw new NativeNotebookAccessError("Notebooks are not available for this account.", "forbidden", 403);
+  if (user.id === "demo-level-21" || !/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(user.id)) throw new NativeNotebookAccessError("Notebooks are not available for this account.", "forbidden", 403);
   return user;
 }
 export async function readDrawingUploadBody(request: NextRequest) {

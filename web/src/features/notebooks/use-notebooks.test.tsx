@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   scope = "101";
   server = { "101": payload(seed("Account A")), "202": payload(seed("Account B")) };
-  mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: scope, username: "Portego" } }, isDemo: false }));
+  mocks.session.mockImplementation(() => ({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false }));
   mocks.fetch.mockImplementation(async (_url: string, options?: RequestInit) => {
     if (options?.method !== "POST") return response(server[scope]);
     const owner = new Headers(options.headers).get("X-Notebook-Account")!;
@@ -48,6 +48,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); for (const client of clients.splice(0)) client.clear(); localStorage.clear(); vi.unstubAllGlobals(); });
 
 describe("notebook account transport", () => {
+  it.each(["Learner", "PortegoFan", undefined])("loads and saves notebooks for an authenticated account with username %j", async (username) => {
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username } }, isDemo: false });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useNotebooks(), { wrapper });
+    await waitFor(() => expect(result.current.state.pages[0]?.title).toBe("Account A"));
+    await act(async () => { await result.current.mutate({ action: "create_page", page: { id: "personal", title: "My notebook" } }); });
+    expect(server[scope].state.pages.some((page) => page.id === "personal")).toBe(true);
+  });
+
   it("advertises handwriting support on reads and writes so private drawings survive notebook edits", async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useNotebooks(), { wrapper });
@@ -151,13 +160,10 @@ describe("notebook account transport", () => {
   });
 
   it.each([
-    { status: "authenticated", username: "Learner", isDemo: false },
-    { status: "authenticated", username: "PortegoFan", isDemo: false },
-    { status: "authenticated", username: undefined, isDemo: false },
-    { status: "authenticated", username: "Portego", isDemo: true },
-    { status: "anonymous", username: "Portego", isDemo: false },
-    { status: "loading", username: "Portego", isDemo: false },
-    { status: "unavailable", username: "Portego", isDemo: false },
+    { status: "authenticated", username: "Learner", isDemo: true },
+    { status: "anonymous", username: "Learner", isDemo: false },
+    { status: "loading", username: "Learner", isDemo: false },
+    { status: "unavailable", username: "Learner", isDemo: false },
   ])("keeps notebooks inaccessible for $status / $username / demo $isDemo", async ({ status, username, isDemo }) => {
     const cached = payload(seed("Private saved notebook"), 9);
     const demo = JSON.stringify(cached);
@@ -180,13 +186,13 @@ describe("notebook account transport", () => {
     expect(localStorage.getItem("kakehashi:notebooks:demo:v1")).toBe(demo);
   });
 
-  it("immediately hides cached state and blocks old callbacks when Portego access is removed", async () => {
+  it("immediately hides cached state and blocks old callbacks after sign-out", async () => {
     const { wrapper } = setup();
     const { result, rerender } = renderHook(() => useNotebooks(), { wrapper });
     await waitFor(() => expect(result.current.state.pages[0]?.title).toBe("Account A"));
     const previous = result.current;
     const reads = mocks.fetch.mock.calls.length;
-    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false });
+    mocks.session.mockReturnValue({ status: "anonymous", user: null, isDemo: false });
     rerender();
     expect(result.current.state.pages).toEqual([]);
     expect(result.current.getState().pages).toEqual([]);
@@ -200,12 +206,12 @@ describe("notebook account transport", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(reads);
   });
 
-  it("never initializes examples from a pending read after access is removed", async () => {
+  it("never initializes examples from a pending read after sign-out", async () => {
     const pendingRead = deferred<Response>();
     mocks.fetch.mockReturnValueOnce(pendingRead.promise);
     const { wrapper } = setup();
     const { result, rerender } = renderHook(() => useNotebooks(), { wrapper });
-    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false });
+    mocks.session.mockReturnValue({ status: "anonymous", user: null, isDemo: false });
     rerender();
     await act(async () => { pendingRead.resolve(response(payload())); });
     expect(result.current.state.pages).toEqual([]);
@@ -267,7 +273,7 @@ describe("notebook account transport", () => {
     expect(server["101"].state.pages[0].title).toBe("Account A");
   });
 
-  it.each(["switch", "unmount", "revoke"] as const)("does not dispatch a queued private mutation after %s", async (transition) => {
+  it.each(["switch", "unmount", "sign-out"] as const)("does not dispatch a queued private mutation after %s", async (transition) => {
     const firstWrite = deferred<Response>();
     const originalFetch = mocks.fetch.getMockImplementation()!;
     let writes = 0;
@@ -283,8 +289,8 @@ describe("notebook account transport", () => {
     });
     await waitFor(() => expect(writes).toBe(1));
     if (transition === "unmount") hook.unmount();
-    else if (transition === "revoke") {
-      mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: scope, username: "Learner" } }, isDemo: false });
+    else if (transition === "sign-out") {
+      mocks.session.mockReturnValue({ status: "anonymous", user: null, isDemo: false });
       hook.rerender();
       expect(hook.result.current.state.pages).toEqual([]);
       expect(hook.result.current.isSaving).toBe(false);

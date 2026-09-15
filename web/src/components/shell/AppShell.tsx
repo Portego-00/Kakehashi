@@ -38,7 +38,6 @@ import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/States";
 import { WebAnalyticsTracker } from "@/features/analytics/WebAnalyticsTracker";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
-import { canAccessNotebooks } from "@/features/notebooks/access";
 import { SettingsApplicator } from "@/features/settings/components/SettingsApplicator";
 import { DEFAULT_NAVBAR_TABS, type NavbarTabId } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
@@ -163,7 +162,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { status, user, isDemo, error, signOut, refresh } = useSession();
   const customSrsAllowed = !isDemo && canAccessCustomSrs(user?.data.username);
   const customSrsBlocked = isActive(pathname, "/custom-vocabulary") && !customSrsAllowed;
-  const notebooksAllowed = !isDemo && canAccessNotebooks(user?.data.username);
+  const notebooksAllowed = status === "authenticated" && !isDemo;
   const restrictedPageBlocked = customSrsBlocked || (isActive(pathname, "/notebooks") && !notebooksAllowed);
   const { resolvedTheme, setTheme } = useTheme();
   const webSettings = useWebSettings(user?.data.username ?? "anonymous");

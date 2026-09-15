@@ -1,6 +1,6 @@
 # Notebook editor options for mobile
 
-Research checked September 7, 2026. The chosen approach is now implemented behind the Portego account gate: BlockNote runs inside an Expo DOM component with a native notebook browser and mobile editing controls. See [Mobile notebooks](notebooks-mobile.md) for setup, behavior, and validation status. The comparison below records the decision; BlockNote itself remains a web editor, not a native React Native component.
+Research checked September 7, 2026. The chosen approach is implemented for all signed-in WaniKani accounts: BlockNote runs inside an Expo DOM component with a native notebook browser and mobile editing controls. See [Mobile notebooks](notebooks-mobile.md) for setup, behavior, and validation status. The comparison below records the decision; BlockNote itself remains a web editor, not a native React Native component.
 
 ## Current support and options
 

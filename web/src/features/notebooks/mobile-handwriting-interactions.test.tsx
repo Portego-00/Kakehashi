@@ -89,10 +89,11 @@ describe("native PencilKit handwriting in the notebook", () => {
     expect(editor.onNativeHandwritingCommand).toHaveBeenCalledWith(block.id, "redo", undefined);
     expect(editor.onNativeHandwritingCommand).toHaveBeenCalledWith(block.id, "finger", true);
   });
-  it("keeps the native paper off Done when the notebook scroll position changes after drawing", async () => {
+  it.each([".nb-scroll", ".nb-native-ink-stage"])("keeps native paper aligned when %s scrolls after drawing", async (scrollSelector) => {
     const editor = props(); const view = render(<NotebookEditor {...editor} />); const block = await activate(editor, view);
+    if (scrollSelector === ".nb-native-ink-stage") fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
     const paper = document.querySelector<HTMLElement>("[data-handwriting-paper]")!;
-    const scroll = document.querySelector<HTMLElement>(".nb-scroll")!;
+    const scroll = document.querySelector<HTMLElement>(scrollSelector)!;
     const initial = paper.getBoundingClientRect();
     let top = 180;
     vi.spyOn(paper, "getBoundingClientRect").mockImplementation(() => ({ ...initial, y: top, top, bottom: top + initial.height }));
@@ -211,6 +212,29 @@ describe("native PencilKit handwriting in the notebook", () => {
     await waitFor(() => expect(vi.mocked(editor.onNativeHandwritingLayout!).mock.calls.at(-1)![1].rect.width).toBe(originalGeometry.rect.width));
     expect(document.querySelector("[data-handwriting-paper]")).toBe(paper);
     expect(vi.mocked(editor.onNativeHandwritingLayout!).mock.calls.every(([id]) => id === block.id)).toBe(true);
+  });
+  it.each([false, true])("adds and removes blank paper without changing the ink scale (full screen: %s)", async (fullscreen) => {
+    const editor = props(); const view = render(<NotebookEditor {...editor} />); const block = await activate(editor, view);
+    if (fullscreen) fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    const paper = document.querySelector<HTMLElement>("[data-handwriting-paper]")!;
+    const initialWidth = Number.parseFloat(paper.style.width);
+    const initialScale = initialWidth / 768;
+    let height = 384;
+    for (const delta of [240, -160]) {
+      const handle = screen.getByRole("button", { name: "Resize writing height" });
+      vi.mocked(editor.onNativeHandwritingResize!).mockClear();
+      fireEvent.pointerDown(handle, { pointerId: 14, pointerType: "touch", clientY: 100 });
+      fireEvent.pointerMove(handle, { pointerId: 14, pointerType: "touch", clientY: 100 + delta });
+      fireEvent.pointerUp(handle, { pointerId: 14, pointerType: "touch", clientY: 100 + delta });
+      height = Math.round(height + delta / initialScale);
+      await waitFor(() => expect(editor.onNativeHandwritingResize).toHaveBeenLastCalledWith(block.id, { width: 768, height }));
+      await waitFor(() => expect(handle).toBeEnabled());
+      view.rerender(<NotebookEditor {...editor} nativeHandwritingState={{ ...state(block.id), height }} />);
+      await waitFor(() => expect(Number.parseFloat(paper.style.height)).toBeCloseTo(height * initialScale));
+      expect(Number.parseFloat(paper.style.width)).toBeCloseTo(initialWidth);
+      expect(document.querySelector("[data-handwriting-paper]")).toBe(paper);
+    }
+    expect(editor.onNativeHandwritingStart).toHaveBeenCalledTimes(1);
   });
   it("routes Pencil taps on controls without focusing the text editor or creating another session", async () => {
     const editor = props(); const view = render(<NotebookEditor {...editor} />); await activate(editor, view);

@@ -6,7 +6,7 @@ import { useNotebooks, type NotebookResponse } from "./use-notebooks";
 import { usePageDraft } from "./use-page-draft";
 import NotebookHandwriting from "./NotebookHandwriting";
 
-vi.mock("@/lib/session", () => ({ useSession: () => ({ status: "authenticated", user: { data: { id: "101", username: "Portego" } }, isDemo: false }) }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ status: "authenticated", user: { data: { id: "101", username: "Learner" } }, isDemo: false }) }));
 const drawingId = "00a00000-0000-4000-8000-000000000077";
 const blank = { id: "area", type: "handwriting", props: { drawingId: "", inkFormat: "strokes-v1", width: 768, height: 384 } };
 let initial: NotebookState;

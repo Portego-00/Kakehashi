@@ -4,7 +4,7 @@ The React Native app uses `GET` and `POST /api/notebooks/native` on the web app'
 
 For the app's endpoint environment variable, simulator setup, bundled editor, and draft recovery behavior, see [Mobile notebooks](notebooks-mobile.md).
 
-Mobile and browser access are currently limited to the WaniKani account whose verified username is `Portego`, ignoring case and surrounding whitespace. This restriction is enforced on the server as well as in navigation, including the browser `/api/notebooks` endpoint.
+Mobile and browser notebooks are available to all verified WaniKani accounts. The server still requires authentication and derives notebook ownership from the verified account ID. Demo sessions cannot access notebooks.
 
 ## Authentication and ownership
 
@@ -56,4 +56,4 @@ All responses use `Cache-Control: private, no-store, max-age=0`, `Vary: Authoriz
 
 The route applies the existing process-local opaque rate limiter: up to 240 reads or 600 writes per token per ten minutes, plus 1,200 total requests per client address per ten minutes before upstream verification. These are per server process, not a distributed global quota. Request bodies are bounded to the smaller of the configured account limit plus 16 KiB and the absolute 4 MiB cap. Body reading aborts when the request is cancelled or after ten seconds. Storage requests retain their existing twelve-second per-request timeout and bounded optimistic retries.
 
-The endpoint integration tests cover verified reads and writes against the existing server store, opaque ownership, Portego gating, missing/rejected tokens, forged client identity, account-switch headers, stale page revisions, private responses, sanitized failures, request limits, cancellation, and unavailable storage.
+The endpoint integration tests cover verified reads and writes for ordinary accounts against the existing server store, opaque ownership, missing/rejected tokens, forged client identity, account-switch headers, stale page revisions, private responses, sanitized failures, request limits, cancellation, and unavailable storage.

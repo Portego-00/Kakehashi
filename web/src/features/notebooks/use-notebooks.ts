@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
-import { canAccessNotebooks } from "./access";
 import { NOTEBOOK_HANDWRITING_FEATURES } from "./handwriting";
 import { applyNotebookMutation, createNotebookState, DEFAULT_NOTEBOOK_LIMITS, NOTEBOOK_HARD_MAX_BYTES, notebookExamplesNeedInitialization, validateNotebookState, type NotebookMutation, type NotebookState } from "./model";
 
@@ -62,7 +61,7 @@ export function newerNotebookResponse(current: NotebookResponse | undefined, inc
 /** The account-scoped transport is independent of the editor's document format. */
 export function useNotebooks() {
   const { user, status, isDemo } = useSession();
-  const allowed = status === "authenticated" && !isDemo && canAccessNotebooks(user?.data.username);
+  const allowed = status === "authenticated" && !isDemo;
   const scope = isDemo ? "demo" : waniKaniUserId(user) || "anonymous";
   const queryKey = useMemo(() => ["notebooks", scope] as const, [scope]);
   const queryClient = useQueryClient();

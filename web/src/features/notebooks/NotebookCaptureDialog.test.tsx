@@ -18,7 +18,7 @@ let state: NotebookState;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: "123", username: "Portego" } }, isDemo: false });
+  mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: "123", username: "Learner" } }, isDemo: false });
   state = applyNotebookMutation(createNotebookState(), { action: "create_page", page: { id: "grammar", title: "Grammar", content: [{ id: "notes", type: "paragraph", content: [{ type: "text", text: "Existing notes" }] }] } }).state;
   mocks.hook.mockImplementation(() => ({ state, isLoading: false, available: true, error: "", mutate: mocks.mutate, mutateResult: mocks.mutateResult, refresh: mocks.refresh }));
   mocks.mutate.mockImplementation(async (action: NotebookMutation) => { state = applyNotebookMutation(state, action).state; return state; });
@@ -94,6 +94,18 @@ describe("subject notebook connections", () => {
     expect(state.sentences[0].japanese).toBe("Remote change");
   });
 
+  it("clears a sentence draft when switching to another account with the same sentence ID", () => {
+    const { rerender } = render(<SubjectNotebookSection subject={subject} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit sentence: 猫が好きです。" }));
+    fireEvent.change(screen.getByLabelText("Japanese sentence"), { target: { value: "Private sentence draft" } });
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: "456", username: "AnotherLearner" } }, isDemo: false });
+    state = applyNotebookMutation(state, { action: "upsert_sentence", expectedRevision: 0, sentence: { id: "shared", japanese: "別の文。", kana: "", english: "Another account's sentence", subjectIds: [88] } }).state;
+    rerender(<SubjectNotebookSection subject={subject} />);
+    expect(screen.queryByLabelText("Japanese sentence")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Private sentence draft")).not.toBeInTheDocument();
+    expect(screen.getByText("Another account's sentence")).toBeInTheDocument();
+  });
+
   it("deletes an orphaned sentence only after confirmation", async () => {
     state = applyNotebookMutation(state, { action: "update_page", pageId: "grammar", expectedRevision: state.pages[0].revision, patch: { content: state.pages[0].content.filter((block) => block.id !== "example") } }).state;
     const { rerender } = render(<SubjectNotebookSection subject={subject} />);
@@ -123,14 +135,32 @@ describe("subject notebook connections", () => {
 });
 
 describe("notebook capture access", () => {
+  it("closes capture opened from a button when switching accounts", () => {
+    const { rerender } = render(<NotebookCaptureButton subject={subject} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add to notebook" }));
+    expect(screen.getByRole("dialog", { name: "Add to notebook" })).toBeInTheDocument();
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: "456", username: "AnotherLearner" } }, isDemo: false });
+    rerender(<NotebookCaptureButton subject={subject} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to notebook" })).toBeInTheDocument();
+  });
+
+  it("clears a pending capture title when switching accounts", () => {
+    const { rerender } = render(<NotebookCaptureDialog subject={subject} open onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Page"), { target: { value: "new" } });
+    fireEvent.change(screen.getByLabelText("Page title"), { target: { value: "Private notes for account A" } });
+    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { id: "456", username: "AnotherLearner" } }, isDemo: false });
+    rerender(<NotebookCaptureDialog subject={subject} open onClose={vi.fn()} />);
+    expect(screen.queryByDisplayValue("Private notes for account A")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Page"), { target: { value: "new" } });
+    expect(screen.getByLabelText("Page title")).toHaveValue("");
+  });
+
   it.each([
-    { status: "authenticated", username: "Learner", isDemo: false },
-    { status: "authenticated", username: "PortegoFan", isDemo: false },
-    { status: "authenticated", username: undefined, isDemo: false },
-    { status: "authenticated", username: "Portego", isDemo: true },
-    { status: "anonymous", username: "Portego", isDemo: false },
-    { status: "loading", username: "Portego", isDemo: false },
-    { status: "unavailable", username: "Portego", isDemo: false },
+    { status: "authenticated", username: "Learner", isDemo: true },
+    { status: "anonymous", username: "Learner", isDemo: false },
+    { status: "loading", username: "Learner", isDemo: false },
+    { status: "unavailable", username: "Learner", isDemo: false },
   ])("hides every capture entry point for $status / $username / demo $isDemo", ({ status, username, isDemo }) => {
     mocks.session.mockReturnValue({ status, user: { data: { username } }, isDemo });
     mocks.hook.mockReturnValue({ state, isLoading: true, available: true });
@@ -139,12 +169,12 @@ describe("notebook capture access", () => {
     expect(mocks.hook).not.toHaveBeenCalled();
   });
 
-  it("removes open capture and subject content as soon as Portego access is removed", () => {
+  it("removes open capture and subject content after sign-out", () => {
     const content = <><NotebookCaptureButton subject={subject} /><NotebookCaptureDialog subject={subject} open onClose={vi.fn()} /><SubjectNotebookSection subject={subject} /></>;
     const { container, rerender } = render(content);
     expect(screen.getByRole("dialog", { name: "Add to notebook" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Notebook" })).toBeInTheDocument();
-    mocks.session.mockReturnValue({ status: "authenticated", user: { data: { username: "Learner" } }, isDemo: false });
+    mocks.session.mockReturnValue({ status: "anonymous", user: null, isDemo: false });
     rerender(<><NotebookCaptureButton subject={subject} /><NotebookCaptureDialog subject={subject} open onClose={vi.fn()} /><SubjectNotebookSection subject={subject} /></>);
     expect(container).toBeEmptyDOMElement();
   });

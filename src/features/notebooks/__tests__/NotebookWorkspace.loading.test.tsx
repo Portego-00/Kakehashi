@@ -16,7 +16,7 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
 jest.mock("../../../utils/store", () => ({
-  useAuthStore: (selector: (state: object) => unknown) => selector({ userData: { username: "Portego" } }),
+  useAuthStore: (selector: (state: object) => unknown) => selector({ apiToken: "token", userData: { id: 42, username: "ordinary-user" } }),
 }));
 jest.mock("../../../utils/theme", () => ({
   useTheme: () => ({ isDark: mockIsDark, theme: {
@@ -45,7 +45,7 @@ describe("notebook loading surface", () => {
     jest.clearAllMocks();
     mockIsDark = true;
     jest.mocked(useNotebooks).mockReturnValue({
-      accountId: "portego-account", state: { version: 1, pages: [firstPage, secondPage], sentences: [] },
+      accountId: "42", state: { version: 1, pages: [firstPage, secondPage], sentences: [] },
       revision: 0, limits: DEFAULT_NOTEBOOK_LIMITS, available: true, loading: false,
       saveStatus: "saved", error: null, drafts: {},
       persistDrafts: jest.fn().mockResolvedValue(undefined),

@@ -188,10 +188,14 @@ export function generateWordSearch(
     Array.from({ length: size }, () => null),
   );
   const eligible = sanitizeCandidates(candidates, options.direction, size);
-  const ordered = shuffled(eligible, random).sort(
+  const shuffledCandidates = shuffled(eligible, random);
+  // Choose the vocabulary before ordering it for placement, so shorter words
+  // get the same chance to appear as longer ones.
+  const selected = shuffledCandidates.slice(0, wordCount).sort(
     (left, right) =>
       Array.from(right.answer).length - Array.from(left.answer).length,
   );
+  const ordered = [...selected, ...shuffledCandidates.slice(wordCount)];
   const entries: WordSearchEntry[] = [];
 
   for (const candidate of ordered) {

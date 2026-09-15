@@ -29,7 +29,7 @@ export function NativeHandwriting(props: Props) {
   const placeholderHeight = useRef(0);
   const previousScroll = useRef(0);
   const [fullscreen, setFullscreen] = useState(false);
-  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [stageWidth, setStageWidth] = useState(0);
   const mounted = useRef(true);
   const revision = useRef(0);
   const resizeTail = useRef(Promise.resolve());
@@ -52,8 +52,9 @@ export function NativeHandwriting(props: Props) {
   const state = props.nativeHandwritingState?.blockId === props.blockId ? props.nativeHandwritingState : null;
   const active = !!state;
   const dimensions = { width: state?.width ?? props.width, height: state?.height ?? props.height };
-  const widthScale = stageSize.width ? Math.max(1, stageSize.width) / dimensions.width : 1;
-  const scale = fullscreen ? Math.max(0.01, Math.min(widthScale, Math.max(1, stageSize.height - 36) / dimensions.height)) : Math.min(1, widthScale);
+  const widthScale = stageWidth ? Math.max(1, stageWidth) / dimensions.width : 1;
+  // Height changes extend the paper at the same zoom; full-screen paper scrolls.
+  const scale = fullscreen ? Math.max(0.01, widthScale) : Math.min(1, widthScale);
   const paper = useCallback(() => root.current?.querySelector<HTMLElement>("[data-handwriting-paper]") ?? null, []);
   const geometry = useCallback((): NativeInkGeometry => {
     const element = paper(); const scroll = root.current?.closest<HTMLElement>(".nb-scroll");
@@ -74,9 +75,8 @@ export function NativeHandwriting(props: Props) {
       const rect = stage.current?.getBoundingClientRect();
       if (rect && stage.current) {
         const style = getComputedStyle(stage.current);
-        const width = rect.width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
-        const height = rect.height - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
-        setStageSize((current) => current.width === width && current.height === height ? current : { width, height });
+        const width = (stage.current.clientWidth || rect.width) - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+        setStageWidth(width);
       }
     };
     update(); const observer = new ResizeObserver(update); if (stage.current) observer.observe(stage.current);

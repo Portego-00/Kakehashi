@@ -6,13 +6,13 @@ The editor is an Expo DOM component running in the app's WebView. Its JavaScript
 
 ## Access and navigation
 
-Mobile notebooks are limited to the verified WaniKani username `Portego`, ignoring case and surrounding whitespace. The restriction applies to the native API, both mobile routes, the Settings entry, and tab customization. Development mode does not bypass the account restriction. Browser notebook pages, controls, and the API are also limited to Portego; demo sessions have no notebook access.
+Mobile and browser notebooks are available to all signed-in WaniKani accounts, including the native API, both mobile routes, the Settings entry, and tab customization. Each account accesses only its own pages and drawings. Demo sessions have no notebook access.
 
-For Portego:
+To open notebooks in the app:
 
 - Open **Settings → User Profile → Notebooks**. This entry works even when the notebook tab is not enabled.
 - Use **Settings → Appearance → Customize Tabs → Notebooks** to add the tab, subject to the device's existing tab limit. Existing tab choices are preserved.
-- The standalone route is `/notebook-workspace`; the tab route is `/(app)/(tabs)/notebooks`. Both reject other accounts before mounting the workspace.
+- The standalone route is `/notebook-workspace`; the tab route is `/(app)/(tabs)/notebooks`. Both require a signed-in account before mounting the workspace.
 
 The page browser connects to the deployed notebook endpoint by default. There is no unauthenticated sample account. After a successful load, the account's cached pages remain available during connection failures.
 
@@ -76,7 +76,7 @@ When another device changes the same page, the local draft is retained and the w
 | Account-scoped drafts, revisions, and persistence | [client.ts](../../src/features/notebooks/client.ts), [use-notebooks.ts](../../src/features/notebooks/use-notebooks.ts) |
 | Native authenticated transport | [api.ts](../../src/features/notebooks/api.ts) |
 | Canonical shared JSON model | [web model](../src/features/notebooks/model.ts), [native re-export](../../src/features/notebooks/model.ts) |
-| Server endpoint and verified Portego gate | [native route](../src/app/api/notebooks/native/route.ts), [native access verifier](../src/lib/server/native-notebook-access.ts) |
+| Server endpoint and verified account access | [native route](../src/app/api/notebooks/native/route.ts), [native access verifier](../src/lib/server/native-notebook-access.ts) |
 
 ## Validation record
 
