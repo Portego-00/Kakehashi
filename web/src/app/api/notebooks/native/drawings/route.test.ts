@@ -20,7 +20,6 @@ function request(method: "GET" | "POST", extra: Record<string, string> = {}, bod
 }
 
 describe("handwriting API ownership and round trip", () => {
-  let username: string;
   let quota: boolean;
   let stored: { state: ReturnType<typeof createNotebookState>; revision: number };
   let fetchMock: ReturnType<typeof vi.fn>;
@@ -29,11 +28,11 @@ describe("handwriting API ownership and round trip", () => {
   beforeEach(() => {
     vi.resetModules(); clearRateLimitsForTests(); clearWkCacheForTests();
     vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("SUPABASE_URL", "https://supabase.test"); vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "private-service-key"); vi.stubEnv("SUPABASE_SECRET_KEY", "");
-    analytics.mockReset().mockResolvedValue({ id: userId, username: "Portego" });
-    username = "Portego"; quota = true; metadata = []; objects = new Map(); stored = { state: createNotebookState(), revision: 0 };
+    analytics.mockReset().mockResolvedValue({ id: userId, username: "Learner" });
+    quota = true; metadata = []; objects = new Map(); stored = { state: createNotebookState(), revision: 0 };
     fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = new URL(String(input));
-      if (url.href === "https://api.wanikani.com/v2/user") return json({ data: { id: userId, username, level: 21 } });
+      if (url.href === "https://api.wanikani.com/v2/user") return json({ data: { id: userId, username: "Learner", level: 21 } });
       if (["/rest/v1/rpc/reserve_notebook_drawing", "/rest/v1/rpc/reserve_notebook_drawing_v2", "/rest/v1/rpc/reserve_notebook_drawing_v3"].includes(url.pathname)) {
         const p = JSON.parse(String(init?.body));
         if (!quota) return json(false);
@@ -114,14 +113,11 @@ describe("handwriting API ownership and round trip", () => {
     expect(Buffer.from(await image.arrayBuffer()).toString("base64")).toBe(payload.previewBase64);
     for (const response of [uploaded, downloaded, image]) { expect(response.headers.get("Cache-Control")).toContain("no-store"); expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff"); }
   });
-  it("requires verified Portego bearer authorization and account scope before uploads", async () => {
+  it("requires verified bearer authorization and account scope before uploads", async () => {
     const { POST } = await import("./route");
     expect((await POST(request("POST", { Authorization: "", Cookie: "kakehashi_wk_session=sealed" }))).status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
-    username = "Other user";
-    expect((await POST(request("POST", { "X-WaniKani-Username": "Portego" }))).status).toBe(403);
-    clearWkCacheForTests(); username = "Portego";
-    expect((await POST(request("POST", { "X-Notebook-Account": foreignId }))).status).toBe(409);
+    expect((await POST(request("POST", { "X-Notebook-Account": foreignId, "X-WaniKani-Username": "Portego" }))).status).toBe(409);
     expect(metadata).toHaveLength(0); expect(objects.size).toBe(0);
   });
   it("hides foreign drawing existence and checks native read account scope", async () => {
@@ -131,15 +127,24 @@ describe("handwriting API ownership and round trip", () => {
     expect(result.status).toBe(404);
     expect(await result.json()).toMatchObject({ code: "not_found" });
     expect((await GET(request("GET", { "X-Notebook-Account": "" }), { params: Promise.resolve({ drawingId: foreignId }) })).status).toBe(409);
+    const { GET: preview } = await import("../../drawings/[drawingId]/preview/route");
+    const image = await preview(request("GET", { Cookie: "kakehashi_wk_session=sealed", "X-Notebook-Account": "another-owner", "X-WaniKani-Username": "Portego" }), { params: Promise.resolve({ drawingId: foreignId }) });
+    expect(image.status).toBe(404);
+    expect(await image.json()).toMatchObject({ code: "not_found" });
+    for (const [url] of fetchMock.mock.calls.filter(([url]) => String(url).includes("/notebook_drawings?"))) {
+      expect(new URL(String(url)).searchParams.get("user_id")).toBe(`eq.${userId}`);
+    }
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/storage/"))).toBe(false);
   });
-  it("protects web previews with the sealed session and Portego gate", async () => {
+  it("protects web previews with a verified non-demo session", async () => {
     const { GET } = await import("../../drawings/[drawingId]/preview/route");
     const context = { params: Promise.resolve({ drawingId: foreignId }) };
     expect((await GET(request("GET"), context)).status).toBe(401);
     expect((await GET(request("GET", { Cookie: "kakehashi_demo_session=1; kakehashi_wk_session=sealed" }), context)).status).toBe(403);
-    analytics.mockResolvedValue({ id: userId, username: "Other" });
-    expect((await GET(request("GET", { Cookie: "kakehashi_wk_session=sealed" }), context)).status).toBe(403);
+    for (const id of ["demo-level-21", "bad,id"]) {
+      analytics.mockResolvedValue({ id, username: "Learner" });
+      expect((await GET(request("GET", { Cookie: "kakehashi_wk_session=sealed" }), context)).status).toBe(403);
+    }
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it("bounds uploads and returns quota failure without storing objects", async () => {
@@ -168,7 +173,7 @@ describe("handwriting API ownership and round trip", () => {
   });
   it("sanitizes storage failures without revealing keys or private upstream messages", async () => {
     const { POST } = await import("./route");
-    fetchMock.mockResolvedValueOnce(json({ data: { id: userId, username: "Portego" } })).mockResolvedValueOnce(json({ error: "private database token" }, 500));
+    fetchMock.mockResolvedValueOnce(json({ data: { id: userId, username: "Learner" } })).mockResolvedValueOnce(json({ error: "private database token" }, 500));
     const response = await POST(request("POST")); expect(response.status).toBe(503);
     const body = await response.text(); expect(body).not.toContain("private database token"); expect(body).not.toContain(token); expect(body).not.toContain("private-service-key");
   });

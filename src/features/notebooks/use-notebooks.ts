@@ -2,14 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import { useAuthStore } from "../../utils/store";
-import { isPortegoUsername } from "../../utils/portegoAccess";
 import { requestNotebookCloud } from "./api";
 import { createNotebookClient } from "./client";
 
 export const notebookClient = createNotebookClient({ request: requestNotebookCloud, cache: AsyncStorage });
 function syncAccount() {
   const { apiToken, userData } = useAuthStore.getState();
-  notebookClient.setAccount(apiToken && userData?.id && isPortegoUsername(userData.username) ? { id: String(userData.id), token: apiToken } : null);
+  notebookClient.setAccount(apiToken && userData?.id ? { id: String(userData.id), token: apiToken } : null);
 }
 useAuthStore.subscribe(syncAccount);
 syncAccount();

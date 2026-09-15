@@ -4,7 +4,6 @@ import { View } from "react-native";
 import { encodeInlineInk } from "../../../web/src/features/notebooks/inline-ink";
 import { isNotebookDrawingId, isNotebookDrawingSize } from "../../../web/src/features/notebooks/handwriting";
 import { isNotebookPaperColor, resolveNotebookPaperColor } from "../../../web/src/features/notebooks/paper-appearance";
-import { isPortegoUsername } from "../../utils/portegoAccess";
 import { useAuthStore } from "../../utils/store";
 import { loadNotebookDrawing, saveNotebookDrawing, type NotebookDrawingPayload } from "./handwriting-api";
 import { createInlineHandwritingDraftSession, inlineHandwritingDraftKey } from "./inline-handwriting-drafts";
@@ -31,7 +30,7 @@ export function useNativeInlineHandwriting(accountId: string | null, pageId: str
   const scope = useMemo(() => ({ accountId, pageId, editorKey, active: true, starting: false, current: null as Session | null, abort: new AbortController() }), [accountId, pageId, editorKey]);
   const credentials = useCallback(() => {
     const auth = useAuthStore.getState();
-    if (!scope.active || !accountId || !pageId || !auth.apiToken || String(auth.userData?.id) !== accountId || !isPortegoUsername(auth.userData?.username)) throw new Error("Your account or page changed. Your drawing remains on this device.");
+    if (!scope.active || !accountId || !pageId || !auth.apiToken || String(auth.userData?.id) !== accountId) throw new Error("Your account or page changed. Your drawing remains on this device.");
     return { token: auth.apiToken, accountId };
   }, [accountId, pageId, scope]);
   useEffect(() => {

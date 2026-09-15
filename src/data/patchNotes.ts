@@ -56,6 +56,42 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.15",
+    date: "2026-09-15",
+    changes: [
+      {
+        type: "improvement",
+        title: "General Improvements for Android",
+        description:
+          "Improved text layouts, audio playback, Spotify sign-in, and attachment uploads on Android.",
+      },
+      {
+        type: "feature",
+        title: "Apple Watch App (Beta)",
+        description:
+          "Review on your Apple Watch and check upcoming reviews, with progress synced through your iPhone.",
+      },
+      {
+        type: "improvement",
+        title: "More Reliable Offline Studying",
+        description:
+          "Study from cached reviews, save answers locally, and sync your progress when you're back online.",
+      },
+    ],
+  },
+  {
+    version: "1.4.14",
+    date: "2026-09-13",
+    changes: [
+      {
+        type: "fix",
+        title: "Vocabulary Crash",
+        description:
+          "Fixed a crash when reviewing or opening details for kana-vocabulary words like ドキドキ.",
+      },
+    ],
+  },
+  {
     version: "1.4.13",
     date: "2026-09-12",
     changes: [
@@ -63,7 +99,7 @@ export const PATCH_NOTES: PatchNote[] = [
         type: "feature",
         title: "Fully Hidden Translations",
         description:
-          "Added an option to completely hide context sentence translations until you tap to reveal them, instead of showing a blurred preview.",
+          "Added a Japanese-only option that removes translations and reveal buttons from context sentences, media examples, and patterns of use in vocabulary details and lessons.",
       },
       {
         type: "fix",

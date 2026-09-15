@@ -43,6 +43,7 @@ export interface CustomJitaiFontFile {
 }
 
 const JITAI_DOWNLOAD_MANIFEST_KEY = "jitai_downloaded_fonts_v1";
+let cachedDownloadedFonts: DownloadedJitaiFont[] | null = null;
 const JITAI_FONT_DIRECTORY = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}jitai-fonts`
   : null;
@@ -229,6 +230,7 @@ async function writeDownloadedFontManifest(
     JITAI_DOWNLOAD_MANIFEST_KEY,
     JSON.stringify(fonts, null, 2),
   );
+  cachedDownloadedFonts = null;
 }
 
 async function ensureJitaiFontDirectory(): Promise<string> {
@@ -388,6 +390,12 @@ export function getJitaiFontFamiliesForSelection(
   return dedupeStringArray(families);
 }
 
+// Startup resolves downloaded fonts before opening the app. Review prompts can
+// reuse that snapshot without another filesystem round trip on every question.
+export function getCachedDownloadedJitaiFonts(): DownloadedJitaiFont[] | null {
+  return cachedDownloadedFonts;
+}
+
 export async function loadDownloadedJitaiFonts(): Promise<DownloadedJitaiFont[]> {
   const manifestFonts = await readDownloadedFontManifest();
   const recoveredFontsById = new Map<string, DownloadedJitaiFont>();
@@ -480,6 +488,7 @@ export async function loadDownloadedJitaiFonts(): Promise<DownloadedJitaiFont[]>
     await writeDownloadedFontManifest(recoveredFonts);
   }
 
+  cachedDownloadedFonts = recoveredFonts;
   return recoveredFonts;
 }
 

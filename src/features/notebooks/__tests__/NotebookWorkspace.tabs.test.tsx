@@ -5,7 +5,8 @@ import TabsLayout from "../../../../app/(app)/(tabs)/_layout";
 import { useNotebooks } from "../use-notebooks";
 import { DEFAULT_NOTEBOOK_LIMITS, type NotebookPage } from "../model";
 
-let mockUsername = "Portego";
+let mockApiToken: string | null = "token";
+let mockAccountId = 42;
 let mockFocused = true;
 let mockNativeTabs = true;
 let mockWorkspaceMounted = true;
@@ -15,22 +16,22 @@ let mockWorkspaceMounted = true;
 jest.mock("expo-router/unstable-native-tabs", () => {
   const React = require("react");
   const { Text, View } = require("react-native");
-  const NativeTabs = ({ hidden }: { hidden?: boolean }) => {
+  const NativeTabs = ({ hidden, children }: { hidden?: boolean; children: React.ReactNode }) => {
     const Workspace = require("../NotebookWorkspace").default;
-    return <View>{!hidden ? <Text>Bottom tabs</Text> : null}{mockWorkspaceMounted ? <Workspace /> : null}</View>;
+    return <View>{!hidden ? <Text>Bottom tabs</Text> : null}{children}{mockWorkspaceMounted ? <Workspace /> : null}</View>;
   };
-  NativeTabs.Trigger = Object.assign(() => null, { Icon: () => null, Label: () => null });
+  NativeTabs.Trigger = Object.assign(({ name, hidden }: { name: string; hidden?: boolean }) => name === "notebooks" && !hidden ? <Text>Notebooks tab</Text> : null, { Icon: () => null, Label: () => null });
   return { NativeTabs };
 });
 jest.mock("expo-router", () => {
   const React = require("react");
   const { Text, View, StyleSheet } = require("react-native");
-  const Tabs = ({ screenOptions }: { screenOptions?: { tabBarStyle?: object } }) => {
+  const Tabs = ({ screenOptions, children }: { screenOptions?: { tabBarStyle?: object }; children: React.ReactNode }) => {
     const Workspace = require("../NotebookWorkspace").default;
     const hidden = StyleSheet.flatten(screenOptions?.tabBarStyle)?.display === "none";
-    return <View>{!hidden ? <Text>Bottom tabs</Text> : null}{mockWorkspaceMounted ? <Workspace /> : null}</View>;
+    return <View>{!hidden ? <Text>Bottom tabs</Text> : null}{children}{mockWorkspaceMounted ? <Workspace /> : null}</View>;
   };
-  Tabs.Screen = function MockTabScreen() { return null; };
+  Tabs.Screen = function MockTabScreen({ name, options }: { name: string; options: { href?: string | null } }) { return name === "notebooks" && options.href !== null ? <Text>Notebooks tab</Text> : null; };
   return {
     Tabs,
     Redirect: ({ href }: { href: string }) => <Text>Redirect: {href}</Text>,
@@ -41,7 +42,7 @@ jest.mock("expo-router", () => {
 jest.mock("@react-navigation/native", () => ({ useIsFocused: () => mockFocused }));
 jest.mock("../../../utils/store", () => ({
   useAuthStore: (selector?: (state: object) => unknown) => {
-    const state = { userData: { username: mockUsername } };
+    const state = { apiToken: mockApiToken, userData: { id: mockAccountId, username: "ordinary-user" } };
     return selector ? selector(state) : state;
   },
   useSettingsStore: () => ({ gravatarEmail: "", customTabOrder: ["home", "notebooks"] }),
@@ -73,7 +74,7 @@ const page: NotebookPage = {
 
 function createStore(): ReturnType<typeof useNotebooks> {
   return {
-    accountId: "portego-account", state: { version: 1, pages: [page], sentences: [] },
+    accountId: "42", state: { version: 1, pages: [page], sentences: [] },
     revision: 0, limits: DEFAULT_NOTEBOOK_LIMITS, available: true, loading: false,
     saveStatus: "saved", error: null, drafts: {},
     persistDrafts: jest.fn().mockResolvedValue(undefined),
@@ -88,7 +89,8 @@ describe("notebook editor bottom tabs", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUsername = "Portego";
+    mockApiToken = "token";
+    mockAccountId = 42;
     mockFocused = true;
     mockNativeTabs = true;
     mockWorkspaceMounted = true;
@@ -99,6 +101,7 @@ describe("notebook editor bottom tabs", () => {
   it.each([true, false])("hides the bar only while a notebook is open (native tabs: %s)", async (nativeTabs) => {
     mockNativeTabs = nativeTabs;
     const screen = render(<TabsLayout />);
+    expect(screen.getByText("Notebooks tab")).toBeTruthy();
     expect(screen.getByText("Bottom tabs")).toBeTruthy();
     expect(screen.queryByText("Notebook editor controls")).toBeNull();
     fireEvent.changeText(screen.getByLabelText("Search notebook pages"), "Japanese");
@@ -145,18 +148,31 @@ describe("notebook editor bottom tabs", () => {
     expect(screen.getByText("Bottom tabs")).toBeTruthy();
   });
 
-  it("releases the hidden bar when the account loses notebook access", async () => {
+  it("releases the hidden bar when the account signs out", async () => {
     const screen = render(<TabsLayout />);
     await act(async () => fireEvent.press(screen.getByLabelText("Open Japanese notes")));
     expect(screen.queryByText("Bottom tabs")).toBeNull();
-    mockUsername = "visitor";
+    mockApiToken = null;
     screen.rerender(<TabsLayout />);
     expect(screen.getByText("Redirect: /")).toBeTruthy();
     expect(screen.getByText("Bottom tabs")).toBeTruthy();
   });
 
-  it("does not read notebooks or hide the bar for unauthorized accounts", () => {
-    mockUsername = "visitor";
+  it("clears the previous account's open page and search when switching signed-in accounts", async () => {
+    const screen = render(<TabsLayout />);
+    fireEvent.changeText(screen.getByLabelText("Search notebook pages"), "Japanese");
+    await act(async () => fireEvent.press(screen.getByLabelText("Open Japanese notes")));
+    expect(screen.getByText("Notebook editor controls")).toBeTruthy();
+    mockAccountId = 43;
+    store.accountId = "43";
+    screen.rerender(<TabsLayout />);
+    expect(screen.queryByText("Notebook editor controls")).toBeNull();
+    expect(screen.getByText("Bottom tabs")).toBeTruthy();
+    expect(screen.getByLabelText("Search notebook pages").props.value).toBe("");
+  });
+
+  it("does not read notebooks or hide the bar when signed out", () => {
+    mockApiToken = null;
     const screen = render(<TabsLayout />);
     expect(screen.getByText("Redirect: /")).toBeTruthy();
     expect(screen.getByText("Bottom tabs")).toBeTruthy();

@@ -1,10 +1,13 @@
-import { render, waitFor } from "@testing-library/react-native";
+import { act, cleanup, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { InteractionManager } from "react-native";
 
-const mockCheckForUpdateAsync = jest.fn(
+const mockCheckForUpdateAsync = jest.fn<Promise<{ isAvailable: boolean; isRollBackToEmbedded: boolean }>, []>(
   () => new Promise<never>(() => undefined)
 );
+const mockFetchUpdateAsync = jest.fn(async () => ({ isNew: true, isRollBackToEmbedded: false }));
+const mockReloadAsync = jest.fn(async () => undefined);
+let mockUpdatesEnabled = true;
 const mockSetIsRunning = jest.fn();
 const mockSetProgress = jest.fn();
 const mockAuthState = {
@@ -47,9 +50,9 @@ jest.mock("expo-splash-screen", () => ({
 
 jest.mock("expo-updates", () => ({
   checkForUpdateAsync: mockCheckForUpdateAsync,
-  fetchUpdateAsync: jest.fn(),
-  isEnabled: true,
-  reloadAsync: jest.fn(),
+  fetchUpdateAsync: mockFetchUpdateAsync,
+  get isEnabled() { return mockUpdatesEnabled; },
+  reloadAsync: mockReloadAsync,
 }));
 
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
@@ -67,11 +70,11 @@ jest.mock("../../src/components/AnimatedKanjiLoader", () => {
   const { Text } = jest.requireActual<typeof import("react-native")>("react-native");
   return {
     __esModule: true,
-    default: ({ shouldDismiss }: { shouldDismiss: boolean }) =>
+    default: ({ shouldDismiss, statusMessage }: { shouldDismiss: boolean; statusMessage?: string | null }) =>
       React.createElement(
         Text,
         { testID: "startup-loader" },
-        shouldDismiss ? "ready" : "waiting"
+        shouldDismiss ? "ready" : statusMessage ?? "waiting"
       ),
   };
 });
@@ -244,38 +247,130 @@ describe("offline startup", () => {
   const originalDev = (global as typeof globalThis & { __DEV__?: boolean }).__DEV__;
   let consoleWarnSpy: jest.SpyInstance;
   let interactionManagerSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpyInstance;
 
   beforeAll(() => {
     (global as typeof globalThis & { __DEV__?: boolean }).__DEV__ = false;
   });
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    mockUpdatesEnabled = true;
+    mockAuthState.needsPostLoginCaching = false;
+    mockAuthState.setNeedsPostLoginCaching.mockClear();
+    mockCheckForUpdateAsync.mockReset().mockImplementation(() => new Promise(() => undefined));
+    mockFetchUpdateAsync.mockReset().mockResolvedValue({ isNew: true, isRollBackToEmbedded: false });
+    mockReloadAsync.mockReset().mockResolvedValue(undefined);
     consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     interactionManagerSpy = jest
       .spyOn(InteractionManager, "runAfterInteractions")
       .mockImplementation(() => ({ cancel: jest.fn() }) as never);
   });
 
   afterEach(() => {
+    cleanup();
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    mockAuthState.needsPostLoginCaching = false;
     interactionManagerSpy.mockRestore();
     consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   });
 
   afterAll(() => {
     (global as typeof globalThis & { __DEV__?: boolean }).__DEV__ = originalDev;
   });
 
-  it("renders cached app content without waiting for an OTA request", async () => {
+  function renderRoot() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const RootLayout = require("../_layout").default;
-    const screen = render(<RootLayout />);
+    return render(<RootLayout />);
+  }
 
+  it("checks and applies an update before opening app content", async () => {
+    mockCheckForUpdateAsync.mockResolvedValue({ isAvailable: true, isRollBackToEmbedded: false });
+    const screen = renderRoot();
+    await waitFor(() => expect(mockReloadAsync).toHaveBeenCalledTimes(1));
+    expect(mockFetchUpdateAsync).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("Applying update...");
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+  });
+
+  it("opens cached content immediately when no update is available", async () => {
+    mockCheckForUpdateAsync.mockResolvedValue({ isAvailable: false, isRollBackToEmbedded: false });
+    const screen = renderRoot();
     await waitFor(() => {
       expect(screen.getByTestId("app-slot")).toBeTruthy();
       expect(screen.getByTestId("startup-loader").props.children).toBe("ready");
     });
+    expect(mockCheckForUpdateAsync).toHaveBeenCalledTimes(1);
+    expect(mockFetchUpdateAsync).not.toHaveBeenCalled();
+  });
 
+  it("opens cached content after five seconds and ignores a late update check", async () => {
+    let finishCheck!: (result: { isAvailable: boolean; isRollBackToEmbedded: boolean }) => void;
+    mockCheckForUpdateAsync.mockImplementation(() => new Promise((resolve) => { finishCheck = resolve; }));
+    const screen = renderRoot();
+    await waitFor(() => expect(mockCheckForUpdateAsync).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("Checking for updates...");
+    await act(async () => { jest.advanceTimersByTime(5000); });
+    expect(screen.getByTestId("app-slot")).toBeTruthy();
+    await act(async () => { finishCheck({ isAvailable: true, isRollBackToEmbedded: false }); });
+    expect(mockFetchUpdateAsync).not.toHaveBeenCalled();
+    expect(mockReloadAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("ready");
+  });
+
+  it("shares the five-second budget with download and never reloads after timeout", async () => {
+    let finishCheck!: (result: { isAvailable: boolean; isRollBackToEmbedded: boolean }) => void;
+    let finishFetch!: (result: { isNew: boolean; isRollBackToEmbedded: boolean }) => void;
+    mockCheckForUpdateAsync.mockImplementation(() => new Promise((resolve) => { finishCheck = resolve; }));
+    mockFetchUpdateAsync.mockImplementation(() => new Promise((resolve) => { finishFetch = resolve; }));
+    const screen = renderRoot();
+    await waitFor(() => expect(mockCheckForUpdateAsync).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      jest.advanceTimersByTime(4000);
+      finishCheck({ isAvailable: true, isRollBackToEmbedded: false });
+    });
+    expect(mockFetchUpdateAsync).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(screen.getByTestId("app-slot")).toBeTruthy();
+    await act(async () => { finishFetch({ isNew: true, isRollBackToEmbedded: false }); });
+    expect(mockReloadAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(["check", "download", "reload"])("opens cached content if the update %s fails", async (step) => {
+    mockCheckForUpdateAsync.mockResolvedValue({ isAvailable: true, isRollBackToEmbedded: false });
+    if (step === "check") mockCheckForUpdateAsync.mockRejectedValue(new Error("offline"));
+    if (step === "download") mockFetchUpdateAsync.mockRejectedValue(new Error("offline"));
+    if (step === "reload") mockReloadAsync.mockRejectedValue(new Error("reload unavailable"));
+    const screen = renderRoot();
+    await waitFor(() => expect(screen.getByTestId("app-slot")).toBeTruthy());
+    expect(mockCheckForUpdateAsync).toHaveBeenCalledTimes(1);
+    if (step !== "check") expect(mockFetchUpdateAsync).toHaveBeenCalledTimes(1);
+    if (step === "reload") expect(mockReloadAsync).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("startup-loader").props.children).toBe("ready");
+  });
+
+  it("skips the update wait when native updates are disabled", async () => {
+    mockUpdatesEnabled = false;
+    const screen = renderRoot();
+    await waitFor(() => expect(screen.getByTestId("app-slot")).toBeTruthy());
     expect(mockCheckForUpdateAsync).not.toHaveBeenCalled();
-    screen.unmount();
+  });
+
+  it("does not let post-login cache completion bypass the update gate", async () => {
+    mockAuthState.needsPostLoginCaching = true;
+    const screen = renderRoot();
+    await waitFor(() => expect(mockCheckForUpdateAsync).toHaveBeenCalledTimes(1));
+    expect(mockAuthState.setNeedsPostLoginCaching).toHaveBeenCalledWith(false);
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    await act(async () => { jest.advanceTimersByTime(5000); });
+    expect(screen.getByTestId("app-slot")).toBeTruthy();
   });
 });

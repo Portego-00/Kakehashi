@@ -81,6 +81,17 @@ it("round-trips both transparent appearance previews without changing original i
   expect(await loadNotebookDrawing("token", "42", drawingId)).toEqual({ ...saved, ...themed });
 });
 
+it("keeps high-density preview pixels compatible with existing paper references and readers", async () => {
+  const preview3x = "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGMQFBT8D8MMODkAxWEKw0xzq7IAAAAASUVORK5CYII=";
+  const themed = { ...payload, previewBase64: preview3x, darkPreviewBase64: preview3x, inkFormat: "pencilkit-v1" as const, previewFormat: "themed-v1" as const };
+  const saved = { ...reference, inkFormat: themed.inkFormat, previewFormat: themed.previewFormat };
+  fetchMock.mockResponseOnce(JSON.stringify({ ...saved, accountId: "42" }));
+  expect(await saveNotebookDrawing("token", "42", themed)).toEqual(saved);
+  expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual(themed);
+  fetchMock.mockResponseOnce(JSON.stringify({ ...saved, ...themed, accountId: "42" }));
+  expect(await loadNotebookDrawing("token", "42", drawingId)).toEqual({ ...saved, ...themed });
+});
+
 it("retains recovery when the server drops appearance metadata or either preview is invalid", async () => {
   const themed = { ...payload, inkFormat: "pencilkit-v1" as const, previewFormat: "themed-v1" as const, darkPreviewBase64: payload.previewBase64 };
   for (const change of [{ darkPreviewBase64: undefined }, { darkPreviewBase64: "not-a-png" }, { previewFormat: "future" }, { previewFormat: undefined }, { inkFormat: "strokes-v1" }]) {

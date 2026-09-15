@@ -873,7 +873,7 @@ export default function ContextSentencePracticeConfigScreen() {
                   { color: theme.textSecondary },
                 ]}
               >
-                Enables Japanese sentence text-to-speech playback during questions.
+                Plays the Japanese sentence after a correct answer and adds a replay button.
               </Text>
             </View>
             <Switch

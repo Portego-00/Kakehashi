@@ -1,54 +1,33 @@
 import SwiftUI
 
 struct WatchForecastRow: View {
-  let date: Date
-  let count: Int
+  let bucket: WatchForecastBucket
   let maximum: Int
-  @ScaledMetric(relativeTo: .caption) private var labelWidth = 38
-  @ScaledMetric(relativeTo: .caption) private var rowHeight = 18
+  let mode: WatchForecastMode
+  @ScaledMetric(relativeTo: .caption) private var labelWidth = 40
 
   var body: some View {
-    ViewThatFits(in: .horizontal) {
+    VStack(alignment: .leading, spacing: WatchTheme.smallGap) {
       HStack(spacing: WatchTheme.gap) {
-        hour.frame(width: labelWidth, alignment: .leading)
-        bar.frame(minWidth: 32)
-        reviewCount
-      }
-      VStack(spacing: WatchTheme.smallGap) {
-        HStack(spacing: WatchTheme.gap) {
-          hour
-          Spacer(minLength: 0)
-          reviewCount
-        }
-        bar
+        Text(bucket.date, format: .dateTime.hour().minute())
+          .foregroundStyle(WatchTheme.secondaryText)
+          .frame(minWidth: labelWidth, alignment: .leading)
+          .fixedSize()
+        WatchForecastBar(bucket: bucket, maximum: maximum, mode: mode)
+        Text(bucket.count, format: .number).monospacedDigit().fixedSize()
+          .frame(minWidth: 20, alignment: .trailing)
       }
     }
     .watchFont(.caption)
-    .frame(minHeight: rowHeight)
+    .frame(minHeight: 19)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(date.formatted(.dateTime.hour())), \(count) reviews")
+    .accessibilityLabel(accessibilitySummary)
   }
 
-  private var hour: some View {
-    Text(date, format: .dateTime.hour())
-      .foregroundStyle(WatchTheme.secondaryText)
-      .fixedSize()
-  }
-
-  private var reviewCount: some View {
-    Text(count, format: .number).monospacedDigit()
-      .fixedSize()
-      .frame(minWidth: 22, alignment: .trailing)
-  }
-
-  private var bar: some View {
-    GeometryReader { geometry in
-      ZStack(alignment: .leading) {
-        Capsule().fill(WatchTheme.surface)
-        Capsule().fill(WatchTheme.primary)
-          .frame(width: geometry.size.width * CGFloat(count) / CGFloat(maximum))
-      }
-    }
-    .frame(height: 4)
+  private var accessibilitySummary: String {
+    let detail = bucket.values(for: mode).map { values in
+      zip(mode.labels, values).map { "\($0.1) \($0.0)" }.joined(separator: ", ")
+    } ?? ""
+    return "By \(bucket.date.formatted(.dateTime.hour().minute())), \(bucket.count) reviews. \(detail)"
   }
 }

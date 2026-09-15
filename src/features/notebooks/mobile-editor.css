@@ -34,6 +34,18 @@ button { touch-action: manipulation; }
 .nb-mobile .bn-container { color: var(--nb-text); --bn-colors-editor-background: var(--nb-bg); --bn-colors-editor-text: var(--nb-text); --bn-font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif; }
 .nb-mobile .bn-editor { max-width: 740px; margin-inline: auto; padding: 0 24px 160px; min-height: 260px; font-family: inherit; font-size: 17px; line-height: 1.7; background: var(--nb-bg); color: var(--nb-text); caret-color: var(--nb-primary); overflow-wrap: anywhere; }
 .nb-mobile .bn-block-content { padding-block: 4px; }
+/* Keep a selected drawing legible without tinting its paper or ink. */
+.nb-mobile .bn-block-content[data-content-type='handwriting'].ProseMirror-selectednode > *::after,
+.nb-mobile .ProseMirror-selectednode > .bn-block-content[data-content-type='handwriting'] > *::after,
+.nb-mobile .bn-block-content[data-content-type='handwriting'] .ProseMirror-selectednode::after {
+  background-color: transparent;
+  box-shadow: none;
+}
+.nb-mobile .bn-block-content[data-content-type='handwriting'].ProseMirror-selectednode .nb-handwriting,
+.nb-mobile .ProseMirror-selectednode > .bn-block-content[data-content-type='handwriting'] .nb-handwriting,
+.nb-mobile .bn-block-content[data-content-type='handwriting'] .nb-handwriting.ProseMirror-selectednode {
+  border-color: color-mix(in srgb, var(--nb-muted) 25%, transparent);
+}
 .nb-mobile .bn-block-content[data-content-type='heading'] { padding-top: 20px; padding-bottom: 5px; }
 .nb-mobile .bn-block-content[data-content-type='heading'][data-level='1'] { font-size: 27px; line-height: 1.35; }
 .nb-mobile .bn-block-content[data-content-type='heading'][data-level='2'] { font-size: 23px; line-height: 1.4; }
@@ -198,7 +210,7 @@ button { touch-action: manipulation; }
 .nb-native-ink-stage { min-width: 0; width: 100%; }
 .nb-native-handwriting[data-fullscreen='true'] { position: fixed; inset: var(--nb-viewport-top, 0px) 0 auto; z-index: 80; width: 100% !important; height: var(--nb-viewport-height, 100dvh); margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: var(--nb-bg); display: flex; flex-direction: column; padding-bottom: max(140px, env(safe-area-inset-bottom)); }
 .nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-tools, .nb-native-handwriting[data-fullscreen='true'] .nb-native-paper-options, .nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-finger, .nb-native-handwriting[data-fullscreen='true'] .nb-ink-error { flex: none; }
-.nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-stage { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; padding: 12px 16px 0; overflow: hidden; }
+.nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-stage { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; padding: 12px 16px 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior-y: contain; touch-action: pan-y; }
 .nb-native-handwriting[data-fullscreen='true'] .nb-native-ink-finger { min-height: 36px; }
 .nb-native-handwriting[data-fullscreen='true'] .nb-paper-resize-container { flex: none; }
 

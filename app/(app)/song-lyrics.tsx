@@ -112,6 +112,8 @@ const LYRICS_SKELETON_LINE_WIDTHS = [
 ] as const;
 const EMPTY_LYRICS_QUIZ_ANSWERS: Record<number, string> = {};
 const EMPTY_LYRICS_QUIZ_ATTEMPTS: Record<number, string[]> = {};
+const LYRICS_UNAVAILABLE_MESSAGE =
+  "Couldn't reach the lyrics service. Check your connection or try again later.";
 
 function clampLyricsTimingOffsetMs(offsetMs: number): number {
   if (!Number.isFinite(offsetMs)) {
@@ -453,6 +455,7 @@ export default function SongLyricsScreen() {
     LyricsSearchResult[]
   >([]);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
+  const [lyricsSearchError, setLyricsSearchError] = useState<string | null>(null);
   const [hasStoredJpdbApiKey, setHasStoredJpdbApiKey] = useState(false);
   const [lineTranslations, setLineTranslations] = useState<
     Record<string, string>
@@ -1160,6 +1163,8 @@ export default function SongLyricsScreen() {
             setError(
               "Lyrics not found for this song. Try using the override settings to search manually.",
             );
+          } else {
+            setError(LYRICS_UNAVAILABLE_MESSAGE);
           }
         }
       }
@@ -1383,6 +1388,7 @@ export default function SongLyricsScreen() {
           });
       }
       setIsSearchingLyrics(true);
+      setLyricsSearchError(null);
       lyricsService
         .searchLyrics(songTitle, artist)
         .then((results) => {
@@ -1390,9 +1396,12 @@ export default function SongLyricsScreen() {
             setLyricsSearchResults(results);
           }
         })
-        .catch((searchError) =>
-          console.error("Error searching lyrics:", searchError),
-        )
+        .catch((searchError) => {
+          console.error("Error searching lyrics:", searchError);
+          if (!didCancel) {
+            setLyricsSearchError(LYRICS_UNAVAILABLE_MESSAGE);
+          }
+        })
         .finally(() => {
           if (!didCancel) {
             setIsSearchingLyrics(false);
@@ -2169,11 +2178,13 @@ export default function SongLyricsScreen() {
     if (!song.trim() && !artist.trim()) return;
 
     setIsSearchingLyrics(true);
+    setLyricsSearchError(null);
     try {
       const results = await lyricsService.searchLyrics(song, artist);
       setLyricsSearchResults(results);
     } catch (error) {
       console.error("Error searching lyrics:", error);
+      setLyricsSearchError(LYRICS_UNAVAILABLE_MESSAGE);
     } finally {
       setIsSearchingLyrics(false);
     }
@@ -4019,6 +4030,14 @@ export default function SongLyricsScreen() {
               {activeOverrideMode === "lyrics" && (
                 /* Lyrics Section */
                 <View style={styles.overrideSection}>
+                  {lyricsSearchError && (
+                    <Text
+                      accessibilityRole="alert"
+                      style={[styles.errorText, { color: theme.error }]}
+                    >
+                      {lyricsSearchError}
+                    </Text>
+                  )}
                   {/* Lyrics Search Results */}
                   {lyricsSearchResults.length > 0 && (
                     <View style={styles.videoResultsContainer}>

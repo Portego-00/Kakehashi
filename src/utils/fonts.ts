@@ -1,4 +1,4 @@
-import { StyleSheet, TextStyle } from 'react-native';
+import { Platform, StyleSheet, TextStyle } from 'react-native';
 
 // Helper function to check if text contains Japanese characters
 export function containsJapanese(text: string): boolean {
@@ -20,6 +20,11 @@ export const fontStyles = StyleSheet.create({
   },
   japaneseBold: {
     fontFamily: 'SourceHanSansJP-Bold',
+  },
+  japaneseChip: {
+    // Source Han's full font bounds add large blank areas around Android chips.
+    // Use the normal text metrics; the label still follows system font scaling.
+    ...Platform.select({ android: { includeFontPadding: false }, default: {} }),
   },
 });
 
@@ -57,4 +62,4 @@ export function getJapaneseStyleIfNeeded(text?: string): TextStyle | undefined {
 export function getJapaneseBoldStyleIfNeeded(text?: string): TextStyle | undefined {
   if (!text) return undefined;
   return containsJapanese(text) ? fontStyles.japaneseBold : undefined;
-} 
+}

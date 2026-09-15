@@ -6,6 +6,11 @@ import { encodeInlineInk } from "@/features/notebooks/inline-ink";
 vi.mock("server-only", () => ({}));
 const drawingId = "00a00000-0000-4000-8000-000000000001";
 const previewBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+// Real RGBA PNGs: the drawing's logical paper remains 1×1 at every density.
+const retinaPreview2x = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGMQFBT8D8IMMAYAJYYEyZlPB2MAAAAASUVORK5CYII=";
+const retinaPreview3x = "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGMQFBT8D8MMODkAxWEKw0xzq7IAAAAASUVORK5CYII=";
+const preview4x = "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGMQFBT8j4wZSBcAAHRSEyHTOJkUAAAAAElFTkSuQmCC";
+const stretchedPreview = "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAEUlEQVR4nGMQFBT8D8MMyBwAVPgHLXpOsWIAAAAASUVORK5CYII=";
 const payload = { inkBase64: Buffer.from("opaque PencilKit drawing").toString("base64"), previewBase64, width: 1, height: 1 };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 const row = { id: drawingId, user_id: "123", width: 1, height: 1, status: "ready", ink_bytes: Buffer.from(payload.inkBase64, "base64").length, preview_bytes: Buffer.from(previewBase64, "base64").length };
@@ -40,6 +45,38 @@ describe("private immutable notebook drawings", () => {
     const { saveNotebookDrawing } = await import("./notebook-drawings-server");
     await expect(saveNotebookDrawing("123", payload)).rejects.toMatchObject({ code: "limit", status: 413 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([retinaPreview2x, retinaPreview3x])("stores full-resolution previews without enlarging the logical paper or changing ink %#", async (preview) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(true)).mockResolvedValueOnce(json({})).mockResolvedValueOnce(json({})).mockResolvedValueOnce(json({})).mockResolvedValueOnce(json(true));
+    vi.stubGlobal("fetch", fetchMock);
+    const { saveNotebookDrawing } = await import("./notebook-drawings-server");
+    const result = await saveNotebookDrawing("123", { ...payload, previewBase64: preview, darkPreviewBase64: preview, previewFormat: "themed-v1" }, NOTEBOOK_HANDWRITING_FEATURES);
+    expect(result).toMatchObject({ width: 1, height: 1, inkFormat: "pencilkit-v1", previewFormat: "themed-v1" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ p_width: 1, p_height: 1, p_preview_bytes: Buffer.from(preview, "base64").length, p_dark_preview_bytes: Buffer.from(preview, "base64").length });
+    expect(Buffer.from(fetchMock.mock.calls[1][1].body).toString("base64")).toBe(payload.inkBase64);
+    for (const index of [2, 3]) expect(Buffer.from(fetchMock.mock.calls[index][1].body).toString("base64")).toBe(preview);
+  });
+  it("returns the original full-resolution PNG bytes to native and web readers with unchanged paper metadata", async () => {
+    const highResolutionRow = { ...row, ink_format: "pencilkit-v1", preview_format: "themed-v1", preview_bytes: Buffer.from(retinaPreview3x, "base64").length, dark_preview_bytes: Buffer.from(retinaPreview3x, "base64").length };
+    const fetchMock = vi.fn().mockResolvedValueOnce(json([highResolutionRow])).mockResolvedValueOnce(new Response(Buffer.from(payload.inkBase64, "base64"))).mockResolvedValueOnce(new Response(Buffer.from(retinaPreview3x, "base64"))).mockResolvedValueOnce(new Response(Buffer.from(retinaPreview3x, "base64"))).mockResolvedValueOnce(json([highResolutionRow])).mockResolvedValueOnce(new Response(Buffer.from(retinaPreview3x, "base64")));
+    vi.stubGlobal("fetch", fetchMock);
+    const { readNotebookDrawing, readNotebookDrawingPreview } = await import("./notebook-drawings-server");
+    expect(await readNotebookDrawing("123", drawingId, NOTEBOOK_HANDWRITING_FEATURES)).toEqual({ ...payload, drawingId, inkFormat: "pencilkit-v1", previewFormat: "themed-v1", previewBase64: retinaPreview3x, darkPreviewBase64: retinaPreview3x });
+    expect((await readNotebookDrawingPreview("123", drawingId, "dark")).toString("base64")).toBe(retinaPreview3x);
+  });
+  it.each([
+    { previewBase64: preview4x },
+    { previewBase64: stretchedPreview },
+    { previewBase64: retinaPreview3x, width: 2, height: 2 },
+    { previewBase64: retinaPreview3x, darkPreviewBase64: retinaPreview2x, previewFormat: "themed-v1" },
+    // Oversized IHDR declarations have valid checksums; reject before decoding pixels.
+    { previewBase64: "iVBORw0KGgoAAAANSUhEUgAAEAIAAAADCAYAAAAXHBpKAAAAEUlEQVR4nGMQFBT8D8MMODkAxWEKw0xzq7IAAAAASUVORK5CYII=", width: 1366, height: 1 },
+    { previewBase64: "iVBORw0KGgoAAAANSUhEUgAAD6AAAA+iCAYAAACjt0IJAAAAEUlEQVR4nGMQFBT8D8MMODkAxWEKw0xzq7IAAAAASUVORK5CYII=", width: 2000, height: 2001 },
+  ])("rejects oversized, stretched, fractional-density or mismatched appearance previews before storage %#", async (extra) => {
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    const { saveNotebookDrawing } = await import("./notebook-drawings-server");
+    await expect(saveNotebookDrawing("123", { ...payload, ...extra }, NOTEBOOK_HANDWRITING_FEATURES)).rejects.toMatchObject({ code: "invalid" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it("reserves the dark preview quota and retains an uncertain third upload without marking it ready", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(json(true)).mockResolvedValueOnce(json({})).mockResolvedValueOnce(json({})).mockRejectedValueOnce(new Error("third upload timeout")).mockResolvedValueOnce(json([]));

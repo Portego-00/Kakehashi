@@ -7,10 +7,13 @@ import { CustomContextSentencesSection } from "../CustomContextSentencesSection"
 import VocabularyDetails from "../VocabularyDetails";
 import { Audio } from "../../utils/expoAvCompat";
 import { resolveCustomVocabularyAudioForPlayback } from "../../features/custom-srs/audio-cache";
+import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
 
 const mockSetPage = jest.fn();
 const mockSettings = {
   showPitchAccent: false,
+  showJLPTLevel: false,
+  showVocabularyFrequency: false,
   showPatternsOfUse: false,
   showSimilarVocabulary: false,
   showSingleKanjiVocabularySimilarKanji: false,
@@ -53,8 +56,8 @@ jest.mock("../../features/custom-srs/audio-cache", () => ({ resolveCustomVocabul
 jest.mock("../../utils/niaiSimilarKanji", () => ({ getNiaiSimilarKanjiSubjects: jest.fn(() => Promise.resolve([])) }));
 jest.mock("../../utils/cache", () => ({ getAllSubjects: jest.fn(() => Promise.resolve([])) }));
 jest.mock("../../utils/pitchAccent", () => ({ getWaniKaniPitchAccent: () => null }));
-jest.mock("../../utils/wanikaniVocabularyPatterns", () => ({ getWaniKaniVocabularyPatterns: () => [] }));
-jest.mock("../../utils/store", () => ({ useAuthStore: () => ({ userData: { username: "Portego", level: 21 } }), useSettingsStore: () => mockSettings }));
+jest.mock("../../utils/wanikaniVocabularyPatterns", () => ({ getWaniKaniVocabularyPatterns: jest.fn(() => []) }));
+jest.mock("../../utils/store", () => ({ useAuthStore: () => ({ userData: { username: "Portego", level: 21 } }), useSettingsStore: (selector?: (state: typeof mockSettings) => unknown) => selector ? selector(mockSettings) : mockSettings }));
 jest.mock("../../utils/theme", () => ({ useTheme: () => ({ theme: { backgroundColor: "#fff", border: "#ddd", cardBackground: "#fff", isDark: false, primary: "#08f", secondary: "#fa1f62", textColor: "#111", textLight: "#888", textSecondary: "#555" } }) }));
 jest.mock("../../utils/subjectColors", () => ({ useSubjectColors: () => ({ radical: "#3c9bff", kanji: "#fa1f62", vocabulary: "#9c38d9" }), withAlpha: (color: string) => color }));
 jest.mock("../../services/immersionKitService", () => ({ searchImmersionKit: jest.fn(), getCategoryColor: () => "#9c38d9", getCategoryDisplayName: () => "Anime" }));
@@ -87,8 +90,12 @@ const vocabulary = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSettings.showJLPTLevel = false;
+  mockSettings.showVocabularyFrequency = false;
   mockSettings.hideContextSentenceTranslations = false;
   mockSettings.hideContextSentenceTranslationsCompletely = false;
+  mockSettings.showPatternsOfUse = false;
+  jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
 });
 
@@ -123,21 +130,50 @@ it.each([false, true])("renders ドキドキ with working kana tabs (embedded: %
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
-it("fully conceals hidden translations until they are revealed", () => {
-  mockSettings.hideContextSentenceTranslations = true;
+it.each([false, true])("removes all example translations regardless of tap-to-reveal being %s", async (hideUntilTapped) => {
+  mockSettings.hideContextSentenceTranslations = hideUntilTapped;
   mockSettings.hideContextSentenceTranslationsCompletely = true;
+  mockSettings.showPatternsOfUse = true;
+  const pattern = { ja: "やっぱりそうだ。", en: "It is as I thought." };
+  const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" };
+  jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([{ name: "やっぱり〜", examples: [pattern] }]);
+  jest.mocked(searchImmersionKit).mockResolvedValue({ results: [media], nextOffset: 1 });
 
-  const screen = render(
+  const details = (
     <VocabularyDetails
       vocabulary={vocabulary}
       progressionStatus="success"
       initialTab="context"
-    />,
+    />
   );
+  const screen = render(details);
 
+  expect(await screen.findByText(media.sentence)).toBeTruthy();
+  for (const sentence of [...vocabulary.contextSentences, pattern, { ja: media.sentence, en: media.translation }]) {
+    expect(screen.getByText(sentence.ja)).toBeTruthy();
+    expect(screen.queryByText(sentence.en)).toBeNull();
+  }
+  expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+
+  mockSettings.hideContextSentenceTranslationsCompletely = false;
+  screen.rerender(React.cloneElement(details));
+  expect(screen.getByText(pattern.en)).toBeTruthy();
+  expect(screen.getByText(media.translation)).toBeTruthy();
+  if (hideUntilTapped) {
+    const revealButtons = screen.getAllByText("Tap to reveal translation");
+    expect(revealButtons).toHaveLength(4);
+    fireEvent.press(revealButtons[0]);
+    expect(screen.getAllByText("Tap to reveal translation")).toHaveLength(3);
+  } else {
+    expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+  }
+
+  mockSettings.hideContextSentenceTranslationsCompletely = true;
+  screen.rerender(React.cloneElement(details));
+  expect(screen.queryByText(pattern.en)).toBeNull();
+  expect(screen.queryByText(media.translation)).toBeNull();
   expect(screen.queryByText(vocabulary.contextSentences[0].en)).toBeNull();
-  fireEvent.press(screen.getAllByText("Tap to reveal translation")[0]);
-  expect(screen.getByText(vocabulary.contextSentences[0].en)).toBeTruthy();
+  expect(screen.queryByText("Tap to reveal translation")).toBeNull();
 });
 
 it("shows only Meaning and Context for custom kana, rendering mnemonic tags as styled text", async () => {
@@ -205,4 +241,20 @@ it("offers Shizuka audio on Meaning for custom kana and plays the cached clip", 
   fireEvent.press(screen.getByLabelText("Play Shizuka pronunciation"));
   await waitFor(() => expect(resolveCustomVocabularyAudioForPlayback).toHaveBeenCalledWith(vocabulary.id, audio));
   await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledWith({ uri: "file:///custom-audio.mp3" }, { shouldPlay: true }));
+});
+
+it.each(["vocabulary", "kana_vocabulary"])("shows optional JLPT and frequency labels in %s details", async (object) => {
+  mockSettings.showJLPTLevel = true;
+  mockSettings.showVocabularyFrequency = true;
+  const screen = render(
+    <VocabularyDetails
+      embedded
+      vocabulary={{ ...vocabulary, object, characters: "テレビ" }}
+      progressionStatus="success"
+    />,
+  );
+  expect(screen.getByText("JLPT Level")).toBeTruthy();
+  expect(screen.getByText("N5")).toBeTruthy();
+  expect(screen.getByText("Frequency")).toBeTruthy();
+  await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });

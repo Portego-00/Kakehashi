@@ -25,6 +25,7 @@ import { MusicPlayerProvider } from "../src/contexts/MusicPlayerContext";
 import { DashboardProvider } from "../src/hooks/useDashboardData";
 import { analyticsService } from "../src/services/analyticsService";
 import { featureFlagsService } from "../src/services/featureFlagsService";
+import { applyStartupUpdate } from "../src/services/startupUpdateService";
 import {
   hasPendingProgressAccountBinding,
   registerPendingProgressAccount,
@@ -101,8 +102,10 @@ function RootLayoutContentInner() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [showLoader, setShowLoader] = useState(true);
   const [cachingProgress, setCachingProgress] = useState(0);
+  const [loaderStatusMessage, setLoaderStatusMessage] = useState<string | null>(null);
   const startupSessionInitializedRef = useRef(false);
   const startupPrepareStartedRef = useRef(false);
+  const startupUpdateGateResolvedRef = useRef(false);
   const appReadyRequestedRef = useRef(false);
   const fontGateStartedAtRef = useRef(Date.now());
   const fontGateResolvedRef = useRef(false);
@@ -139,7 +142,8 @@ function RootLayoutContentInner() {
   const lastHandledIssueNotificationAtRef = useRef(0);
   const requestAppReady = useCallback(
     (reason: string, details?: Record<string, unknown>) => {
-      if (appReadyRequestedRef.current) {
+      // Post-login caching can finish before OTA; prepare releases this gate.
+      if (!startupUpdateGateResolvedRef.current || appReadyRequestedRef.current) {
         return;
       }
       appReadyRequestedRef.current = true;
@@ -359,8 +363,9 @@ function RootLayoutContentInner() {
     return startIssueActivityNotifications({
       currentUserId: userData?.id ?? null,
       currentUsername: userData?.username ?? null,
+      apiToken,
     });
-  }, [userData?.id, userData?.username]);
+  }, [apiToken, userData?.id, userData?.username]);
 
   const getQueryParamValue = useCallback((value: unknown): string | null => {
     if (Array.isArray(value)) {
@@ -660,6 +665,7 @@ function RootLayoutContentInner() {
         phase: "loader",
       });
       let prepareError: unknown;
+      let didTriggerReload = false;
 
       const runTrackedOperation = async <T,>(
         operation: string,
@@ -768,6 +774,31 @@ function RootLayoutContentInner() {
             });
             // Silent failure for splash screen
           });
+
+        const updateResult = await runTrackedOperation("prepare.ota", () =>
+          applyStartupUpdate({
+            onStatus: (status) => setLoaderStatusMessage(
+              status === "checking"
+                ? "Checking for updates..."
+                : status === "applying"
+                  ? "Applying update..."
+                  : null
+            ),
+            reloadScreenOptions: {
+              backgroundColor: theme.backgroundColor,
+              image: require("../assets/images/splash-icon.png"),
+              imageResizeMode: "contain",
+              fade: true,
+              spinner: { enabled: false },
+            },
+          })
+        );
+        startupDiagnostics.markEvent("prepare.ota.completed", {
+          outcome: updateResult.outcome,
+        });
+        didTriggerReload = updateResult.reloadTriggered;
+        if (didTriggerReload) return;
+        startupUpdateGateResolvedRef.current = true;
 
         const token = session;
 
@@ -954,8 +985,13 @@ function RootLayoutContentInner() {
           status: prepareError ? "error" : "ok",
           error: prepareError,
         });
-        // Mark app as ready - this will trigger the animated loader dismissal
-        requestAppReady("prepare.finallyFallback");
+        // A successful reload resolves before the native restart is dispatched.
+        // Keep Home unmounted until then; errors/timeouts still open cached content.
+        if (!didTriggerReload) {
+          startupUpdateGateResolvedRef.current = true;
+          setLoaderStatusMessage(null);
+          requestAppReady("prepare.finallyFallback");
+        }
       }
     }
 
@@ -1061,6 +1097,7 @@ function RootLayoutContentInner() {
           shouldDismiss={appIsReady}
           onLoadingComplete={handleLoadingComplete}
           cachingProgress={cachingProgress}
+          statusMessage={loaderStatusMessage}
         />
       )}
     </>

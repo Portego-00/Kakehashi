@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 
 import { useSettingsStore } from "../../utils/store";
@@ -11,6 +11,10 @@ jest.mock("@expo/vector-icons", () => ({
 jest.mock("expo-speech", () => ({
   speak: jest.fn(),
   stop: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock("../../utils/prepareNativeSpeech", () => ({
+  prepareNativeSpeech: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock("expo-router", () => ({
@@ -150,9 +154,10 @@ const kanji = {
 
 function mockSettings(
   showKanjiEtymology: boolean,
-  kanjiReadingTextToSpeechEnabled = false
+  kanjiReadingTextToSpeechEnabled = false,
+  showJLPTLevel = false
 ) {
-  (useSettingsStore as unknown as jest.Mock).mockReturnValue({
+  const settings = {
     groupKanjiVocabularyExamplesByReading: false,
     showInlineRadicalReminders: false,
     showKanjiEtymology,
@@ -160,7 +165,12 @@ function mockSettings(
     showOnyomiInKatakana: false,
     showPitchAccent: false,
     showStrokeOrder: false,
-  });
+    showJLPTLevel,
+    showVocabularyFrequency: false,
+  };
+  (useSettingsStore as unknown as jest.Mock).mockImplementation(
+    (selector?: (state: typeof settings) => unknown) => selector ? selector(settings) : settings,
+  );
 }
 
 describe("KanjiDetails etymology integration", () => {
@@ -205,13 +215,25 @@ describe("KanjiDetails etymology integration", () => {
       screen.getByLabelText("Speak Japanese pronunciation きゅう")
     );
 
-    await Promise.resolve();
-
-    expect(Speech.stop).toHaveBeenCalledTimes(1);
-    expect(Speech.speak).toHaveBeenCalledWith("きゅう", {
-      language: "ja-JP",
-      pitch: 1,
-      rate: 0.8,
+    await waitFor(() => {
+      expect(Speech.stop).toHaveBeenCalledTimes(1);
+      expect(Speech.speak).toHaveBeenCalledWith("きゅう", {
+        language: "ja-JP",
+        pitch: 1,
+        rate: 0.8,
+      });
     });
   });
+});
+
+it.each([false, true])("only shows the kanji JLPT row when enabled (%s)", (enabled) => {
+  mockSettings(false, false, enabled);
+  const screen = render(<KanjiDetails kanji={kanji} progressionStatus="success" embedded />);
+  if (enabled) {
+    expect(screen.getByText("JLPT Level")).toBeTruthy();
+    expect(screen.getByText("N5")).toBeTruthy();
+  } else {
+    expect(screen.queryByText("JLPT Level")).toBeNull();
+  }
+  expect(screen.queryByText("Frequency")).toBeNull();
 });

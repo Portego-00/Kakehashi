@@ -47,8 +47,5 @@ export async function nativeNotebookIdentity(token: string, signal?: AbortSignal
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(id) || id === "demo-level-21" || !username) {
     throw new NativeNotebookAccessError("WaniKani could not verify your account. Please try again.", "unavailable", 503);
   }
-  if (username.toLowerCase() !== "portego") {
-    throw new NativeNotebookAccessError("Mobile notebooks are not available for this account.", "forbidden", 403);
-  }
   return { id };
 }

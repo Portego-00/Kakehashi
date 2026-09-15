@@ -36,6 +36,48 @@ const candidates: WordSearchCandidate[] = [
 ];
 
 describe("wordSearchGenerator", () => {
+  it.each(["kanji-to-kana", "kana-to-kanji"] as const)(
+    "chooses different vocabulary when rebuilding a %s puzzle",
+    (direction) => {
+      const vocabulary = [
+        ["大学生", "だいがくせい"],
+        ["高校生", "こうこうせい"],
+        ["中学生", "ちゅうがくせい"],
+        ["小学生", "しょうがくせい"],
+        ["図書館", "としょかん"],
+        ["日曜日", "にちようび"],
+        ["自転車", "じてんしゃ"],
+        ["図書室", "としょしつ"],
+        ["新聞紙", "しんぶんし"],
+        ["金曜日", "きんようび"],
+        ["日本", "にほん"],
+        ["毎日", "まいにち"],
+        ["学校", "がっこう"],
+        ["電車", "でんしゃ"],
+        ["先生", "せんせい"],
+      ].map(([written, reading], index) => ({
+        subjectId: index + 1,
+        written,
+        reading,
+        meaning: `Vocabulary ${index + 1}`,
+      }));
+      const build = (seed: number) => generateWordSearch(vocabulary, {
+        direction,
+        size: 10,
+        wordCount: 10,
+        seed,
+      });
+      const first = build(1);
+      const rebuilt = build(2);
+
+      expect(first.entries).toHaveLength(10);
+      expect(rebuilt.entries).toHaveLength(10);
+      expect(new Set(rebuilt.entries.map((entry) => entry.subjectId))).not.toEqual(
+        new Set(first.entries.map((entry) => entry.subjectId)),
+      );
+    },
+  );
+
   it.each([
     ["kanji-to-kana" as const, "にほん"],
     ["kana-to-kanji" as const, "日本"],
@@ -51,6 +93,32 @@ describe("wordSearchGenerator", () => {
     expect(puzzle.entries.find((entry) => entry.subjectId === 1)?.answer).toBe(
       expectedAnswer,
     );
+    puzzle.entries.forEach((entry) => {
+      expect(getWordSearchPathText(puzzle, entry.path)).toBe(entry.answer);
+    });
+  });
+
+  it("fills the requested count from other candidates when some words cannot fit", () => {
+    const longWords = Array.from("あいうえおかきくけこ").map((character, index) => ({
+      subjectId: index + 1,
+      written: "日本",
+      reading: character.repeat(10),
+      meaning: "Long word",
+    }));
+    const shortWords = Array.from("さしすせそたちつてと").map((character, index) => ({
+      subjectId: index + 11,
+      written: "学校",
+      reading: character.repeat(2),
+      meaning: "Short word",
+    }));
+    const puzzle = generateWordSearch([...longWords, ...shortWords], {
+      direction: "kanji-to-kana",
+      size: 10,
+      wordCount: 10,
+      seed: 12,
+    });
+
+    expect(puzzle.entries).toHaveLength(10);
     puzzle.entries.forEach((entry) => {
       expect(getWordSearchPathText(puzzle, entry.path)).toBe(entry.answer);
     });

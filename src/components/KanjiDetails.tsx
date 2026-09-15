@@ -22,6 +22,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
+import SubjectMetadataRows from "./SubjectMetadataRows";
 import { SRS_COLORS } from "../constants/srsColors";
 import { hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
@@ -39,6 +40,7 @@ import {
 import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
+import { MnemonicTag } from "./MnemonicTag";
 import { CopyTooltip, useCopyTooltip } from "./CopyTooltip";
 import { FormattedNoteText } from "./formatted-note";
 import { NoteFieldContainer } from "./note-field-container";
@@ -134,7 +136,7 @@ interface KanjiDetailsProps {
   onAddToList?: () => void;
   isBookmarked?: boolean;
   userLevel?: number;
-  onSynonymsChange?: (synonyms: string[]) => Promise<void>;
+  onSynonymsChange?: (synonyms: string[], originalSynonyms: string[]) => Promise<void>;
   embedded?: boolean;
 }
 
@@ -695,33 +697,33 @@ export default function KanjiDetails({
 
       if (token.type === "radical") {
         return (
-          <View key={index} style={styles.inlineRadicalTag}>
-            <Text style={styles.radicalTagText}>{token.text}</Text>
-          </View>
+          <MnemonicTag key={index} style={styles.inlineRadicalTag} textStyle={styles.radicalTagText}>
+            {token.text}
+          </MnemonicTag>
         );
       }
 
       if (token.type === "kanji") {
         return (
-          <View key={index} style={styles.inlineKanjiTag}>
-            <Text style={styles.kanjiTagText}>{token.text}</Text>
-          </View>
+          <MnemonicTag key={index} style={styles.inlineKanjiTag} textStyle={styles.kanjiTagText}>
+            {token.text}
+          </MnemonicTag>
         );
       }
 
       if (token.type === "vocabulary") {
         return (
-          <View key={index} style={styles.inlineVocabTag}>
-            <Text style={styles.vocabTagText}>{token.text}</Text>
-          </View>
+          <MnemonicTag key={index} style={styles.inlineVocabTag} textStyle={styles.vocabTagText}>
+            {token.text}
+          </MnemonicTag>
         );
       }
 
       if (token.type === "reading") {
         return (
-          <View key={index} style={styles.inlineReadingTag}>
-            <Text style={styles.readingTagText}>{token.text}</Text>
-          </View>
+          <MnemonicTag key={index} style={styles.inlineReadingTag} textStyle={styles.readingTagText}>
+            {token.text}
+          </MnemonicTag>
         );
       }
 
@@ -1030,6 +1032,13 @@ export default function KanjiDetails({
                     </TouchableOpacity>
                   </View>
                 </View>
+                <SubjectMetadataRows
+                  subject={{
+                    id: kanji.id,
+                    object: "kanji",
+                    data: { characters: kanji.characters },
+                  }}
+                />
               </View>
             </View>
 
@@ -2076,9 +2085,9 @@ export default function KanjiDetails({
       <SynonymsModal
         visible={synonymsModalVisible}
         onClose={() => setSynonymsModalVisible(false)}
-        onSave={async (synonyms) => {
+        onSave={async (synonyms, originalSynonyms) => {
           if (onSynonymsChange) {
-            await onSynonymsChange(synonyms);
+            await onSynonymsChange(synonyms, originalSynonyms);
           }
         }}
         currentSynonyms={kanji.userSynonyms || []}
@@ -2391,6 +2400,7 @@ const createStyles = (subjectColors: SubjectColors) =>
     color: "#333",
   },
   mnemonicTextContainer: {
+    ...(Platform.OS === "android" ? { fontSize: 16, lineHeight: 24 } : {}),
     flexDirection: "row",
     flexWrap: "wrap",
   },

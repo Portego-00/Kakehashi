@@ -2661,7 +2661,7 @@ export async function getStudyMaterials(
     subject_ids?: number[];
     updated_after?: string;
   } = {},
-  options?: { skipCache?: boolean }
+  options?: { skipCache?: boolean; allowOfflineFallback?: boolean }
 ): Promise<any> {
   const uniqueSubjectIds = Array.from(
     new Set(
@@ -2847,6 +2847,7 @@ export async function getStudyMaterials(
     });
     return data;
   } catch (error) {
+    if (options?.allowOfflineFallback === false) throw error;
     const offlineMaterials = await getStudyMaterialsFromPermanentCache(
       requestedSubjectIds
     ).catch(() => null);
@@ -2921,6 +2922,19 @@ export async function getSpacedRepetitionSystems(
   return data;
 }
 
+function studyMaterialApiError(status: number, responseText: string): Error {
+  let detail = "";
+  try {
+    const payload = JSON.parse(responseText);
+    if (typeof payload?.error === "string") {
+      detail = payload.error.trim().slice(0, 500);
+    }
+  } catch {
+    // Proxy/HTML responses aren't useful note-validation messages.
+  }
+  return new Error(`API error: ${status}${detail ? `: ${detail}` : ""}`);
+}
+
 // Create a new study material
 export async function createStudyMaterial(
   apiToken: string,
@@ -2951,7 +2965,7 @@ export async function createStudyMaterial(
       `API error ${response.status} for creating study material:`,
       errorText
     );
-    throw new Error(`API error: ${response.status}`);
+    throw studyMaterialApiError(response.status, errorText);
   }
 
   const data = await response.json();
@@ -2997,7 +3011,7 @@ export async function updateStudyMaterial(
       `API error ${response.status} for updating study material:`,
       errorText
     );
-    throw new Error(`API error: ${response.status}`);
+    throw studyMaterialApiError(response.status, errorText);
   }
 
   const data = await response.json();
@@ -3797,15 +3811,7 @@ export async function getReviewCountIfAvailable(
   apiToken: string
 ): Promise<number | null> {
   try {
-    // Use assignments so hidden reviews are excluded (summary has no hidden filter).
-    const response = await getAssignments(apiToken, {
-      immediately_available_for_review: true,
-      hidden: false,
-    });
-    if (typeof response.total_count === "number") {
-      return Math.max(0, response.total_count);
-    }
-    return buildVisibleReviewDataFromAssignments(response.data).currentReviews;
+    return await getLiveReviewCount(apiToken);
   } catch (error) {
     try {
       // The count request has already failed. Read local data directly so a
@@ -3822,6 +3828,26 @@ export async function getReviewCountIfAvailable(
       return null;
     }
   }
+}
+
+/** Fetch a server-visible count without mistaking cached assignments for live state. */
+export async function getLiveReviewCount(
+  apiToken: string,
+  excludedAssignmentIds: ReadonlySet<number> = new Set()
+): Promise<number> {
+  let response = await getAssignments(apiToken, {
+    immediately_available_for_review: true,
+    hidden: false,
+  });
+  if (excludedAssignmentIds.size > 0 && response.pages?.next_url) {
+    response = await fetchAllPages(response, apiToken, undefined, { maxPageAttempts: 1 });
+  }
+  const count = typeof response.total_count === "number"
+    ? Math.max(0, response.total_count)
+    : buildVisibleReviewDataFromAssignments(response.data).currentReviews;
+  const excludedCount = response.data.reduce((total, assignment) =>
+    total + (excludedAssignmentIds.has(assignment.id) ? 1 : 0), 0);
+  return Math.max(0, count - excludedCount);
 }
 
 export async function getCachedReviewCountIfAvailable(): Promise<
@@ -3843,10 +3869,27 @@ export async function getReviewCount(apiToken: string): Promise<number> {
   return (await getReviewCountIfAvailable(apiToken)) ?? 0;
 }
 
+export type ReviewSubjectCounts = {
+  radical: number;
+  kanji: number;
+  vocabulary: number;
+};
+
+export type ReviewForecastDetail = ReviewSubjectCounts & {
+  date: string;
+  count: number;
+  apprentice: number;
+  guru: number;
+  master: number;
+  enlightened: number;
+};
+
 export type VisibleReviewData = {
   currentReviews: number;
   upcomingReviews: number[];
   upcomingReviewTimes: { [key: string]: number };
+  currentSubjectCounts?: ReviewSubjectCounts;
+  forecastBreakdown?: ReviewForecastDetail[];
 };
 
 function normalizeVisibleReviewWindow(hoursAhead: number | undefined): number {
@@ -3926,7 +3969,7 @@ export function isAssignmentInReviewQueueState(
 
   if (
     typeof assignmentData.srs_stage === "number" &&
-    assignmentData.srs_stage >= 9
+    (assignmentData.srs_stage < 1 || assignmentData.srs_stage >= 9)
   ) {
     return false;
   }
@@ -3950,6 +3993,12 @@ export function buildVisibleReviewDataFromAssignments(
   const upcomingReviews = new Array(24).fill(0);
   const upcomingReviewTimes: { [key: string]: number } = {};
   let currentReviews = 0;
+  const currentSubjectCounts: ReviewSubjectCounts = {
+    radical: 0, kanji: 0, vocabulary: 0,
+  };
+  const forecastByTime = new Map<string, ReviewForecastDetail>();
+  let currentSubjectsComplete = true;
+  let forecastComplete = true;
 
   for (const assignment of assignments) {
     const assignmentData = assignment?.data;
@@ -3962,18 +4011,43 @@ export function buildVisibleReviewDataFromAssignments(
       continue;
     }
 
+    const subjectType = assignmentData.subject_type === "kana_vocabulary"
+      ? "vocabulary"
+      : assignmentData.subject_type;
+    const subjectKey = subjectType === "radical" || subjectType === "kanji" || subjectType === "vocabulary"
+      ? subjectType
+      : null;
+    const stage = assignmentData.srs_stage;
+    const srsKey = typeof stage !== "number" || stage < 1 || stage > 8
+      ? null
+      : stage <= 4 ? "apprentice" : stage <= 6 ? "guru" : stage === 7 ? "master" : "enlightened";
+
     if (availableAtMs <= nowMs) {
       currentReviews += 1;
+      if (subjectKey) currentSubjectCounts[subjectKey] += 1;
+      else currentSubjectsComplete = false;
       continue;
     }
 
-    if (availableAtMs > horizonMs) {
+    if (availableAtMs >= horizonMs) {
       continue;
     }
 
     const availableAtDate = new Date(availableAtMs);
     const timeKey = availableAtDate.toISOString();
     upcomingReviewTimes[timeKey] = (upcomingReviewTimes[timeKey] || 0) + 1;
+    const detail = forecastByTime.get(timeKey) ?? {
+      date: timeKey, count: 0, radical: 0, kanji: 0, vocabulary: 0,
+      apprentice: 0, guru: 0, master: 0, enlightened: 0,
+    };
+    detail.count += 1;
+    if (subjectKey && srsKey) {
+      detail[subjectKey] += 1;
+      detail[srsKey] += 1;
+    } else {
+      forecastComplete = false;
+    }
+    forecastByTime.set(timeKey, detail);
 
     const hourIndex = Math.floor((availableAtMs - nowMs) / (60 * 60 * 1000));
     if (hourIndex >= 0 && hourIndex < upcomingReviews.length) {
@@ -3985,6 +4059,10 @@ export function buildVisibleReviewDataFromAssignments(
     currentReviews,
     upcomingReviews,
     upcomingReviewTimes,
+    ...(currentSubjectsComplete ? { currentSubjectCounts } : {}),
+    ...(forecastComplete ? {
+      forecastBreakdown: [...forecastByTime.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    } : {}),
   };
 }
 
@@ -4036,9 +4114,20 @@ export async function getVisibleReviewData(
     }
   );
 
+  // The current endpoint can contain only the first page. A complete count
+  // must never be paired with that partial page's subject breakdown.
+  const currentData = !currentResponse.pages?.next_url &&
+    currentResponse.data.length === currentReviews
+    ? buildVisibleReviewDataFromAssignments(currentResponse.data, { now })
+    : null;
+
   return {
     currentReviews,
     upcomingReviews: upcomingData.upcomingReviews,
     upcomingReviewTimes: upcomingData.upcomingReviewTimes,
+    forecastBreakdown: upcomingData.forecastBreakdown,
+    ...(currentData?.currentReviews === currentReviews && currentData.currentSubjectCounts
+      ? { currentSubjectCounts: currentData.currentSubjectCounts }
+      : {}),
   };
 }

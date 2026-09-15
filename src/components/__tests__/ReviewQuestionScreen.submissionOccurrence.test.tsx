@@ -1,10 +1,12 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import { Audio } from "../../utils/expoAvCompat";
+import { getStudyMaterials, updateStudyMaterial } from "../../utils/api";
 import { buildReviewQuestionQueue } from "../../utils/reviewOrdering";
 
 let mockFlushedNoteText: string | undefined;
@@ -22,6 +24,7 @@ const mockGetSubjectById = jest.fn<Promise<unknown>, [number]>(
   async () => null,
 );
 const mockRenderedDetailSubjects: number[] = [];
+let mockReviewSynonymsChange: ((edited: string[], original: string[]) => Promise<void>) | undefined;
 const mockGetAllSubjects = jest.fn(async (): Promise<unknown[]> => []);
 const mockGetAssignments = jest.fn<Promise<unknown[] | null>, [{ ignoreTTL: boolean }]>(async () => []);
 const mockSpeechListeners = new Map<string, (event: unknown) => void>();
@@ -34,11 +37,17 @@ jest.mock("../../utils/cache", () => ({
   clearStudyMaterialsCache: jest.fn(async () => {}),
 }));
 
+jest.mock("../../utils/api", () => ({
+  getStudyMaterials: jest.fn(async () => ({ data: [] })),
+  createStudyMaterial: jest.fn(),
+  updateStudyMaterial: jest.fn(),
+}));
+
 jest.mock("../../utils/permanentStorage", () => ({
   getAssignmentsFromPermanentStorage: (options: { ignoreTTL: boolean }) => mockGetAssignments(options),
 }));
 
-const mockAuthState: { apiToken: null; userData: { username: string } | null } = {
+const mockAuthState: { apiToken: string | null; userData: { username: string } | null } = {
   apiToken: null,
   userData: { username: "Portego" },
 };
@@ -54,6 +63,7 @@ const mockSettings = {
   ankiShowReplayAudioButton: false,
   ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
   ankiShowWaniKaniGrammarTags: false,
+  ankiShowKanjiComposition: false,
   ankiShowPitchAccentNumbers: false,
   ankiShowPitchAccentGraph: false,
   autoplayVocabularyAudio: false,
@@ -72,6 +82,7 @@ const mockSettings = {
   reviewCorrectKeyboardShortcuts: undefined,
   showAnswerStopSubjectDetails: false,
   showReviewItemLevelAndSrsStage: false,
+  showJLPTLevel: false,
   reviewAnimatePreviousQuestion: false,
   reviewSearchButtonEnabled: false,
   reviewCharacterFontScale: 1,
@@ -289,7 +300,8 @@ jest.mock("../VocabularyDetails", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   return {
     __esModule: true,
-    default: (props: { vocabulary: { id: number } }) => {
+    default: (props: { vocabulary: { id: number }; onSynonymsChange: typeof mockReviewSynonymsChange }) => {
+      mockReviewSynonymsChange = props.onSynonymsChange;
       mockRenderedDetailSubjects.push(props.vocabulary.id);
       return React.createElement(
         Text,
@@ -428,6 +440,7 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
     mockAlert.mockClear();
+    jest.mocked(router.push).mockClear();
     mockEditorFlush.mockClear();
     mockFlushedNoteText = undefined;
     jest.mocked(Audio.Sound.createAsync).mockReset();
@@ -438,6 +451,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockVoicePermissionsGranted = false;
     jest.mocked(ExpoSpeechRecognitionModule.start).mockClear();
     mockAuthState.userData = { username: "Portego" };
+    mockAuthState.apiToken = null;
+    mockReviewSynonymsChange = undefined;
+    jest.mocked(getStudyMaterials).mockReset().mockResolvedValue({ data: [] });
+    jest.mocked(updateStudyMaterial).mockReset();
     mockGetSubjectById.mockReset();
     mockGetSubjectById.mockResolvedValue(null);
     mockRenderedDetailSubjects.length = 0;
@@ -454,6 +471,84 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnWrong = false;
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
+  });
+
+  it.each([false, true])("stacks the JLPT chip above level and SRS (Anki: %s)", (anki) => {
+    mockSettings.ankiCardMode = anki;
+    mockSettings.showJLPTLevel = true;
+    mockSettings.showReviewItemLevelAndSrsStage = true;
+    const item = {
+      id: 2,
+      srsStage: 5,
+      subject: {
+        id: 2,
+        object: "vocabulary" as const,
+        data: {
+          characters: "香水",
+          level: 37,
+          meanings: [{ meaning: "Perfume", primary: true, accepted_answer: true }],
+          readings: [{ reading: "こうすい", primary: true, accepted_answer: true }],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.getByLabelText("JLPT level N2")).toBeTruthy();
+    expect(screen.getAllByText(/^(JLPT N2|Level 37|Guru I)$/).map(
+      ({ props }) => React.Children.toArray(props.children).join(""),
+    )).toEqual(["JLPT N2", "Level 37", "Guru I"]);
+
+    mockSettings.showJLPTLevel = false;
+    screen.rerender(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByLabelText("JLPT level N2")).toBeNull();
+    expect(screen.getByText("Level 37")).toBeTruthy();
+    expect(screen.getByText("Guru I")).toBeTruthy();
+  });
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])("shows JLPT with level/SRS disabled (Anki: %s, lesson quiz: %s)", (anki, isLessonFlow) => {
+    mockSettings.ankiCardMode = anki;
+    mockSettings.showJLPTLevel = true;
+    const item = {
+      id: 2,
+      subject: {
+        id: 2,
+        object: "kanji" as const,
+        data: {
+          characters: "語",
+          meanings: [{ meaning: "Language", primary: true, accepted_answer: true }],
+          readings: [{ reading: "ご", primary: true, accepted_answer: true, type: "onyomi" }],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} isLessonFlow={isLessonFlow} />);
+    expect(screen.getByLabelText("JLPT level N5")).toBeTruthy();
+    expect(screen.queryByText(/^Level /)).toBeNull();
+  });
+
+  it("updates the JLPT chip as subjects change, including kana vocabulary and missing levels", () => {
+    mockSettings.showJLPTLevel = true;
+    const item = {
+      id: 2,
+      subject: {
+        id: 2,
+        object: "kana_vocabulary" as const,
+        data: {
+          characters: "テレビ",
+          meanings: [{ meaning: "Television", primary: true, accepted_answer: true }],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} contextSentencesHint={[{ ja: "テレビを見る。" }]} contextHintDisplayMode="visible" />);
+    expect(screen.getByLabelText("JLPT level N5")).toBeTruthy();
+    const unknownItem = { ...item, id: 3, subject: { ...item.subject, id: 3, data: { ...item.subject.data, characters: "未掲載の単語" } } };
+    screen.rerender(<ReviewQuestionScreen item={unknownItem} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByText(/^JLPT N/)).toBeNull();
+    screen.rerender(<ReviewQuestionScreen item={radicalItem} questionType="meaning" onAnswer={jest.fn()} />);
+    expect(screen.queryByText(/^JLPT N/)).toBeNull();
   });
 
   it("closes an unchanged review note without asking to discard", async () => {
@@ -1339,6 +1434,260 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getByText("Tap anywhere to see the answer")).toBeTruthy();
   });
 
+  describe("Anki kanji composition", () => {
+    const vocabularyItem = {
+      id: 401,
+      subject: {
+        id: 401,
+        object: "vocabulary" as const,
+        data: {
+          characters: "先生",
+          meanings: [{ meaning: "Teacher", primary: true, accepted_answer: true }],
+          readings: [{ reading: "せんせい", primary: true, accepted_answer: true }],
+          component_subject_ids: [502, 501],
+        },
+      },
+    };
+    const previousKanji = {
+      id: 501,
+      object: "kanji" as const,
+      data: {
+        characters: "先",
+        meanings: [
+          { meaning: "Ahead", primary: false, accepted_answer: true },
+          { meaning: "Previous", primary: true, accepted_answer: true },
+        ],
+      },
+    };
+    const lifeKanji = {
+      id: 502,
+      object: "kanji" as const,
+      data: {
+        characters: "生",
+        meanings: [{ meaning: "Life", primary: true, accepted_answer: true }],
+      },
+    };
+
+    beforeEach(() => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.ankiShowKanjiComposition = true;
+      mockGetSubjectById.mockImplementation(async (id) => {
+        if (id === previousKanji.id) return previousKanji;
+        if (id === lifeKanji.id) return lifeKanji;
+        return null;
+      });
+    });
+
+    it.each([
+      { questionType: "meaning", grouped: false },
+      { questionType: "reading", grouped: false },
+      { questionType: "meaning", grouped: true },
+    ] as const)(
+      "loads composition only after revealing $questionType (grouped: $grouped), in vocabulary order with primary meanings",
+      async ({ questionType, grouped }) => {
+        mockSettings.ankiGroupQuestions = grouped;
+        const screen = render(<ReviewQuestionScreen item={vocabularyItem} questionType={questionType} onAnswer={jest.fn()} />);
+        await act(async () => {});
+        expect(mockGetSubjectById).not.toHaveBeenCalled();
+        expect(screen.queryByText("Kanji Composition")).toBeNull();
+        expect(screen.queryByText("Previous")).toBeNull();
+        expect(screen.queryByLabelText("View kanji 先: Previous")).toBeNull();
+
+        fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+
+        expect(await screen.findByText("Kanji Composition")).toBeTruthy();
+        expect(screen.getAllByText(/^(先|Previous|生|Life)$/).map(
+          ({ props }) => React.Children.toArray(props.children).join(""),
+        )).toEqual(["先", "Previous", "生", "Life"]);
+        expect(screen.queryByText("Ahead")).toBeNull();
+        expect(screen.getByRole("button", { name: "View kanji 先: Previous" })).toBeTruthy();
+        expect(mockGetSubjectById).not.toHaveBeenCalledWith(vocabularyItem.subject.id);
+      },
+    );
+
+    it.each([false, true])(
+      "opens the selected component's details without grading the card (buttonless: %s)",
+      async (buttonless) => {
+        mockSettings.ankiButtonlessMode = buttonless;
+        const onAnswer = jest.fn();
+        const screen = render(<ReviewQuestionScreen item={vocabularyItem} questionType="meaning" onAnswer={onAnswer} />);
+        fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+        const card = await screen.findByRole("button", { name: "View kanji 先: Previous" });
+        if (buttonless) {
+          const pane = screen.getByLabelText("Buttonless anki controls");
+          expect(pane.findAll((node) => node === card)).toEqual([card]);
+          expect(pane.props.onStartShouldSetResponder()).toBe(true);
+          expect(pane.props.onMoveShouldSetResponder()).toBe(false);
+        }
+
+        fireEvent.press(card, { stopPropagation: jest.fn() });
+
+        expect(router.push).toHaveBeenCalledTimes(1);
+        expect(router.push).toHaveBeenCalledWith({
+          pathname: "/subject/[id]",
+          params: { id: "501", returnToReview: "true", initialTab: "meaning" },
+        });
+        expect(onAnswer).not.toHaveBeenCalled();
+        expect(screen.getByText("Kanji Composition")).toBeTruthy();
+        expect(screen.queryByText("Tap anywhere to see the answer")).toBeNull();
+        if (buttonless) {
+          expect(screen.getByLabelText("Buttonless anki controls").props.onStartShouldSetResponder()).toBe(false);
+        }
+      },
+    );
+
+    it.each([
+      { pageX: 80, locationX: 390, correct: false },
+      { pageX: 320, locationX: 5, correct: true },
+    ])(
+      "still grades background taps by their position in the pane (correct: $correct)",
+      async ({ pageX, locationX, correct }) => {
+        mockSettings.ankiButtonlessMode = true;
+        const onAnswer = jest.fn();
+        const screen = render(<ReviewQuestionScreen item={vocabularyItem} questionType="meaning" onAnswer={onAnswer} />);
+        fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+        await screen.findByRole("button", { name: "View kanji 先: Previous" });
+        const pane = screen.getByLabelText("Buttonless anki controls");
+        fireEvent(pane, "layout", { nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } } });
+        const gesture = { nativeEvent: { pageX, pageY: 500, locationX, locationY: 10 } };
+
+        fireEvent(pane, "responderGrant", gesture);
+        fireEvent(pane, "responderRelease", gesture);
+
+        await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+        expect(onAnswer).toHaveBeenCalledWith(vocabularyItem, "meaning", correct, false, false);
+        expect(router.push).not.toHaveBeenCalled();
+        expect(screen.queryByText("Kanji Composition")).toBeNull();
+      },
+    );
+
+    it("keeps the default reveal free of composition lookups when the setting is off", async () => {
+      mockSettings.ankiShowKanjiComposition = false;
+      const screen = render(<ReviewQuestionScreen item={vocabularyItem} questionType="meaning" onAnswer={jest.fn()} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      await act(async () => {});
+      expect(screen.getByText("Teacher")).toBeTruthy();
+      expect(screen.queryByText("Kanji Composition")).toBeNull();
+      expect(mockGetSubjectById).not.toHaveBeenCalled();
+    });
+
+    it("does not apply composition to typed questions outside the Anki scope", async () => {
+      mockSettings.ankiCardModeScope = "reading";
+      mockSettings.disableAutoProgressOnCorrect = true;
+      const screen = render(<ReviewQuestionScreen item={vocabularyItem} questionType="meaning" onAnswer={jest.fn()} />);
+      fireEvent.changeText(screen.getByTestId("answer-input"), "teacher");
+      fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+      await screen.findByText("Correct");
+      expect(screen.queryByText("Kanji Composition")).toBeNull();
+      expect(mockGetSubjectById).not.toHaveBeenCalled();
+    });
+
+    it("hydrates missing component ids from the cached vocabulary after reveal", async () => {
+      const item = {
+        ...vocabularyItem,
+        subject: {
+          ...vocabularyItem.subject,
+          data: { ...vocabularyItem.subject.data, component_subject_ids: undefined },
+        },
+      };
+      mockGetSubjectById.mockImplementation(async (id) => {
+        if (id === vocabularyItem.subject.id) return vocabularyItem.subject;
+        if (id === previousKanji.id) return previousKanji;
+        if (id === lifeKanji.id) return lifeKanji;
+        return null;
+      });
+      const screen = render(<ReviewQuestionScreen item={item} questionType="reading" onAnswer={jest.fn()} />);
+      await act(async () => {});
+      expect(mockGetSubjectById).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      expect(await screen.findByText("Previous")).toBeTruthy();
+      expect(screen.getByText("Life")).toBeTruthy();
+      expect(mockGetSubjectById).toHaveBeenNthCalledWith(1, vocabularyItem.subject.id);
+    });
+
+    it("skips unavailable components and non-kanji cached subjects", async () => {
+      const item = {
+        ...vocabularyItem,
+        subject: {
+          ...vocabularyItem.subject,
+          data: { ...vocabularyItem.subject.data, component_subject_ids: [999, 502, 1] },
+        },
+      };
+      mockGetSubjectById.mockImplementation(async (id) => {
+        if (id === lifeKanji.id) return lifeKanji;
+        if (id === radicalItem.subject.id) return radicalItem.subject;
+        return null;
+      });
+      const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      expect(await screen.findByText("Life")).toBeTruthy();
+      expect(screen.getByText("Kanji Composition")).toBeTruthy();
+      expect(screen.queryByText("ground")).toBeNull();
+      expect(screen.queryByText("Previous")).toBeNull();
+    });
+
+    it("omits the heading when none of the component subjects are cached", async () => {
+      mockGetSubjectById.mockResolvedValue(null);
+      const screen = render(<ReviewQuestionScreen item={vocabularyItem} questionType="meaning" onAnswer={jest.fn()} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      await act(async () => {});
+      expect(mockGetSubjectById).toHaveBeenCalledWith(previousKanji.id);
+      expect(mockGetSubjectById).toHaveBeenCalledWith(lifeKanji.id);
+      expect(screen.queryByText("Kanji Composition")).toBeNull();
+    });
+
+    it.each(["kana_vocabulary", "kanji", "radical"] as const)(
+      "does not load composition for a revealed %s",
+      async (object) => {
+        const item = { ...vocabularyItem, subject: { ...vocabularyItem.subject, object } };
+        const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
+        fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+        await act(async () => {});
+        expect(screen.queryByText("Kanji Composition")).toBeNull();
+        expect(mockGetSubjectById).not.toHaveBeenCalled();
+      },
+    );
+
+    it("ignores an old component lookup after advancing and revealing the next card", async () => {
+      let finishOldLookup: (value: unknown) => void = () => {};
+      mockGetSubjectById.mockImplementation((id) => id === previousKanji.id
+        ? new Promise((resolve) => { finishOldLookup = resolve; })
+        : Promise.resolve(lifeKanji));
+      function QuestionHarness() {
+        const [index, setIndex] = React.useState(0);
+        const item = {
+          ...vocabularyItem,
+          id: vocabularyItem.id + index,
+          subject: {
+            ...vocabularyItem.subject,
+            id: vocabularyItem.subject.id + index,
+            data: {
+              ...vocabularyItem.subject.data,
+              component_subject_ids: [index === 0 ? previousKanji.id : lifeKanji.id],
+            },
+          },
+        };
+        return <ReviewQuestionScreen item={item} questionType="meaning" currentItem={index} onAnswer={() => setIndex(index + 1)} />;
+      }
+      const screen = render(<QuestionHarness />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      await waitFor(() => expect(mockGetSubjectById).toHaveBeenCalledWith(previousKanji.id));
+      fireEvent.press(screen.getByText("Correct"));
+      expect(screen.queryByText("Kanji Composition")).toBeNull();
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      expect(await screen.findByText("Life")).toBeTruthy();
+
+      await act(async () => { finishOldLookup(previousKanji); });
+
+      expect(screen.getByText("Life")).toBeTruthy();
+      expect(screen.queryByText("Previous")).toBeNull();
+      expect(mockGetSubjectById).toHaveBeenCalledTimes(2);
+      fireEvent.press(screen.getByText("Correct"));
+      expect(screen.queryByText("Kanji Composition")).toBeNull();
+      expect(screen.queryByText("Life")).toBeNull();
+    });
+  });
+
   it.each(["kanji", "vocabulary", "kana_vocabulary"] as const)("fills %s choices from learned assignments, including burned items", async (object) => {
     mockSettings.reviewMultipleChoiceEnabled = true;
     const item = { ...audioItem, subject: { ...audioItem.subject, object } };
@@ -1373,6 +1722,38 @@ describe("ReviewQuestionScreen question occurrences", () => {
     const screen = renderQuestion();
     expect(await screen.findByTestId("answer-input")).toBeTruthy();
     expect(screen.getByText("Not enough distinct choices for this question. Type your answer.")).toBeTruthy();
+  });
+
+  it.each([false, true])("keeps choices across unrelated meanings and reopening with an enabled preference (audio prompt=%s)", async (audioPrompt) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const subjects = ["Cat", "Dog", "Bird", "Horse", "Tatami", "Festival", "Umbrella"].map((meaning, index) => ({
+      ...audioItem.subject,
+      id: 30 + index,
+      data: { ...audioItem.subject.data, characters: String(index), meanings: [{ meaning, primary: true, accepted_answer: true }] },
+    }));
+    mockGetAllSubjects.mockResolvedValue(subjects);
+    mockGetAssignments.mockResolvedValue(subjects.map(({ id }) => ({ data: { subject_id: id, srs_stage: 5 } })));
+    const onAnswer = jest.fn();
+    const question = (index: number) => <ReviewQuestionScreen
+      item={{ id: subjects[index].id, subject: subjects[index] }}
+      questionType="meaning"
+      currentItem={index}
+      audioPrompt={audioPrompt ? <Text>Play recording</Text> : undefined}
+      onAnswer={onAnswer}
+    />;
+    const screen = render(question(0));
+    for (let index = 0; index < subjects.length; index++) {
+      screen.rerender(question(index));
+      const correctChoice = await screen.findByRole("button", { name: new RegExp(`\\d\\. ${subjects[index].data.meanings[0].meaning}$`) });
+      expect(screen.queryByText(/Not enough distinct choices/)).toBeNull();
+      expect(screen.getAllByRole("button").filter(button => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4);
+      fireEvent.press(correctChoice);
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(index + 1));
+    }
+    screen.unmount();
+    const reopened = render(question(subjects.length - 1));
+    expect(await reopened.findByRole("button", { name: /\d\. Umbrella$/ })).toBeTruthy();
+    expect(reopened.queryByText(/Not enough distinct choices/)).toBeNull();
   });
 
   it("submits a radical name using four choices instead of requiring typing", async () => {
@@ -1413,6 +1794,74 @@ describe("ReviewQuestionScreen question occurrences", () => {
       false,
       false,
     );
+  });
+
+  it.each(["detail editor", "quick add"])("preserves unseen WaniKani synonyms from the %s (#83)", async (action) => {
+    mockAuthState.apiToken = "fixture-token";
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = action === "detail editor";
+    mockSettings.showAddSynonymButton = true;
+    const subjectId = audioItem.subject.id;
+    const remoteMaterial = { id: 77, data: { subject_id: subjectId, meaning_synonyms: ["existing on WaniKani"] } };
+    jest.mocked(getStudyMaterials).mockResolvedValue({ data: [remoteMaterial] });
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => ({
+      ...remoteMaterial, data: { ...remoteMaterial.data, ...updates },
+    }));
+    const onSynonymAdded = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={jest.fn()} onSynonymAdded={onSynonymAdded} />);
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "dog");
+    fireEvent(input, "submitEditing");
+    if (action === "detail editor") {
+      await screen.findByTestId("paused-vocabulary-details");
+      await act(async () => { await mockReviewSynonymsChange?.(["dog"], []); });
+    } else {
+      await screen.findByText("Synonym");
+      await act(async () => { fireEvent.press(screen.getByText("Synonym")); });
+    }
+    await waitFor(() => expect(updateStudyMaterial).toHaveBeenCalledWith("fixture-token", 77, {
+      meaning_synonyms: ["existing on WaniKani", "dog"],
+    }));
+    expect(onSynonymAdded).toHaveBeenCalledWith(subjectId, ["existing on WaniKani", "dog"]);
+  });
+
+  it.each(["detail editor", "quick add"])("does not apply a delayed %s synonym save to a different review subject", async (action) => {
+    mockAuthState.apiToken = "fixture-token";
+    mockSettings.acceptUserSynonymsAsAnswers = true;
+    mockSettings.disableAutoProgressOnWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = action === "detail editor";
+    mockSettings.showAddSynonymButton = true;
+    const material = { id: 77, data: { subject_id: audioItem.subject.id, meaning_synonyms: ["dog"] } };
+    jest.mocked(getStudyMaterials).mockResolvedValue({ data: [{ ...material, data: { ...material.data, meaning_synonyms: [] } }] });
+    let finishSave!: () => void;
+    jest.mocked(updateStudyMaterial).mockImplementation(() => new Promise(resolve => {
+      finishSave = () => resolve(material);
+    }));
+    const onAnswer = jest.fn();
+    const onSynonymAdded = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} onSynonymAdded={onSynonymAdded} />);
+    fireEvent.changeText(screen.getByTestId("answer-input"), "dog");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    let save: Promise<void> | undefined;
+    if (action === "detail editor") {
+      await screen.findByTestId("paused-vocabulary-details");
+      await act(async () => { save = mockReviewSynonymsChange!(["dog"], []); });
+    } else {
+      await screen.findByText("Synonym");
+      await act(async () => { fireEvent.press(screen.getByText("Synonym")); });
+    }
+    const nextItem = { id: 900, subject: { ...audioItem.subject, id: 900, data: {
+      ...audioItem.subject.data, characters: "鳥", meanings: [{ meaning: "Bird", primary: true, accepted_answer: true }],
+    } } };
+    mockSettings.disableAutoProgressOnWrong = false;
+    screen.rerender(<ReviewQuestionScreen item={nextItem} questionType="meaning" onAnswer={onAnswer} onSynonymAdded={onSynonymAdded} />);
+    await act(async () => { finishSave(); await save; });
+    expect(onSynonymAdded).toHaveBeenCalledWith(audioItem.subject.id, ["dog"]);
+    expect(onAnswer).not.toHaveBeenCalled();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 500)); });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "dog");
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing");
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(nextItem, "meaning", false, true, false));
   });
 
   it("opens custom vocabulary details without offering WaniKani synonym writes", async () => {

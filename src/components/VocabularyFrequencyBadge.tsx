@@ -66,8 +66,8 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   detailsText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "500",
     fontVariant: ["tabular-nums"],
   },
 });

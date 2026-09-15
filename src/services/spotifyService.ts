@@ -9,6 +9,7 @@ import {
   type Track,
 } from "@spotify/web-api-ts-sdk";
 import { useSettingsStore } from "../utils/store";
+import { SPOTIFY_REDIRECT_URI } from "../utils/spotifyAuthRedirect";
 
 const SPOTIFY_API_BASE_URL =
   process.env.EXPO_PUBLIC_SPOTIFY_API_BASE_URL?.trim() ||
@@ -23,10 +24,6 @@ const SPOTIFY_CLIENT_ID =
   process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID?.trim() ?? "";
 const SPOTIFY_CLIENT_KEY =
   process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_KEY?.trim() ?? "";
-const SPOTIFY_NATIVE_REDIRECT_URI = "kakehashi://spotify-auth";
-const SPOTIFY_REDIRECT_URI =
-  process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI?.trim() ||
-  SPOTIFY_NATIVE_REDIRECT_URI;
 
 const SPOTIFY_AUTH_TOKEN_KEY = "kakehashi.spotify.authToken.v1";
 const TOKEN_REFRESH_MARGIN_SECONDS = 90;

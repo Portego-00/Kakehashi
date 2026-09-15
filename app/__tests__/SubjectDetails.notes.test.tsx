@@ -49,6 +49,7 @@ jest.mock("../../src/hooks/useSubjectLists", () => ({
 
 jest.mock("../../src/utils/cache", () => ({
   getSubjectById: jest.fn(async () => mockSubject),
+  getStudyMaterialsFromPermanentCache: jest.fn(async () => null),
   clearStudyMaterialsCache: jest.fn(async () => {}),
 }));
 

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct WatchTypography: ViewModifier {
   enum Style {
-    case title, body, caption, action, count, subject, compactSubject
+    case title, body, caption, action, count, cardCount, subject, compactSubject
     var size: CGFloat {
       switch self {
       case .title: return 17
@@ -10,13 +10,14 @@ struct WatchTypography: ViewModifier {
       case .caption: return 12
       case .action: return 14
       case .count: return 32
+      case .cardCount: return 24
       case .subject: return 30
       case .compactSubject: return 18
       }
     }
     var weight: Font.Weight {
       switch self {
-      case .title, .action, .count: return .semibold
+      case .title, .action, .count, .cardCount: return .semibold
       default: return .regular
       }
     }

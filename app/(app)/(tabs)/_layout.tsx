@@ -48,14 +48,13 @@ function TabsContent() {
     const filteredOrder = customTabOrder.filter((tab: TabId) => {
       if (tab === "songs" && !showSongsTab) return false;
       if (tab === "mangas" && !canAccessMangaTab) return false;
-      if (tab === "notebooks" && !isPortegoUsername(userData?.username)) return false;
       if (tab === "bunpro") return false;
       return true;
     });
 
     const cappedOrder = filteredOrder.slice(0, maxTabs);
     return new Set(cappedOrder);
-  }, [canAccessMangaTab, customTabOrder, maxTabs, showSongsTab, userData?.username]);
+  }, [canAccessMangaTab, customTabOrder, maxTabs, showSongsTab]);
 
   const isTabVisible = (tabId: TabId) => visibleTabs.has(tabId);
 

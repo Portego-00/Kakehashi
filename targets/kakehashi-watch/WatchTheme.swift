@@ -16,6 +16,12 @@ enum WatchTheme {
   static let correct = Color(hex: 0x7BDD89)
   static let missedSurface = Color(hex: 0x3D1F1F)
   static let correctSurface = Color(hex: 0x1F3D1F)
+  static let reviewCardStart = Color(hex: 0x2B6F98)
+  static let reviewCardEnd = Color(hex: 0x1F5575)
+  static let apprentice = Color(hex: 0xFF33AA)
+  static let guru = Color(hex: 0xC744E8)
+  static let master = Color(hex: 0x4C73FF)
+  static let enlightened = Color(hex: 0x2EBEFF)
   static let radical = Color(hex: 0x3C9BFF)
   static let kanji = Color(hex: 0xFA1F62)
   static let vocabulary = Color(hex: 0x9C38D9)
@@ -31,6 +37,10 @@ enum WatchTheme {
   static let reviewContentInset: CGFloat = 10
   static let cornerRadius: CGFloat = 10
   static let minimumTapHeight: CGFloat = 44
+
+  static func forecastColors(_ mode: WatchForecastMode) -> [Color] {
+    mode == .subject ? [radical, kanji, vocabulary] : [apprentice, guru, master, enlightened]
+  }
 
   static func subjectColor(_ type: String) -> Color {
     switch type {

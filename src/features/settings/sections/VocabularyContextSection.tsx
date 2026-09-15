@@ -23,6 +23,7 @@ export function VocabularyContextSection() {
     setShowSimilarVocabulary,
     setShowSingleKanjiVocabularySimilarKanji,
     setShowVocabularyFrequency,
+    setShowJLPTLevel,
     showContextSentenceSpeedControl,
     showMediaContextSentences,
     showPatternsOfUse,
@@ -30,6 +31,7 @@ export function VocabularyContextSection() {
     showSimilarVocabulary,
     showSingleKanjiVocabularySimilarKanji,
     showVocabularyFrequency,
+    showJLPTLevel,
     theme,
     updateSectionOffset,
   } = useSettingsControllerContext();
@@ -98,7 +100,7 @@ export function VocabularyContextSection() {
           />
           <View style={styles.settingTextContainer}>
             <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Hide translations
+              Hide translations until tapped
             </Text>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
@@ -108,40 +110,12 @@ export function VocabularyContextSection() {
             </Text>
           </View>
           <Switch
+            accessibilityLabel="Hide context sentence translations until tapped"
             value={hideContextSentenceTranslations}
             onValueChange={setHideContextSentenceTranslations}
             trackColor={{ false: "#767577", true: theme.primary }}
             thumbColor="#f4f3f4"
-          />
-        </View>
-
-        <View
-          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
-        >
-          <Ionicons
-            name="remove-circle-outline"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
-              Hide translations completely
-            </Text>
-            <Text
-              style={[styles.settingSubtext, { color: theme.textSecondary }]}
-            >
-              Show no translation text before you tap to reveal it, instead of
-              displaying a blurred preview
-            </Text>
-          </View>
-          <Switch
-            accessibilityLabel="Hide context sentence translations completely"
-            value={hideContextSentenceTranslationsCompletely}
-            onValueChange={setHideContextSentenceTranslationsCompletely}
-            trackColor={{ false: "#767577", true: theme.primary }}
-            thumbColor="#f4f3f4"
-            disabled={!hideContextSentenceTranslations}
+            disabled={hideContextSentenceTranslationsCompletely}
           />
         </View>
 
@@ -173,6 +147,63 @@ export function VocabularyContextSection() {
         </View>
 
         <AdvancedSetting>
+        <View
+          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+        >
+          <Ionicons
+            name="remove-circle-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              Remove translations
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show only Japanese in context sentences, media examples, and
+              patterns of use in vocabulary details and lessons. No translation
+              text or tap-to-reveal button.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Remove context sentence translations"
+            value={hideContextSentenceTranslationsCompletely}
+            onValueChange={setHideContextSentenceTranslationsCompletely}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
+        <View
+          style={[styles.settingItem, { borderBottomColor: "transparent" }]}
+        >
+          <Ionicons
+            name="school-outline"
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>
+              JLPT Level
+            </Text>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Show estimated JLPT levels for kanji and vocabulary in details,
+              reviews, and lessons, using offline study lists
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Show JLPT levels"
+            value={showJLPTLevel}
+            onValueChange={setShowJLPTLevel}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </View>
         <View
           style={[styles.settingItem, { borderBottomColor: "transparent" }]}
         >

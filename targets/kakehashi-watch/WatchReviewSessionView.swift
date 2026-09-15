@@ -5,6 +5,10 @@ struct WatchReviewSessionView: View {
   let onReveal: () -> Void
   let onSubmit: (Bool) -> Void
   let onClose: () -> Void
+  var pendingCount = 0
+  var syncError: String? = nil
+  var onRetrySync: () -> Void = {}
+  var onRetryLoading: () -> Void = {}
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   private var reviewBackground: Color {
@@ -65,10 +69,11 @@ struct WatchReviewSessionView: View {
       if state.isLoading {
         ProgressView().frame(maxWidth: .infinity).padding(.top, WatchTheme.sectionGap)
         WatchStatusView(title: "Loading reviews",
-          message: "Getting your next cards from iPhone.")
+          message: state.isLoadingMore ? "Loading the next reviews from iPhone." : "Getting your reviews from iPhone.")
       } else if state.isComplete {
         WatchStatusView(title: "Session complete",
-          message: "\(state.completedCount) reviews submitted.")
+          message: "\(state.completedCount) reviews completed.")
+        WatchSubmissionStatus(pendingCount: pendingCount, error: syncError, onRetry: onRetrySync)
       } else if let card = state.currentCard {
         WatchReviewPromptView(card: card,
           progress: "\(state.completedCount + 1) of \(max(state.totalCount, 1))",
@@ -76,14 +81,20 @@ struct WatchReviewSessionView: View {
         if let error = state.errorMessage {
           Text(error).watchFont(.body).foregroundStyle(WatchTheme.error)
             .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel("Submission error. \(error)")
+            .accessibilityLabel("Review error. \(error)")
             .padding(WatchTheme.smallGap)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(WatchTheme.background)
         }
+        if syncError != nil {
+          WatchSubmissionStatus(pendingCount: pendingCount, error: syncError, onRetry: onRetrySync)
+            .padding(WatchTheme.smallGap).background(WatchTheme.background)
+        }
       } else {
         WatchStatusView(title: "Couldn't load",
           message: state.errorMessage ?? "Open Kakehashi on iPhone, then try again.")
+        Button("Try again", systemImage: "arrow.clockwise", action: onRetryLoading)
+          .buttonStyle(WatchActionButtonStyle(kind: .secondary))
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

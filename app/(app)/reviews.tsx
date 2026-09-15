@@ -690,7 +690,17 @@ export default function ReviewScreen() {
           }
         });
 
+        const liveItemById = new Map(liveItems.map((item) => [item.id, item]));
         const desiredIds = new Set(protectedIds);
+        // Keep the selected batch stable while it is being shown. Sorting the
+        // live pool randomizes ties again, so applying the cap to that new order
+        // could replace an eligible question before the user answers it.
+        currentItems.forEach((item) => {
+          if (liveItemById.has(item.id)) {
+            desiredIds.add(item.id);
+          }
+        });
+
         for (const item of sortedLiveItems) {
           if (blockedAddedItemIds.has(item.id)) {
             continue;
@@ -701,7 +711,6 @@ export default function ReviewScreen() {
           desiredIds.add(item.id);
         }
 
-        const liveItemById = new Map(liveItems.map((item) => [item.id, item]));
         const nextItems = currentItems
           .filter((item) => desiredIds.has(item.id))
           .map((item) => {

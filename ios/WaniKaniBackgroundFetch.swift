@@ -121,15 +121,12 @@ class WaniKaniBackgroundFetch: NSObject {
         let widgetRefreshEnabled = UserDefaults.standard.object(forKey: "widget_background_refresh_enabled") as? Bool ?? true
         
         // Use ReviewNotificationManager to update badge and schedule notifications
-        let reviewData: [String: Any] = [
-          "currentReviews": data.reviewCount,
-          "upcomingReviews": data.upcomingReviews,
-          "settings": [
+        var reviewData = data.snapshot
+        reviewData["settings"] = [
             "badgeEnabled": badgeEnabled,
             "alertsEnabled": alertsEnabled,
             "soundsEnabled": soundsEnabled,
             "widgetBackgroundRefreshEnabled": widgetRefreshEnabled
-          ]
         ]
         
         print("📱 Background Fetch: Badge enabled: \(badgeEnabled), current reviews: \(data.reviewCount)")
@@ -217,10 +214,22 @@ class WaniKaniBackgroundFetch: NSObject {
             self?.updateWidgetData(
               currentReviews: data.reviewCount,
               upcomingReviews: data.upcomingReviews,
-              upcomingReviewTimes: nil // Will be populated later if needed
+              upcomingReviewTimes: data.snapshot["upcomingReviewTimes"] as? [String: Int],
+              currentSubjectCounts: data.snapshot["currentSubjectCounts"] as? [String: Int],
+              forecastBreakdown: data.snapshot["forecastBreakdown"] as? [[String: Any]]
             )
           } else {
-            print("⏭️ Background Fetch: Widget refresh disabled by user setting")
+            // The Watch is independent of the Home Widget refresh preference.
+            _ = saveKakehashiReviewSnapshot(
+              currentReviews: data.reviewCount,
+              upcomingReviews: data.upcomingReviews,
+              upcomingReviewTimes: data.snapshot["upcomingReviewTimes"] as? [String: Int],
+              isOnVacation: data.snapshot["isOnVacation"] as? Bool ?? false,
+              vacationStartedAt: data.snapshot["vacationStartedAt"] as? String,
+              currentSubjectCounts: data.snapshot["currentSubjectCounts"] as? [String: Int],
+              forecastBreakdown: data.snapshot["forecastBreakdown"] as? [[String: Any]],
+              logPrefix: "Background Fetch"
+            )
           }
           
           // Wait a bit more for widget update to complete
@@ -238,109 +247,28 @@ class WaniKaniBackgroundFetch: NSObject {
     }
   }
   
-  private func fetchReviewData(apiToken: String, completion: @escaping (Result<(reviewCount: Int, upcomingReviews: [Int]), Error>) -> Void) {
-    // Fetch all assignments with pagination (same as React Native app)
+  private func fetchReviewData(
+    apiToken: String,
+    completion: @escaping (Result<(reviewCount: Int, upcomingReviews: [Int], snapshot: [String: Any]), Error>) -> Void
+  ) {
     fetchAllAssignments(apiToken: apiToken) { result in
-      switch result {
-      case .success(let allAssignments):
-        print("📊 [DEBUG] Fetched total \(allAssignments.count) assignments from API (with pagination)")
-        
-        var reviewCount = 0
-        var upcomingReviews: [Int] = Array(repeating: 0, count: 64)
-        let now = Date()
-        
-        // Log current time for debugging
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallbackDateFormatter = ISO8601DateFormatter()
-        fallbackDateFormatter.formatOptions = [.withInternetDateTime]
-        print("📊 [DEBUG] Current time: \(dateFormatter.string(from: now))")
-        
-        // Process assignments like the React Native app does
-        var totalProcessed = 0
-        var startedCount = 0
-        var reviewStageCount = 0
-        var notHiddenCount = 0
-        var hasAvailableAtCount = 0
-        var dateParsedCount = 0
-        var availableNowCount = 0
-        var upcomingCount = 0
-        
-        for assignment in allAssignments {
-          totalProcessed += 1
-          guard let assignmentData = assignment["data"] as? [String: Any] else { continue }
-          
-          // Check if this assignment represents a review
-          let startedAt = assignmentData["started_at"] as? String
-          let availableAtString = assignmentData["available_at"] as? String
-          let hidden = assignmentData["hidden"] as? Bool ?? false
-          let srsStage = (assignmentData["srs_stage"] as? NSNumber)?.intValue
-          
-          // Log first few assignments for debugging
-          if totalProcessed <= 3 {
-            print("📊 [DEBUG] Assignment \(totalProcessed): started_at=\(startedAt ?? "nil"), srs_stage=\(srsStage.map(String.init) ?? "nil"), hidden=\(hidden), available_at=\(availableAtString ?? "nil")")
-          }
-          
-          // Track filtering steps
-          if startedAt != nil { startedCount += 1 }
-          if !hidden { notHiddenCount += 1 }
-          if srsStage == nil || srsStage! < 9 { reviewStageCount += 1 }
-          if availableAtString != nil { hasAvailableAtCount += 1 }
-          
-          // Must be started, visible, in a reviewable SRS stage, and have available_at.
-          // Note: burned_at can remain set after resurrection, so use current srs_stage.
-          guard startedAt != nil && !hidden && (srsStage == nil || srsStage! < 9) && availableAtString != nil else { continue }
-          
-          guard let availableAt =
-              dateFormatter.date(from: availableAtString!) ??
-              fallbackDateFormatter.date(from: availableAtString!)
-          else {
-            print("📊 [DEBUG] Failed to parse date: \(availableAtString!)")
-            continue 
-          }
-          dateParsedCount += 1
-          
-          // Check if the review is available now (current reviews)
-          if availableAt <= now {
-            reviewCount += 1
-            availableNowCount += 1
-            if availableNowCount <= 3 {
-              print("📊 [DEBUG] Found available review \(availableNowCount): available_at=\(availableAtString!), parsed_date=\(availableAt)")
-            }
-          } else {
-            // Calculate upcoming reviews for next 64 hours
-            let hoursFromNow = Int(availableAt.timeIntervalSince(now) / 3600)
-            if hoursFromNow >= 0 && hoursFromNow < 64 {
-              upcomingReviews[hoursFromNow] += 1
-              upcomingCount += 1
-              if upcomingCount <= 3 {
-                print("📊 [DEBUG] Found upcoming review \(upcomingCount): hours_from_now=\(hoursFromNow), available_at=\(availableAtString!)")
-              }
-            }
-          }
-        }
-        
-        print("📊 [DEBUG] Filtering results:")
-        print("📊 [DEBUG] - Total assignments processed: \(totalProcessed)")
-        print("📊 [DEBUG] - Has started_at: \(startedCount)")  
-        print("📊 [DEBUG] - Not hidden: \(notHiddenCount)")
-        print("📊 [DEBUG] - Review stage (srs_stage < 9): \(reviewStageCount)")
-        print("📊 [DEBUG] - Has available_at: \(hasAvailableAtCount)")
-        print("📊 [DEBUG] - Date parsed successfully: \(dateParsedCount)")
-        print("📊 [DEBUG] - Available now: \(availableNowCount)")
-        print("📊 [DEBUG] - Upcoming (next 64h): \(upcomingCount)")
-        
-        print("📊 [DEBUG] Processed assignments: \(reviewCount) current reviews")
-        print("📊 [DEBUG] Calculated upcoming reviews by hour: \(upcomingReviews)")
-        
-        completion(.success((reviewCount: reviewCount, upcomingReviews: upcomingReviews)))
-        
-      case .failure(let error):
-        completion(.failure(error))
-      }
+      completion(result.map { assignments in
+        let defaults = UserDefaults.standard
+        let snapshot = makeKakehashiReviewPayloadFromAssignments(
+          assignments: assignments,
+          hoursAhead: 64,
+          isOnVacation: defaults.bool(forKey: kakehashiVacationModeKey),
+          vacationStartedAt: defaults.string(forKey: kakehashiVacationStartedAtKey)
+        )
+        return (
+          reviewCount: snapshot["currentReviews"] as? Int ?? 0,
+          upcomingReviews: snapshot["upcomingReviews"] as? [Int] ?? [],
+          snapshot: snapshot
+        )
+      })
     }
   }
-  
+
   // Helper method to fetch all assignments with pagination
   private func fetchAllAssignments(apiToken: String, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
     var allAssignments: [[String: Any]] = []
@@ -791,7 +719,13 @@ class WaniKaniBackgroundFetch: NSObject {
   }
   
   // Update widget data using shared App Group
-  private func updateWidgetData(currentReviews: Int, upcomingReviews: [Int], upcomingReviewTimes: [String: Int]?) {
+  private func updateWidgetData(
+    currentReviews: Int,
+    upcomingReviews: [Int],
+    upcomingReviewTimes: [String: Int]?,
+    currentSubjectCounts: [String: Int]? = nil,
+    forecastBreakdown: [[String: Any]]? = nil
+  ) {
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
     print("📱 updateWidgetData called at \(timestamp) with: currentReviews=\(currentReviews), upcoming=\(upcomingReviews.reduce(0, +))")
     NSLog("📱 updateWidgetData called at %@ with: currentReviews=%d, upcoming=%d", timestamp, currentReviews, upcomingReviews.reduce(0, +))
@@ -800,6 +734,10 @@ class WaniKaniBackgroundFetch: NSObject {
       currentReviews: currentReviews,
       upcomingReviews: upcomingReviews,
       upcomingReviewTimes: upcomingReviewTimes,
+      isOnVacation: UserDefaults.standard.bool(forKey: kakehashiVacationModeKey),
+      vacationStartedAt: UserDefaults.standard.string(forKey: kakehashiVacationStartedAtKey),
+      currentSubjectCounts: currentSubjectCounts,
+      forecastBreakdown: forecastBreakdown,
       logPrefix: "Background Fetch"
     )
 

@@ -72,17 +72,19 @@ async function getNotificationSettings(): Promise<NotificationSettings> {
 }
 
 function convertVisibleReviewDataToReviewData(
-  visibleReviewData: {
-    currentReviews: number;
-    upcomingReviews: number[];
-    upcomingReviewTimes: { [key: string]: number };
-  },
+  visibleReviewData: VisibleReviewData,
   settings: { badgeEnabled: boolean; alertsEnabled: boolean; soundsEnabled: boolean }
 ): ReviewData {
   return {
     currentReviews: visibleReviewData.currentReviews,
     upcomingReviews: visibleReviewData.upcomingReviews,
     upcomingReviewTimes: visibleReviewData.upcomingReviewTimes,
+    ...(visibleReviewData.currentSubjectCounts
+      ? { currentSubjectCounts: visibleReviewData.currentSubjectCounts }
+      : {}),
+    ...(visibleReviewData.forecastBreakdown
+      ? { forecastBreakdown: visibleReviewData.forecastBreakdown }
+      : {}),
     settings,
   };
 }

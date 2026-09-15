@@ -1,0 +1,14 @@
+diff --git a/node_modules/react-native-vision-camera/android/build.gradle b/node_modules/react-native-vision-camera/android/build.gradle
+--- a/node_modules/react-native-vision-camera/android/build.gradle
++++ b/node_modules/react-native-vision-camera/android/build.gradle
+@@ -185,7 +185,9 @@ dependencies {
+   implementation "com.facebook.react:react-android:+"
+ 
+   // CameraX dependency
+-  def camerax_version = "1.5.0-alpha03"
++  // 1.5.2 handles Android 17's previously unknown dynamic-range profiles.
++  // https://developer.android.com/jetpack/androidx/releases/camera#1.5.2
++  def camerax_version = "1.5.2"
+   implementation "androidx.camera:camera-core:${camerax_version}"
+   implementation "androidx.camera:camera-camera2:${camerax_version}"
+   implementation "androidx.camera:camera-lifecycle:${camerax_version}"

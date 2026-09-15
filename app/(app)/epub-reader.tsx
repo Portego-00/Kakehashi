@@ -1224,6 +1224,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   lookupKanjiChipText: {
+    ...fontStyles.japaneseChip,
     fontSize: 15,
     fontWeight: "700",
     lineHeight: 20,

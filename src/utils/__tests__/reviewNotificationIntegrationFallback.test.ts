@@ -98,6 +98,23 @@ describe("native review notification count-only fallback", () => {
     resumeNotificationSession();
   });
 
+  it("passes the same forecast breakdown to Watch without another data request", async () => {
+    const visibleReviewData = {
+      currentReviews: 2,
+      upcomingReviews: [1, ...new Array(23).fill(0)],
+      upcomingReviewTimes: { "2026-09-13T13:00:00.000Z": 1 },
+      currentSubjectCounts: { radical: 1, kanji: 1, vocabulary: 0 },
+      forecastBreakdown: [{
+        date: "2026-09-13T13:00:00.000Z", count: 1,
+        radical: 0, kanji: 0, vocabulary: 1,
+        apprentice: 0, guru: 1, master: 0, enlightened: 0,
+      }],
+    };
+    await updateBadgeAndScheduleNotifications({ visibleReviewData });
+    expect(mockedGetVisibleReviewData).not.toHaveBeenCalled();
+    expect(mockedNativeUpdate).toHaveBeenCalledWith(expect.objectContaining(visibleReviewData));
+  });
+
   it("updates only the badge when a trustworthy count remains available", async () => {
     mockedGetCachedReviewCountIfAvailable.mockResolvedValue(12);
 

@@ -2161,6 +2161,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   inlineChipText: {
+    ...fontStyles.japaneseChip,
     color: "white",
     fontWeight: "700",
     fontSize: 18,

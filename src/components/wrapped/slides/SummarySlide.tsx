@@ -31,6 +31,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { WrappedData } from "../../../hooks/useWrappedData";
+import { fontStyles } from "../../../utils/fonts";
 import { getSubjectTypeColor } from "../../../utils/subjectColors";
 import { useSettingsStore } from "../../../utils/store";
 import { RadialGlow } from "../RadialGlow";
@@ -865,6 +866,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 20,
     textAlign: "center",
+    ...fontStyles.japaneseChip,
   },
 
   /* ── Branding ── */

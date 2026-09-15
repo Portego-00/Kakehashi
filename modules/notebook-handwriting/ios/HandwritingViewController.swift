@@ -28,6 +28,83 @@ enum HandwritingError: LocalizedError {
   }
 }
 
+/// Preview pixels are independent from the drawing's logical paper coordinates.
+/// Use the sharpest bounded resolution that fits every appearance's upload limit.
+enum HandwritingPreviewRenderer {
+  /// PencilKit can fade very thin ink at higher raster scales. Compare compact
+  /// alpha maps against native Retina rendering before accepting a higher scale.
+  private static func coverage(_ image: CGImage, paperSize: CGSize) -> [UInt8]? {
+    let width = Int(ceil(paperSize.width / 4)), height = Int(ceil(paperSize.height / 4))
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
+      guard let context = CGContext(data: bytes.baseAddress, width: width, height: height,
+        bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+      context.interpolationQuality = .high
+      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return true
+    }
+    return rendered ? stride(from: 3, to: pixels.count, by: 4).map { pixels[$0] } : nil
+  }
+
+  static func render(drawing: PKDrawing, paperSize: CGSize,
+                     styles: [UIUserInterfaceStyle], opaque: Bool) throws -> [Data] {
+    guard paperSize.width.isFinite, paperSize.height.isFinite,
+      paperSize.width.rounded() == paperSize.width, paperSize.height.rounded() == paperSize.height,
+      (1...4096).contains(paperSize.width), (1...4096).contains(paperSize.height),
+      paperSize.width * paperSize.height <= 16_000_000 else { throw HandwritingError.invalidSize }
+    let rect = CGRect(origin: .zero, size: paperSize)
+    let referenceScale: CGFloat = paperSize.width * 2 <= 4096 && paperSize.height * 2 <= 4096
+      && paperSize.width * paperSize.height * 4 <= 16_000_000 ? 2 : 1
+    var referenceCoverage: [Int: [UInt8]] = [:]
+    for scale in [3, 2, 1] {
+      let rasterScale = CGFloat(scale)
+      let width = paperSize.width * rasterScale, height = paperSize.height * rasterScale
+      guard width <= 4096, height <= 4096, width * height <= 16_000_000 else { continue }
+      let previews: [Data]? = autoreleasepool {
+        var variants: [Data] = []
+        for style in styles {
+          let png: Data? = autoreleasepool {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = rasterScale
+            format.opaque = opaque
+            format.preferredRange = .standard
+            var data: Data?
+            UITraitCollection(userInterfaceStyle: style).performAsCurrent {
+              let inkImage = drawing.image(from: rect, scale: rasterScale)
+              if rasterScale > referenceScale {
+                if referenceCoverage[style.rawValue] == nil,
+                  let image = drawing.image(from: rect, scale: referenceScale).cgImage {
+                  referenceCoverage[style.rawValue] = coverage(image, paperSize: paperSize)
+                }
+                guard let reference = referenceCoverage[style.rawValue],
+                  let image = inkImage.cgImage, let candidate = coverage(image, paperSize: paperSize),
+                  zip(reference, candidate).lazy.filter({ original, rendered in
+                    // Ignore nearly transparent raster noise and a couple of
+                    // antialiased boundary cells; retain extended faint strokes.
+                    original >= 1 && Int(rendered) * 2 < Int(original)
+                  }).prefix(3).count < 3 else { return }
+              }
+              data = UIGraphicsImageRenderer(size: paperSize, format: format).image { context in
+                if opaque {
+                  UIColor.white.setFill(); context.fill(rect)
+                } else { context.cgContext.clear(rect) }
+                inkImage.draw(in: rect)
+              }.pngData()
+            }
+            return data
+          }
+          guard let png, png.count <= HandwritingViewController.maximumBytes else { return nil }
+          variants.append(png)
+        }
+        return variants
+      }
+      if let previews { return previews }
+    }
+    throw HandwritingError.previewTooLarge
+  }
+}
+
 /// The canvas always uses light paper, independently of the surrounding app theme.
 /// This keeps the stored strokes and the web preview visually identical.
 final class HandwritingViewController: UIViewController, PKCanvasViewDelegate, UIScrollViewDelegate {
@@ -232,20 +309,7 @@ final class HandwritingViewController: UIViewController, PKCanvasViewDelegate, U
     guard !drawing.strokes.isEmpty else { throw HandwritingError.emptyDrawing }
     let ink = drawing.dataRepresentation()
     guard ink.count <= maximumBytes else { throw HandwritingError.inkTooLarge }
-    let rect = CGRect(origin: .zero, size: paperSize)
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = true
-    var png: Data?
-    UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
-      let image = UIGraphicsImageRenderer(size: paperSize, format: format).image { context in
-        UIColor.white.setFill()
-        context.fill(rect)
-        drawing.image(from: rect, scale: 1).draw(in: rect)
-      }
-      png = image.pngData()
-    }
-    guard let png, png.count <= maximumBytes else { throw HandwritingError.previewTooLarge }
+    let png = try HandwritingPreviewRenderer.render(drawing: drawing, paperSize: paperSize, styles: [.light], opaque: true)[0]
     return HandwritingExport(inkBase64: ink.base64EncodedString(), previewBase64: png.base64EncodedString(),
                              width: Int(paperSize.width), height: Int(paperSize.height))
   }

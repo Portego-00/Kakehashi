@@ -4,7 +4,7 @@ import { cancelHandwriting, clearHandwritingDraft, editHandwriting, isHandwritin
 import { loadNotebookDrawing, saveNotebookDrawing } from "../handwriting-api";
 import { useHandwriting } from "../use-handwriting";
 
-let mockAuth = { apiToken: "token", userData: { id: 42, username: "Portego" } };
+let mockAuth = { apiToken: "token", userData: { id: 42, username: "ordinary-user" } };
 jest.mock("../../../utils/store", () => ({ useAuthStore: { getState: () => mockAuth } }));
 jest.mock("../../../../modules/notebook-handwriting", () => ({
   isHandwritingAvailable: jest.fn(() => true), editHandwriting: jest.fn(), cancelHandwriting: jest.fn(async () => undefined), clearHandwritingDraft: jest.fn(async () => undefined),
@@ -18,16 +18,16 @@ beforeEach(() => {
   jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => cache.get(key) ?? null);
   jest.mocked(AsyncStorage.setItem).mockImplementation(async (key, value) => { cache.set(key, value); });
   jest.mocked(AsyncStorage.removeItem).mockImplementation(async (key) => { cache.delete(key); });
-  mockAuth = { apiToken: "token", userData: { id: 42, username: "Portego" } };
+  mockAuth = { apiToken: "token", userData: { id: 42, username: "ordinary-user" } };
   jest.mocked(isHandwritingAvailable).mockReturnValue(true);
   jest.mocked(editHandwriting).mockResolvedValue(payload);
   jest.mocked(saveNotebookDrawing).mockResolvedValue(saved);
   jest.mocked(loadNotebookDrawing).mockResolvedValue({ ...saved, ...payload });
 });
 
-it("checks the live account before presenting native handwriting", async () => {
+it("checks authentication before presenting native handwriting", async () => {
   const { result } = renderHook(() => useHandwriting("42", "not-authorized", "light", async () => undefined));
-  mockAuth.userData.username = "SomeoneElse";
+  mockAuth.apiToken = "";
   await expect(result.current.onEditHandwriting()).rejects.toThrow("account or page changed");
   expect(editHandwriting).not.toHaveBeenCalled();
   expect(saveNotebookDrawing).not.toHaveBeenCalled();

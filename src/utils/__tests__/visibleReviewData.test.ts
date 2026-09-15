@@ -104,3 +104,71 @@ describe("buildVisibleReviewDataFromAssignments", () => {
     expect(Object.values(visible.upcomingReviewTimes).reduce((a, b) => a + b, 0)).toBe(1);
   });
 });
+
+
+describe("Watch forecast breakdown", () => {
+  const now = new Date("2026-09-13T12:15:00.000Z");
+
+  it("keeps subject and SRS totals consistent with the exact schedule", () => {
+    const future = "2026-09-13T13:00:00.000Z";
+    const rows = [
+      { subject_type: "radical", srs_stage: 1 },
+      { subject_type: "kanji", srs_stage: 4 },
+      { subject_type: "vocabulary", srs_stage: 5 },
+      { subject_type: "kana_vocabulary", srs_stage: 6 },
+      { subject_type: "kanji", srs_stage: 7 },
+      { subject_type: "radical", srs_stage: 8 },
+    ] satisfies Partial<Assignment["data"]>[];
+    const assignments = rows.map((row, index) => makeAssignment(index + 1,
+      makeAssignmentData({ ...row, available_at: future })));
+    assignments.push(makeAssignment(7, makeAssignmentData({
+      subject_type: "kana_vocabulary", available_at: now.toISOString(),
+    })));
+
+    const result = buildVisibleReviewDataFromAssignments(assignments, { now });
+
+    expect(result.currentReviews).toBe(1);
+    expect(result.currentSubjectCounts).toEqual({ radical: 0, kanji: 0, vocabulary: 1 });
+    expect(result.forecastBreakdown).toEqual([{
+      date: future, count: 6, radical: 2, kanji: 2, vocabulary: 2,
+      apprentice: 2, guru: 2, master: 1, enlightened: 1,
+    }]);
+    expect(result.upcomingReviewTimes).toEqual({ [future]: 6 });
+    expect(result.upcomingReviews.reduce((total, count) => total + count, 0)).toBe(6);
+  });
+
+  it("excludes hidden, unstarted, locked and burned subjects and the exclusive horizon", () => {
+    const assignments = [
+      { hidden: true }, { started_at: null }, { srs_stage: 0 }, { srs_stage: 9 },
+      { available_at: "not-a-date" }, { available_at: "2026-09-14T12:15:00.000Z" },
+    ].map((row, index) => makeAssignment(index + 1, makeAssignmentData({
+      available_at: "2026-09-13T13:00:00.000Z", ...row,
+    })));
+    const result = buildVisibleReviewDataFromAssignments(assignments, { now });
+    expect(result.currentReviews).toBe(0);
+    expect(result.forecastBreakdown).toEqual([]);
+    expect(result.upcomingReviewTimes).toEqual({});
+    expect(result.upcomingReviews.every((count) => count === 0)).toBe(true);
+  });
+
+  it("normalizes timestamp offsets and sorts exact slots before sending them to Watch", () => {
+    const assignments = ["2026-09-13T15:00:00+02:00", "2026-09-13T12:30:00Z", "2026-09-13T13:00:00.000Z"]
+      .map((available_at, index) => makeAssignment(index + 1, makeAssignmentData({ available_at })));
+    const result = buildVisibleReviewDataFromAssignments(assignments, { now });
+    expect(result.forecastBreakdown?.map(({ date, count }) => ({ date, count }))).toEqual([
+      { date: "2026-09-13T12:30:00.000Z", count: 1 },
+      { date: "2026-09-13T13:00:00.000Z", count: 2 },
+    ]);
+  });
+
+  it("omits misleading breakdowns when legacy cached assignment metadata is incomplete", () => {
+    const result = buildVisibleReviewDataFromAssignments([
+      { data: { subject_id: 1, started_at: "2026-01-01T00:00:00Z", available_at: "2026-09-13T12:00:00Z" } },
+      { data: { subject_id: 2, started_at: "2026-01-01T00:00:00Z", available_at: "2026-09-13T13:00:00Z" } },
+    ], { now });
+    expect(result.currentReviews).toBe(1);
+    expect(result.currentSubjectCounts).toBeUndefined();
+    expect(result.forecastBreakdown).toBeUndefined();
+    expect(Object.values(result.upcomingReviewTimes)).toEqual([1]);
+  });
+});

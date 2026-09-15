@@ -1754,6 +1754,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+    ...fontStyles.japaneseChip,
   },
   inputDock: {
     borderTopWidth: StyleSheet.hairlineWidth,

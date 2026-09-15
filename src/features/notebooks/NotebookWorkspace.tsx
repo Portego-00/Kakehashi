@@ -20,7 +20,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useHideTabBar } from "../../contexts/TabBarVisibilityContext";
 import type { Subject } from "../../utils/api";
 import { getAllSubjects } from "../../utils/cache";
-import { isPortegoUsername } from "../../utils/portegoAccess";
 import { useAuthStore } from "../../utils/store";
 import { useTheme } from "../../utils/theme";
 import { NotebookEditorSession } from "./NotebookEditorSession";
@@ -43,11 +42,11 @@ import { useNativeInlineHandwriting } from "./use-native-inline-handwriting";
 type Sheet = { type: "create"; parentId: string | null } | { type: "actions" | "move" | "icon"; pageId: string } | { type: "trash" } | null;
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Gate before mounting the store/editor, including entry through a deep link. */
+/** Require an authenticated account before mounting the store/editor, including deep links. */
 export default function NotebookWorkspace({ showBackButton = false }: { showBackButton?: boolean }) {
-  const username = useAuthStore((state) => state.userData?.username);
-  if (!isPortegoUsername(username)) return <Redirect href="/" />;
-  return <AuthorizedNotebookWorkspace showBackButton={showBackButton} />;
+  const accountId = useAuthStore((state) => state.apiToken && state.userData?.id ? String(state.userData.id) : null);
+  if (!accountId) return <Redirect href="/" />;
+  return <AuthorizedNotebookWorkspace key={accountId} showBackButton={showBackButton} />;
 }
 
 function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boolean }) {

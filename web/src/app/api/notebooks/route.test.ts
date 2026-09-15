@@ -14,7 +14,7 @@ function request(method: "GET" | "POST", body?: unknown, options: { cookie?: str
 }
 describe("authenticated notebook route", () => {
   beforeEach(() => {
-    clearRateLimitsForTests(); mocks.configured.mockReset().mockReturnValue(true); mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Portego", level: 5 });
+    clearRateLimitsForTests(); mocks.configured.mockReset().mockReturnValue(true); mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Learner", level: 5 });
     mocks.read.mockReset().mockResolvedValue({ state: createNotebookState(), revision: -1 }); mocks.mutate.mockReset().mockResolvedValue({ state: createNotebookState(), revision: 0 });
   });
   it("loads only the sealed account with private cache headers", async () => {
@@ -23,30 +23,28 @@ describe("authenticated notebook route", () => {
   });
   it("supports a verified opaque UUID account and matching mutation scope", async () => {
     const account = "1c2f2a60-7be3-4adc-a9ea-0d3b189748d0";
-    mocks.identity.mockResolvedValue({ id: account, username: "Portego" });
+    mocks.identity.mockResolvedValue({ id: account, username: "Learner" });
     expect((await GET(request("GET"))).status).toBe(200);
     expect((await POST(request("POST", create, { account }))).status).toBe(200);
     expect(mocks.mutate).toHaveBeenCalledWith(account, create, undefined, null);
   });
-  it.each(["Portego", " PORTEGO "])("allows only the verified username %j", async (username) => {
+  it.each(["Learner", "Portego", " PORTEGO ", "", undefined])("allows a verified account regardless of username %j", async (username) => {
     mocks.identity.mockResolvedValue({ id: "123", username, level: 5 });
     expect((await GET(request("GET"))).status).toBe(200);
     expect((await POST(request("POST", create))).status).toBe(200);
   });
-  it.each(["Learner", "PortegoFan", "", undefined])("rejects username %j before reading request bodies or storage", async (username) => {
-    mocks.identity.mockResolvedValue({ id: "123", username, level: 5 });
-    const write = request("POST", { ...create, username: "Portego" });
+  it("ignores caller-supplied identity when selecting storage and rejects a forged write scope", async () => {
+    const read = request("GET", undefined, { account: "456" });
+    read.headers.set("X-WaniKani-Username", "Portego");
+    expect((await GET(read)).status).toBe(200);
+    expect(mocks.read).toHaveBeenCalledExactlyOnceWith("123");
+    const write = request("POST", create, { account: "456" });
     write.headers.set("X-WaniKani-Username", "Portego");
     const body = vi.spyOn(write, "body", "get");
-    for (const response of [await GET(request("GET")), await POST(write)]) {
-      expect(response.status).toBe(403);
-      expect(await response.json()).toMatchObject({ code: "forbidden" });
-      expect(response.headers.get("Cache-Control")).toBe("private, no-store, max-age=0");
-      expect(response.headers.get("Vary")).toBe("Cookie");
-    }
+    const response = await POST(write);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "account_changed" });
     expect(body).not.toHaveBeenCalled();
-    expect(mocks.configured).not.toHaveBeenCalled();
-    expect(mocks.read).not.toHaveBeenCalled();
     expect(mocks.mutate).not.toHaveBeenCalled();
   });
   it("requires authenticated same-origin requests and rejects the shared demo", async () => {

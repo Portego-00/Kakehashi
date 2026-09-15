@@ -156,4 +156,24 @@ describe('combined review availability notifications', () => {
       'shown-review-alert'
     );
   });
+
+  it('preserves a pending native reminder and its forecast badge when falling back to a current count', async () => {
+    const pending = notification(REVIEW_AVAILABILITY_NOTIFICATION_IDENTIFIER, {
+      kakehashiReviewNotification: true,
+      kakehashiReviewAlert: true,
+      reviewCount: 12,
+      newReviews: 5,
+    }).request;
+    pending.trigger = { type: 'timeInterval', repeats: false, seconds: 3600 };
+    mockedNotifications.getAllScheduledNotificationsAsync.mockResolvedValue([pending]);
+    mockedNotifications.getPresentedNotificationsAsync.mockResolvedValue([
+      notification(REVIEW_AVAILABILITY_NOTIFICATION_IDENTIFIER, { reviewCount: 7 }),
+    ]);
+
+    await presentCombinedReviewAvailabilityNotification({ reviewCount: 8, newReviews: 1 });
+
+    expect(mockedNotifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(mockedNotifications.dismissNotificationAsync).not.toHaveBeenCalled();
+    expect(mockedNotifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
+  });
 });

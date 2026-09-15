@@ -1,20 +1,20 @@
 # Notebook storage and deployment
 
-Notebooks use the free BlockNote core editor on the web and in the mobile app's bundled Expo DOM editor, with a versioned, text-only JSON document in Supabase. The data model does not depend on React, DOM nodes, HTML, or BlockNote's runtime. Both clients read and write the same account's pages and references. See [Mobile notebooks](notebooks-mobile.md) for the Portego-only native integration.
+Notebooks use the free BlockNote core editor on the web and in the mobile app's bundled Expo DOM editor, with a versioned, text-only JSON document in Supabase. The data model does not depend on React, DOM nodes, HTML, or BlockNote's runtime. Both clients read and write the same account's pages and references. See [Mobile notebooks](notebooks-mobile.md) for the native integration.
 
 ## Deploy
 
 1. Apply `supabase/migrations/20260907000000_notebooks.sql` through the project's normal reviewed Supabase migration workflow. Then apply `supabase/migrations/20260907010000_notebook_account_ids.sql` to support WaniKani’s opaque account IDs. These add only `public.notebook_states` and `public.compare_and_set_notebook_state`.
 2. Configure `SUPABASE_URL` and **one server-only** `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` in the web deployment. Existing URL aliases `NEXT_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_URL` are supported. Do not expose the service credential through a `NEXT_PUBLIC_` variable. Public/anonymous credentials are deliberately insufficient.
 3. Optionally set `NOTEBOOK_MAX_BYTES` to change the per-account compact UTF-8 JSON budget. The default is 1,048,576 bytes (1 MiB), clamped to 65,536–4,194,304 bytes. Page and sentence limits stay at 200 pages (including trash), 1,500 shared sentences, and 262,144 bytes per page.
-4. Verify `GET /api/notebooks` authenticated as `Portego` returns `available: true`. Other accounts and demo sessions receive HTTP 403. A missing service credential returns `available: false`; a missing migration or failing database returns an error. A failed cloud write never reports a successful save.
+4. Verify `GET /api/notebooks` authenticated with an ordinary WaniKani account returns `available: true`. Demo sessions receive HTTP 403. A missing service credential returns `available: false`; a missing migration or failing database returns an error. A failed cloud write never reports a successful save.
 5. Exercise two real accounts and confirm each sees only its own pages. Browser `anon` and `authenticated` database roles must be unable to select the table or execute its RPC.
 
 The migration is additive. It does not copy, replace, or delete existing subject notes or custom context sentences. Applying it does not automatically migrate any local drafts; the client must explicitly submit notebook mutations.
 
 ## Privacy and write safety
 
-The API derives ownership from the authenticated WaniKani session; callers never choose the storage owner. POST also requires an `X-Notebook-Account` header matching that verified identity, rejecting queued writes after an account switch. Verified WaniKani account IDs are opaque strings, including UUIDs; they are bounded to 128 URL-safe identifier characters. The browser endpoint rejects demo cookies and enforces same-origin POSTs. The [native endpoint](notebooks-native-api.md) verifies a bearer token and the Portego account gate instead of using browser sessions. Both use private/no-store responses, bound request bytes, and rate-limit reads and autosaves. Both legacy JWT service keys and current Supabase secret keys are supported.
+The API derives ownership from the authenticated WaniKani session; callers never choose the storage owner. POST also requires an `X-Notebook-Account` header matching that verified identity, rejecting queued writes after an account switch. Verified WaniKani account IDs are opaque strings, including UUIDs; they are bounded to 128 URL-safe identifier characters. The browser endpoint rejects demo cookies and enforces same-origin POSTs. The [native endpoint](notebooks-native-api.md) verifies a bearer token instead of using browser sessions. Both use private/no-store responses, bound request bytes, and rate-limit reads and autosaves. Both legacy JWT service keys and current Supabase secret keys are supported.
 
 The table has row-level security enabled and no grants for `public`, `anon`, or `authenticated`. The server service role may read it and execute the mutation function. The function has an empty search path and fully qualified table names. No direct browser access or public sharing is provided.
 

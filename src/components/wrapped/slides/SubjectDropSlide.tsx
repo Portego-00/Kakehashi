@@ -1,6 +1,6 @@
 import * as Haptics from "@/src/utils/haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Image, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   Easing,
@@ -18,6 +18,14 @@ import { getSubjectTypeColor } from "../../../utils/subjectColors";
 
 const BOTTOM_PADDING = 140; // space for footer text
 const SIDE_PADDING = 16;
+
+// Keep a subject's slot and tilt stable across cache refreshes and size changes.
+function subjectRandom(subjectId: number, level: number, salt = 0): number {
+  let value = subjectId ^ Math.imul(level, 31) ^ salt;
+  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
+  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
+  return ((value ^ (value >>> 16)) >>> 0) / 2 ** 32;
+}
 
 interface SubjectDropSlideProps {
   levelUpSubjects: WrappedLevelSubject[];
@@ -77,7 +85,9 @@ function DroppingItem({
   rotation: number;
   itemSize: number;
 }) {
-  const translateY = useSharedValue(-80);
+  const initialTargetY = useRef(targetY).current;
+  // The layout owns the landing cell; animation is only an offset from it.
+  const translateY = useSharedValue(-initialTargetY - 80);
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.7);
   const hasLanded = useSharedValue(false);
@@ -86,7 +96,7 @@ function DroppingItem({
     type === "radical"
       ? getSubjectTypeColor("radical")
       : getSubjectTypeColor("kanji");
-  const fallDistance = targetY + 80; // from -80 to targetY
+  const fallDistance = initialTargetY + 80; // from above the screen to the cell
   // Longer fall = slightly longer duration (proportional to distance)
   const fallDuration = Math.max(400, Math.min(900, fallDistance * 0.8));
 
@@ -100,7 +110,7 @@ function DroppingItem({
       withSequence(
         // Fall with gravity easing (accelerating)
         withTiming(
-          targetY + 6,
+          6,
           {
             duration: fallDuration,
             easing: Easing.in(Easing.quad),
@@ -114,12 +124,12 @@ function DroppingItem({
           }
         ),
         // Small bounce up
-        withTiming(targetY - 3, {
+        withTiming(-3, {
           duration: 100,
           easing: Easing.out(Easing.quad),
         }),
         // Settle
-        withTiming(targetY, {
+        withTiming(0, {
           duration: 80,
           easing: Easing.inOut(Easing.quad),
         })
@@ -134,7 +144,7 @@ function DroppingItem({
         withTiming(1, { duration: 100, easing: Easing.inOut(Easing.quad) })
       )
     );
-  }, []);
+  }, [delay, fallDuration, hasLanded, opacity, scale, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -156,6 +166,7 @@ function DroppingItem({
         styles.dropItem,
         {
           left: targetX,
+          top: targetY,
           backgroundColor: bgColor,
           width: itemSize,
           height: itemSize,
@@ -208,7 +219,9 @@ export function SubjectDropSlide({
     const startX = (screenWidth - gridWidth) / 2;
 
     // Shuffle items for a more natural look
-    const shuffled = [...levelUpSubjects].sort(() => Math.random() - 0.5);
+    const shuffled = [...levelUpSubjects].sort((a, b) =>
+      subjectRandom(a.id, level) - subjectRandom(b.id, level) || a.id - b.id,
+    );
 
     // Track column heights for stacking
     const columnHeights = new Array(numColumns).fill(0);
@@ -233,14 +246,14 @@ export function SubjectDropSlide({
       const row = columnHeights[minCol];
       columnHeights[minCol]++;
 
-      const x = startX + minCol * (itemSize + itemGap) + (Math.random() - 0.5) * 3;
+      const x = startX + minCol * (itemSize + itemGap) + (subjectRandom(item.id, level, 1) - 0.5) * 3;
       // Calculate Y from bottom, ensuring items stay within visible area
       const y =
         screenHeight -
         bottomPadding -
         itemSize -
         row * (itemSize + itemGap);
-      const rotation = (Math.random() - 0.5) * 14; // -7 to 7 degrees
+      const rotation = (subjectRandom(item.id, level, 2) - 0.5) * 14; // -7 to 7 degrees
 
       return {
         ...item,
@@ -252,7 +265,7 @@ export function SubjectDropSlide({
     });
 
     return { positions: calculated, items: shuffled };
-  }, [levelUpSubjects, screenWidth, screenHeight, itemSize, itemGap, bottomPadding, isLandscape]);
+  }, [levelUpSubjects, level, screenWidth, screenHeight, itemSize, itemGap, bottomPadding, isLandscape]);
 
   // Footer text fade
   const footerOpacity = useSharedValue(0);

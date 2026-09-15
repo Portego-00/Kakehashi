@@ -159,7 +159,6 @@ export default function TabSettings() {
     return TAB_INFO.filter(tab => {
       if (tab.requiresFeatureFlag && !showSongsTab) return false;
       if (tab.id === "mangas" && !canAccessMangaTab) return false;
-      if (tab.id === "notebooks" && !canAccessMangaTab) return false;
       return true;
     });
   }, [canAccessMangaTab, showSongsTab]);

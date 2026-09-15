@@ -9,19 +9,23 @@ struct ContentView: View {
   var body: some View {
     NavigationStack(path: $path) {
       WatchDashboardView(snapshot: reviewStore.snapshot, connectionState: reviewStore.connectionState,
-        onReview: startReviews, onForecast: showForecast, onRefresh: reviewStore.refresh)
+        isRefreshing: reviewStore.isRefreshing, pendingCount: reviewStore.pendingSubmissionCount,
+        syncError: reviewStore.submissionError, onReview: startReviews, onForecast: showForecast,
+        onRefresh: reviewStore.refresh, onRetrySync: reviewStore.retryPendingSubmissions)
         .navigationTitle("Kakehashi")
         .toolbarTitleDisplayMode(.inline)
         .navigationDestination(for: Destination.self) { destination in
           switch destination {
           case .forecast:
             WatchForecastView(snapshot: reviewStore.snapshot, connectionState: reviewStore.connectionState,
-              onRefresh: reviewStore.refresh)
+              isRefreshing: reviewStore.isRefreshing, onRefresh: reviewStore.refresh)
               .navigationTitle("Forecast")
               .toolbarTitleDisplayMode(.inline)
           case .review:
             WatchReviewSessionView(state: reviewStore.reviewSession, onReveal: reviewStore.revealAnswer,
-              onSubmit: reviewStore.submitCurrentCard, onClose: finishReviews)
+              onSubmit: reviewStore.submitCurrentCard, onClose: finishReviews,
+              pendingCount: reviewStore.pendingSubmissionCount, syncError: reviewStore.submissionError,
+              onRetrySync: reviewStore.retryPendingSubmissions, onRetryLoading: reviewStore.retryReviewLoading)
               .navigationTitle("")
               .toolbarTitleDisplayMode(.inline)
           }
@@ -36,6 +40,9 @@ struct ContentView: View {
       guard !didSetInitialRoute else { return }
       didSetInitialRoute = true
       if reviewStore.reviewSession.isActive { path = [.review] }
+      #if DEBUG
+      if WatchPreviewFixtures.launchScenario?.hasPrefix("forecast") == true { path = [.forecast] }
+      #endif
     }
   }
 

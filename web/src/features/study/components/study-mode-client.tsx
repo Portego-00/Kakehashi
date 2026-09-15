@@ -11,14 +11,14 @@ import { createStudySession, generateQuestions, getStudyItemProgress } from "../
 import { streamAnimeContext } from "../immersion";
 import { getStudyMode } from "../catalog";
 import { hydrateModeFilters, isQuizMode } from "../mode-config";
-import { clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, configKey, sessionKey } from "../storage";
+import { clearModeState, clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, configKey, sessionKey } from "../storage";
 import type { StudyFilters, StudyModeId, StudySession } from "../types";
 import { useStudyDataset } from "../use-study-dataset";
 import { isDemoMode } from "@/features/demo/runtime";
 import { QuizSession } from "./quiz-session";
 import { StudyConfig } from "./study-config";
 import { CrosswordGame, CustomLessons, KanaWordle, SimilarKanjiMatching, SubjectLists, TextAnalysis, WritingPractice } from "./special-modes";
-import { WordSearchGame } from "./word-search-game";
+import { loadSavedWordSearch, savedWordSearchFilters, WordSearchGame, type SavedWordSearch } from "./word-search-game";
 import styles from "../study.module.css";
 
 const noopSubscribe = () => () => {};
@@ -88,6 +88,9 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
     ? { session: savedSession, progress: savedSessionItemProgress }
     : null;
   const userLevel = user?.data.level ?? 60;
+  const rawWordSearch = useSyncExternalStore(noopSubscribe, () => mode === "word-search" ? JSON.stringify(loadSavedWordSearch(scope)) : null, () => null);
+  const savedWordSearch = useMemo(() => rawWordSearch ? JSON.parse(rawWordSearch) as SavedWordSearch | null : null, [rawWordSearch]);
+  const resumableWordSearchFilters = useMemo(() => savedWordSearch ? savedWordSearchFilters(savedWordSearch, userLevel) : null, [savedWordSearch, userLevel]);
   const username = user?.data.username ?? "anonymous";
   const { repository: listRepository, lists } = useSubjectLists(username);
 
@@ -103,6 +106,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
     if (!dataset) return;
     listeningAbortRef.current?.abort();
     if (isQuizMode(mode)) clearStudySession(scope, mode);
+    if (mode === "word-search") clearModeState(scope, "word-search", "game");
     setListeningLoadingMore(false);
     const effectiveFilters = {
       ...filters,
@@ -217,9 +221,14 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
         <Link href="/study" className={styles.backLink}><ArrowLeft size={17} /> All study modes</Link>
         <div className={styles.modeHeaderMain}>
           <div className={styles.modeHeaderCopy}><h1>{definition.title}</h1><p>{definition.description}</p></div>
-          {fetching || resumableSession ? <div className={styles.modeHeaderActions}>
+          {fetching || resumableSession || resumableWordSearchFilters ? <div className={styles.modeHeaderActions}>
             {fetching ? <span className={styles.refreshing}><LoaderCircle className={styles.spinner} size={14} /> Refreshing data</span> : null}
             {resumableSession ? <ResumeSessionButton current={resumableSession.progress.current} total={resumableSession.progress.total} onResume={() => setActiveSession(resumableSession.session)} /> : null}
+            {savedWordSearch && resumableWordSearchFilters ? <button className={styles.resumeButton} onClick={() => setActiveFilters(resumableWordSearchFilters)}>
+              <Play size={16} fill="currentColor" aria-hidden="true" />
+              <strong>Resume saved puzzle</strong>
+              <span className={styles.resumeButtonMeta}>{savedWordSearch.foundEntryIds.length} / {savedWordSearch.puzzle.entries.length} found</span>
+            </button> : null}
           </div> : null}
         </div>
       </header> : null}

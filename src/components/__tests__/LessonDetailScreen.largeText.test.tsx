@@ -1,10 +1,14 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import React from "react";
 import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from "react-native";
 
 import LessonDetailScreen from "../LessonDetailScreen";
+import { searchImmersionKit } from "../../services/immersionKitService";
+import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
+import { createStudyMaterial, getStudyMaterials, updateStudyMaterial } from "../../utils/api";
 
 let mockFlushedNoteText: string | undefined;
+let mockLessonSynonymsProps: { currentSynonyms: string[]; onSave: (edited: string[], original: string[]) => Promise<void> };
 const mockEditorFlush = jest.fn((value?: string) =>
   Promise.resolve(mockFlushedNoteText ?? value ?? ""),
 );
@@ -17,6 +21,16 @@ function respondToDiscardAlert(action: "Keep editing" | "Discard") {
 
 let mockSinglePageLessonView = false;
 let mockRetainModalDuringDismiss = false;
+let mockRenderContextTab = false;
+let mockRenderMeaningTab = false;
+const mockContextSettings = {
+  showJLPTLevel: false,
+  showVocabularyFrequency: false,
+  showPatternsOfUse: false,
+  showMediaContextSentences: false,
+  hideContextSentenceTranslations: false,
+  hideContextSentenceTranslationsCompletely: false,
+};
 
 jest.mock("react-native/Libraries/Modal/Modal", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -124,7 +138,8 @@ jest.mock("react-native-tab-view", () => {
 
   return {
     TabBar: () => null,
-    TabView: () => <View testID="mock-tab-view" />,
+    TabView: ({ renderScene }: { renderScene: (props: { route: { key: string } }) => React.ReactNode }) =>
+      mockRenderMeaningTab ? renderScene({ route: { key: "meaning" } }) : mockRenderContextTab ? renderScene({ route: { key: "context" } }) : <View testID="mock-tab-view" />,
   };
 });
 
@@ -168,14 +183,22 @@ jest.mock("../../utils/azureSpeech", () => ({
   },
 }));
 
+jest.mock("../../utils/kanjiPronunciationSpeech", () => ({
+  speakKanjiReading: jest.fn(),
+}));
+
 jest.mock("../../utils/store", () => ({
   useAuthStore: () => ({ apiToken: "test-token", userData: null }),
-  useSettingsStore: () => ({
-    appTextSizeScale: 1.15,
-    autoplayLessonReadingAudio: false,
-    singlePageLessonView: mockSinglePageLessonView,
-    vocabularyAudioVoice: "female",
-  }),
+  useSettingsStore: (selector?: (state: Record<string, unknown>) => unknown) => {
+    const settings = {
+      appTextSizeScale: 1.15,
+      autoplayLessonReadingAudio: false,
+      singlePageLessonView: mockSinglePageLessonView,
+      vocabularyAudioVoice: "female",
+      ...mockContextSettings,
+    };
+    return selector ? selector(settings) : settings;
+  },
 }));
 
 jest.mock("../../utils/theme", () => ({
@@ -255,10 +278,97 @@ jest.mock("../KanjiLessonEtymologySection", () => () => null);
 jest.mock("../KanjiReadingExamples", () => () => null);
 jest.mock("../PitchAccentVisualization", () => () => null);
 jest.mock("../StrokeOrderAnimation", () => () => null);
-jest.mock("../SynonymsModal", () => ({ SynonymsModal: () => null }));
+jest.mock("../SynonymsModal", () => ({ SynonymsModal: (props: typeof mockLessonSynonymsProps) => {
+  mockLessonSynonymsProps = props;
+  return null;
+} }));
+jest.mock("../../utils/api", () => ({
+  getStudyMaterials: jest.fn(async () => ({ data: [] })),
+  createStudyMaterial: jest.fn(),
+  updateStudyMaterial: jest.fn(),
+}));
 jest.mock("../VocabularyFrequencyBadge", () => () => null);
+jest.mock("../CustomContextSentencesSection", () => ({ CustomContextSentencesSection: () => null }));
+jest.mock("../../utils/wanikaniVocabularyPatterns", () => ({ getWaniKaniVocabularyPatterns: jest.fn(() => []) }));
+jest.mock("../../services/immersionKitService", () => ({ searchImmersionKit: jest.fn(), getCategoryColor: () => "#9c38d9", getCategoryDisplayName: () => "Anime" }));
 
-function renderNoteLesson() {
+describe("LessonDetailScreen Japanese-only examples", () => {
+  afterEach(() => {
+    mockRenderContextTab = false;
+    mockSinglePageLessonView = false;
+    mockContextSettings.showPatternsOfUse = false;
+    mockContextSettings.showMediaContextSentences = false;
+    mockContextSettings.hideContextSentenceTranslations = false;
+    mockContextSettings.hideContextSentenceTranslationsCompletely = false;
+    jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
+  });
+
+  it.each([
+    ["vocabulary", false, false],
+    ["vocabulary", false, true],
+    ["vocabulary", true, false],
+    ["vocabulary", true, true],
+    ["kana_vocabulary", false, false],
+    ["kana_vocabulary", false, true],
+    ["kana_vocabulary", true, false],
+    ["kana_vocabulary", true, true],
+  ] as const)("removes %s translations (single page: %s, hide until tapped: %s)", async (object, singlePage, hideUntilTapped) => {
+    mockSinglePageLessonView = singlePage;
+    mockRenderContextTab = true;
+    mockContextSettings.showPatternsOfUse = true;
+    mockContextSettings.showMediaContextSentences = true;
+    mockContextSettings.hideContextSentenceTranslations = hideUntilTapped;
+    mockContextSettings.hideContextSentenceTranslationsCompletely = true;
+    const context = { ja: "やっぱり歩いて行く。", en: "After all, I'll walk." };
+    const pattern = { ja: "やっぱりそうだ。", en: "It is as I thought." };
+    const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime", imageUrl: "https://example.com/anime.jpg" };
+    jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([{ name: "やっぱり〜", examples: [pattern] }]);
+    jest.mocked(searchImmersionKit).mockResolvedValue({ results: [media], nextOffset: 1 });
+    const subject = { id: -2026, object, data: { characters: "やっぱり", level: 1, meanings: [{ meaning: "As Expected", primary: true }], readings: [], context_sentences: [context] } };
+    const lesson = (
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />
+    );
+    const screen = render(lesson);
+    expect(await screen.findByText(media.sentence)).toBeTruthy();
+    for (const sentence of [context, pattern, { ja: media.sentence, en: media.translation }]) {
+      expect(screen.getByText(sentence.ja)).toBeTruthy();
+      expect(screen.queryByText(sentence.en)).toBeNull();
+    }
+    expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+
+    mockContextSettings.hideContextSentenceTranslationsCompletely = false;
+    screen.rerender(React.cloneElement(lesson));
+    expect(screen.getByText(context.en)).toBeTruthy();
+    expect(screen.getByText(pattern.en)).toBeTruthy();
+    expect(screen.getByText(media.translation)).toBeTruthy();
+    if (hideUntilTapped) {
+      expect(screen.getAllByText("Tap to reveal translation")).toHaveLength(3);
+      fireEvent.press(screen.getAllByText("Tap to reveal translation")[0]);
+      expect(screen.getAllByText("Tap to reveal translation")).toHaveLength(2);
+    } else {
+      expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+    }
+
+    mockContextSettings.hideContextSentenceTranslationsCompletely = true;
+    screen.rerender(React.cloneElement(lesson));
+    expect(screen.queryByText(context.en)).toBeNull();
+    expect(screen.queryByText(pattern.en)).toBeNull();
+    expect(screen.queryByText(media.translation)).toBeNull();
+    expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+  });
+});
+
+function renderNoteLesson(openNote = true) {
   mockSinglePageLessonView = true;
   const subject = {
     id: 1,
@@ -282,7 +392,7 @@ function renderNoteLesson() {
       onExit={jest.fn()}
     />,
   );
-  fireEvent.press(screen.getByLabelText("Add meaning note"));
+  if (openNote) fireEvent.press(screen.getByLabelText("Add meaning note"));
   return screen;
 }
 
@@ -520,6 +630,7 @@ describe("LessonDetailScreen large-text summary", () => {
 
     const summary = screen.getByTestId("lesson-subject-summary");
     const summaryStyle = StyleSheet.flatten(summary.props.style);
+    expect(within(summary).queryByText(/^JLPT N/)).toBeNull();
 
     expect(screen.getByText(longMeaning)).toBeTruthy();
     expect(summaryStyle.maxHeight).toBeGreaterThan(0);
@@ -551,3 +662,159 @@ describe("LessonDetailScreen large-text summary", () => {
 });
 
 afterAll(() => mockAlert.mockRestore());
+
+describe("LessonDetailScreen subject metadata", () => {
+  afterEach(() => {
+    mockRenderMeaningTab = false;
+    mockSinglePageLessonView = false;
+    mockContextSettings.showJLPTLevel = false;
+    mockContextSettings.showVocabularyFrequency = false;
+  });
+
+  it.each([
+    ["kanji", "語", false],
+    ["kanji", "語", true],
+    ["vocabulary", "テレビ", false],
+    ["vocabulary", "テレビ", true],
+    ["kana_vocabulary", "テレビ", false],
+    ["kana_vocabulary", "テレビ", true],
+  ] as const)("shows labeled metadata for %s %s (single page: %s)", (object, characters, singlePage) => {
+    mockRenderMeaningTab = true;
+    mockSinglePageLessonView = singlePage;
+    mockContextSettings.showJLPTLevel = true;
+    mockContextSettings.showVocabularyFrequency = true;
+    const subject = { id: 1, object, data: { characters, meanings: [{ meaning: "Example", primary: true }], readings: [] } };
+    const screen = render(
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("JLPT Level")).toBeTruthy();
+    expect(screen.getByText("N5")).toBeTruthy();
+    expect(within(screen.getByTestId("lesson-subject-summary")).getByLabelText("JLPT level N5")).toBeTruthy();
+    if (object === "kanji") expect(screen.queryByText("Frequency")).toBeNull();
+    else expect(screen.getByText("Frequency")).toBeTruthy();
+  });
+});
+
+
+describe("LessonDetailScreen synonym safety", () => {
+  afterEach(() => {
+    jest.mocked(getStudyMaterials).mockReset().mockResolvedValue({ data: [] });
+    jest.mocked(updateStudyMaterial).mockReset();
+    jest.mocked(createStudyMaterial).mockReset();
+    mockSinglePageLessonView = false;
+  });
+
+  it("preserves unseen synonyms and ignores an older lesson read after saving (#83)", async () => {
+    let resolveInitial!: (value: any) => void;
+    const pendingInitial = new Promise((resolve) => { resolveInitial = resolve; });
+    const remoteMaterial = { id: 77, data: { subject_id: 1, meaning_synonyms: ["existing on WaniKani"] } };
+    jest.mocked(getStudyMaterials)
+      .mockReturnValueOnce(pendingInitial)
+      .mockResolvedValue({ data: [remoteMaterial] });
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => ({
+      ...remoteMaterial, data: { ...remoteMaterial.data, ...updates },
+    }));
+    const screen = renderNoteLesson(false);
+    await act(async () => { await mockLessonSynonymsProps.onSave(["bridge synonym"], []); });
+    expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", 77, {
+      meaning_synonyms: ["existing on WaniKani", "bridge synonym"],
+    });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    await act(async () => { resolveInitial({ data: [remoteMaterial] }); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    screen.unmount();
+  });
+  it.each(["synonym", "note"])("still applies a pending lesson read when a %s save fails", async (action) => {
+    let resolveInitial!: (value: any) => void;
+    const remoteMaterial = { id: 77, data: { subject_id: 1, meaning_synonyms: ["existing on WaniKani"] } };
+    jest.mocked(getStudyMaterials)
+      .mockReturnValueOnce(new Promise(resolve => { resolveInitial = resolve; }))
+      .mockRejectedValueOnce(new Error("Network unavailable"));
+    jest.mocked(createStudyMaterial).mockRejectedValueOnce(new Error("Network unavailable"));
+    const screen = renderNoteLesson(action === "note");
+    if (action === "synonym") {
+      await act(async () => {
+        await expect(mockLessonSynonymsProps.onSave(["bridge synonym"], []))
+          .rejects.toThrow("Network unavailable");
+      });
+    } else {
+      fireEvent.changeText(screen.getByLabelText("Meaning note text"), "New note");
+      await act(async () => { fireEvent.press(screen.getByText("Save")); });
+      expect(createStudyMaterial).toHaveBeenCalled();
+    }
+    await act(async () => { resolveInitial({ data: [remoteMaterial] }); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani"]);
+    screen.unmount();
+  });
+
+
+  it("keeps a newer lesson note when an earlier synonym save response arrives last", async () => {
+    let serverMaterial = { id: 77, data: {
+      subject_id: 1, meaning_synonyms: ["existing on WaniKani"], meaning_note: "Original note",
+    } };
+    let finishSynonymSave!: () => void;
+    jest.mocked(getStudyMaterials).mockImplementation(async () => ({ data: [serverMaterial] }));
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => {
+      serverMaterial = { ...serverMaterial, data: { ...serverMaterial.data, ...updates } };
+      const savedSnapshot = serverMaterial;
+      if (updates.meaning_synonyms) {
+        await new Promise<void>(resolve => { finishSynonymSave = resolve; });
+      }
+      return savedSnapshot;
+    });
+    const screen = renderNoteLesson(false);
+    await act(async () => {});
+    let saveSynonyms!: Promise<void>;
+    await act(async () => {
+      saveSynonyms = mockLessonSynonymsProps.onSave(["bridge synonym"], []);
+    });
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
+    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { finishSynonymSave(); await saveSynonyms; });
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe("My newer saved note");
+    expect(serverMaterial.data.meaning_note).toBe("My newer saved note");
+    screen.unmount();
+  });
+
+
+  it("keeps newer lesson synonyms when an earlier note save response arrives last", async () => {
+    let serverMaterial = { id: 77, data: {
+      subject_id: 1, meaning_synonyms: ["existing on WaniKani"], meaning_note: "Original note",
+    } };
+    let finishNoteSave!: () => void;
+    jest.mocked(getStudyMaterials).mockImplementation(async () => ({ data: [serverMaterial] }));
+    jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => {
+      serverMaterial = { ...serverMaterial, data: { ...serverMaterial.data, ...updates } };
+      const savedSnapshot = serverMaterial;
+      if (updates.meaning_note) {
+        await new Promise<void>(resolve => { finishNoteSave = resolve; });
+      }
+      return savedSnapshot;
+    });
+    const screen = renderNoteLesson(false);
+    await act(async () => {});
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
+    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { await mockLessonSynonymsProps.onSave(["bridge synonym"], []); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    await act(async () => { finishNoteSave(); });
+    expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe("My newer saved note");
+    screen.unmount();
+  });
+
+});

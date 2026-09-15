@@ -1,6 +1,6 @@
 # Study notebooks
 
-Notebooks are currently available only to the verified WaniKani account `Portego` (case-insensitive, with surrounding whitespace ignored). For that account, open **More → Notebooks** in the web app. To keep it in the desktop navigation, add Notebooks under the navigation options in Settings. Other accounts and demo sessions cannot access notebook pages, controls, or the API.
+Notebooks are available to everyone signed in with a WaniKani account on the web and in the mobile app. Open **More → Notebooks** in the web app. To keep it in the desktop navigation, add Notebooks under the navigation options in Settings. Each account has its own private notebooks; demo sessions cannot access notebook pages, controls, or the API.
 
 ## Start with the example notebook
 
@@ -32,7 +32,7 @@ Shared sentences use one saved record. Editing a sentence in a page or word card
 
 ## Saving and recovery
 
-Portego's connected account saves privately to Supabase. The toolbar shows when a page is saved.
+Your connected account saves privately to Supabase. The toolbar shows when a page is saved.
 
 If a save fails, the editor retains a local draft. If another tab or device has edited the same page, a conflict message offers the current cloud version or saving your draft as a separate page. The app does not silently replace the other edit.
 

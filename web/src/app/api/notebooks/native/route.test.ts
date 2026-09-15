@@ -43,11 +43,11 @@ describe("native notebook API", () => {
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
     vi.stubEnv("NOTEBOOK_MAX_BYTES", "");
     stored = { state: structuredClone(existingState), revision: 7 };
-    user = { object: "user", data: { id: accountId, username: "Portego", level: 21 } };
+    user = { object: "user", data: { id: accountId, username: "Learner", level: 21 } };
     fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "https://api.wanikani.com/v2/user") return response(user);
-      if (url.startsWith("https://supabase.test/rest/v1/notebook_states?")) return response([stored]);
+      if (url.startsWith("https://supabase.test/rest/v1/notebook_states?")) return response(new URL(url).searchParams.get("user_id") === `eq.${accountId}` ? [stored] : []);
       if (url === "https://supabase.test/rest/v1/rpc/compare_and_set_notebook_state") {
         const mutation = JSON.parse(String(init?.body));
         expect(mutation.p_user_id).toBe(accountId);
@@ -100,10 +100,11 @@ describe("native notebook API", () => {
     expect(saved.state.sentences).toEqual(originalSentences);
   });
 
-  it("accepts a verified Portego username regardless of case and surrounding whitespace", async () => {
-    user = { data: { id: accountId, username: "  pOrTeGo  " } };
-    const { GET } = await import("./route");
+  it.each(["Learner", "Portego", "  pOrTeGo  "])("reads and saves notebooks for the verified username %j", async (username) => {
+    user = { data: { id: accountId, username } };
+    const { GET, POST } = await import("./route");
     expect((await GET(request("GET"))).status).toBe(200);
+    expect((await POST(request("POST"))).status).toBe(200);
   });
 
   it("rejects missing/malformed credentials and never treats browser or demo cookies as native authentication", async () => {
@@ -118,15 +119,22 @@ describe("native notebook API", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses other accounts even when the caller supplies Portego's name and account ID", async () => {
+  it("uses the verified account for reads and rejects writes with another caller-supplied account ID", async () => {
     user = { data: { id: "other-account", username: "Another user" } };
     const { GET, POST } = await import("./route");
-    for (const method of [GET, POST]) {
-      const result = await method(request(method === GET ? "GET" : "POST", { headers: { "X-WaniKani-Username": "Portego" } }));
-      expect(result.status).toBe(403);
-      expect(await result.json()).toMatchObject({ code: "forbidden" });
-    }
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const forgedIdentity = { headers: { "X-WaniKani-Username": "Portego" } };
+    const read = await GET(request("GET", forgedIdentity));
+    expect(read.status).toBe(200);
+    expect(await read.json()).toMatchObject({ accountId: "other-account", state: { pages: [] }, revision: -1 });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("user_id")).toBe("eq.other-account");
+    const write = request("POST", forgedIdentity);
+    const body = vi.spyOn(write, "body", "get");
+    const rejected = await POST(write);
+    expect(rejected.status).toBe(409);
+    expect(await rejected.json()).toMatchObject({ code: "account_changed" });
+    expect(body).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(stored.state.pages[0].title).toBe("Web notebook");
   });
 
   it("sanitizes upstream credential rejection and service failures", async () => {
@@ -147,7 +155,7 @@ describe("native notebook API", () => {
     const { GET } = await import("./route");
     for (const id of ["", "demo-level-21", "bad,id", "x".repeat(129)]) {
       clearWkCacheForTests();
-      user = { data: { id, username: "Portego" } };
+      user = { data: { id, username: "Learner" } };
       const result = await GET(request("GET"));
       expect(result.status).toBe(503);
       expect(await result.json()).toMatchObject({ code: "unavailable" });

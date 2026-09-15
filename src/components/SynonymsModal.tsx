@@ -16,11 +16,12 @@ import {
 } from "react-native";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
+import { mergeMeaningSynonymEdits } from "../utils/meaningSynonyms";
 
 interface SynonymsModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (synonyms: string[]) => Promise<void>;
+  onSave: (synonyms: string[], originalSynonyms: string[]) => Promise<void>;
   currentSynonyms: string[];
   subjectType?: "radical" | "kanji" | "vocabulary";
 }
@@ -36,6 +37,8 @@ export const SynonymsModal: React.FC<SynonymsModalProps> = ({
   const subjectColors = useSubjectColors();
   const [synonyms, setSynonyms] = useState<string[]>(currentSynonyms);
   const [newSynonym, setNewSynonym] = useState("");
+  const originalSynonymsRef = useRef([...currentSynonyms]);
+  const wasVisibleRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const panelAnimation = useRef(new Animated.Value(0)).current;
@@ -51,9 +54,24 @@ export const SynonymsModal: React.FC<SynonymsModalProps> = ({
       : subjectColors.vocabulary;
 
   useEffect(() => {
-    if (visible) {
+    const opening = visible && !wasVisibleRef.current;
+    wasVisibleRef.current = visible;
+    if (!visible) return;
+    const original = originalSynonymsRef.current;
+    if (opening) {
+      originalSynonymsRef.current = [...currentSynonyms];
       setSynonyms([...currentSynonyms]);
       setNewSynonym("");
+    } else if (JSON.stringify(original) !== JSON.stringify(currentSynonyms)) {
+      // Progression can finish while this editor is open. Keep the user's draft
+      // and explicit removals while revealing any newly loaded synonyms.
+      originalSynonymsRef.current = [...currentSynonyms];
+      setSynonyms((draft) => mergeMeaningSynonymEdits(currentSynonyms, original, draft));
+    }
+  }, [visible, currentSynonyms]);
+
+  useEffect(() => {
+    if (visible) {
       Animated.parallel([
         Animated.timing(panelAnimation, {
           toValue: 1,
@@ -80,7 +98,7 @@ export const SynonymsModal: React.FC<SynonymsModalProps> = ({
         }),
       ]).start();
     }
-  }, [visible, currentSynonyms]);
+  }, [visible, panelAnimation, backdropOpacity]);
 
   const animateClose = useCallback(() => {
     Animated.parallel([
@@ -97,7 +115,7 @@ export const SynonymsModal: React.FC<SynonymsModalProps> = ({
     ]).start(() => {
       onClose();
     });
-  }, [onClose]);
+  }, [onClose, panelAnimation, backdropOpacity]);
 
   const handleAddSynonym = useCallback(() => {
     const trimmed = newSynonym.trim().toLowerCase();
@@ -114,7 +132,7 @@ export const SynonymsModal: React.FC<SynonymsModalProps> = ({
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      await onSave(synonyms);
+      await onSave(synonyms, originalSynonymsRef.current);
       animateClose();
     } catch (error) {
       console.error("Failed to save synonyms:", error);
@@ -124,8 +142,8 @@ export const SynonymsModal: React.FC<SynonymsModalProps> = ({
   }, [synonyms, onSave, animateClose]);
 
   const hasChanges =
-    JSON.stringify(synonyms.sort()) !==
-    JSON.stringify([...currentSynonyms].sort());
+    JSON.stringify([...synonyms].sort()) !==
+    JSON.stringify([...originalSynonymsRef.current].sort());
 
   return (
     <Modal

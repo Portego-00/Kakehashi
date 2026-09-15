@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readBoundedRequestJson } from "@/features/content/server-security";
 import { DEMO_SESSION_COOKIE } from "@/features/demo/constants";
-import { canAccessNotebooks } from "@/features/notebooks/access";
 import { NotebookError, assertNotebookFeatures, parseNotebookMutation, NOTEBOOK_HARD_MAX_BYTES } from "@/features/notebooks/model";
 import { analyticsIdentityFromSealedSession } from "@/lib/server/analytics-server";
 import { mutateRemoteNotebookState, notebookServerLimits, notebooksBackendConfigured, readRemoteNotebookState } from "@/lib/server/notebooks-server";
@@ -10,7 +9,6 @@ import { isTrustedMutationOrigin } from "@/lib/server/request-security";
 import { WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 
 export const runtime = "nodejs";
-class NotebookAccessError extends Error {}
 function privateResponse(body: unknown, status = 200, additional?: HeadersInit) {
   const headers = new Headers(additional); headers.set("Cache-Control", "private, no-store, max-age=0"); headers.set("Vary", "Cookie"); headers.set("X-Content-Type-Options", "nosniff");
   return NextResponse.json(body, { status, headers });
@@ -23,11 +21,9 @@ function session(request: NextRequest) {
 async function identity(sealed: string) {
   const user = await analyticsIdentityFromSealedSession(sealed);
   if ((!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(user.id) || user.id === "demo-level-21")) throw new NotebookError("A verified WaniKani account is required for cloud notebooks.", "invalid", 403);
-  if (!canAccessNotebooks(user.username)) throw new NotebookAccessError("Notebooks are not available for this account.");
   return user;
 }
 function failure(cause: unknown, action: "loaded" | "saved") {
-  if (cause instanceof NotebookAccessError) return privateResponse({ error: cause.message, code: "forbidden" }, 403);
   if (cause instanceof NotebookError) return privateResponse({ error: cause.message, code: cause.code }, cause.status);
   return privateResponse({ error: `Your notebooks could not be ${action}. Please try again.`, code: "unavailable" }, 503);
 }

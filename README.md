@@ -14,8 +14,9 @@ affiliated with WaniKani or Tofugu LLC.
 When cached assignments are available, review sessions open without waiting for
 a network check. Completed reviews are saved on the device before the next
 question appears, and queued results sync with WaniKani when a connection is
-available. Requests that reach an unresponsive connection time out instead of
-holding the app indefinitely.
+available. Background refresh keeps the selected review batch stable, replacing
+only unstarted reviews that are no longer due. Requests that reach an
+unresponsive connection time out instead of holding the app indefinitely.
 
 On iOS, widget refresh uses Expo's processing task. Keep `processing` in
 `UIBackgroundModes`, and keep `com.expo.modules.backgroundtask.processing` in
@@ -73,6 +74,17 @@ Run common checks:
 npm run lint
 npm test
 ```
+
+## Kanji composition in Anki reviews
+
+Enable **Settings → Anki Advanced Settings → Show Kanji Composition** to see a
+vocabulary word's component kanji and their primary meanings alongside its
+revealed answer in compact cards. Tap a card to open that kanji's details;
+returning keeps the review answer revealed. On Android, the settings entry is
+**Anki Settings & Export**.
+The option is off by default and works with grouped, meaning, and reading Anki
+cards. Components appear in word order, using the saved subject catalog for
+offline review; unavailable components are omitted.
 
 ## Connecting Spotify
 

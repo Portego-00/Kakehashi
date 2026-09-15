@@ -40,6 +40,8 @@ export default function AnkiSettingsScreen() {
     setAnkiShowReplayAudioButton,
     ankiShowOtherAcceptedAnswersAndUserSynonyms,
     setAnkiShowOtherAcceptedAnswersAndUserSynonyms,
+    ankiShowKanjiComposition,
+    setAnkiShowKanjiComposition,
     ankiShowWaniKaniGrammarTags,
     setAnkiShowWaniKaniGrammarTags,
     ankiShowPitchAccentNumbers,
@@ -280,6 +282,33 @@ export default function AnkiSettingsScreen() {
             <Switch
               value={ankiShowOtherAcceptedAnswersAndUserSynonyms}
               onValueChange={setAnkiShowOtherAcceptedAnswersAndUserSynonyms}
+              trackColor={{ false: "#767577", true: theme.primary }}
+              thumbColor="#f4f3f4"
+            />
+          </View>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <Ionicons
+              name="grid-outline"
+              size={20}
+              color={theme.primary}
+              style={styles.settingIcon}
+            />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>
+                Show Kanji Composition
+              </Text>
+              <Text
+                style={[styles.settingSubtext, { color: theme.textSecondary }]}
+              >
+                After revealing a vocabulary card, show its kanji and their
+                meanings.
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Show Kanji Composition"
+              value={ankiShowKanjiComposition}
+              onValueChange={setAnkiShowKanjiComposition}
               trackColor={{ false: "#767577", true: theme.primary }}
               thumbColor="#f4f3f4"
             />

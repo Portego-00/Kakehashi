@@ -29,7 +29,7 @@ export function NativeHandwriting(props: Props) {
   const placeholderHeight = useRef(0);
   const previousScroll = useRef(0);
   const [fullscreen, setFullscreen] = useState(false);
-  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [stageWidth, setStageWidth] = useState(0);
   const mounted = useRef(true);
   const revision = useRef(0);
   const resizeTail = useRef(Promise.resolve());
@@ -52,8 +52,9 @@ export function NativeHandwriting(props: Props) {
   const state = props.nativeHandwritingState?.blockId === props.blockId ? props.nativeHandwritingState : null;
   const active = !!state;
   const dimensions = { width: state?.width ?? props.width, height: state?.height ?? props.height };
-  const widthScale = stageSize.width ? Math.max(1, stageSize.width) / dimensions.width : 1;
-  const scale = fullscreen ? Math.max(0.01, Math.min(widthScale, Math.max(1, stageSize.height - 36) / dimensions.height)) : Math.min(1, widthScale);
+  const widthScale = stageWidth ? Math.max(1, stageWidth) / dimensions.width : 1;
+  // Height changes extend the paper at the same zoom; full-screen paper scrolls.
+  const scale = fullscreen ? Math.max(0.01, widthScale) : Math.min(1, widthScale);
   const paper = useCallback(() => root.current?.querySelector<HTMLElement>("[data-handwriting-paper]") ?? null, []);
   const geometry = useCallback((): NativeInkGeometry => {
     const element = paper(); const scroll = root.current?.closest<HTMLElement>(".nb-scroll");
@@ -74,9 +75,8 @@ export function NativeHandwriting(props: Props) {
       const rect = stage.current?.getBoundingClientRect();
       if (rect && stage.current) {
         const style = getComputedStyle(stage.current);
-        const width = rect.width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
-        const height = rect.height - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
-        setStageSize((current) => current.width === width && current.height === height ? current : { width, height });
+        const width = (stage.current.clientWidth || rect.width) - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+        setStageWidth(width);
       }
     };
     update(); const observer = new ResizeObserver(update); if (stage.current) observer.observe(stage.current);
@@ -123,8 +123,12 @@ export function NativeHandwriting(props: Props) {
     update(); const observer = new ResizeObserver(update);
     const element = paper(); if (element) observer.observe(element);
     const scroll = root.current?.closest<HTMLElement>(".nb-scroll"); if (scroll) observer.observe(scroll);
+    // Focus and scroll anchoring can move paper even while user scrolling is
+    // locked. Capture ancestor scroll events (which do not bubble) so the
+    // native canvas cannot remain over the toolbar at its previous position.
+    window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update); window.visualViewport?.addEventListener("resize", update); window.visualViewport?.addEventListener("scroll", update);
-    return () => { if (frame) cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("resize", update); window.visualViewport?.removeEventListener("resize", update); window.visualViewport?.removeEventListener("scroll", update); };
+    return () => { if (frame) cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("scroll", update, true); window.removeEventListener("resize", update); window.visualViewport?.removeEventListener("resize", update); window.visualViewport?.removeEventListener("scroll", update); };
   }, [active, dimensions.width, dimensions.height, geometry, paper, scale, fullscreen]);
   const start = async () => {
     if (busy || active || props.nativeHandwritingState) return;

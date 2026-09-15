@@ -1148,6 +1148,7 @@ const createStyles = (subjectColors: ReturnType<typeof useSubjectColors>) =>
   readingText: {
     fontSize: 14,
     fontWeight: "500",
+    ...fontStyles.japaneseChip,
   },
   moreReadings: {
     fontSize: 12,
