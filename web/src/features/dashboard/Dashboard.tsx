@@ -8,6 +8,7 @@ import { ReviewActivityHeatmap } from "@/components/ReviewActivityHeatmap";
 import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
 import { VacationModeControls } from "@/features/core-study/VacationModeControls";
+import { canAccessCoreStudy } from "@/features/core-study/access";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "@/features/core-study/vacation";
 import { dashboardSectionWidth, type DashboardSectionId } from "@/features/settings/settings";
@@ -69,6 +70,7 @@ export function Dashboard() {
   const workspace = useWorkspacePreferences(username);
   const forecastPreferences = useReviewForecastPreferences(username);
   const customSrsAllowed = !isDemo && canAccessCustomSrs(username);
+  const coreStudyAllowed = canAccessCoreStudy(username, isDemo);
   const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id) && (id !== "custom-vocabulary" || customSrsAllowed));
   const needsDailyStudy = visibleSections.includes("daily-study");
   const needsSubjectCatalog = visibleSections.some((id) => SUBJECT_CATALOG_SECTIONS.has(id));
@@ -118,7 +120,7 @@ export function Dashboard() {
   const formatShortDate = (value?: string) => value ? new Date(value).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
   const sections: Record<string, React.ReactNode> = {
-    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"}>{!isDemo ? <VacationModeControls active={false} refresh={currentUser.refetch} showRefresh={false} className={styles.vacationHeaderAction} /> : null}</SectionHeader><div className={styles.queue}><StudyQueueCard demo={isDemo} type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard demo={isDemo} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
+    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"} /><div className={styles.queue}><StudyQueueCard studyAvailable={coreStudyAllowed} type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard studyAvailable={coreStudyAllowed} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
     "custom-vocabulary": <CustomVocabularyWidget scope={userId || "anonymous"} username={username} />,
     srs: assignments.isLoading ? <section className={styles.section}><SectionHeader title="Active Item Spread" detail="Radicals, kanji, and vocabulary across SRS stages" /><Skeleton height="15rem" /></section> : <SrsSpreadWidget rows={srsSpread} />,
     level: currentSubjects.isLoading ? <section className={styles.section}><SectionHeader title={`Level ${currentLevel} Progress`} detail="Your current level, from lesson to Guru" /><Skeleton height="18rem" /></section> : <DashboardLevelWidget currentLevel={currentLevel} progress={progress} subjects={levelSubjects} />,

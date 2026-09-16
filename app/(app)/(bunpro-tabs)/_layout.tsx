@@ -1,31 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { useEffect } from "react";
-import { Appearance, DynamicColorIOS, Platform } from "react-native";
+import { DynamicColorIOS } from "react-native";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import { useTheme } from "../../../src/utils/theme";
 
 export default function BunproTabsLayout() {
-  const { theme, themeMode, isDark } = useTheme();
+  const { theme } = useTheme();
   const useNativeTabs = supportsNativeTabs();
-
-  useEffect(() => {
-    if (Platform.OS !== "ios" || !useNativeTabs) {
-      return;
-    }
-
-    if (themeMode === "system") {
-      Appearance.setColorScheme("unspecified");
-      return;
-    }
-
-    Appearance.setColorScheme(isDark ? "dark" : "light");
-
-    return () => {
-      Appearance.setColorScheme("unspecified");
-    };
-  }, [isDark, themeMode, useNativeTabs]);
 
   if (!useNativeTabs) {
     return (

@@ -45,7 +45,8 @@ import {
   type ExtraStudyModeId,
 } from "../../src/utils/extraStudyModes";
 import {
-  HOME_WIDGET_DEFINITIONS,
+  getAvailableHomeWidgets,
+  getVisibleHomeWidgetOrder,
   type HomeWidgetId,
   normalizeHomeWidgetOrder,
 } from "../../src/utils/homeWidgets";
@@ -246,7 +247,7 @@ export default function HomeCustomizationSettings() {
   const isIPadLandscape = width > 768 && width > height;
   const listRef = useRef<FlatList<HomeWidgetId>>(null);
   const { dashboardData } = useDashboardData();
-  const { userData } = useAuthStore();
+  const { userData, apiToken } = useAuthStore();
   const {
     dailyLessonLimit,
     apprenticeLessonThreshold,
@@ -373,20 +374,29 @@ export default function HomeCustomizationSettings() {
     options: SheetOption[];
   } | null>(null);
 
-  const activeWidgetOrder = useMemo(
+  const savedWidgetOrder = useMemo(
     () => normalizeHomeWidgetOrder(homeWidgetOrder),
     [homeWidgetOrder],
   );
+  const signedInForHomeWidgets = Boolean(apiToken && userData?.id);
+  const allowedWidgets = useMemo(
+    () => getAvailableHomeWidgets(userData?.username, signedInForHomeWidgets),
+    [userData?.username, signedInForHomeWidgets],
+  );
+  const activeWidgetOrder = useMemo(
+    () => getVisibleHomeWidgetOrder(savedWidgetOrder, userData?.username, signedInForHomeWidgets),
+    [savedWidgetOrder, userData?.username, signedInForHomeWidgets],
+  );
   const widgetDefinitionMap = useMemo(
-    () => new Map(HOME_WIDGET_DEFINITIONS.map((widget) => [widget.id, widget])),
-    [],
+    () => new Map(allowedWidgets.map((widget) => [widget.id, widget])),
+    [allowedWidgets],
   );
   const availableWidgets = useMemo(
     () =>
-      HOME_WIDGET_DEFINITIONS.filter(
+      allowedWidgets.filter(
         (widget) => !activeWidgetOrder.includes(widget.id),
       ),
-    [activeWidgetOrder],
+    [activeWidgetOrder, allowedWidgets],
   );
   const availableExtraStudyModes = useMemo(
     () => getAvailableExtraStudyModes(userData?.username),
@@ -611,6 +621,11 @@ export default function HomeCustomizationSettings() {
   }, [activeColors]);
 
   useEffect(() => {
+    // Menu options capture the account that opened them.
+    setSelectionSheet(null);
+  }, [apiToken, userData?.id, userData?.username]);
+
+  useEffect(() => {
     if (!pendingScrollWidget) {
       return;
     }
@@ -683,11 +698,17 @@ export default function HomeCustomizationSettings() {
   };
 
   const handleAddWidget = (widgetId: HomeWidgetId) => {
-    if (activeWidgetOrder.includes(widgetId)) {
+    const currentAuth = useAuthStore.getState();
+    const currentOrder = normalizeHomeWidgetOrder(useSettingsStore.getState().homeWidgetOrder);
+    const currentAllowedWidgets = getAvailableHomeWidgets(
+      currentAuth.userData?.username,
+      Boolean(currentAuth.apiToken && currentAuth.userData?.id),
+    );
+    if (currentOrder.includes(widgetId) || !currentAllowedWidgets.some(widget => widget.id === widgetId)) {
       return;
     }
 
-    setHomeWidgetOrder([...activeWidgetOrder, widgetId]);
+    setHomeWidgetOrder([...currentOrder, widgetId]);
     setPendingScrollWidget(widgetId);
   };
 
@@ -782,10 +803,13 @@ export default function HomeCustomizationSettings() {
       return;
     }
 
-    const reordered = [...activeWidgetOrder];
-    [reordered[currentIndex], reordered[nextIndex]] = [
-      reordered[nextIndex],
-      reordered[currentIndex],
+    // Preserve widgets hidden for this account while moving the visible neighbors.
+    const reordered = [...savedWidgetOrder];
+    const storedIndex = reordered.indexOf(widgetId);
+    const storedNextIndex = reordered.indexOf(activeWidgetOrder[nextIndex]);
+    [reordered[storedIndex], reordered[storedNextIndex]] = [
+      reordered[storedNextIndex],
+      reordered[storedIndex],
     ];
     setHomeWidgetOrder(reordered);
     setPendingScrollWidget(widgetId);
@@ -1242,6 +1266,7 @@ export default function HomeCustomizationSettings() {
                 ) : (
                   <HomeDashboardWidget
                     widgetId={item}
+                    signedIn={signedInForHomeWidgets}
                     dashboardData={dashboardData}
                     userData={userData}
                     effectiveLessonCount={effectiveLessonCount}

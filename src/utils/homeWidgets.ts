@@ -1,8 +1,11 @@
+import { isPortegoUsername } from './portegoAccess';
+
 export type HomeWidgetId =
   | "lessonsReviews"
   | "recentMistakes"
   | "streak"
   | "extraStudy"
+  | "conversation"
   | "subjectLists"
   | "reviewForecast"
   | "levelProgress"
@@ -49,6 +52,12 @@ export const HOME_WIDGET_DEFINITIONS: HomeWidgetDefinition[] = [
     id: "extraStudy",
     title: "Extra Study",
     description: "Practice modes that do not affect SRS.",
+    sourceTab: "home",
+  },
+  {
+    id: "conversation",
+    title: "Japanese Conversation",
+    description: "Talk in Japanese, explore themes, and revisit your words.",
     sourceTab: "home",
   },
   {
@@ -136,6 +145,7 @@ export const DEFAULT_HOME_WIDGET_ORDER: HomeWidgetId[] = [
   "recentMistakes",
   "streak",
   "extraStudy",
+  "conversation",
   "reviewForecast",
 ];
 
@@ -179,4 +189,23 @@ export function normalizeHomeWidgetOrder(
   }
 
   return unique;
+}
+
+/** Add the new default once during migration; ordinary normalization preserves hiding. */
+export function addConversationHomeWidget(value: unknown): HomeWidgetId[] {
+  const order = normalizeHomeWidgetOrder(value);
+  if (order.includes("conversation")) return order;
+  const extraStudyIndex = order.indexOf("extraStudy");
+  order.splice(extraStudyIndex < 0 ? order.length : extraStudyIndex + 1, 0, "conversation");
+  return order;
+}
+
+export function getAvailableHomeWidgets(username?: string | null, signedIn = false): HomeWidgetDefinition[] {
+  return HOME_WIDGET_DEFINITIONS.filter(widget => widget.id !== "conversation" || (signedIn && isPortegoUsername(username)));
+}
+
+/** Filter before rendering rows so a private widget does not leave an empty slot. */
+export function getVisibleHomeWidgetOrder(value: unknown, username?: string | null, signedIn = false): HomeWidgetId[] {
+  const allowed = new Set(getAvailableHomeWidgets(username, signedIn).map(widget => widget.id));
+  return normalizeHomeWidgetOrder(value).filter(widget => allowed.has(widget));
 }

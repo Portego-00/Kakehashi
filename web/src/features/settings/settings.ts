@@ -316,7 +316,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     pauseOnClose: false,
     pauseOnCorrect: false,
     srsProgressionCardDisplayMode: "normal",
-    acceptUserSynonymsAsAnswers: false,
+    acceptUserSynonymsAsAnswers: true,
     showAddSynonymButton: true,
     keyboardShortcuts: true,
     shuffleSubjects: false,

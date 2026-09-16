@@ -1,0 +1,14 @@
+diff --git a/node_modules/tiny-segmenter/lib/index.js b/node_modules/tiny-segmenter/lib/index.js
+index 3955417..4f1e12a 100644
+--- a/node_modules/tiny-segmenter/lib/index.js
++++ b/node_modules/tiny-segmenter/lib/index.js
+@@ -14,8 +14,7 @@ function TinySegmenter() {
+     }
+     this.chartype_ = [];
+     for (var i in patterns) {
+-        var regexp = new RegExp;
+-        regexp.compile(i)
++        var regexp = new RegExp(i);
+         this.chartype_.push([regexp, patterns[i]]);
+     }
+ 

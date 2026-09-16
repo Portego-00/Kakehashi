@@ -47,6 +47,7 @@ export function createQuestionQueue(assignments: Assignment[], subjects: Subject
       byKind[kind].push(question);
     });
   });
+  if (options.backToBackQuestions) return mixed;
   if (options.answerOrder === "meaning-first") return [...byKind.meaning, ...byKind.reading];
   if (options.answerOrder === "reading-first") return [...byKind.reading, ...byKind.meaning];
   return mixed;
@@ -92,6 +93,14 @@ export function moveCoreQuestionPairToEnd(questions: CoreQuestion[]) {
   const counterpartQuestions = rest.filter((candidate) => candidate.assignment.id === current.assignment.id);
   const remainingQuestions = rest.filter((candidate) => candidate.assignment.id !== current.assignment.id);
   return [...remainingQuestions, current, ...counterpartQuestions];
+}
+
+export function requeueIncorrectCoreQuestions(remaining: CoreQuestion[], retryQuestions: CoreQuestion[], retryImmediately: boolean) {
+  if (!retryImmediately) return [...remaining, ...retryQuestions];
+  const retryAssignmentIds = new Set(retryQuestions.map((question) => question.assignment.id));
+  const counterparts = remaining.filter((question) => retryAssignmentIds.has(question.assignment.id));
+  const otherQuestions = remaining.filter((question) => !retryAssignmentIds.has(question.assignment.id));
+  return [...counterparts, ...retryQuestions, ...otherQuestions];
 }
 
 export function lessonAssignments(assignments: Assignment[]) { return assignments.filter(({ data }) => data.unlocked_at && !data.started_at && !data.hidden && data.srs_stage === 0); }

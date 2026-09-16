@@ -1,0 +1,25 @@
+.region {
+  overflow-anchor: none;
+}
+
+/* Match the question-advance collapse delay while letting a tall panel open gently. */
+.reveal.reveal {
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 160ms ease-in,
+    visibility 0s linear 280ms;
+}
+
+.reveal.reveal[data-open="true"] {
+  transition:
+    grid-template-rows 360ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 220ms ease-out,
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal.reveal,
+  .reveal.reveal[data-open="true"] {
+    transition: none;
+  }
+}

@@ -18,6 +18,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="conversation" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="(bunpro-tabs)" />
       <Stack.Screen name="custom-vocabulary" />
       <Stack.Screen name="bunpro-reviews" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />

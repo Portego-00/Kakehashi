@@ -48,6 +48,7 @@ import { type LessonSrsThresholdStatus } from "../utils/lessonSrsThreshold";
 import { getReadableTextColor, withAlpha } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
+import { ConversationHomeEntry } from "../features/conversation/conversation-home-entry";
 
 type HomeDashboardWidgetProps = {
   widgetId: HomeWidgetId;
@@ -75,6 +76,7 @@ type HomeDashboardWidgetProps = {
   srsBreakdownGroupStagesScope?: SrsBreakdownGroupStagesScope;
   activeExtraStudySessionModeIds?: readonly ExtraStudyModeId[];
   previewMode?: boolean;
+  signedIn?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -104,6 +106,7 @@ export default function HomeDashboardWidget({
   srsBreakdownGroupStagesScope,
   activeExtraStudySessionModeIds = [],
   previewMode = false,
+  signedIn = false,
   style,
 }: HomeDashboardWidgetProps) {
   const { theme } = useTheme();
@@ -510,6 +513,15 @@ export default function HomeDashboardWidget({
             </View>
           </ScrollView>
         </View>
+      );
+    case "conversation":
+      return (
+        <ConversationHomeEntry
+          username={userData?.username}
+          signedIn={signedIn && Boolean(userData?.id)}
+          previewMode={previewMode}
+          style={style}
+        />
       );
     case "subjectLists":
       return (

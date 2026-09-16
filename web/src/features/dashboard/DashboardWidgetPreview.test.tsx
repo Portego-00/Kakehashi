@@ -167,6 +167,17 @@ describe("dashboard widget previews", () => {
     }
   });
 
+  it("keeps layout previews inert even when study is available", () => {
+    render(<><StudyQueueCard type="lesson" count={12} studyAvailable preview /><StudyQueueCard type="review" count={34} studyAvailable preview /></>);
+
+    for (const name of ["Lessons", "Reviews"]) {
+      const queue = screen.getByRole("article", { name: `${name} study queue, coming soon` });
+      expect(within(queue).getByText("Coming soon")).toHaveAttribute("aria-disabled", "true");
+      expect(within(queue).queryByRole("link")).not.toBeInTheDocument();
+      expect(within(queue).queryByRole("button")).not.toBeInTheDocument();
+    }
+  });
+
   it("uses the mobile empty-state artwork while a queue is clear", () => {
     const { container } = render(<><StudyQueueCard type="lesson" count={0} /><StudyQueueCard type="review" count={0} /></>);
 

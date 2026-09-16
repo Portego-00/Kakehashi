@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { ColorSchemeName, useColorScheme } from "react-native";
+import { Appearance, ColorSchemeName, Platform, useColorScheme } from "react-native";
 
 // Define light and dark color themes
 export const lightTheme = {
@@ -162,6 +162,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
 
     loadSavedTheme();
   }, []); // Run only on mount
+
+  // Native controls, including Liquid Glass tabs, follow the saved app theme
+  // on every route. Keep this override at the provider, not a tab's lifetime.
+  useEffect(() => {
+    if (Platform.OS !== "ios" || !isLoaded) return;
+    Appearance.setColorScheme(
+      themeMode === "system"
+        ? "unspecified"
+        : themeMode === "dark" || themeMode === "midnight"
+          ? "dark"
+          : "light",
+    );
+  }, [isLoaded, themeMode]);
+
+  useEffect(() => () => {
+    if (Platform.OS === "ios") Appearance.setColorScheme("unspecified");
+  }, []);
 
   // Listen for system color scheme changes when in "system" mode
   useEffect(() => {

@@ -8,7 +8,7 @@ const user = {
   url: "",
   data_updated_at: now,
   data: {
-    username: "review-enter-test",
+    username: "Portego",
     level: 2,
     profile_url: "",
     started_at: "2026-01-01T00:00:00.000Z",
@@ -72,7 +72,7 @@ async function fulfillJson(route: Route, json: unknown) {
 
 async function mockReview(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("kakehashi-web:settings:review-enter-test:v1", JSON.stringify({
+    localStorage.setItem("kakehashi-web:settings:portego:v1", JSON.stringify({
       study: { reviewQuestionOrderEnabled: true, reviewQuestionOrder: "meaning-first" },
     }));
   });
@@ -137,11 +137,11 @@ test("phone taps keep the answer focused when checking and advancing", async ({ 
   const originalInput = await input.elementHandle();
   await setKeyboardViewport(page, 390);
   await expect(page.locator("[data-mobile-review-keyboard]")).toHaveCount(1);
-  await page.getByRole("button", { name: "Check Answer" }).tap();
+  await page.getByRole("button", { name: "Check", exact: true }).tap();
   await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
   await expect(input).toBeEditable();
   await expect(input).toBeFocused();
-  await page.getByRole("button", { name: "Next Question" }).tap();
+  await page.getByRole("button", { name: "Next", exact: true }).tap();
   await expect(page.locator("#study-prompt-title")).toHaveText("reading");
   await expect(input).toHaveValue("");
   await expect(input).toBeFocused();
@@ -161,10 +161,10 @@ for (const { height, offsetTop } of [{ height: 390, offsetTop: 0 }, { height: 39
 
     const geometry = async () => page.evaluate(() => {
       const prompt = document.querySelector<HTMLElement>('[aria-label="Review prompt"]')!;
-      const controls = document.querySelector<HTMLElement>('[aria-label="Answer controls"]')!;
       const answer = document.querySelector<HTMLInputElement>("#review-answer")!;
+      const controls = answer.parentElement!;
       const answerRegion = answer.closest("form")!.parentElement!;
-      const glyph = prompt.lastElementChild!;
+      const glyph = document.querySelector<HTMLElement>("#question-prompt > span")!;
       const viewport = window.visualViewport!;
       return {
         promptTop: Math.round(prompt.getBoundingClientRect().top - viewport.offsetTop),
@@ -182,7 +182,7 @@ for (const { height, offsetTop } of [{ height: 390, offsetTop: 0 }, { height: 39
     await page.screenshot({ path: testInfo.outputPath(`phone-keyboard-${height}-${offsetTop}.png`), clip: { x: 0, y: offsetTop, width: 390, height }, scale: "css" });
 
     await page.keyboard.press("Enter");
-    const next = page.getByRole("button", { name: "Next Question" });
+    const next = page.getByRole("button", { name: "Next", exact: true });
     const feedback = page.getByRole("status").filter({ has: page.getByText("Incorrect", { exact: true }) });
     await expect(next).toBeVisible();
     await expect.poll(async () => {
@@ -203,7 +203,7 @@ for (const { height, offsetTop } of [{ height: 390, offsetTop: 0 }, { height: 39
     expect((await geometry()).scrollY).toBe(0);
     await setKeyboardViewport(page, fullHeight);
     await expect(page.locator("[data-mobile-review-keyboard]")).toHaveCount(0);
-    await expect(page.getByRole("banner")).toBeVisible();
+    await expect(page.getByRole("banner")).toHaveCount(0);
   });
 }
 
@@ -220,10 +220,10 @@ test("desktop review retains its layout and submitted input behavior", async ({ 
       return [rect.x, rect.y, rect.width, rect.height].map(Math.round);
     };
     return {
-      shell: bounds("main > div"),
+      shell: bounds('[data-study-session="active"]'),
       prompt: bounds('[aria-label="Review prompt"]'),
       input: bounds("#review-answer"),
-      controls: bounds('[aria-label="Answer controls"]'),
+      controls: bounds("#review-answer + button"),
     };
   });
   await expect.poll(async () => (await input.boundingBox())?.height).toBe(56);
@@ -238,7 +238,9 @@ test("desktop review retains its layout and submitted input behavior", async ({ 
 
   await page.keyboard.press("Enter");
   await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
-  await expect(input).toBeDisabled();
+  await expect(input).toBeEnabled();
+  await expect(input).not.toBeEditable();
+  await expect(input).toHaveJSProperty("readOnly", true);
   await page.keyboard.press("Enter");
   await expect(page.locator("#study-prompt-title")).toHaveText("reading");
   await expect(input).toBeFocused();
@@ -262,12 +264,25 @@ test("Enter advances after the learner clicks review audio", async ({ page }) =>
   await mockReview(page);
   await page.goto("/reviews", { waitUntil: "domcontentloaded" });
 
+  await expect(page.getByRole("button", { name: /Replay audio|subject details/ })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Your answer" }).fill("not river");
-  await page.getByRole("button", { name: "Check Answer" }).click();
+  await page.getByRole("button", { name: "Check", exact: true }).click();
   await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Next Question" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Show subject details/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Replay audio/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /Show subject details/ }).click();
+  await expect(page.getByRole("heading", { name: "Subject details", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Hide subject details/ }).click();
+  await expect(page.getByRole("heading", { name: "Subject details", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator("#study-prompt-title")).toHaveText("reading");
+  await expect(page.getByRole("button", { name: /Replay audio|subject details/ })).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Your answer" }).fill("ぜんぜん");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
 
-  const audio = page.getByRole("button", { name: "Audio", exact: true });
+  const audio = page.getByRole("button", { name: /Replay audio/ });
   await audio.click();
   await audio.focus();
   await expect(audio).toBeFocused();
@@ -278,5 +293,5 @@ test("Enter advances after the learner clicks review audio", async ({ page }) =>
   await expect.poll(async () => ({
     prompt: await page.locator("#study-prompt-title").textContent(),
     audioPlays: await page.evaluate(() => (window as typeof window & { __reviewAudioPlayCount?: number }).__reviewAudioPlayCount ?? 0),
-  }), { timeout: 1_000 }).toEqual({ prompt: "reading", audioPlays: 1 });
+  }), { timeout: 1_000 }).toEqual({ prompt: "meaning", audioPlays: 1 });
 });

@@ -1,7 +1,11 @@
 import * as Updates from "expo-updates";
 import { Platform } from "react-native";
 
-import { applyStartupUpdate, STARTUP_UPDATE_TIMEOUT_MS } from "../startupUpdateService";
+import {
+  applyStartupUpdate,
+  STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS,
+  STARTUP_UPDATE_TIMEOUT_MS,
+} from "../startupUpdateService";
 
 let mockUpdatesEnabled = true;
 jest.mock("expo-updates", () => {
@@ -60,6 +64,24 @@ it("checks, downloads and requests reload while retaining the applying status", 
   expect(mockFetch).toHaveBeenCalledTimes(1);
   expect(mockReload).toHaveBeenCalledWith({ reloadScreenOptions });
   expect(onStatus.mock.calls).toEqual([["checking"], ["applying"]]);
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+it("applies an update when downloading takes longer than the check timeout", async () => {
+  const download = deferred<Updates.UpdateFetchResult>();
+  mockFetch.mockReturnValueOnce(download.promise);
+  const onStatus = jest.fn();
+  const finished = jest.fn();
+  const result = applyStartupUpdate({ onStatus }).then(finished);
+
+  await jest.advanceTimersByTimeAsync(STARTUP_UPDATE_TIMEOUT_MS + 1000);
+  expect(finished).not.toHaveBeenCalled();
+  expect(onStatus).toHaveBeenLastCalledWith("applying");
+
+  download.resolve(DOWNLOADED);
+  await result;
+  expect(mockReload).toHaveBeenCalledTimes(1);
+  expect(finished).toHaveBeenCalledWith({ reloadTriggered: true, outcome: "reload-requested" });
   expect(jest.getTimerCount()).toBe(0);
 });
 
@@ -126,7 +148,7 @@ it.each(["resolve", "reject"])("stops waiting at five seconds and ignores a late
   expect(jest.getTimerCount()).toBe(0);
 });
 
-it.each(["resolve", "reject"])("shares one network deadline and ignores a late download %s", async (settlement) => {
+it.each(["resolve", "reject"])("gives downloads a separate deadline and ignores a late download %s", async (settlement) => {
   const check = deferred<Updates.UpdateCheckResult>();
   const download = deferred<Updates.UpdateFetchResult>();
   mockCheck.mockReturnValueOnce(check.promise);
@@ -139,6 +161,9 @@ it.each(["resolve", "reject"])("shares one network deadline and ignores a late d
   await jest.advanceTimersByTimeAsync(0);
   expect(mockFetch).toHaveBeenCalledTimes(1);
   await jest.advanceTimersByTimeAsync(1000);
+  expect(finished).not.toHaveBeenCalled();
+  expect(onStatus).toHaveBeenLastCalledWith("applying");
+  await jest.advanceTimersByTimeAsync(STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS - 1000);
   expect(finished).toHaveBeenCalledWith({ reloadTriggered: false, outcome: "timed-out" });
   expect(onStatus.mock.calls).toEqual([["checking"], ["applying"], [null]]);
   if (settlement === "resolve") download.resolve(DOWNLOADED);
@@ -155,7 +180,7 @@ it.each(["check", "fetch"])("checks the deadline after %s even if the timeout ca
     return AVAILABLE;
   });
   else mockFetch.mockImplementationOnce(async () => {
-    jest.setSystemTime(STARTUP_UPDATE_TIMEOUT_MS + 1);
+    jest.setSystemTime(STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS + 1);
     return DOWNLOADED;
   });
   expect(await applyStartupUpdate()).toEqual({ reloadTriggered: false, outcome: "timed-out" });
@@ -164,7 +189,7 @@ it.each(["check", "fetch"])("checks the deadline after %s even if the timeout ca
   expect(jest.getTimerCount()).toBe(0);
 });
 
-it("does not time out a reload already requested within the network deadline", async () => {
+it("does not time out a reload already requested within the download deadline", async () => {
   const reload = deferred<void>();
   mockReload.mockReturnValueOnce(reload.promise);
   const onStatus = jest.fn();
@@ -172,7 +197,7 @@ it("does not time out a reload already requested within the network deadline", a
   const result = applyStartupUpdate({ onStatus }).then(finished);
   await jest.advanceTimersByTimeAsync(0);
   expect(mockReload).toHaveBeenCalledTimes(1);
-  await jest.advanceTimersByTimeAsync(STARTUP_UPDATE_TIMEOUT_MS + 1);
+  await jest.advanceTimersByTimeAsync(STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS + 1);
   expect(finished).not.toHaveBeenCalled();
   expect(onStatus.mock.calls).toEqual([["checking"], ["applying"]]);
   expect(jest.getTimerCount()).toBe(0);

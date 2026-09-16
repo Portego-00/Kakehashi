@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { canAccessCoreStudy } from "@/features/core-study/access";
+import { DEMO_SESSION_COOKIE } from "@/features/demo/constants";
 import { unsealToken } from "@/lib/server/session-crypto";
 import { clientAddress, isTrustedMutationOrigin } from "@/lib/server/request-security";
 import { opaqueRateLimitKey, takeRateLimit, type RateLimitResult } from "@/lib/server/rate-limit";
+import { getWaniKaniSessionUser, SessionUpstreamError, WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 import { clearWkCache, coalesceWkRequest, isWkCacheBypass, readWkCache, versionedWkCacheKey, wkCacheGeneration, wkCacheKey, writeWkCacheIfCurrent } from "@/lib/server/wk-cache";
 
 const API_BASE = "https://api.wanikani.com/v2";
@@ -11,12 +14,12 @@ const ALLOWED_ROOTS = new Set([
   "spaced_repetition_systems", "study_materials", "subjects", "summary", "user", "voice_actors",
 ]);
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT"]);
-const COOKIE_NAME = "kakehashi_wk_session";
 export const runtime = "nodejs";
 
 const reviewBody = z.object({ review: z.object({ assignment_id: z.number().int().positive(), incorrect_meaning_answers: z.number().int().min(0), incorrect_reading_answers: z.number().int().min(0), created_at: z.string().datetime().optional() }).strict() }).strict();
 const lessonBody = z.object({ assignment: z.object({ started_at: z.string().datetime().optional() }).strict() }).strict();
 const studyMaterialBody = z.object({ study_material: z.object({ subject_id: z.number().int().positive().optional(), meaning_note: z.string().nullable().optional(), reading_note: z.string().nullable().optional(), meaning_synonyms: z.array(z.string().trim().min(1).max(120)).max(20).optional() }).strict() }).strict();
+const studyUser = z.object({ data: z.object({ username: z.string() }) });
 
 function mutationSchema(method: string, path: string[]) {
   if (method === "POST" && path.length === 1 && path[0] === "reviews") return reviewBody;
@@ -55,8 +58,12 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
 
   if (request.method !== "GET" && !isTrustedMutationOrigin(request)) return error("This mutation did not originate from Kakehashi.", 403);
 
+  const schema = request.method === "GET" ? null : mutationSchema(request.method, path);
+  const isCoreStudyMutation = schema === reviewBody || schema === lessonBody;
+  if (isCoreStudyMutation && request.cookies.get(DEMO_SESSION_COOKIE)?.value === "1") return error("Lessons and reviews are coming soon for this account.", 403);
+
   let token: string | undefined;
-  const sealed = request.cookies.get(COOKIE_NAME)?.value;
+  const sealed = request.cookies.get(WANIKANI_SESSION_COOKIE)?.value;
   if (sealed) {
     try { token = unsealToken(sealed); } catch { return error("The current session has expired.", 401); }
   }
@@ -66,6 +73,20 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
   const identity = sealed || `${clientAddress(request)}:development`;
   const localLimit = takeRateLimit(opaqueRateLimitKey(`wanikani-${request.method.toLocaleLowerCase()}`, identity), request.method === "GET" ? 90 : 60, 60_000);
   if (!localLimit.allowed) return rateLimited(localLimit);
+
+  if (isCoreStudyMutation) {
+    try {
+      const user = studyUser.safeParse(await getWaniKaniSessionUser(token));
+      if (!user.success || !canAccessCoreStudy(user.data.data.username)) return error("Lessons and reviews are coming soon for this account.", 403);
+    } catch (cause) {
+      const failure = cause instanceof SessionUpstreamError ? cause : null;
+      const status = failure?.status === 401 || failure?.status === 403 ? 401 : failure?.status === 429 ? 429 : 503;
+      const response = error(failure?.message || "WaniKani could not verify this account right now.", status);
+      if (failure?.retryAfter) response.headers.set("Retry-After", failure.retryAfter);
+      if (failure?.resetAt) response.headers.set("RateLimit-Reset", failure.resetAt);
+      return response;
+    }
+  }
 
   const target = new URL(`${API_BASE}/${path.map(encodeURIComponent).join("/")}`);
   request.nextUrl.searchParams.forEach((value, key) => target.searchParams.append(key, value));
@@ -84,7 +105,6 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
   let body: string | undefined;
   if (request.method !== "GET") {
     const raw = await request.json().catch(() => null);
-    const schema = mutationSchema(request.method, path);
     if (!schema) return error("That mutation is not supported.", 405);
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return NextResponse.json({ error: "The mutation body is invalid.", code: 422, details: parsed.error.flatten() }, { status: 422 });

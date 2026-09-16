@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import type { Subject } from "@/types/wanikani";
-import { canonicalAnswer, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
+import { canonicalAnswer, coreQueueOptionsForMode, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
 
 const preferences = DEFAULT_WEB_SETTINGS.study;
 const subject = { data: { slug: "water", meanings: [{ meaning: "Water", primary: true, accepted_answer: true }], readings: [{ reading: "みず", primary: true, accepted_answer: true }] } } as Subject;
@@ -11,6 +11,25 @@ describe("core study preferences", () => {
     const configured = { ...preferences, lessonQuestionOrder: "reading-first" as const, reviewQuestionOrder: "meaning-first" as const };
     expect(questionOrderForMode("lessons", configured)).toBe("reading-first");
     expect(questionOrderForMode("reviews", configured)).toBe("meaning-first");
+  });
+
+  it("honors back-to-back in lesson quizzes while preserving the lesson question order", () => {
+    expect(coreQueueOptionsForMode("lessons", {
+      ...preferences,
+      lessonQuestionOrder: "reading-first",
+      reviewQuestionOrder: "meaning-first",
+      backToBackQuestions: true,
+    })).toMatchObject({ mode: "lessons", answerOrder: "reading-first", backToBackQuestions: true });
+  });
+
+  it("uses the review ordering controls and disables pairing overrides for grouped Anki", () => {
+    const configured = { ...preferences, reviewQuestionOrder: "reading-first" as const, reviewQuestionOrderEnabled: true, backToBackQuestions: true };
+    expect(coreQueueOptionsForMode("reviews", configured)).toMatchObject({
+      answerOrder: "reading-first", reviewQuestionOrderEnabled: true, backToBackQuestions: true,
+    });
+    expect(coreQueueOptionsForMode("reviews", { ...configured, ankiMode: "both", ankiGroupQuestions: true })).toMatchObject({
+      reviewQuestionOrderEnabled: false, backToBackQuestions: false,
+    });
   });
 
   it("scopes self assessment to configured question kinds", () => {

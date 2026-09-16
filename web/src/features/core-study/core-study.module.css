@@ -2,6 +2,22 @@
  * tone: technical · anchor hue: subject semantic · pre-emit critique: P5 H5 E5 S5 R5 V5
  * contrast: pass (40–41) · mobile: pass (34, 49, 50–57) · tokens: pass (48)
  */
+.leaveDialog {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: var(--space-lg);
+  overflow: auto;
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.leaveDialog::backdrop { background: rgb(0 0 0 / 40%); }
+.leaveDialog h2 { font-size: var(--text-lg); }
+.leaveDialog p { margin-block: var(--space-md); color: var(--color-muted); }
+.leaveDialog > div { justify-content: flex-end; }
+
 .studyShell {
   min-height: calc(100dvh - var(--banner-height));
   background: var(--color-paper);
@@ -820,3 +836,47 @@
   .lessonFooterArrow:hover:not(:disabled) { background: var(--color-paper-2); }
   .lessonBatchItem:hover:not([data-active="true"]) { background: color-mix(in oklch, var(--lesson-item-color) 10%, transparent); }
 }
+
+.quizPromptLabel { text-transform: capitalize; }
+.answerDisclosure { gap: var(--space-sm); flex-wrap: wrap; }
+
+@media (max-width: 767px) {
+  .coreQuiz[data-mobile-review-keyboard="true"] .srsProgressionSlot { min-height: 1.25rem; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .srsProgression { gap: var(--space-2xs); padding: 0 var(--space-xs); grid-template-columns: auto auto auto; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .srsProgression > small { grid-column: auto; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .srsProgression > strong { font-size: var(--text-sm); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .toolButton,
+  .coreQuiz[data-mobile-review-keyboard="true"] .inputMode { flex: 1; min-height: 2.5rem; padding: var(--space-2xs); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .inputMode { flex: 0; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions { gap: var(--space-2xs); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions > button { min-height: 2.5rem; padding: var(--space-2xs) var(--space-xs); font-size: var(--text-sm); }
+  /* Share the last row between the optional synonym action and details when the keyboard is open. */
+  .coreQuiz[data-mobile-review-keyboard="true"] [data-answer-stop] > div:has(.feedbackActions > button:nth-child(4)) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions:has(> button:nth-child(4)) { display: contents; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions:has(> button:nth-child(4)) > button { grid-column: span 2; min-width: 0; gap: var(--space-2xs); padding-inline: var(--space-2xs); font-size: var(--text-xs); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions:has(> button:nth-child(4)) > button:nth-child(4),
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions:has(> button:nth-child(4)) + [data-open="false"] { grid-column: span 3; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .feedbackActions:has(> button:nth-child(4)) + [data-open="false"] > div:first-child > button { min-width: 0; width: 100%; padding-inline: var(--space-2xs); }
+}
+
+.beforeAnswerActions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-sm); }
+.actionKey { margin-inline-start: var(--space-2xs); border: 1px solid color-mix(in oklch, currentColor 35%, transparent); border-radius: 4px; background: color-mix(in oklch, currentColor 9%, transparent); color: inherit; padding: .125rem .3rem; font: 600 var(--text-xs) / 1.1 var(--font-mono); white-space: nowrap; }
+.skipCueRegion { position: absolute; z-index: var(--z-overlay, 30); inset-block-start: calc(var(--quiz-topbar-height) + 4.5rem); inset-inline: 0; display: flex; justify-content: center; pointer-events: none; }
+.skipCue { display: inline-flex; align-items: center; gap: var(--space-xs); border: 1px solid var(--color-rule); border-radius: 999px; background: var(--color-surface); color: var(--color-ink); padding: .5625rem .875rem; box-shadow: 0 2px 8px #0002; font-size: var(--text-sm); font-weight: 700; animation: review-skipped 2240ms both; }
+.skipCue > svg { color: var(--color-accent); }
+@keyframes review-skipped {
+  0% { opacity: 0; transform: translateY(14px); animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+  7.6%, 89.3% { opacity: 1; transform: translateY(0); animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+@media (max-width: 767px) {
+  .coreQuiz[data-mobile-review-keyboard="true"] .actionKey { display: none; }
+  .coreQuiz[data-mobile-review-keyboard="true"] .beforeAnswerActions { gap: var(--space-2xs); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .beforeAnswerActions > button { min-height: 2.5rem; padding: var(--space-2xs) var(--space-xs); font-size: var(--text-sm); }
+  .coreQuiz[data-mobile-review-keyboard="true"] .skipCueRegion { inset-block-start: calc(var(--quiz-topbar-height) + var(--space-xs)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skipCue { animation: none; }
+}
+
+.answerSubmit:disabled[data-unanswered] { background: var(--color-paper-3); border-color: var(--color-rule); color: var(--color-ink-2); }

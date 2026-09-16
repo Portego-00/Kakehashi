@@ -143,16 +143,15 @@ test("demo level views show radicals, mixed progress, and varied completion time
 });
 
 for (const mode of ["lessons", "reviews"]) {
-  test(`demo runs the main ${mode} queue locally`, async ({ page }) => {
+  test(`demo keeps the main ${mode} queue coming soon`, async ({ page }) => {
     const outbound: string[] = [];
     page.on("request", (request) => { if (/\/api\/wanikani\/(assignments|reviews|subjects)/.test(request.url())) outbound.push(request.url()); });
     await openDemo(page);
-    await page.getByRole("link", { name: mode === "lessons" ? "Try lessons" : "Try reviews", exact: true }).click();
-    if (mode === "lessons") {
-      for (let index = 0; index < 4; index += 1) await page.getByRole("button", { name: "Next lesson", exact: true }).click();
-      await page.getByRole("button", { name: "Start lesson review", exact: true }).click();
-    }
-    await expect(page.getByRole("textbox", { name: "Your answer", exact: true })).toBeVisible();
+    const queue = page.getByRole("article", { name: `${mode === "lessons" ? "Lessons" : "Reviews"} study queue, coming soon`, exact: true });
+    await expect(queue.getByRole("button", { name: "Coming soon", exact: true })).toBeDisabled();
+    await page.goto(`/${mode}`);
+    await expect(page.getByRole("heading", { name: "Coming soon", exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Your answer", exact: true })).toHaveCount(0);
     expect(outbound).toEqual([]);
   });
 }

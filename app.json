@@ -2,13 +2,13 @@
   "expo": {
     "name": "Kakehashi",
     "slug": "kakehashi",
-    "version": "1.4.8",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kakehashi",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "version": "1.4.8",
+      "version": "1.5.0",
       "supportsTablet": true,
       "bundleIdentifier": "com.portego00.kakehashi",
       "icon": "./ios/Kakehashi.icon",
@@ -27,7 +27,7 @@
           "com.expo.modules.backgroundtask.processing"
         ],
         "NSSpeechRecognitionUsageDescription": "$(PRODUCT_NAME) uses speech recognition to convert your spoken Japanese into text, allowing you to search for vocabulary by speaking words or phrases aloud.",
-        "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) uses the microphone to listen to your voice when you speak Japanese words or phrases for vocabulary search.",
+        "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) uses the microphone for spoken vocabulary search and live language conversation practice.",
         "NSAppleMusicUsageDescription": "$(PRODUCT_NAME) uses Apple Music access for playback and catalog search."
       },
       "entitlements": {
@@ -38,7 +38,7 @@
       "appleTeamId": "854C975NWV"
     },
     "android": {
-      "version": "1.4.8",
+      "version": "1.5.0",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/images/adaptive-icon-background.png",
@@ -66,6 +66,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
         "com.ichi2.anki.permission.READ_WRITE_DATABASE"
       ],
       "blockedPermissions": [
@@ -86,6 +88,8 @@
     },
     "plugins": [
       "expo-router",
+      ["@config-plugins/react-native-webrtc", { "microphonePermission": "$(PRODUCT_NAME) uses the microphone for spoken vocabulary search and live language conversation practice." }],
+      "expo-sharing",
       [
         "expo-splash-screen",
         {
@@ -212,7 +216,7 @@
         "projectId": "22fd8bf2-11b1-439f-b818-80b2ef36b90b"
       }
     },
-    "runtimeVersion": "1.4.8",
+    "runtimeVersion": "1.5.0",
     "updates": {
       "url": "https://u.expo.dev/22fd8bf2-11b1-439f-b818-80b2ef36b90b",
       "checkAutomatically": "ON_ERROR_RECOVERY"

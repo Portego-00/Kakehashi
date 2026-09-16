@@ -229,6 +229,8 @@ PODS:
     - ExpoModulesCore
   - ExpoCrypto (55.0.15):
     - ExpoModulesCore
+  - ExpoDocumentPicker (55.0.17):
+    - ExpoModulesCore
   - ExpoDomWebView (55.0.3):
     - ExpoModulesCore
   - ExpoFileSystem (55.0.10):
@@ -303,6 +305,8 @@ PODS:
   - ExpoSecureStore (55.0.8):
     - ExpoModulesCore
   - ExpoSensors (55.0.13):
+    - ExpoModulesCore
+  - ExpoSharing (55.0.24):
     - ExpoModulesCore
   - ExpoSpeech (55.0.13):
     - ExpoModulesCore
@@ -412,6 +416,7 @@ PODS:
   - hermes-engine/Pre-built (0.14.1)
   - ImageColors (2.5.0):
     - ExpoModulesCore
+  - JitsiWebRTC (124.0.2)
   - libavif/core (0.11.1)
   - libavif/libdav1d (0.11.1):
     - libavif/core
@@ -2599,6 +2604,9 @@ PODS:
     - MobileVLCKit (= 3.5.1)
     - React
     - TVVLCKit (= 3.5.1)
+  - react-native-webrtc (124.0.8):
+    - JitsiWebRTC (~> 124.0.0)
+    - React-Core
   - react-native-webview (13.16.0):
     - boost
     - DoubleConversion
@@ -3184,6 +3192,8 @@ PODS:
     - React-perflogger (= 0.83.2)
     - React-utils (= 0.83.2)
     - SocketRocket
+  - ReactNativeIncallManager (4.2.2):
+    - React-Core
   - RNAppleMusic (1.3.0):
     - boost
     - DoubleConversion
@@ -3642,6 +3652,7 @@ DEPENDENCIES:
   - ExpoBackgroundTask (from `../node_modules/expo-background-task/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
+  - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - "ExpoDomWebView (from `../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -3660,6 +3671,7 @@ DEPENDENCIES:
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSensors (from `../node_modules/expo-sensors/ios`)
+  - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSpeech (from `../node_modules/expo-speech/ios`)
   - ExpoSpeechRecognition (from `../node_modules/expo-speech-recognition/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
@@ -3727,6 +3739,7 @@ DEPENDENCIES:
   - "react-native-segmented-control (from `../node_modules/@react-native-segmented-control/segmented-control`)"
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
   - react-native-vlc-media-player (from `../node_modules/react-native-vlc-media-player`)
+  - react-native-webrtc (from `../node_modules/react-native-webrtc`)
   - react-native-webview (from `../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
@@ -3761,6 +3774,7 @@ DEPENDENCIES:
   - ReactAppDependencyProvider (from `build/generated/ios/ReactAppDependencyProvider`)
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - ReactNativeIncallManager (from `../node_modules/react-native-incall-manager`)
   - "RNAppleMusic (from `../node_modules/@lomray/react-native-apple-music`)"
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNCPicker (from `../node_modules/@react-native-picker/picker`)"
@@ -3783,6 +3797,7 @@ SPEC REPOS:
     - GoogleToolboxForMac
     - GoogleUtilities
     - GTMSessionFetcher
+    - JitsiWebRTC
     - libavif
     - libdav1d
     - libwebp
@@ -3843,6 +3858,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-blur/ios"
   ExpoCrypto:
     :path: "../node_modules/expo-crypto/ios"
+  ExpoDocumentPicker:
+    :path: "../node_modules/expo-document-picker/ios"
   ExpoDomWebView:
     :path: "../node_modules/@expo/dom-webview/ios"
   ExpoFileSystem:
@@ -3879,6 +3896,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-secure-store/ios"
   ExpoSensors:
     :path: "../node_modules/expo-sensors/ios"
+  ExpoSharing:
+    :path: "../node_modules/expo-sharing/ios"
   ExpoSpeech:
     :path: "../node_modules/expo-speech/ios"
   ExpoSpeechRecognition:
@@ -4010,6 +4029,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-community/slider"
   react-native-vlc-media-player:
     :path: "../node_modules/react-native-vlc-media-player"
+  react-native-webrtc:
+    :path: "../node_modules/react-native-webrtc"
   react-native-webview:
     :path: "../node_modules/react-native-webview"
   React-NativeModulesApple:
@@ -4078,6 +4099,8 @@ EXTERNAL SOURCES:
     :path: build/generated/ios/ReactCodegen
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  ReactNativeIncallManager:
+    :path: "../node_modules/react-native-incall-manager"
   RNAppleMusic:
     :path: "../node_modules/@lomray/react-native-apple-music"
   RNCAsyncStorage:
@@ -4123,6 +4146,7 @@ SPEC CHECKSUMS:
   ExpoBackgroundTask: e8100c968bb4ed4de7d8ef2c268af70c53aaa74a
   ExpoBlur: 3982ec03e89c0d9a2f2b8f35b48fe12e3155c6ed
   ExpoCrypto: 3deb1f311979766b91f8ad2e1d1feb4699688fb4
+  ExpoDocumentPicker: e471276f75d4767740ad1a3929db6996c4c5aef8
   ExpoDomWebView: d4f2ed3c3fa31d0ce89e79501a0c041c2f233189
   ExpoFileSystem: 0d267067930a744555ff6ab842fd79d3eeb2c33b
   ExpoFont: 4d2a6dedce012c4793532cb38d561d3da95eaafd
@@ -4141,6 +4165,7 @@ SPEC CHECKSUMS:
   ExpoRouter: 2e2efe243f0cf6ac3ddde38abc4bff692009b89a
   ExpoSecureStore: 7837b892a89ad8d28b64d9302b657e8b6ebae250
   ExpoSensors: a6a6b0cba1488e548119e201613268bc247821d4
+  ExpoSharing: 62a25371d4c8b8b0df236fb93e286f17920ade27
   ExpoSpeech: 1cd5d4582a81ddc8259f77391a5174f19ebf8bff
   ExpoSpeechRecognition: 6f2b4a9f2597f23592c85e1c4dad99d8818803c8
   ExpoSplashScreen: 91624a9550497925d9606fc9da86061369833716
@@ -4167,6 +4192,7 @@ SPEC CHECKSUMS:
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   hermes-engine: 9dbbe749f4fe885521d546c3ba12a5f67255af84
   ImageColors: 44c86bc2d1f98b401f0d96a95a61039ce5deb776
+  JitsiWebRTC: b47805ab5668be38e7ee60e2258f49badfe8e1d0
   libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
@@ -4229,6 +4255,7 @@ SPEC CHECKSUMS:
   react-native-segmented-control: 44d14c6899ee12de3384517f4fa1cf4a66ae105c
   react-native-slider: 5da4af460d0dd1346f927e829dfecbb81bd46f91
   react-native-vlc-media-player: 0f9860bded57cd6764ac55b5c0e97347069cb40a
+  react-native-webrtc: a3173652a7de48afa9f2d6151cb6eef130c04930
   react-native-webview: 8b9097e270a99ee8798449f191a7ea27c790fa1c
   React-NativeModulesApple: 98d4bfdb563fbcee3d6076c3d398c10799098bd9
   React-networking: 223510e7fcbf949f1c66a2de9d50c98a441bf416
@@ -4263,6 +4290,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 1976cdf5076a7e34718a56ead2f2069c7f54ebe9
   ReactCodegen: 9e9fba640f1e2aca2d40256ee1efb9ae0a7bf0c4
   ReactCommon: d88059f5cba636002f007da707debdc6d0334a3b
+  ReactNativeIncallManager: e7ee5c9ad606788e8bb41267b864e0f4958d8034
   RNAppleMusic: afd08c257cc7ea3c2540b1f2f46572537e5fdd5b
   RNCAsyncStorage: 302f2fac014fd450046c120567ca364632da682b
   RNCPicker: 3fc4d505041318ee8f59662d8d66892ce3c3295c

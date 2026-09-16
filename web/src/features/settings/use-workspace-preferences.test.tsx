@@ -1,12 +1,74 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEMO_JPDB_KEY } from "@/features/demo/jpdb";
 import { setDemoMode } from "@/features/demo/runtime";
-import { DEFAULT_WEB_SETTINGS, settingsStorageKey } from "./settings";
+import { DEFAULT_WEB_SETTINGS, saveWebSettings, settingsStorageKey } from "./settings";
 import { useWebSettings } from "./use-workspace-preferences";
 
 beforeEach(() => { window.localStorage.clear(); setDemoMode(false); });
 afterEach(() => setDemoMode(false));
+
+describe("persisted review preferences", () => {
+  const reviewSettings = {
+    ...DEFAULT_WEB_SETTINGS,
+    study: {
+      ...DEFAULT_WEB_SETTINGS.study,
+      showReviewItemLevelAndSrsStage: true,
+      showVocabularyFrequency: true,
+      showVocabContextSentencesInReviews: true,
+      reviewOrder: "descendingSrsStage" as const,
+      reviewTypeOrderEnabled: true,
+      reviewTypeOrder: ["vocabulary", "kanji", "radical"] as const,
+      reviewQuestionOrderEnabled: true,
+      reviewQuestionOrder: "reading-first" as const,
+      backToBackQuestions: true,
+      backToBackImmediateRetryIncorrect: true,
+      reviewBatchSizeEnabled: true,
+      reviewBatchSize: 15,
+      allowSkippingReviews: true,
+    },
+  };
+  const savedSettings = { ...reviewSettings, study: { ...reviewSettings.study, reviewTypeOrder: [...reviewSettings.study.reviewTypeOrder] } };
+
+  it("loads the normalized account's review display and queue preferences on entry", () => {
+    saveWebSettings(window.localStorage, " Portego ", savedSettings);
+    const { result } = renderHook(() => useWebSettings("Portego"));
+    expect(result.current.study).toMatchObject(savedSettings.study);
+  });
+
+  it("applies changes saved in the current tab without mixing accounts", () => {
+    const { result, rerender } = renderHook(({ username }) => useWebSettings(username), { initialProps: { username: "Portego" } });
+    expect(result.current.study.showReviewItemLevelAndSrsStage).toBe(false);
+
+    act(() => saveWebSettings(window.localStorage, "portego", savedSettings));
+    expect(result.current.study).toMatchObject(savedSettings.study);
+    rerender({ username: "another-user" });
+    expect(result.current.study).toEqual(DEFAULT_WEB_SETTINGS.study);
+  });
+
+  it("replaces the server defaults with saved review settings during hydration", async () => {
+    function Preferences() {
+      const settings = useWebSettings("Portego");
+      return <output>{JSON.stringify(settings.study)}</output>;
+    }
+
+    saveWebSettings(window.localStorage, "Portego", savedSettings);
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<Preferences />);
+    expect(JSON.parse(container.textContent ?? "{}")).toEqual(DEFAULT_WEB_SETTINGS.study);
+    document.body.appendChild(container);
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      await act(async () => { root = hydrateRoot(container, <Preferences />); });
+      expect(JSON.parse(container.textContent ?? "{}")).toMatchObject(savedSettings.study);
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+    }
+  });
+});
 
 describe("demo Japanese tool preferences", () => {
   it("enables demo annotation using a public marker without persisting a credential", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createQuestionQueue, kindsForSubject, moveCoreQuestionPairToEnd } from "./queue";
+import { createQuestionQueue, kindsForSubject, moveCoreQuestionPairToEnd, requeueIncorrectCoreQuestions } from "./queue";
 import type { Assignment, Subject } from "@/types/wanikani";
 
 function item(object: Subject["object"], id = 1): Subject { return { id, object, url: "", data_updated_at: "", data: { level: 1, created_at: "", slug: "x", document_url: "", hidden_at: null, characters: "字", meanings: [], auxiliary_meanings: [], readings: [{ reading: "じ", primary: true, accepted_answer: true }] } }; }
@@ -9,6 +9,16 @@ describe("question requirements", () => { it("uses meaning-only for radicals and
 describe("question ordering", () => {
   it("preserves the lesson question behavior", () => {
     expect(createQuestionQueue([assignment(1), assignment(2)], [item("kanji", 1), item("kanji", 2)], { mode: "lessons", answerOrder: "reading-first", shuffleSubjects: false }).map((question) => `${question.assignment.id}:${question.kind}`)).toEqual(["1:reading", "2:reading", "1:meaning", "2:meaning"]);
+  });
+
+  it("keeps lesson quiz pairs together when back-to-back is enabled", () => {
+    const queue = createQuestionQueue([assignment(1), assignment(2)], [item("kanji", 1), item("kanji", 2)], {
+      mode: "lessons",
+      answerOrder: "reading-first",
+      backToBackQuestions: true,
+    });
+
+    expect(queue.map((question) => question.id)).toEqual(["1:reading", "1:meaning", "2:reading", "2:meaning"]);
   });
 
   it("keeps review counterparts adjacent when back-to-back questions are enabled", () => {
@@ -97,6 +107,23 @@ describe("question ordering", () => {
       "2:reading",
       "1:meaning",
       "1:reading",
+    ]);
+  });
+
+  it("asks the pending counterpart before an immediate incorrect retry like mobile", () => {
+    const [failed, counterpart, ...rest] = createQuestionQueue([assignment(1), assignment(2)], [item("kanji", 1), item("kanji", 2)], {
+      mode: "reviews",
+      backToBackQuestions: true,
+    });
+
+    expect(requeueIncorrectCoreQuestions([counterpart, ...rest], [failed], true).map((question) => question.id)).toEqual([
+      "1:reading", "1:meaning", "2:meaning", "2:reading",
+    ]);
+    expect(requeueIncorrectCoreQuestions(rest, [failed], true).map((question) => question.id)).toEqual([
+      "1:meaning", "2:meaning", "2:reading",
+    ]);
+    expect(requeueIncorrectCoreQuestions([counterpart, ...rest], [failed], false).map((question) => question.id)).toEqual([
+      "1:reading", "2:meaning", "2:reading", "1:meaning",
     ]);
   });
 });

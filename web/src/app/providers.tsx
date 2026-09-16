@@ -5,6 +5,7 @@ import { useState } from "react";
 import { SessionProvider } from "@/lib/session";
 import { ThemeProvider } from "@/lib/theme";
 import { WaniKaniApiError } from "@/lib/wanikani/client";
+import { ReviewNavigationGuardHost } from "@/features/core-study/use-review-leave-guard";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ReviewNavigationGuardHost />
       <ThemeProvider><SessionProvider>{children}</SessionProvider></ThemeProvider>
     </QueryClientProvider>
   );
