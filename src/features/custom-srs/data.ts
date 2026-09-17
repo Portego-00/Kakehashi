@@ -18,7 +18,7 @@ export const customLessonWords = (state: CustomSrsState, packs: readonly CustomV
 export const customReviewWords = (state: CustomSrsState, packs: readonly CustomVocabularyPack[] = customVocabularyPacks, now = new Date()) => selectReviewWords(state, packs, now);
 export const nextCustomReviewAt = (state: CustomSrsState, packs: readonly CustomVocabularyPack[] = customVocabularyPacks) => selectNextReviewAt(state, packs);
 
-const client = createCustomSrsClient({ request: requestCustomSrsCloud, cache: AsyncStorage });
+const client = createCustomSrsClient({ request: (token, action, previous) => requestCustomSrsCloud(token, action, { previous }), cache: AsyncStorage });
 
 function syncAccount() {
   const { apiToken, userData } = useAuthStore.getState();
@@ -66,7 +66,7 @@ const actions = {
   refresh: client.refresh,
   enrollPack: (packId: string) => client.mutate({ action: "enroll_pack", packId, eventId: eventId() }),
   completeLesson: (wordId: string, id = eventId()) => client.mutate({ action: "complete_lesson", wordId, eventId: id }),
-  submitReview: (wordId: string, incorrectAnswers: number, id = eventId()) => client.mutate({ action: "submit_review", wordId, incorrectAnswers, eventId: id }),
+  submitReview: (wordId: string, incorrectAnswers: number, id = eventId(), expectedAssignmentUpdatedAt?: string) => client.mutate({ action: "submit_review", wordId, incorrectAnswers, eventId: id, expectedAssignmentUpdatedAt }),
 };
 
 export function useCustomSrs() {

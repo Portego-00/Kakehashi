@@ -1434,6 +1434,62 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getByText("Tap anywhere to see the answer")).toBeTruthy();
   });
 
+  describe("Anki background reveal gestures", () => {
+    it.each([false, true])(
+      "reveals from a background tap without grading or treating a drag as a tap (buttonless: %s)",
+      (buttonless) => {
+        mockSettings.ankiCardMode = true;
+        mockSettings.ankiButtonlessMode = buttonless;
+        mockSettings.ankiShowPitchAccentGraph = true;
+        const onAnswer = jest.fn();
+        const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />);
+        const pane = screen.getByLabelText("Reveal anki answer");
+        const start = { nativeEvent: { pageX: 100, pageY: 300 } };
+        const dragged = { nativeEvent: { pageX: 100, pageY: 370 } };
+
+        expect(pane.props.onStartShouldSetResponder()).toBe(true);
+        expect(pane.props.onResponderTerminationRequest()).toBe(true);
+        fireEvent(pane, "responderGrant", start);
+        fireEvent(pane, "responderMove", dragged);
+        fireEvent(pane, "responderRelease", dragged);
+
+        expect(screen.getByText("Tap anywhere to see the answer")).toBeTruthy();
+        expect(screen.getByLabelText("Reveal anki answer")).toBeTruthy();
+        expect(onAnswer).not.toHaveBeenCalled();
+        expect(router.push).not.toHaveBeenCalled();
+
+        fireEvent(pane, "responderGrant", start);
+        fireEvent(pane, "responderRelease", start);
+
+        expect(screen.queryByText("Tap anywhere to see the answer")).toBeNull();
+        expect(screen.queryByLabelText("Reveal anki answer")).toBeNull();
+        expect(onAnswer).not.toHaveBeenCalled();
+        expect(router.push).not.toHaveBeenCalled();
+        if (buttonless) {
+          expect(screen.getByLabelText("Buttonless anki controls").props.onStartShouldSetResponder()).toBe(true);
+        } else {
+          expect(screen.getByText("Correct")).toBeTruthy();
+          expect(screen.getByText("Wrong")).toBeTruthy();
+          expect(pane.props.onStartShouldSetResponder()).toBe(false);
+        }
+      },
+    );
+
+    it("still reveals from the answer card with pitch accent enabled", () => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.ankiShowPitchAccentGraph = true;
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />);
+
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+
+      expect(screen.queryByText("Tap anywhere to see the answer")).toBeNull();
+      expect(screen.getByText("Correct")).toBeTruthy();
+      expect(screen.getByText("Wrong")).toBeTruthy();
+      expect(onAnswer).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Anki kanji composition", () => {
     const vocabularyItem = {
       id: 401,

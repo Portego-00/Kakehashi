@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, ExternalLink, Info, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, type MouseEvent, type ReactNode, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { FormEvent, type MouseEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
@@ -20,13 +20,18 @@ import { playAnswerFeedback } from "@/features/study/feedback-audio";
 import { useSession } from "@/lib/session";
 import { WaniKaniApiError, wkCollection, wkRequest } from "@/lib/wanikani/client";
 import { userQuery, wkKeys } from "@/lib/wanikani/queries";
-import type { Assignment, ReviewCreateResponse, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
+import type { Assignment, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
 import { LessonTeaching } from "./LessonTeaching";
+import { CoreStudyResults } from "./CoreStudyResults";
+import type { ReviewResultItem } from "./review-results";
+import { SrsProgressionSlot, type SrsProgression } from "./SrsProgressionSlot";
 import { VocabularyFrequencyBadge } from "./VocabularyFrequencyBadge";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "./answer-checker";
 import { createQuestionQueue, kindsForSubject, lessonAssignments, moveCoreQuestionPairToEnd, reviewAssignments, type CoreQuestion } from "./queue";
-import { deliverReview, enqueueReview, loadReviewOutbox, noteReviewFailure, removeReview } from "./review-outbox";
+import { loadReviewOutbox } from "./review-outbox";
+import { predictedReviewStage } from "./review-sync";
+import { useReviewSync } from "./use-review-sync";
 import { coreSessionKey, lessonsStartedToday, recordLessonStarted, selectCoreAssignments } from "./session-planning";
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
 import { canonicalAnswer, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
@@ -34,12 +39,13 @@ import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationSt
 import { usePhoneStudyInput } from "./use-phone-study-input";
 import { useMobileReviewViewport } from "./use-mobile-review-viewport";
 import styles from "./core-study.module.css";
+import { reviewSubjectFont } from "./review-subject-font";
+import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
 
 type Mode = "lessons" | "reviews";
 type Phase = "loading" | "resume" | "teaching" | "quiz" | "results";
 type ErrorCounts = Record<number, { meaning: number; reading: number }>;
-type SrsProgression = { startingStage: number; endingStage: number; nextReviewInterval: string; isCorrect: boolean };
 type PreviousAnswerItem = { subject: Subject; kind: QuestionKind; isCorrect: boolean };
 type LessonTeachingSnapshot = { savedAt?: string; subjectIds: number[]; index: number; tab: SubjectDetailTab };
 type SessionSnapshot = {
@@ -110,27 +116,6 @@ function formatNextReviewInterval(availableAt: string | null | undefined, stage:
   return `${months} ${months === 1 ? "month" : "months"}`;
 }
 
-function SrsProgressionNotice({ progression, mode }: { progression: SrsProgression; mode: "normal" | "compact" }) {
-  const endingLabel = srsStageLabel(progression.endingStage);
-  return <aside className={styles.srsProgression} data-mode={mode} data-correct={progression.isCorrect} role="status" aria-label="SRS progression">
-    {mode === "normal" ? <span>{srsStageLabel(progression.startingStage)} →</span> : null}
-    <strong>{endingLabel}</strong>
-    <small>{progression.endingStage >= 9 ? "Burned" : `Next review ${progression.nextReviewInterval}`}</small>
-  </aside>;
-}
-
-function SrsProgressionSlot({ progression, mode, idleContent = null }: { progression: SrsProgression | null; mode: "normal" | "compact" | "hidden"; idleContent?: ReactNode }) {
-  if (mode === "hidden") return idleContent;
-  return <div
-    className={styles.srsProgressionSlot}
-    data-srs-progression-slot
-    data-mode={mode}
-    data-progression-visible={Boolean(progression)}
-  >
-    {progression ? <SrsProgressionNotice progression={progression} mode={mode} /> : idleContent}
-  </div>;
-}
-
 function shouldIgnoreReviewShortcut(event: KeyboardEvent) {
   if (event.defaultPrevented) return true;
   return event.target instanceof Element && Boolean(event.target.closest(reviewShortcutInteractiveSelector));
@@ -190,12 +175,11 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const [completed, setCompleted] = useState<Record<number, QuestionKind[]>>({});
   const [errors, setErrors] = useState<ErrorCounts>({});
   const [submittedIds, setSubmittedIds] = useState<number[]>([]);
+  const [resultItems, setResultItems] = useState<ReviewResultItem[]>([]);
   const [sessionError, setSessionError] = useState("");
   const [resumeSnapshot, setResumeSnapshot] = useState<SessionSnapshot | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date().toISOString());
   const [wrapUpActive, setWrapUpActive] = useState(false);
-  const [outboxCount, setOutboxCount] = useState(0);
-  const [outboxMessage, setOutboxMessage] = useState("");
   const [lessonStartsToday, setLessonStartsToday] = useState(0);
   const [displayNow, setDisplayNow] = useState(() => Date.now());
   const [ankiRevealed, setAnkiRevealed] = useState(false);
@@ -224,16 +208,16 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
   }, []);
 
+  const progressionSubjectId = srsProgression?.subjectId;
   useEffect(() => {
-    if (!srsProgression) return;
+    if (progressionSubjectId === undefined) return;
     const timer = window.setTimeout(() => setSrsProgression(null), 3_000);
     return () => window.clearTimeout(timer);
-  }, [srsProgression]);
+  }, [progressionSubjectId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setLessonStartsToday(lessonsStartedToday(window.localStorage, username));
-      setOutboxCount(loadReviewOutbox(window.localStorage, username).length);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [username]);
@@ -316,6 +300,8 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   }, [lessonBatchResolved, mode, plannedAssignments, restoredLessonAssignments]);
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const selectedSubjects = useMemo(() => selectedAssignments.map((assignment) => subjectById.get(assignment.data.subject_id)).filter((subject): subject is Subject => Boolean(subject)), [selectedAssignments, subjectById]);
+  const reviewFontText = selectedSubjects.map((subject) => subject.data.characters ?? "").join("");
+  const reviewFontReady = useReviewFontReady(reviewSubjectFont.style.fontFamily, reviewFontText);
   const selectedIds = useMemo(() => selectedAssignments.map((assignment) => assignment.data.subject_id), [selectedAssignments]);
   const answerContextIds = useMemo(() => Array.from(new Set(selectedSubjects.flatMap((subject) => {
     const characters = subject.data.characters?.normalize("NFKC").trim() || "";
@@ -356,6 +342,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const makeQueue = useMemo(() => () => createQuestionQueue(selectedAssignments, selectedSubjects, queueOptions), [queueOptions, selectedAssignments, selectedSubjects]);
 
   useEffect(() => {
+    if (phase === "results" && resultItems.length) return;
     if (!subjectsQuery.isSuccess || !lessonBatchResolved) return;
     const initializationKey = `${username}:${mode}:${selectedAssignments.map((assignment) => assignment.id).join(",")}`;
     if (initializedSessionKeyRef.current === initializationKey) return;
@@ -405,7 +392,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username]);
+  }, [lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
 
   useEffect(() => {
     if (phase !== "quiz") return;
@@ -428,36 +415,20 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     return () => window.cancelAnimationFrame(frame);
   }, [phase, questions]);
 
+  const reviewSync = useReviewSync(username, mode === "reviews" && !isOnVacation && assignmentQuery.isSuccess && username !== "anonymous", (entry, confirmation) => {
+    if (confirmation.stage !== undefined) {
+      setResultItems((items) => items.map((item) => item.assignmentId === entry.assignmentId ? { ...item, endingStage: confirmation.stage } : item));
+      // A late response may correct its own visible cue, never replace a newer one.
+      setSrsProgression((previous) => previous?.assignmentId === entry.assignmentId ? { ...previous, endingStage: confirmation.stage!, isCorrect: confirmation.stage! > previous.startingStage, nextReviewInterval: formatNextReviewInterval(confirmation.availableAt, confirmation.stage!) } : previous);
+    }
+    void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
+  });
+  const outboxCount = reviewSync.pendingCount;
+  const outboxMessage = reviewSync.permissionError;
+  const finishReviewSync = reviewSync.finish;
   useEffect(() => {
-    if (mode !== "reviews" || isOnVacation || !assignmentQuery.isSuccess || username === "anonymous") return;
-    let cancelled = false;
-    const drain = async () => {
-      const pending = loadReviewOutbox(window.localStorage, username);
-      if (!pending.length) return;
-      setOutboxMessage(`Recovering ${pending.length} saved review${pending.length === 1 ? "" : "s"}…`);
-      let recovered = 0;
-      for (const entry of pending) {
-        try {
-          await deliverReview(entry, {
-            readAssignment: (assignmentId) => wkRequest<Assignment>(`assignments/${assignmentId}`, { cache: "no-store", fresh: true }),
-            submitReview: async (queued) => { await wkRequest<ReviewCreateResponse>("reviews", { method: "POST", body: { review: { assignment_id: queued.assignmentId, incorrect_meaning_answers: queued.incorrectMeaningAnswers, incorrect_reading_answers: queued.incorrectReadingAnswers, created_at: queued.createdAt } } }); },
-          });
-          removeReview(window.localStorage, username, entry.assignmentId);
-          recovered += 1;
-        } catch (cause) {
-          noteReviewFailure(window.localStorage, username, entry.assignmentId, formatFailure(cause, "It remains saved for another retry."));
-          if (cause instanceof WaniKaniApiError && cause.status === 429) break;
-        }
-      }
-      if (cancelled) return;
-      const remaining = loadReviewOutbox(window.localStorage, username).length;
-      setOutboxCount(remaining);
-      setOutboxMessage(remaining ? `${remaining} completed review${remaining === 1 ? " is" : "s are"} saved for retry.` : recovered ? "Saved review progress was reconciled with WaniKani." : "");
-      if (recovered) await queryClient.invalidateQueries({ queryKey: wkKeys.assignments() });
-    };
-    void drain();
-    return () => { cancelled = true; };
-  }, [mode, isOnVacation, assignmentQuery.isSuccess, username, queryClient]);
+    if (mode === "reviews" && phase === "results") finishReviewSync();
+  }, [mode, phase, finishReviewSync]);
 
   const current = questions[0];
   const selfAssessmentKinds = useMemo<QuestionKind[]>(() => {
@@ -552,27 +523,6 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     return () => window.cancelAnimationFrame(frame);
   }, [studyDetailsShouldOpen]);
 
-  const reviewMutation = useMutation({
-    mutationFn: async (payload: { assignmentId: number; counts: { meaning: number; reading: number } }) => {
-      if (isOnVacation) throw new Error(vacationStudyMessage("reviews"));
-      const entry = enqueueReview(window.localStorage, username, { assignmentId: payload.assignmentId, incorrectMeaningAnswers: payload.counts.meaning, incorrectReadingAnswers: payload.counts.reading, createdAt: new Date().toISOString() });
-      setOutboxCount(loadReviewOutbox(window.localStorage, username).length);
-      try {
-        const responses: ReviewCreateResponse[] = [];
-        const delivery = await deliverReview(entry, {
-          readAssignment: (assignmentId) => wkRequest<Assignment>(`assignments/${assignmentId}`, { cache: "no-store", fresh: true }),
-          submitReview: async (queued) => { responses.push(await wkRequest<ReviewCreateResponse>("reviews", { method: "POST", body: { review: { assignment_id: queued.assignmentId, incorrect_meaning_answers: queued.incorrectMeaningAnswers, incorrect_reading_answers: queued.incorrectReadingAnswers, created_at: queued.createdAt } } })); },
-        });
-        removeReview(window.localStorage, username, payload.assignmentId);
-        setOutboxCount(loadReviewOutbox(window.localStorage, username).length);
-        return delivery === "submitted" ? responses[0] ?? null : null;
-      } catch (cause) {
-        noteReviewFailure(window.localStorage, username, payload.assignmentId, formatFailure(cause, "It remains saved for another retry."));
-        throw cause;
-      }
-    },
-    retry: 0,
-  });
   const lessonMutation = useMutation({
     mutationFn: (assignmentId: number) => {
       if (isOnVacation) throw new Error(vacationStudyMessage("lessons"));
@@ -618,7 +568,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     recognition.lang = current.kind === "reading" ? "ja-JP" : "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.onresult = (event) => { setAnswer(event.results[0]?.[0]?.transcript?.trim() || ""); setSpeechError(""); };
+    recognition.onresult = (event) => { if (feedback?.status === "blocked") setFeedback(null); setAnswer(event.results[0]?.[0]?.transcript?.trim() || ""); setSpeechError(""); };
     recognition.onerror = (event) => setSpeechError(event.error === "not-allowed" ? "Microphone permission was denied. You can keep typing." : "The browser could not recognize that answer. Try again or type it.");
     recognition.onend = () => { setListening(false); recognitionRef.current = null; };
     recognitionRef.current = recognition;
@@ -638,7 +588,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setLastCorrect(correct);
     if (!correct) setErrors((previous) => ({ ...previous, [current.assignment.id]: { meaning: previous[current.assignment.id]?.meaning || 0, reading: previous[current.assignment.id]?.reading || 0, [current.kind]: (previous[current.assignment.id]?.[current.kind] || 0) + 1 } }));
     if (preferences.answerFeedbackSoundEnabled && !(result.status === "close" && preferences.pauseOnClose)) playAnswerFeedback(correct);
-    if (result.status === "correct" && current.kind === "reading" && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
+    if ((correct || (result.status === "incorrect" && preferences.pauseOnWrong)) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
   }
 
   function preservePhoneInputFocus(event: MouseEvent<HTMLButtonElement>) {
@@ -712,16 +662,19 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     const subjectDone = kindsForSubject(current.subject).every((kind) => finishedKinds.includes(kind));
     try {
       if (subjectDone && !submittedIds.includes(current.assignment.id)) {
+        let resultingStage: number | undefined = mode === "lessons" ? 1 : undefined;
         if (mode === "reviews") {
-          const response = await reviewMutation.mutateAsync({ assignmentId: current.assignment.id, counts: errors[current.assignment.id] || { meaning: 0, reading: 0 } });
-          if (response && preferences.srsProgressionCardDisplayMode !== "hidden") {
-            const startingStage = response.data.starting_srs_stage;
-            const endingStage = response.data.ending_srs_stage;
+          const counts = errors[current.assignment.id] || { meaning: 0, reading: 0 };
+          reviewSync.enqueue({ assignmentId: current.assignment.id, incorrectMeaningAnswers: counts.meaning, incorrectReadingAnswers: counts.reading, createdAt: new Date().toISOString() });
+          resultingStage = predictedReviewStage(current.assignment.data.srs_stage, counts.meaning, counts.reading);
+          if (preferences.srsProgressionCardDisplayMode !== "hidden") {
+            const startingStage = current.assignment.data.srs_stage;
             setReserveResultsProgressionSlot(remaining.length === 0);
-            setSrsProgression({ startingStage, endingStage, isCorrect: endingStage > startingStage, nextReviewInterval: formatNextReviewInterval(response.resources_updated?.assignment?.data.available_at, endingStage) });
+            setSrsProgression({ assignmentId: current.assignment.id, subjectId: current.subject.id, startingStage, endingStage: resultingStage, isCorrect: resultingStage > startingStage, nextReviewInterval: formatNextReviewInterval(undefined, resultingStage) });
           }
         } else await lessonMutation.mutateAsync(current.assignment.id);
         setSubmittedIds((previous) => [...previous, current.assignment.id]);
+        setResultItems((previous) => [...previous.filter((item) => item.assignmentId !== current.assignment.id), { assignmentId: current.assignment.id, subject: current.subject, meaningMistakes: errors[current.assignment.id]?.meaning ?? 0, readingMistakes: errors[current.assignment.id]?.reading ?? 0, endingStage: resultingStage }]);
       }
       setCompleted((previous) => ({ ...previous, [current.assignment.id]: finishedKinds }));
       setQuestions(remaining);
@@ -734,12 +687,13 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       if (!remaining.length) {
         window.localStorage.removeItem(coreSessionKey(username, mode));
         if (mode === "lessons") clearLessonTeachingSession(window.localStorage, username);
-        await Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]);
         setDisplayNow(Date.now());
         setPhase("results");
+        // Completion must not wait for dashboard queries; the session is already saved.
+        void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
       } else window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
     } catch (cause) {
-      setSessionError(formatFailure(cause, mode === "reviews" ? "The completed review is saved locally and will reconcile before another submission." : "The lesson remains in place; retry when the connection returns."));
+      setSessionError(formatFailure(cause, mode === "reviews" ? "This review could not be saved on this device. Please try again before continuing." : "The lesson remains in place; retry when the connection returns."));
     }
   }
 
@@ -781,13 +735,13 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       if (event.key === "Enter" && unresolvedCloseAnswer) {
         if (shouldIgnoreReviewShortcut(event)) return;
         event.preventDefault();
-        if (!reviewMutation.isPending && !lessonMutation.isPending) resolveCloseAnswer(true);
+        if (!lessonMutation.isPending) resolveCloseAnswer(true);
         return;
       }
       if (event.key === "Enter" && feedback) {
         if (shouldIgnoreReviewAdvance(event)) return;
         event.preventDefault();
-        if (!reviewMutation.isPending && !lessonMutation.isPending) void advance();
+        if (!lessonMutation.isPending) void advance();
         return;
       }
       if (event.key === "Enter" && shouldIgnoreReviewShortcut(event)) return;
@@ -857,6 +811,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setCompleted({});
     setErrors({});
     setSubmittedIds([]);
+    setResultItems([]);
     setQuestions(queue);
     setTotalQuestions(queue.length);
     setLessonIndex(0);
@@ -870,6 +825,15 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setPhase(mode === "lessons" ? "loading" : queue.length ? "quiz" : "results");
   }
 
+  if (mode === "reviews" && phase === "results" && resultItems.length) return <CoreStudyResults
+    items={resultItems}
+    mode={mode}
+    durationMs={displayNow - new Date(sessionStartedAt).getTime()}
+    pendingCount={outboxCount}
+    permissionError={outboxMessage}
+    progression={reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}
+  />;
+
   if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
   if (currentUserQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Study availability could not be checked</h1><p className={styles.error} role="alert">Kakehashi could not confirm whether Vacation Mode is active. No lesson or review session has been started.</p><div className="cluster"><Button onClick={() => void currentUserQuery.refetch()}>Try Again</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></div></div>;
   if (currentUserQuery.isLoading) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><LoadingState compact label="Checking Vacation Mode" detail="No study session starts until your current account state is confirmed." /></div></div>;
@@ -879,7 +843,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     if (restoredAssignmentsQuery.error) void restoredAssignmentsQuery.refetch();
   }}>Try Again</Button></div></div>;
   if (materialsQuery.error || answerContextQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
-  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || phase === "loading") return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
+  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
 
   if (phase === "resume" && resumeSnapshot) {
     const age = resumeSnapshot.savedAt ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-Math.max(1, Math.round((displayNow - new Date(resumeSnapshot.savedAt).getTime()) / 60_000)), "minute") : "earlier";
@@ -912,7 +876,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     const accuracy = selectedAssignments.length ? Math.round((progress / attempts) * 100) : 0;
     const minutes = Math.max(1, Math.round((displayNow - new Date(sessionStartedAt).getTime()) / 60_000));
     const dailyLimitReached = mode === "lessons" && preferences.dailyLessonLimit > 0 && dailyRemaining <= 0 && available.length > 0;
-    return <div className={styles.stage}>{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => window.location.reload()}><RotateCcw size={17} />Check for More</Button> : null}</div></section></div>;
+    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => window.location.reload()}><RotateCcw size={17} />Check for More</Button> : null}</div></section></div>;
   }
 
   if (!current) return null;
@@ -956,10 +920,10 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
           <div className={styles.bandActions}>{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{mode === "reviews" && preferences.allowSkippingReviews && !feedback ? <Button className={styles.bandAction} tone="ghost" size="small" aria-label="Skip review" onClick={skipCurrentQuestion}><SkipForward size={15} aria-hidden />Skip</Button> : null}{mode === "reviews" && preferences.reviewSearchButtonEnabled ? <ButtonLink className={styles.bandAction} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small" aria-label="Search this item"><Search size={15} aria-hidden />Search</ButtonLink> : null}<ButtonLink className={styles.bandAction} href="/dashboard" tone="ghost" size="small">Pause</ButtonLink></div>
         </div>
         <div className={styles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={totalItems} aria-valuenow={completedItems}><span style={{ "--study-progress": itemProgress } as React.CSSProperties} /></div>
-        {outboxMessage ? <p className={styles.syncNotice} role="status" aria-live="polite">{outboxMessage}</p> : null}
+        {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}
         <div className={styles.subjectGlyph}>
           {previousAnswerItem ? <Link className={styles.previousAnswerCard} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={styles.previousAnswerCharacter} imageSize="100%" /><span aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : "×"}</span></Link> : null}
-          <SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} style={{ fontSize: reviewCharacterSize }} eager />
+          <SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} style={{ fontSize: reviewCharacterSize, fontFamily: resolveJitaiFontFamily(preferences, current.id) ?? reviewSubjectFont.style.fontFamily, fontWeight: 350 }} eager />
           <VocabularyFrequencyBadge subject={current.subject} enabled={mode === "reviews" && preferences.showVocabularyFrequency} />
           {showContextHint ? <div className={styles.contextHint}>
             <div className={styles.contextHintContent}>{contextSentences.map((sentence, index) => <div className={styles.contextHintSentenceGroup} key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <p>• {sentence.en}</p> : null}</div>)}</div>
@@ -1015,13 +979,14 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
               value={answer}
               onChange={(event) => {
                 if (feedback && feedback.status !== "blocked") return;
+                if (feedback?.status === "blocked") setFeedback(null);
                 setAnswer(current.kind === "reading" ? composeKanaInput(event.target.value) : event.target.value);
               }}
               onKeyDown={(event) => {
                 if (!phoneInput || !feedback || event.key !== "Enter") return;
                 if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 event.preventDefault();
-                if (event.repeat || reviewMutation.isPending || lessonMutation.isPending || addSynonymMutation.isPending) return;
+                if (event.repeat || lessonMutation.isPending || addSynonymMutation.isPending) return;
                 if (unresolvedCloseAnswer) resolveCloseAnswer(true);
                 else void advance();
               }}
@@ -1040,7 +1005,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
               onMouseDown={preservePhoneInputFocus}
               onClick={phoneInput && feedback ? () => void advance() : undefined}
               disabled={phoneInput && feedback ? unresolvedCloseAnswer || advancingQuestion || addSynonymMutation.isPending : !answer.trim() || Boolean(feedback)}
-              state={phoneInput && feedback && (reviewMutation.isPending || lessonMutation.isPending) ? "loading" : "idle"}
+              state={phoneInput && feedback && (lessonMutation.isPending) ? "loading" : "idle"}
             >{phoneInput && feedback ? unresolvedCloseAnswer ? "Choose result" : feedback.status === "blocked" ? "Try Again" : answerStopped ? "Next Question" : "Continue now" : "Check Answer"}</Button>
           </div>
           <p id="review-answer-helper" className={styles.answerHelper}>{current.kind === "reading" ? "Kana and romaji are accepted." : preferences.acceptUserSynonymsAsAnswers ? "Accepted meanings and your synonyms are checked." : "Accepted WaniKani meanings are checked."}</p>
@@ -1067,7 +1032,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
               <Button type="button" tone="primary" disabled={advancingQuestion} onMouseDown={preservePhoneInputFocus} onClick={() => resolveCloseAnswer(true)}><Check size={17} aria-hidden />Mark Correct</Button>
             </> : <>
               {canAddSynonym ? <Button type="button" tone="ghost" disabled={addSynonymMutation.isPending || advancingQuestion} state={addSynonymMutation.isPending ? "loading" : "idle"} onClick={() => addSynonymMutation.mutate({ subject: current.subject, assignmentId: current.assignment.id, kind: current.kind, synonym: synonymCandidate, existingMaterial: material })}><Plus size={17} aria-hidden />Add as synonym</Button> : null}
-              {!phoneInput ? <Button tone={feedback.status === "incorrect" ? "danger" : "primary"} disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()} state={reviewMutation.isPending || lessonMutation.isPending ? "loading" : "idle"}>{feedback.status === "blocked" ? "Try Again" : answerStopped ? "Next Question" : "Continue now"}<ArrowRight size={17} /></Button> : null}
+              {!phoneInput ? <Button tone={feedback.status === "incorrect" ? "danger" : "primary"} disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()} state={lessonMutation.isPending ? "loading" : "idle"}>{feedback.status === "blocked" ? "Try Again" : answerStopped ? "Next Question" : "Continue now"}<ArrowRight size={17} /></Button> : null}
             </>}
           </div> : null}
         </div> : null}

@@ -160,6 +160,38 @@ export function loadCustomSrsState(storage: Pick<CustomSrsStorage, "getItem">, s
   }
 }
 
+/** Cloud data is authoritative: incompatibility must never become a writable reset.
+ * Retain words/packs unknown to this build so staggered catalog deployments are safe.
+ */
+export function parseCustomSrsStateStrict(value: unknown, packs: readonly CustomVocabularyPack[], now = new Date()): CustomSrsState {
+  if (!isRecord(value) || value.version !== 1 || !validPolicy(value.policy)
+    || !Array.isArray(value.enrolledPackIds) || !value.enrolledPackIds.every((id) => typeof id === "string")
+    || !isRecord(value.assignments) || !Array.isArray(value.reviewLog) || !isDateString(value.updatedAt)) {
+    throw new Error("Cloud progress uses an unsupported format. Update the app before studying.");
+  }
+  const loaded = loadCustomSrsState({ getItem: () => JSON.stringify(value) }, "cloud", packs, now);
+  const assignments = { ...loaded.assignments };
+  for (const [id, original] of Object.entries(value.assignments)) {
+    const packId = loaded.assignments[id]?.packId ?? (isRecord(original) ? original.packId : undefined);
+    const migrated = isRecord(original) ? { ...original, packId } : original;
+    if (typeof packId !== "string" || !validAssignment(migrated, id, packId)) {
+      throw new Error("Your cloud progress could not be read safely. No progress has been changed.");
+    }
+    assignments[id] = migrated;
+  }
+  const wordPacks = new Map(Object.values(assignments).map((assignment) => [assignment.wordId, assignment.packId]));
+  const reviewLog = value.reviewLog.map((entry) => {
+    const packId = isRecord(entry) && typeof entry.wordId === "string" ? wordPacks.get(entry.wordId) : undefined;
+    const migrated = isRecord(entry) && packId ? { ...entry, packId } : entry;
+    if (!validReviewLog(migrated, wordPacks)) throw new Error("Your cloud review history could not be read safely.");
+    return migrated;
+  });
+  return {
+    ...value, ...loaded, assignments, reviewLog: reviewLog.slice(-MAX_LOADED_REVIEW_LOGS),
+    enrolledPackIds: [...new Set([...loaded.enrolledPackIds, ...value.enrolledPackIds])],
+  };
+}
+
 export function saveCustomSrsState(storage: CustomSrsStorage, scope: string | number, state: CustomSrsState) {
   try {
     storage.setItem(customSrsStorageKey(scope), JSON.stringify(state));

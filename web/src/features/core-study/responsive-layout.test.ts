@@ -6,6 +6,7 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf
 const globalsCss = source("src/app/globals.css");
 const settingsCss = source("src/features/settings/settings.module.css");
 const coreStudyCss = source("src/features/core-study/core-study.module.css");
+const srsProgressionCss = source("src/features/core-study/srs-progression.module.css");
 const ankiCss = source("src/features/core-study/AnkiAnswerContent.module.css");
 const studyCss = source("src/features/study/study.module.css");
 
@@ -34,12 +35,10 @@ describe("review workspace responsive CSS contracts", () => {
     );
   });
 
-  it("reserves a mode-sized SRS notice slot and disables its entrance motion when requested", () => {
-    expect(coreStudyCss).toMatch(/\.srsProgressionSlot\s*{[\s\S]*?min-height:\s*4rem;/);
-    expect(coreStudyCss).toMatch(/\.srsProgressionSlot\[data-mode="compact"\]\s*{\s*min-height:\s*2\.75rem;/);
-    expect(coreStudyCss).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.srsProgression,[\s\S]*?animation:\s*none;/,
-    );
+  it("reserves a fixed SRS notice slot in normal and compact modes", () => {
+    expect(srsProgressionCss).toMatch(/\.slot\s*{[^}]*height:\s*4rem;[^}]*flex:\s*0 0 4rem;/);
+    expect(srsProgressionCss).toMatch(/\.slot\[data-mode="compact"\]\s*{[^}]*height:\s*3rem;[^}]*flex-basis:\s*3rem;/);
+    expect(srsProgressionCss).toMatch(/\.notice,\s*\.idle\s*{[^}]*position:\s*absolute;[^}]*inset:\s*0;/);
   });
 
   it("lets expanded listening details grow below the prompt instead of collapsing its fixed viewport row", () => {

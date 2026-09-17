@@ -4,10 +4,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readBoundedJson } from "@/features/content/server-security";
 import { createCustomSrsState, reconcileCustomSrsState } from "@/features/custom-srs/model";
-import { loadCustomSrsState } from "@/features/custom-srs/storage";
+import { customSrsWireResult } from "@/features/custom-srs/transport";
+import { customSrsStatePatch } from "@/features/custom-srs/state-patch";
+import { parseCustomSrsStateStrict } from "@/features/custom-srs/storage";
 import type { CustomSrsState, CustomVocabularyPack } from "@/features/custom-srs/types";
 
 type JsonRecord = Record<string, unknown>;
+type Selection = { wordIds: string[]; eventId: string };
 type StoredState = { state: CustomSrsState; revision: number };
 
 function developmentEnv() {
@@ -53,7 +56,7 @@ function headers(additional: Record<string, string> = {}) {
 }
 
 function parseState(value: unknown, packs: readonly CustomVocabularyPack[], now: Date) {
-  return loadCustomSrsState({ getItem: () => JSON.stringify(value) }, "server", packs, now);
+  return parseCustomSrsStateStrict(value, packs, now);
 }
 
 function backendError(payload: unknown, status: number) {
@@ -67,6 +70,16 @@ export function customSrsBackendConfigured() {
   return Boolean(supabaseUrl && supabaseServiceKey);
 }
 
+export async function readCustomSrsRevision(userId: string): Promise<number> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/read_custom_srs_revision`, {
+    method: "POST", headers: headers({ "Content-Type": "application/json" }), cache: "no-store", signal: AbortSignal.timeout(12_000),
+    body: JSON.stringify({ p_user_id: userId }),
+  });
+  const revision = await readBoundedJson(response, 1000);
+  if (!response.ok || typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < -1) throw new Error("Invalid cloud revision.");
+  return revision;
+}
+
 export async function readRemoteCustomSrsState(userId: string, packs: readonly CustomVocabularyPack[], now = new Date()): Promise<StoredState> {
   if (!customSrsBackendConfigured()) return { state: createCustomSrsState(now), revision: -1 };
   const url = new URL(`${supabaseUrl}/rest/v1/custom_srs_states`);
@@ -78,24 +91,40 @@ export async function readRemoteCustomSrsState(userId: string, packs: readonly C
     cache: "no-store",
     signal: AbortSignal.timeout(12_000),
   });
-  const payload = await readBoundedJson(response, 2_500_000).catch(() => null);
+  const payload = await readBoundedJson(response, 16_000_000).catch(() => null);
   if (!response.ok) throw backendError(payload, response.status);
-  if (!Array.isArray(payload) || !payload.length) return { state: createCustomSrsState(now), revision: -1 };
+  if (!Array.isArray(payload)) throw new Error("Custom SRS store returned an unreadable response.");
+  if (!payload.length) return { state: createCustomSrsState(now), revision: -1 };
   const row = payload[0] as JsonRecord;
-  const revision = Number(row.revision);
+  const revision = row.revision as number;
   if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("Custom SRS store returned an invalid revision.");
   return { state: parseState(row.state, packs, now), revision };
 }
 
-async function compareAndSetRemoteState(userId: string, expectedRevision: number, state: CustomSrsState) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/compare_and_set_custom_srs_state`, {
+async function readSelectedState(userId: string, packs: readonly CustomVocabularyPack[], now: Date, selection: Selection): Promise<StoredState> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/read_custom_srs_cards`, {
+    method: "POST", headers: headers({ "Content-Type": "application/json" }), cache: "no-store", signal: AbortSignal.timeout(12_000),
+    body: JSON.stringify({ p_user_id: userId, p_word_ids: selection.wordIds, p_event_id: selection.eventId }),
+  });
+  const payload = await readBoundedJson(response, 16_000_000);
+  if (!response.ok) throw backendError(payload, response.status);
+  if (payload === null) return { state: createCustomSrsState(now), revision: -1 };
+  const row = payload as StoredState;
+  if (!Number.isSafeInteger(row.revision) || row.revision < 0) throw new Error("Invalid cloud revision.");
+  const ids = new Set(selection.wordIds);
+  const selectedPacks = packs.map((pack) => ({ ...pack, words: pack.words.filter((word) => ids.has(word.id)) }));
+  return { state: parseState(row.state, selectedPacks, now), revision: row.revision };
+}
+
+async function compareAndSetRemoteState(userId: string, expectedRevision: number, previous: CustomSrsState, state: CustomSrsState) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/patch_custom_srs_state`, {
     method: "POST",
     headers: headers({ Accept: "application/json", "Content-Type": "application/json" }),
-    body: JSON.stringify({ p_user_id: userId, p_expected_revision: expectedRevision, p_state: state }),
+    body: JSON.stringify({ p_user_id: userId, p_expected_revision: expectedRevision, ...customSrsStatePatch(previous, state) }),
     cache: "no-store",
     signal: AbortSignal.timeout(12_000),
   });
-  const payload = await readBoundedJson(response, 2_500_000).catch(() => null);
+  const payload = await readBoundedJson(response, 16_000_000).catch(() => null);
   if (!response.ok) throw backendError(payload, response.status);
   if (payload === null) return null;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Custom SRS store returned an invalid write result.");
@@ -108,16 +137,22 @@ export async function mutateRemoteCustomSrsState(
   packs: readonly CustomVocabularyPack[],
   transform: (state: CustomSrsState, now: Date) => CustomSrsState,
   clock = () => new Date(),
+  knownRevision?: number,
+  selection?: Selection,
 ) {
   if (!customSrsBackendConfigured()) throw new Error("The custom SRS backend is not configured.");
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const now = clock();
-    const current = await readRemoteCustomSrsState(userId, packs, now);
+    const current = selection ? await readSelectedState(userId, packs, now, selection) : await readRemoteCustomSrsState(userId, packs, now);
     const transformed = transform(current.state, now);
-    if (transformed === current.state) return current;
-    const next = reconcileCustomSrsState(transformed, packs, now);
-    const revision = await compareAndSetRemoteState(userId, current.revision, next);
-    if (revision !== null) return { state: next, revision };
+    const respond = async (result: StoredState) => {
+      if (selection && knownRevision !== current.revision) return customSrsWireResult(await readRemoteCustomSrsState(userId, packs, now));
+      return customSrsWireResult(result, current, knownRevision);
+    };
+    if (transformed === current.state) return respond(current);
+    const next = selection ? transformed : reconcileCustomSrsState(transformed, packs, now);
+    const revision = await compareAndSetRemoteState(userId, current.revision, current.state, next);
+    if (revision !== null) return respond({ state: next, revision });
   }
   throw new Error("Custom SRS state changed in another session. Retry the action.");
 }

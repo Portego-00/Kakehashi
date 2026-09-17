@@ -72,10 +72,10 @@ function Consumer({ name, session = false }: { name: string; session?: boolean }
     <Text testID={`${name}-status`}>{srs.loading ? "loading" : srs.syncing ? "syncing" : "ready"}</Text>
     <Text testID={`${name}-error`}>{srs.error}</Text>
     <Pressable testID={`${name}-retry`} onPress={() => { void srs.refresh().catch(() => undefined); }}><Text>Retry</Text></Pressable>
-    <Pressable testID={`${name}-lesson`} disabled={srs.loading || srs.lessonWords.length === 0} onPress={() => { void srs.completeLesson(pack.words[0].id, "fixture-event").catch(() => undefined); }}><Text>Lesson</Text></Pressable>
+    <Pressable testID={`${name}-lesson`} disabled={srs.loading || srs.lessonWords.length === 0} onPress={() => { void srs.completeLesson(pack.words[0].id, "ff0b0dd3-9a7e-4f36-9017-f0f852aa584f").catch(() => undefined); }}><Text>Lesson</Text></Pressable>
   </View>;
 }
-async function flush() { await act(async () => { for (let turn = 0; turn < 8; turn++) await Promise.resolve(); }); }
+async function flush() { await act(async () => { for (let turn = 0; turn < 60; turn++) await Promise.resolve(); }); }
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -83,8 +83,9 @@ beforeEach(() => {
   mockFetch.mockReset();
   mockSnapshots.clear();
   foregroundListeners.clear();
-  jest.mocked(AsyncStorage.getItem).mockResolvedValue(null);
-  jest.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
+  const disk = new Map<string, string>();
+  jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => disk.get(key) ?? null);
+  jest.mocked(AsyncStorage.setItem).mockImplementation(async (key, value) => { disk.set(key, value); });
   jest.spyOn(AppState, "addEventListener").mockImplementation((_event, listener) => {
     foregroundListeners.add(listener);
     return { remove: () => foregroundListeners.delete(listener) };
@@ -105,6 +106,7 @@ it("deduplicates simultaneous dashboard, hub, and explicit session refreshes and
   const pending = deferred<ReturnType<typeof response>>();
   mockFetch.mockReturnValue(pending.promise);
   const screen = render(<><Consumer name="dashboard" /><Consumer name="hub" /><Consumer name="session" session /></>);
+  await flush();
   expect(mockFetch).toHaveBeenCalledTimes(1);
   expect(foregroundListeners.size).toBe(1);
   await act(async () => pending.resolve(response()));
@@ -141,6 +143,7 @@ it("clears both loading flags after a real transport timeout and recovers on man
   })).mockResolvedValue(response());
   const screen = render(<Consumer name="hub" />);
   expect(mockSnapshots.get("hub")).toMatchObject({ loading: true, syncing: true });
+  await flush();
   await act(async () => jest.advanceTimersByTime(1_001));
   await flush();
   expect(mockSnapshots.get("hub")).toMatchObject({ loading: false, syncing: false });
@@ -175,6 +178,7 @@ it("ignores a late old-account request and rehydrates only the newly authorized 
   const old = deferred<ReturnType<typeof response>>();
   mockFetch.mockReturnValueOnce(old.promise).mockResolvedValue(response(createCustomSrsState(), 0));
   const screen = render(<Consumer name="hub" />);
+  await flush();
   await act(async () => setAuth({ apiToken: "fixture-other-token", userData: { id: 22, username: "SomeoneElse" } }));
   await flush();
   expect(mockSnapshots.get("hub")).toMatchObject({ accountId: null, loading: false, syncing: false });
@@ -190,7 +194,7 @@ it("ignores a late old-account request and rehydrates only the newly authorized 
 
 it("releases study loading when an older remote revision cannot replace newer restored cache", async () => {
   const pending = deferred<ReturnType<typeof response>>();
-  jest.mocked(AsyncStorage.getItem).mockResolvedValue(JSON.stringify({ available: true, state: learned, revision: 3 }));
+  jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => key.includes(":pending:") ? null : JSON.stringify({ available: true, state: learned, revision: 3 }));
   await act(async () => {
     setAuth({ apiToken: null, userData: null });
     setAuth({ apiToken: "fixture-token", userData: { id: 21, username: "Portego" } });
@@ -207,7 +211,7 @@ it("releases study loading when an older remote revision cannot replace newer re
 });
 
 it("clears a prior read error after a successful lower-revision retry without rolling back cached progress", async () => {
-  jest.mocked(AsyncStorage.getItem).mockResolvedValue(JSON.stringify({ available: true, state: learned, revision: 3 }));
+  jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => key.includes(":pending:") ? null : JSON.stringify({ available: true, state: learned, revision: 3 }));
   await act(async () => {
     setAuth({ apiToken: null, userData: null });
     setAuth({ apiToken: "fixture-token", userData: { id: 21, username: "Portego" } });
@@ -229,10 +233,12 @@ it("opens a real-hook session after an initial timeout without restarting an unb
     init.signal.addEventListener("abort", () => reject(new Error("Aborted")));
   })).mockReturnValueOnce(pendingSession.promise);
   const screen = render(<View><Consumer name="hub" /></View>);
+  await flush();
   await act(async () => jest.advanceTimersByTime(1_001));
   await flush();
   expect(mockSnapshots.get("hub")?.error).toContain("timed out");
   screen.rerender(<View><Consumer name="hub" /><Consumer name="session" session /></View>);
+  await flush();
   expect(mockFetch).toHaveBeenCalledTimes(2);
   await act(async () => pendingSession.resolve(response()));
   await flush();

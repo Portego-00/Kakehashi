@@ -907,3 +907,6 @@
   .strokeTrace { stroke-dashoffset: 0; animation: none; }
   .voiceSpinner { animation: none; }
 }
+
+.synonymRow { display: flex; align-items: flex-start; gap: var(--space-sm); }
+.synonymRow > div { flex: 1; min-width: 0; }

@@ -4,7 +4,12 @@ import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack 
 import type { CustomSrsState, CustomVocabularyPack } from "../../../web/src/features/custom-srs/types.ts";
 
 function assert(condition: unknown, message = "Assertion failed"): asserts condition { if (!condition) throw new Error(message); }
-function equal(actual: unknown, expected: unknown) { assert(JSON.stringify(actual) === JSON.stringify(expected), `Actual: ${JSON.stringify(actual)}; expected: ${JSON.stringify(expected)}`); }
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+function equal(actual: unknown, expected: unknown) { assert(canonical(actual) === canonical(expected), `Actual: ${JSON.stringify(actual)}; expected: ${JSON.stringify(expected)}`); }
 const pack = catalog[0] as CustomVocabularyPack;
 const eventId = "be08feb7-989f-456c-925d-dc3f313a0dcf";
 const now = new Date("2026-09-07T15:00:00Z");
@@ -23,13 +28,21 @@ function backend(options: { username?: string; state?: CustomSrsState; revision?
     calls.push({ url, init });
     if (url === "https://api.wanikani.com/v2/user") return Promise.resolve(Response.json({ object: "user", data: { id: "wk-account-uuid", username: options.username ?? " Portego ", level: 21 } }));
     if (url.includes("/rest/v1/custom_srs_states")) return Promise.resolve(Response.json(stored ? [{ state: stored, revision }] : []));
-    if (url.endsWith("compare_and_set_custom_srs_state")) {
+    if (url.endsWith("read_custom_srs_revision")) return Promise.resolve(Response.json(revision));
+    if (url.endsWith("read_custom_srs_cards")) {
+      const body = JSON.parse(String(init?.body));
+      return Promise.resolve(Response.json(stored ? { revision, state: {
+        ...stored, assignments: Object.fromEntries(Object.entries(stored.assignments).filter(([id]) => body.p_word_ids.includes(id))),
+        reviewLog: stored.reviewLog.filter((entry) => entry.eventId === body.p_event_id),
+      } } : null));
+    }
+    if (url.endsWith("patch_custom_srs_state")) {
       const body = JSON.parse(String(init?.body));
       equal(body.p_user_id, "wk-account-uuid");
       if (options.failSave) return Promise.resolve(Response.json({ error: "private failure" }, { status: 500 }));
       if (conflicts) { conflicts -= 1; revision += 1; return Promise.resolve(Response.json(null)); }
       equal(body.p_expected_revision, revision);
-      stored = body.p_state; revision += 1;
+      stored = { ...body.p_metadata, assignments: { ...stored?.assignments, ...body.p_assignments }, reviewLog: [...(stored?.reviewLog ?? []), ...body.p_reviews] }; revision += 1;
       return Promise.resolve(Response.json({ revision }));
     }
     throw new Error(`Unexpected request: ${url}`);
@@ -68,7 +81,7 @@ Deno.test("enrolls against the same cloud row and returns confirmed revision", a
   equal(value.available, true); equal(value.revision, 0);
   equal(value.state.enrolledPackIds, [pack.id]);
   equal(Object.keys(value.state.assignments).length, pack.words.length);
-  assert(server.calls[1].url.includes("user_id=eq.wk-account-uuid"));
+  assert(server.calls[1].url.endsWith("read_custom_srs_cards"));
 });
 
 Deno.test("reads JSONB policy keys in any order without resetting existing learned progress", async () => {
@@ -114,7 +127,7 @@ Deno.test("retries compare-and-set conflicts without overwriting cloud revisions
   const server = backend({ state: enrollCustomVocabularyPack(createCustomSrsState(now), pack, now), conflict: true });
   const result = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: pack.words[0].id, eventId }), { env, fetch: server.fetcher, now: () => now });
   equal(result.status, 200); equal(server.revision(), 2);
-  equal(server.calls.filter((call) => call.url.endsWith("compare_and_set_custom_srs_state")).length, 2);
+  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 2);
 });
 
 Deno.test("failed saves and unsupported cloud policies cannot be silently replaced", async () => {
@@ -127,7 +140,7 @@ Deno.test("failed saves and unsupported cloud policies cannot be silently replac
   const unsupported = backend({ state: badState });
   const rejected = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: pack.words[0].id, eventId }), { env, fetch: unsupported.fetcher, now: () => now });
   equal(rejected.status, 503);
-  equal(unsupported.calls.filter((call) => call.url.includes("/rpc/")).length, 0);
+  equal(unsupported.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 0);
 });
 
 Deno.test("no custom action is submitted to WaniKani mutation endpoints", async () => {
@@ -146,5 +159,32 @@ Deno.test("damaged learned cards fail safely without resetting progress", async 
   const server = backend({ state: initial });
   const result = await handleCustomSrsRequest(request({ action: "enroll_pack", packId: pack.id, eventId }), { env, fetch: server.fetcher, now: () => now });
   equal(result.status, 503);
-  equal(server.calls.filter((call) => call.url.includes("/rpc/")).length, 0);
+  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 0);
+});
+
+Deno.test("current clients receive only a card delta and unchanged reads avoid loading progress", async () => {
+  clearCustomSrsAuthCacheForTests();
+  const initial = enrollCustomVocabularyPack(createCustomSrsState(now), pack, now);
+  const server = backend({ state: initial, revision: 4 });
+  const action = { action: "complete_lesson", wordId: pack.words[0].id, eventId, knownRevision: 4 };
+  const value = await (await handleCustomSrsRequest(request(action), { env, fetch: server.fetcher, now: () => now })).json();
+  equal(value.revision, 5);
+  equal(value.delta.baseRevision, 4);
+  equal(Object.keys(value.delta.p_assignments), [pack.words[0].id]);
+  assert(!("state" in value));
+  equal(server.calls.length, 3); // identity, selected read, one-card write
+  const unchanged = await (await handleCustomSrsRequest(request({ action: "read", knownRevision: 5 }), { env, fetch: server.fetcher, now: () => now })).json();
+  equal(unchanged, { available: true, revision: 5, unchanged: true });
+  equal(server.calls.length, 4);
+});
+
+Deno.test("a replayed native answer cannot grade a newer occurrence", async () => {
+  clearCustomSrsAuthCacheForTests();
+  const initial = completeCustomLesson(enrollCustomVocabularyPack(createCustomSrsState(now), pack, now), pack.words[0].id, now);
+  const server = backend({ state: initial, revision: 4 });
+  const action = { action: "submit_review", wordId: pack.words[0].id, incorrectAnswers: 0, eventId, knownRevision: 4, expectedAssignmentUpdatedAt: "2026-09-01T00:00:00Z" };
+  const result = await handleCustomSrsRequest(request(action), { env, fetch: server.fetcher, now: () => new Date("2026-09-10T15:00:00Z") });
+  equal(result.status, 200);
+  equal(server.revision(), 4);
+  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 0);
 });
