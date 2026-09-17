@@ -7,7 +7,19 @@ const now = new Date("2026-09-07T15:00:00Z");
 const initial = enrollCustomVocabularyPack(createCustomSrsState(now), pack, now);
 const learned = completeCustomLesson(initial, pack.words[0].id, now);
 const action = { action: "complete_lesson", wordId: pack.words[0].id, eventId: "ff0b0dd3-9a7e-4f36-9017-f0f852aa584f" } as const;
-const cache = () => ({ getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn().mockResolvedValue(undefined) });
+const cache = () => {
+  const pending = new Map<string, string>();
+  const getItem = jest.fn().mockResolvedValue(null);
+  const setItem = jest.fn().mockResolvedValue(undefined);
+  return {
+    getItem, setItem,
+    // Snapshot-cache spies stay separate from mandatory durable command writes.
+    disk: {
+      getItem: (key: string) => key.includes(":pending:") ? Promise.resolve(pending.get(key) ?? null) : getItem(key),
+      setItem: (key: string, value: string) => key.includes(":pending:") ? Promise.resolve(pending.set(key, value)).then(() => undefined) : setItem(key, value),
+    },
+  };
+};
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: Error) => void;
@@ -38,7 +50,7 @@ describe("custom vocabulary cloud state", () => {
   it("does not optimistically advance or cache failed saves", async () => {
     const disk = cache();
     const request = jest.fn().mockResolvedValueOnce({ state: initial, revision: 1 }).mockRejectedValueOnce(new Error("Offline"));
-    const client = createCustomSrsClient({ request, cache: disk });
+    const client = createCustomSrsClient({ request, cache: disk.disk });
     client.setAccount({ id: "account-one", token: "token-one" });
     await client.refresh();
     const writesBefore = disk.setItem.mock.calls.length;
@@ -53,19 +65,19 @@ describe("custom vocabulary cloud state", () => {
 
   it("returns server-confirmed state and preserves caller event IDs through retries", async () => {
     const request = jest.fn().mockRejectedValueOnce(new Error("Timeout")).mockResolvedValue({ state: learned, revision: 4 });
-    const client = createCustomSrsClient({ request, cache: cache() });
+    const client = createCustomSrsClient({ request, cache: cache().disk });
     client.setAccount({ id: "account-one", token: "token-one" });
     await expect(client.mutate(action)).rejects.toThrow("Timeout");
     await expect(client.mutate(action)).resolves.toEqual(learned);
-    expect(request.mock.calls[0]).toEqual(["token-one", action]);
-    expect(request.mock.calls[1]).toEqual(["token-one", action]);
+    expect(request.mock.calls[0].slice(0, 2)).toEqual(["token-one", action]);
+    expect(request.mock.calls[1].slice(0, 2)).toEqual(["token-one", action]);
     expect(client.getSnapshot().revision).toBe(4);
   });
 
   it("resets immediately on logout and ignores requests completing from another account", async () => {
     const pending = deferred<{ state: typeof learned; revision: number }>();
     const disk = cache();
-    const client = createCustomSrsClient({ request: jest.fn(() => pending.promise), cache: disk });
+    const client = createCustomSrsClient({ request: jest.fn(() => pending.promise), cache: disk.disk });
     client.setAccount({ id: "account-one", token: "token-one" });
     const refresh = client.refresh();
     client.setAccount(null);
@@ -81,7 +93,7 @@ describe("custom vocabulary cloud state", () => {
   it("uses account-scoped cached reads without persisting authentication tokens", async () => {
     const disk = cache();
     disk.getItem.mockResolvedValue(JSON.stringify({ available: true, state: learned, revision: 3 }));
-    const client = createCustomSrsClient({ request: jest.fn(), cache: disk });
+    const client = createCustomSrsClient({ request: jest.fn(), cache: disk.disk });
     client.setAccount({ id: "account-one", token: "private-token" });
     await Promise.resolve();
     expect(disk.getItem).toHaveBeenCalledWith(customSrsCacheKey("account-one"));
@@ -92,9 +104,10 @@ describe("custom vocabulary cloud state", () => {
   it("does not let a stale refresh replace a newer confirmed mutation", async () => {
     const read = deferred<{ state: typeof initial; revision: number }>();
     const request = jest.fn().mockReturnValueOnce(read.promise).mockResolvedValueOnce({ state: learned, revision: 5 });
-    const client = createCustomSrsClient({ request, cache: cache() });
+    const client = createCustomSrsClient({ request, cache: cache().disk });
     client.setAccount({ id: "account-one", token: "token-one" });
     const refresh = client.refresh();
+    for (let tick = 0; tick < 40; tick += 1) await Promise.resolve();
     await client.mutate(action);
     read.resolve({ state: initial, revision: 4 });
     await refresh;
@@ -107,12 +120,12 @@ describe("custom vocabulary cloud state", () => {
     const disk = cache();
     disk.setItem.mockReturnValueOnce(pendingCache.promise);
     const client = createCustomSrsClient({
-      request: jest.fn().mockResolvedValue({ state: learned, revision: 5 }), cache: disk,
+      request: jest.fn().mockResolvedValue({ state: learned, revision: 5 }), cache: disk.disk,
     });
     client.setAccount({ id: "account-one", token: "token-one" });
     let loaded = false;
     const refresh = client.refresh().then(() => { loaded = true; });
-    for (let tick = 0; tick < 12; tick += 1) await Promise.resolve();
+    for (let tick = 0; tick < 40; tick += 1) await Promise.resolve();
     expect(loaded).toBe(true);
     expect(client.getSnapshot()).toMatchObject({ loading: false, syncing: false, revision: 5 });
     pendingCache.resolve();
@@ -127,7 +140,7 @@ describe("custom vocabulary cloud state", () => {
       request: jest.fn()
         .mockResolvedValueOnce({ state: initial, revision: 1 })
         .mockResolvedValueOnce({ state: learned, revision: 2 }),
-      cache: disk,
+      cache: disk.disk,
     });
     client.setAccount({ id: "account-one", token: "token-one" });
     await client.refresh();
@@ -146,7 +159,7 @@ describe("custom vocabulary cloud state", () => {
     disk.setItem.mockReturnValueOnce(pendingCache.promise);
     let revision = 0;
     const client = createCustomSrsClient({
-      request: jest.fn(async () => ({ state: learned, revision: ++revision })), cache: disk,
+      request: jest.fn(async () => ({ state: learned, revision: ++revision })), cache: disk.disk,
     });
     client.setAccount({ id: "account-one", token: "token-one" });
     await client.refresh();
@@ -168,7 +181,7 @@ describe("custom vocabulary cloud state", () => {
       .mockResolvedValueOnce({ state: initial, revision: 10 })
       .mockResolvedValueOnce({ state: learned, revision: 11 })
       .mockResolvedValueOnce({ state: learned, revision: 3 });
-    const client = createCustomSrsClient({ request, cache: disk });
+    const client = createCustomSrsClient({ request, cache: disk.disk });
     client.setAccount({ id: "account-one", token: "token-one" });
     await client.refresh();
     await client.mutate(action);
@@ -196,13 +209,13 @@ describe("custom vocabulary cloud state", () => {
         .mockResolvedValueOnce({ state: initial, revision: 1 })
         .mockResolvedValueOnce({ state: learned, revision: 2 })
         .mockResolvedValueOnce({ state: learned, revision: 3 }),
-      cache: disk,
+      cache: disk.disk,
     });
     client.setAccount({ id: "account-one", token: "token-one" });
     await client.refresh();
     await expect(client.mutate(action)).resolves.toEqual(learned);
     pendingCache.reject(new Error("Device storage unavailable"));
-    for (let tick = 0; tick < 12; tick += 1) await Promise.resolve();
+    for (let tick = 0; tick < 40; tick += 1) await Promise.resolve();
     expect(disk.setItem.mock.calls.map(([, value]) => JSON.parse(value).revision)).toEqual([1, 2]);
     await expect(client.refresh()).resolves.toEqual(learned);
     expect(disk.setItem.mock.calls.map(([, value]) => JSON.parse(value).revision)).toEqual([1, 2, 3]);
@@ -212,12 +225,13 @@ describe("custom vocabulary cloud state", () => {
   it("deduplicates concurrent refresh and serializes cloud mutations", async () => {
     const pending = deferred<{ state: typeof initial; revision: number }>();
     const request = jest.fn().mockReturnValueOnce(pending.promise).mockResolvedValue({ state: learned, revision: 2 });
-    const client = createCustomSrsClient({ request, cache: cache() });
+    const client = createCustomSrsClient({ request, cache: cache().disk });
     client.setAccount({ id: "account-one", token: "token-one" });
     const first = client.refresh();
     const second = client.refresh();
     expect(client.getSnapshot().syncing).toBe(true);
     expect(first).toBe(second);
+    for (let tick = 0; tick < 40; tick += 1) await Promise.resolve();
     expect(request).toHaveBeenCalledTimes(1);
     pending.resolve({ state: initial, revision: 1 });
     await first;
@@ -236,7 +250,7 @@ describe("custom vocabulary cloud state", () => {
     const fetcher = jest.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: "Word no longer due" }) });
     const client = createCustomSrsClient({
       request: (token, mutation) => requestCustomSrsCloud(token, mutation, { url: "https://cloud.example", anonKey: "public-key", fetcher }),
-      cache: cache(),
+      cache: cache().disk,
     });
     client.setAccount({ id: "account-one", token: "token-one" });
     const save = client.mutate(action);

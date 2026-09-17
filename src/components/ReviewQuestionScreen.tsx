@@ -1737,7 +1737,8 @@ export default function ReviewQuestionScreen({
   const isContextHintVisible =
     hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
   const useContentSizedAnkiCard =
-    effectiveAnkiCardMode && isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode;
+    effectiveAnkiCardMode &&
+    (!isCurrentQuestionAnkiRevealed || !effectiveAnkiButtonlessMode);
   const shouldShowReviewItemMetadataInLayout =
     subjectJLPTLevel !== null ||
     (shouldShowReviewItemMetadata && !isContextHintVisible);
@@ -4723,10 +4724,9 @@ export default function ReviewQuestionScreen({
     };
   };
 
-  const releaseButtonlessAnkiGesture = (event: GestureResponderEvent) => {
+  const releaseAnkiPaneGesture = (event: GestureResponderEvent) => {
     if (
-      !isCurrentQuestionAnkiRevealed ||
-      !effectiveAnkiButtonlessMode ||
+      !effectiveAnkiCardMode ||
       navigatingToDetail ||
       pendingAnkiSubmitCallbackRef.current
     ) {
@@ -4736,6 +4736,18 @@ export default function ReviewQuestionScreen({
     const { dx, dy } = buttonlessGestureDeltaRef.current;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
+    const isTapGesture =
+      absDx <= BUTTONLESS_TAP_MOVE_TOLERANCE_PX &&
+      absDy <= BUTTONLESS_TAP_MOVE_TOLERANCE_PX;
+
+    // The prompt uses the space above the content-sized card. Keep that
+    // background tappable without turning context-hint drags into reveals.
+    if (!isCurrentQuestionAnkiRevealed) {
+      if (isTapGesture) handleAnkiRevealAnswer();
+      return;
+    }
+    if (!effectiveAnkiButtonlessMode) return;
+
     const isVerticalSwipe =
       absDy >= BUTTONLESS_SWIPE_TRIGGER_PX &&
       absDy > absDx * BUTTONLESS_VERTICAL_DOMINANCE_RATIO;
@@ -4748,10 +4760,6 @@ export default function ReviewQuestionScreen({
       }
       return;
     }
-
-    const isTapGesture =
-      absDx <= BUTTONLESS_TAP_MOVE_TOLERANCE_PX &&
-      absDy <= BUTTONLESS_TAP_MOVE_TOLERANCE_PX;
 
     if (!isTapGesture) {
       return;
@@ -5835,23 +5843,25 @@ export default function ReviewQuestionScreen({
             });
           }}
           onStartShouldSetResponder={() =>
-            effectiveAnkiButtonlessMode &&
-            isCurrentQuestionAnkiRevealed &&
+            effectiveAnkiCardMode &&
+            (!isCurrentQuestionAnkiRevealed || effectiveAnkiButtonlessMode) &&
             !navigatingToDetail &&
             !pendingAnkiSubmitCallbackRef.current
           }
           onMoveShouldSetResponder={() => false}
           onResponderGrant={beginButtonlessAnkiGesture}
           onResponderMove={trackButtonlessAnkiGesture}
-          onResponderRelease={releaseButtonlessAnkiGesture}
+          onResponderRelease={releaseAnkiPaneGesture}
           onResponderTerminate={() => {
             buttonlessGestureDeltaRef.current = { dx: 0, dy: 0 };
           }}
-          onResponderTerminationRequest={() => false}
+          onResponderTerminationRequest={() => !isCurrentQuestionAnkiRevealed}
           accessibilityLabel={
-            effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed
-              ? "Buttonless anki controls"
-              : undefined
+            effectiveAnkiCardMode && !isCurrentQuestionAnkiRevealed
+              ? "Reveal anki answer"
+              : effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed
+                ? "Buttonless anki controls"
+                : undefined
           }
           accessibilityHint={
             effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed
@@ -7886,9 +7896,9 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     justifyContent: "flex-end",
   },
-  // After reveal, reserve the prompt's intrinsic height and give the answer
-  // its natural height before letting its contents scroll. Unrevealed cards
-  // keep the large tap area.
+  // Center the prompt in all space above the card, including before reveal.
+  // As answers expand, reserve the prompt's intrinsic height before scrolling.
+  // The pane handles background taps so a compact card keeps tap-to-reveal.
   ankiContentSizedPane: {
     justifyContent: "space-between",
   },

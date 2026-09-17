@@ -628,10 +628,10 @@ export function SubjectDetailPanels({
     <div className={`${styles.detailContent}${embedded ? ` ${styles.embeddedDetailContent}` : ""}`}>
       <DetailPager className={styles.detailPanels} activeIndex={activeTabIndex} count={tabs.length} onNavigate={(index) => selectTab(tabs[index].id)}>
         <section id={panelId("meaning")} role="tabpanel" aria-labelledby={tabId("meaning")} aria-hidden={resolvedActiveTab !== "meaning"} inert={resolvedActiveTab !== "meaning" ? true : undefined} data-tab-position={tabPosition("meaning")} className={styles.detailPanelStack} style={tabPagerStyle("meaning")}>
-          <DetailSection title="Name" icon={<BookOpen size={19} aria-hidden />}><dl className={styles.nameDetails}><div><dt>Primary</dt><dd>{primaryMeaning}</dd></div>{alternativeMeanings.length ? <div><dt>Alternative</dt><dd>{alternativeMeanings.join(", ")}</dd></div> : null}{material?.data.meaning_synonyms.length ? <div><dt>User synonyms</dt><dd>{material.data.meaning_synonyms.join(", ")}</dd></div> : null}{record.data.parts_of_speech?.length ? <div><dt>Part of speech</dt><dd>{record.data.parts_of_speech.map((part) => part.replaceAll("_", " ")).join(", ")}</dd></div> : null}{isVocabulary && showVocabularyFrequency ? <div><dt>Frequency</dt><dd><VocabularyFrequencyBadge subject={record} enabled variant="details" /></dd></div> : null}</dl></DetailSection>
-          {meaningMnemonic.length ? <DetailSection title="Mnemonic"><Mnemonic paragraphs={meaningMnemonic} />{record.object === "radical" ? <RadicalMnemonicIllustration key={record.data.document_url} documentUrl={record.data.document_url} meaning={primaryMeaning} /> : null}{record.data.meaning_hint ? <p className={styles.subjectHint}>{record.data.meaning_hint}</p> : null}</DetailSection> : null}
+          <DetailSection title="Name" icon={<BookOpen size={19} aria-hidden />}><dl className={styles.nameDetails}><div><dt>Primary</dt><dd>{primaryMeaning}</dd></div>{alternativeMeanings.length ? <div><dt>Alternative</dt><dd>{alternativeMeanings.join(", ")}</dd></div> : null}<div><dt>User synonyms</dt><dd>{allowStudyMaterialEditing ? <StudyMaterialEditor field="meaning_synonyms" subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : material?.data.meaning_synonyms.join(", ") || <span className={styles.emptyNote}>None added</span>}</dd></div>{record.data.parts_of_speech?.length ? <div><dt>Part of speech</dt><dd>{record.data.parts_of_speech.map((part) => part.replaceAll("_", " ")).join(", ")}</dd></div> : null}{isVocabulary && showVocabularyFrequency ? <div><dt>Frequency</dt><dd><VocabularyFrequencyBadge subject={record} enabled variant="details" /></dd></div> : null}</dl></DetailSection>
+          {meaningMnemonic.length ? <DetailSection title="Mnemonic"><Mnemonic paragraphs={meaningMnemonic} />{record.object === "radical" ? <RadicalMnemonicIllustration key={record.data.document_url} documentUrl={record.data.document_url} meaning={primaryMeaning} /> : null}{record.data.meaning_hint ? <div className={styles.subjectHint}><Mnemonic paragraphs={mnemonicParagraphs(record.data.meaning_hint)} /></div> : null}</DetailSection> : null}
           {record.object === "kana_vocabulary" && pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
-          {allowStudyMaterialEditing ? <StudyMaterialEditor key={`${record.id}:${material?.id ?? "new"}`} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : null}
+          {allowStudyMaterialEditing ? <StudyMaterialEditor field="meaning_note" key={`${record.id}:${material?.id ?? "new"}`} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : null}
           <RelationSection title="Components" ids={record.data.component_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
           <RelationSection title="Visually similar" ids={record.data.visually_similar_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
           {record.object === "radical" ? <RelationSection title="Found in kanji" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
@@ -641,7 +641,8 @@ export function SubjectDetailPanels({
 
         {hasReadingTab ? <section id={panelId("reading")} role="tabpanel" aria-labelledby={tabId("reading")} aria-hidden={resolvedActiveTab !== "reading"} inert={resolvedActiveTab !== "reading" ? true : undefined} data-tab-position={tabPosition("reading")} className={styles.detailPanelStack} style={tabPagerStyle("reading")}>
           <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} /></DetailSection>
-          {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{record.data.reading_hint ? <p className={styles.subjectHint}>{record.data.reading_hint}</p> : null}</DetailSection> : null}
+          {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{record.data.reading_hint ? <div className={styles.subjectHint}><Mnemonic paragraphs={mnemonicParagraphs(record.data.reading_hint)} /></div> : null}</DetailSection> : null}
+          {allowStudyMaterialEditing ? <StudyMaterialEditor field="reading_note" key={record.id} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : null}
           {record.object === "kanji" && settings.showKanjiReadingExamples && amalgamationSubjects.length ? <KanjiReadingExamples kanji={record} vocabulary={amalgamationSubjects} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
           {pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
         </section> : null}
@@ -680,8 +681,10 @@ function mergeSynonyms(current: string[], candidates: string[]) {
   return next;
 }
 
-export function StudyMaterialEditor({ subjectId, material, queryKey, loading }: { subjectId: number; material?: StudyMaterial; queryKey: readonly unknown[]; loading: boolean }) {
+export function StudyMaterialEditor({ subjectId, material, queryKey, loading, field }: { field: "meaning_synonyms" | "meaning_note" | "reading_note"; subjectId: number; material?: StudyMaterial; queryKey: readonly unknown[]; loading: boolean }) {
   const queryClient = useQueryClient();
+  const inputId = useId();
+  const title = field === "meaning_synonyms" ? "User synonyms" : field === "meaning_note" ? "Meaning note" : "Reading note";
   const synonymInputRef = useRef<HTMLInputElement>(null);
   const [meaningNote, setMeaningNote] = useState(material?.data.meaning_note ?? "");
   const [readingNote, setReadingNote] = useState(material?.data.reading_note ?? "");
@@ -691,7 +694,7 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading }: 
   const [buttonState, setButtonState] = useState<ButtonState>("idle");
   const mutation = useMutation({
     mutationFn: (draft: StudyMaterialDraft) => {
-      const body = { study_material: { ...(material ? {} : { subject_id: subjectId }), meaning_note: draft.meaningNote || null, reading_note: draft.readingNote || null, meaning_synonyms: draft.synonyms } };
+      const body = { study_material: { ...(material ? {} : { subject_id: subjectId }), [field]: field === "meaning_synonyms" ? draft.synonyms : (field === "meaning_note" ? draft.meaningNote : draft.readingNote) || null } };
       return wkRequest<StudyMaterial>(material ? `study_materials/${material.id}` : "study_materials", { method: material ? "PUT" : "POST", body });
     },
     onMutate: () => setButtonState("loading"),
@@ -742,23 +745,22 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading }: 
   };
   const action = loading ? null : editing
     ? <Button type="button" tone="ghost" size="small" disabled={buttonState === "loading"} onClick={cancelEditing}><X size={16} aria-hidden />Cancel</Button>
-    : <Button type="button" tone="ghost" size="small" onClick={startEditing}><Pencil size={16} aria-hidden />Edit</Button>;
+    : <Button type="button" tone="ghost" size="small" aria-label={`Edit ${title.toLowerCase()}`} onClick={startEditing}><Pencil size={16} aria-hidden />Edit</Button>;
 
-  return <DetailSection title="Notes" action={action}>
-    {loading ? <Skeleton height="6rem" /> : editing ? <form className={styles.notesForm} data-state={buttonState} aria-busy={buttonState === "loading"} onSubmit={(event) => {
+  const content = loading ? <Skeleton height="6rem" /> : editing ? <form className={styles.notesForm} data-state={buttonState} aria-busy={buttonState === "loading"} onSubmit={(event) => {
       event.preventDefault();
       const nextSynonyms = mergeSynonyms(synonyms, [synonymDraft]);
       setSynonyms(nextSynonyms);
       setSynonymDraft("");
       mutation.mutate({ meaningNote, readingNote, synonyms: nextSynonyms });
     }}>
-      <div className={styles.synonymField}>
-        <label htmlFor="meaning-synonyms">Meaning synonyms</label>
+      {field === "meaning_synonyms" ? <div className={styles.synonymField}>
+        <label htmlFor={inputId}>Meaning synonyms</label>
         <div className={styles.synonymInput} data-state={buttonState} onClick={() => synonymInputRef.current?.focus()}>
           <div className={styles.synonymChips} aria-live="polite">
             {synonyms.map((synonym, index) => <span className={styles.synonymChip} key={`${synonym.toLocaleLowerCase()}-${index}`}>{synonym}<button type="button" disabled={buttonState === "loading"} aria-label={`Remove synonym ${synonym}`} onClick={() => setSynonyms((current) => current.filter((value) => value !== synonym))}><X size={14} aria-hidden /></button></span>)}
           </div>
-          <input ref={synonymInputRef} id="meaning-synonyms" value={synonymDraft} placeholder={synonyms.length ? "Add another" : "Add a synonym"} aria-describedby="meaning-synonyms-help" onChange={(event) => updateSynonymDraft(event.target.value)} onBlur={commitSynonymDraft} onKeyDown={(event) => {
+          <input ref={synonymInputRef} id={inputId} value={synonymDraft} placeholder={synonyms.length ? "Add another" : "Add a synonym"} aria-describedby={`${inputId}-help`} onChange={(event) => updateSynonymDraft(event.target.value)} onBlur={commitSynonymDraft} onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
             if (event.key === "," || event.key === "Enter") {
               event.preventDefault();
@@ -768,16 +770,14 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading }: 
             if (event.key === "Backspace" && !synonymDraft) setSynonyms((current) => current.slice(0, -1));
           }} />
         </div>
-        <span id="meaning-synonyms-help" className={styles.synonymHelper}>Press comma or Enter after each synonym.</span>
-      </div>
-      <TextAreaField label="Meaning note" rows={4} value={meaningNote} onChange={(event) => setMeaningNote(event.target.value)} />
-      <TextAreaField label="Reading note" rows={4} value={readingNote} onChange={(event) => setReadingNote(event.target.value)} />
+        <span id={`${inputId}-help`} className={styles.synonymHelper}>Press comma or Enter after each synonym.</span>
+      </div> : <TextAreaField label={title} rows={4} value={field === "meaning_note" ? meaningNote : readingNote} onChange={(event) => field === "meaning_note" ? setMeaningNote(event.target.value) : setReadingNote(event.target.value)} />}
       {buttonState === "error" ? <p className={styles.notesError} role="alert">Notes weren’t saved. Check your connection and try again.</p> : null}
-      <div className={styles.notesActions}><Button type="submit" tone="primary" state={buttonState}><Save size={16} aria-hidden />{buttonState === "error" ? "Try again" : "Save notes"}</Button></div>
-    </form> : <dl className={styles.notesReadOnly}>
-      <div><dt>Meaning synonyms</dt><dd>{synonyms.length ? <span className={styles.readOnlySynonyms}>{synonyms.map((synonym, index) => <span className={styles.synonymChip} key={`${synonym.toLocaleLowerCase()}-${index}`}>{synonym}</span>)}</span> : <span className={styles.emptyNote}>None added</span>}</dd></div>
-      <div><dt>Meaning note</dt><dd>{meaningNote ? <p>{meaningNote}</p> : <span className={styles.emptyNote}>None added</span>}</dd></div>
-      <div><dt>Reading note</dt><dd>{readingNote ? <p>{readingNote}</p> : <span className={styles.emptyNote}>None added</span>}</dd></div>
-    </dl>}
-  </DetailSection>;
+      <div className={styles.notesActions}><Button type="submit" tone="primary" state={buttonState}><Save size={16} aria-hidden />{buttonState === "error" ? "Try again" : field === "meaning_synonyms" ? "Save synonyms" : "Save note"}</Button></div>
+    </form> : field === "meaning_synonyms" ? <span>{material?.data.meaning_synonyms.length ? material.data.meaning_synonyms.join(", ") : <span className={styles.emptyNote}>None added</span>}</span>
+      : <div className={styles.notesReadOnly}>{material?.data[field] ? <p>{material.data[field]}</p> : <span className={styles.emptyNote}>None added</span>}</div>;
+
+  return field === "meaning_synonyms"
+    ? <div className={styles.synonymRow}><div>{content}</div>{action}</div>
+    : <DetailSection title={title} action={action}>{content}</DetailSection>;
 }

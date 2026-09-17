@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   configured: vi.fn(() => true),
   identity: vi.fn(),
   read: vi.fn(),
+  revision: vi.fn(),
   mutate: vi.fn(),
 }));
 
@@ -16,6 +17,7 @@ vi.mock("@/lib/server/analytics-server", () => ({ analyticsIdentityFromSealedSes
 vi.mock("@/lib/server/custom-srs-server", () => ({
   customSrsBackendConfigured: mocks.configured,
   readRemoteCustomSrsState: mocks.read,
+  readCustomSrsRevision: mocks.revision,
   mutateRemoteCustomSrsState: mocks.mutate,
 }));
 
@@ -44,8 +46,9 @@ describe("custom SRS route", () => {
     clearRateLimitsForTests();
     mocks.configured.mockReset().mockReturnValue(true);
     mocks.identity.mockReset().mockResolvedValue({ id: "123", username: "Portego", level: 12 });
+    mocks.revision.mockReset().mockResolvedValue(4);
     mocks.read.mockReset().mockResolvedValue({ state: emptyState, revision: -1 });
-    mocks.mutate.mockReset().mockImplementation(async (_id, _packs, transform) => ({ state: transform(emptyState, new Date("2026-08-31T10:00:00Z")), revision: 0 }));
+    mocks.mutate.mockReset().mockImplementation(async (_id, _packs, transform) => ({ available: true, state: transform(emptyState, new Date("2026-08-31T10:00:00Z")), revision: 0 }));
   });
 
   it("loads private progress for the sealed WaniKani identity", async () => {
@@ -55,6 +58,14 @@ describe("custom SRS route", () => {
     expect(mocks.identity).toHaveBeenCalledWith("sealed-session");
     expect(mocks.read).toHaveBeenCalledWith("123", expect.any(Array));
     expect(response.headers.get("Cache-Control")).toBe("private, no-store, max-age=0");
+  });
+
+  it("returns a tiny unchanged response when the authenticated client already has the current revision", async () => {
+    const incoming = request("GET");
+    incoming.nextUrl.searchParams.set("knownRevision", "4");
+    expect(await (await GET(incoming)).json()).toEqual({ available: true, revision: 4, unchanged: true });
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(mocks.revision).toHaveBeenCalledWith("123");
   });
 
   it("requires authentication and a trusted same-origin mutation", async () => {
@@ -68,7 +79,7 @@ describe("custom SRS route", () => {
     expect((await GET(request("GET", undefined, { accountId: "123" }))).status).toBe(200);
     expect((await POST(request("POST", { action: "enroll_pack", packId: "conversation-glue", eventId: crypto.randomUUID(), accountId: "123" }))).status).toBe(200);
     expect(mocks.read).toHaveBeenCalledWith("123", expect.any(Array));
-    expect(mocks.mutate).toHaveBeenCalledWith("123", expect.any(Array), expect.any(Function));
+    expect(mocks.mutate.mock.calls[0].slice(0, 3)).toEqual(["123", expect.any(Array), expect.any(Function)]);
   });
 
   it.each([true, false])("rejects an old account's queued reads and mutations before storage or browser fallback (configured=%s)", async (configured) => {
@@ -110,7 +121,7 @@ describe("custom SRS route", () => {
     const introduced = completeCustomLesson(enrollCustomVocabularyPack(createCustomSrsState(introducedAt), pack, introducedAt), wordId, introducedAt);
     const previous = recordCustomReview(introduced, wordId, 0, new Date("2026-08-31T10:00:00.000Z"), crypto.randomUUID());
     const current = { ...previous, reviewLog: [] };
-    mocks.mutate.mockImplementation(async (_id, _packs, transform) => ({ state: transform(current, new Date("2026-09-10T10:00:00.000Z")), revision: 8 }));
+    mocks.mutate.mockImplementation(async (_id, _packs, transform) => ({ available: true, state: transform(current, new Date("2026-09-10T10:00:00.000Z")), revision: 8 }));
 
     const response = await POST(request("POST", {
       action: "submit_review", wordId, incorrectAnswers: 0, eventId: crypto.randomUUID(), accountId: "123",
@@ -132,7 +143,7 @@ describe("custom SRS route", () => {
     };
     mocks.mutate.mockImplementation(async (_id, _packs, transform) => {
       current = transform(current, new Date("2026-08-31T10:00:00.000Z"));
-      return { state: current, revision: 8 };
+      return { available: true, state: current, revision: 8 };
     });
 
     const first = await POST(request("POST", payload));
@@ -201,10 +212,10 @@ describe("custom SRS route", () => {
     expect(Object.keys(payload.state.assignments)).toHaveLength(16);
   });
 
-  it("allows browser persistence only after verifying Portego when the private backend is absent", async () => {
+  it("refuses browser-only fallback when the private backend is absent", async () => {
     mocks.configured.mockReturnValue(false);
-    expect(await (await GET(request("GET"))).json()).toEqual({ available: false, state: null, revision: -1 });
-    expect(await (await POST(request("POST", { action: "complete_lesson", wordId: "pack:word", eventId: crypto.randomUUID() }))).json()).toEqual({ available: false, state: null, revision: -1 });
+    expect((await GET(request("GET"))).status).toBe(503);
+    expect((await POST(request("POST", { action: "complete_lesson", wordId: "pack:word", eventId: crypto.randomUUID() }))).status).toBe(503);
     expect(mocks.identity).toHaveBeenCalledTimes(2);
     expect(mocks.read).not.toHaveBeenCalled();
     expect(mocks.mutate).not.toHaveBeenCalled();

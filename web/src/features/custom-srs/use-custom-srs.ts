@@ -2,6 +2,9 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { expandCustomSrsWireResult, type CustomSrsConfirmed } from "./transport";
+import { parseCustomSrsStateStrict } from "./storage";
+import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
 import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview } from "./model";
 import { customSrsOutboxSnapshot, enqueueCustomSrsMutation, flushCustomSrsOutbox, newerCustomSrsResponse, parseCustomSrsOutbox, projectCustomSrsOutbox, readCustomSrsOutbox, rememberCustomSrsRemote, retryCustomSrsOutbox, subscribeCustomSrsOutbox, type MutationPayload, type RemoteStateResponse } from "./outbox";
 import { customSrsSnapshot, customSrsStorageKey, loadCustomSrsState, saveCustomSrsState, subscribeCustomSrs, withCustomSrsStorageLock } from "./storage";
@@ -47,27 +50,31 @@ export class CustomSrsApiError extends Error {
   }
 }
 
-async function parseResponse(response: Response) {
+async function parseResponse(response: Response, previous?: CustomSrsConfirmed) {
   const payload = await response.json().catch(() => null) as (Partial<RemoteStateResponse> & { error?: string }) | null;
   if (!response.ok) throw new CustomSrsApiError(payload?.error || "Custom vocabulary progress could not be reached.", response.status);
   if (!payload || typeof payload.available !== "boolean") throw new CustomSrsApiError("Custom vocabulary progress returned an invalid response.", 502);
-  return payload as RemoteStateResponse;
+  if (!payload.available) return payload as RemoteStateResponse;
+  const expanded = expandCustomSrsWireResult(payload, previous) as RemoteStateResponse;
+  if (!Number.isSafeInteger(expanded.revision) || expanded.revision < -1) throw new CustomSrsApiError("Invalid cloud revision.", 502);
+  return { ...expanded, state: parseCustomSrsStateStrict(expanded.state, CUSTOM_VOCABULARY_PACKS) };
 }
 
-export async function fetchCustomSrsState(signal?: AbortSignal, scope?: string | number) {
+export async function fetchCustomSrsState(signal?: AbortSignal, scope?: string | number, previous?: CustomSrsConfirmed) {
   if (isDemoMode()) return { available: false, state: null, revision: 0 };
   const account = scope === undefined ? "" : `?accountId=${encodeURIComponent(String(scope))}`;
-  return parseResponse(await fetch(`/api/custom-srs${account}`, { cache: "no-store", signal }));
+  const revision = previous ? `${account ? "&" : "?"}knownRevision=${previous.revision}` : "";
+  return parseResponse(await fetch(`/api/custom-srs${account}${revision}`, { cache: "no-store", signal }), previous);
 }
 
-export async function mutateCustomSrs(payload: MutationPayload) {
+export async function mutateCustomSrs(payload: MutationPayload, previous?: CustomSrsConfirmed) {
   if (isDemoMode()) return { available: false, state: null, revision: 0 };
   return parseResponse(await fetch("/api/custom-srs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, ...(previous ? { knownRevision: previous.revision } : {}) }),
     signal: AbortSignal.timeout(30_000),
-  }));
+  }), previous);
 }
 
 export function useCustomSrs(scope: string | number, packs: readonly CustomVocabularyPack[]) {
@@ -83,7 +90,8 @@ export function useCustomSrs(scope: string | number, packs: readonly CustomVocab
   const remote = useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
-      const incoming = await fetchCustomSrsState(signal, scope);
+      const cached = queryClient.getQueryData<RemoteStateResponse>(queryKey);
+      const incoming = await fetchCustomSrsState(signal, scope, cached?.available && cached.state ? { state: cached.state, revision: cached.revision } : undefined);
       return newerCustomSrsResponse(queryClient.getQueryData<RemoteStateResponse>(queryKey), incoming);
     },
     staleTime: 30_000,
@@ -121,7 +129,7 @@ export function useCustomSrs(scope: string | number, packs: readonly CustomVocab
     const isActive = () => active.current.mounted && active.current.scope === scope && !isDemoMode();
     if (!isActive()) return;
     try {
-      await flushCustomSrsOutbox(scope, mutateCustomSrs, (incoming) => {
+      await flushCustomSrsOutbox(scope, (payload) => mutateCustomSrs(payload, readCustomSrsOutbox(scope)?.confirmed), (incoming) => {
         queryClient.setQueryData<RemoteStateResponse>(queryKey, (current) => newerCustomSrsResponse(current, incoming));
         notifyCloudRevision(scope, incoming.revision);
       }, isActive);
@@ -201,8 +209,8 @@ export function useCustomSrs(scope: string | number, packs: readonly CustomVocab
     { action: "complete_lesson", wordId, eventId, accountId: String(scope) },
     (current, now) => completeCustomLesson(current, wordId, now),
   ), [commit, scope]);
-  const submitReview = useCallback((wordId: string, incorrectAnswers: number, eventId = crypto.randomUUID()) => commit(
-    { action: "submit_review", wordId, incorrectAnswers, eventId, accountId: String(scope), expectedAssignmentUpdatedAt: state.assignments[wordId]?.updatedAt ?? "" },
+  const submitReview = useCallback((wordId: string, incorrectAnswers: number, eventId = crypto.randomUUID(), expectedAssignmentUpdatedAt = state.assignments[wordId]?.updatedAt ?? "") => commit(
+    { action: "submit_review", wordId, incorrectAnswers, eventId, accountId: String(scope), expectedAssignmentUpdatedAt },
     (current, now) => recordCustomReview(current, wordId, incorrectAnswers, now, eventId),
   ), [commit, scope, state.assignments]);
 

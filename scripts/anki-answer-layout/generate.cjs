@@ -11,6 +11,7 @@ const names = [
   "reviewInteractionPane", "characterScrollView", "characterWrapper", "characterWrapperWithOpenHint", "characterContainer",
   "ankiCardContainer", "ankiAnswerContainer", "ankiContentSizedPrompt", "ankiContentSizedCard",
   "ankiContentSizedPane", "ankiContextHintPrompt",
+  "ankiButtonlessNaturalHeight",
   "banner", "ankiContentContainer", "ankiAnswerScroll", "ankiAnswerSection", "ankiButtonSection",
 ];
 const styles = {};
@@ -21,6 +22,8 @@ const attachments = new Map([
   ["ankiAnswerContainer", "ankiContentSizedCard"],
 ]);
 let revealedMinHeight;
+let unrevealedMinHeight;
+let contentSizedCondition;
 let hintSizingAttached = false;
 
 function literal(node) {
@@ -49,10 +52,14 @@ function visit(node) {
     function findInterpolation(child) {
       if (ts.isCallExpression(child) && child.expression.getText(ast) === "interpolate") {
         revealedMinHeight = literal(child.arguments[2].elements.at(-1));
+        unrevealedMinHeight = literal(child.arguments[2].elements[0]);
       }
       ts.forEachChild(child, findInterpolation);
     }
     findInterpolation(node);
+  }
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "useContentSizedAnkiCard") {
+    contentSizedCondition = node.initializer;
   }
   // Fail if a sizing override survives in StyleSheet but is detached from the UI.
   if (ts.isJsxAttribute(node) && node.name.getText(ast) === "style") {
@@ -78,6 +85,28 @@ for (const name of names) if (!styles[name]) throw new Error(`Missing style ${na
 if (attachments.size) throw new Error(`Missing revealed sizing attachments: ${[...attachments.keys()].join(", ")}`);
 if (!hintSizingAttached) throw new Error("Missing context-hint sizing attachment");
 if (!Number.isFinite(revealedMinHeight)) throw new Error("Missing revealed answer min-height interpolation");
+if (!Number.isFinite(unrevealedMinHeight)) throw new Error("Missing unrevealed answer min-height interpolation");
+if (!contentSizedCondition) throw new Error("Missing Anki sizing condition");
+
+function booleanExpression(node) {
+  if (ts.isIdentifier(node)) {
+    const value = {
+      effectiveAnkiCardMode: "true",
+      isCurrentQuestionAnkiRevealed: "revealed",
+      effectiveAnkiButtonlessMode: "buttonless",
+    }[node.text];
+    if (value) return value;
+  }
+  if (ts.isParenthesizedExpression(node)) return `(${booleanExpression(node.expression)})`;
+  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+    return `!${booleanExpression(node.operand)}`;
+  }
+  if (ts.isBinaryExpression(node) &&
+    [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken].includes(node.operatorToken.kind)) {
+    return `(${booleanExpression(node.left)} ${node.operatorToken.getText(ast)} ${booleanExpression(node.right)})`;
+  }
+  throw new Error(`Unsupported Anki sizing condition: ${node.getText(ast)}`);
+}
 
 const pascal = (value) => value.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join("");
 function setter(key, value) {
@@ -108,5 +137,7 @@ const header = names.map((name) => `void apply_${name}(YGNodeRef node) {\n${
     .map((line) => `  ${line}`).join("\n")
 }\n}`).join("\n");
 fs.writeFileSync(path.join(buildDir, "source-styles.h"),
-  `constexpr float revealedAnswerMinHeight = ${revealedMinHeight};\n${header}\n`);
-console.log("Read current review styles and verified their revealed-card attachments.");
+  `constexpr float unrevealedAnswerMinHeight = ${unrevealedMinHeight};\n` +
+  `constexpr float revealedAnswerMinHeight = ${revealedMinHeight};\n` +
+  `bool contentSizedAnkiCard(bool revealed, bool buttonless) { return ${booleanExpression(contentSizedCondition)}; }\n${header}\n`);
+console.log("Read current review styles, sizing condition, and card attachments.");

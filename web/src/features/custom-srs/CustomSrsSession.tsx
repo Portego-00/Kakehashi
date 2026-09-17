@@ -450,6 +450,7 @@ function ReadyCustomSrsSession({
   const [sessionWords, setSessionWords] = useState(() => mode === "lessons"
     ? customLessonWords(state, packs).slice(0, batchSize)
     : customReviewWords(state, packs, startedAt));
+  const [reviewOccurrences, setReviewOccurrences] = useState(() => Object.fromEntries(sessionWords.map((word) => [word.id, state.assignments[word.id]?.updatedAt])));
   const [queue, setQueue] = useState(() => createCustomQuestionQueue(sessionWords, state, mode, studySettings));
   const [phase, setPhase] = useState<SessionPhase>(() => mode === "lessons" && sessionWords.length ? "teaching" : sessionWords.length ? "quiz" : "results");
   const [lessonIndex, setLessonIndex] = useState(0);
@@ -496,6 +497,7 @@ function ReadyCustomSrsSession({
     if (!nextWords.length) return;
 
     setSessionWords(nextWords);
+    setReviewOccurrences(Object.fromEntries(nextWords.map((word) => [word.id, state.assignments[word.id]?.updatedAt])));
     setQueue(createCustomQuestionQueue(nextWords, state, mode, studySettings));
     setStartedAt(new Date());
     setCompletedAt(null);
@@ -590,7 +592,7 @@ function ReadyCustomSrsSession({
       if (mode === "lessons") {
         nextState = await completeLesson(currentWord.id, eventId);
       } else {
-        nextState = await submitReview(currentWord.id, incorrectAnswers, eventId);
+        nextState = await submitReview(currentWord.id, incorrectAnswers, eventId, reviewOccurrences[currentWord.id]);
       }
       if (nextState === null) throw new Error("Your custom SRS progress could not be saved in this browser.");
 

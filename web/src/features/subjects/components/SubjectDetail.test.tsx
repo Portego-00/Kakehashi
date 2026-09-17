@@ -69,9 +69,9 @@ const material: StudyMaterial = {
   },
 };
 
-function renderEditor() {
+function renderEditor(field: "meaning_synonyms" | "meaning_note" | "reading_note" = "meaning_synonyms") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}><StudyMaterialEditor subjectId={7} material={material} queryKey={["study-material", 7]} loading={false} /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><StudyMaterialEditor field={field} subjectId={7} material={material} queryKey={["study-material", 7]} loading={false} /></QueryClientProvider>);
 }
 
 const contextSentences = [
@@ -274,6 +274,8 @@ describe("subject detail media buttons", () => {
       data: {
         ...audioSubject.data,
         meaning_mnemonic: "&#x41;&#x20;<radical>sun</radical> enters the <kanji>heart</kanji> and creates <vocabulary>enthusiasm</vocabulary>. It is <em>intense</em> &amp; has <meaning>purpose</meaning>.\n\n<ja>熱心</ja> appears in <a href=\"https://www.wanikani.com/vocabulary/熱心\" onclick=\"ignored()\">ordinary use</a>; <a href=\"javascript:ignored()\">unsafe links stay text</a>, as does <future-tag>future markup</future-tag>.",
+        meaning_hint: "Now a stone. <kanji>Certain</kanji>. &amp; <em>remember</em>.",
+        reading_hint: "Listen for <reading>しん</reading>. &amp; <i>repeat</i>.",
         reading_mnemonic: "A <ja><reading>NET—SHIN</reading></ja> catches the <i>feeling</i>.",
       },
     } as Subject;
@@ -304,11 +306,17 @@ describe("subject detail media buttons", () => {
     expect(within(mnemonic).queryByRole("link", { name: "unsafe links stay text" })).not.toBeInTheDocument();
     expect(mnemonic).toHaveTextContent("unsafe links stay text");
     expect(mnemonic).toHaveTextContent("future markup");
+    expect(within(mnemonic).getByText("Certain", { selector: "mark" })).toHaveAttribute("data-mnemonic-kind", "kanji");
+    expect(within(mnemonic).getByText("remember", { selector: "em" })).toBeInTheDocument();
+    expect(mnemonic).toHaveTextContent("Now a stone. Certain. & remember.");
+    expect(mnemonic).not.toHaveTextContent("<kanji>");
 
     fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
     expect(container.querySelector('[data-mnemonic-kind="reading"]')).toHaveTextContent("NET—SHIN");
     expect(within(screen.getByRole("heading", { name: "Reading mnemonic" }).closest("section")!).getByText("NET—SHIN").closest("span")).toHaveAttribute("lang", "ja");
     expect(screen.getByText("feeling", { selector: "em" })).toBeInTheDocument();
+    expect(screen.getByText("しん", { selector: "mark" })).toHaveAttribute("data-mnemonic-kind", "reading");
+    expect(screen.getByText("repeat", { selector: "em" })).toBeInTheDocument();
   });
 });
 
@@ -423,15 +431,43 @@ describe("subject detail saved-list action", () => {
 describe("subject detail notes", () => {
   beforeEach(() => wkRequestMock.mockReset());
 
+  it("places synonyms in the meaning card and notes in their matching tabs", () => {
+    renderAudioSubject();
+    fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
+    const meaning = screen.getByRole("tabpanel", { name: "Meaning" });
+    const synonyms = within(meaning).getByText("User synonyms");
+    expect(synonyms.closest("dl")).toHaveTextContent("Primary");
+    expect(within(meaning).getByRole("button", { name: "Edit user synonyms" })).toBeInTheDocument();
+    expect(within(meaning).getByRole("heading", { name: "Meaning note" })).toBeInTheDocument();
+    expect(within(meaning).queryByText("Reading note")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
+    const reading = screen.getByRole("tabpanel", { name: "Reading" });
+    expect(within(reading).getByRole("heading", { name: "Reading note" })).toBeInTheDocument();
+    expect(within(reading).queryByText("Meaning note")).not.toBeInTheDocument();
+  });
+
   it("shows compact read-only notes by default", () => {
     renderEditor();
 
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit user synonyms" })).toBeInTheDocument();
     expect(screen.getByText("daily")).toBeInTheDocument();
-    expect(screen.getByText("Keep this compact.")).toBeInTheDocument();
-    expect(screen.getByText("Remember the long vowel.")).toBeInTheDocument();
+    expect(screen.queryByText("Keep this compact.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Remember the long vowel.")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Meaning note" })).not.toBeInTheDocument();
     expect(screen.queryByText("Notes and synonyms sync back to WaniKani.")).not.toBeInTheDocument();
+  });
+
+  it.each(["meaning_note", "reading_note"] as const)("saves only %s from its own editor", async (field) => {
+    const label = field === "meaning_note" ? "Meaning note" : "Reading note";
+    wkRequestMock.mockResolvedValue({ ...material, data: { ...material.data, [field]: "Updated note." } });
+    renderEditor(field);
+    fireEvent.click(screen.getByRole("button", { name: "Edit " + label.toLowerCase() }));
+    expect(screen.queryByRole("textbox", { name: "Meaning synonyms" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: label }), { target: { value: "Updated note." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    await waitFor(() => expect(wkRequestMock).toHaveBeenCalledWith("study_materials/42", {
+      method: "PUT", body: { study_material: { [field]: "Updated note." } },
+    }));
   });
 
   it("turns comma-separated synonyms into removable chips and saves the normalized list", async () => {
@@ -446,7 +482,7 @@ describe("subject detail notes", () => {
     wkRequestMock.mockResolvedValue(saved);
     renderEditor();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit user synonyms" }));
     const synonymInput = screen.getByRole("textbox", { name: "Meaning synonyms" });
     fireEvent.change(synonymInput, { target: { value: "speedy," } });
     expect(screen.getByRole("button", { name: "Remove synonym speedy" })).toBeInTheDocument();
@@ -456,20 +492,17 @@ describe("subject detail notes", () => {
     fireEvent.keyDown(synonymInput, { key: "Enter" });
     expect(screen.getByRole("button", { name: "Remove synonym quick" })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Meaning note" }), { target: { value: "Updated meaning note." } });
-    fireEvent.click(screen.getByRole("button", { name: "Save notes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save synonyms" }));
 
     await waitFor(() => expect(wkRequestMock).toHaveBeenCalledWith("study_materials/42", {
       method: "PUT",
       body: {
         study_material: {
-          meaning_note: "Updated meaning note.",
-          reading_note: "Remember the long vowel.",
           meaning_synonyms: ["daily", "speedy", "quick"],
         },
       },
     }));
-    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Edit user synonyms" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Meaning synonyms" })).not.toBeInTheDocument();
   });
 });

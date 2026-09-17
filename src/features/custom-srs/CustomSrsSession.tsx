@@ -26,6 +26,7 @@ interface PendingSave {
   eventId: string;
   quiz: CustomSessionQuiz;
   incorrectAnswers: number;
+  expectedAssignmentUpdatedAt?: string;
 }
 
 /** Custom progress is committed only through our own cloud service, never WK queues. */
@@ -63,6 +64,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
+  const reviewOccurrencesRef = useRef<Record<string, string>>({});
   const quizRef = useRef<CustomSessionQuiz | null>(null);
   const pendingSaveRef = useRef<PendingSave | null>(null);
   const savingRef = useRef(false);
@@ -127,8 +129,9 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     setRemainingReviews(customReviewWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id)).length);
   }, [packs]);
 
-  const startBatch = useCallback((words: CustomVocabularyWord[], lessonCount: number, number: number) => {
+  const startBatch = useCallback((words: CustomVocabularyWord[], lessonCount: number, number: number, state: CustomSrsState) => {
     const nextBatch = mode === "lessons" ? customLessonBatch(words, batchSize) : words;
+    reviewOccurrencesRef.current = Object.fromEntries(nextBatch.map((word) => [word.id, state.assignments[word.id]?.updatedAt]));
     setBatch(nextBatch);
     setTeachingIndex(0);
     setBatchNumber(number);
@@ -151,7 +154,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       const lessonWords = customLessonWords(state, packs);
       const words = mode === "lessons" ? lessonWords : customReviewWords(state, packs);
       updateRemaining(state);
-      startBatch(words, lessonWords.length, 1);
+      startBatch(words, lessonWords.length, 1, state);
     } catch (error) {
       if (mountedRef.current) setLoadError(error instanceof Error ? error.message : "Could not load your progress.");
     }
@@ -187,7 +190,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     try {
       const state = mode === "lessons"
         ? await completeLesson(pending.wordId, pending.eventId)
-        : await submitReview(pending.wordId, pending.incorrectAnswers, pending.eventId);
+        : await submitReview(pending.wordId, pending.incorrectAnswers, pending.eventId, pending.expectedAssignmentUpdatedAt);
       if (!mountedRef.current) return;
       const confirmedQuiz = confirmCustomSessionWord(pending.quiz, pending.wordId);
       completedWordIdsRef.current.add(pending.wordId);
@@ -230,7 +233,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       setSaveError(null);
       setSaveConflict(false);
       updateRemaining(state);
-      startBatch(words, lessons.length, batchNumber);
+      startBatch(words, lessons.length, batchNumber, state);
     } catch (error) {
       if (mountedRef.current) setSaveError(`Could not load the latest progress. ${error instanceof Error ? error.message : "Check your connection and try again."}`);
     } finally {
@@ -290,6 +293,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       eventId: randomUUID(),
       quiz: answered.quiz,
       incorrectAnswers: Math.min(100, item.meaningIncorrect + item.readingIncorrect),
+      expectedAssignmentUpdatedAt: reviewOccurrencesRef.current[answered.completedWordId],
     };
     pendingSaveRef.current = pending;
     setPendingSave(pending);
@@ -305,7 +309,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       if (!mountedRef.current) return;
       const words = customLessonWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id));
       updateRemaining(state);
-      startBatch(words, words.length, batchNumber + 1);
+      startBatch(words, words.length, batchNumber + 1, state);
     } catch (error) {
       if (mountedRef.current) setNextBatchError(error instanceof Error ? error.message : "Could not load your next lessons.");
     } finally {

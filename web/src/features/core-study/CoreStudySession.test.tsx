@@ -182,6 +182,8 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({
 
 vi.mock("@/features/settings/jitai", () => ({ installCustomJitaiFonts: vi.fn().mockResolvedValue(undefined), resolveJitaiFontFamily: () => undefined }));
 
+vi.mock("./review-subject-font", () => ({ reviewSubjectFont: { className: "review-subject-font", style: { fontFamily: "Noto Sans JP" } } }));
+
 vi.mock("@/features/study/feedback-audio", () => ({ playAnswerFeedback: vi.fn() }));
 
 vi.mock("@/lib/wanikani/client", () => ({
@@ -208,7 +210,63 @@ function renderSession(mode: "lessons" | "reviews") {
   return Object.assign(render(<QueryClientProvider client={client}><CoreStudySession mode={mode} /></QueryClientProvider>), { client });
 }
 
+async function submitAnswer(value: string, kind: "meaning" | "reading") {
+  const input = await screen.findByRole("textbox", { name: "Your answer" });
+  expect(screen.getByRole("heading", { name: kind })).toBeInTheDocument();
+  fireEvent.change(input, { target: { value } });
+  fireEvent.submit(input.closest("form")!);
+}
+
 describe("core study prompt layout", () => {
+  it.each(["かわ", "やま"])("submits an edited warning answer %s on the next Enter", async (value) => {
+    fixtures.settings.study.reviewQuestionOrder = "reading-first";
+    fixtures.settings.study.pauseOnCorrect = true;
+    renderSession("reviews");
+    await submitAnswer("sen", "reading");
+    expect(await screen.findByText("Try another answer")).toBeInTheDocument();
+    const input = screen.getByRole("textbox", { name: "Your answer" });
+    fireEvent.change(input, { target: { value } });
+    fireEvent.submit(input.closest("form")!);
+    expect(await screen.findByText(value === "かわ" ? "Correct" : "Incorrect")).toBeInTheDocument();
+    expect(input).toHaveValue(value);
+  });
+
+  it.each([
+    [true, true, "やま", true],
+    [true, false, "やま", false],
+    [false, true, "かわ", false],
+    [true, true, "せん", false],
+  ] as const)("matches mobile pronunciation playback enabled=%s pauseWrong=%s answer=%s", async (enabled, pauseWrong, answer, shouldPlay) => {
+    fixtures.settings.study.autoplayAudio = enabled;
+    fixtures.settings.study.pauseOnWrong = pauseWrong;
+    fixtures.settings.study.pauseOnCorrect = true;
+    fixtures.settings.study.reviewQuestionOrder = "reading-first";
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    try {
+      renderSession("reviews");
+      await submitAnswer(answer, "reading");
+      expect(play).toHaveBeenCalledTimes(shouldPlay ? 1 : 0);
+    } finally { play.mockRestore(); fixtures.settings.study.autoplayAudio = false; }
+  });
+
+  it("loads the session Japanese glyphs before showing the first question", async () => {
+    let resolveFont!: (fonts: FontFace[]) => void;
+    const load = vi.fn(() => new Promise<FontFace[]>((resolve) => { resolveFont = resolve; }));
+    const original = Object.getOwnPropertyDescriptor(document, "fonts");
+    Object.defineProperty(document, "fonts", { configurable: true, value: { load } });
+    try {
+      renderSession("reviews");
+      await waitFor(() => expect(load).toHaveBeenCalledWith(expect.stringContaining("350"), expect.stringContaining("川")));
+      expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+      await act(async () => resolveFont([]));
+      expect(await screen.findByRole("textbox", { name: "Your answer" })).toBeInTheDocument();
+    } finally {
+      if (original) Object.defineProperty(document, "fonts", original);
+      else Reflect.deleteProperty(document, "fonts");
+    }
+  });
+
+
   beforeAll(() => {
     Object.defineProperty(window, "matchMedia", { writable: true, value: vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) });
     Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
@@ -380,6 +438,24 @@ describe("core study prompt layout", () => {
     expect(await screen.findByText("Correct")).toBeInTheDocument();
   });
 
+  it("shows results immediately while the dashboard refresh is still pending", async () => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.settings.study.pauseOnCorrect = true;
+    const { client } = renderSession("reviews");
+    await screen.findByRole("region", { name: "Anki answer" });
+    const refresh = vi.spyOn(client, "invalidateQueries").mockImplementation(() => new Promise<void>(() => {}));
+    fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next Question" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(await screen.findByRole("heading", { name: "Reviews Complete" }, { timeout: 300 })).toBeVisible();
+    act(() => { client.setQueryData(["core-study", "reviews", "assignments"], []); });
+    expect(screen.getByRole("heading", { name: "Reviews Complete" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "All subjects (1)" })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Open.*River.*subject details/ })).toBeVisible();
+  });
+
   it("shows the submitted SRS progression using the selected card size", async () => {
     fixtures.reviewAssignmentsResponse = [
       fixtures.reviewAssignment,
@@ -397,7 +473,7 @@ describe("core study prompt layout", () => {
     expect(reservedSlot).toHaveAttribute("data-progression-visible", "false");
     expect(reservedSlot).not.toHaveAttribute("aria-hidden");
     expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");
-    expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
@@ -409,6 +485,7 @@ describe("core study prompt layout", () => {
       const progression = await screen.findByLabelText("SRS progression");
       expect(progression).toHaveAttribute("data-mode", "compact");
       expect(progression).toHaveTextContent("Apprentice IV");
+      expect(progression.querySelector("use")).toHaveAttribute("href", "/srs/srs-icons.svg#apprentice-4");
       expect(progression).toHaveTextContent("Next review");
 
       const activeSlot = container.querySelector("[data-srs-progression-slot]");
@@ -422,7 +499,7 @@ describe("core study prompt layout", () => {
         if (typeof dismissProgression === "function") dismissProgression();
       });
 
-      expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument());
       expect(container.querySelector("[data-srs-progression-slot]")).toBe(activeSlot);
       expect(activeSlot).toHaveAttribute("data-progression-visible", "false");
       expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");

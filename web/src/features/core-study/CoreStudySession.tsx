@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, ExternalLink, Info, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, type MouseEvent, type ReactNode, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { FormEvent, type MouseEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
@@ -23,6 +23,9 @@ import { userQuery, wkKeys } from "@/lib/wanikani/queries";
 import type { Assignment, ReviewCreateResponse, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
 import { LessonTeaching } from "./LessonTeaching";
+import { CoreStudyResults } from "./CoreStudyResults";
+import type { ReviewResultItem } from "./review-results";
+import { SrsProgressionSlot, type SrsProgression } from "./SrsProgressionSlot";
 import { VocabularyFrequencyBadge } from "./VocabularyFrequencyBadge";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "./answer-checker";
 import { createQuestionQueue, kindsForSubject, lessonAssignments, moveCoreQuestionPairToEnd, reviewAssignments, type CoreQuestion } from "./queue";
@@ -34,12 +37,13 @@ import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationSt
 import { usePhoneStudyInput } from "./use-phone-study-input";
 import { useMobileReviewViewport } from "./use-mobile-review-viewport";
 import styles from "./core-study.module.css";
+import { reviewSubjectFont } from "./review-subject-font";
+import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
 
 type Mode = "lessons" | "reviews";
 type Phase = "loading" | "resume" | "teaching" | "quiz" | "results";
 type ErrorCounts = Record<number, { meaning: number; reading: number }>;
-type SrsProgression = { startingStage: number; endingStage: number; nextReviewInterval: string; isCorrect: boolean };
 type PreviousAnswerItem = { subject: Subject; kind: QuestionKind; isCorrect: boolean };
 type LessonTeachingSnapshot = { savedAt?: string; subjectIds: number[]; index: number; tab: SubjectDetailTab };
 type SessionSnapshot = {
@@ -110,27 +114,6 @@ function formatNextReviewInterval(availableAt: string | null | undefined, stage:
   return `${months} ${months === 1 ? "month" : "months"}`;
 }
 
-function SrsProgressionNotice({ progression, mode }: { progression: SrsProgression; mode: "normal" | "compact" }) {
-  const endingLabel = srsStageLabel(progression.endingStage);
-  return <aside className={styles.srsProgression} data-mode={mode} data-correct={progression.isCorrect} role="status" aria-label="SRS progression">
-    {mode === "normal" ? <span>{srsStageLabel(progression.startingStage)} →</span> : null}
-    <strong>{endingLabel}</strong>
-    <small>{progression.endingStage >= 9 ? "Burned" : `Next review ${progression.nextReviewInterval}`}</small>
-  </aside>;
-}
-
-function SrsProgressionSlot({ progression, mode, idleContent = null }: { progression: SrsProgression | null; mode: "normal" | "compact" | "hidden"; idleContent?: ReactNode }) {
-  if (mode === "hidden") return idleContent;
-  return <div
-    className={styles.srsProgressionSlot}
-    data-srs-progression-slot
-    data-mode={mode}
-    data-progression-visible={Boolean(progression)}
-  >
-    {progression ? <SrsProgressionNotice progression={progression} mode={mode} /> : idleContent}
-  </div>;
-}
-
 function shouldIgnoreReviewShortcut(event: KeyboardEvent) {
   if (event.defaultPrevented) return true;
   return event.target instanceof Element && Boolean(event.target.closest(reviewShortcutInteractiveSelector));
@@ -190,6 +173,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const [completed, setCompleted] = useState<Record<number, QuestionKind[]>>({});
   const [errors, setErrors] = useState<ErrorCounts>({});
   const [submittedIds, setSubmittedIds] = useState<number[]>([]);
+  const [resultItems, setResultItems] = useState<ReviewResultItem[]>([]);
   const [sessionError, setSessionError] = useState("");
   const [resumeSnapshot, setResumeSnapshot] = useState<SessionSnapshot | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date().toISOString());
@@ -316,6 +300,8 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   }, [lessonBatchResolved, mode, plannedAssignments, restoredLessonAssignments]);
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const selectedSubjects = useMemo(() => selectedAssignments.map((assignment) => subjectById.get(assignment.data.subject_id)).filter((subject): subject is Subject => Boolean(subject)), [selectedAssignments, subjectById]);
+  const reviewFontText = selectedSubjects.map((subject) => subject.data.characters ?? "").join("");
+  const reviewFontReady = useReviewFontReady(reviewSubjectFont.style.fontFamily, reviewFontText);
   const selectedIds = useMemo(() => selectedAssignments.map((assignment) => assignment.data.subject_id), [selectedAssignments]);
   const answerContextIds = useMemo(() => Array.from(new Set(selectedSubjects.flatMap((subject) => {
     const characters = subject.data.characters?.normalize("NFKC").trim() || "";
@@ -356,6 +342,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   const makeQueue = useMemo(() => () => createQuestionQueue(selectedAssignments, selectedSubjects, queueOptions), [queueOptions, selectedAssignments, selectedSubjects]);
 
   useEffect(() => {
+    if (phase === "results" && resultItems.length) return;
     if (!subjectsQuery.isSuccess || !lessonBatchResolved) return;
     const initializationKey = `${username}:${mode}:${selectedAssignments.map((assignment) => assignment.id).join(",")}`;
     if (initializedSessionKeyRef.current === initializationKey) return;
@@ -405,7 +392,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username]);
+  }, [lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
 
   useEffect(() => {
     if (phase !== "quiz") return;
@@ -618,7 +605,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     recognition.lang = current.kind === "reading" ? "ja-JP" : "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.onresult = (event) => { setAnswer(event.results[0]?.[0]?.transcript?.trim() || ""); setSpeechError(""); };
+    recognition.onresult = (event) => { if (feedback?.status === "blocked") setFeedback(null); setAnswer(event.results[0]?.[0]?.transcript?.trim() || ""); setSpeechError(""); };
     recognition.onerror = (event) => setSpeechError(event.error === "not-allowed" ? "Microphone permission was denied. You can keep typing." : "The browser could not recognize that answer. Try again or type it.");
     recognition.onend = () => { setListening(false); recognitionRef.current = null; };
     recognitionRef.current = recognition;
@@ -638,7 +625,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setLastCorrect(correct);
     if (!correct) setErrors((previous) => ({ ...previous, [current.assignment.id]: { meaning: previous[current.assignment.id]?.meaning || 0, reading: previous[current.assignment.id]?.reading || 0, [current.kind]: (previous[current.assignment.id]?.[current.kind] || 0) + 1 } }));
     if (preferences.answerFeedbackSoundEnabled && !(result.status === "close" && preferences.pauseOnClose)) playAnswerFeedback(correct);
-    if (result.status === "correct" && current.kind === "reading" && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
+    if ((correct || (result.status === "incorrect" && preferences.pauseOnWrong)) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
   }
 
   function preservePhoneInputFocus(event: MouseEvent<HTMLButtonElement>) {
@@ -712,16 +699,19 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     const subjectDone = kindsForSubject(current.subject).every((kind) => finishedKinds.includes(kind));
     try {
       if (subjectDone && !submittedIds.includes(current.assignment.id)) {
+        let resultingStage: number | undefined = mode === "lessons" ? 1 : undefined;
         if (mode === "reviews") {
           const response = await reviewMutation.mutateAsync({ assignmentId: current.assignment.id, counts: errors[current.assignment.id] || { meaning: 0, reading: 0 } });
+          resultingStage = response?.data.ending_srs_stage;
           if (response && preferences.srsProgressionCardDisplayMode !== "hidden") {
             const startingStage = response.data.starting_srs_stage;
             const endingStage = response.data.ending_srs_stage;
             setReserveResultsProgressionSlot(remaining.length === 0);
-            setSrsProgression({ startingStage, endingStage, isCorrect: endingStage > startingStage, nextReviewInterval: formatNextReviewInterval(response.resources_updated?.assignment?.data.available_at, endingStage) });
+            setSrsProgression({ subjectId: current.subject.id, startingStage, endingStage, isCorrect: endingStage > startingStage, nextReviewInterval: formatNextReviewInterval(response.resources_updated?.assignment?.data.available_at, endingStage) });
           }
         } else await lessonMutation.mutateAsync(current.assignment.id);
         setSubmittedIds((previous) => [...previous, current.assignment.id]);
+        setResultItems((previous) => [...previous.filter((item) => item.assignmentId !== current.assignment.id), { assignmentId: current.assignment.id, subject: current.subject, meaningMistakes: errors[current.assignment.id]?.meaning ?? 0, readingMistakes: errors[current.assignment.id]?.reading ?? 0, endingStage: resultingStage }]);
       }
       setCompleted((previous) => ({ ...previous, [current.assignment.id]: finishedKinds }));
       setQuestions(remaining);
@@ -734,9 +724,10 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       if (!remaining.length) {
         window.localStorage.removeItem(coreSessionKey(username, mode));
         if (mode === "lessons") clearLessonTeachingSession(window.localStorage, username);
-        await Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]);
         setDisplayNow(Date.now());
         setPhase("results");
+        // Completion must not wait for dashboard queries; the session is already saved.
+        void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
       } else window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
     } catch (cause) {
       setSessionError(formatFailure(cause, mode === "reviews" ? "The completed review is saved locally and will reconcile before another submission." : "The lesson remains in place; retry when the connection returns."));
@@ -857,6 +848,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setCompleted({});
     setErrors({});
     setSubmittedIds([]);
+    setResultItems([]);
     setQuestions(queue);
     setTotalQuestions(queue.length);
     setLessonIndex(0);
@@ -870,6 +862,14 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     setPhase(mode === "lessons" ? "loading" : queue.length ? "quiz" : "results");
   }
 
+  if (mode === "reviews" && phase === "results" && resultItems.length) return <CoreStudyResults
+    items={resultItems}
+    mode={mode}
+    durationMs={displayNow - new Date(sessionStartedAt).getTime()}
+    pendingCount={outboxCount}
+    progression={reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}
+  />;
+
   if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
   if (currentUserQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Study availability could not be checked</h1><p className={styles.error} role="alert">Kakehashi could not confirm whether Vacation Mode is active. No lesson or review session has been started.</p><div className="cluster"><Button onClick={() => void currentUserQuery.refetch()}>Try Again</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></div></div>;
   if (currentUserQuery.isLoading) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><LoadingState compact label="Checking Vacation Mode" detail="No study session starts until your current account state is confirmed." /></div></div>;
@@ -879,7 +879,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     if (restoredAssignmentsQuery.error) void restoredAssignmentsQuery.refetch();
   }}>Try Again</Button></div></div>;
   if (materialsQuery.error || answerContextQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
-  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || phase === "loading") return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
+  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
 
   if (phase === "resume" && resumeSnapshot) {
     const age = resumeSnapshot.savedAt ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-Math.max(1, Math.round((displayNow - new Date(resumeSnapshot.savedAt).getTime()) / 60_000)), "minute") : "earlier";
@@ -959,7 +959,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
         {outboxMessage ? <p className={styles.syncNotice} role="status" aria-live="polite">{outboxMessage}</p> : null}
         <div className={styles.subjectGlyph}>
           {previousAnswerItem ? <Link className={styles.previousAnswerCard} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={styles.previousAnswerCharacter} imageSize="100%" /><span aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : "×"}</span></Link> : null}
-          <SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} style={{ fontSize: reviewCharacterSize }} eager />
+          <SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} style={{ fontSize: reviewCharacterSize, fontFamily: resolveJitaiFontFamily(preferences, current.id) ?? reviewSubjectFont.style.fontFamily, fontWeight: 350 }} eager />
           <VocabularyFrequencyBadge subject={current.subject} enabled={mode === "reviews" && preferences.showVocabularyFrequency} />
           {showContextHint ? <div className={styles.contextHint}>
             <div className={styles.contextHintContent}>{contextSentences.map((sentence, index) => <div className={styles.contextHintSentenceGroup} key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <p>• {sentence.en}</p> : null}</div>)}</div>
@@ -1015,6 +1015,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
               value={answer}
               onChange={(event) => {
                 if (feedback && feedback.status !== "blocked") return;
+                if (feedback?.status === "blocked") setFeedback(null);
                 setAnswer(current.kind === "reading" ? composeKanaInput(event.target.value) : event.target.value);
               }}
               onKeyDown={(event) => {

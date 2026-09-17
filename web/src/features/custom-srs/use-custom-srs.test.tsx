@@ -98,29 +98,29 @@ describe("useCustomSrs", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     await act(async () => { await result.current.completeLesson("pack:ことば", "11111111-1111-4111-8111-111111111111"); });
     const body = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
-    expect(body).toEqual({ action: "complete_lesson", wordId: "pack:ことば", eventId: "11111111-1111-4111-8111-111111111111", accountId: "Tester" });
+    expect(body).toEqual({ action: "complete_lesson", wordId: "pack:ことば", eventId: "11111111-1111-4111-8111-111111111111", accountId: "Tester", knownRevision: 0 });
     await waitFor(() => expect(JSON.parse(window.localStorage.getItem(cloudRevisionKey) || "null")).toMatchObject({ revision: 1 }));
   });
 
   it("does not let an older GET revision replace newer cached progress", async () => {
-    const newest = cloudState("newest", ["pack"]);
-    const older = cloudState("older");
+    const newest = cloudState("2026-09-02T12:00:00.000Z", ["pack"]);
+    const older = cloudState("2026-09-03T12:00:00.000Z");
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ available: true, state: newest, revision: 5 }))
       .mockResolvedValueOnce(jsonResponse({ available: true, state: older, revision: 4 }));
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderHook(() => useCustomSrs("Tester", [pack]), { wrapper });
-    await waitFor(() => expect(result.current.state.updatedAt).toBe("newest"));
+    await waitFor(() => expect(result.current.state.updatedAt).toBe("2026-09-02T12:00:00.000Z"));
 
     await act(async () => { await result.current.refresh(); });
 
-    expect(result.current.state.updatedAt).toBe("newest");
+    expect(result.current.state.updatedAt).toBe("2026-09-02T12:00:00.000Z");
     expect(result.current.state.enrolledPackIds).toEqual(["pack"]);
   });
 
   it("cancels an in-flight GET before a cloud mutation", async () => {
-    const initial = cloudState("initial");
-    const saved = cloudState("saved", ["pack"]);
+    const initial = cloudState("2026-09-01T12:00:00.000Z");
+    const saved = cloudState("2026-09-04T12:00:00.000Z", ["pack"]);
     const staleRefresh = deferred<Response>();
     let getCount = 0;
     const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
@@ -132,7 +132,7 @@ describe("useCustomSrs", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderHook(() => useCustomSrs("Tester", [pack]), { wrapper });
-    await waitFor(() => expect(result.current.state.updatedAt).toBe("initial"));
+    await waitFor(() => expect(result.current.state.updatedAt).toBe("2026-09-01T12:00:00.000Z"));
 
     let refreshPromise!: ReturnType<typeof result.current.refresh>;
     act(() => { refreshPromise = result.current.refresh(); });
@@ -142,10 +142,10 @@ describe("useCustomSrs", () => {
     await act(async () => { await result.current.enrollPack(pack, "22222222-2222-4222-8222-222222222222"); });
 
     expect(refreshSignal.aborted).toBe(true);
-    await waitFor(() => expect(result.current.state.updatedAt).toBe("saved"));
+    await waitFor(() => expect(result.current.state.updatedAt).toBe("2026-09-04T12:00:00.000Z"));
     staleRefresh.resolve(jsonResponse({ available: true, state: initial, revision: 1 }));
     await act(async () => { await refreshPromise; });
-    expect(result.current.state.updatedAt).toBe("saved");
+    expect(result.current.state.updatedAt).toBe("2026-09-04T12:00:00.000Z");
   });
 
   it("serializes cloud requests without making a second local answer wait for the first ACK", async () => {
@@ -153,13 +153,13 @@ describe("useCustomSrs", () => {
     const secondMutation = deferred<Response>();
     let postCount = 0;
     const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method !== "POST") return Promise.resolve(jsonResponse({ available: true, state: cloudState("initial"), revision: 0 }));
+      if (init?.method !== "POST") return Promise.resolve(jsonResponse({ available: true, state: cloudState("2026-09-01T12:00:00.000Z"), revision: 0 }));
       postCount += 1;
       return postCount === 1 ? firstMutation.promise : secondMutation.promise;
     });
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderHook(() => useCustomSrs("Tester", [pack]), { wrapper });
-    await waitFor(() => expect(result.current.state.updatedAt).toBe("initial"));
+    await waitFor(() => expect(result.current.state.updatedAt).toBe("2026-09-01T12:00:00.000Z"));
 
     await act(async () => { await result.current.enrollPack(pack, "33333333-3333-4333-8333-333333333333"); });
     await act(async () => { await result.current.completeLesson(pack.words[0].id, "44444444-4444-4444-8444-444444444444"); });
@@ -274,17 +274,17 @@ describe("useCustomSrs", () => {
 
   it("refetches once for a newer cloud revision announced by another tab", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ available: true, state: cloudState("initial"), revision: 0 }))
-      .mockResolvedValueOnce(jsonResponse({ available: true, state: cloudState("other-tab", ["pack"]), revision: 1 }));
+      .mockResolvedValueOnce(jsonResponse({ available: true, state: cloudState("2026-09-01T12:00:00.000Z"), revision: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ available: true, state: cloudState("2026-09-10T12:00:00.000Z", ["pack"]), revision: 1 }));
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderHook(() => useCustomSrs("Tester", [pack]), { wrapper });
-    await waitFor(() => expect(result.current.state.updatedAt).toBe("initial"));
+    await waitFor(() => expect(result.current.state.updatedAt).toBe("2026-09-01T12:00:00.000Z"));
 
     act(() => window.dispatchEvent(new StorageEvent("storage", {
       key: cloudRevisionKey,
-      newValue: JSON.stringify({ revision: 1, nonce: "other-tab" }),
+      newValue: JSON.stringify({ revision: 1, nonce: "2026-09-10T12:00:00.000Z" }),
     })));
-    await waitFor(() => expect(result.current.state.updatedAt).toBe("other-tab"));
+    await waitFor(() => expect(result.current.state.updatedAt).toBe("2026-09-10T12:00:00.000Z"));
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     act(() => window.dispatchEvent(new StorageEvent("storage", {
