@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { VocabularyAudioVoice } from "@/features/settings/settings";
 import type { Subject } from "@/types/wanikani";
 import { StudyModeClient } from "./study-mode-client";
@@ -161,6 +161,12 @@ class AudioProbe {
     return Promise.resolve();
   }
 }
+
+// QuizSession preloads these details in the background. Join the same import
+// before teardown, including on slower CI workers where it can outlive the tests.
+afterAll(async () => {
+  await import("./study-subject-details");
+});
 
 describe("extra-study vocabulary audio autoplay", () => {
   afterEach(() => {
