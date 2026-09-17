@@ -302,7 +302,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   },
   integrations: { jpdbApiKey: "", myAnimeListUsername: "", aniListUsername: "" },
   study: {
-    autoplayAudio: false,
+    autoplayAudio: true,
     answerFeedbackSoundEnabled: true,
     showSrsIndicator: true,
     showReviewItemLevelAndSrsStage: false,

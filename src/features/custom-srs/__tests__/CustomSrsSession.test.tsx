@@ -171,7 +171,7 @@ describe("native custom SRS sessions", () => {
     const view = render(<CustomSrsSession mode="reviews" packId="test-pack" />);
     await waitFor(() => expect(view.getByTestId("answer-warning-retry")).toBeTruthy());
     await act(async () => fireEvent.press(view.getByTestId("answer-warning-retry")));
-    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1");
+    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1", "2026-09-07T00:00:00Z");
     view.unmount();
     mockCloud.submitReview.mockClear();
     mockState.assignments["word-1"].availableAt = "2020-01-01T00:00:00Z";
@@ -179,7 +179,19 @@ describe("native custom SRS sessions", () => {
     await waitFor(() => expect(next.getByTestId("answer-incorrect")).toBeTruthy());
     fireEvent.press(next.getByTestId("answer-incorrect"));
     await act(async () => fireEvent.press(next.getByTestId("answer-correct")));
-    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 1, "event-2");
+    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 1, "event-2", "2026-09-07T00:00:00Z");
+  });
+
+  it("keeps the original review occurrence when background sync updates the card mid-question", async () => {
+    mockState.assignments["word-1"].stage = 1;
+    mockState.assignments["word-1"].availableAt = "2020-01-01T00:00:00Z";
+    const view = render(<CustomSrsSession mode="reviews" packId="test-pack" />);
+    await waitFor(() => expect(view.getByTestId("answer-correct")).toBeTruthy());
+    mockState = { ...mockState, assignments: { ...mockState.assignments, "word-1": { ...mockState.assignments["word-1"], updatedAt: "2026-09-17T12:00:00Z" } } };
+    mockCloud.state = mockState;
+    view.rerender(<CustomSrsSession mode="reviews" packId="test-pack" />);
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1", "2026-09-07T00:00:00Z");
   });
 
   it("uses fresh server state, native context sentences and the correct previous-word details route", async () => {
@@ -216,7 +228,7 @@ describe("native custom SRS sessions", () => {
     expect(view.getByTestId("review-word").props.children).toBe("かな2");
     expect(mockCloud.submitReview).toHaveBeenCalledTimes(1);
     await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
-    expect(mockCloud.submitReview.mock.calls).toEqual([["word-1", 0, "event-1"], ["word-2", 0, "event-2"]]);
+    expect(mockCloud.submitReview.mock.calls).toEqual([["word-1", 0, "event-1", "2026-09-07T00:00:00Z"], ["word-2", 0, "event-2", "2026-09-07T00:00:00Z"]]);
     expect(view.getByText("Reviews complete")).toBeTruthy();
   });
 });

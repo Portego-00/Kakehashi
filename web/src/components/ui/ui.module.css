@@ -132,7 +132,7 @@
   .button:hover:not(:disabled) { background: var(--color-paper-2); }
   .buttonPrimary:hover:not(:disabled) { background: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink)); color: var(--color-accent-ink); }
   .buttonAccent:hover:not(:disabled) { background: color-mix(in oklch, var(--color-accent) 88%, var(--color-ink)); color: var(--color-accent-ink); }
-  .buttonDanger:hover:not(:disabled) { filter: brightness(0.92); }
+  .buttonDanger:hover:not(:disabled) { background: color-mix(in oklch, var(--color-danger) 88%, black); color: var(--color-danger-ink); }
   .buttonGhost:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); }
   .cardInteractive:hover { border-color: var(--color-rule); background: var(--color-paper-2); }
   .input:hover:not(:disabled) { background: var(--color-paper-2); }

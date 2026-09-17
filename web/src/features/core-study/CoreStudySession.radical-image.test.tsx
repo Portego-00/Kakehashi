@@ -131,6 +131,8 @@ const fixtures = vi.hoisted(() => {
   return { assignment, radical, radicalSvgUrl, settings, user };
 });
 
+vi.mock("./review-subject-font", () => ({ reviewSubjectFont: { className: "review-subject-font", style: { fontFamily: "Noto Sans JP" } } }));
+
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user, status: "authenticated", isDemo: false }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({

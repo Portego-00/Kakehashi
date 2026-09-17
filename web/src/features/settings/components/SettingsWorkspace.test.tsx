@@ -117,7 +117,7 @@ describe("account sign out", () => {
 
     const accountHeading = screen.getByRole("heading", { level: 2, name: "Account" });
     const accountSection = accountHeading.closest("section");
-    expect(accountSection).toBe(document.querySelector("main > section:last-child"));
+    expect(accountSection).toBe(document.querySelector("main section:last-child"));
 
     fireEvent.click(within(accountSection!).getByRole("button", { name: "Sign out" }));
 

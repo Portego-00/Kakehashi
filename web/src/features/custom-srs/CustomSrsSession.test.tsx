@@ -158,6 +158,23 @@ describe("custom vocabulary lesson and review sessions", () => {
     vi.unstubAllGlobals();
   });
 
+  it("retains the review's original schedule when a background refresh changes the card", async () => {
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Hiragana", description: "Words", script: "hiragana", words: [cat] };
+    const initial = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    hook.state = initial;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = () => <QueryClientProvider client={client}><CustomSrsSession mode="reviews" packs={[pack]} /></QueryClientProvider>;
+    const view = render(tree());
+    const changed = { ...initial, assignments: { ...initial.assignments, [cat.id]: { ...initial.assignments[cat.id], updatedAt: "2026-09-17T12:00:00Z" } } };
+    hook.state = changed;
+    hook.submitReview.mockResolvedValue(changed);
+    view.rerender(tree());
+    fireEvent.change(screen.getByRole("textbox", { name: "Vocabulary Meaning" }), { target: { value: "cat" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(hook.submitReview).toHaveBeenCalledWith(cat.id, 0, expect.any(String), initial.assignments[cat.id].updatedAt));
+  });
+
   it("keeps the phone answer input mounted and focused while checking, saving and advancing", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({

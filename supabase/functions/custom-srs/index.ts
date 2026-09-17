@@ -1,7 +1,8 @@
+import { customSrsWireResult } from "../../../web/src/features/custom-srs/transport.ts";
+import { customSrsStatePatch } from "../../../web/src/features/custom-srs/state-patch.ts";
 import catalog from "../../../web/src/features/custom-srs/catalog.generated.json" with { type: "json" };
 import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview } from "../../../web/src/features/custom-srs/model";
-import { CUSTOM_SRS_POLICY } from "../../../web/src/features/custom-srs/scheduler";
-import { loadCustomSrsState } from "../../../web/src/features/custom-srs/storage.ts";
+import { parseCustomSrsStateStrict } from "../../../web/src/features/custom-srs/storage.ts";
 import type { CustomSrsState, CustomVocabularyPack } from "../../../web/src/features/custom-srs/types";
 
 const packs = catalog as CustomVocabularyPack[];
@@ -18,7 +19,7 @@ type Mutation =
   | { action: "read" }
   | { action: "enroll_pack"; packId: string; eventId: string }
   | { action: "complete_lesson"; wordId: string; eventId: string }
-  | { action: "submit_review"; wordId: string; eventId: string; incorrectAnswers: number };
+  | { action: "submit_review"; wordId: string; eventId: string; incorrectAnswers: number; expectedAssignmentUpdatedAt?: string };
 
 export interface CustomSrsDependencies {
   env: (name: string) => string | undefined;
@@ -48,11 +49,6 @@ function object(value: unknown): value is RecordValue {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (object(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
 
 function json(value: unknown, status = 200) {
   return Response.json(value, { status, headers: CORS });
@@ -71,8 +67,8 @@ export function validateCustomSrsRequest(value: unknown): Mutation | null {
   if (value.action === "complete_lesson" && exactKeys("action", "wordId", "eventId")) {
     return { action: value.action, wordId: value.wordId, eventId: value.eventId };
   }
-  if (value.action === "submit_review" && exactKeys("action", "wordId", "eventId", "incorrectAnswers") && Number.isSafeInteger(value.incorrectAnswers) && Number(value.incorrectAnswers) >= 0 && Number(value.incorrectAnswers) <= 100) {
-    return { action: value.action, wordId: value.wordId, eventId: value.eventId, incorrectAnswers: Number(value.incorrectAnswers) };
+  if (value.action === "submit_review" && (exactKeys("action", "wordId", "eventId", "incorrectAnswers") || (exactKeys("action", "wordId", "eventId", "incorrectAnswers", "expectedAssignmentUpdatedAt") && typeof value.expectedAssignmentUpdatedAt === "string" && Number.isFinite(Date.parse(value.expectedAssignmentUpdatedAt)))) && Number.isSafeInteger(value.incorrectAnswers) && Number(value.incorrectAnswers) >= 0 && Number(value.incorrectAnswers) <= 100) {
+    return { action: value.action, wordId: value.wordId, eventId: value.eventId, incorrectAnswers: Number(value.incorrectAnswers), ...(typeof value.expectedAssignmentUpdatedAt === "string" ? { expectedAssignmentUpdatedAt: value.expectedAssignmentUpdatedAt } : {}) };
   }
   return null;
 }
@@ -145,36 +141,27 @@ function serviceHeaders(key: string) {
   };
 }
 
-function parseStoredState(value: unknown, now: Date): CustomSrsState {
-  // Never overwrite an unrecognized cloud policy with an empty local state.
-  if (!object(value) || value.version !== 1 || canonical(value.policy) !== canonical(CUSTOM_SRS_POLICY) || !object(value.assignments) || !Array.isArray(value.enrolledPackIds) || !Array.isArray(value.reviewLog)) {
-    throw new Error("Cloud progress uses an unsupported schema");
-  }
-  const state = loadCustomSrsState({ getItem: () => JSON.stringify(value) }, "edge", packs, now);
-  const knownIds = new Set(packs.flatMap((pack) => pack.words.map((word) => word.id)));
-  for (const id of Object.keys(value.assignments)) {
-    const original = value.assignments[id];
-    const normalized = state.assignments[id];
-    if (knownIds.has(id) && (!object(original) || !normalized || canonical({ ...original, packId: normalized.packId }) !== canonical(normalized))) {
-      throw new Error("Cloud progress contains an invalid assignment");
-    }
-  }
-  return state;
-}
-
-async function readState(userId: string, url: string, key: string, dependencies: CustomSrsDependencies) {
+async function readState(userId: string, url: string, key: string, dependencies: CustomSrsDependencies, selection?: { wordIds: string[]; eventId: string }) {
   const endpoint = new URL(`${url}/rest/v1/custom_srs_states`);
   endpoint.searchParams.set("select", "state,revision");
   endpoint.searchParams.set("user_id", `eq.${userId}`);
   endpoint.searchParams.set("limit", "1");
-  const response = await dependencies.fetch(endpoint, { headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000) });
+  const response = selection
+    ? await dependencies.fetch(`${url}/rest/v1/rpc/read_custom_srs_cards`, {
+      method: "POST", headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000),
+      body: JSON.stringify({ p_user_id: userId, p_word_ids: selection.wordIds, p_event_id: selection.eventId }),
+    })
+    : await dependencies.fetch(endpoint, { headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000) });
   if (!response.ok) throw new Error("Cloud read failed");
-  const value = await boundedJson(response, 2_500_000);
+  const payload = await boundedJson(response, 16_000_000);
+  const value = selection ? (payload === null ? [] : [payload]) : payload;
   if (!Array.isArray(value)) throw new Error("Invalid cloud state");
   if (!value.length) return { state: createCustomSrsState(dependencies.now()), revision: -1 };
   const row = value[0];
   if (!object(row) || !Number.isSafeInteger(row.revision) || Number(row.revision) < 0) throw new Error("Invalid cloud revision");
-  return { state: parseStoredState(row.state, dependencies.now()), revision: Number(row.revision) };
+  const ids = selection ? new Set(selection.wordIds) : null;
+  const selectedPacks = ids ? packs.map((pack) => ({ ...pack, words: pack.words.filter((word) => ids.has(word.id)) })) : packs;
+  return { state: parseCustomSrsStateStrict(row.state, selectedPacks, dependencies.now()), revision: Number(row.revision) };
 }
 
 export async function handleCustomSrsRequest(request: Request, overrides: Partial<CustomSrsDependencies> = {}): Promise<Response> {
@@ -189,16 +176,44 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
   const key = dependencies.env("SUPABASE_SERVICE_ROLE_KEY") || dependencies.env("SUPABASE_SECRET_KEY");
   if (!url || !key) return json({ error: "Custom vocabulary cloud sync is not configured." }, 503);
   let action: Mutation | null;
-  try { action = validateCustomSrsRequest(await boundedJson(request, 16_000)); }
+  let knownRevision: number | undefined;
+  try {
+    const body = await boundedJson(request, 16_000);
+    if (object(body) && "knownRevision" in body) {
+      if (!Number.isSafeInteger(body.knownRevision) || Number(body.knownRevision) < -1) throw new Error("Invalid revision");
+      knownRevision = Number(body.knownRevision);
+      delete body.knownRevision;
+    }
+    action = validateCustomSrsRequest(body);
+  }
   catch { action = null; }
   if (!action) return json({ error: "This custom study request is invalid." }, 400);
 
   try {
     const identity = await verifyIdentity(token, dependencies);
     if (identity.username.toLowerCase() !== "portego") return json({ error: "This feature is not available for this account." }, 403);
-    if (action.action === "read") return json({ available: true, ...await readState(identity.id, url, key, dependencies) });
+    if (action.action === "read") {
+      if (knownRevision !== undefined && knownRevision >= 0) {
+        const response = await dependencies.fetch(`${url}/rest/v1/rpc/read_custom_srs_revision`, {
+          method: "POST", headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000), body: JSON.stringify({ p_user_id: identity.id }),
+        });
+        if (!response.ok) throw new Error("Cloud revision read failed");
+        const revision = await boundedJson(response, 1000);
+        if (!Number.isSafeInteger(revision) || Number(revision) < -1) throw new Error("Invalid cloud revision");
+        if (revision === knownRevision) return json({ available: true, revision, unchanged: true });
+      }
+      return json({ available: true, ...await readState(identity.id, url, key, dependencies) });
+    }
+    const selection = {
+      wordIds: action.action === "enroll_pack" ? packs.find((pack) => pack.id === action.packId)?.words.map((word) => word.id) ?? [] : [action.wordId],
+      eventId: action.eventId,
+    };
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      const current = await readState(identity.id, url, key, dependencies);
+      const current = await readState(identity.id, url, key, dependencies, selection);
+      const respond = async (result: { state: CustomSrsState; revision: number }) => {
+        if (knownRevision !== current.revision) return json(customSrsWireResult(await readState(identity.id, url, key, dependencies)));
+        return json(customSrsWireResult(result, current, knownRevision));
+      };
       const now = dependencies.now();
       let state: CustomSrsState;
       try {
@@ -207,18 +222,23 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
           if (!pack) throw new Error("Custom vocabulary pack not found.");
           state = enrollCustomVocabularyPack(current.state, pack, now);
         } else if (action.action === "complete_lesson") state = completeCustomLesson(current.state, action.wordId, now);
-        else state = recordCustomReview(current.state, action.wordId, action.incorrectAnswers, now, action.eventId);
+        else {
+          const assignment = current.state.assignments[action.wordId];
+          state = action.expectedAssignmentUpdatedAt !== undefined && assignment && assignment.updatedAt !== action.expectedAssignmentUpdatedAt
+            ? current.state
+            : recordCustomReview(current.state, action.wordId, action.incorrectAnswers, now, action.eventId);
+        }
       } catch { throw new RequestError(409, "This word is no longer ready for this action. Refresh your progress and try again."); }
-      if (state === current.state) return json({ available: true, ...current });
-      const response = await dependencies.fetch(`${url}/rest/v1/rpc/compare_and_set_custom_srs_state`, {
+      if (state === current.state) return respond(current);
+      const response = await dependencies.fetch(`${url}/rest/v1/rpc/patch_custom_srs_state`, {
         method: "POST", headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000),
-        body: JSON.stringify({ p_user_id: identity.id, p_expected_revision: current.revision, p_state: state }),
+        body: JSON.stringify({ p_user_id: identity.id, p_expected_revision: current.revision, ...customSrsStatePatch(current.state, state) }),
       });
       if (!response.ok) throw new Error("Cloud write failed");
-      const result = await boundedJson(response, 2_500_000);
+      const result = await boundedJson(response, 16_000_000);
       if (result === null) continue;
       if (!object(result) || !Number.isSafeInteger(result.revision) || Number(result.revision) < 0) throw new Error("Invalid cloud write result");
-      return json({ available: true, state, revision: Number(result.revision) });
+      return respond({ state, revision: Number(result.revision) });
     }
     return json({ error: "Your progress changed on another device. Retry to sync the latest progress." }, 409);
   } catch (error) {

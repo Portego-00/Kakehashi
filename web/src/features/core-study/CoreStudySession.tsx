@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, type MouseEvent, type ReactNode, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { FormEvent, type MouseEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
@@ -14,7 +14,6 @@ import { composeKanaInput } from "@/lib/kana";
 import { installCustomJitaiFonts, resolveJitaiFontFamily } from "@/features/settings/jitai";
 import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
 import { StudySubjectDetailsFrame } from "@/features/study/components/study-subject-details";
-import { reviewSubjectFont } from "./review-subject-font";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { fetchImmersionExamples } from "@/features/study/immersion";
@@ -22,14 +21,19 @@ import { playAnswerFeedback } from "@/features/study/feedback-audio";
 import { useSession } from "@/lib/session";
 import { WaniKaniApiError, wkCollection, wkRequest } from "@/lib/wanikani/client";
 import { userQuery, wkKeys } from "@/lib/wanikani/queries";
-import type { Assignment, ReviewCreateResponse, ReviewStatistic, StudyMaterial, Subject, WKUser } from "@/types/wanikani";
+import type { Assignment, ReviewStatistic, StudyMaterial, Subject, WKUser } from "@/types/wanikani";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
 import { LessonTeaching } from "./LessonTeaching";
+import { CoreStudyResults } from "./CoreStudyResults";
+import type { ReviewResultItem } from "./review-results";
+import { SrsProgressionSlot, type SrsProgression } from "./SrsProgressionSlot";
 import { VocabularyFrequencyBadge } from "./VocabularyFrequencyBadge";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "./answer-checker";
 import { canAccessCoreStudy } from "./access";
 import { createQuestionQueue, kindsForSubject, lessonAssignments, requeueIncorrectCoreQuestions, reviewAssignments, type CoreQuestion } from "./queue";
-import { deliverReview, enqueueReview, loadReviewOutbox, noteReviewFailure, removeReview } from "./review-outbox";
+import { loadReviewOutbox } from "./review-outbox";
+import { predictedReviewStage } from "./review-sync";
+import { useReviewSync } from "./use-review-sync";
 import { coreSessionKey, lessonsStartedToday, recordLessonStarted, selectCoreAssignments } from "./session-planning";
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
 import { canonicalAnswer, coreQueueOptionsForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
@@ -41,12 +45,13 @@ import styles from "./core-study.module.css";
 import reviewControls from "./review-controls.module.css";
 import detailsStyles from "./review-details.module.css";
 import studyStyles from "@/features/study/study.module.css";
+import { reviewSubjectFont } from "./review-subject-font";
+import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
 
 type Mode = "lessons" | "reviews";
 type Phase = "loading" | "resume" | "teaching" | "quiz" | "results";
 type ErrorCounts = Record<number, { meaning: number; reading: number }>;
-type SrsProgression = { startingStage: number; endingStage: number; nextReviewInterval: string; isCorrect: boolean };
 type PreviousAnswerItem = { subject: Subject; kind: QuestionKind; isCorrect: boolean };
 type LessonTeachingSnapshot = { savedAt?: string; subjectIds: number[]; index: number; tab: SubjectDetailTab };
 type SessionSnapshot = {
@@ -121,21 +126,9 @@ function SrsProgressionNotice({ progression, mode }: { progression: SrsProgressi
   const endingLabel = srsStageLabel(progression.endingStage);
   return <aside className={styles.srsProgression} data-mode={mode} data-correct={progression.isCorrect} role="status" aria-label="SRS progression">
     {mode === "normal" ? <span>{srsStageLabel(progression.startingStage)} →</span> : null}
-    <strong>{endingLabel}</strong>
+    <SrsStageIcon stage={progression.endingStage} size={mode === "compact" ? 24 : 30} /><strong>{endingLabel}</strong>
     <small>{progression.endingStage >= 9 ? "Burned" : `Next review ${progression.nextReviewInterval}`}</small>
   </aside>;
-}
-
-function SrsProgressionSlot({ progression, mode, idleContent = null }: { progression: SrsProgression | null; mode: "normal" | "compact" | "hidden"; idleContent?: ReactNode }) {
-  if (mode === "hidden") return idleContent;
-  return <div
-    className={styles.srsProgressionSlot}
-    data-srs-progression-slot
-    data-mode={mode}
-    data-progression-visible={Boolean(progression)}
-  >
-    {progression ? <SrsProgressionNotice progression={progression} mode={mode} /> : idleContent}
-  </div>;
 }
 
 function shouldIgnoreReviewShortcut(event: KeyboardEvent) {
@@ -228,12 +221,11 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
   const [completed, setCompleted] = useState<Record<number, QuestionKind[]>>({});
   const [errors, setErrors] = useState<ErrorCounts>({});
   const [submittedIds, setSubmittedIds] = useState<number[]>([]);
+  const [resultItems, setResultItems] = useState<ReviewResultItem[]>([]);
   const [sessionError, setSessionError] = useState("");
   const [resumeSnapshot, setResumeSnapshot] = useState<SessionSnapshot | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date().toISOString());
   const [wrapUpActive, setWrapUpActive] = useState(false);
-  const [outboxCount, setOutboxCount] = useState(0);
-  const [outboxMessage, setOutboxMessage] = useState("");
   const [savedReviewIds, setSavedReviewIds] = useState<number[] | null>(mode === "reviews" ? null : []);
   const [lessonStartsToday, setLessonStartsToday] = useState(0);
   const [displayNow, setDisplayNow] = useState(() => Date.now());
@@ -264,6 +256,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
   }, []);
 
+  const progressionSubjectId = srsProgression?.subjectId;
   useEffect(() => {
     if (!skipCueSequence) return;
     const timer = window.setTimeout(() => setSkipCueSequence(0), 2_240);
@@ -271,17 +264,16 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
   }, [skipCueSequence]);
 
   useEffect(() => {
-    if (!srsProgression) return;
+    if (progressionSubjectId === undefined) return;
     const timer = window.setTimeout(() => setSrsProgression(null), 3_000);
     return () => window.clearTimeout(timer);
-  }, [srsProgression]);
+  }, [progressionSubjectId]);
 
   useEffect(() => {
     // Capture completed reviews before recovery can remove them from the outbox.
     const pendingReviewIds = loadReviewOutbox(window.localStorage, username).map((entry) => entry.assignmentId);
     const timer = window.setTimeout(() => {
       setLessonStartsToday(lessonsStartedToday(window.localStorage, username));
-      setOutboxCount(loadReviewOutbox(window.localStorage, username).length);
       setSavedReviewIds(pendingReviewIds);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -368,6 +360,8 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
   }, [lessonBatchResolved, mode, plannedAssignments, restoredLessonAssignments]);
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const selectedSubjects = useMemo(() => selectedAssignments.map((assignment) => subjectById.get(assignment.data.subject_id)).filter((subject): subject is Subject => Boolean(subject)), [selectedAssignments, subjectById]);
+  const reviewFontText = selectedSubjects.map((subject) => subject.data.characters ?? "").join("");
+  const reviewFontReady = useReviewFontReady(reviewSubjectFont.style.fontFamily, reviewFontText);
   const selectedIds = useMemo(() => selectedAssignments.map((assignment) => assignment.data.subject_id), [selectedAssignments]);
   const answerContextIds = useMemo(() => Array.from(new Set(selectedSubjects.flatMap((subject) => {
     const characters = subject.data.characters?.normalize("NFKC").trim() || "";
@@ -400,6 +394,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
   const makeQueue = useMemo(() => () => createQuestionQueue(selectedAssignments, selectedSubjects, queueOptions), [queueOptions, selectedAssignments, selectedSubjects]);
 
   useEffect(() => {
+    if (phase === "results" && resultItems.length) return;
     if (!subjectsQuery.isSuccess || !lessonBatchResolved || savedReviewIds === null) return;
     if (mode === "reviews" && (initializedSessionKeyRef.current || assignmentQuery.isFetching)) return;
     const initializationKey = `${username}:${mode}:${selectedAssignments.map((assignment) => assignment.id).join(",")}`;
@@ -451,7 +446,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [assignmentQuery.isFetching, savedReviewIds, lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username]);
+  }, [assignmentQuery.isFetching, savedReviewIds, lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
 
   useEffect(() => {
     if (phase !== "quiz" || mode === "reviews") return;
@@ -474,44 +469,20 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     return () => window.cancelAnimationFrame(frame);
   }, [phase, questions]);
 
+  const reviewSync = useReviewSync(username, mode === "reviews" && !isOnVacation && assignmentQuery.isSuccess && username !== "anonymous", (entry, confirmation) => {
+    if (confirmation.stage !== undefined) {
+      setResultItems((items) => items.map((item) => item.assignmentId === entry.assignmentId ? { ...item, endingStage: confirmation.stage } : item));
+      // A late response may correct its own visible cue, never replace a newer one.
+      setSrsProgression((previous) => previous?.assignmentId === entry.assignmentId ? { ...previous, endingStage: confirmation.stage!, isCorrect: confirmation.stage! > previous.startingStage, nextReviewInterval: formatNextReviewInterval(confirmation.availableAt, confirmation.stage!) } : previous);
+    }
+    void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
+  });
+  const outboxCount = reviewSync.pendingCount;
+  const outboxMessage = reviewSync.permissionError;
+  const finishReviewSync = reviewSync.finish;
   useEffect(() => {
-    if (mode !== "reviews" || isOnVacation || !assignmentQuery.isSuccess || username === "anonymous") return;
-    let cancelled = false;
-    const drain = async () => {
-      const pending = loadReviewOutbox(window.localStorage, username);
-      if (!pending.length) return;
-      setOutboxMessage(`Recovering ${pending.length} saved review${pending.length === 1 ? "" : "s"}…`);
-      let recovered = 0;
-      for (const entry of pending) {
-        if (cancelled) return;
-        try {
-          await deliverReview(entry, {
-            readAssignment: (assignmentId) => {
-              if (cancelled) throw new Error("The study session has ended.");
-              return wkRequest<Assignment>(`assignments/${assignmentId}`, { cache: "no-store", fresh: true });
-            },
-            submitReview: async (queued) => {
-              if (cancelled) throw new Error("The study session has ended.");
-              await wkRequest<ReviewCreateResponse>("reviews", { method: "POST", body: { review: { assignment_id: queued.assignmentId, incorrect_meaning_answers: queued.incorrectMeaningAnswers, incorrect_reading_answers: queued.incorrectReadingAnswers, created_at: queued.createdAt } } });
-            },
-          });
-          removeReview(window.localStorage, username, entry.assignmentId);
-          recovered += 1;
-        } catch (cause) {
-          if (cancelled) return;
-          noteReviewFailure(window.localStorage, username, entry.assignmentId, formatFailure(cause, "It remains saved for another retry."));
-          if (cause instanceof WaniKaniApiError && cause.status === 429) break;
-        }
-      }
-      if (cancelled) return;
-      const remaining = loadReviewOutbox(window.localStorage, username).length;
-      setOutboxCount(remaining);
-      setOutboxMessage(remaining ? `${remaining} completed review${remaining === 1 ? " is" : "s are"} saved for retry.` : recovered ? "Saved review progress was reconciled with WaniKani." : "");
-      if (recovered) await queryClient.invalidateQueries({ queryKey: wkKeys.assignments() });
-    };
-    void drain();
-    return () => { cancelled = true; };
-  }, [mode, isOnVacation, assignmentQuery.isSuccess, username, queryClient]);
+    if (mode === "reviews" && phase === "results") finishReviewSync();
+  }, [mode, phase, finishReviewSync]);
 
   const current = questions[0];
   // A correct first answer is already a partial pair while its feedback is open.
@@ -608,27 +579,6 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     return () => window.cancelAnimationFrame(frame);
   }, [studyDetailsShouldOpen]);
 
-  const reviewMutation = useMutation({
-    mutationFn: async (payload: { assignmentId: number; counts: { meaning: number; reading: number } }) => {
-      if (isOnVacation) throw new Error(vacationStudyMessage("reviews"));
-      const entry = enqueueReview(window.localStorage, username, { assignmentId: payload.assignmentId, incorrectMeaningAnswers: payload.counts.meaning, incorrectReadingAnswers: payload.counts.reading, createdAt: new Date().toISOString() });
-      setOutboxCount(loadReviewOutbox(window.localStorage, username).length);
-      try {
-        const responses: ReviewCreateResponse[] = [];
-        const delivery = await deliverReview(entry, {
-          readAssignment: (assignmentId) => wkRequest<Assignment>(`assignments/${assignmentId}`, { cache: "no-store", fresh: true }),
-          submitReview: async (queued) => { responses.push(await wkRequest<ReviewCreateResponse>("reviews", { method: "POST", body: { review: { assignment_id: queued.assignmentId, incorrect_meaning_answers: queued.incorrectMeaningAnswers, incorrect_reading_answers: queued.incorrectReadingAnswers, created_at: queued.createdAt } } })); },
-        });
-        removeReview(window.localStorage, username, payload.assignmentId);
-        setOutboxCount(loadReviewOutbox(window.localStorage, username).length);
-        return delivery === "submitted" ? responses[0] ?? null : null;
-      } catch (cause) {
-        noteReviewFailure(window.localStorage, username, payload.assignmentId, formatFailure(cause, "It remains saved for another retry."));
-        throw cause;
-      }
-    },
-    retry: 0,
-  });
   const lessonMutation = useMutation({
     mutationFn: (assignmentId: number) => {
       if (isOnVacation) throw new Error(vacationStudyMessage("lessons"));
@@ -674,7 +624,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     recognition.lang = current.kind === "reading" ? "ja-JP" : "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.onresult = (event) => { setAnswer(event.results[0]?.[0]?.transcript?.trim() || ""); setSpeechError(""); };
+    recognition.onresult = (event) => { if (feedback?.status === "blocked") setFeedback(null); setAnswer(event.results[0]?.[0]?.transcript?.trim() || ""); setSpeechError(""); };
     recognition.onerror = (event) => setSpeechError(event.error === "not-allowed" ? "Microphone permission was denied. You can keep typing." : "The browser could not recognize that answer. Try again or type it.");
     recognition.onend = () => { setListening(false); recognitionRef.current = null; };
     recognitionRef.current = recognition;
@@ -694,7 +644,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     const correct = result.status === "correct" || result.status === "close";
     setLastCorrect(correct);
     if (preferences.answerFeedbackSoundEnabled && !(result.status === "close" && preferences.pauseOnClose)) playAnswerFeedback(correct);
-    if (result.status === "correct" && current.kind === "reading" && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
+    if ((correct || (result.status === "incorrect" && preferences.pauseOnWrong)) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
   }
 
   function preservePhoneInputFocus(event: MouseEvent<HTMLButtonElement>) {
@@ -768,16 +718,19 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     const subjectDone = kindsForSubject(current.subject).every((kind) => finishedKinds.includes(kind));
     try {
       if (subjectDone && !submittedIds.includes(current.assignment.id)) {
+        let resultingStage: number | undefined = mode === "lessons" ? 1 : undefined;
         if (mode === "reviews") {
-          const response = await reviewMutation.mutateAsync({ assignmentId: current.assignment.id, counts: errors[current.assignment.id] || { meaning: 0, reading: 0 } });
-          if (response && preferences.srsProgressionCardDisplayMode !== "hidden") {
-            const startingStage = response.data.starting_srs_stage;
-            const endingStage = response.data.ending_srs_stage;
+          const counts = errors[current.assignment.id] || { meaning: 0, reading: 0 };
+          reviewSync.enqueue({ assignmentId: current.assignment.id, incorrectMeaningAnswers: counts.meaning, incorrectReadingAnswers: counts.reading, createdAt: new Date().toISOString() });
+          resultingStage = predictedReviewStage(current.assignment.data.srs_stage, counts.meaning, counts.reading);
+          if (preferences.srsProgressionCardDisplayMode !== "hidden") {
+            const startingStage = current.assignment.data.srs_stage;
             setReserveResultsProgressionSlot(remaining.length === 0);
-            setSrsProgression({ startingStage, endingStage, isCorrect: endingStage > startingStage, nextReviewInterval: formatNextReviewInterval(response.resources_updated?.assignment?.data.available_at, endingStage) });
+            setSrsProgression({ assignmentId: current.assignment.id, subjectId: current.subject.id, startingStage, endingStage: resultingStage, isCorrect: resultingStage > startingStage, nextReviewInterval: formatNextReviewInterval(undefined, resultingStage) });
           }
         } else await lessonMutation.mutateAsync(current.assignment.id);
         setSubmittedIds((previous) => [...previous, current.assignment.id]);
+        setResultItems((previous) => [...previous.filter((item) => item.assignmentId !== current.assignment.id), { assignmentId: current.assignment.id, subject: current.subject, meaningMistakes: errors[current.assignment.id]?.meaning ?? 0, readingMistakes: errors[current.assignment.id]?.reading ?? 0, endingStage: resultingStage }]);
       }
       setCompleted((previous) => ({ ...previous, [current.assignment.id]: finishedKinds }));
       setQuestions(remaining);
@@ -790,17 +743,18 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
       if (!remaining.length) {
         window.localStorage.removeItem(coreSessionKey(username, mode));
         if (mode === "lessons") clearLessonTeachingSession(window.localStorage, username);
-        await Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]);
         setDisplayNow(Date.now());
         setPhase("results");
+        // Completion must not wait for dashboard queries; the session is already saved.
+        void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
       } else window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
     } catch (cause) {
-      setSessionError(formatFailure(cause, mode === "reviews" ? "The completed review is saved locally and will reconcile before another submission." : "The lesson remains in place; retry when the connection returns."));
+      setSessionError(formatFailure(cause, mode === "reviews" ? "This review could not be saved on this device. Please try again before continuing." : "The lesson remains in place; retry when the connection returns."));
     }
   }
 
   function advance(correctOverride?: boolean) {
-    if (leaveGuard.isLeaveDialogOpen || addSynonymMutation.isPending || reviewMutation.isPending || lessonMutation.isPending || advancingQuestionRef.current || (unresolvedCloseAnswer && correctOverride === undefined)) return;
+    if (leaveGuard.isLeaveDialogOpen || addSynonymMutation.isPending || lessonMutation.isPending || advancingQuestionRef.current || (unresolvedCloseAnswer && correctOverride === undefined)) return;
     if (phoneInput) inputRef.current?.focus({ preventScroll: true });
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     const collapseDetailsFirst = (studyDetailsOpen || studyDetailsExpanded) && !reducedMotion;
@@ -951,6 +905,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     setCompleted({});
     setErrors({});
     setSubmittedIds([]);
+    setResultItems([]);
     setQuestions(queue);
     setTotalQuestions(queue.length);
     setLessonIndex(0);
@@ -964,6 +919,15 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     setPhase(mode === "lessons" ? "loading" : queue.length ? "quiz" : "results");
   }
 
+  if (mode === "reviews" && phase === "results" && resultItems.length) return <CoreStudyResults
+    items={resultItems}
+    mode={mode}
+    durationMs={displayNow - new Date(sessionStartedAt).getTime()}
+    pendingCount={outboxCount}
+    permissionError={outboxMessage}
+    progression={reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}
+  />;
+
   if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
   if (assignmentQuery.error || subjectsQuery.error || (restoredAssignmentsQuery.error && !lessonBatchResolved)) return <div className={styles.stage}><div className={styles.loading}><h1>{mode === "lessons" ? "Lessons" : "Reviews"} could not load</h1><p className={styles.error} role="alert">{formatFailure(assignmentQuery.error || subjectsQuery.error || restoredAssignmentsQuery.error, "Refresh when the connection is available.")}</p><Button onClick={() => {
     if (assignmentQuery.error) void assignmentQuery.refetch();
@@ -971,7 +935,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     if (restoredAssignmentsQuery.error) void restoredAssignmentsQuery.refetch();
   }}>Try Again</Button></div></div>;
   if (materialsQuery.error || answerContextQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
-  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || phase === "loading") return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
+  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
 
   if (phase === "resume" && resumeSnapshot) {
     const age = resumeSnapshot.savedAt ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-Math.max(1, Math.round((displayNow - new Date(resumeSnapshot.savedAt).getTime()) / 60_000)), "minute") : "earlier";
@@ -1005,7 +969,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     const minutes = Math.max(1, Math.round((displayNow - new Date(sessionStartedAt).getTime()) / 60_000));
     const waitingForSync = mode === "reviews" && outboxCount > 0 && !selectedAssignments.length;
     const dailyLimitReached = mode === "lessons" && preferences.dailyLessonLimit > 0 && dailyRemaining <= 0 && available.length > 0;
-    return <div className={styles.stage}>{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{waitingForSync ? "Reviews saved for sync" : selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{waitingForSync ? `${outboxCount} completed review${outboxCount === 1 ? " is" : "s are"} saved on this device and will retry when WaniKani is available.` : selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length || waitingForSync ? <Button tone="ghost" onClick={() => window.location.reload()}><RotateCcw size={17} />Check for More</Button> : null}</div></section></div>;
+    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{waitingForSync ? "Reviews saved for sync" : selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{waitingForSync ? `${outboxCount} completed review${outboxCount === 1 ? " is" : "s are"} saved on this device and will retry when WaniKani is available.` : selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length || waitingForSync ? <Button tone="ghost" onClick={() => window.location.reload()}><RotateCcw size={17} />Check for More</Button> : null}</div></section></div>;
   }
 
   if (!current) return null;
@@ -1039,7 +1003,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
     && Boolean(synonymCandidate)
     && !(material?.data.meaning_synonyms ?? []).some((synonym) => synonym.toLocaleLowerCase() === synonymCandidate);
   const promptLabel = <><span className={styles.quizPromptLabel}>{subjectType}</span><strong className={styles.quizPromptLabel} id="study-prompt-title" role="heading" aria-level={1}>{selfAssessment && groupedSelfAssessment ? "meaning + reading" : current.kind}</strong></>;
-  const busy = advancingQuestion || reviewMutation.isPending || lessonMutation.isPending || addSynonymMutation.isPending;
+  const busy = advancingQuestion || lessonMutation.isPending || addSynonymMutation.isPending;
   const canCorrectAnswer = feedback?.status === "incorrect" || unresolvedCloseAnswer;
   const canSkipQuestion = (!feedback && preferences.allowSkippingReviews) || feedback?.status === "incorrect";
   const canReplayAudio = revealStudyDetails && (current.kind === "reading" || (selfAssessment && groupedSelfAssessment)) && current.subject.object === "vocabulary" && Boolean(audioFor(current.subject, preferences.vocabularyAudioVoice));
@@ -1115,6 +1079,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
               value={answer}
               onChange={(event) => {
                 if (feedback && feedback.status !== "blocked") return;
+                if (feedback?.status === "blocked") setFeedback(null);
                 setAnswer(current.kind === "reading" ? composeKanaInput(event.target.value) : event.target.value);
               }}
               onKeyDown={(event) => {
@@ -1157,7 +1122,7 @@ function LiveCoreStudySession({ mode, liveUser }: { mode: Mode; liveUser: WKUser
               <Button type="button" tone="danger" data-review-action aria-keyshortcuts={preferences.keyboardShortcuts ? "X" : undefined} disabled={busy} onMouseDown={preservePhoneInputFocus} onClick={() => unresolvedCloseAnswer ? resolveCloseAnswer(false) : advance(false)}><X size={17} aria-hidden />Mark Incorrect{preferences.keyboardShortcuts ? <kbd className={styles.actionKey} aria-hidden>X</kbd> : null}</Button>
               {canSkipQuestion ? <Button type="button" tone="ghost" data-review-action aria-keyshortcuts={preferences.keyboardShortcuts ? "A Alt+A" : undefined} disabled={busy} onMouseDown={preservePhoneInputFocus} onClick={skipCurrentQuestion}><SkipForward size={17} aria-hidden />Skip{preferences.keyboardShortcuts ? <kbd className={styles.actionKey} aria-hidden>A</kbd> : null}</Button> : null}
               <Button type="button" tone="primary" data-review-action aria-keyshortcuts={preferences.keyboardShortcuts ? "C" : undefined} disabled={busy} onMouseDown={preservePhoneInputFocus} onClick={() => unresolvedCloseAnswer ? resolveCloseAnswer(true) : advance(true)}><Check size={17} aria-hidden />Mark Correct{preferences.keyboardShortcuts ? <kbd className={styles.actionKey} aria-hidden>C</kbd> : null}</Button>
-            </> : selfAssessment ? <Button tone="primary" disabled={busy} onClick={() => advance()} state={reviewMutation.isPending || lessonMutation.isPending ? "loading" : "idle"}>Next<ArrowRight size={17} /></Button> : null}
+            </> : selfAssessment ? <Button tone="primary" disabled={busy} onClick={() => advance()} state={lessonMutation.isPending ? "loading" : "idle"}>Next<ArrowRight size={17} /></Button> : null}
             {canAddSynonym ? <Button type="button" tone="ghost" data-review-action aria-keyshortcuts={preferences.keyboardShortcuts ? "S" : undefined} disabled={busy} state={addSynonymMutation.isPending ? "loading" : "idle"} onClick={() => addSynonymMutation.mutate({ subject: current.subject, assignmentId: current.assignment.id, kind: current.kind, synonym: synonymCandidate, existingMaterial: material })}><Plus size={17} aria-hidden />Add as synonym{preferences.keyboardShortcuts ? <kbd className={styles.actionKey} aria-hidden>S</kbd> : null}</Button> : null}
           </div> : null}
 

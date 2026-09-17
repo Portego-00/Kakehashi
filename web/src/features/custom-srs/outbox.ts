@@ -1,5 +1,5 @@
 import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview } from "./model";
-import { customSrsStorageKey, withCustomSrsStorageLock } from "./storage";
+import { customSrsStorageKey, parseCustomSrsStateStrict, withCustomSrsStorageLock } from "./storage";
 import type { CustomSrsState, CustomVocabularyPack } from "./types";
 
 export type RemoteStateResponse = { available: boolean; state: CustomSrsState | null; revision: number };
@@ -53,9 +53,10 @@ export function parseCustomSrsOutbox(raw: string, scope: string | number): Custo
     const value = JSON.parse(raw) as CustomSrsOutbox;
     if (value.version !== 1 || !value.confirmed?.state || value.confirmed.state.version !== 1
       || !value.confirmed.state.assignments || !Array.isArray(value.confirmed.state.enrolledPackIds)
-      || !Array.isArray(value.confirmed.state.reviewLog) || !Number.isInteger(value.confirmed.revision) || !Array.isArray(value.pending)
+      || !Array.isArray(value.confirmed.state.reviewLog) || (!Number.isSafeInteger(value.confirmed.revision) || value.confirmed.revision < -1) || !Array.isArray(value.pending)
       || typeof value.syncError !== "string" || !Number.isInteger(value.attempts) || value.attempts < 0 || !Number.isFinite(value.retryAt)
       || !value.pending.every((entry) => validPending(entry, scope))) throw new Error("Invalid outbox");
+    parseCustomSrsStateStrict(value.confirmed.state, []);
     return value;
   } catch {
     // Never silently replace an unreadable queue: it may contain unsynced answers.
