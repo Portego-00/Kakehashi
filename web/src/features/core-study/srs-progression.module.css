@@ -13,13 +13,13 @@
 .text { display: grid; gap: .125rem; min-width: 0; }
 .text strong { font-size: var(--text-sm); font-weight: 600; line-height: 1.4; }
 .text span { color: var(--color-muted); font-size: var(--text-xs); line-height: 1.4; }
- .stageChange { display: flex; align-items: center; gap: .375rem; }
-.previousStage { font-size: var(--text-sm) !important; }
+.stageChange { display: flex; align-items: center; gap: .375rem; }
+.text .previousStage { font-size: var(--text-sm); }
 .text .direction { display: flex; align-items: center; gap: .125rem; }
 .text .direction[data-direction="up"] { color: var(--color-success); }
 .text .direction[data-direction="down"] { color: var(--color-danger); }
 .direction > svg { flex-shrink: 0; }
 .text .interval { color: var(--color-muted); }
-.notice[data-mode="compact"] .stageChange strong,
-.notice[data-mode="compact"] .previousStage { font-size: var(--text-xs) !important; }
+.notice[data-mode="compact"].stageChange strong,
+.notice[data-mode="compact"] .previousStage { font-size: var(--text-xs); }
 .idle > * { width: 100%; justify-content: center; }

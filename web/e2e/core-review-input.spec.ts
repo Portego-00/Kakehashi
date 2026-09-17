@@ -51,7 +51,7 @@ function fulfillJson(route: Route, json: unknown) {
   return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(json) });
 }
 
-async function openQuiz(page: Page, options: { mode?: "reviews" | "lessons"; study?: Partial<WebStudyPreferences>; multipleSubjects?: boolean } = {}) {
+async function openQuiz(page: Page, options: { mode?: "reviews" | "lessons"; study?: Partial<WebStudyPreferences>; multipleSubjects?: boolean; endingStage?: number } = {}) {
   const mode = options.mode ?? "reviews";
   const selectedSubjects = options.multipleSubjects ? subjects : subjects.slice(0, 1);
   const assignments = selectedSubjects.map((subject) => assignment(subject, mode));
@@ -87,7 +87,7 @@ async function openQuiz(page: Page, options: { mode?: "reviews" | "lessons"; stu
     if (resource === "reviews" && route.request().method() === "POST") {
       submissions.push(route.request().postDataJSON());
       const review = route.request().postDataJSON().review;
-      return fulfillJson(route, { id: 1, object: "review", data: { assignment_id: review.assignment_id, starting_srs_stage: 3, ending_srs_stage: review.incorrect_meaning_answers ? 2 : 4 }, resources_updated: {} });
+      return fulfillJson(route, { id: 1, object: "review", data: { assignment_id: review.assignment_id, starting_srs_stage: 3, ending_srs_stage: options.endingStage ?? (review.incorrect_meaning_answers ? 2 : 4) }, resources_updated: {} });
     }
     if (resource === "start") return fulfillJson(route, assignments[0]);
     return fulfillJson(route, collection([]));
@@ -154,3 +154,26 @@ test("cold font loading finishes for the entire queue before the first question"
     return document.fonts.check(`${style.fontWeight} 1em ${style.fontFamily}`, element.textContent ?? "");
   })).toBe(true);
 });
+
+for (const [endingStage, direction, mode] of [[4, "up", "normal"], [2, "down", "compact"], [3, "same", "normal"]] as const) {
+  test(`shows SRS ${direction} and keeps the Enter hint still`, async ({ page }, testInfo) => {
+    await openQuiz(page, { multipleSubjects: true, endingStage, study: { reviewOrder: "lowestLevelFirst", backToBackQuestions: true, srsProgressionCardDisplayMode: mode } });
+    await answer(page, "River");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Check", exact: true })).toBeVisible();
+    await answer(page, "kawa");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.locator("#question-prompt")).toHaveText("森");
+    const notice = page.getByRole("status", { name: "SRS progression" });
+    await expect(notice).toHaveAttribute("data-direction", direction);
+    await expect(notice).toContainText(direction === "same" ? "SRS unchanged" : `SRS ${direction}`);
+    await expect(notice).toContainText("Apprentice III");
+    const hint = page.locator("p").filter({ hasText: /^Press Enter to check/ });
+    const before = await hint.evaluate((element) => element.getBoundingClientRect().y);
+    await page.screenshot({ path: testInfo.outputPath(`srs-${direction}.png`), fullPage: true, scale: "css" });
+    await expect(notice).toBeHidden({ timeout: 5000 });
+    const after = await hint.evaluate((element) => element.getBoundingClientRect().y);
+    expect(Math.abs(after - before)).toBeLessThan(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
