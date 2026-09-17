@@ -125,10 +125,9 @@ test("completes without a blank screen and shows mistakes, percentages, and ever
     if (wrong) madeMistake = true;
     await answer(page, wrong ? "banana" : reading ? subject!.data.readings[0].reading : subject!.data.meanings[0].meaning);
     await page.getByRole("button", { name: "Next", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Next", exact: true })).toBeHidden();
   }
   await expect(page.getByRole("heading", { name: "Reviews Complete" })).toBeVisible({ timeout: 1500 });
-  expect(submissions).toHaveLength(4);
+  await expect.poll(() => submissions.length).toBe(4);
   await expect(page.getByRole("img", { name: "First-try accuracy: 83% (5 of 6)" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Meaning accuracy: 75% (3 of 4)" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Reading accuracy: 100% (2 of 2)" })).toBeVisible();
@@ -144,5 +143,42 @@ test("completes without a blank screen and shows mistakes, percentages, and ever
   await expect(page.getByRole("link", { name: /subject details/ })).toHaveCount(4);
   await expect(page.getByText("No reading question", { exact: true })).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath("review-all-subjects.png"), fullPage: true, scale: "css" });
+  const links = page.getByRole("link", { name: /subject details/ });
+  const mountain = page.getByRole("link", { name: "Open 山 (Mountain) subject details" });
+  const meaning = mountain.locator("div").nth(1).locator("strong");
+  const readingValue = mountain.locator('div').nth(2).locator('span[lang="ja"]');
+  await expect(meaning).toHaveCSS("filter", "blur(5px)");
+  await expect(readingValue).toHaveCSS("filter", "blur(5px)");
+  for (const card of await links.all()) {
+    const header = card.locator("div").first();
+    await expect(header.locator("span").first()).toHaveCSS("color", "rgb(255, 255, 255)");
+    expect(await header.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+  }
+  const summary = page.getByRole("img", { name: "First-try accuracy: 83% (5 of 6)" }).locator("..");
+  await expect(summary).toHaveCSS("border-left-width", "1px");
+  await expect(summary).toHaveCSS("border-radius", "8px");
+  if (testInfo.project.name !== "mobile") {
+    await mountain.hover();
+    await expect(meaning).toHaveCSS("filter", "none");
+    await expect(readingValue).toHaveCSS("filter", "none");
+    await page.getByRole("heading", { name: "Reviews Complete" }).hover();
+    await expect(meaning).toHaveCSS("filter", "blur(5px)");
+    await mountain.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(meaning).toHaveCSS("filter", "none");
+  }
+  const toggle = page.getByRole("checkbox", { name: "Show all answers" });
+  await toggle.check();
+  await expect(meaning).toHaveCSS("filter", "none");
+  await expect(readingValue).toHaveCSS("filter", "none");
+  await page.getByRole("tab", { name: "Mistakes (1)" }).click();
+  await expect(meaning).toHaveCSS("filter", "none");
+  await toggle.uncheck();
+  await expect(meaning).toHaveCSS("filter", "blur(5px)");
+  await page.getByRole("tab", { name: "All subjects (4)" }).click();
+  await page.screenshot({ path: testInfo.outputPath("results-hidden.png"), fullPage: true, scale: "css" });
+  await toggle.check();
+  await page.screenshot({ path: testInfo.outputPath("results-visible.png"), fullPage: true, scale: "css" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

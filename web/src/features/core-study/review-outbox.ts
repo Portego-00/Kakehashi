@@ -22,12 +22,12 @@ export function loadReviewOutbox(storage: Pick<Storage, "getItem">, username: st
       && typeof (row as ReviewOutboxEntry).createdAt === "string"
       && Number.isInteger((row as ReviewOutboxEntry).incorrectMeaningAnswers)
       && Number.isInteger((row as ReviewOutboxEntry).incorrectReadingAnswers)
-    )).slice(-200);
+    ));
   } catch { return []; }
 }
 
 function save(storage: OutboxStorage, username: string, entries: ReviewOutboxEntry[]) {
-  storage.setItem(reviewOutboxKey(username), JSON.stringify(entries.slice(-200)));
+  storage.setItem(reviewOutboxKey(username), JSON.stringify(entries));
 }
 
 export function enqueueReview(storage: OutboxStorage, username: string, input: Omit<ReviewOutboxEntry, "attempts" | "lastError">) {

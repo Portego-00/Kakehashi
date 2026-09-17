@@ -24,7 +24,7 @@ function Accuracy({ correct, total, label, ring = false }: { correct: number; to
   </div>;
 }
 
-function ResultSubject({ item }: { item: ReviewResultItem }) {
+function ResultSubject({ item, showAnswers }: { item: ReviewResultItem; showAnswers: boolean }) {
   const subject = item.subject;
   const meaning = subject.data.meanings.find((entry) => entry.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? subject.data.slug;
   const readings = subject.data.readings ?? [];
@@ -32,25 +32,27 @@ function ResultSubject({ item }: { item: ReviewResultItem }) {
   const hasReading = kindsForSubject(subject).includes("reading");
   const character = subject.data.characters ?? meaning;
   return <li>
-    <Link className={styles.subject} href={`/subjects/${subject.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${character} (${meaning}) subject details`} data-type={subject.object}>
-      <div className={styles.subjectTop}><SubjectCharacter subject={subject} className={styles.character} imageTone="subject" imageSize="2.5rem" /><ExternalLink size={16} aria-hidden /></div>
-      <div className={styles.answer} data-missed={item.meaningMistakes > 0}><span className={styles.answerLabel}>{item.meaningMistakes > 0 ? <X size={15} aria-hidden /> : <Check size={15} aria-hidden />}{item.meaningMistakes > 0 ? "Meaning missed" : "Meaning correct"}</span><strong>{meaning}</strong></div>
-      {hasReading ? <div className={styles.answer} data-missed={item.readingMistakes > 0}><span className={styles.answerLabel}>{item.readingMistakes > 0 ? <X size={15} aria-hidden /> : <Check size={15} aria-hidden />}{item.readingMistakes > 0 ? "Reading missed" : "Reading correct"}</span><span lang="ja">{reading}</span></div> : <div className={styles.notApplicable}>No reading question</div>}
+    <Link className={styles.subject} href={`/subjects/${subject.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${character} (${meaning}) subject details`} data-type={subject.object} data-show-answers={showAnswers}>
+      <div className={styles.subjectTop}><SubjectCharacter subject={subject} className={styles.character} imageTone="light" imageSize="2.5rem" /><ExternalLink size={16} aria-hidden /></div>
+      <div className={styles.answer} data-missed={item.meaningMistakes > 0}><span className={styles.answerLabel}>{item.meaningMistakes > 0 ? <X size={15} aria-hidden /> : <Check size={15} aria-hidden />}{item.meaningMistakes > 0 ? "Meaning missed" : "Meaning correct"}</span><strong className={styles.answerValue}>{meaning}</strong></div>
+      {hasReading ? <div className={styles.answer} data-missed={item.readingMistakes > 0}><span className={styles.answerLabel}>{item.readingMistakes > 0 ? <X size={15} aria-hidden /> : <Check size={15} aria-hidden />}{item.readingMistakes > 0 ? "Reading missed" : "Reading correct"}</span><span className={styles.answerValue} lang="ja">{reading}</span></div> : <div className={styles.notApplicable}>No reading question</div>}
       <div className={styles.subjectMeta}><span>Level {subject.data.level} · {subject.object.replace("_", " ")}</span>{item.endingStage !== undefined ? <span><SrsStageIcon stage={item.endingStage} size={17} />{srsStageLabel(item.endingStage)}</span> : null}</div>
     </Link>
   </li>;
 }
 
-export function CoreStudyResults({ items, mode, durationMs, pendingCount = 0, progression }: { items: ReviewResultItem[]; mode: "reviews" | "lessons"; durationMs: number; pendingCount?: number; progression?: ReactNode }) {
+export function CoreStudyResults({ items, mode, durationMs, pendingCount = 0, permissionError, progression }: { items: ReviewResultItem[]; mode: "reviews" | "lessons"; durationMs: number; pendingCount?: number; permissionError?: string; progression?: ReactNode }) {
   const summary = reviewResultsSummary(items);
   const mistakes = items.filter((item) => resultMistakes(item) > 0);
   const [selectedTab, setSelectedTab] = useState<"mistakes" | "all">(mistakes.length ? "mistakes" : "all");
+  const [showAnswers, setShowAnswers] = useState(false);
   const visible = selectedTab === "mistakes" ? mistakes : items;
   const minutes = Math.floor(Math.max(0, durationMs) / 60_000);
   const seconds = Math.floor(Math.max(0, durationMs) / 1_000) % 60;
   const practiceHref = `/study/custom-review?subjectIds=${Array.from(new Set(mistakes.map((item) => item.subject.id))).join(",")}&start=1`;
   return <section className={styles.results} aria-labelledby="review-results-title">
     <header className={styles.header}><div><h1 id="review-results-title">{mode === "reviews" ? "Reviews" : "Lessons"} Complete</h1><p>{items.length} {items.length === 1 ? "subject" : "subjects"} completed · {minutes ? `${minutes}m ${seconds}s` : `${seconds}s`}</p></div><ButtonLink href="/dashboard" tone="primary">Back to Dashboard<ArrowRight size={17} aria-hidden /></ButtonLink></header>
+    {permissionError ? <p className={styles.syncNotice} role="alert">{permissionError}</p> : null}
     {pendingCount ? <p className={styles.syncNotice} role="status">{pendingCount} completed {pendingCount === 1 ? "review is" : "reviews are"} saved on this device and waiting to sync with WaniKani.</p> : null}
     <div className={styles.summary}>
       <Accuracy {...summary.overall} label="First-try accuracy" ring />
@@ -64,9 +66,9 @@ export function CoreStudyResults({ items, mode, durationMs, pendingCount = 0, pr
       const next = event.key === "Home" ? "mistakes" : event.key === "End" ? "all" : tab === "all" ? "mistakes" : "all";
       setSelectedTab(next);
       document.getElementById(`results-tab-${next}`)?.focus();
-    }}>{tab === "mistakes" ? `Mistakes (${mistakes.length})` : `All subjects (${items.length})`}</button>)}</div>{mistakes.length ? <ButtonLink href={practiceHref} tone="ghost"><RotateCcw size={16} aria-hidden />Practice mistakes</ButtonLink> : null}</div>
+    }}>{tab === "mistakes" ? `Mistakes (${mistakes.length})` : `All subjects (${items.length})`}</button>)}</div><div className={styles.listActions}><label className={styles.revealToggle}><input type="checkbox" checked={showAnswers} onChange={(event) => setShowAnswers(event.target.checked)} />Show all answers</label>{mistakes.length ? <ButtonLink href={practiceHref} tone="ghost"><RotateCcw size={16} aria-hidden />Practice mistakes</ButtonLink> : null}</div></div>
     <div id="results-subjects" role="tabpanel" aria-labelledby={`results-tab-${selectedTab}`} tabIndex={0}>
-      {visible.length ? <ul className={styles.subjects}>{visible.map((item) => <ResultSubject key={item.assignmentId} item={item} />)}</ul> : <p className={styles.empty}>No mistakes in this session.</p>}
+      {visible.length ? <ul className={styles.subjects}>{visible.map((item) => <ResultSubject key={item.assignmentId} item={item} showAnswers={showAnswers} />)}</ul> : <p className={styles.empty}>No mistakes in this session.</p>}
     </div>
     <footer className={styles.footer}><p>Subject links open in a new tab so you can keep this summary.</p><Button tone="ghost" onClick={() => window.location.reload()}><RotateCcw size={16} aria-hidden />Check for More</Button></footer>
   </section>;

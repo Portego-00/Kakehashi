@@ -347,12 +347,12 @@ function PitchAccentCard({ reading, accent }: { reading: string; accent: number 
   </figure>;
 }
 
-function KanjiReadingExamples({ kanji, vocabulary, returnTo, replaceRelated = false }: { kanji: Subject; vocabulary: Subject[]; returnTo: string; replaceRelated?: boolean }) {
+function KanjiReadingExamples({ kanji, vocabulary, returnTo, replaceRelated = false, openInNewTab = false }: { kanji: Subject; vocabulary: Subject[]; returnTo: string; replaceRelated?: boolean; openInNewTab?: boolean }) {
   const groups = groupVocabularyByKanjiReading(kanji, vocabulary);
   if (!groups.length) return null;
   return <DetailSection title="Examples by reading"><div className={styles.readingExamples}>{groups.map((group) => <section key={group.normalizedReading}>
     <header><span lang="ja">{group.reading}</span><small>{readingLabel(group.type)}</small></header>
-    <div>{group.subjects.map((subject) => <Link key={subject.id} replace={replaceRelated} href={`/subjects/${subject.id}?returnTo=${encodeURIComponent(returnTo)}`}><strong lang="ja">{subject.data.characters}</strong><span>{subject.data.readings?.find((reading) => reading.primary)?.reading}</span><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>)}</div>
+    <div>{group.subjects.map((subject) => <Link key={subject.id} replace={replaceRelated} target={openInNewTab ? "_blank" : undefined} rel={openInNewTab ? "noopener noreferrer" : undefined} href={`/subjects/${subject.id}?returnTo=${encodeURIComponent(returnTo)}`}><strong lang="ja">{subject.data.characters}</strong><span>{subject.data.readings?.find((reading) => reading.primary)?.reading}</span><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>)}</div>
   </section>)}</div></DetailSection>;
 }
 
@@ -481,9 +481,9 @@ function AnimeContext({ examples, query, loading, failed }: { examples: Immersio
   })}</div>{visibleCount < examples.length ? <Button className={styles.immersionMore} type="button" tone="ghost" onClick={() => setVisibleCount((count) => Math.min(count + 10, examples.length))}>Show more scenes</Button> : null}</DetailSection>;
 }
 
-function RelationSection({ title, ids, subjects, returnTo, replaceRelated = false }: { title: string; ids?: number[]; subjects: Map<number, Subject>; returnTo: string; replaceRelated?: boolean }) {
+function RelationSection({ title, ids, subjects, returnTo, replaceRelated = false, openInNewTab = false }: { title: string; ids?: number[]; subjects: Map<number, Subject>; returnTo: string; replaceRelated?: boolean; openInNewTab?: boolean }) {
   if (!ids?.length) return null;
-  return <DetailSection title={title}><div className={styles.relations}>{ids.map((id) => { const subject = subjects.get(id); if (!subject) return null; const tone = subject.object === "kana_vocabulary" ? "vocabulary" : subject.object; return <Link href={`/subjects/${id}?returnTo=${encodeURIComponent(returnTo)}`} replace={replaceRelated} key={id} data-type={tone}><SubjectCharacter subject={subject} imageSize="2rem" /><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>; })}</div></DetailSection>;
+  return <DetailSection title={title}><div className={styles.relations}>{ids.map((id) => { const subject = subjects.get(id); if (!subject) return null; const tone = subject.object === "kana_vocabulary" ? "vocabulary" : subject.object; return <Link href={`/subjects/${id}?returnTo=${encodeURIComponent(returnTo)}`} replace={replaceRelated} target={openInNewTab ? "_blank" : undefined} rel={openInNewTab ? "noopener noreferrer" : undefined} key={id} data-type={tone}><SubjectCharacter subject={subject} imageSize="2rem" /><small>{subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.slug}</small></Link>; })}</div></DetailSection>;
 }
 
 interface SubjectDetailPanelsProps {
@@ -632,10 +632,10 @@ export function SubjectDetailPanels({
           {meaningMnemonic.length ? <DetailSection title="Mnemonic"><Mnemonic paragraphs={meaningMnemonic} />{record.object === "radical" ? <RadicalMnemonicIllustration key={record.data.document_url} documentUrl={record.data.document_url} meaning={primaryMeaning} /> : null}{record.data.meaning_hint ? <div className={styles.subjectHint}><Mnemonic paragraphs={mnemonicParagraphs(record.data.meaning_hint)} /></div> : null}</DetailSection> : null}
           {record.object === "kana_vocabulary" && pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
           {allowStudyMaterialEditing ? <StudyMaterialEditor field="meaning_note" key={`${record.id}:${material?.id ?? "new"}`} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : null}
-          <RelationSection title="Components" ids={record.data.component_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
-          <RelationSection title="Visually similar" ids={record.data.visually_similar_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} />
-          {record.object === "radical" ? <RelationSection title="Found in kanji" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
-          {record.object === "kanji" ? <RelationSection title="Found in vocabulary" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
+          <RelationSection title="Components" ids={record.data.component_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} openInNewTab={embedded} />
+          <RelationSection title="Visually similar" ids={record.data.visually_similar_subject_ids} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} openInNewTab={embedded} />
+          {record.object === "radical" ? <RelationSection title="Found in kanji" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} openInNewTab={embedded} /> : null}
+          {record.object === "kanji" ? <RelationSection title="Found in vocabulary" ids={record.data.amalgamation_subject_ids?.slice(0, 24)} subjects={relationById} returnTo={returnTo} replaceRelated={replaceRelated} openInNewTab={embedded} /> : null}
           <DetailSection title="Your progression"><dl className={styles.progressionDetails}><div><dt>Stage</dt><dd>{assignment ? <><SrsStageIcon stage={assignment.data.srs_stage} size={22} />{srsStageLabel(assignment.data.srs_stage)}</> : "Locked"}</dd></div><div><dt>Next review</dt><dd>{assignment?.data.available_at ? new Date(assignment.data.available_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "No review scheduled"}</dd></div>{reviewStatistic ? <><div><dt>Meaning streak</dt><dd>{reviewStatistic.data.meaning_current_streak}</dd></div><div><dt>Reading streak</dt><dd>{reviewStatistic.data.reading_current_streak}</dd></div><div><dt>Accuracy</dt><dd>{reviewStatistic.data.percentage_correct}%</dd></div></> : null}</dl></DetailSection>
         </section>
 
@@ -643,7 +643,7 @@ export function SubjectDetailPanels({
           <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} /></DetailSection>
           {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{record.data.reading_hint ? <div className={styles.subjectHint}><Mnemonic paragraphs={mnemonicParagraphs(record.data.reading_hint)} /></div> : null}</DetailSection> : null}
           {allowStudyMaterialEditing ? <StudyMaterialEditor field="reading_note" key={record.id} subjectId={record.id} material={material} queryKey={materialsKey} loading={materialLoading} /> : null}
-          {record.object === "kanji" && settings.showKanjiReadingExamples && amalgamationSubjects.length ? <KanjiReadingExamples kanji={record} vocabulary={amalgamationSubjects} returnTo={returnTo} replaceRelated={replaceRelated} /> : null}
+          {record.object === "kanji" && settings.showKanjiReadingExamples && amalgamationSubjects.length ? <KanjiReadingExamples kanji={record} vocabulary={amalgamationSubjects} returnTo={returnTo} replaceRelated={replaceRelated} openInNewTab={embedded} /> : null}
           {pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
         </section> : null}
 

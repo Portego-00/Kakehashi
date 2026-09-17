@@ -178,7 +178,7 @@ describe("Custom Lessons", () => {
     expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Mnemonic" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Meaning note" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Your progression" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Reading" }));

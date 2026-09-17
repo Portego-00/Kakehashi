@@ -894,7 +894,7 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
     expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Mnemonic" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Meaning note" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Your progression" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open full subject" })).toHaveAttribute("href", "/subjects/1");
     expect(screen.getByRole("link", { name: "Open full subject" })).toHaveAttribute("target", "_blank");
@@ -920,7 +920,7 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
     expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Mnemonic" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Meaning note" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Your progression" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open full subject" })).toHaveAttribute("href", "/subjects/1");
 
@@ -1242,7 +1242,7 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByRole("tablist", { name: "Subject details" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit meaning note" }));
 
     const quiz = screen.getByRole("heading", { name: "防ぐ" }).closest("section");
     const detailsToggle = screen.getByRole("button", { name: /Hide subject details/ });
@@ -1251,11 +1251,12 @@ describe("extra-study quiz interaction", () => {
     expect(quiz).not.toHaveAttribute("data-advancing");
     expect(detailsToggle).toHaveAttribute("aria-expanded", "true");
 
+    fireEvent.click(screen.getByRole("button", { name: "Edit user synonyms" }));
     const synonyms = screen.getByRole("textbox", { name: "Meaning synonyms" });
     fireEvent.keyDown(synonyms, { key: "d" });
     expect(detailsToggle).toHaveAttribute("aria-expanded", "true");
 
-    const save = screen.getByRole("button", { name: "Save notes" });
+    const save = screen.getByRole("button", { name: "Save note" });
     fireEvent.keyDown(save, { key: "Enter" });
     fireEvent.keyDown(save, { key: "d" });
     expect(quiz).not.toHaveAttribute("data-advancing");

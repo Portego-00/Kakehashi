@@ -7,6 +7,14 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("enables pronunciation autoplay by default while preserving saved choices", () => {
+    expect(loadWebSettings({ getItem: () => null }, "new-user").study.autoplayAudio).toBe(true);
+    expect(loadWebSettings(storage({ study: {} }), "legacy-user").study.autoplayAudio).toBe(true);
+    expect(loadWebSettings(storage({ study: { autoplayAudio: false } }), "quiet-user").study.autoplayAudio).toBe(false);
+    expect(loadWebSettings(storage({ study: { autoplayAudio: true } }), "audio-user").study.autoplayAudio).toBe(true);
+  });
+
+
   it("persists shared forecast views and repairs old or unsupported preferences", () => {
     const configured = loadWebSettings(storage({
       ...DEFAULT_WEB_SETTINGS,
@@ -217,9 +225,9 @@ describe("web settings persistence", () => {
     });
   });
 
-  it("keeps review question enhancements opt-in with mobile-compatible defaults", () => {
+  it("uses the configured review question defaults", () => {
     expect(DEFAULT_WEB_SETTINGS.study).toMatchObject({
-      autoplayAudio: false,
+      autoplayAudio: true,
       answerFeedbackSoundEnabled: true,
       showReviewItemLevelAndSrsStage: false,
       showVocabularyFrequency: false,

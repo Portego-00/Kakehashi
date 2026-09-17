@@ -379,7 +379,7 @@ describe("image-only radical identity", () => {
     expect([...images].every((image) => /^url\("#[^"]+"\)$/.test(image.style.filter))).toBe(true);
   });
 
-  it("uses the WaniKani artwork in relationship cards", () => {
+  it.each([true, false])("uses artwork and appropriate navigation in relationship cards (embedded=%s)", (embedded) => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const record = {
       ...oneSubject,
@@ -388,6 +388,7 @@ describe("image-only radical identity", () => {
 
     render(<QueryClientProvider client={client}><SubjectDetailPanels
       record={record}
+      embedded={embedded}
       materialLoading={false}
       materialsKey={["study-material", record.id]}
       relatedSubjects={[imageRadical]}
@@ -400,6 +401,11 @@ describe("image-only radical identity", () => {
       returnTo="/subjects"
     /></QueryClientProvider>);
 
+    const link = screen.getByRole("link", { name: /Rib Cage/ });
+    if (embedded) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    } else expect(link).not.toHaveAttribute("target");
     expect(screen.getByRole("img", { name: "Rib Cage radical" })).toHaveAttribute("src", "https://files.wanikani.com/rib-cage.svg");
   });
 });

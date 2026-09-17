@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import styles from "./srs-progression.module.css";
 
-export type SrsProgression = { startingStage: number; endingStage: number; nextReviewInterval: string; isCorrect: boolean; subjectId?: number };
+export type SrsProgression = { startingStage: number; endingStage: number; nextReviewInterval: string; isCorrect: boolean; subjectId?: number; assignmentId?: number };
 
 export function SrsProgressionSlot({ progression, mode, idleContent = null }: { progression: SrsProgression | null; mode: "normal" | "compact" | "hidden"; idleContent?: ReactNode }) {
   const reducedMotion = useReducedMotion();
