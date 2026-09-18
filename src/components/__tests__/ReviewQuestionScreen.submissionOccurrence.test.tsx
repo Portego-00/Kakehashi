@@ -30,6 +30,27 @@ const mockGetAssignments = jest.fn<Promise<unknown[] | null>, [{ ignoreTTL: bool
 const mockSpeechListeners = new Map<string, (event: unknown) => void>();
 let mockUseRealKanaInput = false;
 let mockVoicePermissionsGranted = false;
+let mockModernSpeechSupported = false;
+let mockModernSpeechListener: ((event: { sessionId: number; name: string; payload: unknown }) => void) | undefined;
+const mockModernSpeechStart = jest.fn(async (_id: number, _locale: string) => {});
+const mockModernSpeechStop = jest.fn(async (_id: number) => {});
+const mockModernSpeechAbort = jest.fn(async (id: number) => {
+  mockModernSpeechListener?.({ sessionId: id, name: "end", payload: null });
+});
+
+jest.mock("../../../modules/review-speech", () => ({
+  __esModule: true,
+  default: {
+    getCapabilities: async () => ({ supported: mockModernSpeechSupported, reason: "Device unsupported" }),
+    start: (id: number, locale: string) => mockModernSpeechStart(id, locale),
+    stop: (id: number) => mockModernSpeechStop(id),
+    abort: (id: number) => mockModernSpeechAbort(id),
+    addListener: (_name: string, listener: typeof mockModernSpeechListener) => {
+      mockModernSpeechListener = listener;
+      return { remove: () => { if (mockModernSpeechListener === listener) mockModernSpeechListener = undefined; } };
+    },
+  },
+}));
 
 jest.mock("../../utils/cache", () => ({
   getSubjectById: (id: number) => mockGetSubjectById(id),
@@ -127,6 +148,8 @@ jest.mock("expo-speech-recognition", () => ({
     isRecognitionAvailable: jest.fn(() => true),
     supportsOnDeviceRecognition: jest.fn(() => false),
     getPermissionsAsync: jest.fn(async () => ({ granted: mockVoicePermissionsGranted })),
+    getMicrophonePermissionsAsync: jest.fn(async () => ({ granted: true })),
+    requestMicrophonePermissionsAsync: jest.fn(async () => ({ granted: true })),
     requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
     start: jest.fn(),
     stop: jest.fn(),
@@ -452,6 +475,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSpeechListeners.clear();
     mockUseRealKanaInput = false;
     mockVoicePermissionsGranted = false;
+    mockModernSpeechSupported = false;
+    mockModernSpeechStart.mockClear();
+    mockModernSpeechStop.mockClear();
+    mockModernSpeechAbort.mockClear();
     jest.mocked(ExpoSpeechRecognitionModule.start).mockClear();
     mockAuthState.userData = { username: "Portego" };
     mockAuthState.apiToken = null;
@@ -961,8 +988,8 @@ describe("ReviewQuestionScreen question occurrences", () => {
     it("shows Portego the requested mode and raw readings without claiming cloud use", async () => {
       const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={jest.fn()} />);
       fireEvent.press(screen.getByLabelText("Show voice diagnostics"));
-      expect(screen.getByText("Actual processing: Not reported by iOS")).toBeTruthy();
       await startVoiceCapture(screen);
+      expect(screen.getByText("Actual processing: Not reported by iOS")).toBeTruthy();
       act(() => mockSpeechListeners.get("result")?.(result("猫", false)));
       expect(screen.getByText("Requested mode: Automatic (cloud allowed)")).toBeTruthy();
       expect(screen.getByText(/1\. 猫 → ねこ/)).toBeTruthy();
@@ -993,6 +1020,49 @@ describe("ReviewQuestionScreen question occurrences", () => {
       fireEvent.press(screen.getByLabelText("Show voice diagnostics"));
       expect(screen.queryByText(/1\. 猫 → ねこ/)).toBeNull();
       expect(screen.getByText("Start the mic to inspect a capture.")).toBeTruthy();
+    });
+
+    it("uses SpeechTranscriber with only microphone permission and identifies it as local", async () => {
+      mockModernSpeechSupported = true;
+      mockVoicePermissionsGranted = false;
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />);
+      await act(async () => fireEvent.press(screen.getByLabelText("Start voice answers")));
+      const id = mockModernSpeechStart.mock.calls[0][0];
+      expect(mockModernSpeechStart).toHaveBeenCalledWith(id, "ja-JP");
+      expect(ExpoSpeechRecognitionModule.start).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByLabelText("Show voice diagnostics"));
+      expect(screen.getByText("Engine: Apple SpeechTranscriber")).toBeTruthy();
+      expect(screen.getByText("Actual processing: On-device")).toBeTruthy();
+      act(() => mockModernSpeechListener?.({ sessionId: id, name: "start", payload: null }));
+      act(() => mockModernSpeechListener?.({ sessionId: id, name: "result", payload: result("ねこ", false) }));
+      expect(onAnswer).not.toHaveBeenCalled();
+      await act(async () => jest.advanceTimersByTime(300));
+      expect(mockModernSpeechStop).toHaveBeenCalledWith(id);
+      await act(async () => {
+        mockModernSpeechListener?.({ sessionId: id, name: "result", payload: result("ねこ") });
+        mockModernSpeechListener?.({ sessionId: id, name: "end", payload: null });
+        jest.advanceTimersByTime(150);
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows model setup progress and lets the user stop before microphone capture", async () => {
+      mockModernSpeechSupported = true;
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />);
+      await act(async () => fireEvent.press(screen.getByLabelText("Start voice answers")));
+      const id = mockModernSpeechStart.mock.calls[0][0];
+      const oldListener = mockModernSpeechListener;
+      act(() => oldListener?.({ sessionId: id, name: "status", payload: { message: "Downloading speech model… 50%" } }));
+      expect(screen.getByText("Downloading speech model… 50%")).toBeTruthy();
+      await act(async () => fireEvent.press(screen.getByLabelText("Stop voice answers")));
+      expect(mockModernSpeechAbort).toHaveBeenCalledWith(id);
+      expect(screen.queryByText("Downloading speech model… 50%")).toBeNull();
+      act(() => oldListener?.({ sessionId: id, name: "result", payload: result("ねこ") }));
+      await act(async () => jest.advanceTimersByTime(1000));
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(mockModernSpeechStart).toHaveBeenCalledTimes(1);
     });
 
     it("keeps listening while thinking and resumes automatically for the next question", async () => {

@@ -11,6 +11,9 @@ export interface VoiceDebugTrace {
   subject: string;
   locale: string;
   requiresOnDeviceRecognition: boolean;
+  engine: "speech-transcriber" | "legacy";
+  processing: "on-device" | "system-selected";
+  fallbackReason?: string;
   taskHint: string;
   contextualStrings: string[];
   requestedAt: number;
@@ -24,7 +27,8 @@ export interface VoiceDebugTrace {
 }
 
 type CaptureDetails = Pick<VoiceDebugTrace,
-  "subject" | "locale" | "requiresOnDeviceRecognition" | "taskHint" | "contextualStrings">;
+  "subject" | "locale" | "requiresOnDeviceRecognition" | "taskHint" | "contextualStrings" |
+  "engine" | "processing" | "fallbackReason">;
 
 /** Session-only diagnostics: no audio, disk persistence, or analytics. */
 export function useVoiceRecognitionDebug(enabled: boolean) {

@@ -3194,6 +3194,8 @@ PODS:
     - SocketRocket
   - ReactNativeIncallManager (4.2.2):
     - React-Core
+  - ReviewSpeech (1.0.0):
+    - ExpoModulesCore
   - RNAppleMusic (1.3.0):
     - boost
     - DoubleConversion
@@ -3775,6 +3777,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeIncallManager (from `../node_modules/react-native-incall-manager`)
+  - ReviewSpeech (from `../modules/review-speech/ios`)
   - "RNAppleMusic (from `../node_modules/@lomray/react-native-apple-music`)"
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNCPicker (from `../node_modules/@react-native-picker/picker`)"
@@ -4101,6 +4104,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeIncallManager:
     :path: "../node_modules/react-native-incall-manager"
+  ReviewSpeech:
+    :path: "../modules/review-speech/ios"
   RNAppleMusic:
     :path: "../node_modules/@lomray/react-native-apple-music"
   RNCAsyncStorage:
@@ -4291,6 +4296,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 9e9fba640f1e2aca2d40256ee1efb9ae0a7bf0c4
   ReactCommon: d88059f5cba636002f007da707debdc6d0334a3b
   ReactNativeIncallManager: e7ee5c9ad606788e8bb41267b864e0f4958d8034
+  ReviewSpeech: b59f7116a3e16ff35dc60743aef1222b7febb91d
   RNAppleMusic: afd08c257cc7ea3c2540b1f2f46572537e5fdd5b
   RNCAsyncStorage: 302f2fac014fd450046c120567ca364632da682b
   RNCPicker: 3fc4d505041318ee8f59662d8d66892ce3c3295c

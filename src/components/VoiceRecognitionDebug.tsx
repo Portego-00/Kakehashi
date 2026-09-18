@@ -26,16 +26,15 @@ export function VoiceRecognitionDebug({ traces, onClear }: {
       </TouchableOpacity>
       {expanded && (
         <ScrollView style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.cardBackground }]} contentContainerStyle={styles.panelContent} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-          <Text style={textStyle}>Engine: Apple Speech</Text>
-          <Text style={textStyle}>Actual processing: Not reported by iOS</Text>
-          <Text style={textStyle}>
-            Cloud allowed does not mean cloud used. iOS does not expose the processing location of a result.
-          </Text>
           {!traces.length && <Text style={textStyle}>Start the mic to inspect a capture.</Text>}
           {traces.map((trace) => (
             <View key={trace.id} style={[styles.capture, { borderColor: theme.border }]}>
               <Text style={[styles.title, { color: theme.textColor }]}>#{trace.id} · {trace.subject} · {trace.locale}</Text>
-              <Text style={textStyle}>Requested mode: {trace.requiresOnDeviceRecognition ? "On-device requested (not verified)" : "Automatic (cloud allowed)"}</Text>
+              <Text style={textStyle}>Engine: {trace.engine === "speech-transcriber" ? "Apple SpeechTranscriber" : "Apple Speech (legacy)"}</Text>
+              <Text style={textStyle}>Actual processing: {trace.processing === "on-device" ? "On-device" : "Not reported by iOS"}</Text>
+              {trace.processing === "system-selected" && <Text style={textStyle}>Cloud allowed does not mean cloud used.</Text>}
+              {!!trace.fallbackReason && <Text style={textStyle}>Fallback: {trace.fallbackReason}</Text>}
+              <Text style={textStyle}>Requested mode: {trace.processing === "on-device" ? "On-device only" : "Automatic (cloud allowed)"}</Text>
               <Text style={textStyle}>{trace.phase} · Hint: {trace.taskHint}</Text>
               <Text style={textStyle}>Vocabulary hints: {trace.contextualStrings.join(" · ") || "None"}</Text>
               {trace.firstResultMs !== undefined && (

@@ -9,8 +9,9 @@ import * as Haptics from "@/src/utils/haptics";
 import { router, useFocusEffect } from "expo-router";
 import {
   ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
+import { ReviewSpeechRecognition, useReviewSpeechEvent, useReviewSpeechStatus } from "../hooks/useReviewSpeechRecognition";
+import type { ReviewSpeechSelection } from "../utils/reviewSpeechRecognition";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -1113,6 +1114,7 @@ export default function ReviewQuestionScreen({
     useState(false);
   const [isUsingDefaultJitaiFont, setIsUsingDefaultJitaiFont] = useState(false);
   const [isVoiceRecognizing, setIsVoiceRecognizing] = useState(false);
+  const [voicePreparation, setVoicePreparation] = useState<string | null>(null);
   const voiceInputLevel = useSharedValue(0);
   const [isVoiceFinalizing, setIsVoiceFinalizing] = useState(false);
   const [voiceSessionEnabled, setVoiceSessionEnabled] = useState(false);
@@ -1178,6 +1180,7 @@ export default function ReviewQuestionScreen({
     clearVoiceSettleTimer();
     clearVoiceEndpointTimer();
     setIsVoiceFinalizing(false);
+    setVoicePreparation(null);
     if (voiceCaptureRef.current?.phase !== "submitting") {
       updateVoiceTrace(voiceCaptureRef.current?.debugId, { phase: "Cancelled" });
     }
@@ -1188,10 +1191,10 @@ export default function ReviewQuestionScreen({
     if (nativeVoiceStateRef.current === "active") {
       nativeVoiceStateRef.current = "stopping";
       try {
-        ExpoSpeechRecognitionModule.abort();
+        ReviewSpeechRecognition.abort();
       } catch {
         try {
-          ExpoSpeechRecognitionModule.stop();
+          ReviewSpeechRecognition.stop();
         } catch (error) {
           console.error("Error cancelling speech recognition:", error);
         }
@@ -1928,15 +1931,17 @@ export default function ReviewQuestionScreen({
     return Array.from(new Set([...meanings, ...synonyms])).slice(0, 20);
   };
 
-  const checkVoicePermissions = useCallback(async () => {
+  const checkVoicePermissions = useCallback(async (selection?: ReviewSpeechSelection) => {
     try {
-      const available = await ExpoSpeechRecognitionModule.isRecognitionAvailable();
+      const available = selection?.engine === "speech-transcriber" || await ExpoSpeechRecognitionModule.isRecognitionAvailable();
       if (!available) {
         setVoiceError("Speech recognition is not available on this device.");
         return false;
       }
 
-      const result = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      const result = selection?.engine === "speech-transcriber"
+        ? await ExpoSpeechRecognitionModule.getMicrophonePermissionsAsync()
+        : await ExpoSpeechRecognitionModule.getPermissionsAsync();
       if (!result.granted) {
         return false;
       }
@@ -1950,11 +1955,15 @@ export default function ReviewQuestionScreen({
     }
   }, []);
 
-  const requestVoicePermissions = useCallback(async () => {
+  const requestVoicePermissions = useCallback(async (selection: ReviewSpeechSelection) => {
     try {
-      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      const result = selection.engine === "speech-transcriber"
+        ? await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync()
+        : await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!result.granted) {
-        setVoiceError("Microphone and speech recognition permissions are required for voice answers.");
+        setVoiceError(selection.engine === "speech-transcriber"
+          ? "Microphone permission is required for voice answers."
+          : "Microphone and speech recognition permissions are required for voice answers.");
       } else {
         setVoiceError(null);
       }
@@ -1987,14 +1996,18 @@ export default function ReviewQuestionScreen({
 
     const capture: VoiceCapture = { questionKey: currentQuestionKey, phase: "preparing", activity: createVoiceActivityDetector() };
     voiceCaptureRef.current = capture;
+    setVoicePreparation("Preparing speech…");
     const isCurrentCapture = () => mountedRef.current && voiceCaptureRef.current === capture;
-    const isPermissionAlreadyGranted = await checkVoicePermissions();
+    const selection = await ReviewSpeechRecognition.select(questionType === "reading" ? "ja-JP" : "en-US");
+    if (!isCurrentCapture()) return;
+    const isPermissionAlreadyGranted = await checkVoicePermissions(selection);
     if (!isCurrentCapture()) return;
     if (!isPermissionAlreadyGranted) {
-      const granted = await requestVoicePermissions();
+      const granted = await requestVoicePermissions(selection);
       if (!isCurrentCapture()) return;
       if (!granted) {
         voiceCaptureRef.current = null;
+        setVoicePreparation(null);
         setVoiceSessionEnabled(false);
         return;
       }
@@ -2022,23 +2035,26 @@ export default function ReviewQuestionScreen({
           contextualStrings: getVoiceContextualStrings(),
           addsPunctuation: false,
           iosTaskHint: questionType === "reading" ? "confirmation" as const : "search" as const,
-          // Let iOS select the recognizer; cloud use is permitted, not guaranteed. The default
-          // locale support probe cannot tell us whether Japanese is on-device.
-          requiresOnDeviceRecognition: false,
+          // SpeechTranscriber is local. The older engine may use Apple's servers.
+          requiresOnDeviceRecognition: selection.processing === "on-device",
           volumeChangeEventOptions: { enabled: true, intervalMillis: 50 },
         };
         capture.debugId = startVoiceTrace({
           subject: subject.data.characters || String(subject.id),
           locale: options.lang,
           requiresOnDeviceRecognition: options.requiresOnDeviceRecognition,
-          taskHint: options.iosTaskHint,
-          contextualStrings: options.contextualStrings,
+          taskHint: selection.engine === "speech-transcriber" ? "Automatic" : options.iosTaskHint,
+          contextualStrings: selection.engine === "speech-transcriber" ? [] : options.contextualStrings,
+          engine: selection.engine,
+          processing: selection.processing,
+          fallbackReason: selection.fallbackReason,
         });
         nativeVoiceDebugIdRef.current = capture.debugId;
-        ExpoSpeechRecognitionModule.start(options);
+        ReviewSpeechRecognition.start(options, selection);
       } catch (error) {
         voiceCaptureRef.current = null;
         nativeVoiceStateRef.current = "inactive";
+        setVoicePreparation(null);
         updateVoiceTrace(capture.debugId, { phase: "Failed", error: String(error) });
         console.error("Error starting speech recognition:", error);
         setVoiceSessionEnabled(false);
@@ -2072,7 +2088,7 @@ export default function ReviewQuestionScreen({
     try {
       nativeVoiceStateRef.current = "stopping";
       // stop() ends audio and requests the final short utterance; abort() loses it.
-      ExpoSpeechRecognitionModule.stop();
+      ReviewSpeechRecognition.stop();
     } catch {
       stopVoiceRecognition();
       setVoiceError("Unable to finish recognition. Please try again.");
@@ -2127,7 +2143,7 @@ export default function ReviewQuestionScreen({
     if (shouldStopRecognition && nativeVoiceStateRef.current === "active") {
       try {
         nativeVoiceStateRef.current = "stopping";
-        ExpoSpeechRecognitionModule.stop();
+        ReviewSpeechRecognition.stop();
       } catch (error) {
         nativeVoiceStateRef.current = "active";
         console.error("Error stopping speech recognition before submit:", error);
@@ -2165,8 +2181,7 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    void checkVoicePermissions();
-  }, [isVoiceReviewEnabled, checkVoicePermissions, stopVoiceRecognition]);
+  }, [isVoiceReviewEnabled, stopVoiceRecognition]);
 
   useEffect(() => {
     if (!isVoiceReviewEnabled || questionType !== "reading") {
@@ -3076,13 +3091,21 @@ export default function ReviewQuestionScreen({
     return () => subscription.remove();
   }, [stopVoiceRecognition]);
 
-  useSpeechRecognitionEvent("start", () => {
+  useReviewSpeechStatus(({ message }) => {
+    const capture = voiceCaptureRef.current;
+    if (!capture || capture.phase !== "starting" || capture.questionKey !== currentQuestionKey) return;
+    setVoicePreparation(message);
+    updateVoiceTrace(capture.debugId, { phase: message });
+  });
+
+  useReviewSpeechEvent("start", () => {
     const capture = voiceCaptureRef.current;
     if (!isVoiceReviewEnabled || capture?.phase !== "starting") {
       return;
     }
 
     capture.phase = "listening";
+    setVoicePreparation(null);
     updateVoiceTrace(capture.debugId, { phase: "Listening" });
     voiceInputLevel.value = 0;
     setIsVoiceFinalizing(false);
@@ -3093,7 +3116,7 @@ export default function ReviewQuestionScreen({
     latestVoiceResultsRef.current = [];
   });
 
-  useSpeechRecognitionEvent("end", () => {
+  useReviewSpeechEvent("end", () => {
     updateVoiceTrace(nativeVoiceDebugIdRef.current, { phase: "Ended" });
     nativeVoiceDebugIdRef.current = undefined;
     nativeVoiceStateRef.current = "inactive";
@@ -3101,6 +3124,7 @@ export default function ReviewQuestionScreen({
     clearVoiceSettleTimer();
     clearVoiceEndpointTimer();
     setIsVoiceFinalizing(false);
+    setVoicePreparation(null);
     const capture = voiceCaptureRef.current;
     setVoiceRestartNonce((value) => value + 1);
     if (capture?.phase === "starting" || capture?.phase === "listening" || capture?.phase === "finalizing") {
@@ -3123,7 +3147,7 @@ export default function ReviewQuestionScreen({
     }
   });
 
-  useSpeechRecognitionEvent("volumechange", ({ value }) => {
+  useReviewSpeechEvent("volumechange", ({ value }) => {
     const capture = voiceCaptureRef.current;
     if (!Number.isFinite(value) || !isVoiceReviewEnabled || capture?.phase !== "listening" ||
       capture.questionKey !== currentQuestionKey) return;
@@ -3131,7 +3155,7 @@ export default function ReviewQuestionScreen({
     if (questionType === "reading" && capture.activity.record(value)) scheduleVoiceUtteranceEnd(capture);
   });
 
-  useSpeechRecognitionEvent("result", (event) => {
+  useReviewSpeechEvent("result", (event) => {
     if (!isVoiceReviewEnabled || !event.results?.length) {
       return;
     }
@@ -3220,7 +3244,7 @@ export default function ReviewQuestionScreen({
     voiceSettleTimerRef.current = setTimeout(() => settle(false), selected.score >= 3 ? 250 : 1800);
   });
 
-  useSpeechRecognitionEvent("error", (event) => {
+  useReviewSpeechEvent("error", (event) => {
     updateVoiceTrace(nativeVoiceDebugIdRef.current, { phase: "Error", error: `${event.error}: ${event.message || ""}` });
     const capture = voiceCaptureRef.current;
     if (
@@ -3236,6 +3260,7 @@ export default function ReviewQuestionScreen({
     clearVoiceSettleTimer();
     clearVoiceEndpointTimer();
     setIsVoiceFinalizing(false);
+    setVoicePreparation(null);
     voiceCaptureRef.current = null;
     setIsVoiceRecognizing(false);
     // Silence is normal while recalling an answer. Native end will restart us.
@@ -7009,12 +7034,12 @@ export default function ReviewQuestionScreen({
                           isVoiceRecognizing ? styles.voiceButtonActive : null,
                         ]}
                         accessibilityRole="button"
-                        accessibilityLabel={voiceSessionEnabled ? "Stop voice answers" : "Start voice answers"}
+                        accessibilityLabel={voiceSessionEnabled || voicePreparation ? "Stop voice answers" : "Start voice answers"}
                         onPress={handleVoiceAnswerButton}
                         disabled={navigatingToDetail || isPausedOnAnswer || answered}
                       >
                         <Ionicons
-                          name={voiceSessionEnabled ? "stop" : "mic"}
+                          name={voiceSessionEnabled || voicePreparation ? "stop" : "mic"}
                           size={20}
                           color="#fff"
                         />
@@ -7088,13 +7113,14 @@ export default function ReviewQuestionScreen({
                 )}
 
               {isVoiceReviewEnabled &&
-                (isVoiceRecognizing || voiceError || voiceInterimTranscript) && (
+                (isVoiceRecognizing || voicePreparation || voiceError || voiceInterimTranscript) && (
                   <VoiceAnswerStatus
                     listening={isVoiceRecognizing}
                     finalizing={isVoiceFinalizing}
                     transcript={voiceInterimTranscript}
                     error={voiceError}
                     level={voiceInputLevel}
+                    preparation={voicePreparation}
                   />
                 )}
               {isVoiceReviewEnabled && canInspectVoice && (

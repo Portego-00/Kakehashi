@@ -968,7 +968,7 @@ export function ReviewSettingsSection() {
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
-                Tap the mic once to answer consecutive questions; tap stop to turn listening off. Uses iOS speech recognition, which may send audio to Apple and require internet.
+                Tap the mic once to answer consecutive questions; tap stop to turn listening off. Uses on-device speech on supported iOS 26 devices, with an initial language download. Otherwise, iOS speech recognition may send audio to Apple and require internet.
               </Text>
             </View>
             <Switch

@@ -27,12 +27,13 @@ function VoiceBar({ level, pulse, height, color, reducedMotion }: {
   return <Animated.View style={[styles.bar, { height, backgroundColor: color }, animatedStyle]} />;
 }
 
-export function VoiceAnswerStatus({ listening, finalizing, transcript, error, level }: {
+export function VoiceAnswerStatus({ listening, finalizing, transcript, error, level, preparation }: {
   listening: boolean;
   finalizing: boolean;
   transcript: string;
   error: string | null;
   level: SharedValue<number>;
+  preparation?: string | null;
 }) {
   const { theme } = useTheme();
   const reducedMotion = useReducedMotion();
@@ -50,12 +51,12 @@ export function VoiceAnswerStatus({ listening, finalizing, transcript, error, le
     return () => cancelAnimation(pulse);
   }, [error, finalizing, listening, pulse, reducedMotion]);
 
-  const status = error ? "Try again" : finalizing ? "Recognizing…" : listening ? "Listening…" : "Voice answer";
+  const status = error ? "Try again" : preparation || (finalizing ? "Recognizing…" : listening ? "Listening…" : "Voice answer");
   return (
     <View style={[styles.container, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
       <View style={styles.indicator} accessible={false} accessibilityElementsHidden>
         {error ? <Ionicons name="alert-circle-outline" size={20} color={theme.error} />
-          : finalizing ? <ActivityIndicator size="small" color={theme.primary} />
+          : finalizing || preparation ? <ActivityIndicator size="small" color={theme.primary} />
             : [10, 17, 24, 17, 10].map((height, index) => (
               <VoiceBar key={index} height={height} color={theme.primary} level={level} pulse={pulse} reducedMotion={reducedMotion} />
             ))}
