@@ -1,3 +1,7 @@
+import { VoiceRecognitionDebug } from "./VoiceRecognitionDebug";
+import { useVoiceRecognitionDebug } from "../hooks/useVoiceRecognitionDebug";
+import { isPortegoUsername } from "../utils/portegoAccess";
+import { VoiceAnswerStatus } from "./VoiceAnswerStatus";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
@@ -10,6 +14,7 @@ import {
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  AppState,
   Dimensions,
   type GestureResponderEvent,
   InteractionManager,
@@ -41,6 +46,8 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
+import { createVoiceActivityDetector, VOICE_UTTERANCE_SILENCE_MS } from "../utils/voiceActivity";
+import { getJapaneseVoiceContext, latestJapaneseUtterance, resolveVoiceReading, type VoiceReadingLookup } from "../utils/voiceReading";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SvgXml } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
@@ -300,7 +307,6 @@ const RETRYABLE_ANSWER_RESULTS = new Set<AnswerCheckerResult>([
 ]);
 
 const KANJI_CHARACTER_REGEX = /[\u3400-\u4DBF\u4E00-\u9FFF]/;
-const KANA_CHARACTER_REGEX = /[\u3040-\u309F\u30A0-\u30FF]/;
 const TRANSCRIPT_PUNCTUATION_REGEX =
   /[。、，,．\.!?！？:：;；'"`´「」『』（）\(\)\[\]【】{}…・]/g;
 const DIGIT_SEQUENCE_REGEX = /\d+/g;
@@ -308,16 +314,14 @@ const ARABIC_NUMBER_REGEX = /^\d+$/;
 const KANJI_DIGITS = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const LARGE_NUMBER_UNITS = ["", "万", "億", "兆", "京"];
 const VOICE_READING_SCRIPT_MISMATCH_ERROR =
-  "Recognized kanji text instead of kana. Please try speaking the reading again.";
-
-interface VoiceReadingLookup {
-  wordReadings: Record<string, string[]>;
-  singleKanjiReadings: Record<string, string[]>;
-}
+  "Could not determine the kana reading. Tap retry and say the reading again.";
 
 interface VoiceCapture {
   questionKey: string;
-  phase: "preparing" | "starting" | "listening" | "submitting";
+  phase: "preparing" | "starting" | "listening" | "finalizing" | "submitting";
+  activity: ReturnType<typeof createVoiceActivityDetector>;
+  silenceMs?: number;
+  debugId?: number;
 }
 
 type ReviewDetailProgressionStatus = "loading" | "success" | "offline";
@@ -456,13 +460,6 @@ function isSingleKanjiVocabularySubject(subject: WKSubject): boolean {
     subject.object === "vocabulary" &&
     subjectCharacters.length === 1 &&
     KANJI_CHARACTER_REGEX.test(subjectCharacters)
-  );
-}
-
-function matchesJapaneseAnswer(input: string, expected: string): boolean {
-  return (
-    input === expected ||
-    input.replace(/^〜/, "") === expected.replace(/^〜/, "")
   );
 }
 
@@ -723,20 +720,16 @@ function buildVoiceReadingLookupFromSubjects(subjects: WKSubject[]): VoiceReadin
       continue;
     }
 
-    if (!wordReadings.has(subjectCharacters)) {
-      wordReadings.set(subjectCharacters, new Set<string>());
-    }
-
-    const knownWordReadings = wordReadings.get(subjectCharacters);
-    if (!knownWordReadings) {
-      continue;
-    }
-
-    for (const readingEntry of readings) {
-      const normalizedReading = normalizeJapaneseReading(readingEntry?.reading);
-      if (normalizedReading) {
-        knownWordReadings.add(normalizedReading);
+    // Vocabulary entries supply word pronunciations. Kanji on/kun readings
+    // remain separate for answer validation; they are not a word dictionary.
+    if (subject.object !== "kanji") {
+      const key = convertKatakanaToHiragana(subjectCharacters);
+      const knownWordReadings = wordReadings.get(key) ?? new Set<string>();
+      for (const readingEntry of readings) {
+        const normalizedReading = normalizeJapaneseReading(readingEntry?.reading);
+        if (normalizedReading) knownWordReadings.add(normalizedReading);
       }
+      wordReadings.set(key, knownWordReadings);
     }
 
     if (
@@ -806,104 +799,6 @@ async function ensureVoiceReadingLookup(): Promise<VoiceReadingLookup> {
   }
 
   return voiceReadingLookupPromise;
-}
-
-function getTokenReadings(
-  token: string,
-  singleKanjiReadings: Record<string, string[]>,
-): string[] {
-  if (KANJI_CHARACTER_REGEX.test(token)) {
-    return Array.from(new Set(singleKanjiReadings[token] ?? []));
-  }
-
-  if (KANA_CHARACTER_REGEX.test(token)) {
-    const normalizedKana = normalizeJapaneseReading(token);
-    return normalizedKana ? [normalizedKana] : [];
-  }
-
-  return token ? [token] : [];
-}
-
-function canComposeExpectedReading(
-  tokenReadings: string[][],
-  expectedReading: string,
-): boolean {
-  const memo = new Map<string, boolean>();
-
-  const search = (tokenIndex: number, readingIndex: number): boolean => {
-    const memoKey = `${tokenIndex}:${readingIndex}`;
-    const memoizedResult = memo.get(memoKey);
-    if (memoizedResult !== undefined) {
-      return memoizedResult;
-    }
-
-    if (tokenIndex >= tokenReadings.length) {
-      const matches = readingIndex === expectedReading.length;
-      memo.set(memoKey, matches);
-      return matches;
-    }
-
-    const options = tokenReadings[tokenIndex] ?? [];
-    for (const option of options) {
-      if (!option || !expectedReading.startsWith(option, readingIndex)) {
-        continue;
-      }
-
-      if (search(tokenIndex + 1, readingIndex + option.length)) {
-        memo.set(memoKey, true);
-        return true;
-      }
-    }
-
-    memo.set(memoKey, false);
-    return false;
-  };
-
-  return search(0, 0);
-}
-
-function resolveExpectedReadingFromKanji(
-  lookupKey: string,
-  expectedReadings: string[],
-  lookup: VoiceReadingLookup,
-): string | null {
-  if (!lookupKey || expectedReadings.length === 0) {
-    return null;
-  }
-
-  const wkReadings = lookup.wordReadings[lookupKey] ?? [];
-  if (wkReadings.length > 0) {
-    const wkReadingSet = new Set(wkReadings);
-    for (const expectedReading of expectedReadings) {
-      if (wkReadingSet.has(expectedReading)) {
-        return expectedReading;
-      }
-    }
-  }
-
-  if (!KANJI_CHARACTER_REGEX.test(lookupKey)) {
-    return null;
-  }
-
-  const tokenReadings = Array.from(lookupKey).map((token) =>
-    getTokenReadings(token, lookup.singleKanjiReadings),
-  );
-
-  if (tokenReadings.some((options) => options.length === 0)) {
-    return null;
-  }
-
-  for (const expectedReading of expectedReadings) {
-    if (!expectedReading) {
-      continue;
-    }
-
-    if (canComposeExpectedReading(tokenReadings, expectedReading)) {
-      return expectedReading;
-    }
-  }
-
-  return null;
 }
 
 // Custom hook for animating percentage values (used for progress bar) - Reanimated version
@@ -1032,6 +927,10 @@ export default function ReviewQuestionScreen({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const noteModalInsets = useSafeAreaInsets();
   const { apiToken, userData } = useAuthStore();
+  const canInspectVoice = isPortegoUsername(userData?.username);
+  const { traces: voiceDebugTraces, startTrace: startVoiceTrace,
+    updateTrace: updateVoiceTrace, clearTraces: clearVoiceTraces } = useVoiceRecognitionDebug(canInspectVoice);
+  const nativeVoiceDebugIdRef = useRef<number | undefined>(undefined);
   const {
     reviewMultipleChoiceEnabled,
     ankiCardMode,
@@ -1214,6 +1113,23 @@ export default function ReviewQuestionScreen({
     useState(false);
   const [isUsingDefaultJitaiFont, setIsUsingDefaultJitaiFont] = useState(false);
   const [isVoiceRecognizing, setIsVoiceRecognizing] = useState(false);
+  const voiceInputLevel = useSharedValue(0);
+  const [isVoiceFinalizing, setIsVoiceFinalizing] = useState(false);
+  const [voiceSessionEnabled, setVoiceSessionEnabled] = useState(false);
+  const [voiceRestartNonce, setVoiceRestartNonce] = useState(0);
+  const [voiceAudioPlaying, setVoiceAudioPlaying] = useState(false);
+  const voiceEndpointTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearVoiceEndpointTimer = useCallback(() => {
+    if (voiceEndpointTimerRef.current) clearTimeout(voiceEndpointTimerRef.current);
+    voiceEndpointTimerRef.current = null;
+  }, []);
+  const voiceSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingVoiceAnswerRef = useRef<((ended: boolean) => void) | null>(null);
+  const clearVoiceSettleTimer = useCallback(() => {
+    if (voiceSettleTimerRef.current) clearTimeout(voiceSettleTimerRef.current);
+    voiceSettleTimerRef.current = null;
+    pendingVoiceAnswerRef.current = null;
+  }, []);
   const [voiceInterimTranscript, setVoiceInterimTranscript] = useState("");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [skipCueText, setSkipCueText] = useState<string | null>(null);
@@ -1259,6 +1175,12 @@ export default function ReviewQuestionScreen({
   const cancelVoiceRecognition = useCallback((retry = false) => {
     // Invalidate before asking native to cancel: queued results and delayed
     // submissions must not become answers for the next question.
+    clearVoiceSettleTimer();
+    clearVoiceEndpointTimer();
+    setIsVoiceFinalizing(false);
+    if (voiceCaptureRef.current?.phase !== "submitting") {
+      updateVoiceTrace(voiceCaptureRef.current?.debugId, { phase: "Cancelled" });
+    }
     voiceCaptureRef.current = null;
     pendingVoiceStartRef.current = null;
     isVoiceRetryPendingRef.current = retry;
@@ -1275,7 +1197,7 @@ export default function ReviewQuestionScreen({
         }
       }
     }
-  }, []);
+  }, [clearVoiceEndpointTimer, clearVoiceSettleTimer, updateVoiceTrace]);
 
   useEffect(() => {
     setLocalStudyMaterials(studyMaterials);
@@ -1834,18 +1756,6 @@ export default function ReviewQuestionScreen({
 
     const numericKanjiTranscript = replaceArabicNumbersWithKanji(compactTranscript);
 
-    const subjectCharacters = compactJapaneseText(subject.data.characters);
-    if (
-      subjectCharacters &&
-      (matchesJapaneseAnswer(compactTranscript, subjectCharacters) ||
-        matchesJapaneseAnswer(numericKanjiTranscript, subjectCharacters))
-    ) {
-      const hintedReading = normalizedVoiceReadingHints[0];
-      if (hintedReading) {
-        return hintedReading;
-      }
-    }
-
     const hiraganaCandidate = convertKatakanaToHiragana(compactTranscript);
     if (/[A-Za-z]/.test(hiraganaCandidate)) {
       return convertRomajiToHiragana(hiraganaCandidate);
@@ -1853,16 +1763,16 @@ export default function ReviewQuestionScreen({
 
     if (KANJI_CHARACTER_REGEX.test(numericKanjiTranscript)) {
       const lookup = voiceReadingLookupRef.current;
-      if (lookup && normalizedVoiceReadingHints.length > 0) {
-        const matchedReading = resolveExpectedReadingFromKanji(
-          numericKanjiTranscript,
-          normalizedVoiceReadingHints,
-          lookup,
-        );
-        if (matchedReading) {
-          return matchedReading;
-        }
-      }
+      const subjectCharacters = compactJapaneseText(subject.data.characters);
+      const subjectReadings = (subject.data.readings ?? [])
+        .map((entry: any) => normalizeJapaneseReading(entry.reading)).filter(Boolean);
+      const reading = resolveVoiceReading(numericKanjiTranscript, normalizedVoiceReadingHints, {
+        singleKanjiReadings: lookup?.singleKanjiReadings ?? {},
+        wordReadings: subjectCharacters === numericKanjiTranscript && subjectReadings.length
+          ? { [convertKatakanaToHiragana(subjectCharacters)]: subjectReadings }
+          : lookup?.wordReadings ?? {},
+      }, { allowIsolatedKanjiReadings: subject.object === "kanji" });
+      if (reading) return reading;
     }
 
     return hiraganaCandidate;
@@ -1915,7 +1825,8 @@ export default function ReviewQuestionScreen({
 
   const selectBestVoiceCandidate = (
     results: { transcript: string; confidence: number }[],
-  ): { answer: string; score: number } => {
+  ): { answer: string; score: number; transcript: string } => {
+    let rawTranscript = "";
     let selectedTranscript = "";
     let selectedScore = -1;
     let selectedConfidence = -1;
@@ -1934,6 +1845,7 @@ export default function ReviewQuestionScreen({
         (candidateScore === selectedScore &&
           candidateConfidence > selectedConfidence)
       ) {
+        rawTranscript = result.transcript;
         selectedTranscript = candidate;
         selectedScore = candidateScore;
         selectedConfidence = candidateConfidence;
@@ -1943,6 +1855,7 @@ export default function ReviewQuestionScreen({
     return {
       answer: selectedTranscript,
       score: selectedScore,
+      transcript: rawTranscript,
     };
   };
 
@@ -1986,40 +1899,21 @@ export default function ReviewQuestionScreen({
     return bestKanaCandidate;
   };
 
-  const pickHigherScoringVoiceCandidate = (
-    primary: { answer: string; score: number },
-    fallbackTranscript?: string,
-  ): { answer: string; score: number } => {
-    const fallbackAnswer = normalizeVoiceTranscript(fallbackTranscript || "");
-    if (!fallbackAnswer) {
-      return primary;
-    }
-
-    const fallbackScore = scoreVoiceCandidate(fallbackAnswer);
-    if (fallbackScore > primary.score) {
-      return {
-        answer: fallbackAnswer,
-        score: fallbackScore,
-      };
-    }
-
-    return primary;
-  };
-
   const shouldRetryVoiceReadingFromScriptMismatch = (candidate: {
     answer: string;
     score: number;
+    transcript: string;
   }): boolean => {
-    if (questionType !== "reading" || candidate.score !== 2) {
+    if (questionType !== "reading" || candidate.score >= 3) {
       return false;
     }
 
-    return KANJI_CHARACTER_REGEX.test(candidate.answer);
+    return KANJI_CHARACTER_REGEX.test(candidate.answer) || /[0-9０-９]/.test(candidate.transcript);
   };
 
   const getVoiceContextualStrings = () => {
     if (questionType === "reading") {
-      return normalizedVoiceReadingHints.slice(0, 100);
+      return getJapaneseVoiceContext(normalizedVoiceReadingHints, subject.data.characters);
     }
 
     const meanings = subject.data.meanings
@@ -2034,19 +1928,6 @@ export default function ReviewQuestionScreen({
     return Array.from(new Set([...meanings, ...synonyms])).slice(0, 20);
   };
 
-  const shouldUseOnDeviceVoiceRecognition = useCallback((): boolean => {
-    if (questionType !== "reading") {
-      return false;
-    }
-
-    try {
-      return ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
-    } catch (error) {
-      console.error("Error checking on-device speech support:", error);
-      return false;
-    }
-  }, [questionType]);
-
   const checkVoicePermissions = useCallback(async () => {
     try {
       const available = await ExpoSpeechRecognitionModule.isRecognitionAvailable();
@@ -2055,10 +1936,7 @@ export default function ReviewQuestionScreen({
         return false;
       }
 
-      const useOnDeviceRecognition = shouldUseOnDeviceVoiceRecognition();
-      const result = useOnDeviceRecognition
-        ? await ExpoSpeechRecognitionModule.getMicrophonePermissionsAsync()
-        : await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      const result = await ExpoSpeechRecognitionModule.getPermissionsAsync();
       if (!result.granted) {
         return false;
       }
@@ -2070,16 +1948,13 @@ export default function ReviewQuestionScreen({
       setVoiceError("Unable to check speech permissions.");
       return false;
     }
-  }, [shouldUseOnDeviceVoiceRecognition]);
+  }, []);
 
   const requestVoicePermissions = useCallback(async () => {
     try {
-      const useOnDeviceRecognition = shouldUseOnDeviceVoiceRecognition();
-      const result = useOnDeviceRecognition
-        ? await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync()
-        : await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!result.granted) {
-        setVoiceError("Microphone permission is required for voice answers.");
+        setVoiceError("Microphone and speech recognition permissions are required for voice answers.");
       } else {
         setVoiceError(null);
       }
@@ -2089,11 +1964,17 @@ export default function ReviewQuestionScreen({
       setVoiceError("Unable to request speech permissions.");
       return false;
     }
-  }, [shouldUseOnDeviceVoiceRecognition]);
+  }, []);
 
   const startVoiceRecognition = async () => {
     if (
       !isVoiceReviewEnabled ||
+      !isScreenFocused ||
+      voiceAudioPlaying ||
+      studyMaterialNoteModalVisible ||
+      noteSubjectPreviewOpen ||
+      effectiveAnkiCardMode ||
+      usesMultipleChoice ||
       answered ||
       isPausedOnWrong ||
       isPausedOnCloseAnswer ||
@@ -2104,7 +1985,7 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    const capture: VoiceCapture = { questionKey: currentQuestionKey, phase: "preparing" };
+    const capture: VoiceCapture = { questionKey: currentQuestionKey, phase: "preparing", activity: createVoiceActivityDetector() };
     voiceCaptureRef.current = capture;
     const isCurrentCapture = () => mountedRef.current && voiceCaptureRef.current === capture;
     const isPermissionAlreadyGranted = await checkVoicePermissions();
@@ -2114,6 +1995,7 @@ export default function ReviewQuestionScreen({
       if (!isCurrentCapture()) return;
       if (!granted) {
         voiceCaptureRef.current = null;
+        setVoiceSessionEnabled(false);
         return;
       }
     }
@@ -2130,23 +2012,36 @@ export default function ReviewQuestionScreen({
         setVoiceInterimTranscript("");
         isVoiceRetryPendingRef.current = false;
         latestVoiceResultsRef.current = [];
-        const useOnDeviceRecognition = shouldUseOnDeviceVoiceRecognition();
         capture.phase = "starting";
         nativeVoiceStateRef.current = "active";
-        ExpoSpeechRecognitionModule.start({
+        const options = {
           lang: questionType === "reading" ? "ja-JP" : "en-US",
           interimResults: true,
-          continuous: false,
+          continuous: true,
           maxAlternatives: 5,
           contextualStrings: getVoiceContextualStrings(),
           addsPunctuation: false,
-          iosTaskHint: questionType === "reading" ? "confirmation" : "search",
-          requiresOnDeviceRecognition: useOnDeviceRecognition,
+          iosTaskHint: questionType === "reading" ? "confirmation" as const : "search" as const,
+          // Let iOS select the recognizer; cloud use is permitted, not guaranteed. The default
+          // locale support probe cannot tell us whether Japanese is on-device.
+          requiresOnDeviceRecognition: false,
+          volumeChangeEventOptions: { enabled: true, intervalMillis: 50 },
+        };
+        capture.debugId = startVoiceTrace({
+          subject: subject.data.characters || String(subject.id),
+          locale: options.lang,
+          requiresOnDeviceRecognition: options.requiresOnDeviceRecognition,
+          taskHint: options.iosTaskHint,
+          contextualStrings: options.contextualStrings,
         });
+        nativeVoiceDebugIdRef.current = capture.debugId;
+        ExpoSpeechRecognitionModule.start(options);
       } catch (error) {
         voiceCaptureRef.current = null;
         nativeVoiceStateRef.current = "inactive";
+        updateVoiceTrace(capture.debugId, { phase: "Failed", error: String(error) });
         console.error("Error starting speech recognition:", error);
+        setVoiceSessionEnabled(false);
         setVoiceError("Failed to start voice recognition.");
       }
     };
@@ -2161,10 +2056,33 @@ export default function ReviewQuestionScreen({
   };
 
   const stopVoiceRecognition = useCallback(() => {
+    setVoiceSessionEnabled(false);
     cancelVoiceRecognition();
     setIsVoiceRecognizing(false);
     setVoiceInterimTranscript("");
   }, [cancelVoiceRecognition]);
+
+  const finishVoiceUtterance = (capture: VoiceCapture) => {
+    if (voiceCaptureRef.current !== capture || capture.phase !== "listening") return;
+    clearVoiceSettleTimer();
+    clearVoiceEndpointTimer();
+    capture.phase = "finalizing";
+    updateVoiceTrace(capture.debugId, { phase: "Finalizing audio" });
+    setIsVoiceFinalizing(true);
+    try {
+      nativeVoiceStateRef.current = "stopping";
+      // stop() ends audio and requests the final short utterance; abort() loses it.
+      ExpoSpeechRecognitionModule.stop();
+    } catch {
+      stopVoiceRecognition();
+      setVoiceError("Unable to finish recognition. Please try again.");
+    }
+  };
+
+  const scheduleVoiceUtteranceEnd = (capture: VoiceCapture) => {
+    clearVoiceEndpointTimer();
+    voiceEndpointTimerRef.current = setTimeout(() => finishVoiceUtterance(capture), capture.silenceMs ?? VOICE_UTTERANCE_SILENCE_MS);
+  };
 
   const clearVoiceCapturedInput = () => {
     userAnswerRef.current = "";
@@ -2187,12 +2105,16 @@ export default function ReviewQuestionScreen({
       !mountedRef.current ||
       !capture ||
       capture.questionKey !== currentQuestionKey ||
-      capture.phase !== "listening"
+      (capture.phase !== "listening" && capture.phase !== "finalizing")
     ) {
       return;
     }
 
+    clearVoiceSettleTimer();
+    clearVoiceEndpointTimer();
+    setIsVoiceFinalizing(false);
     capture.phase = "submitting";
+    updateVoiceTrace(capture.debugId, { phase: "Answer selected", selectedAnswer: detectedAnswer });
     isVoiceRetryPendingRef.current = false;
     setVoiceError(null);
     setVoiceInterimTranscript(
@@ -2202,7 +2124,7 @@ export default function ReviewQuestionScreen({
     userAnswerRef.current = detectedAnswer;
     kanaInputRef.current?.setInputText?.(detectedAnswer);
 
-    if (shouldStopRecognition) {
+    if (shouldStopRecognition && nativeVoiceStateRef.current === "active") {
       try {
         nativeVoiceStateRef.current = "stopping";
         ExpoSpeechRecognitionModule.stop();
@@ -2223,6 +2145,7 @@ export default function ReviewQuestionScreen({
 
     if (voiceCaptureRef.current === capture) {
       voiceCaptureRef.current = null;
+      setVoiceRestartNonce((value) => value + 1);
     }
   };
 
@@ -2233,30 +2156,6 @@ export default function ReviewQuestionScreen({
 
     clearVoiceCapturedInput();
     cancelVoiceRecognition(true);
-  };
-
-  const handleStopAndSubmitVoice = () => {
-    const selected = selectBestVoiceCandidate(latestVoiceResultsRef.current);
-    const bestCandidate = pickHigherScoringVoiceCandidate(
-      selected,
-      voiceInterimTranscript,
-    );
-    const answerToSubmit = bestCandidate.answer;
-
-    if (!answerToSubmit) {
-      void stopVoiceRecognition();
-      setVoiceError("No speech detected. Please try again.");
-      return;
-    }
-
-    if (shouldRetryVoiceReadingFromScriptMismatch(bestCandidate)) {
-      void stopVoiceRecognition();
-      setVoiceInterimTranscript("");
-      setVoiceError(VOICE_READING_SCRIPT_MISMATCH_ERROR);
-      return;
-    }
-
-    void submitDetectedVoiceAnswer(answerToSubmit, true);
   };
 
   useEffect(() => {
@@ -2733,6 +2632,7 @@ export default function ReviewQuestionScreen({
     );
     if (audioFiles.length === 0) return;
 
+    setVoiceAudioPlaying(true);
     const requestId = ++vocabularyAudioRequestIdRef.current;
     finalizeCurrentVocabularyAudio();
 
@@ -2796,8 +2696,9 @@ export default function ReviewQuestionScreen({
       }
     }
 
-    if (showReplayLoading && mountedRef.current) {
-      setIsReplayingAudio(false);
+    if (mountedRef.current && requestId === vocabularyAudioRequestIdRef.current) {
+      setVoiceAudioPlaying(false);
+      if (showReplayLoading) setIsReplayingAudio(false);
     }
   };
 
@@ -3135,13 +3036,45 @@ export default function ReviewQuestionScreen({
   };
 
   const handleVoiceAnswerButton = () => {
-    if (isVoiceRecognizing) {
-      handleStopAndSubmitVoice();
+    if (voiceSessionEnabled || voiceCaptureRef.current) {
+      stopVoiceRecognition();
       return;
     }
-
     void startVoiceRecognition();
   };
+
+  const startVoiceRecognitionRef = useRef(startVoiceRecognition);
+  startVoiceRecognitionRef.current = startVoiceRecognition;
+  const canResumeVoice = isVoiceReviewEnabled && isScreenFocused &&
+    !navigatingToDetail && !answered && !isPausedOnWrong &&
+    !isPausedOnCloseAnswer && !isPausedOnCorrect && !effectiveAnkiCardMode &&
+    !usesMultipleChoice && !voiceAudioPlaying && !studyMaterialNoteModalVisible &&
+    !noteSubjectPreviewOpen;
+
+  useEffect(() => {
+    if (!isScreenFocused || navigatingToDetail) {
+      stopVoiceRecognition();
+      return;
+    }
+    if (!canResumeVoice) {
+      cancelVoiceRecognition();
+      setIsVoiceRecognizing(false);
+      return;
+    }
+    if (!voiceSessionEnabled || voiceCaptureRef.current) return;
+    // Leave native cancellation and pronunciation playback time to settle.
+    const timer = setTimeout(() => void startVoiceRecognitionRef.current(), 300);
+    return () => clearTimeout(timer);
+  }, [canResumeVoice, isScreenFocused, navigatingToDetail, voiceSessionEnabled,
+    currentQuestionKey, voiceRestartNonce, isVoiceRecognizing,
+    cancelVoiceRecognition, stopVoiceRecognition]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") stopVoiceRecognition();
+    });
+    return () => subscription.remove();
+  }, [stopVoiceRecognition]);
 
   useSpeechRecognitionEvent("start", () => {
     const capture = voiceCaptureRef.current;
@@ -3150,6 +3083,10 @@ export default function ReviewQuestionScreen({
     }
 
     capture.phase = "listening";
+    updateVoiceTrace(capture.debugId, { phase: "Listening" });
+    voiceInputLevel.value = 0;
+    setIsVoiceFinalizing(false);
+    setVoiceSessionEnabled(true);
     setIsVoiceRecognizing(true);
     setVoiceInterimTranscript("");
     setVoiceError(null);
@@ -3157,14 +3094,21 @@ export default function ReviewQuestionScreen({
   });
 
   useSpeechRecognitionEvent("end", () => {
+    updateVoiceTrace(nativeVoiceDebugIdRef.current, { phase: "Ended" });
+    nativeVoiceDebugIdRef.current = undefined;
     nativeVoiceStateRef.current = "inactive";
+    pendingVoiceAnswerRef.current?.(true);
+    clearVoiceSettleTimer();
+    clearVoiceEndpointTimer();
+    setIsVoiceFinalizing(false);
     const capture = voiceCaptureRef.current;
-    if (capture?.phase === "starting" || capture?.phase === "listening") {
+    setVoiceRestartNonce((value) => value + 1);
+    if (capture?.phase === "starting" || capture?.phase === "listening" || capture?.phase === "finalizing") {
       voiceCaptureRef.current = null;
     }
 
     setIsVoiceRecognizing(false);
-    // A result accepted before end still owns its 750 ms confirmation delay.
+    // A result accepted before end still owns its brief confirmation delay.
     if (capture?.phase !== "submitting") {
       setVoiceInterimTranscript("");
     }
@@ -3179,6 +3123,14 @@ export default function ReviewQuestionScreen({
     }
   });
 
+  useSpeechRecognitionEvent("volumechange", ({ value }) => {
+    const capture = voiceCaptureRef.current;
+    if (!Number.isFinite(value) || !isVoiceReviewEnabled || capture?.phase !== "listening" ||
+      capture.questionKey !== currentQuestionKey) return;
+    voiceInputLevel.value = withTiming(Math.max(0, Math.min(1, (value + 2) / 10)), { duration: 90 });
+    if (questionType === "reading" && capture.activity.record(value)) scheduleVoiceUtteranceEnd(capture);
+  });
+
   useSpeechRecognitionEvent("result", (event) => {
     if (!isVoiceReviewEnabled || !event.results?.length) {
       return;
@@ -3188,7 +3140,7 @@ export default function ReviewQuestionScreen({
     if (
       !capture ||
       capture.questionKey !== currentQuestionKey ||
-      capture.phase !== "listening"
+      (capture.phase !== "listening" && capture.phase !== "finalizing")
     ) {
       return;
     }
@@ -3204,50 +3156,72 @@ export default function ReviewQuestionScreen({
     }
 
     latestVoiceResultsRef.current = event.results.map((result) => ({
-      transcript: result.transcript,
+      transcript: questionType === "reading"
+        ? latestJapaneseUtterance(result.transcript, result.segments)
+        : result.transcript,
       confidence: result.confidence ?? -1,
     }));
     const selected = selectBestVoiceCandidate(latestVoiceResultsRef.current);
+    if (canInspectVoice) {
+      updateVoiceTrace(capture.debugId, {
+        phase: event.isFinal ? "Final result" : "Partial result",
+        final: event.isFinal,
+        alternatives: event.results.map((result, index) => ({
+          transcript: result.transcript,
+          reading: normalizeVoiceTranscript(latestVoiceResultsRef.current[index]?.transcript ?? ""),
+          confidence: result.confidence ?? -1,
+        })),
+        selectedAnswer: selected.answer,
+      });
+    }
 
-    if (selected.answer && selected.score >= 3) {
-      void submitDetectedVoiceAnswer(selected.answer, true, 750);
+    clearVoiceSettleTimer();
+    // Always show what iOS heard, even before a kana reading is available.
+    const interim = selectMostProbableVoiceKana(latestVoiceResultsRef.current) ||
+      event.results[0].transcript;
+    setVoiceInterimTranscript(interim);
+    setVoiceError(null);
+
+    if (questionType === "reading" && !event.isFinal) {
+      // A stable partial like "4" can still become "式" on finalization. Even
+      // correct partials must wait for the rest of the spoken reading.
+      capture.silenceMs = selected.score >= 3 ? 250 : 1800;
+      if (capture.phase === "listening") scheduleVoiceUtteranceEnd(capture);
       return;
     }
 
-    if (!event.isFinal) {
-      const interimKana = selectMostProbableVoiceKana(
-        latestVoiceResultsRef.current,
-      );
-      const interim =
-        interimKana ||
-        (selected.answer && !KANJI_CHARACTER_REGEX.test(selected.answer)
-          ? selected.answer
-          : "");
-      setVoiceInterimTranscript(interim);
+    if (shouldRetryVoiceReadingFromScriptMismatch(selected)) {
+      const showReadingError = () => {
+        if (voiceCaptureRef.current !== capture) return;
+        clearVoiceSettleTimer();
+        setVoiceError(VOICE_READING_SCRIPT_MISMATCH_ERROR);
+      };
+      if (event.isFinal) {
+        showReadingError();
+        if (capture.phase === "listening") finishVoiceUtterance(capture);
+      }
+      else voiceSettleTimerRef.current = setTimeout(showReadingError, 1800);
+      return;
+    }
+    if (!selected.answer) return;
+
+    if (event.isFinal) {
+      void submitDetectedVoiceAnswer(selected.answer, true, selected.score >= 3 ? 120 : 0);
       return;
     }
 
-    const bestCandidate = pickHigherScoringVoiceCandidate(
-      selected,
-      voiceInterimTranscript,
-    );
-
-    if (shouldRetryVoiceReadingFromScriptMismatch(bestCandidate)) {
-      setVoiceError(VOICE_READING_SCRIPT_MISMATCH_ERROR);
-      setVoiceInterimTranscript("");
-      return;
-    }
-
-    if (!bestCandidate.answer) {
-      setVoiceError("No speech detected. Please try again.");
-      setVoiceInterimTranscript("");
-      return;
-    }
-
-    void submitDetectedVoiceAnswer(bestCandidate.answer, false);
+    // There is no timer until speech arrives. Each revision replaces the pending
+    // answer, so an early partial match cannot truncate a longer spoken answer.
+    const settle = (ended: boolean) => {
+      if (voiceCaptureRef.current !== capture) return;
+      void submitDetectedVoiceAnswer(selected.answer, !ended, ended && selected.score >= 3 ? 120 : 0);
+    };
+    pendingVoiceAnswerRef.current = settle;
+    voiceSettleTimerRef.current = setTimeout(() => settle(false), selected.score >= 3 ? 250 : 1800);
   });
 
   useSpeechRecognitionEvent("error", (event) => {
+    updateVoiceTrace(nativeVoiceDebugIdRef.current, { phase: "Error", error: `${event.error}: ${event.message || ""}` });
     const capture = voiceCaptureRef.current;
     if (
       !isVoiceReviewEnabled ||
@@ -3259,15 +3233,19 @@ export default function ReviewQuestionScreen({
       return;
     }
 
+    clearVoiceSettleTimer();
+    clearVoiceEndpointTimer();
+    setIsVoiceFinalizing(false);
     voiceCaptureRef.current = null;
     setIsVoiceRecognizing(false);
+    // Silence is normal while recalling an answer. Native end will restart us.
+    if (event.error === "no-speech" || event.error === "speech-timeout") return;
+    setVoiceSessionEnabled(false);
     setVoiceInterimTranscript("");
 
     let message = "Speech recognition failed. Please try again.";
     if (event.error === "not-allowed") {
       message = "Microphone permission denied. Enable it in Settings.";
-    } else if (event.error === "no-speech" || event.error === "speech-timeout") {
-      message = "No speech detected. Please try again.";
     } else if (event.message) {
       message = event.message;
     }
@@ -7030,11 +7008,13 @@ export default function ReviewQuestionScreen({
                           styles.voiceButtonInside,
                           isVoiceRecognizing ? styles.voiceButtonActive : null,
                         ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={voiceSessionEnabled ? "Stop voice answers" : "Start voice answers"}
                         onPress={handleVoiceAnswerButton}
                         disabled={navigatingToDetail || isPausedOnAnswer || answered}
                       >
                         <Ionicons
-                          name={isVoiceRecognizing ? "stop" : "mic"}
+                          name={voiceSessionEnabled ? "stop" : "mic"}
                           size={20}
                           color="#fff"
                         />
@@ -7109,30 +7089,17 @@ export default function ReviewQuestionScreen({
 
               {isVoiceReviewEnabled &&
                 (isVoiceRecognizing || voiceError || voiceInterimTranscript) && (
-                  <View
-                    style={[
-                      styles.voiceStatusContainer,
-                      isVoiceRecognizing || (!voiceError && !!voiceInterimTranscript)
-                        ? styles.voiceStatusListening
-                        : styles.voiceStatusError,
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        isVoiceRecognizing || (!voiceError && !!voiceInterimTranscript)
-                          ? "radio"
-                          : "warning-outline"
-                      }
-                      size={14}
-                      color="white"
-                    />
-                    <Text style={styles.voiceStatusText} numberOfLines={2}>
-                      {isVoiceRecognizing
-                        ? voiceInterimTranscript || "Listening..."
-                        : voiceError || voiceInterimTranscript || "Voice recognition stopped."}
-                    </Text>
-                  </View>
+                  <VoiceAnswerStatus
+                    listening={isVoiceRecognizing}
+                    finalizing={isVoiceFinalizing}
+                    transcript={voiceInterimTranscript}
+                    error={voiceError}
+                    level={voiceInputLevel}
+                  />
                 )}
+              {isVoiceReviewEnabled && canInspectVoice && (
+                <VoiceRecognitionDebug traces={voiceDebugTraces} onClear={clearVoiceTraces} />
+              )}
             </Animated.View>
 
             {/* Retry feedback shown when user submits a retryable answer */}
@@ -7771,26 +7738,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 10,
   },
-  voiceStatusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 8,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  voiceStatusListening: {
-    backgroundColor: "rgba(25, 118, 210, 0.9)",
-  },
-  voiceStatusError: {
-    backgroundColor: "rgba(244, 67, 54, 0.9)",
-  },
-  voiceStatusText: {
-    flex: 1,
-    marginLeft: 6,
-    color: "white",
-    fontSize: 13,
-  },
+
   retryFeedbackText: {
     fontSize: 14,
     color: "white",
