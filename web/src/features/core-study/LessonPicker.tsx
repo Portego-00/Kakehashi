@@ -12,7 +12,7 @@ const labels = { radical: "Radicals", kanji: "Kanji", vocabulary: "Vocabulary" }
 function typeOf(subject: Subject) { return subject.object === "kana_vocabulary" ? "vocabulary" : subject.object; }
 function meaningOf(subject: Subject) { return subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? subject.data.slug; }
 
-export function LessonPicker({ subjects, limit, onStart }: { subjects: Subject[]; limit: number; onStart: (ids: number[]) => void }) {
+export function LessonPicker({ subjects, limit, batchSize = 5, onStart }: { subjects: Subject[]; limit: number; batchSize?: number; onStart: (ids: number[]) => void }) {
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
@@ -63,6 +63,6 @@ export function LessonPicker({ subjects, limit, onStart }: { subjects: Subject[]
         })}
       </section>;
     })}
-    <footer className={styles.footer}><span aria-live="polite">{Number.isFinite(limit) ? `${Math.min(selectedIds.length, limit)} / ${limit} lessons remaining today selected` : `${selectedIds.length} lessons selected`}</span><Button tone="primary" disabled={!selectedIds.length || selectedIds.length > limit} onClick={() => onStart(selectedIds)}>Start {selectedIds.length || ""} {selectedIds.length === 1 ? "lesson" : "lessons"}</Button></footer>
+    <footer className={styles.footer}><span aria-live="polite">{Number.isFinite(limit) ? `${Math.min(selectedIds.length, limit)} / ${limit} lessons remaining today selected` : `${selectedIds.length} lessons selected`}{selectedIds.length > batchSize ? ` · ${batchSize} per batch` : ""}</span><Button tone="primary" disabled={!selectedIds.length || selectedIds.length > limit} onClick={() => onStart(selectedIds)}>Start {selectedIds.length || ""} {selectedIds.length === 1 ? "lesson" : "lessons"}</Button></footer>
   </div>;
 }

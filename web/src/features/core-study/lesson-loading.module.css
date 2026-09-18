@@ -1,0 +1,9 @@
+.lines { display: grid; gap: var(--space-sm); }
+.cards { margin-top: var(--space-sm); }
+.card { display: grid; align-content: start; gap: var(--space-sm); min-height: 8rem; padding: var(--space-sm); border: 2px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); }
+.hero { grid-template-rows: auto minmax(0, 1fr); background: var(--color-paper-2); }
+.heroCopy { display: grid; justify-items: center; gap: var(--space-md); margin: auto; padding: var(--space-lg); }
+.details { display: grid; gap: var(--space-xl); width: min(100%, var(--content-max)); margin-inline: auto; padding: var(--space-lg) var(--page-gutter) calc(5.25rem + env(safe-area-inset-bottom)); }
+.tabs { display: flex; justify-content: space-between; gap: var(--space-sm); }
+
+.batch { display: flex; justify-content: center; gap: var(--space-sm); }

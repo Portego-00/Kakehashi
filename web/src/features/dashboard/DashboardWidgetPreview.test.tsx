@@ -157,12 +157,18 @@ describe("dashboard widget previews", () => {
     expect(reducedMotionRules).toContain(".incompleteRingProgress { transition: none; }");
   });
 
-  it("offers lesson picking while reviews remain coming soon", () => {
+  it("keeps both study queues coming soon without access", () => {
     render(<><StudyQueueCard type="lesson" count={12} /><StudyQueueCard type="review" count={34} /></>);
+    expect(screen.getAllByRole("button", { name: "Coming soon" })).toHaveLength(2);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("offers both study queues when access is enabled", () => {
+    render(<><StudyQueueCard available type="lesson" count={12} /><StudyQueueCard available type="review" count={34} /></>);
     const lessons = screen.getByRole("article", { name: "Lessons study queue" });
     expect(within(lessons).getByRole("link", { name: "Pick lessons" })).toHaveAttribute("href", "/lesson-picker");
     expect(within(lessons).getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/lessons");
-    expect(within(screen.getByRole("article", { name: "Reviews study queue, coming soon" })).getByRole("button", { name: "Coming soon" })).toBeDisabled();
+    expect(within(screen.getByRole("article", { name: "Reviews study queue" })).getByRole("link", { name: "Start reviews" })).toHaveAttribute("href", "/reviews");
   });
 
   it("uses the mobile empty-state artwork while a queue is clear", () => {

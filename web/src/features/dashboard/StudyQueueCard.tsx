@@ -8,6 +8,7 @@ type StudyQueueCardProps = {
   loading?: boolean;
   preview?: boolean;
   demo?: boolean;
+  available?: boolean;
 };
 
 const QUEUE_ART = {
@@ -21,23 +22,24 @@ const QUEUE_ART = {
   },
 } as const;
 
-export function StudyQueueCard({ type, count = 0, loading = false, preview = false, demo = false }: StudyQueueCardProps) {
+export function StudyQueueCard({ type, count = 0, loading = false, preview = false, demo = false, available = false }: StudyQueueCardProps) {
+  const enabled = demo || available;
   const lessons = type === "lesson";
   const displayCount = Math.max(0, count);
   const ready = preview || loading || displayCount > 0;
   const title = lessons ? "Lessons" : "Reviews";
   const subtitle = demo ? "Practice with sample progress saved in this browser." : lessons
     ? "Choose what you want to learn next."
-    : "Main reviews are coming to the web app.";
+    : enabled ? "Review your available WaniKani items." : "Main reviews are coming to the web app.";
   const art = QUEUE_ART[type][ready ? "ready" : "empty"];
 
   return (
     <article
       className={styles.queueRow}
       data-kind={type}
-      data-state={demo ? "demo" : lessons ? "ready" : "coming-soon"}
+      data-state={demo ? "demo" : enabled ? "ready" : "coming-soon"}
       aria-busy={loading || undefined}
-      aria-label={`${title} study queue${demo ? ", demo" : lessons ? "" : ", coming soon"}`}
+      aria-label={`${title} study queue${demo ? ", demo" : enabled ? "" : ", coming soon"}`}
     >
       <Image
         className={styles.queueArtwork}
@@ -61,7 +63,7 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
         <p className={styles.queueSubtitle}>{subtitle}</p>
 
         <div className={styles.queueBottom}>
-          {lessons && !preview ? <><Link className={styles.queueAction} href="/lessons">{demo ? "Try lessons" : "Start lessons"}</Link><Link className={styles.queueAction} href="/lesson-picker">Pick lessons</Link></> : demo && !preview ? <Link className={styles.queueAction} href={lessons ? "/lessons" : "/reviews"}>{lessons ? "Try lessons" : "Try reviews"}</Link> : preview
+          {enabled && lessons && !preview ? <><Link className={styles.queueAction} href="/lessons">{demo ? "Try lessons" : "Start lessons"}</Link><Link className={styles.queueAction} href="/lesson-picker">Pick lessons</Link></> : enabled && !preview ? <Link className={styles.queueAction} href={lessons ? "/lessons" : "/reviews"}>{demo ? "Try reviews" : "Start reviews"}</Link> : preview
             ? <span className={styles.queueAction} aria-disabled="true">Coming soon</span>
             : <button className={styles.queueAction} type="button" disabled>Coming soon</button>}
         </div>

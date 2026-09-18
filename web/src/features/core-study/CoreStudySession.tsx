@@ -22,6 +22,8 @@ import { WaniKaniApiError, wkCollection, wkRequest } from "@/lib/wanikani/client
 import { userQuery, wkKeys } from "@/lib/wanikani/queries";
 import type { Assignment, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
+import { LESSON_SESSION_MAX_AGE, loadPickedLessons, pickedLessonBatch, savePickedLessons } from "./picked-lessons";
+import { LessonLoading } from "./LessonLoading";
 import { LessonPicker } from "./LessonPicker";
 import { LessonTeaching } from "./LessonTeaching";
 import { CoreStudyResults } from "./CoreStudyResults";
@@ -80,12 +82,12 @@ function loadLessonTeachingSession(storage: Storage, username: string) {
     const raw = storage.getItem(lessonTeachingSessionKey(username));
     const parsed = raw ? JSON.parse(raw) as Partial<LessonTeachingSnapshot> : null;
     const subjectIds = parsed?.subjectIds;
-    const age = parsed?.savedAt ? Date.now() - new Date(parsed.savedAt).getTime() : 0;
+    const age = parsed?.savedAt ? Date.now() - new Date(parsed.savedAt).getTime() : Infinity;
     const validIds = Array.isArray(subjectIds)
       && subjectIds.length > 0
       && subjectIds.every((id) => Number.isInteger(id) && id > 0)
       && new Set(subjectIds).size === subjectIds.length;
-    if (!validIds || !Number.isInteger(parsed?.index) || parsed!.index! < 0 || parsed!.index! >= subjectIds.length || !lessonTeachingTabs.has(parsed?.tab as SubjectDetailTab) || age > SESSION_MAX_AGE) {
+    if (!validIds || !Number.isInteger(parsed?.index) || parsed!.index! < 0 || parsed!.index! >= subjectIds.length || !lessonTeachingTabs.has(parsed?.tab as SubjectDetailTab) || !Number.isFinite(age) || age < 0 || age > LESSON_SESSION_MAX_AGE) {
       if (raw) clearLessonTeachingSession(storage, username);
       return null;
     }
@@ -152,6 +154,7 @@ function formatFailure(cause: unknown, fallback: string) {
 }
 
 export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pickLessons?: boolean }) {
+  const [pickedLessonIds, setPickedLessonIds] = useState<number[] | null>(null);
   const [pickingLessons, setPickingLessons] = useState(pickLessons && mode === "lessons");
   const queryClient = useQueryClient();
   const { user } = useSession();
@@ -227,19 +230,34 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
   useEffect(() => {
     if (mode !== "lessons") return;
     const timer = window.setTimeout(() => {
-      const snapshot = pickLessons ? null : loadLessonTeachingSession(window.localStorage, username);
+      let snapshot = pickLessons ? null : loadLessonTeachingSession(window.localStorage, username);
+      let picked = pickLessons ? null : loadPickedLessons(window.localStorage, username);
+      const startedToday = lessonsStartedToday(window.localStorage, username);
+      const remaining = preferences.dailyLessonLimit > 0 ? Math.max(0, preferences.dailyLessonLimit - startedToday) : Infinity;
+      const limit = Math.min(preferences.lessonsBatchSize, remaining);
+      if (snapshot && snapshot.subjectIds.length > limit) {
+        picked = [...new Set([...snapshot.subjectIds, ...(picked ?? [])])];
+        savePickedLessons(window.localStorage, username, picked);
+        const ids = snapshot.subjectIds.slice(0, limit);
+        snapshot = ids.length ? { ...snapshot, subjectIds: ids, index: snapshot.index < ids.length ? snapshot.index : 0 } : null;
+        if (snapshot) {
+          try { window.localStorage.setItem(lessonTeachingSessionKey(username), JSON.stringify(snapshot)); } catch { /* Continue in memory. */ }
+        } else clearLessonTeachingSession(window.localStorage, username);
+      }
       setLessonTeachingSnapshot(snapshot);
+      setPickedLessonIds(picked);
       setLessonBatchIds(snapshot?.subjectIds ?? null);
       setLessonBatchStorageReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [mode, username, pickLessons]);
+  }, [mode, username, pickLessons, preferences.lessonsBatchSize, preferences.dailyLessonLimit]);
 
   const assignmentQuery = useQuery({
     queryKey: ["core-study", mode, "assignments"],
     queryFn: () => wkCollection<Assignment>(mode === "reviews" ? "assignments?immediately_available_for_review=true" : "assignments?immediately_available_for_lessons=true"),
     enabled: currentUserQuery.isSuccess && !isOnVacation,
-    staleTime: 30_000,
+    staleTime: mode === "lessons" ? 0 : 30_000,
+    refetchOnMount: mode === "lessons" ? "always" : true,
   });
   const available = useMemo(() => mode === "reviews" ? reviewAssignments(assignmentQuery.data || []) : lessonAssignments(assignmentQuery.data || []), [assignmentQuery.data, mode]);
   const candidateAssignments = available;
@@ -261,8 +279,14 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
   const dailyRemaining = preferences.dailyLessonLimit > 0 ? Math.max(0, preferences.dailyLessonLimit - lessonStartsToday) : Number.POSITIVE_INFINITY;
   const assignmentLimit = mode === "lessons" ? Math.min(preferences.lessonsBatchSize, dailyRemaining) : preferences.reviewBatchSize;
   const plannedAssignments = useMemo(
-    () => selectCoreAssignments(candidateAssignments, subjects, mode, preferences, assignmentLimit, { userLevel: liveUser?.data.level ?? 1 }),
-    [assignmentLimit, candidateAssignments, liveUser?.data.level, mode, preferences, subjects],
+    () => {
+      if (mode === "lessons" && pickedLessonIds) {
+        const bySubject = new Map(candidateAssignments.map((assignment) => [assignment.data.subject_id, assignment]));
+        return pickedLessonBatch(pickedLessonIds, candidateIds, preferences.lessonsBatchSize, dailyRemaining).map((id) => bySubject.get(id)!);
+      }
+      return selectCoreAssignments(candidateAssignments, subjects, mode, preferences, assignmentLimit, { userLevel: liveUser?.data.level ?? 1 });
+    },
+    [assignmentLimit, candidateAssignments, candidateIds, dailyRemaining, pickedLessonIds, liveUser?.data.level, mode, preferences, subjects],
   );
   const lessonAssignmentBySubjectId = useMemo(() => new Map(
     [...candidateAssignments, ...(restoredAssignmentsQuery.data ?? [])].map((assignment) => [assignment.data.subject_id, assignment]),
@@ -356,8 +380,8 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
       try {
         const raw = window.localStorage.getItem(coreSessionKey(username, mode));
         const parsed = raw ? JSON.parse(raw) as Partial<SessionSnapshot> : null;
-        const age = parsed?.savedAt ? Date.now() - new Date(parsed.savedAt).getTime() : 0;
-        if (parsed && Array.isArray(parsed.questionIds) && parsed.completed && parsed.errors && Array.isArray(parsed.submittedIds) && age <= SESSION_MAX_AGE) restored = parsed as SessionSnapshot;
+        const age = parsed?.savedAt ? Date.now() - new Date(parsed.savedAt).getTime() : Infinity;
+        if (parsed && Array.isArray(parsed.questionIds) && parsed.completed && parsed.errors && Array.isArray(parsed.submittedIds) && Number.isFinite(age) && age >= 0 && age <= (mode === "lessons" ? LESSON_SESSION_MAX_AGE : SESSION_MAX_AGE)) restored = parsed as SessionSnapshot;
       } catch { window.localStorage.removeItem(coreSessionKey(username, mode)); }
 
       const byId = new Map(queue.map((question) => [question.id, question]));
@@ -532,6 +556,13 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
     },
     onSuccess: (_, assignmentId) => {
       recordLessonStarted(window.localStorage, username, assignmentId);
+      setLessonStartsToday(lessonsStartedToday(window.localStorage, username));
+      if (pickedLessonIds) {
+        const subjectId = selectedAssignments.find((assignment) => assignment.id === assignmentId)?.data.subject_id;
+        const remaining = pickedLessonIds.filter((id) => id !== subjectId);
+        savePickedLessons(window.localStorage, username, remaining);
+        setPickedLessonIds(remaining);
+      }
     },
     retry: 0,
   });
@@ -792,6 +823,34 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
     setPhase("quiz");
   }
 
+  function startLessonsOver() {
+    if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
+    advancingQuestionRef.current = false;
+    setAdvancingQuestion(false);
+    clearLessonTeachingSession(window.localStorage, username);
+    savePickedLessons(window.localStorage, username, []);
+    try { window.localStorage.removeItem(coreSessionKey(username, "lessons")); } catch { /* Continue in memory. */ }
+    initializedSessionKeyRef.current = "";
+    setLessonTeachingSnapshot(null);
+    setLessonBatchIds(null);
+    setPickedLessonIds(null);
+    setResumeSnapshot(null);
+    setQuestions([]);
+    setCompleted({});
+    setErrors({});
+    setSubmittedIds([]);
+    setResultItems([]);
+    setFeedback(null);
+    setLessonIndex(0);
+    setLessonTab("meaning");
+    setSessionError("");
+    setPickingLessons(true);
+    setPhase("loading");
+    void assignmentQuery.refetch();
+    window.history.replaceState(null, "", "/lesson-picker");
+    window.scrollTo({ top: 0 });
+  }
+
   function restartSession() {
     window.localStorage.removeItem(coreSessionKey(username, mode));
     let queue = makeQueue();
@@ -838,7 +897,7 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
 
   if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
   if (currentUserQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Study availability could not be checked</h1><p className={styles.error} role="alert">Kakehashi could not confirm whether Vacation Mode is active. No lesson or review session has been started.</p><div className="cluster"><Button onClick={() => void currentUserQuery.refetch()}>Try Again</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></div></div>;
-  if (currentUserQuery.isLoading) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><LoadingState compact label="Checking Vacation Mode" detail="No study session starts until your current account state is confirmed." /></div></div>;
+  if (currentUserQuery.isLoading) return mode === "lessons" ? <LessonLoading picking={pickingLessons} /> : <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><LoadingState compact label="Checking Vacation Mode" detail="No study session starts until your current account state is confirmed." /></div></div>;
   if (assignmentQuery.error || subjectsQuery.error || (restoredAssignmentsQuery.error && !lessonBatchResolved)) return <div className={styles.stage}><div className={styles.loading}><h1>{mode === "lessons" ? "Lessons" : "Reviews"} could not load</h1><p className={styles.error} role="alert">{formatFailure(assignmentQuery.error || subjectsQuery.error || restoredAssignmentsQuery.error, "Refresh when the connection is available.")}</p><Button onClick={() => {
     if (assignmentQuery.error) void assignmentQuery.refetch();
     if (subjectsQuery.error) void subjectsQuery.refetch();
@@ -847,19 +906,24 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
   if (pickingLessons && assignmentQuery.isSuccess && subjectsQuery.isSuccess && lessonBatchStorageReady) return <LessonPicker
     subjects={subjects.filter((subject) => candidateIds.includes(subject.id))}
     limit={dailyRemaining}
+    batchSize={preferences.lessonsBatchSize}
     onStart={(subjectIds) => {
       const availableIds = new Set(candidateIds);
       const ids = subjectIds.filter((id) => availableIds.has(id)).slice(0, dailyRemaining);
       if (!ids.length) return;
-      const snapshot: LessonTeachingSnapshot = { savedAt: new Date().toISOString(), subjectIds: ids, index: 0, tab: "meaning" };
+      const batchIds = pickedLessonBatch(ids, candidateIds, preferences.lessonsBatchSize, dailyRemaining);
+      savePickedLessons(window.localStorage, username, ids);
+      setPickedLessonIds(ids);
+      const snapshot: LessonTeachingSnapshot = { savedAt: new Date().toISOString(), subjectIds: batchIds, index: 0, tab: "meaning" };
       try { window.localStorage.setItem(lessonTeachingSessionKey(username), JSON.stringify(snapshot)); } catch { /* Continue in memory when storage is unavailable. */ }
       setLessonTeachingSnapshot(snapshot);
-      setLessonBatchIds(ids);
+      setLessonBatchIds(batchIds);
       setPickingLessons(false);
+      window.history.replaceState(null, "", "/lessons");
     }}
   />;
   if (materialsQuery.error || answerContextQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
-  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
+  if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return mode === "lessons" ? <LessonLoading picking={pickingLessons} /> : <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
 
   if (phase === "resume" && resumeSnapshot) {
     const age = resumeSnapshot.savedAt ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-Math.max(1, Math.round((displayNow - new Date(resumeSnapshot.savedAt).getTime()) / 60_000)), "minute") : "earlier";
@@ -879,6 +943,7 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
       activeTab={lessonTab}
       onCurrentIndexChange={setLessonIndex}
       onActiveTabChange={setLessonTab}
+      onStartOver={startLessonsOver}
       onStartReview={() => {
         setLessonTab("meaning");
         setPhase("quiz");
@@ -892,7 +957,7 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
     const accuracy = selectedAssignments.length ? Math.round((progress / attempts) * 100) : 0;
     const minutes = Math.max(1, Math.round((displayNow - new Date(sessionStartedAt).getTime()) / 60_000));
     const dailyLimitReached = mode === "lessons" && preferences.dailyLessonLimit > 0 && dailyRemaining <= 0 && available.length > 0;
-    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => window.location.reload()}><RotateCcw size={17} />Check for More</Button> : null}</div></section></div>;
+    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => mode === "lessons" && pickedLessonIds?.length ? restartSession() : window.location.reload()}><RotateCcw size={17} />{mode === "lessons" && pickedLessonIds?.length ? "Next batch" : "Check for More"}</Button> : null}</div></section></div>;
   }
 
   if (!current) return null;
@@ -933,7 +998,7 @@ export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pi
       <header className={styles.promptBand} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
         <div className={styles.bandHeader}>
           <div className={styles.sessionProgress}><span>{mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(totalItems, completedItems + 1)} / {totalItems}</strong></div>
-          <div className={styles.bandActions}>{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{mode === "reviews" && preferences.allowSkippingReviews && !feedback ? <Button className={styles.bandAction} tone="ghost" size="small" aria-label="Skip review" onClick={skipCurrentQuestion}><SkipForward size={15} aria-hidden />Skip</Button> : null}{mode === "reviews" && preferences.reviewSearchButtonEnabled ? <ButtonLink className={styles.bandAction} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small" aria-label="Search this item"><Search size={15} aria-hidden />Search</ButtonLink> : null}<ButtonLink className={styles.bandAction} href="/dashboard" tone="ghost" size="small">Pause</ButtonLink></div>
+          <div className={styles.bandActions}>{mode === "lessons" ? <Button className={styles.bandAction} tone="ghost" size="small" disabled={lessonMutation.isPending} onClick={startLessonsOver}>Start over</Button> : null}{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{mode === "reviews" && preferences.allowSkippingReviews && !feedback ? <Button className={styles.bandAction} tone="ghost" size="small" aria-label="Skip review" onClick={skipCurrentQuestion}><SkipForward size={15} aria-hidden />Skip</Button> : null}{mode === "reviews" && preferences.reviewSearchButtonEnabled ? <ButtonLink className={styles.bandAction} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small" aria-label="Search this item"><Search size={15} aria-hidden />Search</ButtonLink> : null}<ButtonLink className={styles.bandAction} href="/dashboard" tone="ghost" size="small">Pause</ButtonLink></div>
         </div>
         <div className={styles.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={totalItems} aria-valuenow={completedItems}><span style={{ "--study-progress": itemProgress } as React.CSSProperties} /></div>
         {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}

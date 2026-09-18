@@ -1127,6 +1127,14 @@ describe("core study prompt layout", () => {
     await waitFor(() => expect(screen.getByRole("tab", { name: "Meaning" })).toHaveFocus());
   });
 
+  it("expires an inactive lesson session instead of restoring its old subject", async () => {
+    fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
+    window.localStorage.setItem("kakehashi:core-study:study-test:lesson-teaching", JSON.stringify({ savedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(), subjectIds: [200, 202], index: 1, tab: "reading" }));
+    renderSession("lessons");
+    expect(await screen.findByRole("heading", { name: "River" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("restores the teaching subject and tab after a constellation detour", async () => {
     fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
     const firstRender = renderSession("lessons");
