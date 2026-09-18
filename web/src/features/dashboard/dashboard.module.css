@@ -48,7 +48,7 @@
 .queueCountBadge { min-width: 2.25rem; height: 2.25rem; display: inline-grid; place-items: center; padding-inline: var(--space-sm); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; font-variant-numeric: tabular-nums; }
 .queueCountLoading { width: 1.25rem; height: .375rem; border-radius: var(--radius-pill); background: var(--color-paper-3); }
 .queueSubtitle { max-width: 25ch; color: inherit; font-size: var(--text-base); line-height: 1.4; }
-.queueBottom { min-height: var(--control-height); display: flex; align-items: center; }
+.queueBottom { min-height: var(--control-height); display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; }
 .queueAction { min-height: var(--control-height); width: max-content; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2xs); padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid transparent; border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font: 650 var(--text-sm) var(--font-body); line-height: 1; white-space: nowrap; }
 .queueAction > svg { color: var(--queue-action-color); }
 .queueAction[aria-disabled="true"],

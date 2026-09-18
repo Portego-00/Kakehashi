@@ -261,9 +261,7 @@ export function SettingsWorkspace() {
   const groupedAnkiQuestions = settings.study.ankiMode === "both" && settings.study.ankiGroupQuestions;
 
   return <main className={`page ${styles.page}`}>
-    <header className="page-header"><div><h1>Settings</h1><p>Appearance and study behavior are saved locally for {username} on this browser.</p></div><div className={styles.headerActions}><span className={styles.savedStatus} role="status" aria-live="polite">{saved ? <Badge tone="success"><Check size={13} /> Saved</Badge> : null}</span>{confirmReset ? <><Button tone="danger" onClick={reset}>Confirm Reset</Button><Button tone="ghost" onClick={() => setConfirmReset(false)}>Cancel</Button></> : <Button tone="ghost" onClick={() => setConfirmReset(true)}><RotateCcw size={16} /> Reset</Button>}</div></header>
-
-    <SettingsSearch>
+    <SettingsSearch actions={<div className={styles.headerActions}><span className={styles.savedStatus} role="status" aria-live="polite">{saved ? <Badge tone="success"><Check size={13} /> Saved</Badge> : null}</span>{confirmReset ? <><Button tone="danger" onClick={reset}>Confirm Reset</Button><Button tone="ghost" onClick={() => setConfirmReset(false)}>Cancel</Button></> : <Button tone="ghost" onClick={() => setConfirmReset(true)}><RotateCcw size={16} /> Reset</Button>}</div>}>
     <section data-settings-search="" className={styles.settingsSection} aria-labelledby="profile-heading">
       <div className={styles.sectionIntro}><UserRound size={19} aria-hidden /><div><h2 id="profile-heading">Profile</h2><p>Use your Gravatar picture in the app header.</p></div></div>
       <Card padding="none" className={styles.preferenceCard}>

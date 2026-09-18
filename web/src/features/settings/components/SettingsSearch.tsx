@@ -7,7 +7,7 @@ import styles from "../settings.module.css";
 
 type Setting = { element: HTMLElement; label: string; description: string; section: string; keywords: string };
 
-export function SettingsSearch({ children }: { children: ReactNode }) {
+export function SettingsSearch({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -39,19 +39,22 @@ export function SettingsSearch({ children }: { children: ReactNode }) {
   }
 
   return <>
-    <div className={styles.settingsSearch} role="search" aria-label="Settings">
-      <label htmlFor="settings-search">Search settings</label>
+    <header className={styles.settingsHeader}>
+      <h1>Settings</h1>
+      <div className={styles.settingsSearch} role="search" aria-label="Settings">
       <div className={styles.searchInputRow}>
         <Search size={18} aria-hidden />
-        <input ref={inputRef} id="settings-search" type="search" placeholder="Search settings…" autoComplete="off" value={query} maxLength={120} onChange={(event) => search(event.target.value)} onKeyDown={(event) => {
+        <input ref={inputRef} id="settings-search" aria-label="Search settings" type="search" placeholder="Search settings…" autoComplete="off" value={query} maxLength={120} onChange={(event) => search(event.target.value)} onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === "Escape") { event.preventDefault(); setQuery(""); }
           if (event.key === "Enter" && results[0]) { event.preventDefault(); openSetting(results[0]); }
         }} />
         {query ? <button type="button" aria-label="Clear settings search" onClick={() => { setQuery(""); inputRef.current?.focus(); }}><X size={18} aria-hidden /></button> : null}
       </div>
-      <p className={styles.searchStatus} role="status">{searching ? results.length ? `${results.length} ${results.length === 1 ? "setting" : "settings"} found` : "No settings found. Try another word." : "Find a setting by name or description."}</p>
-    </div>
+      </div>
+      {actions}
+    </header>
+    <p className={styles.searchStatus} role="status">{searching ? results.length ? `${results.length} ${results.length === 1 ? "setting" : "settings"} found` : "No settings found. Try another word." : ""}</p>
     {searching && results.length ? <ul className={styles.searchResults} aria-label="Settings search results">{results.map((setting, index) => <li key={`${setting.section}:${setting.label}:${index}`}><button type="button" onClick={() => openSetting(setting)}><span className={styles.searchResultSection}>{setting.section}</span><strong>{setting.label}</strong>{setting.description ? <span>{setting.description}</span> : null}</button></li>)}</ul> : null}
     <div ref={contentRef} className={styles.searchContent} hidden={searching}>{children}</div>
   </>;

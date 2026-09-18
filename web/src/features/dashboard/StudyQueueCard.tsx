@@ -27,7 +27,7 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
   const ready = preview || loading || displayCount > 0;
   const title = lessons ? "Lessons" : "Reviews";
   const subtitle = demo ? "Practice with sample progress saved in this browser." : lessons
-    ? "Main lessons are coming to the web app."
+    ? "Choose what you want to learn next."
     : "Main reviews are coming to the web app.";
   const art = QUEUE_ART[type][ready ? "ready" : "empty"];
 
@@ -35,9 +35,9 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
     <article
       className={styles.queueRow}
       data-kind={type}
-      data-state={demo ? "demo" : "coming-soon"}
+      data-state={demo ? "demo" : lessons ? "ready" : "coming-soon"}
       aria-busy={loading || undefined}
-      aria-label={`${title} study queue${demo ? ", demo" : ", coming soon"}`}
+      aria-label={`${title} study queue${demo ? ", demo" : lessons ? "" : ", coming soon"}`}
     >
       <Image
         className={styles.queueArtwork}
@@ -61,7 +61,7 @@ export function StudyQueueCard({ type, count = 0, loading = false, preview = fal
         <p className={styles.queueSubtitle}>{subtitle}</p>
 
         <div className={styles.queueBottom}>
-          {demo && !preview ? <Link className={styles.queueAction} href={lessons ? "/lessons" : "/reviews"}>{lessons ? "Try lessons" : "Try reviews"}</Link> : preview
+          {lessons && !preview ? <><Link className={styles.queueAction} href="/lessons">{demo ? "Try lessons" : "Start lessons"}</Link><Link className={styles.queueAction} href="/lesson-picker">Pick lessons</Link></> : demo && !preview ? <Link className={styles.queueAction} href={lessons ? "/lessons" : "/reviews"}>{lessons ? "Try lessons" : "Try reviews"}</Link> : preview
             ? <span className={styles.queueAction} aria-disabled="true">Coming soon</span>
             : <button className={styles.queueAction} type="button" disabled>Coming soon</button>}
         </div>

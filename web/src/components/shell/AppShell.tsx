@@ -96,7 +96,7 @@ const destinationGroups: Array<{ title: string; links: Destination[] }> = [
   {
     title: "Study",
     links: [
-      { href: "/lessons", label: "Lessons", icon: GraduationCap, comingSoon: true },
+      { href: "/lessons", label: "Lessons", icon: GraduationCap },
       { href: "/reviews", label: "Reviews", icon: Brain, comingSoon: true },
       { href: "/custom-vocabulary", label: "Custom vocabulary", icon: BookOpen },
       { href: "/study", label: "Extra study", icon: Sparkles },
@@ -181,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const previousPathRef = useRef(pathname);
   const pageBackRegistrationRef = useRef<symbol | null>(null);
-  const immersive = ["/lessons", "/reviews", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
+  const immersive = ["/lessons", "/lesson-picker", "/reviews", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
   const backTarget = backTargetForPathname(pathname);
   const hasBack = Boolean(pageBackAction || backTarget);
 
@@ -309,7 +309,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     {!isDemo ? <WebAnalyticsTracker /> : null}
     <a className={styles.skipLink} href="#main-content" inert={moreOpen ? true : undefined}>Skip to main content</a>
 
-    <header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreOpen ? true : undefined}>
+    <header data-app-header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreOpen ? true : undefined}>
       <div className={styles.appbar}>
         <div className={styles.identityArea} data-has-back={hasBack ? "true" : undefined}>
           <button type="button" className={styles.backButton} data-visible={hasBack ? "true" : undefined} aria-label={pageBackAction?.label ?? "Back"} aria-hidden={!hasBack} tabIndex={hasBack ? 0 : -1} disabled={!hasBack} onClick={goBack}>

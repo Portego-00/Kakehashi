@@ -168,11 +168,13 @@ export function SubjectStickyHeader({ heroRef, subject, meaning, reading, level 
   useEffect(() => {
     let frame = 0;
     let current = false;
+    const appHeader = document.querySelector<HTMLElement>("[data-app-header]");
 
     const update = () => {
       const hero = heroRef.current;
       const stickyHeader = stickyHeaderRef.current;
       if (hero && stickyHeader) {
+        if (appHeader) stickyHeader.style.setProperty("--subject-sticky-top", `${Math.max(0, appHeader.getBoundingClientRect().bottom)}px`);
         const stickyTop = Number.parseFloat(window.getComputedStyle(stickyHeader).top) || 0;
         const next = hero.getBoundingClientRect().bottom <= stickyTop;
         if (next !== current) {
@@ -188,10 +190,13 @@ export function SubjectStickyHeader({ heroRef, subject, meaning, reading, level 
     };
 
     update();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(requestUpdate);
+    if (appHeader) observer?.observe(appHeader);
     window.addEventListener("scroll", requestUpdate, { passive: true });
     window.addEventListener("resize", requestUpdate);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
+      observer?.disconnect();
       window.removeEventListener("scroll", requestUpdate);
       window.removeEventListener("resize", requestUpdate);
     };
@@ -459,6 +464,44 @@ function HighlightedJapanese({ value, query }: { value: string; query: string })
   return <>{parts.map((part, index) => <span key={`${part}-${index}`}>{part}{index < parts.length - 1 ? <mark>{query}</mark> : null}</span>)}</>;
 }
 
+// ImmersionKit uses space-delimited annotations such as 食[た]べる.
+// Render text nodes, never source HTML, and fall back if annotations do not match.
+export function AnimeSentence({ example, query }: { example: ImmersionExample; query: string }) {
+  const parts = Array.from((example.sentenceWithFurigana ?? "").matchAll(/([^\s\[\]]+)\[([^\]\r\n]+)\]|([^\s\[\]]+)/g), (match) => ({ text: match[1] ?? match[3], reading: match[2] }));
+  if (!parts.some((part) => part.reading) || parts.map((part) => part.text).join("") !== example.sentence.replace(/\s/g, "")) {
+    return <HighlightedJapanese value={example.sentence} query={query} />;
+  }
+  const highlights: Array<{ start: number; end: number }> = [];
+  if (query) {
+    let start = example.sentence.indexOf(query);
+    while (start !== -1) {
+      highlights.push({ start, end: start + query.length });
+      start = example.sentence.indexOf(query, start + query.length);
+    }
+  }
+  let cursor = 0;
+  return <>{parts.map((part, index) => {
+    const start = example.sentence.indexOf(part.text, cursor);
+    const whitespace = example.sentence.slice(cursor, start);
+    const end = start + part.text.length;
+    cursor = end;
+    const content: React.ReactNode[] = [];
+    let textCursor = start;
+    for (const range of highlights) {
+      const from = Math.max(start, range.start);
+      const to = Math.min(end, range.end);
+      if (from >= to) continue;
+      content.push(example.sentence.slice(textCursor, from), <mark key={from}>{example.sentence.slice(from, to)}</mark>);
+      textCursor = to;
+    }
+    content.push(example.sentence.slice(textCursor, end));
+    return <Fragment key={index}>{whitespace}{part.reading
+      ? <ruby>{content}<rp>(</rp><rt>{part.reading}</rt><rp>)</rp></ruby>
+      : content}</Fragment>;
+  })}{example.sentence.slice(cursor)}</>;
+
+}
+
 function AnimeContext({ examples, query, loading, failed }: { examples: ImmersionExample[]; query: string; loading: boolean; failed: boolean }) {
   const [visibleCount, setVisibleCount] = useState(10);
   if (loading) return <DetailSection title="Anime context"><Skeleton height="10rem" /></DetailSection>;
@@ -473,7 +516,7 @@ function AnimeContext({ examples, query, loading, failed }: { examples: Immersio
           <strong>{example.title}</strong>
           <SubjectAudioButton audioKey={`anime:${index}:${example.audio ?? "unavailable"}`} src={example.audio} label={`anime clip from ${source}`} variant="scene" />
         </div>
-        <p lang="ja"><HighlightedJapanese value={example.sentence} query={query} /></p>
+        <p lang="ja"><AnimeSentence example={example} query={query} /></p>
         <span>{example.translation}</span>
         <AnkiExportButton japanese={example.sentence} english={example.translation} />
       </figcaption>

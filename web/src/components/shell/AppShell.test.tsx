@@ -230,7 +230,7 @@ describe("AppShell session bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
     const allDestinations = screen.getByRole("navigation", { name: "All destinations" });
     expect(within(allDestinations).getByRole("link", { name: "News" })).toHaveAttribute("href", "/news");
-    expect(within(allDestinations).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
+    expect(within(allDestinations).getByRole("link", { name: "Lessons" })).toHaveAttribute("href", "/lessons");
     expect(within(allDestinations).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
     expect(within(allDestinations).queryByRole("link", { name: "Custom vocabulary" })).not.toBeInTheDocument();
     expect(within(allDestinations).getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");

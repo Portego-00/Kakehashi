@@ -157,14 +157,12 @@ describe("dashboard widget previews", () => {
     expect(reducedMotionRules).toContain(".incompleteRingProgress { transition: none; }");
   });
 
-  it("keeps the main lesson and review queues disabled while they are coming soon", () => {
+  it("offers lesson picking while reviews remain coming soon", () => {
     render(<><StudyQueueCard type="lesson" count={12} /><StudyQueueCard type="review" count={34} /></>);
-
-    for (const name of ["Lessons", "Reviews"]) {
-      const queue = screen.getByRole("article", { name: `${name} study queue, coming soon` });
-      expect(within(queue).getByRole("button", { name: "Coming soon" })).toBeDisabled();
-      expect(within(queue).queryByRole("link")).not.toBeInTheDocument();
-    }
+    const lessons = screen.getByRole("article", { name: "Lessons study queue" });
+    expect(within(lessons).getByRole("link", { name: "Pick lessons" })).toHaveAttribute("href", "/lesson-picker");
+    expect(within(lessons).getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/lessons");
+    expect(within(screen.getByRole("article", { name: "Reviews study queue, coming soon" })).getByRole("button", { name: "Coming soon" })).toBeDisabled();
   });
 
   it("uses the mobile empty-state artwork while a queue is clear", () => {
@@ -172,7 +170,7 @@ describe("dashboard widget previews", () => {
 
     expect(container.querySelector('img[src*="NoLessons.png"]')).not.toBeNull();
     expect(container.querySelector('img[src*="ReviewsFinished.png"]')).not.toBeNull();
-    expect(container).toHaveTextContent("Main lessons are coming to the web app.");
+    expect(container).toHaveTextContent("Choose what you want to learn next.");
     expect(container).toHaveTextContent("Main reviews are coming to the web app.");
   });
 

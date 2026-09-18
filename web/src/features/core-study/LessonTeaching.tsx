@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ButtonLink } from "@/components/ui/Button";
 import type { WebSettings } from "@/features/settings/settings";
-import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
+import { SubjectStickyHeader, SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { fetchImmersionExamples } from "@/features/study/immersion";
@@ -135,7 +135,8 @@ export function LessonTeaching({
   };
 
   return <div className={styles.studyShell} data-subject-detail-type={tone}>
-    <article className={styles.lesson} aria-labelledby="lesson-subject-title">
+    <article className={styles.lesson} aria-labelledby="lesson-subject-title" style={{ "--subject-color": subjectColor(subject) } as CSSProperties}>
+      <SubjectStickyHeader heroRef={heroRef} subject={subject} meaning={meaning} reading={primaryReading} level={subject.data.level} />
       <header ref={heroRef} className={styles.lessonSubjectHero} style={{ "--subject-color": subjectColor(subject) } as CSSProperties}>
         <div className={styles.lessonHeroBar}>
           <div className={styles.sessionProgress}><span>Lessons</span><strong>{currentIndex + 1} / {subjects.length}</strong></div>

@@ -22,6 +22,7 @@ import { WaniKaniApiError, wkCollection, wkRequest } from "@/lib/wanikani/client
 import { userQuery, wkKeys } from "@/lib/wanikani/queries";
 import type { Assignment, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
+import { LessonPicker } from "./LessonPicker";
 import { LessonTeaching } from "./LessonTeaching";
 import { CoreStudyResults } from "./CoreStudyResults";
 import type { ReviewResultItem } from "./review-results";
@@ -150,7 +151,8 @@ function formatFailure(cause: unknown, fallback: string) {
   return cause instanceof Error ? `${cause.message} ${fallback}` : fallback;
 }
 
-export function CoreStudySession({ mode }: { mode: Mode }) {
+export function CoreStudySession({ mode, pickLessons = false }: { mode: Mode; pickLessons?: boolean }) {
+  const [pickingLessons, setPickingLessons] = useState(pickLessons && mode === "lessons");
   const queryClient = useQueryClient();
   const { user } = useSession();
   const currentUserQuery = useQuery(userQuery());
@@ -225,13 +227,13 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   useEffect(() => {
     if (mode !== "lessons") return;
     const timer = window.setTimeout(() => {
-      const snapshot = loadLessonTeachingSession(window.localStorage, username);
+      const snapshot = pickLessons ? null : loadLessonTeachingSession(window.localStorage, username);
       setLessonTeachingSnapshot(snapshot);
       setLessonBatchIds(snapshot?.subjectIds ?? null);
       setLessonBatchStorageReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [mode, username]);
+  }, [mode, username, pickLessons]);
 
   const assignmentQuery = useQuery({
     queryKey: ["core-study", mode, "assignments"],
@@ -273,7 +275,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
   );
 
   useEffect(() => {
-    if (mode !== "lessons" || !lessonBatchStorageReady || !assignmentQuery.isSuccess || !subjectsQuery.isSuccess) return;
+    if (pickingLessons || mode !== "lessons" || !lessonBatchStorageReady || !assignmentQuery.isSuccess || !subjectsQuery.isSuccess) return;
     if (lessonBatchIds !== null && (lessonBatchIds.length === 0 || restoredLessonAssignments.length === lessonBatchIds.length)) return;
     if (lessonBatchIds?.length && (restoredAssignmentsQuery.isLoading || restoredAssignmentsQuery.isError)) return;
     const timer = window.setTimeout(() => {
@@ -292,7 +294,7 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
       setLessonBatchIds(subjectIds);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [assignmentQuery.isSuccess, lessonBatchIds, lessonBatchStorageReady, mode, plannedAssignments, restoredAssignmentsQuery.isError, restoredAssignmentsQuery.isLoading, restoredLessonAssignments.length, subjectsQuery.isSuccess, username]);
+  }, [pickingLessons, assignmentQuery.isSuccess, lessonBatchIds, lessonBatchStorageReady, mode, plannedAssignments, restoredAssignmentsQuery.isError, restoredAssignmentsQuery.isLoading, restoredLessonAssignments.length, subjectsQuery.isSuccess, username]);
 
   const selectedAssignments = useMemo(() => {
     if (mode !== "lessons") return plannedAssignments;
@@ -842,6 +844,20 @@ export function CoreStudySession({ mode }: { mode: Mode }) {
     if (subjectsQuery.error) void subjectsQuery.refetch();
     if (restoredAssignmentsQuery.error) void restoredAssignmentsQuery.refetch();
   }}>Try Again</Button></div></div>;
+  if (pickingLessons && assignmentQuery.isSuccess && subjectsQuery.isSuccess && lessonBatchStorageReady) return <LessonPicker
+    subjects={subjects.filter((subject) => candidateIds.includes(subject.id))}
+    limit={dailyRemaining}
+    onStart={(subjectIds) => {
+      const availableIds = new Set(candidateIds);
+      const ids = subjectIds.filter((id) => availableIds.has(id)).slice(0, dailyRemaining);
+      if (!ids.length) return;
+      const snapshot: LessonTeachingSnapshot = { savedAt: new Date().toISOString(), subjectIds: ids, index: 0, tab: "meaning" };
+      try { window.localStorage.setItem(lessonTeachingSessionKey(username), JSON.stringify(snapshot)); } catch { /* Continue in memory when storage is unavailable. */ }
+      setLessonTeachingSnapshot(snapshot);
+      setLessonBatchIds(ids);
+      setPickingLessons(false);
+    }}
+  />;
   if (materialsQuery.error || answerContextQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
   if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return <div className={styles.stage}><div className={styles.loading}><Skeleton height="2rem" /><Skeleton height="18rem" /><Skeleton height="4rem" /><LoadingState compact label={`Loading ${mode}`} detail="Fetching the queue and answer data for your first item." /></div></div>;
 

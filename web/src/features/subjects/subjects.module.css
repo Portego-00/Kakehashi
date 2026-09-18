@@ -528,7 +528,7 @@
 .subjectHeroMeta > span { display: inline-flex; align-items: center; gap: var(--space-2xs); }
 .subjectStickyHeader {
   position: fixed;
-  inset-block-start: calc(var(--banner-height) + var(--space-md));
+  inset-block-start: var(--subject-sticky-top, calc(var(--banner-height) + var(--space-md)));
   inset-inline: 0;
   z-index: calc(var(--z-sticky-nav) - 1);
   min-height: 4rem;
@@ -545,7 +545,7 @@
   position: absolute;
   inset-inline: 0;
   inset-block-end: 100%;
-  height: calc(var(--banner-height) + var(--space-md));
+  height: var(--subject-sticky-top, calc(var(--banner-height) + var(--space-md)));
   background: var(--subject-color);
   pointer-events: none;
 }
@@ -870,7 +870,7 @@
   .subjectCharacters[data-type="vocabulary"] { min-width: 3.25rem; font-size: var(--text-xl); }
   .subjectDetailPage .subjectHero { min-height: 19rem; padding-block: var(--space-2xl) var(--space-xl); }
   .subjectDetailPage .subjectHeroCharacter { min-width: 6rem; min-height: 6rem; }
-  .subjectStickyHeader { inset-block-start: 5rem; }
+  .subjectStickyHeader { inset-block-start: var(--subject-sticky-top, 5rem); }
   .subjectStickyContent { gap: var(--space-xs); }
   .subjectStickyCharacter { max-width: 4.5rem; min-width: 2.5rem; height: 2.5rem; padding-inline: var(--space-xs); font-size: var(--text-md); }
   .subjectDetailPage[data-subject-detail-type="vocabulary"] .subjectStickyCharacter { max-width: min(50vw, 18rem); }
@@ -910,3 +910,6 @@
 
 .synonymRow { display: flex; align-items: flex-start; gap: var(--space-sm); }
 .synonymRow > div { flex: 1; min-width: 0; }
+
+.immersionExample ruby { ruby-position: over; }
+.immersionExample rt { font-size: .6em; font-weight: 400; color: var(--color-ink-2); }

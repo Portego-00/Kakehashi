@@ -4,6 +4,7 @@ const IMMERSION_KIT_MEDIA_BASE = "https://us-southeast-1.linodeobjects.com/immer
 
 export interface ImmersionExample {
   sentence: string;
+  sentenceWithFurigana?: string;
   translation: string;
   title: string;
   audio?: string;
@@ -48,6 +49,7 @@ export function buildImmersionExamples(rawExamples: unknown, indexMeta: Immersio
     const mediaBase = `${IMMERSION_KIT_MEDIA_BASE}/${category}/${encodeURIComponent(title)}/media`;
     examples.push({
       sentence,
+      ...(typeof candidate.sentence_with_furigana === "string" ? { sentenceWithFurigana: candidate.sentence_with_furigana } : {}),
       translation,
       title,
       audio: sound ? `${mediaBase}/${encodeURIComponent(sound)}` : undefined,

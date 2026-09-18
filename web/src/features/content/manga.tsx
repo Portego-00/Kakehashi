@@ -1314,6 +1314,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
         const linked = cached?.recordId === item.id
           ? cached.source
           : await resolveLinkedMangaSource(item);
+        if (cancelled || spreadLoadGeneration.current !== generation) return;
         if (linked.status === "permission") {
           linkedPermissionHandle.current = linked.handle;
           setSourceAccess("permission");
@@ -1441,6 +1442,8 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
       if (!cancelled && spreadLoadGeneration.current === generation && targetSpreadKeyRef.current === targetSpreadKey) {
         navigationPending.current = false;
         setIsSpreadLoading(false);
+        const failedRecord = loadLibrary("manga").find((candidate) => candidate.id === mangaId);
+        if (linkedFileIds(failedRecord).length) setSourceAccess((access) => access ?? "unavailable");
         setMessage(error instanceof Error ? error.message : "The manga pages could not be opened.");
       }
     });
@@ -1633,6 +1636,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
           newHandleIds.push(...pendingHandles.map(({ id }) => id));
         } else {
           await Promise.all(pendingHandles.map(({ id }) => removeFileHandle(id).catch(() => undefined)));
+          throw new Error("The file link could not be saved. Your manga is unchanged. Try reconnecting again.");
         }
       }
 
@@ -1678,12 +1682,17 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
       };
       spreadLoadGeneration.current += 1;
       linkedPermissionHandle.current = null;
-      linkedSource.current = null;
       const document = pdfDocument.current;
       if (document) await document.destroy();
       pdfDocument.current = null;
       updateRecordInPlace(updated);
       committed = true;
+      linkedSource.current = newHandleIds.length ? {
+        recordId: updated.id,
+        source: prepared.sourceType === "pdf"
+          ? { status: "ready", kind: "pdf", file: files[0] }
+          : { status: "ready", kind: "pages", pages: prepared.assets },
+      } : null;
       const shownSpread = loadedSpreadRef.current;
       loadedSpreadRef.current = null;
       setLoadedSpread(null);
@@ -1785,23 +1794,18 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
       </div>
       {message ? <div className={styles.errorNotice} role="status">{message}</div> : null}
       {sourceAccess ? <div className={styles.inline}>
-        {sourceAccess === "permission" ? <>
-          <button
-            className={styles.secondaryButton}
-            type="button"
-            disabled={isSpreadLoading}
-            onClick={() => void allowLinkedMangaAccess()}
-          >Allow file access</button>
-          <LocalFilePicker
-            className={styles.secondaryButton}
-            accept={MANGA_PICKER_ACCEPT}
-            description="Original manga files"
-            disabled={isSpreadLoading}
-            multiple={mangaSource(record) === "images"}
-            onFiles={reconnectLinkedManga}
-            onPickerError={(error) => setMessage(error.message || "The manga picker could not be opened.")}
-          >Locate original {mangaSource(record) === "images" ? "pages" : "file"}</LocalFilePicker>
-        </> : sourceAccess === "missing" ? <LocalFilePicker
+        {sourceAccess === "permission" ? <button
+          className={styles.secondaryButton}
+          type="button"
+          disabled={isSpreadLoading}
+          onClick={() => void allowLinkedMangaAccess()}
+        >Allow file access</button> : <button
+          className={styles.secondaryButton}
+          type="button"
+          disabled={isSpreadLoading}
+          onClick={retryLinkedManga}
+        >Try again</button>}
+        <LocalFilePicker
           className={styles.secondaryButton}
           accept={MANGA_PICKER_ACCEPT}
           description="Original manga files"
@@ -1812,12 +1816,7 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
         >
           <Upload size={16} aria-hidden="true" />
           Locate original {mangaSource(record) === "images" ? "pages" : "file"}
-        </LocalFilePicker> : <button
-          className={styles.secondaryButton}
-          type="button"
-          disabled={isSpreadLoading}
-          onClick={retryLinkedManga}
-        >Try again</button>}
+        </LocalFilePicker>
       </div> : null}
       <div className={styles.mangaReaderGrid}>
         <section className={styles.mangaSpreadColumn} aria-label="Manga pages">
@@ -1885,7 +1884,11 @@ export function MangaReader({ mangaId }: { mangaId: string }) {
                     tooltip={tooltipFor(loadedPage.pageNumber)}
                   />
                 </div>)}
-              </div> : <EmptyState title="Preparing pages">Opening the manga from this device…</EmptyState>}
+              </div> : isSpreadLoading
+                ? <EmptyState title="Preparing pages">Opening the manga from this device…</EmptyState>
+                : <EmptyState title="Manga could not be opened">{sourceAccess
+                  ? "Use the controls above to reconnect your original manga. Your reading progress is saved."
+                  : "Return to the library and try opening this manga again."}</EmptyState>}
             </div>
             <nav className={styles.mangaEdgeNavigation} aria-label="Manga page navigation">
               <button
