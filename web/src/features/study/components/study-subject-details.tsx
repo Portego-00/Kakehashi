@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
@@ -22,6 +22,36 @@ interface StudySubjectDetailsProps {
   initialTab: SubjectDetailInitialTab;
   idPrefix: string;
   returnTo: string;
+}
+
+export function StudySubjectDetailsFrame({
+  record,
+  children,
+  idPrefix = "study-item-details",
+}: {
+  record: Subject;
+  children: ReactNode;
+  idPrefix?: string;
+}) {
+  return (
+    <section id={idPrefix} className={styles.itemDetails} aria-labelledby={`${idPrefix}-title`}>
+      <header className={styles.itemDetailsHeader}>
+        <div className={styles.itemDetailsIdentity}>
+          <SubjectCharacter subject={record} className={styles.itemDetailsCharacter} imageTone="subject" eager />
+          <div>
+            <h3 id={`${idPrefix}-title`}>Subject details</h3>
+            <p>Level {record.data.level} · {record.object.replace("_", " ")}</p>
+          </div>
+        </div>
+        <Link className={styles.itemDetailsLink} href={`/subjects/${record.id}`} target="_blank" rel="noopener noreferrer">
+          <span>Open full subject</span>
+          <ExternalLink size={15} aria-hidden />
+        </Link>
+      </header>
+
+      {children}
+    </section>
+  );
 }
 
 export function StudySubjectDetails({
@@ -78,21 +108,7 @@ export function StudySubjectDetails({
   });
 
   return (
-    <section id="study-item-details" className={styles.itemDetails} aria-labelledby="study-item-details-title">
-      <header className={styles.itemDetailsHeader}>
-        <div className={styles.itemDetailsIdentity}>
-          <SubjectCharacter subject={record} className={styles.itemDetailsCharacter} imageTone="subject" eager />
-          <div>
-            <h3 id="study-item-details-title">Subject details</h3>
-            <p>Level {record.data.level} · {record.object.replace("_", " ")}</p>
-          </div>
-        </div>
-        <Link className={styles.itemDetailsLink} href={`/subjects/${record.id}`} target="_blank" rel="noopener noreferrer">
-          <span>Open full subject</span>
-          <ExternalLink size={15} aria-hidden />
-        </Link>
-      </header>
-
+    <StudySubjectDetailsFrame record={record}>
       <SubjectDetailPanels
         record={record}
         assignment={assignment}
@@ -112,6 +128,6 @@ export function StudySubjectDetails({
         idPrefix={idPrefix}
         embedded
       />
-    </section>
+    </StudySubjectDetailsFrame>
   );
 }

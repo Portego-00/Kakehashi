@@ -57,6 +57,7 @@ import {
 } from "./analyticsWidgetStyles";
 import {
   DEFAULT_HOME_WIDGET_ORDER,
+  addConversationHomeWidget,
   type HomeWidgetId,
   normalizeHomeWidgetOrder,
 } from "./homeWidgets";
@@ -169,7 +170,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 21;
+const SETTINGS_STORE_SCHEMA_VERSION = 23;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -1469,6 +1470,12 @@ export const useSettingsStore = create<SettingsState>()(
           advancedNoteEditorEnabled?: unknown;
           noteLinkIncludeCharacters?: unknown;
         };
+
+        if (version < 23) {
+          migratedRecord.homeWidgetOrder = addConversationHomeWidget(
+            migratedRecord.homeWidgetOrder,
+          );
+        }
 
         if (version < 2 && typeof migratedRecord.homeSrsBreakdownDisplayMode !== "string") {
           migratedRecord.homeSrsBreakdownDisplayMode =

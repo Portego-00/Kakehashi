@@ -37,6 +37,7 @@ import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/States";
 import { WebAnalyticsTracker } from "@/features/analytics/WebAnalyticsTracker";
+import { canAccessCoreStudy } from "@/features/core-study/access";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { SettingsApplicator } from "@/features/settings/components/SettingsApplicator";
 import { DEFAULT_NAVBAR_TABS, type NavbarTabId } from "@/features/settings/settings";
@@ -160,6 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { status, user, isDemo, error, signOut, refresh } = useSession();
+  const coreStudyAllowed = status === "authenticated" && canAccessCoreStudy(user?.data.username, isDemo);
   const customSrsAllowed = !isDemo && canAccessCustomSrs(user?.data.username);
   const customSrsBlocked = isActive(pathname, "/custom-vocabulary") && !customSrsAllowed;
   const notebooksAllowed = status === "authenticated" && !isDemo;
@@ -181,7 +183,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const previousPathRef = useRef(pathname);
   const pageBackRegistrationRef = useRef<symbol | null>(null);
-  const immersive = ["/lessons", "/reviews", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
+  const coreStudyImmersive = coreStudyAllowed && ["/lessons", "/reviews"].includes(pathname);
+  const immersive = coreStudyImmersive || ["/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
+  const moreVisible = moreOpen && !immersive;
   const backTarget = backTargetForPathname(pathname);
   const hasBack = Boolean(pageBackAction || backTarget);
 
@@ -233,7 +237,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!moreOpen) return;
+    if (!moreVisible) return;
     const dialog = moreDialogRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -263,7 +267,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       document.body.style.overflow = previousOverflow;
       window.requestAnimationFrame(() => returnFocusRef.current?.focus());
     };
-  }, [moreOpen]);
+  }, [moreVisible]);
 
   if (status === "unavailable") {
     return <div className={styles.loading} role="alert"><div className={styles.sessionError}><strong>Your session could not be checked</strong><span>{error}</span><Button onClick={() => void refresh()}>Try Again</Button></div></div>;
@@ -307,9 +311,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell} data-demo={isDemo || undefined} data-workspace={notebookWorkspace ? "notebooks" : undefined}>
     <SettingsApplicator />
     {!isDemo ? <WebAnalyticsTracker /> : null}
-    <a className={styles.skipLink} href="#main-content" inert={moreOpen ? true : undefined}>Skip to main content</a>
+    <a className={styles.skipLink} href="#main-content" inert={moreVisible ? true : undefined}>Skip to main content</a>
 
-    <header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreOpen ? true : undefined}>
+    {!coreStudyImmersive ? <header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreVisible ? true : undefined}>
       <div className={styles.appbar}>
         <div className={styles.identityArea} data-has-back={hasBack ? "true" : undefined}>
           <button type="button" className={styles.backButton} data-visible={hasBack ? "true" : undefined} aria-label={pageBackAction?.label ?? "Back"} aria-hidden={!hasBack} tabIndex={hasBack ? 0 : -1} disabled={!hasBack} onClick={goBack}>
@@ -346,23 +350,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button type="button" className={styles.iconAction} aria-label="More destinations" aria-expanded={moreOpen} aria-controls="more-navigation" onClick={(event) => openMore(event.currentTarget)}><Menu size={19} aria-hidden /></button>
         </div>
       </div>
-    </header>
+    </header> : null}
 
-    {isDemo ? <aside className={styles.demoBanner} aria-label="Demo account" inert={moreOpen ? true : undefined}><span><strong>Demo · Level 21</strong> Sample progress. Your practice stays in this browser.</span><Link href={`/login?next=${encodeURIComponent(pathname)}`}>Connect your account</Link></aside> : null}
+    {isDemo ? <aside className={styles.demoBanner} aria-label="Demo account" inert={moreVisible ? true : undefined}><span><strong>Demo · Level 21</strong> Sample progress. Your practice stays in this browser.</span><Link href={`/login?next=${encodeURIComponent(pathname)}`}>Connect your account</Link></aside> : null}
     {signOutError || error ? <div className={styles.topError} role="alert"><span>{signOutError || error}</span>{error ? <Button size="small" tone="ghost" onClick={() => void refresh()}>Retry session check</Button> : null}</div> : null}
-    <div className={styles.content} id="main-content" tabIndex={-1} inert={moreOpen ? true : undefined}>{children}</div>
+    <div className={styles.content} id="main-content" tabIndex={-1} inert={moreVisible ? true : undefined}>{children}</div>
 
-    <nav className={cn(styles.mobileNav, immersive && styles.mobileNavHidden)} aria-label="Mobile navigation" inert={moreOpen ? true : undefined}>
+    {!coreStudyImmersive ? <nav className={cn(styles.mobileNav, immersive && styles.mobileNavHidden)} aria-label="Mobile navigation" inert={moreVisible ? true : undefined}>
       {mobileNavigation.filter((destination) => isVisible(destination, workspace.visibleNav)).map((destination) => <Link key={destination.href} href={destination.href} className={cn(styles.mobileLink, isActive(pathname, destination.href) && styles.mobileLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined}><destination.icon aria-hidden /><span>{destination.label}</span></Link>)}
       <button type="button" className={cn(styles.mobileLink, moreOpen && styles.mobileLinkActive)} aria-label="More" aria-expanded={moreOpen} aria-controls="more-navigation" onClick={(event) => openMore(event.currentTarget)}><Menu aria-hidden /><span>More</span></button>
-    </nav>
+    </nav> : null}
 
-    {moreOpen && !immersive ? <div className={styles.moreLayer}>
+    {moreVisible ? <div className={styles.moreLayer}>
       <button type="button" tabIndex={-1} className={styles.moreBackdrop} aria-label="Close More menu" onClick={closeMore} />
       <div ref={moreDialogRef} className={styles.moreSheet} id="more-navigation" role="dialog" aria-modal="true" aria-labelledby="more-title">
         <div className={styles.moreHeader}><h2 id="more-title">All destinations</h2><Button className={styles.iconButton} tone="ghost" aria-label="Close More menu" onClick={closeMore}><X size={18} aria-hidden /></Button></div>
         <nav className={styles.moreNav} aria-label="All destinations">
-          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (destination.href !== "/notebooks" || notebooksAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !isDemo
+          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (destination.href !== "/notebooks" || notebooksAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !coreStudyAllowed
             ? <button key={destination.href} type="button" className={styles.moreLink} aria-label={`${destination.label}, coming soon`} disabled><destination.icon size={18} aria-hidden /><span>{destination.label}</span><span className={styles.moreStatus}>Coming soon</span></button>
             : <Link key={destination.href} href={destination.href} className={cn(styles.moreLink, isActive(pathname, destination.href) && styles.moreLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined} onClick={closeMore}><destination.icon size={18} aria-hidden /><span>{destination.label}</span></Link>)}</div></section>)}
           <section><h3>Account</h3><div><Link href="/settings" className={cn(styles.moreLink, isActive(pathname, "/settings") && styles.moreLinkActive)} onClick={closeMore}><Settings size={18} aria-hidden /><span>Settings</span></Link><button type="button" className={styles.moreLink} onClick={() => { setSignOutError(""); void signOut().then(() => router.replace("/login")).catch((cause) => setSignOutError(cause instanceof Error ? cause.message : "Kakehashi could not sign out.")); }}><LogOut size={18} aria-hidden /><span>Sign out</span></button></div></section>

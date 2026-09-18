@@ -332,6 +332,81 @@ describe("AppShell contextual back navigation", () => {
     expect(backTargetForPathname(pathname)).toBe(parent);
   });
 
+  it.each(["Portego", " PORTEGO "])("opens lessons and reviews from More for %j", (username) => {
+    mocks.session.user!.data.username = username;
+    render(<AppShell><p>Dashboard content</p></AppShell>);
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    const navigation = screen.getByRole("navigation", { name: "All destinations" });
+    expect(within(navigation).getByRole("link", { name: "Lessons" })).toHaveAttribute("href", "/lessons");
+    expect(within(navigation).getByRole("link", { name: "Reviews" })).toHaveAttribute("href", "/reviews");
+  });
+
+  it.each([
+    { username: "Learner", isDemo: false },
+    { username: "PortegoFan", isDemo: false },
+    { username: "Portego", isDemo: true },
+  ])("keeps study links coming soon for $username / demo $isDemo", ({ username, isDemo }) => {
+    mocks.session.user!.data.username = username;
+    mocks.session.isDemo = isDemo;
+    render(<AppShell><p>Dashboard content</p></AppShell>);
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    const navigation = screen.getByRole("navigation", { name: "All destinations" });
+    expect(within(navigation).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
+    expect(within(navigation).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
+    expect(within(navigation).queryByRole("link", { name: "Lessons" })).not.toBeInTheDocument();
+    expect(within(navigation).queryByRole("link", { name: "Reviews" })).not.toBeInTheDocument();
+  });
+
+  it.each(["/lessons", "/reviews"])("keeps navigation available on the restricted %s page", (pathname) => {
+    mocks.pathname = pathname;
+    render(<AppShell><p>Coming soon</p></AppShell>);
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Mobile navigation" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    expect(screen.getByRole("navigation", { name: "All destinations" })).toBeInTheDocument();
+  });
+
+  it.each(["/lessons", "/reviews"])("removes app navigation throughout Portego's %s session", (pathname) => {
+    mocks.pathname = pathname;
+    mocks.session.user!.data.username = "Portego";
+    const { rerender } = render(<AppShell><p>Study content</p></AppShell>);
+
+    expect(screen.getByText("Study content")).toBeInTheDocument();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More destinations" })).not.toBeInTheDocument();
+
+    mocks.pathname = "/dashboard";
+    rerender(<AppShell><p>Dashboard content</p></AppShell>);
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeInTheDocument();
+  });
+
+  it("restores navigation when a core study session becomes unavailable to the account", () => {
+    mocks.pathname = "/reviews";
+    mocks.session.user!.data.username = "Portego";
+    const { rerender } = render(<AppShell><p>Study content</p></AppShell>);
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+
+    mocks.session.isDemo = true;
+    rerender(<AppShell><p>Coming soon</p></AppShell>);
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Mobile navigation" })).toBeInTheDocument();
+  });
+
+  it("releases an open navigation menu when entering a core study session", () => {
+    mocks.session.user!.data.username = "Portego";
+    const { container, rerender } = render(<AppShell><p>Dashboard content</p></AppShell>);
+    fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    mocks.pathname = "/reviews";
+    rerender(<AppShell><p>Study content</p></AppShell>);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(container.querySelector("#main-content")).not.toHaveAttribute("inert");
+    expect(document.body.style.overflow).not.toBe("hidden");
+  });
+
   it("keeps Custom vocabulary active on a word detail route", () => {
     mocks.session.user!.data.username = "Portego";
     mocks.pathname = "/custom-vocabulary/words/conversation-douzo";

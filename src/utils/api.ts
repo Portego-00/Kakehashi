@@ -202,9 +202,18 @@ function buildPaginationEndpointLabel(requestUrl: string, fallbackPage: number):
   return `[pagination page ${fallbackPage}]`;
 }
 
-async function reserveApiRequestSlot(operation: string): Promise<ReservedApiSlot> {
+function throwIfRequestAborted(signal?: AbortSignal | null) {
+  if (signal?.aborted) {
+    const error = new Error("Request cancelled");
+    error.name = "AbortError";
+    throw error;
+  }
+}
+
+async function reserveApiRequestSlot(operation: string, signal?: AbortSignal | null): Promise<ReservedApiSlot> {
   while (true) {
     const decision = await withApiRateLimitLock(() => {
+      throwIfRequestAborted(signal);
       const serverNowMs = getServerNowMs();
       const minuteKey = getServerMinuteKey(serverNowMs);
       cleanupRateLimitMaps(minuteKey);
@@ -249,7 +258,21 @@ async function reserveApiRequestSlot(operation: string): Promise<ReservedApiSlot
         `[API Tracker] Waiting ${decision.waitSeconds}s for ${operation} to avoid 429`
       );
     }
-    await new Promise((resolve) => setTimeout(resolve, decision.waitSeconds * 1000));
+    await new Promise<void>((resolve, reject) => {
+      const cancel = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", cancel);
+        const error = new Error("Request cancelled");
+        error.name = "AbortError";
+        reject(error);
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener("abort", cancel);
+        resolve();
+      }, decision.waitSeconds * 1000);
+      signal?.addEventListener("abort", cancel, { once: true });
+      if (signal?.aborted) cancel();
+    });
   }
 }
 
@@ -325,14 +348,14 @@ async function finalizeApiRequestSlot(
   });
 }
 
-async function fetchWaniKaniApi(
+export async function fetchWaniKaniApi(
   input: string | URL,
   init: (RequestInit & { trackerLabel?: string }) = {}
 ): Promise<Response> {
   const { trackerLabel, ...fetchInit } = init;
   const method = (fetchInit.method ?? "GET").toUpperCase();
   const label = trackerLabel ?? inferApiOperationLabel(input, method);
-  const slot = await reserveApiRequestSlot(label);
+  const slot = await reserveApiRequestSlot(label, fetchInit.signal);
   const requestStartedAtMs = Date.now();
   const requestController = new AbortController();
   const upstreamSignal = fetchInit.signal;

@@ -130,6 +130,51 @@ describe("dashboard", () => {
     expect(screen.queryByTestId("custom-vocabulary-widget")).not.toBeInTheDocument();
   });
 
+  it("opens the main lesson and review queues for Portego without the vacation activation button", () => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    dashboardTestState.user.data.username = "Portego";
+
+    render(<Dashboard />);
+
+    expect(screen.getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/lessons");
+    expect(screen.getByRole("link", { name: "Start reviews" })).toHaveAttribute("href", "/reviews");
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Turn on in WaniKani" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { username: "tester", isDemo: false },
+    { username: "Portego", isDemo: true },
+    { username: "tester", isDemo: true },
+  ])("keeps main study coming soon for $username with demo=$isDemo", ({ username, isDemo }) => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    dashboardTestState.user.data.username = username;
+    dashboardTestState.isDemo = isDemo;
+
+    render(<Dashboard />);
+
+    for (const name of ["Lessons", "Reviews"]) {
+      const queue = screen.getByRole("article", { name: `${name} study queue, coming soon` });
+      expect(within(queue).getByRole("button", { name: "Coming soon" })).toBeDisabled();
+      expect(within(queue).queryByRole("link")).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole("link", { name: "Turn on in WaniKani" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the active vacation notice and turn-off control in daily study", () => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    dashboardTestState.user.data.username = "Portego";
+    dashboardTestState.user.data.current_vacation_started_at = "2026-08-20T12:00:00Z";
+
+    render(<Dashboard />);
+
+    const notice = screen.getByRole("region", { name: "Vacation Mode" });
+    expect(within(notice).getByRole("link", { name: "Turn off in WaniKani" })).toBeInTheDocument();
+    expect(within(notice).getByRole("button", { name: "Check status" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Start lessons" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Start reviews" })).not.toBeInTheDocument();
+  });
+
   it("renders Recent Mistakes as empty during Vacation Mode", () => {
     dashboardTestState.dashboardOrder = ["recent-mistakes"];
     dashboardTestState.user.data.current_vacation_started_at = "2026-08-20T12:00:00Z";

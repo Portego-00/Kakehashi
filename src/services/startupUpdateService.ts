@@ -2,6 +2,7 @@ import * as Updates from "expo-updates";
 import { Platform } from "react-native";
 
 export const STARTUP_UPDATE_TIMEOUT_MS = 5000;
+export const STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 export type StartupUpdateStatus = "checking" | "applying" | null;
 export type StartupUpdateOutcome = "skipped" | "no-update" | "timed-out" | "failed" | "reload-requested";
@@ -12,13 +13,17 @@ export interface StartupUpdateResult {
 export interface StartupUpdateOptions {
   onStatus?: (status: StartupUpdateStatus) => void;
   reloadScreenOptions?: Updates.ReloadScreenOptions;
+  /** Time allowed to check whether an update is available. */
   timeoutMs?: number;
+  /** Separate download allowance once an update has been found. */
+  downloadTimeoutMs?: number;
 }
 
 export async function applyStartupUpdate({
   onStatus,
   reloadScreenOptions,
   timeoutMs = STARTUP_UPDATE_TIMEOUT_MS,
+  downloadTimeoutMs = STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS,
 }: StartupUpdateOptions = {}): Promise<StartupUpdateResult> {
   if (__DEV__ || Platform.OS === "web" || !Updates.isEnabled) {
     onStatus?.(null);
@@ -26,14 +31,17 @@ export async function applyStartupUpdate({
   }
 
   const budgetMs = Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : STARTUP_UPDATE_TIMEOUT_MS;
-  const deadline = Date.now() + budgetMs;
+  const downloadBudgetMs = Number.isFinite(downloadTimeoutMs)
+    ? Math.max(0, downloadTimeoutMs)
+    : STARTUP_UPDATE_DOWNLOAD_TIMEOUT_MS;
+  let deadline = Date.now() + budgetMs;
   let active = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let reloadTriggered = false;
   const withinDeadline = () => active && Date.now() < deadline;
   type NetworkOutcome = "ready-to-reload" | "no-update" | "timed-out" | "failed";
 
-  const prepareUpdate = async (): Promise<NetworkOutcome> => {
+  const prepareUpdate = async (startDownloadBudget: () => void): Promise<NetworkOutcome> => {
     try {
       if (!withinDeadline()) return "timed-out";
       onStatus?.("checking");
@@ -44,6 +52,9 @@ export async function applyStartupUpdate({
       if (!withinDeadline()) return "timed-out";
       if (!update.isAvailable && !update.isRollBackToEmbedded) return "no-update";
 
+      // Downloading the bundle and assets needs its own allowance; a slow check
+      // must not consume the time available to apply an update on this launch.
+      startDownloadBudget();
       onStatus?.("applying");
       if (!withinDeadline()) return "timed-out";
       const fetched = await Updates.fetchUpdateAsync();
@@ -56,13 +67,18 @@ export async function applyStartupUpdate({
   };
 
   try {
-    const timeout = new Promise<NetworkOutcome>((resolve) => {
-      timer = setTimeout(() => {
-        active = false;
-        resolve("timed-out");
-      }, budgetMs);
+    const outcome = await new Promise<NetworkOutcome>((resolve) => {
+      const startBudget = (durationMs: number) => {
+        deadline = Date.now() + durationMs;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          active = false;
+          resolve("timed-out");
+        }, durationMs);
+      };
+      startBudget(budgetMs);
+      void prepareUpdate(() => startBudget(downloadBudgetMs)).then(resolve);
     });
-    const outcome = await Promise.race([prepareUpdate(), timeout]);
     active = false;
     clearTimeout(timer);
     if (outcome !== "ready-to-reload") return { reloadTriggered: false, outcome };

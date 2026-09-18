@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { useEffect, useMemo } from "react";
-import { Appearance, DynamicColorIOS, Platform } from "react-native";
+import { useMemo } from "react";
+import { DynamicColorIOS, Platform } from "react-native";
 import { TabBarVisibilityProvider, useTabBarHidden } from "../../../src/contexts/TabBarVisibilityContext";
 import { useFeatureFlag } from "../../../src/hooks/useFeatureFlags";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
@@ -29,7 +29,7 @@ export default function TabsLayout() {
 
 function TabsContent() {
   const tabBarHidden = useTabBarHidden();
-  const { theme, themeMode, isDark } = useTheme();
+  const { theme } = useTheme();
   const useNativeTabs = supportsNativeTabs();
   const { userData } = useAuthStore();
   const { gravatarEmail, customTabOrder } = useSettingsStore();
@@ -40,7 +40,7 @@ function TabsContent() {
   const showSongsTab =
     (showSongsTabFlag || normalizedEmail === "portego2000@hotmail.es") &&
     !isSongsHiddenForEmail;
-  const maxTabs = 5;
+  const maxTabs = useNativeTabs && Platform.OS === "ios" && !Platform.isPad ? 4 : 5;
 
   // Determine which tabs should be visible based on customTabOrder
   const visibleTabs = useMemo(() => {
@@ -57,25 +57,6 @@ function TabsContent() {
   }, [canAccessMangaTab, customTabOrder, maxTabs, showSongsTab]);
 
   const isTabVisible = (tabId: TabId) => visibleTabs.has(tabId);
-
-  // Workaround for iOS liquid glass tabs: force appearance to match any
-  // non-system app theme (light, dark, midnight, sepia, etc).
-  useEffect(() => {
-    if (Platform.OS !== "ios" || !useNativeTabs) {
-      return;
-    }
-
-    if (themeMode === "system") {
-      Appearance.setColorScheme("unspecified");
-      return;
-    }
-
-    Appearance.setColorScheme(isDark ? "dark" : "light");
-
-    return () => {
-      Appearance.setColorScheme("unspecified");
-    };
-  }, [isDark, themeMode, useNativeTabs]);
 
   // Fallback to standard Tabs for older iOS versions
   if (!useNativeTabs) {

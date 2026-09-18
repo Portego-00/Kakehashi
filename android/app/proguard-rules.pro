@@ -12,3 +12,6 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# WebRTC calls these classes through JNI in release builds.
+-keep class org.webrtc.** { *; }

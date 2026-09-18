@@ -297,6 +297,7 @@ describe("review question preferences", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Vocabulary context sentence hints/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Answer feedback sounds/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Allow skipping reviews/i }));
+    expect(screen.getByRole("checkbox", { name: /Accept user synonyms/i })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: /Accept user synonyms/i }));
     fireEvent.change(screen.getByRole("combobox", { name: /SRS progression/i }), { target: { value: "compact" } });
     fireEvent.change(screen.getByRole("combobox", { name: /Anki mode/i }), { target: { value: "both" } });
@@ -311,7 +312,7 @@ describe("review question preferences", () => {
       showVocabContextSentencesInReviews: true,
       answerFeedbackSoundEnabled: false,
       allowSkippingReviews: true,
-      acceptUserSynonymsAsAnswers: true,
+      acceptUserSynonymsAsAnswers: false,
       srsProgressionCardDisplayMode: "compact",
       ankiMode: "both",
       ankiGroupQuestions: true,

@@ -36,7 +36,6 @@
 .vacationNotice span { display: block; margin-block-start: var(--space-sm); color: var(--color-muted); font-size: var(--text-sm); }
 .vacationActions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); margin-block-start: var(--space-md); }
 .vacationActions > span { margin: 0; }
-.vacationHeaderAction { display: flex; align-items: center; }
 .queueRow { --queue-card-start: var(--color-review-card-start); --queue-card-end: var(--color-review-card-end); --queue-action-color: var(--color-review-card-end); position: relative; isolation: isolate; min-width: 0; min-height: 9.375rem; overflow: hidden; border-radius: var(--radius-card); background: linear-gradient(135deg, var(--queue-card-start), var(--queue-card-end)); color: var(--color-study-card-copy); box-shadow: var(--shadow-floating); }
 .queueRow[data-kind="lesson"] { --queue-card-start: var(--color-lesson-card-start); --queue-card-end: var(--color-lesson-card-end); --queue-action-color: var(--color-lesson-card-end); }
 .queueRow[data-state="empty"],

@@ -151,9 +151,6 @@ export default function TabSettings() {
   const hasNativeTabs = supportsNativeTabs();
   const maxTabs = getMaxTabsForDevice();
 
-  // Use store directly for auto-save
-  const enabledTabs = customTabOrder as TabId[];
-
   // Calculate which tabs can be toggled
   const availableTabs = useMemo(() => {
     return TAB_INFO.filter(tab => {
@@ -162,6 +159,12 @@ export default function TabSettings() {
       return true;
     });
   }, [canAccessMangaTab, showSongsTab]);
+
+  // Match the actual tab bar while retaining saved choices until the user edits them.
+  const enabledTabs = useMemo(
+    () => customTabOrder.filter((id): id is TabId => availableTabs.some(tab => tab.id === id)).slice(0, maxTabs),
+    [customTabOrder, availableTabs, maxTabs]
+  );
 
   const enabledTabsInAvailableSet = useMemo(
     () => enabledTabs.filter((id) => availableTabs.some((tab) => tab.id === id)),
@@ -233,7 +236,7 @@ export default function TabSettings() {
 
   // Get tabs for preview (in display order)
   const previewTabs = useMemo(() => {
-    const order: TabId[] = TAB_INFO.map(t => t.id);
+    const order: TabId[] = ["home", "progress", "items", "analytics", "news", "epubs", "videos", "mangas", "notebooks", "songs"];
     return enabledTabs
       .filter(id => availableTabs.some(t => t.id === id))
       .sort((a: TabId, b: TabId) => order.indexOf(a) - order.indexOf(b))
@@ -248,16 +251,16 @@ export default function TabSettings() {
   }, [enabledTabs]);
 
   React.useEffect(() => {
-    const sanitizedTabs = enabledTabs.filter((id) =>
+    const sanitizedTabs = customTabOrder.filter((id) =>
       availableTabs.some((tab) => tab.id === id)
     );
     if (
-      sanitizedTabs.length !== enabledTabs.length ||
-      sanitizedTabs.some((tabId, index) => tabId !== enabledTabs[index])
+      sanitizedTabs.length !== customTabOrder.length ||
+      sanitizedTabs.some((tabId, index) => tabId !== customTabOrder[index])
     ) {
       setCustomTabOrder(sanitizedTabs);
     }
-  }, [availableTabs, enabledTabs, setCustomTabOrder]);
+  }, [availableTabs, customTabOrder, setCustomTabOrder]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>

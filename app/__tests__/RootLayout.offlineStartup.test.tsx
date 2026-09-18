@@ -299,6 +299,22 @@ describe("offline startup", () => {
     expect(screen.queryByTestId("app-slot")).toBeNull();
   });
 
+  it("keeps the loader visible and applies an update that takes longer than five seconds to download", async () => {
+    let finishFetch!: (result: { isNew: boolean; isRollBackToEmbedded: boolean }) => void;
+    mockCheckForUpdateAsync.mockResolvedValue({ isAvailable: true, isRollBackToEmbedded: false });
+    mockFetchUpdateAsync.mockImplementation(() => new Promise((resolve) => { finishFetch = resolve; }));
+    const screen = renderRoot();
+    await waitFor(() => expect(mockFetchUpdateAsync).toHaveBeenCalledTimes(1));
+
+    await act(async () => { jest.advanceTimersByTime(6000); });
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("Applying update...");
+
+    await act(async () => { finishFetch({ isNew: true, isRollBackToEmbedded: false }); });
+    expect(mockReloadAsync).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+  });
+
   it("opens cached content immediately when no update is available", async () => {
     mockCheckForUpdateAsync.mockResolvedValue({ isAvailable: false, isRollBackToEmbedded: false });
     const screen = renderRoot();
@@ -325,7 +341,7 @@ describe("offline startup", () => {
     expect(screen.getByTestId("startup-loader").props.children).toBe("ready");
   });
 
-  it("shares the five-second budget with download and never reloads after timeout", async () => {
+  it("gives the download a full minute after a four-second update check", async () => {
     let finishCheck!: (result: { isAvailable: boolean; isRollBackToEmbedded: boolean }) => void;
     let finishFetch!: (result: { isNew: boolean; isRollBackToEmbedded: boolean }) => void;
     mockCheckForUpdateAsync.mockImplementation(() => new Promise((resolve) => { finishCheck = resolve; }));
@@ -338,10 +354,37 @@ describe("offline startup", () => {
     });
     expect(mockFetchUpdateAsync).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("app-slot")).toBeNull();
-    await act(async () => { jest.advanceTimersByTime(1000); });
+    await act(async () => { jest.advanceTimersByTime(59_999); });
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("Applying update...");
+    await act(async () => { finishFetch({ isNew: true, isRollBackToEmbedded: false }); });
+    expect(mockReloadAsync).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+  });
+
+  it("opens cached content after a minute of downloading and ignores a late completion", async () => {
+    let finishFetch!: (result: { isNew: boolean; isRollBackToEmbedded: boolean }) => void;
+    let downloadStartedAt = 0;
+    mockCheckForUpdateAsync.mockResolvedValue({ isAvailable: true, isRollBackToEmbedded: false });
+    mockFetchUpdateAsync.mockImplementation(() => {
+      downloadStartedAt = Date.now();
+      return new Promise((resolve) => { finishFetch = resolve; });
+    });
+    const screen = renderRoot();
+    await waitFor(() => expect(mockFetchUpdateAsync).toHaveBeenCalledTimes(1));
+
+    // waitFor also advances fake timers; measure from the actual download start.
+    await act(async () => { jest.advanceTimersByTime(59_999 - (Date.now() - downloadStartedAt)); });
+    expect(screen.queryByTestId("app-slot")).toBeNull();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("Applying update...");
+    await act(async () => { jest.advanceTimersByTime(1); });
     expect(screen.getByTestId("app-slot")).toBeTruthy();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("ready");
+
     await act(async () => { finishFetch({ isNew: true, isRollBackToEmbedded: false }); });
     expect(mockReloadAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId("app-slot")).toBeTruthy();
+    expect(screen.getByTestId("startup-loader").props.children).toBe("ready");
   });
 
   it.each(["check", "download", "reload"])("opens cached content if the update %s fails", async (step) => {

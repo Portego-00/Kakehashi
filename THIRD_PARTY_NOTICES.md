@@ -4,6 +4,44 @@ These notices cover bundled data, build-time inputs, and runtime components
 identified below. They do not change the MIT license of the rest of the
 Kakehashi application.
 
+## Conversation learning (Mural)
+
+The conversation feature adapts Mural's interface, language modules, teaching
+policies, evidence validation, recall projection, and backup format:
+
+- Source: https://github.com/Chuloo/mural
+- Copyright: Hackmamba, 2026
+- License: MIT; copy: `licenses/Mural-MIT.txt`
+
+The Mural name and logo remain associated with the original project. Kakehashi
+uses its own feature name and adds a Japanese language module.
+
+The conversation interface includes Nunito by Vernon Adams, licensed under the
+SIL Open Font License 1.1; copy: `licenses/Nunito-OFL.txt`.
+
+Voice uses react-native-webrtc (MIT; `licenses/ReactNativeWebRTC-MIT.txt`) and
+react-native-incall-manager (ISC; `licenses/InCallManager-ISC.txt`). Mandarin
+reading support uses pinyin-pro (MIT; `licenses/PinyinPro-MIT.txt`).
+
+The installed @pinyin-pro/data 1.3.1 package declares ISC in package.json, has an
+empty author field, and does not ship a LICENSE file. Its upstream repository
+publishes an MIT license, copyright 2024 Chinese-Data, retained verbatim in
+`licenses/PinyinProData-Upstream-MIT.txt`. Both declarations are recorded rather
+than inventing an ISC copyright notice. Verified upstream revision:
+`815fe17f80fc7a76aa2b21a842e68229e4b72a4a` at
+https://github.com/chinese-data/pinyin-pro-data/blob/815fe17f80fc7a76aa2b21a842e68229e4b72a4a/LICENSE.
+
+Japanese word selection uses tiny-segmenter 0.2.0. The installed package's MIT
+license (copyright 2016 绝云) is retained in `licenses/TinySegmenter-MIT.txt`.
+Its source header separately retains the original copyright 2008 Taku Kudo and
+new BSD declaration; that attribution and BSD 3-Clause terms are retained in
+`licenses/TinySegmenter-BSD.txt`. Packaging source:
+https://github.com/leungwensen/tiny-segmenter.
+
+These full conversation notices are available offline in Conversation settings
+under “Open-source licenses”; their bundled text is in
+`src/features/conversation/license-notices.ts`.
+
 ## AnkiDroid API
 
 The Android context-sentence export integration uses the AnkiDroid API:
@@ -157,3 +195,18 @@ user asks for them, directly from pinned revision
 site data. Text and generated audio stay on the device. The model's Open
 RAIL-M license includes use-based restrictions; the pinned license is included
 in the browser download and remains available at the model link above.
+
+## OpenAI conversation voice recordings
+
+Conversation's bundled voice previews use recordings published by OpenAI:
+
+- GPT-Live voice samples: https://openai.com/index/introducing-gpt-live-1-in-the-api/#new-voice-options
+- Marin and Cedar Realtime voice references: https://openai.com/index/introducing-gpt-realtime/
+- Ballad and Verse excerpts from OpenAI's Realtime voice announcement: https://x.com/OpenAIDevs/status/1851668229938159853 (linked by OpenAI staff at https://community.openai.com/t/new-realtime-api-voices-and-cache-pricing/998238)
+- Alloy, Ash, Coral, Echo, Sage and Shimmer speech references: https://developers.openai.com/api/docs/guides/text-to-speech and OpenAI's public documentation audio CDN
+
+The original public recordings are included for local playback without an AI
+generation request. They remain OpenAI-published material and are not relicensed
+under this application's source-code license. Exact media URLs, model families,
+languages, excerpt boundaries, container repairs, and SHA-256 hashes are recorded in
+`src/features/conversation/assets/voice-previews/provenance.json`.

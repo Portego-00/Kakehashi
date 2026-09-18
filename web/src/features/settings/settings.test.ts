@@ -225,7 +225,9 @@ describe("web settings persistence", () => {
     });
   });
 
-  it("uses the configured review question defaults", () => {
+  it("uses the default review question preferences", () => {
+    expect(loadWebSettings({ getItem: () => null }, "tester").study.acceptUserSynonymsAsAnswers).toBe(true);
+    expect(loadWebSettings(storage({ study: { pauseOnCorrect: true } }), "tester").study.acceptUserSynonymsAsAnswers).toBe(true);
     expect(DEFAULT_WEB_SETTINGS.study).toMatchObject({
       autoplayAudio: true,
       answerFeedbackSoundEnabled: true,
@@ -240,7 +242,7 @@ describe("web settings persistence", () => {
       pauseOnClose: false,
       pauseOnCorrect: false,
       srsProgressionCardDisplayMode: "normal",
-      acceptUserSynonymsAsAnswers: false,
+      acceptUserSynonymsAsAnswers: true,
       vocabularyAudioVoice: "female",
       ankiGroupQuestions: false,
       ankiHideAnswerCompletely: false,
@@ -321,7 +323,7 @@ describe("web settings persistence", () => {
       vocabularyAudioVoice: "random" as const,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: true,
       srsProgressionCardDisplayMode: "hidden" as const,
-      acceptUserSynonymsAsAnswers: true,
+      acceptUserSynonymsAsAnswers: false,
       acceptAnyKanjiOnyomiReading: true,
       customReviewOrder: "longestRelativeWait" as const,
       reviewTypeOrderEnabled: true,

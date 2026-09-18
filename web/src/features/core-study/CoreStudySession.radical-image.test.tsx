@@ -4,6 +4,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoreStudySession } from "./CoreStudySession";
 
+vi.mock("./review-subject-font", () => ({ reviewSubjectFont: { className: "review-subject-font" } }));
+
 const fixtures = vi.hoisted(() => {
   const radicalSvgUrl = "https://files.wanikani.com/rib-cage.svg";
   const radical = {
@@ -61,9 +63,9 @@ const fixtures = vi.hoisted(() => {
     url: "https://api.wanikani.com/v2/user",
     data_updated_at: "2026-08-17T00:00:00.000Z",
     data: {
-      username: "radical-image-test",
+      username: "Portego",
       level: 4,
-      profile_url: "https://www.wanikani.com/users/radical-image-test",
+      profile_url: "https://www.wanikani.com/users/Portego",
       started_at: "2026-01-01T00:00:00.000Z",
       current_vacation_started_at: null,
       preferences: {},
@@ -131,7 +133,7 @@ const fixtures = vi.hoisted(() => {
 
 vi.mock("./review-subject-font", () => ({ reviewSubjectFont: { className: "review-subject-font", style: { fontFamily: "Noto Sans JP" } } }));
 
-vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user, status: "authenticated", isDemo: false }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
   useWebSettings: () => fixtures.settings,

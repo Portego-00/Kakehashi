@@ -1,9 +1,22 @@
 import type { Subject } from "@/types/wanikani";
 import type { WebStudyPreferences } from "@/features/settings/settings";
 import type { QuestionKind } from "./answer-checker";
+import type { QueueOptions } from "./queue";
 
 export function questionOrderForMode(mode: "lessons" | "reviews", preferences: WebStudyPreferences) {
   return mode === "lessons" ? preferences.lessonQuestionOrder : preferences.reviewQuestionOrder;
+}
+
+export function coreQueueOptionsForMode(mode: "lessons" | "reviews", preferences: WebStudyPreferences): QueueOptions {
+  const groupedAnki = preferences.ankiMode === "both" && preferences.ankiGroupQuestions;
+  return {
+    mode,
+    shuffleSubjects: false,
+    answerOrder: questionOrderForMode(mode, preferences),
+    reviewQuestionOrderEnabled: mode === "reviews" && preferences.reviewQuestionOrderEnabled && !groupedAnki,
+    backToBackQuestions: preferences.backToBackQuestions && !groupedAnki,
+    maxQuestionGap: 10,
+  };
 }
 
 export function usesSelfAssessment(kind: QuestionKind, preferences: WebStudyPreferences) {

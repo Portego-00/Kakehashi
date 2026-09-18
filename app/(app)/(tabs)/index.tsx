@@ -36,7 +36,7 @@ import {
 } from "../../../src/utils/api";
 import { apiDebugger } from "../../../src/utils/apiDebugger";
 import { updateBadgeWithReviewCount } from "../../../src/utils/badgeNotifications";
-import { normalizeHomeWidgetOrder } from "../../../src/utils/homeWidgets";
+import { getVisibleHomeWidgetOrder } from "../../../src/utils/homeWidgets";
 import {
   RESUMABLE_EXTRA_STUDY_MODE_SESSION_ENTRIES,
   type ExtraStudyModeId,
@@ -282,9 +282,10 @@ export default function StudyTab() {
     [dashboardData.forecast, dashboardData.reviewCount],
   );
   const topCriticalItem = dashboardData.criticalItems[0] ?? null;
+  const signedInForHomeWidgets = Boolean(apiToken && userData?.id);
   const activeHomeWidgetOrder = useMemo(
-    () => normalizeHomeWidgetOrder(homeWidgetOrder),
-    [homeWidgetOrder],
+    () => getVisibleHomeWidgetOrder(homeWidgetOrder, userData?.username, signedInForHomeWidgets),
+    [homeWidgetOrder, userData?.username, signedInForHomeWidgets],
   );
   const recentLessonCountForWindow = useMemo(() => {
     if (homeRecentLessonsWindow === "apprentice") {
@@ -1130,6 +1131,7 @@ export default function StudyTab() {
         <HomeDashboardWidget
           key={`${widgetId}-${index}`}
           widgetId={widgetId}
+          signedIn={signedInForHomeWidgets}
           dashboardData={dashboardData}
           userData={userData}
           effectiveLessonCount={effectiveLessonCount}
