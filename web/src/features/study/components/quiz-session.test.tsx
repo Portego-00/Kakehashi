@@ -887,7 +887,7 @@ describe("extra-study quiz interaction", () => {
 
     expect(await screen.findByRole("tablist", { name: "Subject details" })).toBeInTheDocument();
     const detailsHeader = screen.getByRole("region", { name: "Subject details" }).querySelector("header")!;
-    expect(within(detailsHeader).getByText("防ぐ", { exact: true })).toBeVisible();
+    await waitFor(() => expect(within(detailsHeader).getByText("防ぐ", { exact: true })).toBeVisible());
     expect(screen.getByRole("tab", { name: "Reading" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Readings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reading mnemonic" })).toBeInTheDocument();
@@ -1068,7 +1068,7 @@ describe("extra-study quiz interaction", () => {
     expect(await screen.findByRole("heading", { name: "猫" }, { timeout: 2_000 })).toBeInTheDocument();
   });
 
-  it("scrolls smoothly when details expand", async () => {
+  it("expands details without starting a competing page scroll", async () => {
     const previousScrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
     const scrollIntoView = vi.fn();
     Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
@@ -1088,7 +1088,8 @@ describe("extra-study quiz interaction", () => {
       fireEvent.change(screen.getByLabelText(/Vocabulary Reading/), { target: { value: "fusegu" } });
       fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
-      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: /Hide subject details/ })).toHaveAttribute("aria-expanded", "true"));
+      expect(scrollIntoView).not.toHaveBeenCalled();
     } finally {
       if (previousScrollIntoView) Object.defineProperty(Element.prototype, "scrollIntoView", previousScrollIntoView);
       else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
@@ -1389,7 +1390,7 @@ describe("extra-study quiz interaction", () => {
         showReviewItemLevelAndSrsStage: true,
         showVocabularyFrequency: true,
         showVocabContextSentencesInReviews: true,
-        allowSkippingReviews: true,
+        allowSkippingReviews: false,
         reviewSearchButtonEnabled: true,
         reviewCharacterFontScale: 1.2,
         reviewInputFontScale: 1.2,

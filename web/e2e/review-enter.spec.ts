@@ -322,13 +322,13 @@ test("fresh reviews keep the light font and restore result controls and D/R shor
   await page.keyboard.press("r");
   await expect.poll(() => page.evaluate(() => (window as typeof window & { reviewAudioPlays: number }).reviewAudioPlays)).toBe(audioBefore + 1);
   await page.getByRole("button", { name: "Mark Correct", exact: true }).click();
-  await expect(page.getByText("0 mistakes", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark Incorrect", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Mark Incorrect", exact: true }).click();
-  await expect(page.getByText("1 mistake", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark Correct", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("kakehashi-core-session:portego:reviews"))).toBeNull();
   await page.reload();
   await expect(page.locator("#study-prompt-title")).toHaveText("meaning");
-  await expect(page.getByText("0 mistakes", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check", exact: true })).toBeVisible();
 });
 
 
@@ -359,4 +359,60 @@ test("previous words stay on one line and details animate through intermediate h
   await expect(character).toHaveCSS("white-space", "nowrap");
   expect(await character.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.screenshot({ path: `/tmp/review-previous-fixed-${test.info().project.name}.png` });
+});
+
+
+test("answer feedback and secondary controls follow the input on the left", async ({ page }) => {
+  await mockReview(page);
+  await page.goto("/reviews");
+  await expect(page.getByRole("button", { name: "Skip review" })).toBeVisible();
+  await page.getByRole("textbox", { name: "Your answer" }).fill("wrong");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  const correct = page.getByText("Correct answer", { exact: true });
+  const correction = page.getByRole("button", { name: "Mark Correct", exact: true });
+  const details = page.getByRole("button", { name: /Show subject details/ });
+  await expect(correct).toBeVisible();
+  await expect(correction).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark Incorrect", exact: true })).toBeVisible();
+  const inputBounds = await page.getByRole("textbox", { name: "Your answer" }).boundingBox();
+  for (const target of [correct, page.getByRole("button", { name: "Mark Incorrect", exact: true }), details]) {
+    const box = await target.boundingBox();
+    expect(Math.abs(box!.x - inputBounds!.x)).toBeLessThan(3);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `/tmp/review-hierarchy-${test.info().project.name}.png`, fullPage: true });
+});
+
+
+test("result button shortcuts and measured details expansion work together", async ({ page }) => {
+  await mockReview(page);
+  await page.goto("/reviews");
+  const input = page.getByRole("textbox", { name: "Your answer" });
+  await input.fill("wrong");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Mark Incorrect", exact: true }).locator("kbd")).toHaveText("Enter");
+  await expect(page.getByRole("button", { name: "Mark Correct", exact: true }).locator("kbd")).toHaveText("C");
+  await expect(page.getByRole("button", { name: "Add as synonym" }).locator("kbd")).toHaveText("S");
+  await input.focus();
+  await page.keyboard.press("c");
+  await expect(page.getByRole("button", { name: "Mark Incorrect", exact: true }).locator("kbd")).toHaveText("X");
+  await page.keyboard.press("x");
+  await expect(page.getByRole("button", { name: "Mark Incorrect", exact: true }).locator("kbd")).toHaveText("Enter");
+  await page.locator("[data-review-details-reveal]").evaluate((node) => {
+    (window as typeof window & { detailFrames?: Promise<number[]> }).detailFrames = new Promise((resolve) => {
+      document.addEventListener("keydown", () => {
+        const samples: number[] = [];
+        const start = performance.now();
+        function sample() { samples.push(Math.round(node.getBoundingClientRect().height)); if (performance.now() - start < 500) requestAnimationFrame(sample); else resolve(samples); }
+        sample();
+      }, { once: true });
+    });
+  });
+  await page.keyboard.press("d");
+  const heights = await page.evaluate(() => (window as typeof window & { detailFrames: Promise<number[]> }).detailFrames);
+  expect(new Set(heights).size).toBeGreaterThan(4);
+  await page.screenshot({path: `/tmp/review-motion-${test.info().project.name}.png`, fullPage: true});
+  await page.keyboard.press("d");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#study-prompt-title")).toHaveText("reading");
 });

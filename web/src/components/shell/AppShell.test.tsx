@@ -230,8 +230,8 @@ describe("AppShell session bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
     const allDestinations = screen.getByRole("navigation", { name: "All destinations" });
     expect(within(allDestinations).getByRole("link", { name: "News" })).toHaveAttribute("href", "/news");
-    expect(within(allDestinations).getByRole("button", { name: "Lessons, coming soon" })).toBeDisabled();
-    expect(within(allDestinations).getByRole("button", { name: "Reviews, coming soon" })).toBeDisabled();
+    expect(within(allDestinations).getByRole("link", { name: "Lessons" })).toHaveAttribute("href", "/lessons");
+    expect(within(allDestinations).getByRole("link", { name: "Reviews" })).toHaveAttribute("href", "/reviews");
     expect(within(allDestinations).queryByRole("link", { name: "Custom vocabulary" })).not.toBeInTheDocument();
     expect(within(allDestinations).getByRole("link", { name: "Extra study" })).toHaveAttribute("href", "/study");
     expect(within(allDestinations).getByRole("link", { name: "Notebooks" })).toHaveAttribute("href", "/notebooks");
@@ -332,7 +332,7 @@ describe("AppShell contextual back navigation", () => {
     expect(backTargetForPathname(pathname)).toBe(parent);
   });
 
-  it.each(["Portego", " PORTEGO "])("enables both study links for %s", (username) => {
+  it.each(["Learner", "Pozab", "Portego", " PORTEGO "])("enables both study links for %s", (username) => {
     mocks.session.user!.data.username = username;
     render(<AppShell><p>Dashboard content</p></AppShell>);
     fireEvent.click(screen.getByRole("button", { name: "More destinations" }));
@@ -340,15 +340,15 @@ describe("AppShell contextual back navigation", () => {
     expect(screen.getByRole("link", { name: "Reviews" })).toHaveAttribute("href", "/reviews");
   });
 
-  it.each(["/lessons", "/lesson-picker", "/reviews"])("revokes study access on account switch at %s", (pathname) => {
+  it.each(["/lessons", "/lesson-picker", "/reviews"])("preserves study access on account switch at %s", (pathname) => {
     mocks.pathname = pathname;
     mocks.session.user!.data.username = "Portego";
     const { rerender } = render(<AppShell><p>Study content</p></AppShell>);
     expect(screen.getByText("Study content")).toBeInTheDocument();
     mocks.session.user!.data.username = "Learner";
     rerender(<AppShell><p>Study content</p></AppShell>);
-    expect(screen.queryByText("Study content")).not.toBeInTheDocument();
-    expect(mocks.replace).toHaveBeenCalledWith("/dashboard");
+    expect(screen.getByText("Study content")).toBeInTheDocument();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("keeps Custom vocabulary active on a word detail route", () => {
@@ -362,9 +362,6 @@ describe("AppShell contextual back navigation", () => {
   });
 
   it.each([
-    "/lessons",
-    "/lesson-picker",
-    "/reviews",
     "/custom-vocabulary",
     "/custom-vocabulary/lessons",
     "/custom-vocabulary/reviews",

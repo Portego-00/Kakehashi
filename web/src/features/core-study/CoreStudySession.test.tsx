@@ -236,8 +236,10 @@ describe("core study prompt layout", () => {
     fireEvent.keyDown(input, { key: "d" });
     expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
     await submitAnswer("River", "meaning");
+    vi.mocked(window.HTMLElement.prototype.scrollIntoView).mockClear();
     fireEvent.keyDown(input, { key: "d" });
-    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Subject details" })).toBeVisible());
+    expect(window.HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: "D" });
     await waitFor(() => expect(screen.getByRole("button", { name: /Show subject details/ })).toHaveAttribute("aria-expanded", "false"));
   });
@@ -246,20 +248,20 @@ describe("core study prompt layout", () => {
     fixtures.settings.study.pauseOnCorrect = true;
     renderSession("reviews");
     await submitAnswer("wrong", "meaning");
-    expect(screen.getByText("1 mistake")).toBeVisible();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
-    expect(screen.getByText("0 mistakes")).toBeVisible();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
-    expect(screen.getByText("1 mistake")).toBeVisible();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "reading" });
     await submitAnswer("かわ", "reading");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "meaning" });
     await submitAnswer("wrong again", "meaning");
-    expect(screen.getByText("2 mistakes")).toBeVisible();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
-    expect(screen.getByText("1 mistake")).toBeVisible();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => expect(wkRequest).toHaveBeenCalledWith("reviews", expect.objectContaining({ body: expect.objectContaining({ review: expect.objectContaining({ incorrect_meaning_answers: 1, incorrect_reading_answers: 0 }) }) })));
   });
@@ -471,10 +473,10 @@ describe("core study prompt layout", () => {
     expect(frequencyFetch).toHaveBeenCalledOnce();
   });
 
-  it("adds opt-in skip and search controls without exposing them by default", async () => {
+  it("always offers skip while keeping search opt-in", async () => {
     renderSession("reviews");
     expect(await screen.findByRole("heading", { name: "meaning" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Skip review" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skip review" })).toBeDisabled();
     expect(screen.queryByRole("link", { name: "Search this item" })).not.toBeInTheDocument();
 
     cleanup();
@@ -535,7 +537,7 @@ describe("core study prompt layout", () => {
     expect(reservedSlot).toHaveAttribute("data-mode", "compact");
     expect(reservedSlot).toHaveAttribute("data-progression-visible", "false");
     expect(reservedSlot).not.toHaveAttribute("aria-hidden");
-    expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");
+    expect(screen.queryByLabelText("Question status")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
@@ -565,7 +567,7 @@ describe("core study prompt layout", () => {
       await waitFor(() => expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument());
       expect(container.querySelector("[data-srs-progression-slot]")).toBe(activeSlot);
       expect(activeSlot).toHaveAttribute("data-progression-visible", "false");
-      expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");
+      expect(screen.queryByLabelText("Question status")).not.toBeInTheDocument();
     } finally {
       timeoutSpy.mockRestore();
     }
@@ -577,7 +579,7 @@ describe("core study prompt layout", () => {
 
     expect(await screen.findByRole("heading", { name: "meaning" })).toBeInTheDocument();
     expect(container.querySelector("[data-srs-progression-slot]")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Question status")).toHaveTextContent("0 mistakes");
+    expect(screen.queryByLabelText("Question status")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument();
   });
 
@@ -648,7 +650,7 @@ describe("core study prompt layout", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
     expect(input).toHaveFocus();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
   });
 
   it("retains mobile answer focus when correct feedback advances automatically", async () => {
@@ -944,7 +946,7 @@ describe("core study prompt layout", () => {
       body: { study_material: { meaning_synonyms: ["watercourse", "waterway"] } },
     }));
     expect(await screen.findByText("Added “waterway” as a synonym and marked the answer correct.")).toBeInTheDocument();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add as synonym" })).not.toBeInTheDocument();
   });
 
@@ -975,7 +977,7 @@ describe("core study prompt layout", () => {
 
     expect(await screen.findByText("Accepted with a typo")).toBeInTheDocument();
     expect(screen.getByText("Correct, with a small typo.")).toBeInTheDocument();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
   });
 
   it("requires a paused close answer to be marked incorrect before retrying it", async () => {
@@ -993,7 +995,7 @@ describe("core study prompt layout", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
 
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
-    expect(screen.getByText("1 mistake")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     expect(playAnswerFeedback).toHaveBeenLastCalledWith(false);
   });
 
@@ -1007,7 +1009,7 @@ describe("core study prompt layout", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Mark Correct" }));
 
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     expect(playAnswerFeedback).toHaveBeenLastCalledWith(true);
   });
 
@@ -1023,7 +1025,7 @@ describe("core study prompt layout", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     expect(playAnswerFeedback).toHaveBeenLastCalledWith(true);
   });
 
@@ -1065,7 +1067,7 @@ describe("core study prompt layout", () => {
 
     expect(await screen.findByText("Try another answer")).toBeInTheDocument();
     expect(screen.getByText("You entered the reading, but we want the meaning.")).toBeInTheDocument();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
     expect(input).toHaveValue("");
@@ -1082,7 +1084,7 @@ describe("core study prompt layout", () => {
 
     expect(await screen.findByText("Try another answer")).toBeInTheDocument();
     expect(screen.getByText("This is a reading for the individual kanji, not the vocabulary.")).toBeInTheDocument();
-    expect(screen.getByText("0 mistakes")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
   });
 
   it("uses the subject-page grammar for lesson teaching before its review", async () => {
@@ -1129,6 +1131,20 @@ describe("core study prompt layout", () => {
       fireEvent.click(screen.getByRole("button", { name: "Next batch" }));
       expect(await screen.findByRole("heading", { name: "Fire" })).toBeInTheDocument();
     } finally { fixtures.settings.study.lessonsBatchSize = originalBatchSize; }
+  });
+
+  it("skips a lesson quiz item without grading or starting it", async () => {
+    fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
+    fixtures.settings.study.allowSkippingReviews = false;
+    renderSession("lessons");
+    await screen.findByRole("heading", { name: "River" });
+    fireEvent.click(screen.getByRole("button", { name: "Lesson 2: Fire" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start lesson review" }));
+    const prompt = await screen.findByLabelText("Lesson quiz prompt");
+    expect(prompt).toHaveTextContent("川");
+    fireEvent.click(screen.getByRole("button", { name: "Skip review" }));
+    expect(prompt).toHaveTextContent("火");
+    expect(vi.mocked(wkRequest).mock.calls.some(([endpoint]) => endpoint.includes("/start") || endpoint === "reviews")).toBe(false);
   });
 
   it("keeps every lesson in the batch centered between previous and next controls", async () => {
@@ -1323,4 +1339,25 @@ describe("core study prompt layout", () => {
     expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "River" })).toBeInTheDocument();
   });
+  it("reports mixed-session turns without saving half a WaniKani review", async () => {
+    fixtures.settings.study.pauseOnCorrect = true;
+    fixtures.settings.study.backToBackQuestions = true;
+    const report = vi.fn();
+    const onAnswer = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report, onAnswer, previous: { id: "bp-1", source: "bunpro", title: "だけど", correct: false } }} /></QueryClientProvider>);
+    await submitAnswer("river", "meaning");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("heading", { name: "reading" });
+    expect(screen.getByLabelText("Previous Bunpro answer: だけど, incorrect")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Previous meaning answer: River, correct" })).not.toBeInTheDocument();
+    expect(onAnswer).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", title: "River", correct: true }));
+    expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", keepTurn: true, id: "100:reading" }));
+    expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(0);
+    await submitAnswer("かわ", "reading");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(report).toHaveBeenLastCalledWith(null));
+    await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(1));
+  });
+
 });

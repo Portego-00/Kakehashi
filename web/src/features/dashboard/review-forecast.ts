@@ -3,17 +3,19 @@ import { customWordUsesKanji } from "@/features/custom-srs/subject-adapter";
 import type { CustomSrsState, CustomVocabularyPack } from "@/features/custom-srs/types";
 
 const HOUR_MS = 3_600_000;
-const SUBJECT_TYPES: readonly SubjectType[] = ["radical", "kanji", "vocabulary", "kana_vocabulary"];
+type ForecastSubjectType = SubjectType | "bunpro_grammar" | "bunpro_vocab";
+const SUBJECT_TYPES: readonly ForecastSubjectType[] = ["radical", "kanji", "vocabulary", "kana_vocabulary", "bunpro_grammar", "bunpro_vocab"];
 const SRS_GROUPS = ["apprentice", "guru", "master", "enlightened"] as const;
 
 export type ForecastSrsGroup = typeof SRS_GROUPS[number];
-export type ForecastSubjectBreakdown = Record<SubjectType, number>;
+export type ForecastSubjectBreakdown = Record<SubjectType, number> & Partial<Record<"bunpro_grammar" | "bunpro_vocab", number>>;
 export type ForecastSrsBreakdown = Record<ForecastSrsGroup, number>;
 
 export interface ReviewForecastEntry {
   id: string;
   availableAt: string;
-  subjectType: SubjectType;
+  subjectType: ForecastSubjectType;
+  count?: number;
   srsStage: number;
   critical?: boolean;
 }
@@ -69,17 +71,20 @@ function emptyCounts(): ForecastCounts {
 
 function addCounts(target: ForecastCounts, source: ForecastCounts) {
   target.count += source.count;
-  for (const type of SUBJECT_TYPES) target.subjectBreakdown[type] += source.subjectBreakdown[type];
+  for (const type of SUBJECT_TYPES) {
+    if (source.subjectBreakdown[type] !== undefined) target.subjectBreakdown[type] = (target.subjectBreakdown[type] ?? 0) + (source.subjectBreakdown[type] ?? 0);
+  }
   for (const group of SRS_GROUPS) target.srsBreakdown[group] += source.srsBreakdown[group];
   target.critical ||= source.critical;
 }
 
 function addEntry(target: ForecastCounts, entry: ReviewForecastEntry) {
   const group = srsGroup(entry.srsStage);
-  if (!group) return;
-  target.count += 1;
-  target.subjectBreakdown[entry.subjectType] += 1;
-  target.srsBreakdown[group] += 1;
+  if (!group && !entry.subjectType.startsWith("bunpro_")) return;
+  const count = entry.count ?? 1;
+  target.count += count;
+  target.subjectBreakdown[entry.subjectType] = (target.subjectBreakdown[entry.subjectType] ?? 0) + count;
+  if (group) target.srsBreakdown[group] += count;
   target.critical ||= entry.critical === true;
 }
 
@@ -161,7 +166,7 @@ export function createReviewForecast(entries: readonly ReviewForecastEntry[], no
   const nowMs = now.getTime();
   const uniqueEntries = new Map(entries.map((entry) => [entry.id, entry]));
   const schedule = [...uniqueEntries.values()]
-    .filter((entry) => entry.id && SUBJECT_TYPES.includes(entry.subjectType) && srsGroup(entry.srsStage))
+    .filter((entry) => entry.id && SUBJECT_TYPES.includes(entry.subjectType) && (srsGroup(entry.srsStage) || entry.subjectType.startsWith("bunpro_")))
     .map((entry) => ({ entry, timestamp: Date.parse(entry.availableAt) }))
     .filter(({ timestamp }) => Number.isFinite(timestamp))
     .sort((left, right) => left.timestamp - right.timestamp);
@@ -267,7 +272,7 @@ export function createReviewForecast(entries: readonly ReviewForecastEntry[], no
     days,
     hourly,
     nextReviewAt: future.length ? new Date(future[0].timestamp) : null,
-    laterCount: future.filter(({ timestamp }) => timestamp >= dayStart.getTime()).length,
+    laterCount: future.filter(({ timestamp }) => timestamp >= dayStart.getTime()).reduce((sum, { entry }) => sum + (entry.count ?? 1), 0),
   };
 }
 

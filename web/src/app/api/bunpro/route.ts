@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
       if (!deck.success) throw new BunproError("Invalid lesson deck.", 400);
       return NextResponse.json(await bunproRequest(token, `/learn?deck_id=${deck.data}`), { headers });
     }
+    if (action === "forecast") {
+      const [hourly, daily, due] = await Promise.all([bunproRequest(token, "/user_stats/forecast_hourly"), bunproRequest(token, "/user_stats/forecast_daily"), bunproRequest(token, "/user/due")]);
+      return NextResponse.json({ hourly, daily, due }, { headers });
+    }
     if (action === "due") return NextResponse.json(await bunproRequest(token, "/user/due"), { headers });
     if (action === "queue") {
       const mode = modeSchema.safeParse(request.nextUrl.searchParams.get("mode") ?? "all");

@@ -1,0 +1,46 @@
+.forecast { display: flex; flex: 1; flex-direction: column; gap: var(--space-sm); min-width: 0; }
+.forecast > :not([data-chart-kind]) { flex-shrink: 0; }
+.forecast > [data-chart-kind] { flex: 1; }
+.metrics { grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--space-sm); margin: 0; }
+.metrics dd { font-size: 1.25rem; line-height: 1.35; white-space: nowrap; }
+.metrics > [data-primary] dd { font-size: 1.75rem; line-height: 1.2; }
+.metrics[data-with-time] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.planningControls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); }
+.lessonControls { justify-content: start; gap: var(--space-xs) var(--space-sm); }
+.lessonControls label { min-width: 0; }
+.lessonControls select { max-width: 100%; }
+.lessonControls input[type="number"] { width: 4.5rem; }
+.chartControls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); }
+.dayDetail { border-block: var(--rule-thin) solid var(--color-rule-2); padding-block: var(--space-sm); }
+.dayDetail > * + * { margin-top: var(--space-sm); }
+.scenario { border-top: var(--rule-thin) solid var(--color-rule-2); padding-top: var(--space-xs); }
+.scenario summary { display: flex; align-items: center; gap: var(--space-xs); min-height: 2rem; cursor: pointer; color: var(--color-muted); font-size: var(--text-xs); }
+.scenario summary > span { margin-left: auto; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.scenario summary:hover { color: var(--color-ink); }
+.scenario summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.scenario > div { margin-top: var(--space-sm); }
+.scenarioControls { justify-content: start; gap: var(--space-sm); }
+.accuracy { flex: 1 1 14rem; }
+.accuracy input[type="range"] { flex: 1; min-width: 4rem; max-width: 12rem; }
+.accuracy output { min-width: 3.5rem; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.budget { justify-content: start; gap: var(--space-sm) var(--space-md); }
+.budget input[type="number"] { width: 5rem; }
+.budgetResult { display: grid; gap: var(--space-xs); font-size: var(--text-sm); }
+.budgetResult strong { font-weight: 600; }
+.budgetResult span { color: var(--color-muted); font-size: var(--text-xs); line-height: 1.5; }
+.assumptions ul { margin: var(--space-sm) 0; padding-left: var(--space-lg); }
+.assumptions li, .assumptions p { color: var(--color-muted); font-size: var(--text-xs); line-height: 1.6; }
+@container analytics-widget (max-width: 30rem) {
+  .planningControls { gap: var(--space-xs); }
+  .planningControls > * { width: 100%; }
+  .metrics[data-with-time] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .accuracy { flex-basis: calc(100% - 3.5rem); }
+}
+@container analytics-widget (max-width: 20rem) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metrics > [data-primary] { grid-column: 1 / -1; }
+  .chartControls { gap: 0; }
+  .chartControls > [role="group"] button { padding-inline: var(--space-xs); }
+  .planningControls > [role="group"] { justify-content: space-between; gap: 0; }
+  .planningControls > [role="group"] button { padding-inline: var(--space-xs); }
+}

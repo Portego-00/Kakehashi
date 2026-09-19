@@ -29,11 +29,12 @@ it.each(mutations)("allows Portego's $method $path mutation", async ({ method, p
   expect(mocks.fetch).toHaveBeenCalledOnce();
 });
 
-it.each(mutations)("blocks another account's $method $path mutation", async ({ method, path, handler, body }) => {
+it.each(mutations)("allows another verified account's $method $path mutation", async ({ method, path, handler, body }) => {
   mocks.user.mockResolvedValue({ data: { username: "Learner" } });
   const request = new NextRequest(`https://kakehashiapp.com/api/wanikani/${path.join("/")}`, { method, headers: { cookie: "kakehashi_wk_session=sealed", "X-WaniKani-Username": "Portego" }, body: JSON.stringify(body) });
-  expect((await handler(request, { params: Promise.resolve({ path }) })).status).toBe(403);
-  expect(mocks.fetch).not.toHaveBeenCalled();
+  expect((await handler(request, { params: Promise.resolve({ path }) })).status).toBe(200);
+  expect(mocks.user).toHaveBeenCalledWith("verified-token");
+  expect(mocks.fetch).toHaveBeenCalledOnce();
 });
 
 it.each(mutations)("fails closed when verification fails for $method $path", async ({ method, path, handler, body }) => {

@@ -1,5 +1,5 @@
 import type { RequestOptions } from "@/lib/wanikani/client";
-import type { Assignment, AssignmentData, CharacterImage, LevelProgression, ReviewCreateResponse, ReviewStatistic, StudyMaterial, Subject, SubjectReading, SubjectType, WKCollection, WKResource, WKSummary } from "@/types/wanikani";
+import type { Assignment, AssignmentData, CharacterImage, LevelProgression, Review, ReviewCreateResponse, ReviewStatistic, SpacedRepetitionSystem, StudyMaterial, Subject, SubjectReading, SubjectType, WKCollection, WKResource, WKSummary } from "@/types/wanikani";
 import facts from "./wanikani-subjects.generated.json";
 import { DEMO_RADICAL_FACTS } from "./radicals";
 import { DEMO_USER } from "./runtime";
@@ -177,7 +177,7 @@ function statisticsFor(state: DemoState): ReviewStatistic[] {
     if (stage === 0 && reviews.length === 0) return [];
     const correct = stage === 0 ? 0 : Math.max(1, stage - 1) + Math.floor(sample(id, 73) * stage * 5);
     const incorrect = stage === 0 ? 0 : sample(id, 79) < 0.12 ? 5 + Math.floor(sample(id, 83) * 10) : Math.floor(sample(id, 83) * 4);
-    const hasReading = assignment.data.subject_type !== "radical";
+    const hasReading = assignment.data.subject_type === "kanji" || assignment.data.subject_type === "vocabulary";
     const initialReadingCorrect = stage === 0 || !hasReading ? 0 : Math.max(1, correct - Math.floor(sample(id, 89) * 4));
     const meaningIncorrect = incorrect + reviews.reduce((total, review) => total + review.data.incorrect_meaning_answers, 0);
     const readingIncorrect = hasReading ? incorrect + reviews.reduce((total, review) => total + review.data.incorrect_reading_answers, 0) : 0;
@@ -206,6 +206,46 @@ function statisticsFor(state: DemoState): ReviewStatistic[] {
     }, lastReviewed)];
   });
 }
+
+let historicalReviewsCache: { createdAt: number; reviews: Review[] } | null = null;
+
+function historicalReviews(state: DemoState): Review[] {
+  if (historicalReviewsCache?.createdAt === state.createdAt) return historicalReviewsCache.reviews;
+  const reviews: Review[] = [];
+  for (const subject of DEMO_SUBJECTS) {
+    const assignment = initialAssignment(subject, state.createdAt);
+    const stage = assignment.data.srs_stage;
+    if (!stage || !assignment.data.started_at) continue;
+    const count = Math.max(1, stage - 1) + Math.floor(sample(subject.id, 73) * stage * 5);
+    const started = Date.parse(assignment.data.started_at);
+    const last = assignment.data.burned_at ? Date.parse(assignment.data.burned_at) : Math.max(started, state.createdAt - sample(subject.id, 113) * (stage <= 4 ? 3 : stage <= 6 ? 10 : 45) * DAY);
+    const errors = sample(subject.id, 79) < 0.12 ? 5 + Math.floor(sample(subject.id, 83) * 10) : Math.floor(sample(subject.id, 83) * 4);
+    const meaningErrors = Array.from({ length: count }, () => 0);
+    const readingErrors = Array.from({ length: count }, () => 0);
+    const hasReading = subject.object === "kanji" || subject.object === "vocabulary";
+    for (let index = 0; index < errors; index += 1) {
+      meaningErrors[Math.floor(sample(subject.id + index, 137) * count)] += 1;
+      if (hasReading) readingErrors[Math.floor(sample(subject.id + index, 139) * count)] += 1;
+    }
+    for (let index = 0; index < count; index += 1) {
+      const timestamp = iso(started + (last - started) * (index + 1) / count);
+      const startingStage = Math.min(8, Math.max(1, Math.ceil((index + 1) / count * (stage - 1))));
+      reviews.push(resource(1_000_000 + subject.id * 100 + index, "review", "reviews", {
+        assignment_id: assignment.id, subject_id: subject.id, starting_srs_stage: startingStage,
+        ending_srs_stage: meaningErrors[index] + readingErrors[index] ? Math.max(1, startingStage - 1) : Math.min(9, startingStage + 1),
+        incorrect_meaning_answers: meaningErrors[index], incorrect_reading_answers: readingErrors[index], created_at: timestamp, spaced_repetition_system_id: 1,
+      }, timestamp));
+    }
+  }
+  reviews.sort((a, b) => a.id - b.id);
+  historicalReviewsCache = { createdAt: state.createdAt, reviews };
+  return reviews;
+}
+
+const DEMO_SRS_SYSTEMS: SpacedRepetitionSystem[] = [resource(1, "spaced_repetition_system", "spaced_repetition_systems", {
+  name: "Default", description: "Default WaniKani review intervals", unlocking_stage_position: 0, starting_stage_position: 1, passing_stage_position: 5, burning_stage_position: 9,
+  stages: [null, 4, 8, 23, 47, 167, 335, 719, 2879, null].map((interval, position) => ({ position, interval, interval_unit: interval === null ? null : "hours" })),
+})];
 
 export function getDemoDataset(now = Date.now()) {
   const state = readState();
@@ -266,7 +306,8 @@ export async function demoWaniKaniRequest<T>(path: string, options: RequestOptio
     else if (endpoint === "assignments") records = assignmentsFor(state);
     else if (endpoint === "review_statistics") records = statisticsFor(state);
     else if (endpoint === "study_materials") records = Object.values(state.materials);
-    else if (endpoint === "reviews") records = state.reviews;
+    else if (endpoint === "reviews") records = [...historicalReviews(state), ...state.reviews];
+    else if (endpoint === "spaced_repetition_systems") records = DEMO_SRS_SYSTEMS;
     else if (endpoint === "resets") records = [];
     else if (endpoint === "level_progressions") records = levelProgressions(state.createdAt);
     else if (endpoint === "summary") {

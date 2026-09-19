@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Settings } from "lucide-react";
+import { ArrowRight, ChevronDown, Settings, Shuffle } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "@/lib/session";
 import { summarizeBunproQueue } from "../../../../src/utils/bunproQueue";
@@ -9,9 +9,10 @@ import type { BunproQueueResponse } from "../../../../src/types/bunpro";
 import { canAccessBunpro } from "./access";
 import { bunpro } from "./client";
 import styles from "./bunpro.module.css";
-export function BunproHomeButton() {
+type HomeProps = { wanikaniCount?: number };
+export function BunproHomeButton({ wanikaniCount }: HomeProps) {
   const { user, isDemo } = useSession();
-  return !isDemo && canAccessBunpro(user?.data.username) ? <BunproStudyCards /> : null;
+  return !isDemo && canAccessBunpro(user?.data.username) ? <BunproStudyCards wanikaniCount={wanikaniCount} /> : null;
 }
 function Goal({ done, goal, batch }: { done: number; goal: number; batch: number }) {
   const segments = Math.min(Math.max(goal, 1), 20);
@@ -20,7 +21,8 @@ function Goal({ done, goal, batch }: { done: number; goal: number; batch: number
 function GoalCount({ done, goal, batch }: { done: number; goal: number; batch: number }) {
   return <span className={styles.goalCount} aria-label={`${done} of ${goal} learned; next batch: ${batch}`}><span className={styles.goalCountIdle} aria-hidden="true">{done} / {goal}</span><span className={styles.goalCountHover} aria-hidden="true">+{batch}</span></span>;
 }
-function BunproStudyCards() {
+function BunproStudyCards({ wanikaniCount }: HomeProps) {
+  const [mixedOpen, setMixedOpen] = useState(false);
   const [expanded, setExpanded] = useState<"learn" | "review" | null>(null);
   const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: ({ signal }) => bunpro<{ connected: boolean }>("action=connection", { signal }), staleTime: 30_000, retry: false });
   const enabled = connection.data?.connected === true;
@@ -47,6 +49,21 @@ function BunproStudyCards() {
           <button type="button" className={styles.homeReviewExpand} aria-expanded={expanded === "review"} aria-controls="bunpro-review-breakdown" aria-label="Choose Bunpro review type" onClick={() => setExpanded(expanded === "review" ? null : "review")}><ChevronDown size={20} /></button>
         </div>
         <div id="bunpro-review-breakdown" className={styles.homeReviewBreakdown} data-open={expanded === "review"} aria-hidden={expanded !== "review"} inert={expanded !== "review"}><div className={styles.dropdownClip}><div>{[["grammar", "Grammar Only", grammar], ["vocab", "Vocab Only", vocab]].map(([mode, label, count]) => <Link key={mode} className={styles.homeReviewAction} href={`/bunpro-reviews?mode=${mode}`} aria-label={`Bunpro ${label} reviews`}><span>{label}</span><span className={styles.homeReviewCount}>{count ?? "—"}</span></Link>)}</div></div></div>
+      </div>
+    </div>
+    <div className={styles.mixedChoices}>
+      <button className={styles.mixedToggle} type="button" aria-expanded={mixedOpen} aria-controls="mixed-review-cards" onClick={() => setMixedOpen(!mixedOpen)}><Shuffle size={17} aria-hidden />Mix with WaniKani reviews<ChevronDown size={18} aria-hidden /></button>
+      <div id="mixed-review-cards" className={styles.mixedCollapse} data-open={mixedOpen} aria-hidden={!mixedOpen} inert={!mixedOpen}>
+        <div className={styles.mixedClip}><nav className={styles.mixedGrid} aria-label="Mixed reviews">
+          {([['grammar', 'Grammar', grammar], ['vocab', 'Vocabulary', vocab], ['all', 'Grammar + vocabulary', total]] as const).map(([mode, label, count]) => {
+            const combined = wanikaniCount === undefined || count === undefined ? undefined : wanikaniCount + count;
+            return <Link key={mode} className={styles.mixedCard} href={`/mixed-reviews?mode=${mode}`}>
+              <div className={styles.mixedCardHeading}><h3>{label}</h3><span className={styles.homeReviewCount} aria-label={combined === undefined ? 'Review count unavailable' : `${combined} reviews due`}>{combined?.toLocaleString() ?? '—'}</span></div>
+              <p><span>WaniKani <strong>{wanikaniCount?.toLocaleString() ?? '—'}</strong></span><span aria-hidden>+</span><span>Bunpro <strong>{count?.toLocaleString() ?? '—'}</strong></span></p>
+              <span className={styles.mixedStart}>Start mixed reviews<ArrowRight size={17} aria-hidden /></span>
+            </Link>;
+          })}
+        </nav></div>
       </div>
     </div>
     {due.error || queue.error ? <p role="status" className={styles.homeReviewError}>Bunpro counts unavailable. <button type="button" onClick={() => { void due.refetch(); void queue.refetch(); }}>Retry</button></p> : null}

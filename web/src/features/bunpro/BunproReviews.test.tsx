@@ -53,12 +53,14 @@ it("removes Show answer and unlocks Info only after checking", async () => {
   expect(screen.getByRole("button", { name: "Info" })).toBeEnabled();
   expect(playAnswerFeedback).toHaveBeenCalledWith(true);
 });
-it("auto-advances according to the WaniKani pause settings and shows the confirmed Bunpro SRS change", async () => {
+it("keeps answer controls available until Next and shows the confirmed Bunpro SRS change", async () => {
   vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: false } });
   await start();
   vi.mocked(bunpro).mockResolvedValueOnce({ new_srs_stage: 4, next_review: "2099-01-01T00:00:00Z" });
   fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
   fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  expect(screen.getByRole("button", { name: "Undo" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("Bunpro reviews complete");
   expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toHaveTextContent("Adept 1");
 });
@@ -71,7 +73,7 @@ it("opens Bunpro details on a paused wrong answer when enabled", async () => {
   expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
   expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled();
 });
-it("waits for autoplay to finish before advancing and respects the voice preference", async () => {
+it("plays the preferred voices and keeps the answer until Next", async () => {
   const players: EventTarget[] = [];
   const play = vi.fn().mockResolvedValue(undefined);
   const pause = vi.fn();
@@ -91,6 +93,7 @@ it("waits for autoplay to finish before advancing and respects the voice prefere
     await act(async () => { players[0].dispatchEvent(new Event("ended")); });
     expect(play).toHaveBeenCalledTimes(2);
     await act(async () => { players[1].dispatchEvent(new Event("ended")); });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Bunpro reviews complete");
   } finally { vi.unstubAllGlobals(); }
 });
@@ -108,12 +111,13 @@ it("starts the type selected on the Home card directly", async () => {
   expect(bunpro).toHaveBeenCalledWith("action=queue&mode=vocab");
   expect(vi.mocked(bunpro).mock.calls.filter(([query]) => query.startsWith("action=queue"))).toHaveLength(1);
 });
-it("respects disabled feedback sounds and stops automatic retries after a save failure", async () => {
+it("respects disabled feedback sounds and does not retry a save failure automatically", async () => {
   vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: false, answerFeedbackSoundEnabled: false, autoplayAudio: false } });
   await start();
   vi.mocked(bunpro).mockRejectedValueOnce(new Error("Service unavailable"));
   fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
   fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByRole("alert");
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 450)); });
   expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
@@ -184,6 +188,7 @@ it("retries a failed refill without submitting the saved answer twice", async ()
   fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
   fireEvent.click(screen.getByRole("button", { name: "Check" }));
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByRole("alert");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("Bunpro reviews complete");
@@ -206,4 +211,134 @@ it("marks only the next configured batch and keeps collapsed links inaccessible"
   expect(screen.getByRole("link", { name: /N5 Grammar/ })).toBeVisible();
   fireEvent.keyDown(screen.getByRole("button", { name: "Choose Bunpro lesson deck" }), { key: "Escape" });
   expect(screen.queryByRole("link", { name: /N5 Grammar/ })).not.toBeInTheDocument();
+});
+
+it("lets the learner undo, inspect alternatives, and correct a grade before saving", async () => {
+  await start();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "wrong" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+  expect(screen.getByLabelText("Your answer")).not.toHaveAttribute("readonly");
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "wrong" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Alternatives" }));
+  expect(screen.getByRole("heading", { name: "Accepted answers" })).toBeVisible();
+  expect(screen.getByText("Use the present tense.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
+  expect(vi.mocked(bunpro).mock.calls.filter(([, o]) => o?.method === "POST")).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(JSON.parse(String(vi.mocked(bunpro).mock.calls.find(([, o]) => o?.method === "POST")?.[1]?.body)).correct).toBe(true);
+});
+it("reveals grammar nuance progressively in lesson quizzes", async () => {
+  const question = { ...item, included: item.included!.map((r) => r.type === "grammar_point" ? { ...r, attributes: { ...r.attributes, nuance: "丁寧な表現", nuance_translation: "A polite expression" } } : r) };
+  setup(<BunproReviews lessonSession={{ review_session_id: 1, pending_attempt: [question], pending_wrapup: [], total_pending_attempt_count: 1, total_pending_wrapup_count: 0 }} />);
+  expect(screen.queryByText("A polite expression")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Hint level 2 of 4" }));
+  expect(screen.getByText("A polite expression")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Hint level 3 of 4" }));
+  expect(screen.getByText("丁寧な表現")).toBeVisible();
+});
+
+it("skips a question without grading it or revealing the next answer", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, allowSkippingReviews: true } });
+  const second = { ...item, data: { ...item.data, id: "11" }, included: item.included!.map((r) => r.type === "study_question" ? { ...r, attributes: { ...r.attributes, content: "次の質問____。" } } : r) };
+  setup(<BunproReviews lessonSession={{ review_session_id: 1, pending_attempt: [item, second], pending_wrapup: [], total_pending_attempt_count: 2, total_pending_wrapup_count: 0 }} />);
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+  expect(screen.getByLabelText("Your answer")).toHaveValue("");
+  expect(screen.queryByText("Correct")).not.toBeInTheDocument();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, o]) => o?.method === "POST")).toHaveLength(0);
+});
+
+function studySettings(study: Partial<typeof DEFAULT_WEB_SETTINGS.study>) {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, autoplayAudio: false, showAnswerStopSubjectDetails: false, ...study } });
+}
+it("uses reading Anki settings, reveals without saving, then submits the selected grade", async () => {
+  studySettings({ ankiMode: "reading", ankiHideAnswerCompletely: true, ankiShowOtherAcceptedAnswersAndUserSynonyms: true });
+  setup(<BunproReviews initialMode="grammar" />);
+  await screen.findByRole("button", { name: "Reveal answer" });
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByTestId("anki-answer-preview")).toHaveAttribute("data-visibility", "hidden");
+  fireEvent.keyDown(document.body, { key: "Enter" });
+  expect(screen.getByRole("button", { name: "2 · Correct" })).toBeVisible();
+  expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("だ");
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+  fireEvent.keyDown(document.body, { key: "2" });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(JSON.parse(String(vi.mocked(bunpro).mock.calls.find(([, options]) => options?.method === "POST")?.[1]?.body))).toMatchObject({ reviewId: "10", correct: true });
+});
+it("supports buttonless Anki grading and disables keyboard grading when configured", async () => {
+  studySettings({ ankiMode: "both", ankiButtonlessMode: true, keyboardShortcuts: false });
+  setup(<BunproReviews initialMode="grammar" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+  fireEvent.keyDown(document.body, { key: "2" });
+  expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Tap left: mark wrong" }));
+  expect(screen.getByText("Incorrect")).toBeVisible();
+});
+it("keeps grammar typed in meaning-only Anki mode and applies Jitai and control settings", async () => {
+  studySettings({ ankiMode: "meaning", jitaiEnabled: true, jitaiSelectedFontIds: ["mincho"], allowSkippingReviews: false, reviewSearchButtonEnabled: false, voiceAnswers: true });
+  await start();
+  expect(screen.getByRole("textbox")).toBeVisible();
+  expect(screen.getByRole("main").style.getPropertyValue("--jitai-font")).toContain("Yu Mincho");
+  expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Search this item" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Answer with voice" })).toBeVisible();
+});
+it("automatically advances a correct answer when pause is disabled", async () => {
+  studySettings({ pauseOnCorrect: false });
+  await start();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+it("does not auto-advance an inactive mixed queue", async () => {
+  studySettings({ pauseOnCorrect: false });
+  setup(<BunproReviews initialMode="grammar" mixed={{ active: false, report: vi.fn() }} />);
+  fireEvent.change(await screen.findByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 600)); });
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+});
+it("applies the batch limit and SRS order without refilling beyond the batch", async () => {
+  studySettings({ reviewBatchSizeEnabled: true, reviewBatchSize: 2, reviewOrder: "ascendingSrsStage" });
+  const rows = [3, 1, 2].map(stage => ({ ...item, data: { ...item.data, id: String(stage), attributes: { ...item.data.attributes, streak: stage } } }));
+  vi.mocked(bunpro).mockImplementation(async query => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: rows, total_pending_attempt_count: 100 } : { pending_attempt: rows });
+  await start();
+  for (let i = 0; i < 2; i++) {
+    fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    if (!i) await waitFor(() => expect(screen.getByLabelText("Your answer")).toHaveValue(""));
+  }
+  await screen.findByText("Bunpro reviews complete");
+  const posts = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST").map(([, options]) => JSON.parse(String(options?.body)));
+  expect(posts.map(post => post.reviewId)).toEqual(["1", "2"]);
+  expect(posts.every(post => post.requestMore === false)).toBe(true);
+});
+it("uses meaning Anki for English vocabulary answers without exposing translation first", async () => {
+  studySettings({ ankiMode: "meaning", ankiHideAnswerCompletely: true });
+  const vocab = { ...item, data: { ...item.data, attributes: { ...item.data.attributes, reviewable_type: "Vocab" }, relationships: { ...item.data.relationships, reviewable: { data: { id: "20", type: "vocab" } } } }, included: item.included!.map(resource => resource.type === "study_question" ? { ...resource, attributes: { content: "外側", answer: "outside", translation: "outside" } } : { ...resource, type: "vocab", attributes: { title: "外側", kana: "そとがわ", meaning: "outside" } }) };
+  vi.mocked(bunpro).mockImplementation(async query => query === "action=connection" ? { connected: true } : { review_session_id: 1, pending_attempt: [vocab] });
+  setup(<BunproReviews initialMode="vocab" />);
+  const reveal = await screen.findByRole("button", { name: "Reveal answer" });
+  expect(screen.queryByText("outside")).not.toBeInTheDocument();
+  fireEvent.click(reveal);
+  expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("Expected meaningoutside");
+});
+it("wraps up after the configured number without loading additional items", async () => {
+  studySettings({ reviewWrapUpSize: 1, reviewOrder: "ascendingSrsStage" });
+  const rows = [1, 2, 3].map(stage => ({ ...item, data: { ...item.data, id: String(stage), attributes: { ...item.data.attributes, streak: stage } } }));
+  vi.mocked(bunpro).mockImplementation(async query => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: rows } : { pending_attempt: rows });
+  await start();
+  fireEvent.click(screen.getByRole("button", { name: "Wrap Up 1" }));
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
 });

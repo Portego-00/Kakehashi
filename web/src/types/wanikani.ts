@@ -122,7 +122,20 @@ export interface ReviewData {
   incorrect_meaning_answers: number;
   incorrect_reading_answers: number;
   created_at: string;
+  spaced_repetition_system_id?: number;
 }
+export type Review = WKResource<ReviewData, "review">;
+
+export interface SpacedRepetitionSystemData {
+  name: string;
+  description: string;
+  unlocking_stage_position: number;
+  starting_stage_position: number;
+  passing_stage_position: number;
+  burning_stage_position: number;
+  stages: Array<{ position: number; interval: number | null; interval_unit: "milliseconds" | "seconds" | "minutes" | "hours" | "days" | "weeks" | null }>;
+}
+export type SpacedRepetitionSystem = WKResource<SpacedRepetitionSystemData, "spaced_repetition_system">;
 export interface ReviewCreateResponse {
   id: number;
   object: "review";

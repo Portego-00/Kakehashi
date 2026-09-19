@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { setDemoMode } from "@/features/demo/runtime";
+import { setReviewRecordingAccount } from "@/features/progress/analytics-review-ledger";
 import type { WKUser } from "@/types/wanikani";
 
 export type SessionStatus = "loading" | "authenticated" | "anonymous" | "unavailable";
@@ -40,6 +41,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
   const [error, setError] = useState("");
   const identity = useRef("");
+  const recordingAccount = useRef<string | null>(null);
   const revision = useRef(0);
   const mutationsPending = useRef(0);
   const mutationQueue = useRef<Promise<unknown>>(Promise.resolve());
@@ -49,6 +51,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const demo = next?.demo === true;
     const nextIdentity = next ? `${demo ? "demo" : "account"}:${next.user.data.id ?? next.user.id}:${next.user.data.username}` : "";
     if (identity.current !== nextIdentity) {
+      setReviewRecordingAccount(null);
       setStatus("loading");
       await queryClient.cancelQueries();
       if (expectedRevision !== revision.current) return;
@@ -64,6 +67,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
     setDemoMode(demo);
     identity.current = nextIdentity;
+    recordingAccount.current = next && !demo ? `account:${next.user.data.id ?? next.user.id ?? next.user.data.username}` : null;
+    setReviewRecordingAccount(recordingAccount.current);
     setIsDemo(demo);
     setUser(next?.user ?? null);
     setStatus(next ? "authenticated" : "anonymous");
@@ -87,6 +92,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const timer = window.setTimeout(() => void refresh(), 0);
     const onStorage = (event: StorageEvent) => {
       if (event.key !== SESSION_EVENT_KEY) return;
+      setReviewRecordingAccount(null);
       setStatus("loading");
       void mutationQueue.current.catch(() => undefined).then(() => refresh());
     };
@@ -96,6 +102,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Serialize cookie changes so a slow earlier response cannot undo a later sign-out.
   const mutateSession = useCallback((path: string, options: RequestInit, fallback: string, signingOut = false) => {
+    setReviewRecordingAccount(null);
     const expectedRevision = ++revision.current;
     mutationsPending.current += 1;
     const operation = mutationQueue.current.catch(() => undefined).then(async () => {
@@ -105,6 +112,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (expectedRevision === revision.current) await applySession(signingOut ? null : payload, expectedRevision);
       notifySessionChange();
       return payload as SessionPayload;
+    }).catch((error) => {
+      if (expectedRevision === revision.current) setReviewRecordingAccount(recordingAccount.current);
+      throw error;
     }).finally(() => { mutationsPending.current -= 1; });
     mutationQueue.current = operation;
     return operation;

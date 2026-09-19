@@ -95,6 +95,16 @@ afterEach(() => {
 });
 
 describe("dashboard", () => {
+  it("enables normal study queues for another account while hiding Bunpro", () => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    render(<Dashboard />);
+
+    expect(screen.getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/lessons");
+    expect(screen.getByRole("link", { name: "Pick lessons" })).toHaveAttribute("href", "/lesson-picker");
+    expect(screen.getByRole("link", { name: "Start reviews" })).toHaveAttribute("href", "/reviews");
+    expect(screen.queryByText(/Bunpro/)).not.toBeInTheDocument();
+  });
+
   it("passes every level progression to the timing chart", () => {
     render(<Dashboard />);
 
@@ -183,7 +193,7 @@ describe("dashboard", () => {
 
     render(<Dashboard />);
 
-    const reviews = screen.getByRole("article", { name: "Reviews study queue, coming soon" });
+    const reviews = screen.getByRole("article", { name: "Reviews study queue" });
     expect(within(reviews).getByText("214")).toBeInTheDocument();
   });
 });

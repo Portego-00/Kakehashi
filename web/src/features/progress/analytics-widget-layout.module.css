@@ -1,0 +1,40 @@
+.srsVisual { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: var(--space-sm); min-width: 0; min-height: 0; }
+.srsLegend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; gap: var(--space-2xs) var(--space-sm); min-width: 0; }
+.srsLegend button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-xs); min-height: 2.5rem; min-width: 0; padding: var(--space-2xs) 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--color-ink); text-align: left; cursor: pointer; }
+.srsLegend button > svg { flex-shrink: 0; color: var(--stage-color); fill: currentColor; }
+.srsLegend [data-tone="apprentice"] { --stage-color: var(--color-kanji); }
+.srsLegend [data-tone="guru"] { --stage-color: var(--color-vocabulary); }
+.srsLegend [data-tone="master"] { --stage-color: var(--color-accent); }
+.srsLegend [data-tone="enlightened"] { --stage-color: var(--color-warning); }
+.srsLegend [data-tone="burned"] { --stage-color: var(--color-success); }
+.srsLegend button span { min-width: 0; color: var(--color-muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.srsLegend button strong { font-size: var(--text-base); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.srsLegend button:hover, .srsLegend button[aria-pressed="true"] { background: var(--color-paper-2); }
+.srsLegend button[aria-pressed="true"] { border-color: var(--color-accent); }
+.srsLegend button:focus-visible, .levelKanji a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.levelProgress { display: flex; flex: 1; flex-direction: column; gap: var(--space-sm); min-width: 0; }
+.levelKanji { display: grid; flex: 1; grid-template-columns: repeat(auto-fill, minmax(2rem, 1fr)); grid-auto-rows: minmax(2rem, 2.5rem); align-content: start; gap: var(--space-2xs); min-width: 0; }
+.levelKanji a { display: grid; place-items: center; min-width: 0; border-bottom: 2px solid var(--color-rule); color: var(--color-muted); background: var(--color-paper-2); text-decoration: none; font-family: var(--font-japanese); font-size: var(--text-base); }
+.levelKanji a[data-passed="true"] { border-color: var(--color-success); color: var(--color-ink); background: color-mix(in oklch, var(--color-success) 8%, var(--color-paper-2)); }
+.levelKanji a:hover { color: var(--color-accent); border-color: var(--color-accent); }
+.dateRow { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2xs) var(--space-sm); min-width: 0; font-size: var(--text-xs); }
+.dateRow > span { color: var(--color-muted); }
+.dateRow > strong { min-width: 0; font-weight: 550; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2xs) var(--space-sm); min-width: 0; }
+.footer > .dateRow { flex: 1 1 100%; }
+.footer > details[open] { flex-basis: 100%; }
+.burnMetrics { grid-template-columns: 1.2fr 1fr; }
+.activityToolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); min-width: 0; }
+.activityToolbar select { min-width: 0; max-width: 100%; }
+.calendarScroll { display: flex; flex: 1; min-height: 9rem; }
+.calendarScroll > div { flex: 1; grid-template-rows: repeat(7, minmax(0.75rem, 1fr)); }
+@container analytics-widget (min-width: 400px) {
+  .srsVisual { grid-template-columns: minmax(10rem, 1.1fr) minmax(0, 1fr); }
+  .srsLegend { grid-template-columns: minmax(0, 1fr); }
+}
+@container analytics-widget (max-width: 380px) {
+  .burnMetrics > :first-child { grid-column: auto; }
+}
+@media (pointer: coarse) {
+  .srsLegend button { min-height: 2.75rem; }
+}

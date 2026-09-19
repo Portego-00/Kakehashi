@@ -1,0 +1,18 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-items: stretch;
+  gap: var(--analytics-inset, 20px);
+  min-width: 0;
+}
+
+.grid > * { min-width: 0; align-self: stretch; }
+.grid > [data-size="wide"], .grid[data-columns] > [data-size="wide"], .grid > [data-grid-orphan="true"] { grid-column: 1 / -1; }
+
+@media (max-width: 800px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.grid[data-columns="1"] { grid-template-columns: minmax(0, 1fr); }
+.grid[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }

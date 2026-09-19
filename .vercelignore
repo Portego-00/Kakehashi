@@ -36,5 +36,6 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !src/utils/portegoAccess.ts
 !src/utils/pronunciationAudio.ts
 !src/utils/radicalImage.ts
+!src/utils/reviewUtils.ts
 !src/utils/vocabularyTypeFilter.ts
 !.vercelignore

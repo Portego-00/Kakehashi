@@ -1,1 +1,3 @@
-export { isPortegoUsername as canAccessCoreStudy } from "../../../../src/utils/portegoAccess";
+export function canAccessCoreStudy(username?: string | null): boolean {
+  return Boolean(username?.trim());
+}
