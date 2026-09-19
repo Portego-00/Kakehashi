@@ -34,6 +34,15 @@ describe("custom analytics layout", () => {
 });
 
 describe("analytics dashboard configuration", () => {
+  it("defaults projections to full width and removes retired achievements from saved layouts", () => {
+    expect(createAnalyticsPreset("overview").cards.find((card) => card.id === "pace")?.size).toBe("wide");
+    expect(normalizeAnalyticsDashboardConfig({ version: 2, cards: [{ id: "levels", size: "compact" }, { id: "achievements", size: "wide" }] }).cards).toEqual([{ id: "levels", size: "compact" }]);
+    const oldDefault = createAnalyticsPreset("overview");
+    delete oldDefault.layoutRevision;
+    oldDefault.cards[0].size = "compact";
+    expect(normalizeAnalyticsDashboardConfig(oldDefault).cards[0].size).toBe("wide");
+    expect(normalizeAnalyticsDashboardConfig({ ...oldDefault, layoutRevision: 1 }).cards[0].size).toBe("compact");
+  });
   it.each([
     [{ id: "timing", size: "compact" }, { id: "accuracy", size: "wide" }],
     { version: 1, cards: [{ id: "timing", size: "compact" }, { id: "accuracy", size: "wide" }] },

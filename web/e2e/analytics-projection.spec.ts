@@ -11,10 +11,10 @@ test.beforeEach(async ({ page }) => {
 test("projection scenarios change the drawn trajectory and survive reload", async ({ page }) => {
   const widget = page.getByRole("region", { name: "Level projections", exact: true });
   const curves = widget.locator(".recharts-line-curve");
-  await expect(curves).toHaveCount(3);
+  await expect(curves).toHaveCount(4);
   await expect(curves.first()).toHaveAttribute("d", /L/);
   await widget.getByRole("checkbox", { name: "Compare paces" }).uncheck();
-  await expect(curves).toHaveCount(1);
+  await expect(curves).toHaveCount(2);
   await widget.getByRole("combobox", { name: "Pace scenario" }).selectOption("custom");
   const slider = widget.getByRole("slider", { name: "Days per level" });
   await slider.focus();
@@ -26,7 +26,7 @@ test("projection scenarios change the drawn trajectory and survive reload", asyn
   const later = await widget.locator("strong time").getAttribute("dateTime");
   expect(Date.parse(later!)).toBeGreaterThan(Date.parse(early!));
   await widget.getByRole("checkbox", { name: "Compare paces" }).check();
-  await expect(curves).toHaveCount(4);
+  await expect(curves).toHaveCount(5);
   await page.reload();
   await expect(widget.getByRole("combobox", { name: "Pace scenario" })).toHaveValue("custom");
   await expect(widget.getByRole("slider", { name: "Days per level" })).toHaveValue("60");

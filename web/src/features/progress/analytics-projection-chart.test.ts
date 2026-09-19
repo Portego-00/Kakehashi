@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createProjectionCurves, projectionTimeline, type ProjectionScenario } from "./analytics-projection-chart";
+import { createLevelHistory, createProjectionCurves, projectionTimeline, type ProjectionScenario } from "./analytics-projection-chart";
 import type { LevelTiming } from "./calculations";
 
 const now = new Date("2026-09-19T12:00:00Z");
@@ -11,6 +11,18 @@ const scenarios: ProjectionScenario[] = [
 const current: LevelTiming = { level: 21, startedAt: "2026-09-16T12:00:00Z", passedAt: null, completedAt: null, daysToPass: null, daysToComplete: null, activeDays: 3 };
 
 describe("projection chart data", () => {
+  it("includes recorded earlier levels and keeps projections out of the past", () => {
+    const history = createLevelHistory([{ ...current, level: 1, startedAt: "2025-01-01T12:00:00Z" }, current], 21, now);
+    const rows = projectionTimeline(createProjectionCurves(scenarios, [current], 21, 30, now), history);
+    expect(rows[0]).toMatchObject({ timestamp: Date.parse("2025-01-01T12:00:00Z"), history: 1, median: null });
+    expect(rows.find((row) => row.timestamp === now.getTime())).toMatchObject({ history: 21, median: 21 });
+    expect(rows.at(-1)?.history).toBeNull();
+    expect(projectionTimeline([], history).at(-1)?.history).toBe(21);
+  });
+
+  it("omits missing and invalid arrival dates instead of inventing history", () => {
+    expect(createLevelHistory([{ ...current, startedAt: null }, { ...current, startedAt: "invalid" }, { ...current, startedAt: "2030-01-01" }], 21, now)).toEqual([]);
+  });
   it("anchors each scenario to today and stops at the chosen goal", () => {
     const curves = createProjectionCurves(scenarios, [current], 21, 30, now);
     for (const curve of curves) {
@@ -36,6 +48,8 @@ describe("projection chart data", () => {
     expect(curves.every((curve) => curve.points.at(-1)!.timestamp === now.getTime())).toBe(true);
     expect(projectionTimeline(curves)[0]).toMatchObject({ faster: 21, median: 21, relaxed: 21 });
     expect(projectionTimeline(curves)[1]).toMatchObject({ faster: 22, median: 22, relaxed: 22 });
+    const withHistory = projectionTimeline(curves, createLevelHistory([current], 21, now));
+    expect(withHistory.filter((row) => row.timestamp === now.getTime()).map((row) => row.median)).toEqual([21, 22]);
   });
 
   it("handles reached goals, level 60, missing history and invalid paces", () => {

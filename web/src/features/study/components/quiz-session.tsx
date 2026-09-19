@@ -672,7 +672,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
   const hasQuestionAudio = Boolean(question?.audioUrl || question?.audioVocabSentence);
   const onStudyKeyDown = useEffectEvent((event: KeyboardEvent) => {
-      if (event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (document.querySelector("dialog[open]") || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
       const shortcutFromAnsweredInput = ["d", "r", "c", "x", "s"].includes(event.key.toLocaleLowerCase()) && event.target === inputRef.current && (inputRef.current?.readOnly === true || (phoneInput && Boolean(answer)));
       if (event.defaultPrevented || (!shortcutFromAnsweredInput && event.target instanceof Element && event.target.closest(studyShortcutInteractiveSelector))) return;
       if (answer && !advancingQuestionRef.current) {
@@ -758,7 +758,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         </div>
       </div>
 
-      {previousCompletedSubject ? <Link className={styles.previousSubjectLink} href={`/subjects/${previousCompletedSubject.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Previous subject: ${previousCompletedSubject.characters}`}><span lang="ja">{previousCompletedSubject.characters}</span><span className={styles.previousSubjectStatus} data-correct={previousCompletedSubject.correct} aria-hidden="true">{previousCompletedSubject.correct ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
+      {previousCompletedSubject ? <Link className={styles.previousSubjectLink} data-type={subjects.find((subject) => subject.id === previousCompletedSubject.id)?.object} href={`/subjects/${previousCompletedSubject.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Previous subject: ${previousCompletedSubject.characters}`}><span lang="ja">{previousCompletedSubject.characters}</span><span className={styles.previousSubjectStatus} data-correct={previousCompletedSubject.correct} aria-hidden="true">{previousCompletedSubject.correct ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
 
       <div className={styles.questionCard} data-type={question.subjectType}>
         {question.imageUrl ? <div className={styles.sceneFrame}><Image className={styles.contextImage} src={question.imageUrl} alt={`Scene from ${question.sourceTitle ?? "the listening example"}`} width={560} height={315} sizes="(max-width: 42rem) 90vw, 28rem" loader={passthroughImageLoader} unoptimized /></div> : null}

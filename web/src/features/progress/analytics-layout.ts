@@ -1,13 +1,13 @@
 export const ANALYTICS_CARD_IDS = [
   "accuracy", "srs", "forecast", "activity", "timing", "summary", "workload", "history",
   "levels", "items", "leeches", "pace", "retention", "studyTime", "coverage", "reading",
-  "burns", "achievements",
+  "burns",
 ] as const;
 
 export type AnalyticsCardId = (typeof ANALYTICS_CARD_IDS)[number];
 export type AnalyticsCardSize = "compact" | "wide";
 export type AnalyticsCardLayout = { id: AnalyticsCardId; size: AnalyticsCardSize };
-export type AnalyticsDashboardConfig = { version: 2; cards: AnalyticsCardLayout[] };
+export type AnalyticsDashboardConfig = { version: 2; cards: AnalyticsCardLayout[]; layoutRevision?: 1 };
 export type AnalyticsPresetId = "overview" | "study-habits" | "deep-dive";
 export type AnalyticsWidgetCategory = "Progress" | "Reviews" | "Study habits" | "Knowledge";
 export type AnalyticsWidgetDefinition = {
@@ -20,7 +20,7 @@ export type AnalyticsWidgetDefinition = {
 
 export const ANALYTICS_WIDGET_CATALOG: readonly AnalyticsWidgetDefinition[] = [
   { id: "summary", title: "Study summary", detail: "Lessons, reviews and streaks", category: "Study habits", defaultSize: "wide" },
-  { id: "pace", title: "Level projections", detail: "Level 60 and upcoming milestones", category: "Progress", defaultSize: "compact" },
+  { id: "pace", title: "Level projections", detail: "Recorded history and future milestones", category: "Progress", defaultSize: "wide" },
   { id: "levels", title: "Current level", detail: "Radical and kanji progress", category: "Progress", defaultSize: "compact" },
   { id: "accuracy", title: "Accuracy", detail: "Meaning and reading accuracy", category: "Reviews", defaultSize: "compact" },
   { id: "srs", title: "SRS distribution", detail: "Apprentice through Burned", category: "Knowledge", defaultSize: "compact" },
@@ -28,7 +28,6 @@ export const ANALYTICS_WIDGET_CATALOG: readonly AnalyticsWidgetDefinition[] = [
   { id: "workload", title: "Review workload", detail: "Upcoming work and backlog", category: "Reviews", defaultSize: "compact" },
   { id: "forecast", title: "Review forecast", detail: "Lesson pace and modeled review load", category: "Reviews", defaultSize: "wide" },
   { id: "burns", title: "Burn progress", detail: "Burned items and future burns", category: "Knowledge", defaultSize: "compact" },
-  { id: "achievements", title: "Achievements", detail: "Study and knowledge milestones", category: "Progress", defaultSize: "compact" },
   { id: "activity", title: "Study activity", detail: "Daily activity and consistency", category: "Study habits", defaultSize: "wide" },
   { id: "timing", title: "Level timing", detail: "Time per level, average and median", category: "Progress", defaultSize: "wide" },
   { id: "history", title: "Review history", detail: "Review volume over time", category: "Reviews", defaultSize: "wide" },
@@ -46,7 +45,7 @@ export const ANALYTICS_PRESETS: readonly { id: AnalyticsPresetId; title: string 
 ];
 
 const PRESET_WIDGET_IDS: Record<AnalyticsPresetId, readonly AnalyticsCardId[]> = {
-  overview: ["pace", "levels", "accuracy", "srs", "coverage", "workload", "burns", "achievements", "activity", "timing"],
+  overview: ["pace", "levels", "accuracy", "srs", "coverage", "workload", "burns", "activity", "timing"],
   "study-habits": ["summary", "activity", "history", "retention", "studyTime", "workload", "forecast", "leeches"],
   "deep-dive": ANALYTICS_WIDGET_CATALOG.map((widget) => widget.id),
 };
@@ -54,6 +53,7 @@ const PRESET_WIDGET_IDS: Record<AnalyticsPresetId, readonly AnalyticsCardId[]> =
 export function createAnalyticsPreset(preset: AnalyticsPresetId): AnalyticsDashboardConfig {
   return {
     version: 2,
+    layoutRevision: 1,
     cards: PRESET_WIDGET_IDS[preset].map((id) => ({ id, size: ANALYTICS_WIDGET_CATALOG.find((widget) => widget.id === id)!.defaultSize })),
   };
 }
@@ -97,7 +97,12 @@ export function normalizeAnalyticsDashboardConfig(value: unknown): AnalyticsDash
   if (value && typeof value === "object" && "version" in value && value.version === 2) {
     if (!("cards" in value) || !Array.isArray(value.cards)) return createAnalyticsPreset("overview");
     const cards = parseAnalyticsCards(value.cards);
-    return cards.length || value.cards.length === 0 ? { version: 2, cards } : createAnalyticsPreset("overview");
+    for (const presetId of ["overview", "deep-dive"] as const) {
+      const preset = createAnalyticsPreset(presetId);
+      const wasDefault = cards.length === preset.cards.length && cards.every((card, index) => card.id === preset.cards[index].id && (card.id === "pace" || card.size === preset.cards[index].size));
+      if (!("layoutRevision" in value) && wasDefault) return preset;
+    }
+    return cards.length || value.cards.length === 0 ? { version: 2, cards, ...("layoutRevision" in value && value.layoutRevision === 1 ? { layoutRevision: 1 as const } : {}) } : createAnalyticsPreset("overview");
   }
 
   let legacy: unknown = value;

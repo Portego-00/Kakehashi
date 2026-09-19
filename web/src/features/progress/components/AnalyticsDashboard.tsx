@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, Award, BookOpen, CalendarDays, ChartNoAxesColumnIncreasing, CircleAlert, Clock3, Download, Flame, Gauge, Grid2X2, Info, RefreshCw, RotateCcw, Share2, SlidersHorizontal, Target, TrendingUp } from "lucide-react";
+import { Activity, BookOpen, CalendarDays, ChartNoAxesColumnIncreasing, CircleAlert, Clock3, Download, Flame, Gauge, Grid2X2, Info, RefreshCw, RotateCcw, Share2, SlidersHorizontal, Target, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
 import { useSession } from "@/lib/session";
@@ -13,7 +13,7 @@ import { ANALYTICS_PRESETS, ANALYTICS_WIDGET_CATALOG, createAnalyticsPreset, mat
 import { analyticsCsv, downloadAnalyticsFile } from "../analytics-export";
 import { AnalyticsCustomizer } from "./AnalyticsCustomizer";
 import { AnalyticsInfo, Metric, formatNumber, formatPercent } from "./AnalyticsPrimitives";
-import { AccuracyWidget, ActivityWidget, AchievementsWidget, BurnsWidget, CurrentLevelWidget, RetentionWidget, SrsWidget, StudyTimeWidget, WorkloadWidget, type AnalyticsWidgetProps } from "./AnalyticsWidgets";
+import { AccuracyWidget, ActivityWidget, BurnsWidget, CurrentLevelWidget, RetentionWidget, SrsWidget, StudyTimeWidget, WorkloadWidget, type AnalyticsWidgetProps } from "./AnalyticsWidgets";
 import { CoverageWidget, ReadingCoverageWidget } from "./AnalyticsCoverage";
 import { FastestLevelRouteWidget, PromotionScheduleWidget } from "./AnalyticsPromotionSchedule";
 import { ItemsWidget } from "./AnalyticsItems";
@@ -28,7 +28,7 @@ import { ProgressTabs } from "./ProgressTabs";
 import styles from "../analytics.module.css";
 import progressStyles from "../progress.module.css";
 
-const ICONS: Record<AnalyticsCardId, typeof Activity> = { summary: ChartNoAxesColumnIncreasing, pace: TrendingUp, levels: Target, accuracy: Gauge, srs: Flame, coverage: BookOpen, workload: Clock3, forecast: CalendarDays, burns: Flame, achievements: Award, activity: Activity, timing: Clock3, history: CalendarDays, items: Grid2X2, leeches: CircleAlert, retention: Gauge, studyTime: Clock3, reading: BookOpen };
+const ICONS: Record<AnalyticsCardId, typeof Activity> = { summary: ChartNoAxesColumnIncreasing, pace: TrendingUp, levels: Target, accuracy: Gauge, srs: Flame, coverage: BookOpen, workload: Clock3, forecast: CalendarDays, burns: Flame, activity: Activity, timing: Clock3, history: CalendarDays, items: Grid2X2, leeches: CircleAlert, retention: Gauge, studyTime: Clock3, reading: BookOpen };
 
 export function AnalyticsDashboard() {
   const progress = useProgressData();
@@ -78,6 +78,7 @@ function AnalyticsDashboardBody({ progress, accountKey, studyTimeKey, username, 
   }, []);
 
   const saveConfig = (next: AnalyticsDashboardConfig) => {
+    next = { ...next, layoutRevision: 1 };
     setPreviousConfig(config);
     setConfig(next);
     try { localStorage.setItem(storageKey, JSON.stringify(next)); setNotice("Dashboard saved."); }
@@ -97,7 +98,6 @@ function AnalyticsDashboardBody({ progress, accountKey, studyTimeKey, username, 
       case "activity": return <ActivityWidget {...full} />;
       case "history": return <ActivityWidget {...full} historyOnly />;
       case "burns": return <BurnsWidget {...full} />;
-      case "achievements": return <AchievementsWidget {...full} />;
       case "retention": return <RetentionWidget {...full} />;
       case "studyTime": return <StudyTimeWidget accountKey={studyTimeKey} />;
       case "coverage": return <CoverageWidget {...full} />;

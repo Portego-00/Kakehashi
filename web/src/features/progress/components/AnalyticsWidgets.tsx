@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, Award, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Award, ChevronLeft, ChevronRight, Clock3, SlidersHorizontal } from "lucide-react";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { SrsStageIcon } from "@/components/SrsStageIcon";
 import { useStudyTimeRange, formatStudyTime, STUDY_TIME_CATEGORIES, type StudyTimeRangeId } from "@/features/dashboard/study-time";
@@ -13,6 +13,10 @@ import { AnalyticsDialog, AnalyticsInfo, BarChart, EmptyAnalytics, Metric, Meter
 import { AnalyticsCartesianChart, AnalyticsDonutChart } from "./AnalyticsCharts";
 import styles from "../analytics.module.css";
 import layout from "../analytics-widget-layout.module.css";
+import progressStyles from "../progress.module.css";
+import { LevelSubjectGrid } from "./LevelProgress";
+import { ReviewActivityHeatmap } from "@/components/ReviewActivityHeatmap";
+import { assignmentActivityDays, usageStreak } from "@/features/dashboard/dashboard-data";
 
 export type AnalyticsWidgetProps = { insights: AnalyticsInsights; assignments: Assignment[]; subjects: Subject[]; statistics: ReviewStatistic[]; level: number; expanded?: boolean; asOf?: Date };
 const TYPES = [{ value: "all", label: "All" }, { value: "radical", label: "Radicals" }, { value: "kanji", label: "Kanji" }, { value: "vocabulary", label: "Vocabulary" }] as const;
@@ -110,22 +114,14 @@ export function CurrentLevelWidget({ insights, assignments, subjects, level, exp
   const timeline = blockers.map((subject) => ({ subject, date: bySubject.get(subject.id)?.data.available_at })).filter((item): item is { subject: Subject; date: string } => Boolean(item.date)).sort((a, b) => a.date.localeCompare(b.date));
   const remaining = Math.max(0, required - passed);
   return <>
-    <dl className={styles.headlineMetrics}>
-      <Metric primary label={level >= 60 ? "Kanji remaining" : "Kanji to level up"} value={remaining} />
-      <Metric label="Current level" value={level} />
-      <Metric label="Elapsed" value={formatDays(insights.levelPace.currentDays)} />
-    </dl>
-    <div className={layout.levelProgress}>
-      <div className={styles.rowHead}><strong>Kanji passed</strong><span>{passed} / {required} needed</span></div>
-      <Meter label={level >= 60 ? "Final level kanji passed" : "Kanji needed to level up"} value={Math.min(passed, required)} max={required} tone="kanji" />
-      <div className={layout.levelKanji} role="group" aria-label={`Level ${level} kanji progress`}>{kanji.map((subject) => {
-        const assignment = bySubject.get(subject.id);
-        const hasPassed = Boolean(assignment?.data.passed_at) || (assignment?.data.srs_stage ?? 0) >= 5;
-        const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug;
-        const status = hasPassed ? "Passed" : assignment?.data.started_at ? "In progress" : assignment?.data.unlocked_at ? "Lesson available" : "Locked";
-        return <Link key={subject.id} href={`/subjects/${subject.id}`} data-passed={hasPassed} aria-label={`${subject.data.characters ?? subject.data.slug}: ${meaning}, ${status.toLowerCase()}`} title={`${meaning} · ${status}`}><SubjectCharacter subject={subject} imageTone="subject" /></Link>;
-      })}</div>
+    <div className={styles.rowHead}><strong>Level {level} progress</strong><span>{passed} / {required} kanji passed</span></div>
+    <div className={progressStyles.guruProgress}>
+      <p><strong>Guru</strong> {remaining === 0 ? "Level threshold reached" : `${remaining} more kanji ${level >= 60 ? "to complete" : "to level up"}.`}</p>
+      <div className={progressStyles.guruSegments} role="meter" aria-label={level >= 60 ? "Final level kanji passed" : "Kanji needed to level up"} aria-valuenow={Math.min(passed, required)} aria-valuemin={0} aria-valuemax={required || 1}>{Array.from({ length: required }, (_, index) => <span key={index} data-state={index < passed ? "passed" : "idle"} />)}</div>
     </div>
+    <div className={progressStyles.levelTiming}><Clock3 size={19} aria-hidden /><span><small>Active on level</small><strong>{formatDays(insights.levelPace.currentDays)}</strong></span></div>
+    <LevelSubjectGrid title="Radicals" subjects={subjects.filter((subject) => subject.object === "radical" && subject.data.level === level && !subject.data.hidden_at)} assignments={bySubject} />
+    <div role="group" aria-label={`Level ${level} kanji progress`}><LevelSubjectGrid title="Kanji" subjects={kanji} assignments={bySubject} /></div>
     <div className={layout.dateRow}><span>{level >= 60 ? "Curriculum" : "Earliest level-up"}</span><strong>{level >= 60 ? "Final level" : insights.levelPace.earliestLevelUpAt ? formatDate(insights.levelPace.earliestLevelUpAt) : "Pending unlocks"}</strong></div>
     {expanded ? <>
       <Segments label="Level blockers" value={filter} onChange={setFilter} options={[{ value: "all", label: `All (${blockers.length})` }, { value: "started", label: `In progress (${groups.started.length})` }, { value: "lessons", label: `Lessons (${groups.lessons.length})` }, { value: "locked", label: `Locked (${groups.locked.length})` }]} />
@@ -187,8 +183,8 @@ export function WorkloadWidget({ insights, assignments, subjects, expanded }: An
   </>;
 }
 
-export function ActivityWidget({ insights, assignments, subjects, expanded, historyOnly = false }: AnalyticsWidgetProps & { historyOnly?: boolean }) {
-  const [mode, setMode] = useState("lessons");
+export function ActivityWidget({ insights, assignments, subjects, expanded, asOf, historyOnly = false }: AnalyticsWidgetProps & { historyOnly?: boolean }) {
+  const [mode, setMode] = useState(historyOnly && insights.reviewSummary.available ? "reviews" : "activity");
   const [view, setView] = useState(historyOnly ? "bars" : "calendar");
   const [selected, setSelected] = useState<string | null>(null);
   const [year, setYear] = useState("all");
@@ -206,10 +202,21 @@ export function ActivityWidget({ insights, assignments, subjects, expanded, hist
   const recorded = insights.activity.filter((day) => mode !== "reviews" || day.reviews != null);
   const today = insights.activity.at(-1);
   const best = [...recorded].sort((a, b) => value(b) - value(a))[0];
+  const metricTabs = <Segments label="Activity metric" value={mode} onChange={(value) => { setMode(value); if (value === "burns" && view === "hourly") setView("calendar"); }} options={[{ value: "activity", label: "Activity" }, { value: "lessons", label: "Lessons" }, { value: "burns", label: "Burns" }, ...(insights.reviewSummary.available ? [{ value: "reviews", label: "Recorded reviews" }] : [])]} />;
+  if (mode === "activity") {
+    const activity = assignmentActivityDays(assignments, insights.activity.length || 365, asOf ?? insights.activity.at(-1)?.date ?? new Date());
+    const streak = usageStreak(activity);
+    return <>
+      <dl className={styles.headlineMetrics}><Metric primary label="Activity signals" value={formatNumber(activity.reduce((sum, day) => sum + day.count, 0))} /><Metric label="Active days" value={activity.filter((day) => day.count > 0).length} /><Metric label="Activity streak" value={`${streak.current} ${streak.current === 1 ? "day" : "days"}`} /></dl>
+      {metricTabs}
+      <ReviewActivityHeatmap days={activity} label="Assignment activity in selected period" />
+      <p className={styles.note}>Assignment updates, lessons, Guru and burn milestones, not historical review counts.</p>
+    </>;
+  }
   return <>
     <dl className={styles.headlineMetrics}><Metric primary label={`${mode[0].toUpperCase() + mode.slice(1)} in period`} value={formatNumber(recorded.reduce((sum, day) => sum + value(day), 0))} /><Metric label="Active days" value={recorded.filter((day) => value(day) > 0).length} /><Metric label={insights.reviewSummary.available ? "Study streak" : "Milestone streak"} value={`${insights.reviewSummary.currentStreak} days`} /></dl>
     <div className={`${styles.controls} ${layout.activityToolbar}`}>
-      <Segments label="Activity metric" value={mode} onChange={(value) => { setMode(value); if (value === "burns" && view === "hourly") setView("calendar"); }} options={[{ value: "lessons", label: "Lessons" }, { value: "burns", label: "Burns" }, ...(insights.reviewSummary.available ? [{ value: "reviews", label: "Reviews" }] : [])]} />
+      {metricTabs}
       <select aria-label="Activity display" value={view} onChange={(event) => setView(event.target.value)}><option value="calendar">Calendar</option><option value="bars">Bars</option>{mode !== "burns" ? <option value="hourly">By hour</option> : null}</select>
     </div>
     {expanded ? <dl className={styles.metrics}><Metric label={`Today\u0027s ${mode}`} value={today && (mode !== "reviews" || today.reviews != null) ? formatNumber(value(today)) : "Not recorded"} /><Metric label="7-day average" value={lastSeven.length ? formatNumber(lastSeven.reduce((sum, day) => sum + value(day), 0) / lastSeven.length) : "Not recorded"} detail={mode === "reviews" && lastSeven.length < 7 ? `${lastSeven.length} recorded days` : mode} /><Metric label="Best day in period" value={best ? formatNumber(value(best)) : "Not recorded"} detail={best && value(best) > 0 ? formatDate(best.date) : mode} /></dl> : null}

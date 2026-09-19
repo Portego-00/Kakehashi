@@ -18,6 +18,13 @@ function widgetProps(): AnalyticsWidgetProps {
 }
 
 describe("cohesive analytics widget composition", () => {
+  it("shows the Home activity heatmap even without browser review records", () => {
+    render(<ActivityWidget {...widgetProps()} />);
+    expect(screen.getByText("Activity signals")).toBeInTheDocument();
+    const calendar = screen.getByRole("group", { name: "Assignment activity in selected period" });
+    expect(within(calendar).getAllByRole("button").some((cell) => Number(cell.getAttribute("data-level")) > 0)).toBe(true);
+    expect(screen.getByText(/not historical review counts/)).toBeInTheDocument();
+  });
   it("shows actual current-level kanji and preserves permanent passed status", () => {
     render(<CurrentLevelWidget {...widgetProps()} />);
     const kanji = screen.getByRole("group", { name: "Level 3 kanji progress" });
@@ -45,6 +52,7 @@ describe("cohesive analytics widget composition", () => {
 
   it("leads activity with its result and retains calendar, bars and hourly views", () => {
     render(<ActivityWidget {...widgetProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Lessons" }));
     const result = screen.getByText("Lessons in period");
     const toolbar = screen.getByRole("group", { name: "Activity metric" });
     expect(result.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

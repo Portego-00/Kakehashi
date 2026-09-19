@@ -74,6 +74,7 @@ describe("analytics dashboard", () => {
 
     act(() => vi.advanceTimersByTime(32));
 
+    fireEvent.click(screen.getByRole("button", { name: "Lessons" }));
     expect(screen.getByRole("button", { name: "2026-08-20: 1 lessons" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "2026-08-24: 0 lessons" })).toBeInTheDocument();
     expect(screen.getByText(/WaniKani no longer provides historical reviews/)).toBeInTheDocument();

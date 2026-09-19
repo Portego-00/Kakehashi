@@ -158,6 +158,7 @@ describe("analytics card redesign", () => {
 
   it("changes the primary activity total with the selected metric", () => {
     render(<ActivityWidget {...widgetProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Lessons" }));
     expect(screen.getByText("Lessons in period").parentElement).toHaveTextContent("60");
     fireEvent.click(within(screen.getByRole("group", { name: "Activity metric" })).getByRole("button", { name: "Burns" }));
     expect(screen.getByText("Burns in period").parentElement).toHaveTextContent("0");
@@ -169,7 +170,7 @@ describe("analytics card redesign", () => {
     props.subjects = Array.from({ length: 10 }, (_, index) => testSubject(index + 1, "kanji", { level: 60 }));
     props.assignments = props.subjects.map((subject, index) => testAssignment(subject.id, { passed_at: index < 9 ? analyticsTestNow.toISOString() : null }));
     render(<CurrentLevelWidget {...props} />);
-    expect(screen.getByText("Kanji remaining").parentElement).toHaveTextContent("1");
+    expect(screen.getByText(/1 more kanji to complete/)).toBeInTheDocument();
     expect(screen.getByRole("meter", { name: "Final level kanji passed" })).toHaveAttribute("aria-valuemax", "10");
     expect(screen.queryByText("Earliest level-up")).not.toBeInTheDocument();
   });

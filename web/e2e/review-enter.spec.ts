@@ -326,6 +326,10 @@ test("fresh reviews keep the light font and restore result controls and D/R shor
   await page.getByRole("button", { name: "Mark Incorrect", exact: true }).click();
   await expect(page.getByRole("button", { name: "Mark Correct", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("kakehashi-core-session:portego:reviews"))).toBeNull();
+  page.once("dialog", async (dialog) => {
+    expect(dialog.type()).toBe("beforeunload");
+    await dialog.accept();
+  });
   await page.reload();
   await expect(page.locator("#study-prompt-title")).toHaveText("meaning");
   await expect(page.getByRole("button", { name: "Check", exact: true })).toBeVisible();
@@ -415,4 +419,80 @@ test("result button shortcuts and measured details expansion work together", asy
   await page.keyboard.press("d");
   await page.keyboard.press("Enter");
   await expect(page.locator("#study-prompt-title")).toHaveText("reading");
+});
+
+
+test("warns before abandoning a partially answered subject and opens its badge separately", async ({ page }) => {
+  test.setTimeout(60_000);
+  await mockReview(page);
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+  await page.goto("/reviews", { waitUntil: "domcontentloaded" });
+  const input = page.getByRole("textbox", { name: "Your answer" });
+  await input.fill("River");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator("#study-prompt-title")).toHaveText("reading");
+  const previous = page.getByRole("link", { name: "Previous meaning answer: River, correct" });
+  await expect(previous).toHaveAttribute("target", "_blank");
+  await expect(previous).toHaveAttribute("data-type", "vocabulary");
+  const popupPromise = page.context().waitForEvent("page");
+  await previous.click();
+  const popup = await popupPromise;
+  await popup.close();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("link", { name: "Pause", exact: true }).click();
+  const warning = page.getByRole("dialog", { name: "Leave this session?" });
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText("1 subject has answers");
+  await expect(page.getByRole("button", { name: "Keep reviewing" })).toBeFocused();
+  await page.screenshot({ path: `/tmp/review-exit-warning-${test.info().project.name}.png` });
+  await page.keyboard.press("Escape");
+  await expect(warning).not.toBeVisible();
+  await expect(page.locator("#study-prompt-title")).toHaveText("reading");
+  expect(await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(true);
+  await page.evaluate(() => history.back());
+  await expect(warning).toBeVisible();
+  await page.getByRole("button", { name: "Keep reviewing" }).click();
+  await expect(page.locator("#study-prompt-title")).toHaveText("reading");
+  await page.getByRole("link", { name: "Pause", exact: true }).click();
+  await page.getByRole("button", { name: "Leave anyway" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test("does not warn for untouched or fully submitted review subjects", async ({ page }) => {
+  await mockReview(page);
+  await page.goto("/reviews", { waitUntil: "domcontentloaded" });
+  await page.getByRole("link", { name: "Pause", exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/reviews", { waitUntil: "domcontentloaded" });
+  const input = page.getByRole("textbox", { name: "Your answer" });
+  for (const answer of ["River", "かわ"]) {
+    await input.fill(answer);
+    await page.getByRole("button", { name: "Check", exact: true }).click();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+  }
+  await expect(input).toHaveCount(0);
+  expect(await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(false);
+});
+
+test("review loading follows the subject and answer layout", async ({ page }) => {
+  await mockReview(page);
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/wanikani/assignments**", async (route) => { await waiting; await route.fallback(); });
+  await page.goto("/reviews", { waitUntil: "domcontentloaded" });
+  const loading = page.getByRole("status", { name: "Loading reviews" });
+  await expect(loading).toBeVisible();
+  await page.screenshot({ path: `/tmp/review-loading-${test.info().project.name}.png` });
+  release();
+  await expect(page.getByRole("textbox", { name: "Your answer" })).toBeVisible();
+  await expect(loading).not.toBeVisible();
 });

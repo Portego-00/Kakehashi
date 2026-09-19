@@ -14,7 +14,7 @@ describe("recorded activity", () => {
     const assignments = [testAssignment(1, { started_at: new Date(2026, 8, 10, 8).toISOString() }), testAssignment(2, { started_at: new Date(2026, 8, 9).toISOString() })];
     const insights = calculateAnalyticsInsights({ subjects, assignments, statistics: [], progressions: [], currentLevel: 3, now, days: 2, reviews: [testReview(1, 2, { created_at: new Date(2026, 8, 10, 10).toISOString() })], reviewHistoryAvailable: true, reviewHistoryStartedAt: recordingStartedAt });
     render(<ActivityWidget insights={insights} subjects={subjects} assignments={assignments} statistics={[]} level={3} expanded />);
-    fireEvent.click(within(screen.getByRole("group", { name: "Activity metric" })).getByRole("button", { name: "Reviews" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Activity metric" })).getByRole("button", { name: "Recorded reviews" }));
     expect(screen.getByRole("button", { name: "2026-09-09: reviews not recorded" })).toHaveAttribute("data-unavailable", "true");
     fireEvent.click(screen.getByRole("button", { name: "2026-09-10: 1 reviews (partial day)" }));
     expect(screen.getByRole("link", { name: "月" })).toHaveAttribute("href", "/subjects/2");
@@ -32,6 +32,7 @@ describe("recorded activity", () => {
     const insights = calculateAnalyticsInsights({ subjects, assignments, statistics: [], progressions: [], currentLevel: 3, now, days: "all" });
     expect(insights.activity.length).toBeGreaterThan(365);
     render(<ActivityWidget insights={insights} subjects={subjects} assignments={assignments} statistics={[]} level={3} expanded />);
+    fireEvent.click(screen.getByRole("button", { name: "Lessons" }));
     expect(screen.queryByRole("button", { name: "2024-09-10: 2 lessons" })).not.toBeInTheDocument();
     const bestDay = screen.getByText("Best day in period").parentElement!;
     expect(within(bestDay).getByText("2")).toBeVisible();

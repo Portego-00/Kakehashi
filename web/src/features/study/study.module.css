@@ -250,7 +250,7 @@
 .sentenceAnswerHighlight { border-radius: var(--radius-sm); background: color-mix(in oklch, var(--color-subject-text) 18%, transparent); color: inherit; padding-inline: .12em; font-weight: 750; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sceneFrame { position: relative; width: min(100%, 30rem); }
 .contextImage { display: block; width: 100%; max-height: clamp(9rem, 24dvh, 16rem); object-fit: cover; border: 1px solid var(--color-subject-rule); border-radius: var(--radius-md); }
-.previousSubjectLink { position: absolute; z-index: var(--z-raised); inset-block-start: calc(var(--quiz-topbar-height) + var(--space-sm)); inset-inline-start: var(--page-gutter); min-height: 2.25rem; display: inline-flex; align-items: center; gap: var(--space-xs); border: 1px solid var(--color-subject-rule); border-radius: var(--radius-sm); background: color-mix(in oklch, var(--subject-color) 90%, var(--color-ink)); color: var(--color-subject-text); padding: var(--space-2xs) var(--space-xs) var(--space-2xs) var(--space-sm); font: 750 var(--text-md) var(--font-japanese); }
+.previousSubjectLink { position: absolute; z-index: var(--z-raised); inset-block-start: calc(var(--quiz-topbar-height) + var(--space-sm)); inset-inline-start: var(--page-gutter); min-height: 3.25rem; display: inline-flex; align-items: center; gap: var(--space-xs); border: 0; border-radius: var(--radius-md); background: var(--previous-subject-color, var(--subject-color)); color: var(--color-subject-text); padding: var(--space-2xs) var(--space-xs) var(--space-2xs) var(--space-sm); box-shadow: 0 2px 4px rgb(0 0 0 / .2); font: 500 var(--text-md) var(--font-japanese); }
 .previousSubjectLink[data-animate="true"] { animation: previous-answer-to-corner 480ms var(--ease-out); }
 @keyframes previous-answer-to-corner {
   from { opacity: .9; transform: translate(calc(50vw - 4rem), clamp(2rem, 8dvh, 5rem)) scale(1.65); }
@@ -862,3 +862,8 @@
 @media (max-width: 47.999rem) { .closeAnswerActions { flex-wrap: wrap !important; } .closeAnswerActions > button { flex: initial !important; } }
 
 @media (max-width: 47.999rem) and (pointer: coarse) { .quizShell[data-mobile-review-keyboard="true"] .correctionButton kbd { display: none; } }
+
+.previousSubjectLink[data-type="radical"] { --previous-subject-color: var(--color-radical); }
+.previousSubjectLink[data-type="kanji"] { --previous-subject-color: var(--color-kanji); }
+.previousSubjectLink[data-type="vocabulary"], .previousSubjectLink[data-type="kana_vocabulary"] { --previous-subject-color: var(--color-vocabulary); }
+.previousSubjectLink[data-type="bunpro"] { --previous-subject-color: var(--color-danger); }

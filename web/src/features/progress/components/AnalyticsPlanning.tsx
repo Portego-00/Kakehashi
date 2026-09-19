@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { calculateLevelTimings, summarizeLevelTimings, type LevelProgressionLike } from "../calculations";
 import { calculateLevelProjection } from "../analytics-insights";
 import { levelPaceQuartiles, requiredLevelPace } from "../analytics-planning";
-import { createProjectionCurves, type ProjectionScenario } from "../analytics-projection-chart";
+import { createLevelHistory, createProjectionCurves, type ProjectionScenario } from "../analytics-projection-chart";
 import { LevelProjectionChart } from "./LevelProjectionChart";
 import { createDefaultPaceSettings, paceSettingsStorageKey, parsePaceSettings, type AnalyticsPaceSettings } from "../analytics-pace-settings";
 import { createPaceChartImage } from "../analytics-pace-export";
@@ -119,7 +119,7 @@ function AccountPaceWidget({ level, progressions, resetCount, expanded, asOf, ac
       <label className={planningStyles.compare}><input type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)} />Compare paces</label>
     </div>
     {scenario === "custom" ? <div className={planningStyles.paceControl}><label>Days per level<strong>{formatNumber(actualPace!)}</strong><input aria-label="Days per level" type="range" min="6" max="60" step="0.5" value={actualPace!} onChange={(event) => setPace(Number(event.target.value))} /></label><button type="button" className={styles.textButton} onClick={() => setPace(null)}><RotateCcw size={14} aria-hidden />Use my median</button></div> : null}
-    <LevelProjectionChart curves={curves} selected={scenario} level={level} goal={goal} now={now} targetDate={goalDate} />
+    <LevelProjectionChart curves={curves} history={createLevelHistory(timings, level, now)} selected={scenario} level={level} goal={goal} now={now} targetDate={goalDate} />
     <div className={planningStyles.disclosures}>
       <details className={planningStyles.disclosure} open={expanded || undefined}>
         <summary><SlidersHorizontal size={15} aria-hidden /><span>Adjust plan</span><ChevronDown size={14} aria-hidden /></summary>
