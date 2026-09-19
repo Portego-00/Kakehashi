@@ -1,5 +1,7 @@
 "use client";
 
+import { BunproSettings } from "@/features/bunpro/BunproSettings";
+
 import { AnkiExportSettingsButton } from "../../anki-export/AnkiExportButton";
 
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -442,6 +444,8 @@ export function SettingsWorkspace() {
         <DashboardLayoutEditor settings={settings} onChange={update} customSrsAccessible={!isDemo && canAccessCustomSrs(username)} />
       </div>
     </section>
+
+    <BunproSettings />
 
     <section data-settings-search="" className={styles.settingsSection} aria-labelledby="account-heading">
       <div className={styles.sectionIntro}><LogOut size={19} aria-hidden /><div><h2 id="account-heading">Account</h2><p>Manage the active WaniKani session on this browser.</p></div></div>

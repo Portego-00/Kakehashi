@@ -307,7 +307,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const notebookWorkspace = isActive(pathname, "/notebooks");
 
-  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell} data-demo={isDemo || undefined} data-lesson-session={pathname === "/lessons" || pathname === "/lesson-picker" || undefined} data-workspace={notebookWorkspace ? "notebooks" : undefined}>
+  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell} data-demo={isDemo || undefined} data-lesson-session={pathname === "/lessons" || pathname === "/lesson-picker" || pathname === "/bunpro-reviews" || undefined} data-workspace={notebookWorkspace ? "notebooks" : undefined}>
     <SettingsApplicator />
     {!isDemo ? <WebAnalyticsTracker /> : null}
     <a className={styles.skipLink} href="#main-content" inert={moreOpen ? true : undefined}>Skip to main content</a>

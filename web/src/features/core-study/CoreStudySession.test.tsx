@@ -219,6 +219,51 @@ async function submitAnswer(value: string, kind: "meaning" | "reading") {
 }
 
 describe("core study prompt layout", () => {
+  it("discards a saved review session and never writes a review resume snapshot", async () => {
+    const key = `kakehashi-core-session:${fixtures.user.data.username}:reviews`;
+    localStorage.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), questionIds: [`${fixtures.reviewAssignment.id}:reading`], completed: { [fixtures.reviewAssignment.id]: ["meaning"] }, errors: {}, submittedIds: [] }));
+    renderSession("reviews");
+    expect(await screen.findByRole("heading", { name: "meaning" })).toBeVisible();
+    expect(screen.queryByText("Continue Session")).not.toBeInTheDocument();
+    await submitAnswer("wrong", "meaning");
+    expect(localStorage.getItem(key)).toBeNull();
+  });
+
+  it("opens details with D from the answered input but leaves active typing alone", async () => {
+    fixtures.settings.study.pauseOnCorrect = true;
+    renderSession("reviews");
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    fireEvent.keyDown(input, { key: "d" });
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
+    await submitAnswer("River", "meaning");
+    fireEvent.keyDown(input, { key: "d" });
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    fireEvent.keyDown(input, { key: "D" });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Show subject details/ })).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("corrects a result in either direction without erasing earlier mistakes", async () => {
+    fixtures.settings.study.pauseOnCorrect = true;
+    renderSession("reviews");
+    await submitAnswer("wrong", "meaning");
+    expect(screen.getByText("1 mistake")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
+    expect(screen.getByText("0 mistakes")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    expect(screen.getByText("1 mistake")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("heading", { name: "reading" });
+    await submitAnswer("かわ", "reading");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("heading", { name: "meaning" });
+    await submitAnswer("wrong again", "meaning");
+    expect(screen.getByText("2 mistakes")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
+    expect(screen.getByText("1 mistake")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(wkRequest).toHaveBeenCalledWith("reviews", expect.objectContaining({ body: expect.objectContaining({ review: expect.objectContaining({ incorrect_meaning_answers: 1, incorrect_reading_answers: 0 }) }) })));
+  });
+
   it("shows results and optimistic SRS while the final upload is still pending", async () => {
     fixtures.settings.study.ankiMode = "both";
     fixtures.settings.study.ankiGroupQuestions = true;
@@ -229,7 +274,7 @@ describe("core study prompt layout", () => {
       renderSession("reviews");
       fireEvent.click(await screen.findByRole("button", { name: /Reveal answer/i }));
       fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
-      fireEvent.click(await screen.findByRole("button", { name: "Next Question" }));
+      fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
       expect(await screen.findByRole("heading", { name: "Reviews Complete" }, { timeout: 300 })).toBeInTheDocument();
       expect(screen.getByLabelText("SRS progression")).toHaveTextContent("Apprentice IV");
       expect(JSON.parse(window.localStorage.getItem(reviewOutboxKey(fixtures.user.data.username)) || "[]")).toHaveLength(1);
@@ -465,7 +510,7 @@ describe("core study prompt layout", () => {
     const refresh = vi.spyOn(client, "invalidateQueries").mockImplementation(() => new Promise<void>(() => {}));
     fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "Next Question" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(await screen.findByRole("heading", { name: "Reviews Complete" }, { timeout: 300 })).toBeVisible();
     act(() => { client.setQueryData(["core-study", "reviews", "assignments"], []); });
@@ -498,7 +543,7 @@ describe("core study prompt layout", () => {
     const timeoutSpy = vi.spyOn(window, "setTimeout");
 
     try {
-      fireEvent.click(await screen.findByRole("button", { name: "Next Question" }));
+      fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
 
       const progression = await screen.findByLabelText("SRS progression");
       expect(progression).toHaveAttribute("data-mode", "compact");
@@ -623,7 +668,7 @@ describe("core study prompt layout", () => {
     expect(input).toHaveFocus();
   });
 
-  it("preserves desktop answer sizing, disabled feedback, and keyboard advance", async () => {
+  it("preserves desktop answer sizing, read-only feedback, and keyboard advance", async () => {
     vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === "(min-width: 48rem)", addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
     fixtures.settings.study.pauseOnCorrect = true;
     fixtures.settings.study.reviewInputFontScale = 0.8;
@@ -635,7 +680,7 @@ describe("core study prompt layout", () => {
     fireEvent.change(input, { target: { value: "River" } });
     fireEvent.submit(input.closest("form")!);
     expect(await screen.findByText("Correct")).toBeInTheDocument();
-    expect(input).toBeDisabled();
+    expect(input).toHaveAttribute("readonly");
 
     fireEvent.keyDown(window, { key: "Enter" });
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
@@ -651,18 +696,18 @@ describe("core study prompt layout", () => {
     expect(screen.getByRole("progressbar", { name: "Study progress" })).toBeInTheDocument();
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
     expect(screen.getByText("vocabulary")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /subject details/i })).not.toBeInTheDocument();
     expect(screen.queryByText("River")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Item details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Correct")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Item details" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Info" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Info" }));
-    expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /subject details/i })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: /subject details/i }));
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     expect(screen.getAllByText("River").length).toBeGreaterThan(0);
     expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
@@ -687,17 +732,17 @@ describe("core study prompt layout", () => {
 
     const answerInput = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(answerInput, { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     const details = document.getElementById("study-item-details");
     expect(details).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Next Question" }));
+    fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ }));
 
     expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "reading" })).not.toBeInTheDocument();
     expect(details).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Item details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
 
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
     expect(document.getElementById("study-item-details")).not.toBeInTheDocument();
@@ -714,12 +759,12 @@ describe("core study prompt layout", () => {
     fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
     expect(await screen.findByText("Correct")).toBeInTheDocument();
 
-    const info = screen.getByRole("button", { name: "Info" });
+    const info = screen.getByRole("button", { name: /subject details/i });
     expect(info).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("heading", { name: "Item details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
 
     fireEvent.click(info);
-    expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     expect(info).toHaveAttribute("aria-expanded", "true");
   });
 
@@ -729,20 +774,20 @@ describe("core study prompt layout", () => {
 
     const answerInput = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(answerInput, { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByText("Correct")).toBeInTheDocument();
 
-    const info = screen.getByRole("button", { name: "Info" });
+    const info = screen.getByRole("button", { name: /subject details/i });
     fireEvent.click(info);
-    expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     expect(info).toHaveAttribute("aria-expanded", "true");
 
     fireEvent.click(info);
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "Item details" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument());
     expect(info).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(info);
-    expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     expect(info).toHaveAttribute("aria-expanded", "true");
   });
 
@@ -755,10 +800,10 @@ describe("core study prompt layout", () => {
     try {
       const answerInput = await screen.findByRole("textbox", { name: "Your answer" });
       fireEvent.change(answerInput, { target: { value: "River" } });
-      fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+      fireEvent.click(screen.getByRole("button", { name: "Check" }));
       expect(await screen.findByText("Correct")).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Info" }));
-      expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /subject details/i }));
+      expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
 
       const pronunciation = screen.getByRole("button", { name: "Play Kyoko pronunciation" });
@@ -767,7 +812,7 @@ describe("core study prompt layout", () => {
       fireEvent.keyDown(pronunciation, { key: " ", code: "Space" });
 
       expect(play).not.toHaveBeenCalled();
-      expect(screen.getByRole("heading", { name: "Item details" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Subject details" })).toBeInTheDocument();
       fireEvent.click(pronunciation);
       await waitFor(() => expect(play).toHaveBeenCalledOnce());
       expect(screen.getByRole("button", { name: "Stop Kyoko pronunciation" })).toBeInTheDocument();
@@ -783,16 +828,16 @@ describe("core study prompt layout", () => {
 
     const answerInput = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(answerInput, { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByText("Correct")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Info" }));
-    expect(await screen.findByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /subject details/i }));
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
     const meaningNote = screen.getByRole("textbox", { name: "Meaning note" });
     fireEvent.keyDown(meaningNote, { key: "Enter" });
     expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Item details" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Subject details" })).toBeInTheDocument();
 
     const preventedEnter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
     preventedEnter.preventDefault();
@@ -836,7 +881,7 @@ describe("core study prompt layout", () => {
         if (mode === "lessons") fireEvent.click(await screen.findByRole("button", { name: "Start lesson review" }));
         expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
         fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "kawa" } });
-        fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+        fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
         expect(await screen.findByText("Correct")).toBeInTheDocument();
         await waitFor(() => expect(playedSources).toHaveLength(mode === "reviews" ? 1 : 2));
@@ -867,7 +912,7 @@ describe("core study prompt layout", () => {
     await act(async () => resolveMaterials([fixtures.studyMaterial]));
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "watercourse" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Correct")).toBeInTheDocument();
   });
@@ -878,7 +923,7 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "watercourse" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Incorrect")).toBeInTheDocument();
   });
@@ -889,7 +934,7 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "Waterway" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Incorrect")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add as synonym" }));
@@ -913,8 +958,8 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Next Question" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
 
     const previous = await screen.findByRole("link", { name: "Previous meaning answer: River, correct" });
     expect(previous).toHaveAttribute("href", "/subjects/200");
@@ -926,7 +971,7 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "rivr" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Accepted with a typo")).toBeInTheDocument();
     expect(screen.getByText("Correct, with a small typo.")).toBeInTheDocument();
@@ -939,11 +984,11 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "rivr" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByRole("button", { name: "Mark Incorrect" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark Correct" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Next Question" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Next|Next Question)$/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
 
@@ -958,7 +1003,7 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "rivr" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
     fireEvent.click(await screen.findByRole("button", { name: "Mark Correct" }));
 
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
@@ -972,10 +1017,10 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "rivr" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByRole("button", { name: "Mark Correct" })).toBeInTheDocument();
 
-    fireEvent.keyDown(window, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
     expect(screen.getByText("0 mistakes")).toBeInTheDocument();
@@ -986,7 +1031,7 @@ describe("core study prompt layout", () => {
     renderSession("reviews");
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(playAnswerFeedback).toHaveBeenCalledWith(true);
 
     cleanup();
@@ -1006,7 +1051,7 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "River" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(playAnswerFeedback).not.toHaveBeenCalled();
   });
@@ -1016,7 +1061,7 @@ describe("core study prompt layout", () => {
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "kawa" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Try another answer")).toBeInTheDocument();
     expect(screen.getByText("You entered the reading, but we want the meaning.")).toBeInTheDocument();
@@ -1033,7 +1078,7 @@ describe("core study prompt layout", () => {
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
     const input = screen.getByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "sen" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     expect(await screen.findByText("Try another answer")).toBeInTheDocument();
     expect(screen.getByText("This is a reading for the individual kanji, not the vocabulary.")).toBeInTheDocument();
@@ -1055,7 +1100,35 @@ describe("core study prompt layout", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument());
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
     expect(screen.queryByText("River")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /subject details/i })).not.toBeInTheDocument();
+  });
+
+  it("uses review details during lessons and finishes with learned items and the next batch", async () => {
+    const originalBatchSize = fixtures.settings.study.lessonsBatchSize;
+    fixtures.settings.study.lessonsBatchSize = 1;
+    fixtures.settings.study.showReviewItemLevelAndSrsStage = true;
+    fixtures.settings.study.reviewSearchButtonEnabled = true;
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
+    try {
+      renderSession("lessons");
+      fireEvent.click(await screen.findByRole("button", { name: "Start lesson review" }));
+      expect(await screen.findByLabelText("Question status")).toHaveTextContent("Level");
+      expect(screen.getByRole("link", { name: "Search this item" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
+      fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
+      expect(await screen.findByRole("heading", { name: "Batch Complete!" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Items learned" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Upcoming batches" })).toBeInTheDocument();
+      expect(screen.queryByRole("tablist", { name: "Reviewed subjects" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /River/ })).toHaveAttribute("href", "/subjects/200");
+      expect(screen.getByRole("link", { name: /Fire/ })).toHaveAttribute("href", "/subjects/202");
+      expect(wkRequest).toHaveBeenCalledWith(`assignments/${fixtures.lessonAssignment.id}/start`, expect.objectContaining({ method: "PUT" }));
+      expect(vi.mocked(wkRequest).mock.calls.some(([endpoint]) => endpoint === "reviews")).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Next batch" }));
+      expect(await screen.findByRole("heading", { name: "Fire" })).toBeInTheDocument();
+    } finally { fixtures.settings.study.lessonsBatchSize = originalBatchSize; }
   });
 
   it("keeps every lesson in the batch centered between previous and next controls", async () => {

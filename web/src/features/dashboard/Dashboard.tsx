@@ -1,5 +1,7 @@
 "use client";
 
+import { BunproHomeButton } from "@/features/bunpro/BunproHomeButton";
+
 import { canAccessCoreStudy } from "@/features/core-study/access";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Umbrella } from "lucide-react";
@@ -140,6 +142,7 @@ export function Dashboard() {
   };
 
   return <main className="page">
+    <BunproHomeButton />
     {(assignments.error || currentUser.error || (needsDailyStudy && availableReviewCount.error) || (needsSubjectCatalog && allSubjects.error) || (needsLevelTiming && levelProgressions.error)) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
     <div className={styles.grid}>
       {visibleSections.map((id) => {

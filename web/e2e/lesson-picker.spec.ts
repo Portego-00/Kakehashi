@@ -52,6 +52,10 @@ test("picked lessons follow the batch size and keep the remaining selection", as
     await page.getByRole("button", { name: "2 · Correct", exact: true }).click();
     await expect(page.getByRole("button", { name: "2 · Correct", exact: true })).toBeHidden();
   }
+  await expect(page.getByRole("heading", { name: "Batch Complete!" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Items learned" }).getByRole("listitem")).toHaveCount(3);
+  await expect(page.getByRole("region", { name: "Upcoming batches" }).getByRole("listitem")).toHaveCount(2);
+  await page.screenshot({ path: `/tmp/kakehashi-batch-complete-${test.info().project.name}.png`, fullPage: true });
   await page.getByRole("button", { name: "Next batch", exact: true }).click();
   await expect(batch).toHaveCount(2);
   const nextBatch = await batch.allTextContents();
@@ -59,6 +63,18 @@ test("picked lessons follow the batch size and keep the remaining selection", as
   await page.reload();
   await expect(batch).toHaveCount(2);
   expect(await batch.allTextContents()).toEqual(nextBatch);
+  await batch.last().getByRole("button").click();
+  await page.getByRole("button", { name: "Start lesson review", exact: true }).click();
+  for (let index = 0; index < 2; index++) {
+    await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
+    await page.getByRole("button", { name: "2 · Correct", exact: true }).click();
+    await expect(page.getByRole("button", { name: "2 · Correct", exact: true })).toBeHidden();
+  }
+  await expect(page.getByRole("heading", { name: "Lessons Complete!" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Items learned" }).getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: "Upcoming batches" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Finish", exact: true })).toHaveAttribute("href", "/dashboard");
+
 });
 
 test("revalidates an old oversized saved batch and lets the learner start over", async ({ page }) => {
