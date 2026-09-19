@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -57,6 +58,7 @@ function activityLabel(day: ReviewActivityDay) {
 }
 
 export function ReviewActivityHeatmap({ days, label = "Review activity over the past year" }: ReviewActivityHeatmapProps) {
+  const tooltipId = useId();
   const viewportRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,7 +210,6 @@ export function ReviewActivityHeatmap({ days, label = "Review activity over the 
 
   const calendarStyle = { "--heatmap-weeks": calendar.weekCount } as CSSProperties;
   const todayKey = localDateKey(new Date());
-  const tooltipId = "review-activity-heatmap-tooltip";
   const currentFocusedIndex = Math.min(focusedIndex, visibleDays.length - 1);
   const selectedLabel = activeYear === latestYear ? label : `Review activity in ${activeYear}`;
 

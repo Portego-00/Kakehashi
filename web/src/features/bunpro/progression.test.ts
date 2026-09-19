@@ -1,0 +1,7 @@
+import { expect, it } from "vitest";
+import { bunproProgression, bunproStage } from "./progression";
+import { bunproAudioUrls } from "./use-bunpro-audio";
+it("uses Bunpro stages rather than WaniKani names", () => { expect(bunproStage({ streak: 4 }).label).toBe("Adept 1"); expect(bunproStage({ streak: 10 }).label).toBe("Master"); });
+it("reads the saved stage and next review from the response", () => { expect(bunproProgression("10", "です", { streak: 3 }, { data: { attributes: { streak: 4, next_review: "2026-09-18T20:00:00Z" } } }, Date.parse("2026-09-18T16:00:00Z"))).toMatchObject({ from: "Beginner 3", to: "Adept 1", direction: "up", nextReview: "in 4h" }); });
+it("does not invent an SRS update when Bunpro omits it", () => { expect(bunproProgression("10", "です", { streak: 3 }, {})).toMatchObject({ from: "Beginner 3", to: "", direction: "unknown", nextReview: "" }); });
+it("supports both voices, fallback, and avoids duplicate audio", () => { const question = { female_audio_url: "https://audio.test/f", male_audio_url: "https://audio.test/m" }; expect(bunproAudioUrls(question, "both")).toEqual([question.female_audio_url, question.male_audio_url]); expect(bunproAudioUrls(question, "male")).toEqual([question.male_audio_url]); expect(bunproAudioUrls({ female_audio_url: question.female_audio_url }, "male")).toEqual([question.female_audio_url]); expect(bunproAudioUrls({ ...question, male_audio_url: question.female_audio_url }, "both")).toEqual([question.female_audio_url]); });

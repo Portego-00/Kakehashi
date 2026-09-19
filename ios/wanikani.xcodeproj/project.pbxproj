@@ -393,10 +393,10 @@
 				94A4A93B5B3B45AA9FE9B36A /* PBXTargetDependency */,
 				XXC3D8054CC99A7CE4F5ABXX /* PBXTargetDependency */,
 			);
-				name = wanikani;
-				productName = wanikani;
-				productReference = 13B07F961A680F5B00A75B9A /* Kakehashi.app */;
-				productType = "com.apple.product-type.application";
+			name = wanikani;
+			productName = wanikani;
+			productReference = 13B07F961A680F5B00A75B9A /* Kakehashi.app */;
+			productType = "com.apple.product-type.application";
 		};
 		1A3F8AE7B10243D7BB0A6ED8 /* ExpoWidgetsTarget */ = {
 			isa = PBXNativeTarget;
@@ -451,11 +451,11 @@
 			fileSystemSynchronizedGroups = (
 				XX3CB3699C7F6598F017ADXX /* kakehashi-watch */,
 			);
-				name = "Kakehashi Watch";
-				productName = KakehashiWatch;
-				productReference = XX5BE0F3A7C51B5CC862AFXX /* Kakehashi Watch.app */;
-				productType = "com.apple.product-type.application";
-			};
+			name = "Kakehashi Watch";
+			productName = KakehashiWatch;
+			productReference = XX5BE0F3A7C51B5CC862AFXX /* Kakehashi Watch.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */

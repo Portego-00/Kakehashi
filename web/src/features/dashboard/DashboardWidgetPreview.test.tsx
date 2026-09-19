@@ -157,14 +157,18 @@ describe("dashboard widget previews", () => {
     expect(reducedMotionRules).toContain(".incompleteRingProgress { transition: none; }");
   });
 
-  it("keeps the main lesson and review queues disabled while they are coming soon", () => {
+  it("keeps both study queues coming soon without access", () => {
     render(<><StudyQueueCard type="lesson" count={12} /><StudyQueueCard type="review" count={34} /></>);
+    expect(screen.getAllByRole("button", { name: "Coming soon" })).toHaveLength(2);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 
-    for (const name of ["Lessons", "Reviews"]) {
-      const queue = screen.getByRole("article", { name: `${name} study queue, coming soon` });
-      expect(within(queue).getByRole("button", { name: "Coming soon" })).toBeDisabled();
-      expect(within(queue).queryByRole("link")).not.toBeInTheDocument();
-    }
+  it("offers both study queues when access is enabled", () => {
+    render(<><StudyQueueCard available type="lesson" count={12} /><StudyQueueCard available type="review" count={34} /></>);
+    const lessons = screen.getByRole("article", { name: "Lessons study queue" });
+    expect(within(lessons).getByRole("link", { name: "Pick lessons" })).toHaveAttribute("href", "/lesson-picker");
+    expect(within(lessons).getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/lessons");
+    expect(within(screen.getByRole("article", { name: "Reviews study queue" })).getByRole("link", { name: "Start reviews" })).toHaveAttribute("href", "/reviews");
   });
 
   it("uses the mobile empty-state artwork while a queue is clear", () => {
@@ -172,7 +176,7 @@ describe("dashboard widget previews", () => {
 
     expect(container.querySelector('img[src*="NoLessons.png"]')).not.toBeNull();
     expect(container.querySelector('img[src*="ReviewsFinished.png"]')).not.toBeNull();
-    expect(container).toHaveTextContent("Main lessons are coming to the web app.");
+    expect(container).toHaveTextContent("Choose what you want to learn next.");
     expect(container).toHaveTextContent("Main reviews are coming to the web app.");
   });
 

@@ -1,0 +1,13 @@
+.page { width: min(100%, 52rem); margin-inline: auto; padding: var(--space-2xl) var(--page-gutter); display: grid; gap: var(--space-xl); }
+.header { display: grid; gap: var(--space-sm); }
+.header > svg { color: var(--color-success); }
+.page h1, .page h2, .page p { margin: 0; }
+.page h2 { font-size: var(--text-lg); margin-block-end: var(--space-md); }
+.items { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--space-sm); }
+.items a { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-sm); color: inherit; text-decoration: none; }
+.items a:hover { text-decoration: underline; }
+.character { font-size: 2rem; min-width: 3rem; text-align: center; }
+.metadata { display: block; font-size: var(--text-sm); opacity: .7; }
+.batch { padding-block: var(--space-sm); }
+.batch summary { cursor: pointer; padding-block: var(--space-sm); }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); }

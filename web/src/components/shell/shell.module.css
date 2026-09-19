@@ -201,3 +201,6 @@
 @media (max-width: 53.999rem) {
   .shell[data-workspace="notebooks"] .moreSheet { inset-block-start: auto; }
 }
+
+:global(html):has(.shell[data-lesson-session="true"]) { --banner-height: 0rem; }
+.shell[data-lesson-session="true"] .topbar { display: none; }

@@ -1,0 +1,5 @@
+.dialog { width: min(28rem, calc(100vw - 2rem)); margin: auto; padding: var(--space-lg); border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); box-shadow: var(--shadow-floating); }
+.dialog::backdrop { background: color-mix(in oklch, var(--color-ink) 48%, transparent); }
+.dialog h2 { font-size: var(--text-lg); }
+.dialog p { margin-block: var(--space-sm) var(--space-lg); color: var(--color-muted); line-height: 1.6; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-sm); }

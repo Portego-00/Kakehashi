@@ -18,7 +18,7 @@ import styles from "./review-forecast.module.css";
 
 type Breakdown = "off" | "subject" | "srs";
 
-type ReviewForecastProps = {
+export type ReviewForecastProps = {
   forecast: ReviewForecastData;
   viewMode: "chart" | "list";
   chartMode: "hourly" | "daily";
@@ -28,6 +28,7 @@ type ReviewForecastProps = {
   onBreakdownChange: (value: Breakdown) => void;
   title?: string;
   embedded?: boolean;
+  includeBunpro?: boolean;
   loading?: boolean;
   unavailable?: ReactNode;
 };
@@ -39,6 +40,8 @@ const SUBJECT_GROUPS = [
   { key: "radical", label: "Radicals", glyph: "幺" },
   { key: "kanji", label: "Kanji", glyph: "字" },
   { key: "vocabulary", label: "Vocabulary", glyph: "語" },
+  { key: "bunpro_grammar", label: "Bunpro grammar", glyph: "文" },
+  { key: "bunpro_vocab", label: "Bunpro vocabulary", glyph: "単" },
 ] as const;
 
 function subscribeToScreenSize(onChange: () => void) {
@@ -55,7 +58,7 @@ function narrowServerSnapshot() { return false; }
 
 function segments(subjects: ForecastSubjectBreakdown, srs: ForecastSrsBreakdown, breakdown: Breakdown) {
   if (breakdown === "srs") return SRS_GROUPS.map((key) => ({ key, count: srs[key] }));
-  return SUBJECT_GROUPS.map(({ key }) => ({ key, count: subjects[key] + (key === "vocabulary" ? subjects.kana_vocabulary : 0) }));
+  return SUBJECT_GROUPS.map(({ key }) => ({ key, count: (subjects[key] ?? 0) + (key === "vocabulary" ? subjects.kana_vocabulary : 0) }));
 }
 
 function BreakdownBar({ count, subjects, srs, breakdown, critical, horizontal = false, style }: {
@@ -74,11 +77,11 @@ function BreakdownBar({ count, subjects, srs, breakdown, critical, horizontal = 
   </span>;
 }
 
-function BreakdownLegend({ breakdown }: { breakdown: Breakdown }) {
+function BreakdownLegend({ breakdown, includeBunpro }: { breakdown: Breakdown; includeBunpro: boolean }) {
   if (breakdown === "off") return null;
   return <div className={styles.legend} aria-label={breakdown === "subject" ? "Subject type legend" : "SRS stage legend"}>
     <span className={styles.legendTitle}>{breakdown === "subject" ? "Type" : "SRS"}</span>
-    {breakdown === "subject" ? SUBJECT_GROUPS.map(({ key, label, glyph }) => (
+    {breakdown === "subject" ? SUBJECT_GROUPS.filter(({ key }) => includeBunpro || !key.startsWith("bunpro_")).map(({ key, label, glyph }) => (
       <span key={key} className={styles.legendItem} title={label}>
         <span className={styles.subjectGlyph} data-group={key} aria-hidden="true">{glyph}</span>
         <span className={styles.visuallyHidden}>{label}</span>
@@ -101,7 +104,7 @@ function breakdownDescription(point: ReviewForecastPoint, breakdown: Breakdown) 
   if (breakdown === "off") return "";
   return segments(point.cumulativeSubjectBreakdown, point.cumulativeSrsBreakdown, breakdown)
     .filter(({ count }) => count > 0)
-    .map(({ key, count }) => `${key[0].toUpperCase()}${key.slice(1)}: ${count.toLocaleString()}`)
+    .map(({ key, count }) => `${SUBJECT_GROUPS.find((group) => group.key === key)?.label ?? `${key[0].toUpperCase()}${key.slice(1)}`}: ${count.toLocaleString()}`)
     .join(" · ");
 }
 
@@ -170,15 +173,15 @@ function ForecastDay({ day, dueNow, breakdown, expanded, onToggle }: {
   </div>;
 }
 
-export function ReviewForecast({ forecast, viewMode, chartMode, breakdown, onViewModeChange, onChartModeChange, onBreakdownChange, title = "Review forecast", embedded = false, loading = false, unavailable }: ReviewForecastProps) {
+export function ReviewForecast({ forecast, viewMode, chartMode, breakdown, onViewModeChange, onChartModeChange, onBreakdownChange, title = "Review forecast", embedded = false, loading = false, unavailable, includeBunpro = false }: ReviewForecastProps) {
   const headingId = useId();
   const wide = useSyncExternalStore(subscribeToScreenSize, isWideScreen, narrowServerSnapshot);
   // Date-keyed overrides preserve the user's expanded days through minute refreshes.
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
   const daily = chartMode === "daily";
-  const points = daily ? getDailyReviewForecast(forecast) : getHourlyReviewForecast(forecast, wide ? 48 : 24);
+  const points = daily ? getDailyReviewForecast(forecast) : getHourlyReviewForecast(forecast, includeBunpro ? 24 : wide ? 48 : 24);
   const BreakdownIcon = breakdown === "srs" ? Layers : breakdown === "subject" ? ChartColumnStacked : ChartColumn;
-  const nextBreakdown = NEXT_BREAKDOWN[breakdown];
+  const nextBreakdown = includeBunpro ? breakdown === "off" ? "subject" : "off" : NEXT_BREAKDOWN[breakdown];
   const Heading = embedded ? "h3" : "h2";
   const motionRef = useReviewForecastMotion(!loading && !unavailable, `${viewMode}:${viewMode === "chart" ? chartMode : ""}:${breakdown}`);
 
@@ -199,7 +202,7 @@ export function ReviewForecast({ forecast, viewMode, chartMode, breakdown, onVie
         </div>
       </div>
       <div ref={motionRef} data-forecast-motion>
-        <div className={styles.legendSlot}><BreakdownLegend breakdown={breakdown} /></div>
+        <div className={styles.legendSlot}><BreakdownLegend breakdown={breakdown} includeBunpro={includeBunpro} /></div>
         <div hidden={viewMode !== "chart"}><ForecastChart points={points} daily={daily} breakdown={breakdown} /></div>
         <div className={styles.dayList} hidden={viewMode !== "list"}>
           <div className={styles.listColumns} aria-hidden="true"><span>New</span><span>Total</span></div>

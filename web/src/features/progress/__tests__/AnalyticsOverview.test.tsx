@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Assignment } from "@/types/wanikani";
 import { AnalyticsOverview, LevelTimingChart } from "../components/AnalyticsOverview";
@@ -18,6 +18,8 @@ const { progressData } = vi.hoisted(() => ({
 }));
 
 vi.mock("../data", () => ({ useProgressData: () => progressData }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { id: 1, data: { username: "learner", level: 3, started_at: "2026-01-01" } }, isDemo: false }) }));
+vi.mock("../analytics-history", () => ({ useAnalyticsHistory: () => ({ reviews: [], systems: [], availability: "unavailable", isLoading: false, isError: false, retry: vi.fn() }) }));
 
 function assignment(id: number, updatedAt: string, startedAt: string | null): Assignment {
   return {
@@ -51,15 +53,52 @@ describe("analytics dashboard", () => {
     window.localStorage.clear();
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
-  it("builds heatmap activity from the assignment signals used by mobile", () => {
+  it("groups the overview controls and metrics while keeping sharing beside customization", () => {
+    render(<AnalyticsOverview />);
+    act(() => vi.advanceTimersByTime(32));
+
+    const overview = screen.getByRole("region", { name: "Analytics overview" });
+    expect(within(overview).getByRole("combobox", { name: "Dashboard preset" })).toBeVisible();
+    expect(within(overview).getByText("Reviews due")).toBeVisible();
+    const share = screen.getByRole("button", { name: "Share" });
+    expect(share.parentElement).toContainElement(screen.getByRole("button", { name: "Customize" }));
+    expect(overview).not.toContainElement(share);
+  });
+
+  it("uses genuine lesson dates without presenting assignment updates as reviews", () => {
     progressData.assignments = [assignment(1, "2026-08-24T12:00:00Z", "2026-08-20T12:00:00Z")];
 
     render(<AnalyticsOverview />);
 
-    expect(screen.getAllByRole("button", { name: /1 activity signal on/ })).toHaveLength(2);
+    act(() => vi.advanceTimersByTime(32));
+
+    fireEvent.click(screen.getByRole("button", { name: "Lessons" }));
+    expect(screen.getByRole("button", { name: "2026-08-20: 1 lessons" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2026-08-24: 0 lessons" })).toBeInTheDocument();
+    expect(screen.getByText(/WaniKani no longer provides historical reviews/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Analytics" })).not.toBeInTheDocument();
+  });
+
+  it("advances due counts while the dashboard stays open without claiming a data refresh", () => {
+    progressData.assignments = [{ ...assignment(1, "2026-08-25T12:00:00Z", "2026-08-20T12:00:00Z"), data: { ...assignment(1, "", "2026-08-20T12:00:00Z").data, available_at: "2026-08-25T12:00:30Z" } }];
+    render(<AnalyticsOverview />);
+    const due = screen.getByText("Reviews due").parentElement!;
+    expect(due).toHaveTextContent("Reviews due0");
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(due).toHaveTextContent("Reviews due1");
+    expect(screen.queryByText("Analytics refreshed.")).not.toBeInTheDocument();
+  });
+
+  it("reports a failed refresh and keeps the dashboard available", async () => {
+    progressData.retry.mockRejectedValueOnce(new Error("Unavailable"));
+    render(<AnalyticsOverview />);
+    act(() => vi.advanceTimersByTime(32));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Refresh analytics" })); });
+    expect(progressData.retry).toHaveBeenLastCalledWith({ throwOnError: true });
+    expect(screen.getByText("Refresh failed. Your last loaded data is still available.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Current level" })).toBeInTheDocument();
   });
 
   it("excludes a level from both the average and median when its bar is pressed", () => {
@@ -71,6 +110,7 @@ describe("analytics dashboard", () => {
 
     render(<AnalyticsOverview />);
 
+    act(() => vi.advanceTimersByTime(32));
     expect(screen.getByTestId("timing-average")).toHaveTextContent("20 days");
     expect(screen.getByTestId("timing-median")).toHaveTextContent("20 days");
 
@@ -136,6 +176,7 @@ describe("analytics dashboard", () => {
 
     try {
       render(<LevelTimingChart timings={timings} resetCount={null} />);
+      act(() => vi.advanceTimersByTime(32));
 
       const scrollingPlot = screen.getByTestId("timing-chart-scroll");
       const stickyMedian = screen.getByTestId("timing-median-sticky");

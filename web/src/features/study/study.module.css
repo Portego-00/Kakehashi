@@ -9,7 +9,7 @@
 .fetchReady:not([data-study-session="active"]) .configLayout { animation: study-fetch-detail var(--dur-long) var(--ease-out) 70ms backwards; }
 .hubHeader { align-items: center; }
 .shortcutNote { color: var(--color-muted); font-size: var(--text-sm); white-space: nowrap; }
-.shortcutNote kbd, .keyboardHint kbd, .audioButton kbd, .choiceButton kbd, .itemDetailsButton kbd { border: 1px solid var(--color-rule); border-bottom-width: 2px; border-radius: var(--radius-sm); background: var(--color-paper-2); padding: var(--space-3xs) var(--space-2xs); font: 600 var(--text-xs) var(--font-mono); }
+.correctionButton kbd, .reviewTools kbd, .shortcutNote kbd, .keyboardHint kbd, .audioButton kbd, .choiceButton kbd, .itemDetailsButton kbd { border: 1px solid var(--color-rule); border-bottom-width: 2px; border-radius: var(--radius-sm); background: var(--color-paper-2); padding: var(--space-3xs) var(--space-2xs); font: 600 var(--text-xs) var(--font-mono); }
 .catalog { display: grid; gap: var(--space-xl); }
 .catalogGroup { display: grid; gap: var(--space-sm); }
 .catalogGroup h2 { font-size: var(--text-md); }
@@ -250,9 +250,15 @@
 .sentenceAnswerHighlight { border-radius: var(--radius-sm); background: color-mix(in oklch, var(--color-subject-text) 18%, transparent); color: inherit; padding-inline: .12em; font-weight: 750; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sceneFrame { position: relative; width: min(100%, 30rem); }
 .contextImage { display: block; width: 100%; max-height: clamp(9rem, 24dvh, 16rem); object-fit: cover; border: 1px solid var(--color-subject-rule); border-radius: var(--radius-md); }
-.previousSubjectLink { position: absolute; z-index: var(--z-raised); inset-block-start: calc(var(--quiz-topbar-height) + var(--space-sm)); inset-inline-start: var(--page-gutter); min-height: 2.25rem; display: inline-flex; align-items: center; gap: var(--space-xs); border: 1px solid var(--color-subject-rule); border-radius: var(--radius-sm); background: color-mix(in oklch, var(--subject-color) 90%, var(--color-ink)); color: var(--color-subject-text); padding: var(--space-2xs) var(--space-xs) var(--space-2xs) var(--space-sm); font: 750 var(--text-md) var(--font-japanese); }
+.previousSubjectLink { position: absolute; z-index: var(--z-raised); inset-block-start: calc(var(--quiz-topbar-height) + var(--space-sm)); inset-inline-start: var(--page-gutter); min-height: 3.25rem; display: inline-flex; align-items: center; gap: var(--space-xs); border: 0; border-radius: var(--radius-md); background: var(--previous-subject-color, var(--subject-color)); color: var(--color-subject-text); padding: var(--space-2xs) var(--space-xs) var(--space-2xs) var(--space-sm); box-shadow: 0 2px 4px rgb(0 0 0 / .2); font: 500 var(--text-md) var(--font-japanese); }
+.previousSubjectLink[data-animate="true"] { animation: previous-answer-to-corner 480ms var(--ease-out); }
+@keyframes previous-answer-to-corner {
+  from { opacity: .9; transform: translate(calc(50vw - 4rem), clamp(2rem, 8dvh, 5rem)) scale(1.65); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+.previousSubjectCharacter { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: inherit; line-height: 1.3; }
 .previousSubjectLink:focus-visible { outline-color: var(--color-subject-text); }
-.previousSubjectStatus { width: 1.25rem; height: 1.25rem; display: grid; place-items: center; border-radius: 50%; background: var(--color-danger); color: var(--color-danger-ink); }
+.previousSubjectStatus { flex-shrink: 0; width: 1.25rem; height: 1.25rem; display: grid; place-items: center; border-radius: 50%; background: var(--color-danger); color: var(--color-danger-ink); }
 .previousSubjectStatus[data-correct="true"] { background: var(--color-success); color: var(--color-success-ink); }
 .audioButton { min-width: 15rem; display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-sm); align-items: center; border: 1px solid var(--color-subject-rule); border-radius: var(--radius-md); background: var(--color-subject-scrim); padding: var(--space-md); color: var(--color-subject-text); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; transition: border-color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out); }
 .audioButton kbd { border-color: var(--color-subject-rule); background: color-mix(in oklch, var(--color-subject-text) 16%, transparent); color: var(--color-subject-text); }
@@ -307,10 +313,10 @@
     visibility 0s; }
 .answerStopReveal > div { min-height: 0; overflow: hidden; }
 .answerStopContent { display: grid; gap: var(--space-sm); }
-.answerStatus { min-height: 2.625rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-xs) var(--space-lg); padding-block-start: var(--space-xs); color: var(--color-muted); font-size: var(--text-sm); }
-.closeAnswerActions { min-height: 2.75rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-sm); }
+.answerStatus { min-height: 2.625rem; display: flex; flex-wrap: wrap; flex-direction: column; align-items: flex-start; gap: var(--space-xs); padding-block-start: var(--space-xs); color: var(--color-muted); font-size: var(--text-sm); }
+.closeAnswerActions { min-height: 2.25rem; display: flex; align-items: flex-start; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-sm); }
 .closeAnswerActions .primaryButton { margin-block-start: 0; }
-.addSynonymAction { display: grid; justify-items: end; gap: var(--space-xs); }
+.addSynonymAction { display: grid; justify-items: start; gap: var(--space-xs); }
 .addSynonymAction p { color: var(--color-danger); font-size: var(--text-xs); }
 .answerVerdict { display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-danger); }
 .answerVerdict[data-correct="true"] { color: var(--color-success); }
@@ -322,7 +328,7 @@
 .correctAnswer small { color: var(--color-muted); font-size: var(--text-xs); }
 .correctAnswer strong { color: var(--color-ink); font-size: var(--text-md); }
 .itemDetailsRegion { display: grid; }
-.itemDetailsDisclosure { display: flex; justify-content: flex-end; margin-block-end: 0; transition: margin-block-end 280ms cubic-bezier(0.2, 0, 0, 1); }
+.itemDetailsDisclosure { display: flex; justify-content: flex-start; margin-block-end: 0; transition: margin-block-end 280ms cubic-bezier(0.2, 0, 0, 1); }
 .itemDetailsRegion[data-open="true"] .itemDetailsDisclosure { margin-block-end: var(--space-sm); }
 .itemDetailsButton { min-height: 2.5rem; display: inline-flex; align-items: center; gap: var(--space-xs); scroll-margin-block-start: var(--space-sm); border: 1px solid var(--color-rule); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-ink-2); padding: 0 var(--space-sm); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
 .itemDetailsButton kbd { margin-inline-start: var(--space-2xs); color: var(--color-muted); }
@@ -787,8 +793,8 @@
   }
   .quizShell[data-mobile-review-keyboard="true"] .quizTopbar { min-height: var(--quiz-topbar-height); padding: var(--space-3xs) var(--space-sm); }
   .quizShell[data-mobile-review-keyboard="true"] .questionCard { min-height: 0; gap: var(--space-2xs); padding: var(--space-3xs) 4rem; overflow-y: auto; }
-  .quizShell[data-mobile-review-keyboard="true"] .questionCard h2 { font-size: clamp(1.75rem, calc(var(--review-viewport-height) * .09), 3rem) !important; }
-  .quizShell[data-mobile-review-keyboard="true"] .previousSubjectLink { top: calc(var(--quiz-topbar-height) + var(--space-2xs)); width: 2.5rem; height: 2.5rem; }
+  .quizShell[data-mobile-review-keyboard="true"] .questionCard h2 { font-size: clamp(1.75rem, calc(var(--review-viewport-height) * .09), 3rem) !important; line-height: 1.3; }
+  .quizShell[data-mobile-review-keyboard="true"] .previousSubjectLink { top: calc(var(--quiz-topbar-height) + var(--space-2xs)); max-width: calc(100% - 2 * var(--page-gutter)); min-height: 2.5rem; }
   .quizShell[data-mobile-review-keyboard="true"] .answerArea {
     min-height: 0;
     max-height: calc(var(--review-viewport-height) - 5.25rem);
@@ -807,7 +813,7 @@
   .quizShell[data-mobile-review-keyboard="true"] .answerStopContent > * { grid-column: 1 / -1; }
   .quizShell[data-mobile-review-keyboard="true"] .answerStopContent:has(.addSynonymAction) > .addSynonymAction,
   .quizShell[data-mobile-review-keyboard="true"] .answerStopContent:has(.addSynonymAction) > .itemDetailsRegion:not([data-open="true"]) { grid-column: auto; }
-  .quizShell[data-mobile-review-keyboard="true"] .answerStatus { min-height: 2rem; gap: var(--space-2xs) var(--space-xs); padding: 0; font-size: var(--text-xs); }
+  .quizShell[data-mobile-review-keyboard="true"] .answerStatus { flex-direction: row; align-items: center; min-height: 2rem; gap: var(--space-2xs) var(--space-xs); padding: 0; font-size: var(--text-xs); }
   .quizShell[data-mobile-review-keyboard="true"] .correctAnswer strong { font-size: var(--text-sm); }
   .quizShell[data-mobile-review-keyboard="true"] .closeAnswerActions { min-height: 2.5rem; flex-wrap: nowrap; gap: var(--space-2xs); }
   .quizShell[data-mobile-review-keyboard="true"] .closeAnswerActions > button { flex: 1; min-width: 0; }
@@ -823,6 +829,41 @@
   .crosswordGrid[data-feedback], .crosswordCell[data-feedback] { animation: none; }
   .answerSourceStroke { opacity: 0.24; animation: none; }
   .progressTrack span { transition: none; }
+  .previousSubjectLink { animation: none; }
   .answerStopReveal, .itemDetailsDisclosure, .itemDetailsReveal, .questionCard > *, .reviewSubjectRow, .reviewFilterToggle { transition: none; }
   .primaryButton:active, .secondaryButton:active, .missButton:active, .dangerButton:active, .textButton:active, .iconButton:active, .resumeButton:active, .subjectPick:active, .reviewSubjectRow:active, .reviewFilterToggle:active, .choiceButton:active, .optionButton:active, .checkOption:active { transform: none; }
 }
+
+.reviewTools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--space-sm); padding-block-start: var(--space-xs); }
+.reviewTools .textButton { display: inline-flex; align-items: center; gap: var(--space-xs); }
+
+@media (max-width: 47.999rem) and (pointer: coarse) {
+  .quizShell[data-mobile-review-keyboard="true"] [data-srs-progression-slot] { height: 2.25rem; flex-basis: 2.25rem; }
+}
+
+/* Keep answer corrections subordinate to the joined Check / Next action. */
+.correctionButton, .closeAnswerActions .correctionButton, .addSynonymAction .correctionButton {
+  display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 2.25rem;
+  padding: var(--space-2xs) var(--space-xs); border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm); background: transparent; color: var(--color-ink-2);
+  font: inherit; font-size: var(--text-sm); font-weight: 500; cursor: pointer;
+}
+.correctionButton:hover:not(:disabled) { background: var(--color-paper-2); }
+.correctionButton:disabled { opacity: .5; cursor: default; }
+.quizTopbar .skipButton {
+  display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 2.75rem;
+  padding-inline: var(--space-sm); border: 1px solid var(--color-subject-rule);
+  border-radius: var(--radius-sm); background: var(--color-subject-scrim); color: var(--color-subject-text);
+  font: inherit; cursor: pointer;
+}
+.skipButton:disabled { opacity: .5; cursor: default; }
+
+.correctionButton kbd, .reviewTools kbd { margin-inline-start: var(--space-2xs); color: var(--color-muted); }
+@media (max-width: 47.999rem) { .closeAnswerActions { flex-wrap: wrap !important; } .closeAnswerActions > button { flex: initial !important; } }
+
+@media (max-width: 47.999rem) and (pointer: coarse) { .quizShell[data-mobile-review-keyboard="true"] .correctionButton kbd { display: none; } }
+
+.previousSubjectLink[data-type="radical"] { --previous-subject-color: var(--color-radical); }
+.previousSubjectLink[data-type="kanji"] { --previous-subject-color: var(--color-kanji); }
+.previousSubjectLink[data-type="vocabulary"], .previousSubjectLink[data-type="kana_vocabulary"] { --previous-subject-color: var(--color-vocabulary); }
+.previousSubjectLink[data-type="bunpro"] { --previous-subject-color: var(--color-danger); }

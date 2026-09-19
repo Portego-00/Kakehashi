@@ -1,0 +1,14 @@
+.chart { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: var(--space-sm); font-variant-numeric: tabular-nums; }
+.plot { position: relative; flex: 1; min-height: 240px; min-width: 0; }
+.canvas { position: absolute; inset: 0; }
+.canvas :global(.recharts-surface):focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-lg); margin: 0; padding: 0; list-style: none; }
+.legend li { display: grid; gap: var(--space-2xs); font-size: var(--text-xs); color: var(--color-muted); }
+.legend li[data-selected="true"] time { color: var(--color-ink); font-weight: 550; }
+.legend span { display: flex; align-items: center; gap: var(--space-xs); }
+.legend i { width: 18px; border-top-width: 2px; }
+.legend time { white-space: nowrap; }
+.empty { display: grid; place-content: center; min-height: 240px; margin: 0; color: var(--color-muted); font-size: var(--text-sm); line-height: 1.6; text-align: center; padding: var(--space-md); }
+@container pace-planner (max-width: 26rem) {
+  .legend { gap: var(--space-sm) var(--space-md); }
+}

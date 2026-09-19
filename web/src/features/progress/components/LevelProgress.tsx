@@ -74,10 +74,18 @@ function formatDays(value: number) {
   return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${value === 1 ? "day" : "days"}`;
 }
 
-function LevelSubjectGrid({ title, subjects, assignments }: { title: string; subjects: Subject[]; assignments: Map<number, Assignment> }) {
+export function LevelSubjectGrid({ title, subjects, assignments }: { title: string; subjects: Subject[]; assignments: Map<number, Assignment> }) {
   if (!subjects.length) return null;
   const ordered = [...subjects].sort((left, right) => (assignments.get(right.id)?.data.srs_stage ?? 0) - (assignments.get(left.id)?.data.srs_stage ?? 0) || left.id - right.id);
-  return <section className={styles.levelSubjectSection}><h3>{title}</h3><div className={styles.levelSubjectGrid}>{ordered.map((subject) => { const assignment = assignments.get(subject.id); const stage = assignment?.data.srs_stage ?? 0; const status = stage >= 5 ? "passed" : stage > 0 ? "started" : assignment?.data.unlocked_at ? "unlocked" : "locked"; const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug; return <Link href={`/subjects/${subject.id}`} key={subject.id} data-type={subject.object} data-status={status} title={`${subject.data.characters ?? meaning} · ${meaning} · ${assignment ? srsBucketForStage(stage) : "Locked"}`}><SubjectCharacter subject={subject} fallbackText={meaning.slice(0, 2)} imageSize="70%" imageTone="subject" className={styles.levelSubjectCharacter} /><SubjectStageProgress meaning={meaning} stage={stage} /></Link>; })}</div></section>;
+  return <section className={styles.levelSubjectSection}><h3>{title}</h3><div className={styles.levelSubjectGrid}>{ordered.map((subject) => {
+    const assignment = assignments.get(subject.id);
+    const stage = assignment?.data.srs_stage ?? 0;
+    const passed = Boolean(assignment?.data.passed_at) || stage >= 5;
+    const status = stage >= 5 ? "passed" : stage > 0 ? "started" : assignment?.data.unlocked_at ? "unlocked" : "locked";
+    const meaning = subject.data.meanings.find((item) => item.primary)?.meaning ?? subject.data.slug;
+    const label = passed ? "passed" : stage > 0 ? "in progress" : assignment?.data.unlocked_at ? "lesson available" : "locked";
+    return <Link href={`/subjects/${subject.id}`} key={subject.id} data-type={subject.object} data-status={status} data-passed={passed} aria-label={`${subject.data.characters ?? subject.data.slug}: ${meaning}, ${label}`} title={`${subject.data.characters ?? meaning} · ${meaning} · ${assignment ? srsBucketForStage(stage) : "Locked"}`}><SubjectCharacter subject={subject} fallbackText={meaning.slice(0, 2)} imageSize="70%" imageTone="subject" className={styles.levelSubjectCharacter} /><SubjectStageProgress meaning={meaning} stage={stage} /></Link>;
+  })}</div></section>;
 }
 
 function SubjectStageProgress({ meaning, stage }: { meaning: string; stage: number }) {

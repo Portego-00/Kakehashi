@@ -1,5 +1,6 @@
 "use client";
 
+import { ReviewDetailsReveal } from "./ReviewDetailsReveal";
 import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
@@ -23,7 +24,7 @@ import type { SubjectDetailInitialTab } from "@/features/subjects/components/Sub
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import type { Assignment, StudyMaterial, Subject } from "@/types/wanikani";
-import { advanceStudySession, answerStudyQuestion, getSessionSummary, getStudyItemProgress, resolveStudyAnswerStatus } from "../engine";
+import { advanceStudySession, answerStudyQuestion, getSessionSummary, getStudyItemProgress, } from "../engine";
 import { playAnswerFeedback } from "../feedback-audio";
 import { composeKanaInput, questionUsesKanaComposition } from "../kana-composition";
 import { clearStudySession, saveStudySession } from "../storage";
@@ -292,7 +293,7 @@ function ExtraStudyAnkiAnswer({ subject, ...props }: Omit<AnkiAnswerContentProps
   return <AnkiAnswerContent {...props} pitchAccents={enrichments.data?.pitchAccents} />;
 }
 
-function AddMeaningSynonymButton({ subject, synonym, existingMaterial, disabled, onSaved }: { subject: Subject; synonym: string; existingMaterial?: StudyMaterial; disabled: boolean; onSaved: (material: StudyMaterial) => void }) {
+function AddMeaningSynonymButton({ subject, synonym, existingMaterial, disabled, onSaved, buttonRef, shortcuts }: { buttonRef: React.Ref<HTMLButtonElement>; shortcuts: boolean; subject: Subject; synonym: string; existingMaterial?: StudyMaterial; disabled: boolean; onSaved: (material: StudyMaterial) => void }) {
   const mutation = useMutation({
     mutationFn: () => {
       const meaningSynonyms = [...new Set([...(existingMaterial?.data.meaning_synonyms ?? []), synonym])];
@@ -304,7 +305,7 @@ function AddMeaningSynonymButton({ subject, synonym, existingMaterial, disabled,
     onSuccess: onSaved,
   });
   return <div className={styles.addSynonymAction}>
-    <button type="button" className={styles.secondaryButton} disabled={disabled || mutation.isPending} onClick={() => mutation.mutate()}><Plus size={17} aria-hidden />{mutation.isPending ? "Saving synonym…" : "Add as synonym"}</button>
+    <button ref={buttonRef} aria-label="Add as synonym" type="button" className={styles.correctionButton} disabled={disabled || mutation.isPending} onClick={() => mutation.mutate()}><Plus size={17} aria-hidden />{mutation.isPending ? "Saving synonym…" : "Add as synonym"}{shortcuts ? <kbd aria-hidden>S</kbd> : null}</button>
     {mutation.error ? <p role="alert">The synonym could not be saved. Try again before continuing.</p> : null}
   </div>;
 }
@@ -359,6 +360,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const [selectedToken, setSelectedToken] = useState<number | null>(null);
   const [translationRevealed, setTranslationRevealed] = useState(false);
   const [detailsOverride, setDetailsOverride] = useState<boolean | null>(null);
+  const synonymButtonRef = useRef<HTMLButtonElement>(null);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [advancingQuestion, setAdvancingQuestion] = useState(false);
   const [ankiRevealed, setAnkiRevealed] = useState(false);
@@ -525,13 +527,13 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   }
 
   const resolveCloseAnswer = useCallback((status: Exclude<StudyAnswerStatus, "close">) => {
-    if (!question || !answer || currentAnswerStatus !== "close" || !pauseOnClose || advancingQuestionRef.current) return;
-    const updated = resolveStudyAnswerStatus(session, question.id, status);
+    if (!question || !answer || advancingQuestionRef.current) return;
+    const updated = { ...session, answers: session.answers.map((entry) => entry.questionId === question.id ? { ...entry, status, correct: status === "correct" } : entry), updatedAt: new Date().toISOString() };
     if (updated === session) return;
     if (answerFeedbackSoundEnabled) playAnswerFeedback(status === "correct");
     setSession(updated);
     saveStudySession(scope, updated);
-  }, [answer, answerFeedbackSoundEnabled, currentAnswerStatus, pauseOnClose, question, scope, session]);
+  }, [answer, answerFeedbackSoundEnabled, question, scope, session]);
 
   function revealAnkiAnswer() {
     if (!ankiEnabled || ankiRevealed) return;
@@ -560,7 +562,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   }
 
   function skipQuestion() {
-    if (!question || answer || !customReviewPreferences?.allowSkippingReviews) return;
+    if (!question || answer) return;
     const prefix = session.questions.slice(0, session.currentIndex);
     const remaining = session.questions.slice(session.currentIndex + 1);
     const unanswered = (candidate: StudyQuestion) => !session.answers.some((candidateAnswer) => candidateAnswer.questionId === candidate.id);
@@ -667,19 +669,17 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
     return () => window.cancelAnimationFrame(frame);
   }, [detailsShouldOpen]);
 
-  useEffect(() => {
-    if (!detailsExpanded) return;
-    const frame = window.requestAnimationFrame(() => {
-      const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-      document.getElementById("study-item-details-toggle")?.scrollIntoView?.({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [detailsExpanded, question?.id]);
 
   const hasQuestionAudio = Boolean(question?.audioUrl || question?.audioVocabSentence);
   const onStudyKeyDown = useEffectEvent((event: KeyboardEvent) => {
-      const shortcutFromAnsweredInput = ["d", "r"].includes(event.key.toLocaleLowerCase()) && event.target === inputRef.current && (inputRef.current?.readOnly === true || (phoneInput && Boolean(answer)));
+      if (document.querySelector("dialog[open]") || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      const shortcutFromAnsweredInput = ["d", "r", "c", "x", "s"].includes(event.key.toLocaleLowerCase()) && event.target === inputRef.current && (inputRef.current?.readOnly === true || (phoneInput && Boolean(answer)));
       if (event.defaultPrevented || (!shortcutFromAnsweredInput && event.target instanceof Element && event.target.closest(studyShortcutInteractiveSelector))) return;
+      if (answer && !advancingQuestionRef.current) {
+        const key = event.key.toLocaleLowerCase();
+        if (key === "c" || key === "x") { event.preventDefault(); resolveCloseAnswer(key === "c" ? "correct" : "incorrect"); return; }
+        if (key === "s") { event.preventDefault(); synonymButtonRef.current?.click(); return; }
+      }
       if (event.key.toLocaleLowerCase() === "r" && hasQuestionAudio) {
         event.preventDefault();
         if (question?.kind === "audio-vocab") void audioVocabPlayerRef.current?.play();
@@ -733,7 +733,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const showVocabularyFrequency = Boolean(reviewPreferences?.showVocabularyFrequency && currentSubject);
   const showReviewPromptExtras = question.kind !== "audio-vocab" && (showVocabularyFrequency || showReviewMetadata);
   const searchQuery = currentSubject?.data.characters || currentSubject?.data.slug || question.prompt;
-  const canSkipQuestion = Boolean(customReviewPreferences?.allowSkippingReviews && !answer && session.questions.slice(session.currentIndex + 1).some((candidate) => candidate.subjectId !== question.subjectId && !session.answers.some((candidateAnswer) => candidateAnswer.questionId === candidate.id)));
+  const canSkipQuestion = Boolean(!answer && session.questions.slice(session.currentIndex + 1).some((candidate) => candidate.subjectId !== question.subjectId && !session.answers.some((candidateAnswer) => candidateAnswer.questionId === candidate.id)));
   const currentStudyMaterial = currentSubject ? studyMaterialBySubjectId.get(currentSubject.id) : undefined;
   const synonymCandidate = value.trim().toLocaleLowerCase();
   const canAddSynonym = Boolean(
@@ -753,12 +753,12 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         <div className={styles.progressTrack} role="progressbar" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={visibleTotal}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
         <div className={styles.quizTopbarActions}>
           {reviewPreferences?.reviewSearchButtonEnabled ? <Link className={styles.iconButton} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" aria-label="Search this item"><Search size={17} /></Link> : null}
-          {canSkipQuestion ? <button type="button" className={styles.iconButton} onClick={skipQuestion} aria-label="Skip review"><SkipForward size={17} /></button> : null}
+          {canSkipQuestion ? <button type="button" className={styles.skipButton} onClick={skipQuestion} aria-label="Skip review"><SkipForward size={17} />Skip</button> : null}
           <button type="button" className={styles.iconButton} onClick={onExit} aria-label="Pause and exit session"><X size={19} /></button>
         </div>
       </div>
 
-      {previousCompletedSubject ? <Link className={styles.previousSubjectLink} href={`/subjects/${previousCompletedSubject.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Previous subject: ${previousCompletedSubject.characters}`}><span lang="ja">{previousCompletedSubject.characters}</span><span className={styles.previousSubjectStatus} data-correct={previousCompletedSubject.correct} aria-hidden="true">{previousCompletedSubject.correct ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
+      {previousCompletedSubject ? <Link className={styles.previousSubjectLink} data-type={subjects.find((subject) => subject.id === previousCompletedSubject.id)?.object} href={`/subjects/${previousCompletedSubject.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Previous subject: ${previousCompletedSubject.characters}`}><span lang="ja">{previousCompletedSubject.characters}</span><span className={styles.previousSubjectStatus} data-correct={previousCompletedSubject.correct} aria-hidden="true">{previousCompletedSubject.correct ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
 
       <div className={styles.questionCard} data-type={question.subjectType}>
         {question.imageUrl ? <div className={styles.sceneFrame}><Image className={styles.contextImage} src={question.imageUrl} alt={`Scene from ${question.sourceTitle ?? "the listening example"}`} width={560} height={315} sizes="(max-width: 42rem) 90vw, 28rem" loader={passthroughImageLoader} unoptimized /></div> : null}
@@ -840,12 +840,11 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
                 <span lang="ja">{question.reading || ankiReadingAnswer || question.characters}</span>
               </span> : currentAnswerStatus === "close" ? <span>Correct, with a small typo.</span> : !answer.correct ? <span className={styles.correctAnswer}><small>Correct answer</small><strong lang={kanaComposition ? "ja" : undefined}>{question.displayAnswer}</strong></span> : null}</div> : null}
 
-            {closeAnswerNeedsResolution ? <div className={styles.closeAnswerActions} aria-label="Close answer result">
-              <button type="button" className={styles.dangerButton} disabled={advancingQuestion} onMouseDown={(event) => { if (phoneInput && document.activeElement === inputRef.current) event.preventDefault(); }} onClick={() => resolveCloseAnswer("incorrect")}><X size={17} aria-hidden /> Mark Incorrect</button>
-              <button type="button" className={styles.primaryButton} disabled={advancingQuestion} onMouseDown={(event) => { if (phoneInput && document.activeElement === inputRef.current) event.preventDefault(); }} onClick={() => resolveCloseAnswer("correct")}><Check size={17} aria-hidden /> Mark Correct</button>
+            {Boolean(answer) || canAddSynonym ? <div className={styles.closeAnswerActions} aria-label="Answer result controls">
+            {answer ? <button aria-label="Mark Incorrect" type="button" className={styles.correctionButton} disabled={advancingQuestion} onClick={() => !answer.correct && !closeAnswerNeedsResolution ? next() : resolveCloseAnswer("incorrect")}><X size={17} aria-hidden />Mark Incorrect{keyboardShortcuts ? <kbd aria-hidden>{!answer.correct && !closeAnswerNeedsResolution ? "Enter" : "X"}</kbd> : null}</button> : null}
+            {answer && (!answer.correct || closeAnswerNeedsResolution) ? <button aria-label="Mark Correct" type="button" className={styles.correctionButton} disabled={advancingQuestion} onClick={() => resolveCloseAnswer("correct")}><Check size={17} aria-hidden />Mark Correct{keyboardShortcuts ? <kbd aria-hidden>C</kbd> : null}</button> : null}
+            {canAddSynonym && currentSubject ? <AddMeaningSynonymButton buttonRef={synonymButtonRef} shortcuts={keyboardShortcuts} subject={currentSubject} synonym={synonymCandidate} existingMaterial={currentStudyMaterial} disabled={advancingQuestion} onSaved={acceptSavedSynonym} /> : null}
             </div> : null}
-
-            {canAddSynonym && currentSubject ? <AddMeaningSynonymButton subject={currentSubject} synonym={synonymCandidate} existingMaterial={currentStudyMaterial} disabled={advancingQuestion} onSaved={acceptSavedSynonym} /> : null}
 
             {answer && question.sentence ? <AnkiExportButton japanese={question.sentence.ja} english={question.sentence.en} /> : null}
             {answer && question.sentence && currentSubject ? <NotebookCaptureButton subject={currentSubject} sentence={{ japanese: question.sentence.ja, english: question.sentence.en }} label="Add this sentence to notebook" /> : null}
@@ -854,7 +853,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
               <div className={styles.itemDetailsDisclosure}>
                 <button id="study-item-details-toggle" type="button" className={styles.itemDetailsButton} aria-expanded={detailsOpen} aria-controls="study-item-details" disabled={advancingQuestion} onClick={toggleDetails}><BookOpen size={17} aria-hidden /><span>{detailsOpen ? "Hide subject details" : "Show subject details"}</span>{keyboardShortcuts ? <kbd>D</kbd> : null}{detailsOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}</button>
               </div>
-              <div className={styles.itemDetailsReveal} data-open={detailsOpen} aria-hidden={!detailsOpen} inert={!detailsOpen ? true : undefined}><div><StudySubjectDetails key={`${question.id}:${question.kind}`} record={currentSubject} subjects={subjects} assignment={currentAssignment} settings={subjectDetailSettings} immersionSources={immersionSources} initialTab={detailsTab} idPrefix={`study-${question.id}`} returnTo={`/study/${session.mode}`} /></div></div>
+              <ReviewDetailsReveal open={detailsOpen}><StudySubjectDetails key={`${question.id}:${question.kind}`} record={currentSubject} subjects={subjects} assignment={currentAssignment} settings={subjectDetailSettings} immersionSources={immersionSources} initialTab={detailsTab} idPrefix={`study-${question.id}`} returnTo={`/study/${session.mode}`} /></ReviewDetailsReveal>
             </div> : null}
 
             {sentenceBreakdownAvailable ? <div className={styles.sentenceBreakdown}><div lang="ja">{question.sentence?.tokens?.map((token, index) => token.type === "plain" ? <span key={index}>{token.text}</span> : <button type="button" key={index} data-token-type={token.type} data-active={selectedToken === index} onClick={() => setSelectedToken(index)}>{token.text}</button>)}</div>{selectedToken !== null && question.sentence?.tokens?.[selectedToken] ? <p><strong>{question.sentence.tokens[selectedToken].text}</strong> · {question.sentence.tokens[selectedToken].type}{question.sentence.tokens[selectedToken].reading ? ` · ${question.sentence.tokens[selectedToken].reading}` : ""}{question.sentence.tokens[selectedToken].meaning ? ` · ${question.sentence.tokens[selectedToken].meaning}` : ""}</p> : <p>Select an underlined grammar or vocabulary token for details.</p>}</div> : null}

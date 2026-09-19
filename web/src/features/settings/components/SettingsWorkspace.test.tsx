@@ -35,6 +35,7 @@ vi.mock("@/lib/theme", () => ({
   useTheme: () => ({ theme: "light", resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
+vi.mock("@/features/bunpro/BunproSettings", () => ({ BunproSettings: () => null }));
 vi.mock("@/features/anime/AnimePicker", () => ({ AnimePicker: () => null }));
 vi.mock("@/features/dashboard/DashboardWidgetPreview", () => ({ DashboardWidgetPreview: ({ id }: { id: string }) => <div data-widget-preview={id} /> }));
 vi.mock("@/features/speech/use-japanese-voice", () => ({ useJapaneseVoice: () => voiceMock }));

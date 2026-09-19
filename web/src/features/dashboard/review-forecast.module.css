@@ -107,3 +107,5 @@
   .segmented button, .breakdownButton, .chevron { transition: none; }
   .dayBody:not([hidden]) { animation: none; }
 }
+.segment[data-group="bunpro_grammar"], .subjectGlyph[data-group="bunpro_grammar"] { background: #c64949; color: white; }
+.segment[data-group="bunpro_vocab"], .subjectGlyph[data-group="bunpro_vocab"] { background: #a888bf; color: white; }

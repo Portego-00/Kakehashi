@@ -1,5 +1,6 @@
 "use client";
 
+import { canAccessCoreStudy } from "@/features/core-study/access";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -160,10 +161,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { status, user, isDemo, error, signOut, refresh } = useSession();
+  const coreStudyAllowed = isDemo || canAccessCoreStudy(user?.data.username);
+  const coreStudyBlocked = ["/lessons", "/lesson-picker", "/reviews"].some((route) => isActive(pathname, route)) && !coreStudyAllowed;
   const customSrsAllowed = !isDemo && canAccessCustomSrs(user?.data.username);
   const customSrsBlocked = isActive(pathname, "/custom-vocabulary") && !customSrsAllowed;
   const notebooksAllowed = status === "authenticated" && !isDemo;
-  const restrictedPageBlocked = customSrsBlocked || (isActive(pathname, "/notebooks") && !notebooksAllowed);
+  const restrictedPageBlocked = coreStudyBlocked || customSrsBlocked || (isActive(pathname, "/notebooks") && !notebooksAllowed);
   const { resolvedTheme, setTheme } = useTheme();
   const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const workspace = webSettings.workspace;
@@ -181,7 +184,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const previousPathRef = useRef(pathname);
   const pageBackRegistrationRef = useRef<symbol | null>(null);
-  const immersive = ["/lessons", "/reviews", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
+  const immersive = ["/lessons", "/lesson-picker", "/reviews", "/custom-vocabulary/lessons", "/custom-vocabulary/reviews"].includes(pathname);
   const backTarget = backTargetForPathname(pathname);
   const hasBack = Boolean(pageBackAction || backTarget);
 
@@ -304,12 +307,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const notebookWorkspace = isActive(pathname, "/notebooks");
 
-  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell} data-demo={isDemo || undefined} data-workspace={notebookWorkspace ? "notebooks" : undefined}>
+  return <AppShellBackActionProvider register={registerPageBackAction}><div className={styles.shell} data-demo={isDemo || undefined} data-lesson-session={pathname === "/lessons" || pathname === "/lesson-picker" || pathname === "/bunpro-reviews" || pathname === "/bunpro-lessons" || pathname === "/mixed-reviews" || undefined} data-workspace={notebookWorkspace ? "notebooks" : undefined}>
     <SettingsApplicator />
     {!isDemo ? <WebAnalyticsTracker /> : null}
     <a className={styles.skipLink} href="#main-content" inert={moreOpen ? true : undefined}>Skip to main content</a>
 
-    <header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreOpen ? true : undefined}>
+    <header data-app-header className={styles.topbar} data-floating={(!notebookWorkspace && floatingNav) || undefined} inert={moreOpen ? true : undefined}>
       <div className={styles.appbar}>
         <div className={styles.identityArea} data-has-back={hasBack ? "true" : undefined}>
           <button type="button" className={styles.backButton} data-visible={hasBack ? "true" : undefined} aria-label={pageBackAction?.label ?? "Back"} aria-hidden={!hasBack} tabIndex={hasBack ? 0 : -1} disabled={!hasBack} onClick={goBack}>
@@ -362,7 +365,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div ref={moreDialogRef} className={styles.moreSheet} id="more-navigation" role="dialog" aria-modal="true" aria-labelledby="more-title">
         <div className={styles.moreHeader}><h2 id="more-title">All destinations</h2><Button className={styles.iconButton} tone="ghost" aria-label="Close More menu" onClick={closeMore}><X size={18} aria-hidden /></Button></div>
         <nav className={styles.moreNav} aria-label="All destinations">
-          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (destination.href !== "/notebooks" || notebooksAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !isDemo
+          {destinationGroups.map((group) => <section key={group.title}><h3>{group.title}</h3><div>{group.links.filter((destination) => (destination.href !== "/custom-vocabulary" || customSrsAllowed) && (destination.href !== "/notebooks" || notebooksAllowed) && (isDemo || isVisible(destination, workspace.visibleNav))).map((destination) => destination.comingSoon && !coreStudyAllowed
             ? <button key={destination.href} type="button" className={styles.moreLink} aria-label={`${destination.label}, coming soon`} disabled><destination.icon size={18} aria-hidden /><span>{destination.label}</span><span className={styles.moreStatus}>Coming soon</span></button>
             : <Link key={destination.href} href={destination.href} className={cn(styles.moreLink, isActive(pathname, destination.href) && styles.moreLinkActive)} aria-current={isActive(pathname, destination.href) ? "page" : undefined} onClick={closeMore}><destination.icon size={18} aria-hidden /><span>{destination.label}</span></Link>)}</div></section>)}
           <section><h3>Account</h3><div><Link href="/settings" className={cn(styles.moreLink, isActive(pathname, "/settings") && styles.moreLinkActive)} onClick={closeMore}><Settings size={18} aria-hidden /><span>Settings</span></Link><button type="button" className={styles.moreLink} onClick={() => { setSignOutError(""); void signOut().then(() => router.replace("/login")).catch((cause) => setSignOutError(cause instanceof Error ? cause.message : "Kakehashi could not sign out.")); }}><LogOut size={18} aria-hidden /><span>Sign out</span></button></div></section>

@@ -36,15 +36,15 @@ export function useProgressData() {
   return {
     ...data,
     isLoading: assignments.isLoading || subjects.isLoading || statistics.isLoading || progressions.isLoading || resets.isLoading,
-    isError: assignments.isError || subjects.isError || statistics.isError || progressions.isError || resets.isError,
+    isError: (assignments.isError && assignments.data === undefined) || (subjects.isError && subjects.data === undefined) || (statistics.isError && statistics.data === undefined) || (progressions.isError && progressions.data === undefined) || (resets.isError && resets.data === undefined),
     error: assignments.error || subjects.error || statistics.error || progressions.error || resets.error,
-    retry: async () => {
+    retry: async (options: { throwOnError?: boolean } = {}) => {
       await Promise.all([
-        assignments.refetch(),
-        subjects.refetch(),
-        statistics.refetch(),
-        progressions.refetch(),
-        resets.refetch(),
+        assignments.refetch(options),
+        subjects.refetch(options),
+        statistics.refetch(options),
+        progressions.refetch(options),
+        resets.refetch(options),
       ]);
     },
   };

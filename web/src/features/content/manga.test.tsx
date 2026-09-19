@@ -971,20 +971,32 @@ describe("manga library and reader", () => {
     expect(restored.metadata?.linkedFileIds).toBe("[]");
   });
 
-  it("relinks a missing manga handle without storing another full copy", async () => {
+  it.each(["missing", "unavailable", "page-error"])("relinks a %s manga handle without storing another full copy", async (access) => {
     const original = mangaRecord({
       title: "Relinked reader",
       assetIds: [],
-      totalPages: 1,
+      totalPages: 2,
+      currentPage: 2,
+      progress: 1,
       metadata: {
         sourceType: "cbz",
         isPdf: false,
         readingDirection: "rtl",
-        pagePlacements: JSON.stringify([null]),
+        pagePlacements: JSON.stringify([null, null]),
         linkedFileIds: JSON.stringify(["cleared-reader-file"]),
       },
     });
     saveLibrary("manga", [original]);
+    if (access === "unavailable") {
+      const stale = linkedFileHandle(new File(["old"], "old.cbz"));
+      stale.getFile.mockRejectedValue(new DOMException("The old file cannot be read", "NotReadableError"));
+      fixtures.handles.set("cleared-reader-file", stale.handle);
+    }
+    if (access === "page-error") {
+      fixtures.handles.set("cleared-reader-file", linkedFileHandle(new File(["old"], "old.cbz")).handle);
+      fixtures.decodeMangaImage.mockRejectedValueOnce(new Error("The page could not be decoded"));
+    }
+    saveMangaOcrPage(original.id, 2, "保存したテキスト");
     const replacementArchive = new File(["replacement"], "Relinked reader.cbz", { type: "application/vnd.comicbook+zip" });
     const replacementPage = new File(["page"], "page-0001.jpg", { type: "image/jpeg" });
     const replacement = linkedFileHandle(replacementArchive);
@@ -994,29 +1006,36 @@ describe("manga library and reader", () => {
       title: "Relinked reader",
       fileName: replacementArchive.name,
       sourceType: "cbz",
-      pageCount: 1,
-      assets: [replacementPage],
-      metadata: { readingDirection: "rtl", pagePlacements: [null] },
+      pageCount: 2,
+      assets: [replacementPage, replacementPage],
+      metadata: { readingDirection: "rtl", pagePlacements: [null, null] },
     });
 
     const firstView = render(<MangaReader mangaId="manga-reader-test" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Locate original file" }));
+    const reconnect = await screen.findByRole("button", { name: "Locate original file" });
+    expect(screen.queryByText("Preparing pages")).not.toBeInTheDocument();
+    fixtures.prepareMangaImport.mockClear();
+    fireEvent.click(reconnect);
 
-    expect(await screen.findByRole("button", { name: "Select text on Relinked reader, page 1" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Select text on Relinked reader, page 2" })).toBeInTheDocument();
+    expect(fixtures.prepareMangaImport).toHaveBeenCalledTimes(1);
     const relinked = loadLibrary("manga")[0];
     const relinkedId = JSON.parse(String(relinked.metadata?.linkedFileIds))[0] as string;
     expect(relinkedId).not.toBe("cleared-reader-file");
+    expect(relinked.currentPage).toBe(2);
+    expect(relinked.progress).toBe(1);
     expect(relinked.assetIds).toEqual([]);
+    expect(loadMangaOcrPage(original.id, 2)?.text).toBe("保存したテキスト");
     expect(saveFileHandle).toHaveBeenCalledWith(relinkedId, replacement.handle);
     expect(removeFileHandle).toHaveBeenCalledWith("cleared-reader-file");
     expect(saveAsset).not.toHaveBeenCalled();
 
     firstView.unmount();
     render(<MangaReader mangaId="manga-reader-test" />);
-    expect(await screen.findByRole("button", { name: "Select text on Relinked reader, page 1" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Select text on Relinked reader, page 2" })).toBeInTheDocument();
   });
 
-  it("falls back to a complete browser copy when only part of a loose-page link can be saved", async () => {
+  it("keeps reconnect retryable without copying pages when saving a file link fails", async () => {
     saveLibrary("manga", [mangaRecord({
       title: "Partially linked pages",
       assetIds: [],
@@ -1050,14 +1069,16 @@ describe("manga library and reader", () => {
     render(<MangaReader mangaId="manga-reader-test" />);
     fireEvent.click(await screen.findByRole("button", { name: "Locate original pages" }));
 
-    expect(await screen.findByRole("button", { name: "Select text on Partially linked pages, page 1" })).toBeInTheDocument();
+    expect(await screen.findByText("The file link could not be saved. Your manga is unchanged. Try reconnecting again.")).toBeInTheDocument();
     const restored = loadLibrary("manga")[0];
-    expect(restored.assetIds).toHaveLength(2);
-    expect(restored.metadata?.linkedFileIds).toBe("[]");
+    expect(restored.assetIds).toEqual([]);
+    expect(restored.metadata?.linkedFileIds).toBe(JSON.stringify(["old-page-1", "old-page-2"]));
     const attemptedHandleIds = vi.mocked(saveFileHandle).mock.calls.map(([id]) => id);
     expect(attemptedHandleIds).toHaveLength(2);
     expect(attemptedHandleIds.every((id) => !fixtures.handles.has(id))).toBe(true);
-    expect(vi.mocked(saveAsset).mock.calls.map(([, asset]) => asset)).toEqual([firstPage, secondPage]);
+    expect(saveAsset).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Locate original pages" }));
+    expect(await screen.findByRole("button", { name: "Select text on Partially linked pages, page 1" })).toBeInTheDocument();
   });
 
   it("preserves the old manga source when reconnect metadata cannot be committed", async () => {

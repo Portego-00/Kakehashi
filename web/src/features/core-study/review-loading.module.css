@@ -1,0 +1,13 @@
+.shell { --subject-color: var(--color-paper-2); }
+.subject { width: min(15rem, 65vw); }
+.metadata { display: flex; gap: var(--space-md); }
+.answer { min-height: 23rem; }
+.form { align-self: start; overflow: hidden; border: 1px solid var(--color-rule); border-radius: var(--radius-md); }
+.prompt { min-height: 2.625rem; display: grid; place-items: center; background: var(--color-paper-2); }
+.input { min-height: 3.5rem; display: flex; align-items: center; justify-content: space-between; padding-inline-start: var(--space-md); background: var(--color-surface); }
+.check { min-height: 3.5rem; display: grid; place-items: center; padding-inline: var(--space-lg); border-inline-start: 1px solid var(--color-rule); }
+.hint { justify-self: center; margin-block-start: var(--space-sm); }
+@media (max-width: 47.999rem) {
+  .subject { min-height: 4.5rem !important; }
+  .answer { min-height: 16rem; }
+}

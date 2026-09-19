@@ -2,9 +2,10 @@ import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildImmersionExamples } from "@/features/study/immersion-kit";
 import { createListRepository } from "@/features/subjects/lists";
 import type { StudyMaterial, Subject } from "@/types/wanikani";
-import { ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
+import { AnimeSentence, ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
 
 const { wkCollectionMock, wkRequestMock } = vi.hoisted(() => ({ wkCollectionMock: vi.fn(), wkRequestMock: vi.fn() }));
 const voiceMock = vi.hoisted(() => ({
@@ -160,6 +161,7 @@ function renderAudioSubject() {
     pitchAccents={[]}
     usagePatterns={[]}
     immersionExamples={[
+      ...buildImmersionExamples([{ title: "test_anime", sentence: "熱心な人です", sentence_with_furigana: "熱心[ねっしん]な 人[ひと]です", translation: "A devoted person." }], {}, []),
       { title: "Re:Zero", sentence: "そんな熱心に見つめられると", translation: "It is embarrassing when you stare so intently.", audio: "https://example.com/re-zero.mp3" },
       { title: "KonoSuba", sentence: "熱心な信者です", translation: "A devoted believer." },
     ]}
@@ -570,4 +572,24 @@ describe("subject detail nested tabs", () => {
     await waitFor(() => expect(screen.getByRole("tab", { name: "Formal" })).toHaveFocus());
     expect(nextLesson).not.toHaveBeenCalled();
   });
+});
+
+ it("preserves source furigana through the shared anime context panel", () => {
+  const { container } = renderAudioSubject();
+  fireEvent.click(screen.getByRole("tab", { name: "Context" }));
+  expect(container.querySelector("ruby rt")).toHaveTextContent("ねっしん");
+  expect(container.querySelector("ruby mark")).toHaveTextContent("熱心");
+});
+
+it("highlights a word across ruby boundaries while preserving sentence spacing", () => {
+  const { container } = render(<AnimeSentence example={{ sentence: " 食べる 人。 ", sentenceWithFurigana: "食[た]べる 人[ひと]。", title: "Example", translation: "A person eating." }} query="食べる" />);
+  expect([...container.querySelectorAll("mark")].map((mark) => mark.textContent).join("")).toBe("食べる");
+  expect([...container.querySelectorAll("rt")].map((rt) => rt.textContent)).toEqual(["た", "ひと"]);
+  expect(container.textContent).toBe(" 食(た)べる 人(ひと)。 ");
+});
+
+it("falls back to the original sentence for mismatched source furigana", () => {
+  const { container } = render(<AnimeSentence example={{ sentence: "猫です。", sentenceWithFurigana: "犬[いぬ]です。", title: "Example", translation: "A cat." }} query="猫" />);
+  expect(container.textContent).toBe("猫です。");
+  expect(container.querySelector("ruby")).toBeNull();
 });

@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Orbit } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import type { WebSettings } from "@/features/settings/settings";
-import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
+import { SubjectStickyHeader, SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { fetchImmersionExamples } from "@/features/study/immersion";
@@ -26,6 +26,7 @@ interface LessonTeachingProps {
   onCurrentIndexChange: (index: number) => void;
   onActiveTabChange: (tab: SubjectDetailTab) => void;
   onStartReview: () => void;
+  onStartOver: () => void;
 }
 
 function subjectTone(subject: Subject) {
@@ -57,6 +58,7 @@ export function LessonTeaching({
   onCurrentIndexChange,
   onActiveTabChange,
   onStartReview,
+  onStartOver,
 }: LessonTeachingProps) {
   const subject = subjects[currentIndex];
   const heroRef = useRef<HTMLElement>(null);
@@ -135,12 +137,14 @@ export function LessonTeaching({
   };
 
   return <div className={styles.studyShell} data-subject-detail-type={tone}>
-    <article className={styles.lesson} aria-labelledby="lesson-subject-title">
+    <article className={styles.lesson} aria-labelledby="lesson-subject-title" style={{ "--subject-color": subjectColor(subject) } as CSSProperties}>
+      <SubjectStickyHeader heroRef={heroRef} subject={subject} meaning={meaning} reading={primaryReading} level={subject.data.level} />
       <header ref={heroRef} className={styles.lessonSubjectHero} style={{ "--subject-color": subjectColor(subject) } as CSSProperties}>
         <div className={styles.lessonHeroBar}>
           <div className={styles.sessionProgress}><span>Lessons</span><strong>{currentIndex + 1} / {subjects.length}</strong></div>
           <div className={styles.lessonHeroActions}>
             <Link className={styles.lessonHeroAction} href={`/subjects/${subject.id}/constellation`} aria-label={`Explore ${meaning} constellation`}><Orbit size={20} aria-hidden /></Link>
+            <Button className={styles.lessonHeroLeave} tone="ghost" size="small" onClick={onStartOver}>Start over</Button>
             <ButtonLink className={styles.lessonHeroLeave} href="/dashboard" tone="ghost" size="small">Leave</ButtonLink>
           </div>
         </div>

@@ -1,0 +1,13 @@
+.inlineSheet {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.body {
+  container-name: analytics-widget;
+  container-type: inline-size;
+  min-width: 0;
+}

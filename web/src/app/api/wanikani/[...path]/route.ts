@@ -1,3 +1,5 @@
+import { canAccessCoreStudy } from "@/features/core-study/access";
+import { getWaniKaniSessionUser } from "@/lib/server/wanikani-session";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { unsealToken } from "@/lib/server/session-crypto";
@@ -88,6 +90,11 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
     if (!schema) return error("That mutation is not supported.", 405);
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return NextResponse.json({ error: "The mutation body is invalid.", code: 422, details: parsed.error.flatten() }, { status: 422 });
+    if (schema === reviewBody || schema === lessonBody) {
+      const verifiedUser = await getWaniKaniSessionUser(token).catch(() => null) as { data?: { username?: string } } | null;
+      if (!verifiedUser) return error("Your account could not be verified. Try again shortly.", 503);
+      if (!canAccessCoreStudy(verifiedUser.data?.username)) return error("Lessons and reviews are not available for this account yet.", 403);
+    }
     body = JSON.stringify(parsed.data);
   }
 
