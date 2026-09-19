@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WebStudyPreferences } from "@/features/settings/settings";
-import { safeAudio } from "./BunproDetails";
+export function safeAudio(value: unknown): string | undefined { return typeof value === "string" && /^https:\/\//i.test(value) ? value : undefined; }
 
 export function bunproAudioUrls(question: Record<string, unknown>, voice: WebStudyPreferences["vocabularyAudioVoice"]) {
   const female = safeAudio(question.female_audio_url);

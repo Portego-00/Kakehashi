@@ -19,7 +19,8 @@ function renderNode(node: Node, key: number, ruby = false): ReactNode {
       if (url.protocol === "https:") return <a key={key} href={url.href} target="_blank" rel="noreferrer">{children}</a>;
     } catch { /* Render unsupported links as text. */ }
   }
-  return allowed.has(tag) ? createElement(tag, { key }, tag === "br" ? undefined : children) : <span key={key}>{children}</span>;
+  const accent = Array.from(node.classList).some((name) => name.includes("gp-popout") || name.includes("chui"));
+  return allowed.has(tag) ? createElement(tag, { key, ...(accent ? { "data-bunpro-accent": true } : {}) }, tag === "br" ? undefined : children) : <span key={key}>{children}</span>;
 }
 /** Render a small HTML allowlist; never transfer provider attributes or executable markup. */
 export function BunproText({ value }: { value: unknown }) {

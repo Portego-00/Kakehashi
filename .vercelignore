@@ -30,6 +30,7 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !src/types/wanikani.ts
 !src/types/bunpro.ts
 !src/utils
+!src/utils/bunproQueue.ts
 !src/utils/answerChecker.ts
 !src/utils/audioVocabStudy.ts
 !src/utils/portegoAccess.ts

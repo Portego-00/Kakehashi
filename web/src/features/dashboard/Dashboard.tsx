@@ -121,7 +121,7 @@ export function Dashboard() {
   const formatShortDate = (value?: string) => value ? new Date(value).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
   const sections: Record<string, React.ReactNode> = {
-    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"}>{!isDemo ? <VacationModeControls active={false} refresh={currentUser.refetch} showRefresh={false} className={styles.vacationHeaderAction} /> : null}</SectionHeader><div className={styles.queue}><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}</section>,
+    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"}>{!isDemo ? <VacationModeControls active={false} refresh={currentUser.refetch} showRefresh={false} className={styles.vacationHeaderAction} /> : null}</SectionHeader><div className={styles.queue}><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}<BunproHomeButton /></section>,
     "custom-vocabulary": <CustomVocabularyWidget scope={userId || "anonymous"} username={username} />,
     srs: assignments.isLoading ? <section className={styles.section}><SectionHeader title="Active Item Spread" detail="Radicals, kanji, and vocabulary across SRS stages" /><Skeleton height="15rem" /></section> : <SrsSpreadWidget rows={srsSpread} />,
     level: currentSubjects.isLoading ? <section className={styles.section}><SectionHeader title={`Level ${currentLevel} Progress`} detail="Your current level, from lesson to Guru" /><Skeleton height="18rem" /></section> : <DashboardLevelWidget currentLevel={currentLevel} progress={progress} subjects={levelSubjects} />,
@@ -142,7 +142,6 @@ export function Dashboard() {
   };
 
   return <main className="page">
-    <BunproHomeButton />
     {(assignments.error || currentUser.error || (needsDailyStudy && availableReviewCount.error) || (needsSubjectCatalog && allSubjects.error) || (needsLevelTiming && levelProgressions.error)) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
     <div className={styles.grid}>
       {visibleSections.map((id) => {

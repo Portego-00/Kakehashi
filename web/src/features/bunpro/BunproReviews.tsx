@@ -14,16 +14,17 @@ import { bunproAudioUrls, useBunproAudio } from "./use-bunpro-audio";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { composeKanaInput } from "@/lib/kana";
 import { bunpro } from "./client";
+import { BunproLoading } from "./BunproLoading";
 import { BunproDetails } from "./BunproDetails";
 import { BunproText, RubyText } from "./BunproText";
-import { buildAnswerFeedbackMap, buildReviewQueue, collectAcceptedAnswers, normalizeAnswer, parseQuestionSentence, pickCanonicalAnswer, reviewContent, sanitizeQuestionContent, sanitizeText, type BunproReviewQueueItem, type BunproReviewQuizIndexResponse, type ReviewMode } from "./model";
+import { buildAnswerFeedbackMap, buildReviewQueue, collectAcceptedAnswers, normalizeAnswer, parseQuestionSentence, pendingReviewTotal, pickCanonicalAnswer, reviewContent, sanitizeQuestionContent, sanitizeText, shuffleReviewQueue, type BunproReviewQueueItem, type BunproReviewQuizIndexResponse, type ReviewMode } from "./model";
 import quiz from "@/features/study/study.module.css";
 import core from "@/features/core-study/core-study.module.css";
 import styles from "./bunpro.module.css";
 
 type Outcome = { correct: boolean; entered: string };
 const labels = { grammar: "Grammar", vocab: "Vocabulary", all: "Grammar & vocabulary" };
-export function BunproReviews({ initialMode }: { initialMode?: ReviewMode } = {}) {
+export function BunproReviews({ initialMode, lessonSession, onContinueLessons }: { initialMode?: ReviewMode; lessonSession?: BunproReviewQuizIndexResponse; onContinueLessons?: () => void } = {}) {
   const { user } = useSession();
   const preferences = useWebSettings(user?.data.username ?? "anonymous").study;
   const queryClient = useQueryClient();
@@ -31,10 +32,11 @@ export function BunproReviews({ initialMode }: { initialMode?: ReviewMode } = {}
   const audio = useBunproAudio();
   const [progression, setProgression] = useState<Progression | null>(null);
   const [mode, setMode] = useState<ReviewMode>(initialMode ?? "all");
-  const [phase, setPhase] = useState<"choose" | "loading" | "review" | "complete">("choose");
+  const [phase, setPhase] = useState<"choose" | "loading" | "review" | "complete">(lessonSession ? "review" : "choose");
   const reviewViewportRef = useMobileReviewViewport<HTMLElement>(phase === "review");
-  const [queue, setQueue] = useState<BunproReviewQueueItem[]>([]);
-  const [sessionId, setSessionId] = useState(0);
+  const [queue, setQueue] = useState<BunproReviewQueueItem[]>(() => lessonSession ? buildReviewQueue(lessonSession) : []);
+  const [reviewTotal, setReviewTotal] = useState(lessonSession ? buildReviewQueue(lessonSession).length : 0);
+  const [sessionId, setSessionId] = useState(lessonSession?.review_session_id ?? 0);
   const [input, setInput] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [hint, setHint] = useState("");
@@ -54,9 +56,10 @@ export function BunproReviews({ initialMode }: { initialMode?: ReviewMode } = {}
     setPhase("loading"); setError("");
     try {
       const data = await bunpro<BunproReviewQuizIndexResponse>(`action=queue&mode=${mode}`);
-      const items = buildReviewQueue(data);
+      const items = shuffleReviewQueue(buildReviewQueue(data));
       if (!Number.isInteger(data.review_session_id) || data.review_session_id <= 0) throw new Error("Bunpro did not return a valid review session. Please try again.");
-      setQueue(items); setSessionId(data.review_session_id); setResults([]); setSubmitted(new Set());
+      if (!items.length && pendingReviewTotal(data) > 0) throw new Error("Bunpro reports pending reviews but returned no questions. Please try again.");
+      setQueue(items); setReviewTotal(Math.max(items.length, pendingReviewTotal(data))); setSessionId(data.review_session_id); setResults([]); setSubmitted(new Set());
       setOutcome(null); setInput(""); setHint(""); setDetailsOverride(null);
       setPhase(items.length ? "review" : "complete");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load reviews."); setPhase("choose"); }
@@ -94,19 +97,33 @@ export function BunproReviews({ initialMode }: { initialMode?: ReviewMode } = {}
     try {
       let next = queue.slice(1);
       const isRepeat = submitted.has(current.data.id);
+      let saved = submitted;
+      let expectedTotal = reviewTotal;
       if (!isRepeat) {
-        const response = await bunpro<Partial<BunproReviewQuizIndexResponse> & Record<string, unknown>>("", { method: "POST", body: JSON.stringify({ action: "review", reviewId: current.data.id, sessionId, correct: outcome.correct, mode, reviewableType: content.kind === "grammar" ? "GrammarPoint" : "Vocab", loadedIds: queue.filter((item) => !submitted.has(item.data.id)).map((item) => Number(item.data.id)) }) });
+        const response = await bunpro<Partial<BunproReviewQuizIndexResponse> & Record<string, unknown>>("", { method: "POST", body: JSON.stringify({ action: "review", reviewId: current.data.id, sessionId, correct: outcome.correct, mode, ...(lessonSession ? { context: "learn" } : {}), requestMore: !lessonSession && queue.filter((item) => !submitted.has(item.data.id)).length <= 10, reviewableType: content.kind === "grammar" ? "GrammarPoint" : "Vocab", loadedIds: queue.filter((item) => !submitted.has(item.data.id)).map((item) => Number(item.data.id)) }) });
         setProgression(bunproProgression(current.data.id, sanitizeText(content.attributes.title) || answer, current.data.attributes, response));
         void queryClient.invalidateQueries({ queryKey: ["bunpro", "due"] });
-        const saved = new Set(submitted).add(current.data.id);
+        if (lessonSession) void queryClient.invalidateQueries({ queryKey: ["bunpro", "lesson-queue"] });
+        saved = new Set(submitted).add(current.data.id);
         setSubmitted(saved);
         const seen = new Set([...saved, ...next.map((item) => item.data.id)]);
-        next = [...next, ...buildReviewQueue(response).filter((item) => !seen.has(item.data.id))];
+        next = [...next, ...(lessonSession ? [] : shuffleReviewQueue(buildReviewQueue(response))).filter((item) => !seen.has(item.data.id))];
+        expectedTotal = Math.max(expectedTotal, saved.size + next.filter((item) => !saved.has(item.data.id)).length);
+        setReviewTotal(expectedTotal);
         setResults((previous) => [...previous, { title: sanitizeText(content.attributes.title) || answer, correct: outcome.correct }]);
       }
       if (!outcome.correct) {
         if (preferences.backToBackQuestions && preferences.backToBackImmediateRetryIncorrect) next.unshift(current);
         else next.push(current);
+      }
+      // A short response is a page, not completion. Retry fetching without resubmitting a saved answer.
+      if (!lessonSession && !next.length && saved.size < expectedTotal) {
+        const more = await bunpro<BunproReviewQuizIndexResponse>(`action=queue&mode=${mode}`);
+        if (!Number.isInteger(more.review_session_id) || more.review_session_id <= 0) throw new Error("Could not load the next review batch. Press Next to retry.");
+        next = shuffleReviewQueue(buildReviewQueue(more)).filter((item) => !saved.has(item.data.id));
+        if (!next.length && pendingReviewTotal(more) > 0) throw new Error("Bunpro still has reviews pending but returned no new questions. Press Next to retry.");
+        setSessionId(more.review_session_id);
+        setReviewTotal(Math.max(saved.size + next.length, saved.size + pendingReviewTotal(more)));
       }
       setQueue(next); setInput(""); setOutcome(null); setHint(""); setDetailsOverride(null);
       if (!next.length) setPhase("complete");
@@ -137,12 +154,13 @@ export function BunproReviews({ initialMode }: { initialMode?: ReviewMode } = {}
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
   }, [phase, preferences.keyboardShortcuts]);
+  if (phase === "choose" && initialMode && connection.isPending) return <BunproLoading kind="reviews" />;
   if (phase === "choose") return <main className={styles.chooser}><div className={styles.row}><h1>Bunpro reviews</h1><ButtonLink href="/dashboard" tone="ghost">Back</ButtonLink></div><p>Choose what you want to review.</p><fieldset className={styles.choices}><legend>Review type</legend>{(["grammar", "vocab", "all"] as const).map((value) => <label key={value}><input type="radio" name="bunpro-mode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span>{labels[value]}</span></label>)}</fieldset>{connection.isPending ? <p role="status">Checking Bunpro connection…</p> : connection.data?.connected ? <Button tone="primary" onClick={start}>Start reviews</Button> : <ButtonLink href="/settings#bunpro-api-key">Add Bunpro API key</ButtonLink>}{error || connection.error ? <p role="alert">{error || connection.error?.message}</p> : null}</main>;
-  if (phase === "loading") return <BunproLoading />;
-  if (phase === "complete") return <main className={styles.chooser}><BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} /><h1>{results.length ? "Bunpro reviews complete" : "No Bunpro reviews waiting"}</h1><p>{results.length ? `${results.length} reviews saved · ${results.filter((item) => item.correct).length} correct on the first attempt` : `You are caught up with ${labels[mode].toLowerCase()}.`}</p>{results.length ? <ul className={styles.results}>{results.map((item, index) => <li key={index}><span lang="ja">{item.title}</span><span>{item.correct ? "Correct" : "Practiced again"}</span></li>)}</ul> : null}<div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to home</ButtonLink><Button onClick={() => setPhase("choose")}>Check for more</Button></div></main>;
+  if (phase === "loading") return <BunproLoading kind="reviews" />;
+  if (phase === "complete") return <main className={styles.chooser}><BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} /><h1>{results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"}</h1><p>{results.length ? `${results.length} reviews saved · ${results.filter((item) => item.correct).length} correct on the first attempt` : `You are caught up with ${labels[mode].toLowerCase()}.`}</p>{results.length ? <ul className={styles.results}>{results.map((item, index) => <li key={index}><span lang="ja">{item.title}</span><span>{item.correct ? "Correct" : "Practiced again"}</span></li>)}</ul> : null}<div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to home</ButtonLink>{onContinueLessons ? <Button onClick={onContinueLessons}>Continue lessons</Button> : <Button onClick={() => setPhase("choose")}>Check for more</Button>}</div></main>;
   if (!current || !content) return null;
   const valid = Boolean(answer && sanitizeQuestionContent(question.content));
-  const total = results.length + queue.filter((item) => !submitted.has(item.data.id)).length;
+  const total = Math.max(reviewTotal, results.length + queue.filter((item) => !submitted.has(item.data.id)).length);
   return <main ref={reviewViewportRef} className={`${quiz.quizShell} ${styles.reviewShell}`} data-study-session="active">
       <div className={quiz.quizTopbar}><span>Bunpro · {Math.min(results.length + 1, total)} / {total}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={results.length} aria-valuemin={0} aria-valuemax={Math.max(1, total)}><span style={{ transform: `scaleX(${results.length / Math.max(1, total)})` }} /></div><div className={quiz.quizTopbarActions}><ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
       <header className={`${quiz.questionCard} ${styles.sentenceArea}`} aria-label="Bunpro review">
@@ -175,4 +193,3 @@ export function BunproReviews({ initialMode }: { initialMode?: ReviewMode } = {}
       </div>
   </main>;
 }
-export function BunproLoading() { return <main className={styles.loading} role="status" aria-label="Loading Bunpro reviews"><div className={styles.bar}><span>Bunpro reviews</span><span className={styles.skeleton} /></div><div className={styles.sentenceArea}><div className={styles.skeleton} /><div className={styles.skeleton} /></div><div className={styles.workspace}><div className={styles.skeleton} /></div></main>; }

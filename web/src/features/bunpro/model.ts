@@ -409,3 +409,17 @@ export function reviewContent(item: BunproReviewQueueItem) {
   const kind = reviewable?.type === "grammar_point" || item.data.attributes.reviewable_type === "GrammarPoint" ? "grammar" : "vocab";
   return { question, attributes, kind: kind as "grammar" | "vocab", slug: sanitizeText(attributes.slug) };
 }
+
+/** Bunpro pages quiz items independently of the total due count. */
+export function pendingReviewTotal(response: { total_pending_attempt_count?: number; total_pending_wrapup_count?: number }): number {
+  return [response.total_pending_attempt_count, response.total_pending_wrapup_count].reduce<number>((sum, value) => sum + (typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0), 0);
+}
+
+export function shuffleReviewQueue(items: BunproReviewQueueItem[]): BunproReviewQueueItem[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}

@@ -8,7 +8,7 @@ import { isTrustedMutationOrigin } from "@/lib/server/request-security";
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
 const modeSchema = z.enum(["all", "grammar", "vocab"]);
-const reviewSchema = z.object({ action: z.literal("review"), reviewId: z.string().regex(/^\d+$/), sessionId: z.number().int().positive(), correct: z.boolean(), mode: modeSchema, reviewableType: z.enum(["GrammarPoint", "Vocab", "Vocabulary"]), loadedIds: z.array(z.number().int().positive()).max(500) });
+const reviewSchema = z.object({ action: z.literal("review"), reviewId: z.string().regex(/^\d+$/), sessionId: z.number().int().positive(), correct: z.boolean(), mode: modeSchema, reviewableType: z.enum(["GrammarPoint", "Vocab", "Vocabulary"]), requestMore: z.boolean().optional(), context: z.enum(["review", "learn"]).optional(), loadedIds: z.array(z.number().int().positive()).max(500) });
 function failure(error: unknown) { return NextResponse.json({ error: error instanceof BunproError ? error.message : "Unable to complete the Bunpro request." }, { status: error instanceof BunproError ? error.status : 502, headers }); }
 async function access(request: NextRequest) {
   const identity = await bunproIdentity(request.cookies.get(WANIKANI_SESSION_COOKIE)?.value);
@@ -19,8 +19,22 @@ export async function GET(request: NextRequest) {
   try {
     const { token } = await access(request);
     const action = request.nextUrl.searchParams.get("action");
-    if (action === "connection") return NextResponse.json({ connected: Boolean(token) }, { headers });
+    if (action === "connection") {
+      if (!token) return NextResponse.json({ connected: false }, { headers });
+      try { await bunproRequest(token, "/user"); }
+      catch (error) {
+        if (error instanceof BunproError && [401, 403].includes(error.status)) return NextResponse.json({ connected: false }, { headers });
+        throw error;
+      }
+      return NextResponse.json({ connected: true }, { headers });
+    }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);
+    if (action === "lesson-queue") return NextResponse.json(await bunproRequest(token, "/user/queue"), { headers });
+    if (action === "learn") {
+      const deck = z.coerce.number().int().positive().safeParse(request.nextUrl.searchParams.get("deck"));
+      if (!deck.success) throw new BunproError("Invalid lesson deck.", 400);
+      return NextResponse.json(await bunproRequest(token, `/learn?deck_id=${deck.data}`), { headers });
+    }
     if (action === "due") return NextResponse.json(await bunproRequest(token, "/user/due"), { headers });
     if (action === "queue") {
       const mode = modeSchema.safeParse(request.nextUrl.searchParams.get("mode") ?? "all");
@@ -57,10 +71,15 @@ export async function POST(request: NextRequest) {
       return response;
     }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);
+    if (body?.action === "lesson-quiz") {
+      const parsed = z.object({ deckId: z.number().int().positive(), reviewables: z.array(z.tuple([z.enum(["GrammarPoint", "Vocab"]), z.number().int().positive()])).min(1).max(100) }).safeParse(body);
+      if (!parsed.success) throw new BunproError("Invalid lesson batch.", 400);
+      return NextResponse.json(await bunproRequest(token, "/learn/quiz", { deck_id: parsed.data.deckId, reviewables: parsed.data.reviewables }), { headers });
+    }
     const parsed = reviewSchema.safeParse(body);
     if (!parsed.success) throw new BunproError("Invalid Bunpro review.", 400);
     const review = parsed.data;
-    return NextResponse.json(await bunproRequest(token, `/reviews/${review.reviewId}/update`, { review_session_id: review.sessionId, correct: review.correct, fsrs_input: null, loaded_review_ids: review.loadedIds, loaded_ghost_review_ids: [], loaded_self_study_review_ids: [], deck_id: null, only_review: review.mode === "all" ? review.reviewableType : review.mode === "grammar" ? "GrammarPoint" : "Vocab" }), { headers });
+    return NextResponse.json(await bunproRequest(token, `/reviews/${review.reviewId}/update`, { review_session_id: review.sessionId, correct: review.correct, fsrs_input: null, loaded_review_ids: review.context === "learn" || review.requestMore === false ? null : review.loadedIds, loaded_ghost_review_ids: review.context === "learn" || review.requestMore === false ? null : [], loaded_self_study_review_ids: review.context === "learn" || review.requestMore === false ? null : [], deck_id: null, only_review: review.context === "learn" ? null : review.mode === "all" ? review.reviewableType : review.mode === "grammar" ? "GrammarPoint" : "Vocab" }), { headers });
   } catch (error) { return failure(error); }
 }
 export async function DELETE(request: NextRequest) {

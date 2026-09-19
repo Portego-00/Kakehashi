@@ -26,3 +26,30 @@ it("loads current Bunpro due counts without caching", async () => {
   expect((mocks.fetch.mock.calls[0][0] as URL).pathname).toBe("/api/frontend/user/due");
   expect(mocks.fetch.mock.calls[0][1].cache).toBe("no-store");
 });
+it("hides cards for a revoked key", async () => {
+  mocks.fetch.mockResolvedValue(Response.json({}, { status: 401 }));
+  expect(await (await GET(request())).json()).toEqual({ connected: false });
+});
+it("loads the mobile lesson queue and deck", async () => {
+  await GET(request("GET", undefined, "action=lesson-queue"));
+  expect(mocks.fetch.mock.calls[0][0].pathname).toBe("/api/frontend/user/queue");
+  await GET(request("GET", undefined, "action=learn&deck=1"));
+  expect(mocks.fetch.mock.calls[1][0].searchParams.get("deck_id")).toBe("1");
+});
+it("starts the quiz with typed lesson tuples", async () => {
+  expect((await POST(request("POST", { action: "lesson-quiz", deckId: 1, reviewables: [["GrammarPoint", 20], ["Vocab", 21]] }))).status).toBe(200);
+  expect(mocks.fetch.mock.calls[0][0].pathname).toBe("/api/frontend/learn/quiz");
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toEqual({ deck_id: 1, reviewables: [["GrammarPoint", 20], ["Vocab", 21]] });
+});
+it.each([[], [["Other", 1]], [["Vocab", -1]]].map(reviewables => ({ reviewables })))("rejects invalid lesson tuples %j", async ({ reviewables }) => {
+  expect((await POST(request("POST", { action: "lesson-quiz", deckId: 1, reviewables }))).status).toBe(400);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+it("submits lesson answers without requesting unrelated due reviews", async () => {
+  await POST(request("POST", { action: "review", context: "learn", reviewId: "10", sessionId: 3, correct: true, mode: "all", reviewableType: "GrammarPoint", loadedIds: [10] }));
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ only_review: null, loaded_review_ids: null, loaded_ghost_review_ids: null, loaded_self_study_review_ids: null });
+});
+it("does not request more quiz items until the loaded batch gets low", async () => {
+  await POST(request("POST", { action: "review", requestMore: false, reviewId: "10", sessionId: 3, correct: true, mode: "grammar", reviewableType: "GrammarPoint", loadedIds: [10, 11] }));
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ loaded_review_ids: null, loaded_ghost_review_ids: null, loaded_self_study_review_ids: null, only_review: "GrammarPoint" });
+});
