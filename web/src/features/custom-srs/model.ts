@@ -1,3 +1,5 @@
+import { customSrsSettingsError, DEFAULT_CUSTOM_SRS_SETTINGS, settingsRevision } from "./srs-settings";
+import type { CustomSrsSettings, ConfigurableCustomSrsPolicy } from "./types";
 import { CUSTOM_SRS_POLICY, introduceCustomCard, nextCustomSrsStage, reviewCustomCard } from "./scheduler";
 import type {
   CustomPackProgress,
@@ -22,7 +24,7 @@ export type CustomReviewForecast = {
 };
 
 export function createCustomSrsState(now = new Date()): CustomSrsState {
-  return { version: 1, policy: CUSTOM_SRS_POLICY, enrolledPackIds: [], assignments: {}, reviewLog: [], updatedAt: now.toISOString() };
+  return { version: 1, policy: { ...CUSTOM_SRS_POLICY, id: "custom-srs", version: 2, settings: structuredClone(DEFAULT_CUSTOM_SRS_SETTINGS), settingsRevision: 0, lastSettingsEventId: null }, enrolledPackIds: [], assignments: {}, reviewLog: [], updatedAt: now.toISOString() };
 }
 
 export function enrollCustomVocabularyPack(state: CustomSrsState, pack: CustomVocabularyPack, now = new Date()) {
@@ -56,9 +58,9 @@ export function enrollCustomVocabularyPack(state: CustomSrsState, pack: CustomVo
 
 export function completeCustomLesson(state: CustomSrsState, wordId: string, now = new Date()) {
   const assignment = state.assignments[wordId];
-  if (!assignment) throw new Error(`Custom vocabulary assignment not found: ${wordId}`);
+  if (!assignment || assignment.archivedAt) throw new Error(`Custom vocabulary assignment not found: ${wordId}`);
   if (assignment.stage !== 0) return state;
-  const scheduled = introduceCustomCard(now);
+  const scheduled = introduceCustomCard(now, state.policy);
   const nextAssignment: CustomSrsAssignment = {
     ...assignment,
     stage: 1,
@@ -77,12 +79,12 @@ export function completeCustomLesson(state: CustomSrsState, wordId: string, now 
 export function recordCustomReview(state: CustomSrsState, wordId: string, incorrectAnswers: number, now = new Date(), eventId = `${wordId}:${now.toISOString()}`) {
   if (state.reviewLog.some((entry) => entry.eventId === eventId)) return state;
   const assignment = state.assignments[wordId];
-  if (!assignment?.card || assignment.stage < 1 || assignment.stage >= 9) throw new Error(`Custom vocabulary review is not active: ${wordId}`);
+  if (assignment?.archivedAt || !assignment?.card || assignment.stage < 1 || assignment.stage >= 9) throw new Error(`Custom vocabulary review is not active: ${wordId}`);
   if (assignment.availableAt && new Date(assignment.availableAt) > now) throw new Error(`Custom vocabulary review is not due yet: ${wordId}`);
   const safeIncorrectAnswers = Math.max(0, Math.trunc(incorrectAnswers));
   const correct = safeIncorrectAnswers === 0;
-  const scheduled = reviewCustomCard(assignment.card, now, correct);
   const endingStage = nextCustomSrsStage(assignment.stage, safeIncorrectAnswers);
+  const scheduled = reviewCustomCard(assignment.card, now, correct, state.policy, endingStage);
   const burned = endingStage === 9;
   const nextReviewAt = burned ? null : scheduled.due.toISOString();
   const nextAssignment: CustomSrsAssignment = {
@@ -123,13 +125,13 @@ export function reconcileCustomSrsState(state: CustomSrsState, packs: readonly C
 
 export function customLessonWords(state: CustomSrsState, packs: readonly CustomVocabularyPack[]) {
   return wordsWithAssignments(state, packs)
-    .filter(({ assignment }) => assignment.stage === 0)
+    .filter(({ assignment }) => !assignment.archivedAt && assignment.stage === 0)
     .map(({ word }) => word);
 }
 
 export function customReviewWords(state: CustomSrsState, packs: readonly CustomVocabularyPack[], now = new Date()) {
   return wordsWithAssignments(state, packs)
-    .filter(({ assignment }) => assignment.stage > 0 && assignment.stage < 9 && Boolean(assignment.availableAt) && new Date(assignment.availableAt!) <= now)
+    .filter(({ assignment }) => !assignment.archivedAt && assignment.stage > 0 && assignment.stage < 9 && Boolean(assignment.availableAt) && new Date(assignment.availableAt!) <= now)
     .sort((left, right) => new Date(left.assignment.availableAt!).getTime() - new Date(right.assignment.availableAt!).getTime())
     .map(({ word }) => word);
 }
@@ -153,7 +155,7 @@ export function customReviewForecast(
   let nextLaterTimestamp = Number.POSITIVE_INFINITY;
 
   for (const assignment of Object.values(state.assignments)) {
-    if (!activeWordIds.has(assignment.wordId) || assignment.stage < 1 || assignment.stage >= 9 || !assignment.availableAt) continue;
+    if (assignment.archivedAt || !activeWordIds.has(assignment.wordId) || assignment.stage < 1 || assignment.stage >= 9 || !assignment.availableAt) continue;
     const timestamp = Date.parse(assignment.availableAt);
     if (!Number.isFinite(timestamp)) continue;
     const index = timestamp <= now.getTime()
@@ -177,7 +179,7 @@ export function customReviewForecast(
 export function nextCustomReviewAt(state: CustomSrsState, packs: readonly CustomVocabularyPack[]) {
   const activeWordIds = new Set(packs.flatMap((pack) => pack.words.map((word) => word.id)));
   const timestamps = Object.values(state.assignments)
-    .filter((assignment) => activeWordIds.has(assignment.wordId) && assignment.stage > 0 && assignment.stage < 9 && assignment.availableAt)
+    .filter((assignment) => !assignment.archivedAt && activeWordIds.has(assignment.wordId) && assignment.stage > 0 && assignment.stage < 9 && assignment.availableAt)
     .map((assignment) => new Date(assignment.availableAt!).getTime())
     .filter(Number.isFinite);
   return timestamps.length ? new Date(Math.min(...timestamps)) : null;
@@ -187,6 +189,7 @@ export function customPackProgress(state: CustomSrsState, pack: CustomVocabulary
   const result: CustomPackProgress = { total: pack.words.length, lessons: 0, apprentice: 0, guru: 0, master: 0, enlightened: 0, burned: 0, due: 0 };
   for (const word of pack.words) {
     const assignment = state.assignments[word.id];
+    if (assignment?.archivedAt) continue;
     const stage = assignment?.stage ?? 0;
     if (stage === 0) result.lessons += 1;
     else if (stage <= 4) result.apprentice += 1;
@@ -206,4 +209,17 @@ function wordsWithAssignments(state: CustomSrsState, packs: readonly CustomVocab
     const word = words.get(assignment.wordId);
     return word ? [{ word, assignment }] : [];
   });
+}
+
+/** Changing settings affects future scheduling only; cards and history retain their identity. */
+export function updateCustomSrsSettings(state: CustomSrsState, settings: CustomSrsSettings, expectedRevision: number, eventId: string, now = new Date()): CustomSrsState {
+  const error = customSrsSettingsError(settings);
+  if (error) throw new Error(error);
+  if (state.policy.version === 2 && state.policy.lastSettingsEventId === eventId) return state;
+  if (settingsRevision(state.policy) !== expectedRevision) throw new Error("Scheduling settings changed on another device. Reload the saved settings before saving again.");
+  const policy: ConfigurableCustomSrsPolicy = {
+    ...CUSTOM_SRS_POLICY, id: "custom-srs", version: 2,
+    settings: structuredClone(settings), settingsRevision: expectedRevision + 1, lastSettingsEventId: eventId,
+  };
+  return { ...state, policy, updatedAt: now.toISOString() };
 }

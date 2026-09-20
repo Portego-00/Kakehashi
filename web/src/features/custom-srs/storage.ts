@@ -1,3 +1,4 @@
+import { customSrsSettingsError } from "./srs-settings";
 import { createCustomSrsState, reconcileCustomSrsState } from "./model";
 import { CUSTOM_SRS_POLICY } from "./scheduler";
 import type { CustomSrsAssignment, CustomSrsReviewLog, CustomSrsState, CustomVocabularyPack, SerializedFsrsCard } from "./types";
@@ -52,8 +53,12 @@ function validPolicy(value: unknown) {
   const policy = value;
   const parameters = value.parameters;
   const expected = CUSTOM_SRS_POLICY;
-  return policy.id === expected.id
-    && policy.version === expected.version
+  const supported = policy.version === 1 && policy.id === expected.id
+    || policy.version === 2 && policy.id === "custom-srs"
+      && customSrsSettingsError(policy.settings) === null
+      && isNonNegativeInteger(policy.settingsRevision)
+      && (policy.lastSettingsEventId === null || typeof policy.lastSettingsEventId === "string" && policy.lastSettingsEventId.length <= 128);
+  return supported
     && policy.library === expected.library
     && policy.libraryVersion === expected.libraryVersion
     && policy.bootstrapStrategy === expected.bootstrapStrategy
@@ -81,6 +86,7 @@ function validCard(value: unknown): value is SerializedFsrsCard {
 
 function validAssignment(value: unknown, wordId: string, packId: string): value is CustomSrsAssignment {
   if (!isRecord(value)) return false;
+  if (value.archivedAt !== undefined && !isNullableDate(value.archivedAt)) return false;
   if (value.wordId !== wordId
     || value.packId !== packId
     || !isNonNegativeInteger(value.stage)
@@ -149,7 +155,8 @@ export function loadCustomSrsState(storage: Pick<CustomSrsStorage, "getItem">, s
     }).filter((log): log is CustomSrsReviewLog => validReviewLog(log, knownWords));
     return reconcileCustomSrsState({
       version: 1,
-      policy: CUSTOM_SRS_POLICY,
+      policy: value.policy!,
+      ...(value.personalLibraryRevision !== undefined ? { personalLibraryRevision: value.personalLibraryRevision } : {}),
       enrolledPackIds,
       assignments,
       reviewLog,
@@ -165,6 +172,7 @@ export function loadCustomSrsState(storage: Pick<CustomSrsStorage, "getItem">, s
  */
 export function parseCustomSrsStateStrict(value: unknown, packs: readonly CustomVocabularyPack[], now = new Date()): CustomSrsState {
   if (!isRecord(value) || value.version !== 1 || !validPolicy(value.policy)
+    || (value.personalLibraryRevision !== undefined && !isNonNegativeInteger(value.personalLibraryRevision))
     || !Array.isArray(value.enrolledPackIds) || !value.enrolledPackIds.every((id) => typeof id === "string")
     || !isRecord(value.assignments) || !Array.isArray(value.reviewLog) || !isDateString(value.updatedAt)) {
     throw new Error("Cloud progress uses an unsupported format. Update the app before studying.");

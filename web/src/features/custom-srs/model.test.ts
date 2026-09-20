@@ -47,7 +47,7 @@ describe("custom SRS model", () => {
 
     expect(passed.assignments[pack.words[0].id]).toMatchObject({ stage: 2, availableAt: "2026-08-31T22:00:00.000Z", correctReviews: 1, incorrectReviews: 0 });
     const secondPass = recordCustomReview(passed, pack.words[0].id, 0, new Date("2026-08-31T22:00:00.000Z"), "second-pass");
-    expect(secondPass.assignments[pack.words[0].id]).toMatchObject({ stage: 3, availableAt: "2026-09-02T22:00:00.000Z", correctReviews: 2, incorrectReviews: 0 });
+    expect(secondPass.assignments[pack.words[0].id]).toMatchObject({ stage: 3, availableAt: "2026-09-01T21:00:00.000Z", correctReviews: 2, incorrectReviews: 0 });
     const secondReviewAt = new Date(passed.assignments[pack.words[0].id].availableAt!);
     const failed = recordCustomReview(passed, pack.words[0].id, 1, secondReviewAt, "second-review");
     expect(failed.assignments[pack.words[0].id]).toMatchObject({ stage: 1, correctReviews: 1, incorrectReviews: 1 });

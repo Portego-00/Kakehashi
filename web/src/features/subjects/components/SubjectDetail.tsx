@@ -28,6 +28,7 @@ import { normalizeMnemonicMarkup, stripMnemonicMarkup, tokenizeMnemonic } from "
 import type { Assignment, ContextSentence, PronunciationAudio, ReviewStatistic, StudyMaterial, Subject, SubjectReading } from "@/types/wanikani";
 import { AddToSubjectListsDialog } from "./AddToSubjectListsDialog";
 import { SubjectAudioButton, SubjectAudioProvider } from "./SubjectAudioControls";
+import { SubjectHistory } from "./SubjectHistory";
 import { SubjectCharacter } from "./SubjectCharacter";
 import { StrokeOrder } from "./StrokeOrder";
 import styles from "../subjects.module.css";
@@ -124,6 +125,7 @@ export function SubjectDetail({ id, returnTo = "/search", presentation = "page" 
     <header ref={subjectHeroRef} className={styles.subjectHero} data-type={tone}>
       {presentation === "page" ? <Link href={returnTo} className={styles.subjectHeroBack}><ArrowLeft size={19} aria-hidden /><span>{returnLabel}</span></Link> : null}
       <div className={styles.subjectHeroActions}>
+        <SubjectHistory key={record.id} subject={record} subjectId={record.id} label={`${identityText} · ${meaning}`} />
         <button type="button" aria-label={isBookmarked ? "Edit saved lists" : "Add to saved lists"} aria-pressed={isBookmarked} title={isBookmarked ? "Edit saved lists" : "Add to saved lists"} onClick={() => setListDialogOpen(true)}><Bookmark size={18} fill={isBookmarked ? "currentColor" : "none"} aria-hidden /></button>
         <Link href={`/subjects/${id}/constellation`} aria-label="Explore subject constellation"><ConstellationIcon /></Link>
         <a href={record.data.document_url} target="_blank" rel="noreferrer" aria-label="Open subject on WaniKani"><ExternalLink size={18} aria-hidden /></a>

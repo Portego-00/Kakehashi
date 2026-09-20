@@ -1,6 +1,5 @@
 import { createCustomSrsState } from "../../../web/src/features/custom-srs/model";
 import { parseCustomSrsStateStrict } from "../../../web/src/features/custom-srs/storage";
-import { CUSTOM_SRS_POLICY } from "../../../web/src/features/custom-srs/scheduler";
 import { expandCustomSrsWireResult } from "../../../web/src/features/custom-srs/transport";
 import { createCustomSrsPendingStore } from "./pending";
 import { customVocabularyPacks } from "./catalog";
@@ -40,18 +39,12 @@ function object(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (object(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
-
 export function parseCustomSrsCloudResult(value: unknown): CloudResult {
   if (!object(value) || value.available !== true || !Number.isSafeInteger(value.revision) || Number(value.revision) < -1 || !object(value.state)) {
     throw new Error("The server did not confirm your custom vocabulary progress.");
   }
   const raw = value.state;
-  if (raw.version !== 1 || canonical(raw.policy) !== canonical(CUSTOM_SRS_POLICY) || !object(raw.assignments) || !Array.isArray(raw.enrolledPackIds) || !Array.isArray(raw.reviewLog)) {
+  if (raw.version !== 1 || !object(raw.assignments) || !Array.isArray(raw.enrolledPackIds) || !Array.isArray(raw.reviewLog)) {
     throw new Error("Your progress uses an unsupported format. Update the app before studying.");
   }
   const state = parseCustomSrsStateStrict(raw, customVocabularyPacks);

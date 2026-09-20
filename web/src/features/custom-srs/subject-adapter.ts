@@ -10,6 +10,9 @@ export function customWordUsesKanji(word: Pick<CustomVocabularyWord, "characters
 }
 
 export function customSubjectId(wordId: string) {
+  // Imported libraries can contain thousands of UUIDs. Keep 52 bits of identity
+  // rather than squeezing them into the bundled catalog's smaller hash range.
+  if (/^personal:[0-9a-f-]{36}$/i.test(wordId)) return 2_000_000_000 + Number.parseInt(wordId.replace(/-/g, "").slice(-13), 16);
   let hash = 2_166_136_261;
   for (const character of wordId) {
     hash ^= character.codePointAt(0) ?? 0;

@@ -3,9 +3,16 @@
     "ts-fsrs": "npm:ts-fsrs@5.4.1",
     "../../../web/src/features/custom-srs/model": "../../../web/src/features/custom-srs/model.ts",
     "../../../web/src/features/custom-srs/scheduler": "../../../web/src/features/custom-srs/scheduler.ts",
-    "../../../web/src/features/custom-srs/types": "../../../web/src/features/custom-srs/types.ts"
+    "../../../web/src/features/custom-srs/types": "../../../web/src/features/custom-srs/types.ts",
+    "../../../web/src/features/custom-srs/srs-settings": "../../../web/src/features/custom-srs/srs-settings.ts",
+    "../../../web/src/features/custom-srs/state-patch": "../../../web/src/features/custom-srs/state-patch.ts"
   },
   "compilerOptions": {
-    "lib": ["deno.ns", "dom", "dom.iterable", "esnext"]
+    "lib": [
+      "deno.ns",
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ]
   }
 }

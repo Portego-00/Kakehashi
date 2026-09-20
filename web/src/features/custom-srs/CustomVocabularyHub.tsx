@@ -264,7 +264,7 @@ function VocabularyPack({
 }) {
   const enrolled = state.enrolledPackIds.includes(pack.id);
   const previewWords = pack.words.slice(0, 2);
-  const remainingWords = pack.words.slice(previewWords.length);
+  const remainingWords = pack.words.slice(previewWords.length, pack.id.startsWith("personal:") ? 20 : undefined);
   const wordCountLabel = `${pack.words.length} ${pack.words.length === 1 ? "word" : "words"}`;
   const packMeta = pack.levelRange
     ? `${SCRIPT_LABELS[pack.script]} · WaniKani levels ${pack.levelRange.min}–${pack.levelRange.max} · ${wordCountLabel}`
@@ -312,6 +312,7 @@ function VocabularyPack({
           {remainingWords.map((word) => <PackWord key={word.id} state={state} word={word} enrolled={enrolled} />)}
         </ul>
       </details> : null}
+      {pack.id.startsWith("personal:") ? <Link href="/custom-vocabulary/library">Manage this deck{pack.words.length > 20 ? ` · ${pack.words.length} words` : ""}</Link> : null}
     </article>
   );
 }
@@ -321,6 +322,8 @@ export function CustomVocabularyHub() {
   const scope = waniKaniUserId(user) || "anonymous";
   const forecastPreferences = useReviewForecastPreferences(user?.data.username ?? "anonymous");
   const customSrs = useCustomSrs(scope, CUSTOM_VOCABULARY_PACKS);
+  const allPacks = customSrs.packs ?? CUSTOM_VOCABULARY_PACKS;
+  const personalPacks = allPacks.filter((pack) => pack.id.startsWith("personal:"));
   const { state, enrollPack, isLoading, isRefreshing, isUnavailable, isSaving, error, storageMode, refresh } = customSrs;
   const [now, setNow] = useState(() => new Date());
   const [pendingPackId, setPendingPackId] = useState<string | null>(null);
@@ -347,10 +350,10 @@ export function CustomVocabularyHub() {
   }, [receivingSequence]);
 
   const queue = useMemo(() => ({
-    lessons: customLessonWords(state, CUSTOM_VOCABULARY_PACKS).length,
-    reviews: customReviewWords(state, CUSTOM_VOCABULARY_PACKS, now).length,
-    forecast: createReviewForecast(customReviewForecastEntries(state, CUSTOM_VOCABULARY_PACKS), now),
-  }), [now, state]);
+    lessons: customLessonWords(state, allPacks).length,
+    reviews: customReviewWords(state, allPacks, now).length,
+    forecast: createReviewForecast(customReviewForecastEntries(state, allPacks), now),
+  }), [now, state, allPacks]);
   const persistence = storageMode === "cloud"
     ? { label: "Cloud progress", detail: "Synced with your Kakehashi account", Icon: Cloud }
     : { label: "Browser progress", detail: "Saved on this device", Icon: HardDrive };
@@ -435,6 +438,7 @@ export function CustomVocabularyHub() {
       <header className={`page-header ${styles.pageHeader}`}>
         <div>
           <h1>Custom vocabulary</h1>
+          <div className="cluster"><Link href="/custom-vocabulary/library">Create or import vocabulary</Link><Link href="/settings#custom-srs-settings">Scheduling settings</Link></div>
           <p>Add common words beyond WaniKani, from everyday kana to vocabulary matched to the kanji you already know.</p>
         </div>
         <div className={styles.persistence} aria-label={`${persistence.label}. ${persistence.detail}.`}>
@@ -474,16 +478,17 @@ export function CustomVocabularyHub() {
             ref={packShelfRef}
             className={styles.packShelf}
             data-receiving={receivingSequence === null ? undefined : "true"}
-            aria-label={`${state.enrolledPackIds.length} of ${CUSTOM_VOCABULARY_PACKS.length} vocabulary packs added`}
+            aria-label={`${state.enrolledPackIds.length} of ${allPacks.length} vocabulary packs added`}
           >
             <Library size={17} aria-hidden="true" />
             <span>
               <strong>{state.enrolledPackIds.length}</strong>
-              <span> of {CUSTOM_VOCABULARY_PACKS.length}</span>
+              <span> of {allPacks.length}</span>
               <span className={styles.packShelfAdded}> added</span>
             </span>
           </div>
         </div>
+        {renderPackGroup("personal-packs-heading", "Your private decks", personalPacks)}
         {renderPackGroup("custom-kana-packs-heading", "Kana & everyday language", kanaPacks)}
         {renderPackGroup("custom-kanji-packs-heading", "Kanji by WaniKani level", kanjiPacks)}
       </section>
@@ -495,8 +500,9 @@ export function CustomVocabularyHub() {
         </summary>
         <div className={styles.schedulingBody}>
           <div>
-            <h2>Adaptive timing, familiar stages</h2>
-            <p>Reviews are scheduled with adaptive FSRS while progress is shown as Apprentice, Guru, Master, Enlightened, and Burned. The stages feel familiar, but review timing is personalized and does not reproduce WaniKani’s exact schedule.</p>
+            <h2>Your schedule, familiar stages</h2>
+            <Link href="/settings#custom-srs-settings">Configure your schedule</Link>
+            <p>Choose WaniKani-style stage intervals or adaptive FSRS timing for your account. Both use Apprentice, Guru, Master, Enlightened, and Burned. Changing settings preserves existing due dates and progress.</p>
           </div>
           <div className={styles.stageTrail} aria-label="Custom vocabulary SRS stages">
             {STAGE_GROUPS.map((group) => <span key={group.key}><SrsStageIcon stage={group.stage} size={18} />{group.label}</span>)}

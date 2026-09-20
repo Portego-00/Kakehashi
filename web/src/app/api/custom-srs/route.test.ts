@@ -1,7 +1,8 @@
+import { DEFAULT_CUSTOM_SRS_SETTINGS } from "@/features/custom-srs/srs-settings";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { CUSTOM_VOCABULARY_WORDS, customVocabularyPack } from "@/features/custom-srs/catalog";
-import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview } from "@/features/custom-srs/model";
+import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview, updateCustomSrsSettings } from "@/features/custom-srs/model";
 import { clearRateLimitsForTests } from "@/lib/server/rate-limit";
 
 const mocks = vi.hoisted(() => ({
@@ -233,5 +234,23 @@ describe("custom SRS route", () => {
     expect(limited.status).toBe(429);
     expect(limited.headers.get("Retry-After")).toBeTruthy();
     expect(mocks.mutate).toHaveBeenCalledTimes(expectedLimit);
+  });
+});
+
+describe("account scheduling settings API", () => {
+  it("validates settings, uses the authenticated account, and returns conflicts for stale forms", async () => {
+    clearRateLimitsForTests();
+    mocks.configured.mockReturnValue(true);
+    mocks.identity.mockResolvedValue({ id: "123", username: "Portego", level: 12 });
+    let state = createCustomSrsState();
+    mocks.mutate.mockImplementation(async (_id, _packs, transform) => ({ available: true, state: state = transform(state, new Date()), revision: 1 }));
+    const payload = { action: "update_settings", accountId: "123", eventId: crypto.randomUUID(), settings: DEFAULT_CUSTOM_SRS_SETTINGS, expectedSettingsRevision: 0 };
+    expect((await POST(request("POST", { ...payload, accountId: "other" }))).status).toBe(403);
+    expect((await POST(request("POST", { ...payload, settings: { ...payload.settings, requestRetention: 2 } }))).status).toBe(400);
+    expect((await POST(request("POST", payload))).status).toBe(200);
+    expect(mocks.mutate).toHaveBeenLastCalledWith("123", expect.any(Array), expect.any(Function), undefined, undefined, { wordIds: [], eventId: payload.eventId });
+    expect((await POST(request("POST", payload))).status).toBe(200);
+    expect((await POST(request("POST", { ...payload, eventId: crypto.randomUUID() }))).status).toBe(409);
+    expect(state).toEqual(updateCustomSrsSettings(state, payload.settings, 0, payload.eventId));
   });
 });

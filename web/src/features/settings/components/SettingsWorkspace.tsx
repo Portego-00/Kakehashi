@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { AnimePicker } from "@/features/anime/AnimePicker";
 import type { AnimeListProvider } from "@/features/anime/types";
+import { CustomSrsSettingsSection } from "@/features/custom-srs/CustomSrsSettings";
+import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
@@ -394,6 +396,8 @@ export function SettingsWorkspace() {
         {settings.study.autoplayAudio ? <label data-settings-search="" className={styles.selectRow}><span><strong>Voice actor</strong><small>Prefer Kyoko, Kenichi, a random voice, or play both.</small></span><select aria-label="Voice actor" value={settings.study.vocabularyAudioVoice} onChange={(event) => updateStudy("vocabularyAudioVoice", event.target.value as WebSettings["study"]["vocabularyAudioVoice"])}><option value="female">Female · Kyoko</option><option value="male">Male · Kenichi</option><option value="random">Random</option><option value="both">Both</option></select></label> : null}
       </Card>
     </section>
+
+    {user && canAccessCustomSrs(username) && waniKaniUserId(user) ? <CustomSrsSettingsSection key={waniKaniUserId(user)} accountId={waniKaniUserId(user)} /> : null}
 
     <section className={styles.settingsSection} aria-labelledby="extra-study-reading-heading">
       <div className={styles.sectionIntro}><Check size={19} aria-hidden /><div><h2 id="extra-study-reading-heading">Extra study &amp; reading</h2><p>Set defaults for custom quizzes, listening practice, and books.</p></div></div>

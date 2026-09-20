@@ -117,7 +117,7 @@ async function readSelectedState(userId: string, packs: readonly CustomVocabular
 }
 
 async function compareAndSetRemoteState(userId: string, expectedRevision: number, previous: CustomSrsState, state: CustomSrsState) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/patch_custom_srs_state`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/patch_custom_srs_state_v2`, {
     method: "POST",
     headers: headers({ Accept: "application/json", "Content-Type": "application/json" }),
     body: JSON.stringify({ p_user_id: userId, p_expected_revision: expectedRevision, ...customSrsStatePatch(previous, state) }),
@@ -155,4 +155,16 @@ export async function mutateRemoteCustomSrsState(
     if (revision !== null) return respond({ state: next, revision });
   }
   throw new Error("Custom SRS state changed in another session. Retry the action.");
+}
+
+/** Private library RPCs use the same service credentials and verified account as SRS. */
+export async function personalVocabularyRpc(name: "read_custom_vocabulary" | "mutate_custom_vocabulary", parameters: Record<string, unknown>) {
+  if (!customSrsBackendConfigured()) throw new Error("Custom vocabulary cloud storage is not configured.");
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
+    method: "POST", headers: headers({ "Content-Type": "application/json" }), cache: "no-store", signal: AbortSignal.timeout(20_000),
+    body: JSON.stringify(parameters),
+  });
+  const payload = await readBoundedJson(response, 16_000_000);
+  if (!response.ok) throw backendError(payload, response.status);
+  return payload;
 }

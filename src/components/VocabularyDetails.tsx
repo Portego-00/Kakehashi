@@ -1,3 +1,4 @@
+import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { useNavigation } from "@react-navigation/native";
@@ -3289,6 +3290,7 @@ export default function VocabularyDetails({
           </TouchableOpacity>
 
           <View style={styles.headerActions}>
+            <SubjectHistoryButton subjectType="vocabulary" meaning={vocabulary.meanings.find(item => item.primary)?.meaning} subjectId={vocabulary.id} label={vocabulary.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
                 onPress={onAddToList}

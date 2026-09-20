@@ -149,7 +149,7 @@ export function customReviewForecastEntries(state: CustomSrsState, packs: readon
     : []));
   return Object.values(state.assignments).flatMap((assignment) => {
     const active = activeWords.get(assignment.wordId);
-    if (!active || active.packId !== assignment.packId || !assignment.startedAt || assignment.burnedAt || !assignment.availableAt || !srsGroup(assignment.stage)) return [];
+    if (assignment.archivedAt || !active || active.packId !== assignment.packId || !assignment.startedAt || assignment.burnedAt || !assignment.availableAt || !srsGroup(assignment.stage)) return [];
     if (!Number.isFinite(Date.parse(assignment.availableAt))) return [];
     return [{
       id: assignment.wordId,
