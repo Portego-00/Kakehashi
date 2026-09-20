@@ -1,0 +1,39 @@
+.page { max-width: 76rem; display: grid; gap: 20px; }
+.header, .toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.header h1 { margin: 12px 0 8px; }
+.page p, .editor p { margin: 0; line-height: 1.6; color: var(--color-muted); }
+.page label, .editor label { display: grid; gap: 8px; font-weight: 600; min-width: 0; }
+.page label > span, .editor label > span { font-size: 13px; font-weight: 400; color: var(--color-muted); line-height: 1.5; }
+.page input:not([type="checkbox"]), .page select, .page textarea { min-width: 0; width: 100%; border: 1px solid var(--color-rule-2); border-radius: 6px; padding: 10px 12px; background: var(--color-paper); color: var(--color-ink); font: inherit; font-weight: 400; }
+.page textarea { resize: vertical; }
+.page input:focus-visible, .page select:focus-visible, .page textarea:focus-visible, .page summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.toolbar { border-bottom: 1px solid var(--color-rule-2); padding-bottom: 16px; }
+.toolbar > label:first-child { flex: 1; min-width: 220px; max-width: 440px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.page .checkbox { display: flex; align-items: center; gap: 10px; font-weight: 400; }
+.checkbox input { width: 18px; height: 18px; accent-color: var(--color-accent); }
+.words { list-style: none; margin: 0; padding: 0; }
+.words li { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--color-rule-2); }
+.words li > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.word { font-size: 24px; font-weight: 650; }
+.reading { display: inline-block; color: var(--color-muted); margin-left: 16px; }
+.words p { margin-top: 6px; }
+.editor { max-width: 860px; display: grid; gap: 20px; }
+.editor h2, .editor h3 { margin: 0; }
+.fields { border: 0; padding: 0; margin: 0; display: grid; gap: 20px; min-width: 0; }
+.twoColumns, .mapping { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.sentence { display: grid; gap: 16px; border-left: 2px solid var(--color-rule-2); padding-left: 16px; }
+.sentence button { justify-self: start; }
+.error, .page .error { color: var(--color-danger); overflow-wrap: anywhere; }
+.empty { padding: 32px 0; display: grid; gap: 16px; justify-items: start; }
+.confirm { padding: 20px; border: 1px solid var(--color-rule-2); border-radius: 8px; display: grid; gap: 12px; }
+.footer { border-top: 1px solid var(--color-rule-2); padding-top: 20px; font-size: 13px; }
+.tableScroll { max-height: 420px; overflow: auto; margin: 16px 0; border: 1px solid var(--color-rule-2); }
+.tableScroll table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+.tableScroll th, .tableScroll td { padding: 10px 12px; border-bottom: 1px solid var(--color-rule-2); vertical-align: top; min-width: 80px; max-width: 280px; overflow-wrap: anywhere; }
+.tableScroll th { position: sticky; top: 0; background: var(--color-paper-2); }
+.muted { font-weight: 400; color: var(--color-muted); }
+.editor details summary { cursor: pointer; margin-bottom: 12px; }
+@media (max-width: 600px) { .twoColumns, .mapping { grid-template-columns: minmax(0, 1fr); } .toolbar > label:first-child { max-width: none; width: 100%; } .words li { align-items: flex-start; flex-direction: column; gap: 12px; } .header { align-items: flex-start; } }
+.page, .editor, .editor > * { min-width: 0; }
+.editor { width: 100%; }
