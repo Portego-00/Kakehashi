@@ -314,7 +314,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     reviewInputFontScale: 1,
     pauseOnWrong: true,
     pauseOnClose: false,
-    pauseOnCorrect: false,
+    pauseOnCorrect: true,
     srsProgressionCardDisplayMode: "normal",
     acceptUserSynonymsAsAnswers: false,
     showAddSynonymButton: true,

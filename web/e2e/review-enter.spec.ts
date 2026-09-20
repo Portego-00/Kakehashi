@@ -496,3 +496,34 @@ test("review loading follows the subject and answer layout", async ({ page }) =>
   await expect(page.getByRole("textbox", { name: "Your answer" })).toBeVisible();
   await expect(loading).not.toBeVisible();
 });
+
+test("details spread the opening and closing movement across the transition", async ({ page }) => {
+  await mockReview(page);
+  await page.goto("/reviews");
+  const input = page.getByRole("textbox", { name: "Your answer" });
+  await input.fill("wrong");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  async function measureToggle() {
+    return page.locator("[data-review-details-reveal]").evaluate((panel) => new Promise<{ ms: number; height: number; hero: number }[]>((resolve) => {
+      const input = document.querySelector<HTMLInputElement>('#review-answer')!;
+      const hero = document.querySelector('header[aria-label="Review prompt"]')!;
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "d", bubbles: true }));
+      const start = performance.now();
+      const samples: { ms: number; height: number; hero: number }[] = [];
+      function frame() {
+        samples.push({ ms: performance.now() - start, height: panel.getBoundingClientRect().height, hero: hero.getBoundingClientRect().height });
+        if (performance.now() - start < 650) requestAnimationFrame(frame); else resolve(samples);
+      }
+      requestAnimationFrame(frame);
+    }));
+  }
+  const opening = await measureToggle();
+  const fullHeight = opening.at(-1)!.height;
+  expect(fullHeight).toBeGreaterThan(100);
+  expect(opening.find(frame => frame.ms >= 120)!.height / fullHeight).toBeLessThan(.35);
+  expect(opening.filter(frame => frame.height > 5 && frame.height < fullHeight - 5).length).toBeGreaterThan(10);
+  const closing = await measureToggle();
+  expect(closing.find(frame => frame.ms >= 120)!.height / fullHeight).toBeGreaterThan(.65);
+  expect(closing.at(-1)!.height).toBe(0);
+});

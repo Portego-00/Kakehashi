@@ -48,7 +48,7 @@ import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
 
 import { ReviewExitGuard } from "./ReviewExitGuard";
-import { ReviewDetailsReveal } from "@/features/study/components/ReviewDetailsReveal";
+import { ReviewDetailsReveal, REVIEW_DETAILS_DURATION_MS } from "@/features/study/components/ReviewDetailsReveal";
 
 import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { wkHead, type MixedBridge } from "@/features/mixed-reviews/ordering";
@@ -515,6 +515,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const sessionItemIds = new Set([...questions.map((question) => question.assignment.id), ...submittedIds]);
   const totalItems = sessionItemIds.size || selectedAssignments.length;
   const completedItems = submittedIds.filter((id) => sessionItemIds.has(id)).length;
+  const reportMixedProgress = useEffectEvent(() => mixed?.reportProgress?.({ completed: completedItems, total: totalItems }));
+  useEffect(() => { reportMixedProgress(); }, [completedItems, totalItems]);
   const currentUsesSelfAssessment = Boolean(current && usesSelfAssessment(current.kind, preferences));
   const reviewViewportRef = useMobileReviewViewport<HTMLDivElement>(mixed?.active !== false && phase === "quiz" && !currentUsesSelfAssessment);
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status) || Boolean(currentUsesSelfAssessment && ankiRevealed);
@@ -794,7 +796,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
     setAdvancingQuestion(true);
     setStudyDetailsExpanded(false);
-    advanceTimerRef.current = window.setTimeout(run, 280);
+    advanceTimerRef.current = window.setTimeout(run, REVIEW_DETAILS_DURATION_MS);
   }
 
   const autoAdvance = useEffectEvent(() => { void advance(); });
@@ -1039,7 +1041,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const selfAssessment = currentUsesSelfAssessment;
   const jitaiFamily = resolveJitaiFontFamily(preferences, current.id);
   const subjectType = current.subject.object.replace("_", " ");
-  const itemProgress = totalItems ? Math.min(1, completedItems / totalItems) : 0;
+  const displayTotal = mixed?.progress?.total ?? totalItems;
+  const displayCompleted = mixed?.progress?.completed ?? completedItems;
+  const itemProgress = displayTotal ? Math.min(1, displayCompleted / displayTotal) : 0;
   const isVocabularyQuestion = current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary";
   const showContextHint = preferences.showVocabContextSentencesInReviews && isVocabularyQuestion && contextSentences.length > 0;
   const showReviewMetadata = preferences.showReviewItemLevelAndSrsStage;
@@ -1069,8 +1073,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   return <div ref={reviewViewportRef} className={quiz.quizShell} data-study-session="active" data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title">
         <ReviewExitGuard pendingSubjects={pendingSubjectIds.size} />
         <div className={quiz.quizTopbar}>
-          <div className={styles.sessionProgress}><span>{mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(totalItems, completedItems + 1)} / {totalItems}</strong></div>
-        <div className={quiz.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={totalItems} aria-valuenow={completedItems}><span style={{ transform: `scaleX(${itemProgress})` } as React.CSSProperties} /></div>
+          <div className={styles.sessionProgress}><span>{mixed ? "Mixed reviews" : mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(displayTotal, displayCompleted + 1)} / {displayTotal}</strong></div>
+        <div className={quiz.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={displayTotal} aria-valuenow={displayCompleted}><span style={{ transform: `scaleX(${itemProgress})` } as React.CSSProperties} /></div>
           <div className={quiz.quizTopbarActions}>{mode === "lessons" ? <Button className={styles.bandAction} tone="ghost" size="small" disabled={lessonMutation.isPending} onClick={startLessonsOver}>Start over</Button> : null}{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{!feedback ? <Button className={quiz.skipButton} tone="ghost" size="small" aria-label="Skip review" disabled={!questions.some((question) => question.assignment.id !== current.assignment.id)} onClick={skipCurrentQuestion}><SkipForward size={17} aria-hidden />Skip</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink className={quiz.iconButton} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small" aria-label="Search this item"><Search size={17} aria-hidden /></ButtonLink> : null}<ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" size="small" aria-label="Pause"><X size={19} aria-hidden /></ButtonLink></div>
         </div>
 

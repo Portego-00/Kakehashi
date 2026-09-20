@@ -24,8 +24,8 @@ async function start() { setup(); fireEvent.click(await screen.findByRole("butto
 it.each([["Grammar", "grammar"], ["Vocabulary", "vocab"], ["Grammar & vocabulary", "all"]])("loads %s reviews", async (label, mode) => { setup(); fireEvent.click(screen.getByLabelText(label)); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); expect(bunpro).toHaveBeenCalledWith(`action=queue&mode=${mode}`); });
 it("accepts alternate answers, converts kana, and saves only on Continue", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "da" } }); expect(screen.getByLabelText("Your answer")).toHaveValue("だ"); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Correct")).toBeVisible(); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); const call = vi.mocked(bunpro).mock.calls.find(([, options]) => options?.method === "POST"); expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ correct: true, sessionId: 1, reviewId: "10" }); });
 it("gives an alternate-answer hint without marking incorrect", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "でした" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Use the present tense.")).toBeVisible(); expect(screen.queryByText("Incorrect")).not.toBeInTheDocument(); });
-it("repeats a missed item without submitting it twice", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findAllByText("Practice again"); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1); });
-it("keeps the current answer when saving fails", async () => { await start(); vi.mocked(bunpro).mockRejectedValueOnce(new Error("Service unavailable")); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByRole("alert"); expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled(); expect(screen.queryAllByText("Practice again")).toHaveLength(0); });
+it("repeats a missed item without submitting it twice", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findAllByText("Retrying missed item"); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1); });
+it("keeps the current answer when saving fails", async () => { await start(); vi.mocked(bunpro).mockRejectedValueOnce(new Error("Service unavailable")); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByRole("alert"); expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled(); expect(screen.queryAllByText("Retrying missed item")).toHaveLength(0); });
 it.each(["Learner", "demo-level-21"])("hides settings and the home button from %s", (username) => { session.user.data.username = username; setup(<><BunproSettings /><BunproHomeButton /></>); expect(screen.queryByText("Bunpro API key")).not.toBeInTheDocument(); expect(screen.queryByText("Bunpro reviews")).not.toBeInTheDocument(); expect(bunpro).not.toHaveBeenCalled(); });
 it("validates and clears the API-key field after saving", async () => { setup(<BunproSettings />); fireEvent.change(screen.getByLabelText("Bunpro API key"), { target: { value: "private-key" } }); vi.mocked(bunpro).mockResolvedValueOnce({ connected: true }); fireEvent.click(screen.getByRole("button", { name: "Save" })); await waitFor(() => expect(screen.getByLabelText("Bunpro API key")).toHaveValue("")); expect(bunpro).toHaveBeenCalledWith("", expect.objectContaining({ body: JSON.stringify({ action: "connect", token: "private-key" }) })); });
 it("preserves furigana and strips executable markup", () => { const { container } = render(<BunproText value={'<strong>私(わたし)</strong><script>alert(1)</script><a href="javascript:alert(1)">bad link</a><img src="x" onerror="alert(1)">'} />); expect(container.querySelector("ruby rt")).toHaveTextContent("わたし"); expect(container.querySelector("script, img, a")).toBeNull(); expect(screen.getByText("bad link")).toBeVisible(); });
@@ -73,12 +73,12 @@ it("opens Bunpro details on a paused wrong answer when enabled", async () => {
   expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
   expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled();
 });
-it("plays the preferred voices and keeps the answer until Next", async () => {
-  const players: EventTarget[] = [];
+it.each(["both", "male"] as const)("autoplays only the female voice with %s selected and keeps the answer until Next", async (vocabularyAudioVoice) => {
+  const players: (EventTarget & { src: string })[] = [];
   const play = vi.fn().mockResolvedValue(undefined);
   const pause = vi.fn();
   vi.stubGlobal("Audio", class extends EventTarget { constructor(public src: string) { super(); players.push(this); } play = play; pause = pause; });
-  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: false, autoplayAudio: true, vocabularyAudioVoice: "both" } });
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: false, autoplayAudio: true, vocabularyAudioVoice } });
   vi.mocked(bunpro).mockImplementation(async (query) => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [{ ...item, included: item.included!.map((resource) => resource.type === "study_question" ? { ...resource, attributes: { ...resource.attributes, female_audio_url: "https://audio.test/female.mp3", male_audio_url: "https://audio.test/male.mp3" } } : resource) }], pending_wrapup: [] } : {});
   try {
     await start();
@@ -91,8 +91,8 @@ it("plays the preferred voices and keeps the answer until Next", async () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
     expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
     await act(async () => { players[0].dispatchEvent(new Event("ended")); });
-    expect(play).toHaveBeenCalledTimes(2);
-    await act(async () => { players[1].dispatchEvent(new Event("ended")); });
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(players[0].src).toBe("https://audio.test/female.mp3");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Bunpro reviews complete");
   } finally { vi.unstubAllGlobals(); }
@@ -341,4 +341,36 @@ it("wraps up after the configured number without loading additional items", asyn
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("Bunpro reviews complete");
   expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+
+it("advances mixed reviews after a successful null submission response", async () => {
+  const report = vi.fn();
+  setup(<BunproReviews initialMode="all" mixed={{ active: true, report }} />);
+  await screen.findByLabelText("Your answer");
+  vi.mocked(bunpro).mockImplementation(async (query, options) => options?.method === "POST" ? null : query === "action=connection" ? { connected: true } : {});
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+
+it("shows matching keycaps and supports corrections, alternatives, and undo from the answered input", async () => {
+  await start();
+  const input = screen.getByLabelText("Your answer");
+  fireEvent.change(input, { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  for (const [button, key] of [["Undo", "U"], ["Info", "D"], ["Alternatives", "A"], ["Mark Incorrect", "X"]]) {
+    expect(screen.getByRole("button", { name: button }).querySelector("kbd")).toHaveTextContent(key);
+  }
+  fireEvent.keyDown(input, { key: "x" });
+  expect(screen.getByRole("button", { name: "Mark Correct" }).querySelector("kbd")).toHaveTextContent("C");
+  fireEvent.keyDown(input, { key: "c" });
+  expect(screen.getByRole("button", { name: "Mark Incorrect" })).toBeEnabled();
+  fireEvent.keyDown(input, { key: "a" });
+  expect(screen.getByRole("heading", { name: "Accepted answers" })).toBeVisible();
+  fireEvent.keyDown(input, { key: "u" });
+  expect(screen.getByRole("button", { name: "Check" })).toBeVisible();
+  expect(input).toHaveValue("");
 });

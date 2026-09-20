@@ -294,6 +294,6 @@
 .forecastFilterLabel { align-self: center; margin-right: 4px; font-size: var(--text-sm); color: var(--color-muted); }
 
 /* Let the detail backgrounds reach the review shell edges outside the answer gutter. */
-.reviewDetails { min-width: 0; margin-inline: calc(-1 * var(--page-gutter)); }
+.reviewDetails { min-width: 0; }
 
 .reviewShell .sentence, .reviewShell :global([aria-label="Anki answer"]) :global([lang="ja"]) { font-family: var(--jitai-font, var(--font-japanese)); }

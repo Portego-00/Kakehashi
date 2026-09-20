@@ -12,7 +12,7 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({ useWebSettings
 vi.mock("@/features/study/feedback-audio", () => ({ playAnswerFeedback: vi.fn() }));
 vi.mock("@/features/core-study/CoreStudySession", () => ({ CoreStudySession: ({ mixed }: { mixed: MixedBridge }) => {
   const [step, setStep] = useState(0);
-  const report = useEffectEvent(() => { mixed.report(step === 2 ? null : { id: `wk-${step}`, source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" }); });
+  const report = useEffectEvent(() => { mixed.reportProgress?.({ completed: step, total: 2 }); mixed.report(step === 2 ? null : { id: `wk-${step}`, source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" }); });
   useEffect(() => { report(); }, [step]);
   return <>{mixed.active ? <MixedPreviousBadge answer={mixed.previous} animate={false} /> : null}<button onClick={() => { mixed.onAnswer?.({ id: `wk-${step}`, source: "wanikani", title: "川", correct: true }); setStep(step + 1); }}>{step === 2 ? "WK complete" : `Complete WK question ${step + 1}`}</button></>;
 } }));
@@ -39,6 +39,8 @@ it("interleaves both Bunpro queues and keeps each session's submission independe
   expect(screen.queryByRole("navigation", { name: "Active review service" })).not.toBeInTheDocument();
   expect(await screen.findByLabelText("Previous WaniKani answer: 川, correct")).toBeVisible();
   for (const answer of ["です", "ねこ"]) {
+    await waitFor(() => expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "4"));
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", answer === "です" ? "1" : "3");
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: answer } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));

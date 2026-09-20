@@ -23,6 +23,7 @@ import { BunproLoading } from "./BunproLoading";
 import { BunproDetails } from "./BunproDetails";
 import { BunproText, RubyText } from "./BunproText";
 import { buildAnswerFeedbackMap, buildReviewQueue, collectAcceptedAnswers, normalizeAnswer, parseQuestionSentence, pendingReviewTotal, pickCanonicalAnswer, reviewContent, sanitizeQuestionContent, sanitizeText, type BunproReviewQueueItem, type BunproReviewQuizIndexResponse, type ReviewMode } from "./model";
+import { ReviewDetailsReveal } from "@/features/study/components/ReviewDetailsReveal";
 import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import quiz from "@/features/study/study.module.css";
 import core from "@/features/core-study/core-study.module.css";
@@ -57,6 +58,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const [alternativesOpen, setAlternativesOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [visitedDetails, setVisitedDetails] = useState<string | null>(null);
   const [detailsOverride, setDetailsOverride] = useState<boolean | null>(null);
   const [results, setResults] = useState<{ title: string; correct: boolean }[]>([]);
   const [submitted, setSubmitted] = useState(new Set<string>());
@@ -85,6 +87,9 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load reviews."); setPhase("choose"); }
     finally { locked.current = false; }
   }
+  const total = Math.max(reviewTotal, results.length + queue.filter((item) => !submitted.has(item.data.id)).length);
+  const reportMixedProgress = useEffectEvent(() => mixed?.reportProgress?.({ completed: results.length, total }));
+  useEffect(() => { reportMixedProgress(); }, [results.length, total]);
   const startedFromCard = useRef(false);
   const startFromCard = useEffectEvent(() => { void start(); });
   useEffect(() => {
@@ -116,6 +121,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const displayAnswers = bunproDisplayAnswers(question);
   const paused = Boolean(outcome && shouldPauseAfterResult(outcome.correct ? "correct" : "incorrect", preferences));
   const details = Boolean(revealed && (detailsOverride ?? (paused && preferences.showAnswerStopSubjectDetails)));
+  if (details && current && visitedDetails !== current.data.id) setVisitedDetails(current.data.id);
   const accepted = displayAnswers;
   const alternativeFeedback = [...buildAnswerFeedbackMap(question.alternate_answers)];
   const hasAudio = bunproAudioUrls(question, "both").length > 0;
@@ -137,7 +143,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   function revealAnswer() {
     if (revealed || !selfAssessment || !current) return;
     setAnkiRevealed(true);
-    if (preferences.autoplayAudio) void replayAudio();
+    if (preferences.autoplayAudio) void audio.play(bunproAudioUrls(question, "female"));
   }
   function gradeSelf(correct: boolean) {
     if (!ankiRevealed || outcome || saving) return;
@@ -152,7 +158,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     setHint(correct ? "" : buildAnswerFeedbackMap(question.wrong_answers).get(normalizeAnswer(input)) ?? "");
     setOutcome({ correct, entered: input });
     if (preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correct);
-    if (preferences.autoplayAudio && (correct || preferences.pauseOnWrong)) void replayAudio();
+    if (preferences.autoplayAudio && (correct || preferences.pauseOnWrong)) void audio.play(bunproAudioUrls(question, "female"));
   }
   async function advance() {
     if (!current || !content || !outcome || locked.current) return;
@@ -164,7 +170,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
       let saved = submitted;
       let expectedTotal = reviewTotal;
       if (!isRepeat) {
-        const response = await bunpro<Partial<BunproReviewQuizIndexResponse> & Record<string, unknown>>("", { method: "POST", body: JSON.stringify({ action: "review", reviewId: current.data.id, sessionId, correct: outcome.correct, mode, ...(lessonSession ? { context: "learn" } : {}), requestMore: !lessonSession && submitted.size + queue.filter((item) => !submitted.has(item.data.id)).length < sessionLimit.current && queue.filter((item) => !submitted.has(item.data.id)).length <= 10, reviewableType: content.kind === "grammar" ? "GrammarPoint" : "Vocab", loadedIds: queue.filter((item) => !submitted.has(item.data.id)).map((item) => Number(item.data.id)) }) });
+        const response = await bunpro<(Partial<BunproReviewQuizIndexResponse> & Record<string, unknown>) | null>("", { method: "POST", body: JSON.stringify({ action: "review", reviewId: current.data.id, sessionId, correct: outcome.correct, mode, ...(lessonSession ? { context: "learn" } : {}), requestMore: !lessonSession && submitted.size + queue.filter((item) => !submitted.has(item.data.id)).length < sessionLimit.current && queue.filter((item) => !submitted.has(item.data.id)).length <= 10, reviewableType: content.kind === "grammar" ? "GrammarPoint" : "Vocab", loadedIds: queue.filter((item) => !submitted.has(item.data.id)).map((item) => Number(item.data.id)) }) });
         setProgression(bunproProgression(current.data.id, sanitizeText(content.attributes.title) || answer, current.data.attributes, response));
         void queryClient.invalidateQueries({ queryKey: ["bunpro", "due"] });
         void queryClient.invalidateQueries({ queryKey: ["bunpro", "forecast"] });
@@ -172,7 +178,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
         saved = new Set(submitted).add(current.data.id);
         setSubmitted(saved);
         const seen = new Set([...saved, ...next.map((item) => item.data.id)]);
-        next = [...next, ...(lessonSession ? [] : orderBunproReviews(buildReviewQueue(response), preferences)).filter((item) => !seen.has(item.data.id))];
+        next = [...next, ...(lessonSession ? [] : orderBunproReviews(buildReviewQueue(response ?? {}), preferences)).filter((item) => !seen.has(item.data.id))];
         let remainingSlots = Math.max(0, sessionLimit.current - saved.size);
         next = next.filter((item) => saved.has(item.data.id) || remainingSlots-- > 0);
         expectedTotal = Math.min(sessionLimit.current, Math.max(expectedTotal, saved.size + next.filter((item) => !saved.has(item.data.id)).length));
@@ -231,12 +237,23 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   }, [progression]);
   const shortcut = useEffectEvent((event: KeyboardEvent) => {
     const target = event.target;
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.isComposing || composing.current || !(target instanceof HTMLElement) || target.closest("button, a, select, textarea, [contenteditable=true]")) return;
-    if (event.key === "Enter" && !target.closest("input")) { event.preventDefault(); if (outcome) void advance(); else if (selfAssessment) revealAnswer(); else check(); }
-    if (selfAssessment && ankiRevealed && !outcome && (event.key === "1" || event.key === "2")) { event.preventDefault(); gradeSelf(event.key === "2"); }
-    if (revealed && event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOverride(!details); }
-    if (revealed && event.key.toLowerCase() === "r") { event.preventDefault(); void replayAudio(); }
-    if (revealed && event.key === " " && !target.closest("input")) { event.preventDefault(); void replayAudio(); }
+    if (saving || document.querySelector("dialog[open]") || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.isComposing || composing.current || !(target instanceof HTMLElement) || target.closest("select, textarea, [contenteditable=true]")) return;
+    if (target.closest("input") && target !== inputRef.current) return;
+    const key = event.key.toLowerCase();
+    if (key === "enter" && !target.closest("input, button, a")) { event.preventDefault(); if (outcome) void advance(); else if (selfAssessment) revealAnswer(); else check(); return; }
+    if (!revealed && target.closest("input")) return;
+    if (selfAssessment && ankiRevealed && !outcome && (key === "1" || key === "2")) { event.preventDefault(); gradeSelf(key === "2"); }
+    if (key === "h" && content?.kind === "grammar") { event.preventDefault(); setHintLevel((level) => (level + 1) % 5); }
+    if (key === "s" && preferences.allowSkippingReviews && queue.length > 1) { event.preventDefault(); skip(); }
+    if (!revealed) return;
+    if (key === "d" && content?.slug) { event.preventDefault(); setDetailsOverride(!details); }
+    if (hasAudio && (key === "r" || (key === " " && !target.closest("input, button, a")))) { event.preventDefault(); void replayAudio(); }
+    if (!outcome) return;
+    if (key === "a") { event.preventDefault(); setAlternativesOpen(!alternativesOpen); }
+    if (current && !submitted.has(current.data.id)) {
+      if (key === "u") { event.preventDefault(); resetAnswer(); }
+      if (key === "x" || key === "c") { event.preventDefault(); setOutcome({ ...outcome, correct: key === "c" }); }
+    }
   });
   useEffect(() => {
     if (mixed?.active === false || phase !== "review" || !preferences.keyboardShortcuts) return;
@@ -250,12 +267,13 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   if (phase === "complete") return <main className={styles.chooser}><BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} /><h1>{results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"}</h1><p>{results.length ? `${results.length} reviews saved · ${results.filter((item) => item.correct).length} correct on the first attempt` : `You are caught up with ${labels[mode].toLowerCase()}.`}</p>{results.length ? <ul className={styles.results}>{results.map((item, index) => <li key={index}><span lang="ja">{item.title}</span><span>{item.correct ? "Correct" : "Practiced again"}</span></li>)}</ul> : null}<div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to home</ButtonLink>{onContinueLessons ? <Button onClick={onContinueLessons}>Continue lessons</Button> : <Button onClick={() => setPhase("choose")}>Check for more</Button>}</div></main>;
   if (!current || !content) return null;
   const valid = Boolean(answer && sanitizeQuestionContent(question.content));
-  const total = Math.max(reviewTotal, results.length + queue.filter((item) => !submitted.has(item.data.id)).length);
+  const displayTotal = mixed?.progress?.total ?? total;
+  const displayCompleted = mixed?.progress?.completed ?? results.length;
   return <main ref={reviewViewportRef} className={`${quiz.quizShell} ${styles.reviewShell}`} data-study-session="active" style={{ "--jitai-font": jitaiFamily } as CSSProperties}>
-      <div className={quiz.quizTopbar}><span>Bunpro · {Math.min(results.length + 1, total)} / {total}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={results.length} aria-valuemin={0} aria-valuemax={Math.max(1, total)}><span style={{ transform: `scaleX(${results.length / Math.max(1, total)})` }} /></div><div className={quiz.quizTopbarActions}>{!lessonSession && queue.length > preferences.reviewWrapUpSize ? <Button tone="ghost" size="small" disabled={saving} onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink href={`/search?q=${encodeURIComponent(sanitizeText(content.attributes.title))}`} target="_blank" tone="ghost" aria-label="Search this item"><Search size={18} /></ButtonLink> : null}<ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
+      <div className={quiz.quizTopbar}><span>{mixed ? "Mixed reviews" : "Bunpro"} · {Math.min(displayCompleted + 1, displayTotal)} / {displayTotal}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={displayCompleted} aria-valuemin={0} aria-valuemax={Math.max(1, displayTotal)}><span style={{ transform: `scaleX(${displayCompleted / Math.max(1, displayTotal)})` }} /></div><div className={quiz.quizTopbarActions}>{!lessonSession && queue.length > preferences.reviewWrapUpSize ? <Button tone="ghost" size="small" disabled={saving} onClick={wrapUp}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink href={`/search?q=${encodeURIComponent(sanitizeText(content.attributes.title))}`} target="_blank" tone="ghost" aria-label="Search this item"><Search size={18} /></ButtonLink> : null}<ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
       {mixed?.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} animate={preferences.reviewAnimatePreviousQuestion} /> : null}
       <header className={`${quiz.questionCard} ${styles.sentenceArea}`} aria-label="Bunpro review">
-          {submitted.has(current.data.id) ? <p>Practice again</p> : null}
+          {submitted.has(current.data.id) ? <p>Retrying missed item</p> : null}
           {(hintLevel >= 2 || revealed) && question.tense ? <p><BunproText value={question.tense} /></p> : null}
           <div className={styles.sentence} lang="ja" style={{ fontSize: `calc(clamp(1.6rem, 3vw, 2.8rem) * ${preferences.reviewCharacterFontScale})` }}><RubyText text={sentence.beforeBlank} />{sentence.hasBlank ? <span className={styles.blank} data-correct={outcome?.correct}><RubyText text={revealed ? answer : input || "　　"} /></span> : null}<RubyText text={sentence.afterBlank} /></div>
           {(hintLevel >= 2 || revealed) && question.word_prompt ? <p lang="ja"><BunproText value={question.word_prompt} /></p> : null}
@@ -263,7 +281,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           {hintLevel >= 3 ? <div className={styles.grammarHint} aria-live="polite">{hintLevel >= 4 ? <p lang="ja"><BunproText value={content.attributes.nuance} /></p> : null}<p><BunproText value={content.attributes.nuance_translation} /></p>{question.extra_info ? <p><BunproText value={question.extra_info} /></p> : null}</div> : null}
       </header>
       <div className={quiz.answerArea}>
-        <BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} idleContent={<div className={core.itemMeta}>{preferences.showReviewItemLevelAndSrsStage ? <><span>{sanitizeText(content.attributes.level || content.attributes.jlpt_level)}</span>{bunproStage(current.data.attributes).label ? <span>{bunproStage(current.data.attributes).label}</span> : null}</> : null}<span>{submitted.has(current.data.id) ? "Practice again" : `${results.length} completed`}</span></div>} />
+        <BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} idleContent={<div className={core.itemMeta}>{preferences.showReviewItemLevelAndSrsStage ? <><span>{sanitizeText(content.attributes.level || content.attributes.jlpt_level)}</span>{bunproStage(current.data.attributes).label ? <span>{bunproStage(current.data.attributes).label}</span> : null}</> : null}<span>{`${results.length} completed`}</span></div>} />
         {!valid ? <p role="alert">This review is missing its sentence or accepted answers. Pause and reload the queue before continuing.</p> : selfAssessment ? <>
           {!outcome ? <AnkiAnswerContent revealed={ankiRevealed} hideAnswerCompletely={preferences.ankiHideAnswerCompletely} questionKind={questionKind}
             meaningAnswer={questionKind === "meaning" ? answer : sanitizeText(content.attributes.meaning)} readingAnswer={questionKind === "reading" ? answer : sanitizeText(content.attributes.kana)}
@@ -282,24 +300,24 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           </div>
           <p id={helperId} className="sr-only">{questionKind === "meaning" ? "Enter the English meaning." : "Kana and romaji are accepted."}</p>
         </form>}
-        <div className={styles.answerControls} aria-label="Answer controls">
-          {content.kind === "grammar" ? <Button tone="ghost" aria-label={`Hint level ${hintLevel} of 4`} onClick={() => setHintLevel((level) => (level + 1) % 5)}><Lightbulb size={17} aria-hidden />Hint <span className={styles.hintDots} aria-hidden>{Array.from({ length: 4 }, (_, i) => <span key={i} data-active={i < hintLevel} />)}</span></Button> : null}
+        <div className={`${styles.answerControls} ${quiz.reviewTools}`} aria-label="Answer controls">
+          {content.kind === "grammar" ? <Button tone="ghost" aria-label={`Hint level ${hintLevel} of 4`} onClick={() => setHintLevel((level) => (level + 1) % 5)}><Lightbulb size={17} aria-hidden />Hint {preferences.keyboardShortcuts ? <kbd aria-hidden>H</kbd> : null}<span className={styles.hintDots} aria-hidden>{Array.from({ length: 4 }, (_, i) => <span key={i} data-active={i < hintLevel} />)}</span></Button> : null}
           {outcome ? <>
-            <Button tone="ghost" disabled={saving || submitted.has(current.data.id)} onClick={resetAnswer}><RotateCcw size={17} aria-hidden />Undo</Button>
-            <Button tone="ghost" disabled={!content.slug || saving} aria-controls={detailsId} aria-expanded={details} onClick={() => setDetailsOverride(!details)}><Info size={17} aria-hidden />{details ? "Hide Info" : "Info"}</Button>
-            <Button tone="ghost" disabled={saving} aria-controls={alternativesId} aria-expanded={alternativesOpen} onClick={() => setAlternativesOpen(!alternativesOpen)}><List size={17} aria-hidden />Alternatives</Button>
-            <Button tone="ghost" disabled={!hasAudio || saving} aria-label={audio.playing ? "Replay audio" : "Audio"} onClick={() => void replayAudio()}><Volume2 size={17} aria-hidden />{hasAudio ? "Audio" : "No audio"}</Button>
-            <Button tone={outcome.correct ? "ghost" : "primary"} disabled={saving || submitted.has(current.data.id)} onClick={() => setOutcome({ ...outcome, correct: !outcome.correct })}>{outcome.correct ? <X size={17} aria-hidden /> : <Check size={17} aria-hidden />}{outcome.correct ? "Mark Incorrect" : "Mark Correct"}</Button>
+            <Button tone="ghost" disabled={saving || submitted.has(current.data.id)} onClick={resetAnswer}><RotateCcw size={17} aria-hidden />Undo{preferences.keyboardShortcuts ? <kbd aria-hidden>U</kbd> : null}</Button>
+            <Button tone="ghost" disabled={!content.slug || saving} aria-controls={detailsId} aria-expanded={details} onClick={() => setDetailsOverride(!details)}><Info size={17} aria-hidden />{details ? "Hide Info" : "Info"}{preferences.keyboardShortcuts ? <kbd aria-hidden>D</kbd> : null}</Button>
+            <Button tone="ghost" disabled={saving} aria-controls={alternativesId} aria-expanded={alternativesOpen} onClick={() => setAlternativesOpen(!alternativesOpen)}><List size={17} aria-hidden />Alternatives{preferences.keyboardShortcuts ? <kbd aria-hidden>A</kbd> : null}</Button>
+            <Button tone="ghost" disabled={!hasAudio || saving} aria-label={audio.playing ? "Replay audio" : "Audio"} onClick={() => void replayAudio()}><Volume2 size={17} aria-hidden />{hasAudio ? "Audio" : "No audio"}{preferences.keyboardShortcuts && hasAudio ? <kbd aria-hidden>R</kbd> : null}</Button>
+            <Button tone={outcome.correct ? "ghost" : "primary"} disabled={saving || submitted.has(current.data.id)} onClick={() => setOutcome({ ...outcome, correct: !outcome.correct })}>{outcome.correct ? <X size={17} aria-hidden /> : <Check size={17} aria-hidden />}{outcome.correct ? "Mark Incorrect" : "Mark Correct"}{preferences.keyboardShortcuts ? <kbd aria-hidden>{outcome.correct ? "X" : "C"}</kbd> : null}</Button>
           </> : null}
-          {preferences.allowSkippingReviews ? <Button tone="ghost" disabled={saving || submitted.has(current.data.id) || queue.length < 2} onClick={skip} title="Move this question to the end without saving an answer"><SkipForward size={17} aria-hidden />Skip</Button> : null}
+          {preferences.allowSkippingReviews ? <Button tone="ghost" disabled={saving || submitted.has(current.data.id) || queue.length < 2} onClick={skip} title="Move this question to the end without saving an answer"><SkipForward size={17} aria-hidden />Skip{preferences.keyboardShortcuts ? <kbd aria-hidden>S</kbd> : null}</Button> : null}
         </div>
         {outcome && alternativesOpen ? <section className={styles.alternatives} id={alternativesId}><h3>Accepted answers</h3><ul>{accepted.map((value) => <li key={value} lang="ja">{value}</li>)}</ul>{alternativeFeedback.length ? <><h3>Other answers</h3><p>These answers need a different form or nuance for this question.</p><dl>{alternativeFeedback.map(([value, message]) => <div key={value}><dt lang="ja">{value}</dt><dd>{message}</dd></div>)}</dl></> : null}</section> : null}
-        <p className={quiz.keyboardHint}>{preferences.keyboardShortcuts ? (outcome ? "Enter advances · Space plays audio" : selfAssessment ? ankiRevealed ? "1 marks wrong · 2 marks correct · Space plays audio" : "Press Enter to reveal" : "Press Enter to check") : "Keyboard shortcuts are off"}</p>
+        <p className={quiz.keyboardHint}>{preferences.keyboardShortcuts ? (outcome ? <>Press <kbd>Enter</kbd> to continue · <kbd>D</kbd> toggles details{hasAudio ? <> · <kbd>R</kbd> replays audio</> : null}</> : selfAssessment ? ankiRevealed ? <><kbd>1</kbd> marks wrong · <kbd>2</kbd> marks correct{hasAudio ? <> · <kbd>R</kbd> replays audio</> : null}</> : <>Press <kbd>Enter</kbd> to reveal</> : <>Press <kbd>Enter</kbd> to check</>) : "Keyboard shortcuts are off"}</p>
         {speechError ? <p role="status">{speechError}</p> : null}
         {audio.error ? <p role="status" className={core.answerHelper}>{audio.error}</p> : null}
         {hint ? <p role="status">{hint}</p> : null}
         {outcome ? <div role="status" className={quiz.answerStatus}><strong className={quiz.answerVerdict} data-correct={outcome.correct}>{outcome.correct ? "Correct" : "Incorrect"}</strong><p>{outcome.correct ? "Your answer is correct." : <>The answer is <span lang="ja">{answer}</span>.</>}</p>{paused && preferences.showAnswerStopSubjectDetails ? <div className={core.answerStopDetails}><span>Expected answer</span><strong lang="ja">{answer}</strong></div> : null}{error ? <p className={core.error} role="alert">{error} Your current answer is kept on screen.</p> : null}</div> : null}
-        {details && content.slug ? <div id={detailsId} className={styles.reviewDetails}><BunproDetails key={`${content.kind}:${content.slug}`} kind={content.kind} slug={content.slug} review={current.data.attributes} /></div> : null}
       </div>
+      <ReviewDetailsReveal open={details}>{revealed && (details || visitedDetails === current.data.id) && content.slug ? <div id={detailsId} className={styles.reviewDetails}><BunproDetails key={`${content.kind}:${content.slug}`} kind={content.kind} slug={content.slug} review={current.data.attributes} /></div> : null}</ReviewDetailsReveal>
   </main>;
 }

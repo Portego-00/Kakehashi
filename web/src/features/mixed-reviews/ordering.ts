@@ -5,7 +5,8 @@ import { reviewContent, type BunproReviewQueueItem } from "@/features/bunpro/mod
 export type ReviewSource = "wanikani" | "bunpro";
 export type MixedHead = { id: string; source: ReviewSource; stage: number; level: number; available: number; interval: number; subjectType: string; critical?: boolean; keepTurn?: boolean };
 export type MixedPreviousAnswer = { id: string; source: ReviewSource; title: string; correct: boolean; subject?: Subject };
-export type MixedBridge = { active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
+export type MixedProgress = { completed: number; total: number };
+export type MixedBridge = { progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
 const wkHours = [0, 4, 8, 23, 47, 167, 335, 719, 2879];
 export function wkHead(question: CoreQuestion | undefined, userLevel: number, keepTurn = false): MixedHead | null {
   if (!question) return null;

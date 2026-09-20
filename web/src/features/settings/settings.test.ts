@@ -238,7 +238,7 @@ describe("web settings persistence", () => {
       reviewInputFontScale: 1,
       pauseOnWrong: true,
       pauseOnClose: false,
-      pauseOnCorrect: false,
+      pauseOnCorrect: true,
       srsProgressionCardDisplayMode: "normal",
       acceptUserSynonymsAsAnswers: false,
       vocabularyAudioVoice: "female",
@@ -276,13 +276,13 @@ describe("web settings persistence", () => {
     expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...legacyStudy, showReviewItemLevelAndSrsStage: true } }), "tester").study.showReviewItemLevelAndSrsStage).toBe(true);
   });
 
-  it("uses mobile pause defaults when no valid legacy answer-stop value exists", () => {
+  it("pauses correct answers by default when no valid legacy answer-stop value exists", () => {
     for (const answerStopBehavior of [undefined, "sometimes"]) {
       const legacyStudy = { ...DEFAULT_WEB_SETTINGS.study, answerStopBehavior } as Record<string, unknown>;
       delete legacyStudy.pauseOnWrong;
       delete legacyStudy.pauseOnClose;
       delete legacyStudy.pauseOnCorrect;
-      expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: legacyStudy }), "tester").study).toMatchObject({ pauseOnWrong: true, pauseOnClose: false, pauseOnCorrect: false });
+      expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: legacyStudy }), "tester").study).toMatchObject({ pauseOnWrong: true, pauseOnClose: false, pauseOnCorrect: true });
     }
   });
 

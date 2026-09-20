@@ -1,6 +1,6 @@
 "use client";
 
-import { ReviewDetailsReveal } from "./ReviewDetailsReveal";
+import { ReviewDetailsReveal, REVIEW_DETAILS_DURATION_MS } from "./ReviewDetailsReveal";
 import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
@@ -625,7 +625,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       detailsShouldOpenRef.current = false;
       setAdvancingQuestion(true);
       setDetailsExpanded(false);
-      advanceTimerRef.current = window.setTimeout(advanceNow, 280);
+      advanceTimerRef.current = window.setTimeout(advanceNow, REVIEW_DETAILS_DURATION_MS);
       return;
     }
     advanceNow();
