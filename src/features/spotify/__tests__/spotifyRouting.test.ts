@@ -73,9 +73,14 @@ beforeAll(() => { Object.defineProperty(Platform, "OS", { value: "android" }); }
 afterAll(() => { Object.defineProperty(Platform, "OS", { value: originalPlatform }); });
 afterEach(() => { mockUrlListeners.clear(); });
 
-it.each(["code=fixture-code", "error=access_denied"])(
-  "keeps Android callback %s on the current screen while AuthSession receives it",
-  async (params) => {
+it.each([
+  ["", "code=fixture-code"],
+  ["", "error=access_denied"],
+  ["/", "code=fixture-code"],
+  ["/", "error=access_denied"],
+])(
+  "keeps Android callback with suffix '%s' and %s on the current screen while AuthSession receives it",
+  async (suffix, params) => {
     const config = linkingConfig();
     const onNavigate = jest.fn();
     const unsubscribe = config.subscribe?.(onNavigate);
@@ -83,7 +88,7 @@ it.each(["code=fixture-code", "error=access_denied"])(
     // polyfill and its independent Linking callback listener both run for real.
     const authorization = openAuthSessionAsync("https://accounts.spotify.com/authorize", SPOTIFY_REDIRECT_URI);
     await Promise.resolve();
-    const url = `${SPOTIFY_REDIRECT_URI}?${params}&state=fixture-audit`;
+    const url = `${SPOTIFY_REDIRECT_URI}${suffix}?${params}&state=fixture-audit`;
     await Promise.all([...mockUrlListeners].map((listener) => listener({ url })));
     await expect(authorization).resolves.toEqual({ type: "success", url });
     expect(onNavigate).not.toHaveBeenCalled();
@@ -91,8 +96,8 @@ it.each(["code=fixture-code", "error=access_denied"])(
   }
 );
 
-it("opens the app entry route for a cold callback without routing OAuth parameters", async () => {
-  const config = linkingConfig(`${SPOTIFY_REDIRECT_URI}?code=fixture-code&state=fixture-audit`);
+it.each(["", "/"])("opens the app entry route for a cold callback with suffix '%s' without routing OAuth parameters", async (suffix) => {
+  const config = linkingConfig(`${SPOTIFY_REDIRECT_URI}${suffix}?code=fixture-code&state=fixture-audit`);
   expect(await config.getInitialURL?.()).toBe("/");
 });
 
