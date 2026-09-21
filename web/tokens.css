@@ -22,6 +22,7 @@
   --color-accent: oklch(46% 0.11 249);
   --color-accent-ink: oklch(98% 0.004 265);
   --color-focus: oklch(55% 0.16 249);
+  --color-bunpro: var(--color-brand);
   --color-brand: oklch(57% 0.23 2);
   --color-brand-soft: oklch(94% 0.035 2);
   --color-login-canvas: oklch(97% 0.012 78);

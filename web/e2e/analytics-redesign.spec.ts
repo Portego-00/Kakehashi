@@ -241,17 +241,24 @@ test("default overview stays readable in both themes without oversized compact p
         canvas.width = 1;
         canvas.height = 1;
         const context = canvas.getContext("2d")!;
-        const luminance = (color: string) => {
-          context.fillStyle = color;
-          context.fillRect(0, 0, 1, 1);
+        const luminance = (colors: string[]) => {
+          context.clearRect(0, 0, 1, 1);
+          for (const color of colors) {
+            context.fillStyle = color;
+            context.fillRect(0, 0, 1, 1);
+          }
           const channels = Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3)
             .map((value) => value / 255)
             .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
           return channels.reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
         };
         const style = getComputedStyle(element);
-        const foreground = luminance(style.color);
-        const background = luminance(style.backgroundColor);
+        // Links can be transparent: composite their ancestors instead of painting
+        // transparency over the previous foreground sample (which always yields 1:1).
+        const backgrounds: string[] = [];
+        for (let node: Element | null = element; node; node = node.parentElement) backgrounds.unshift(getComputedStyle(node).backgroundColor);
+        const foreground = luminance([...backgrounds, style.color]);
+        const background = luminance(backgrounds);
         return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
       })).toBeGreaterThanOrEqual(4.5);
       await page.evaluate(() => scrollTo(0, 0));

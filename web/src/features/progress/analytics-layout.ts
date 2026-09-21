@@ -45,7 +45,7 @@ export const ANALYTICS_PRESETS: readonly { id: AnalyticsPresetId; title: string 
 ];
 
 const PRESET_WIDGET_IDS: Record<AnalyticsPresetId, readonly AnalyticsCardId[]> = {
-  overview: ["pace", "levels", "accuracy", "srs", "coverage", "workload", "burns", "activity", "timing"],
+  overview: ["accuracy", "srs", "levels", "workload", "burns", "coverage", "activity", "pace", "timing"],
   "study-habits": ["summary", "activity", "history", "retention", "studyTime", "workload", "forecast", "leeches"],
   "deep-dive": ANALYTICS_WIDGET_CATALOG.map((widget) => widget.id),
 };
@@ -54,7 +54,7 @@ export function createAnalyticsPreset(preset: AnalyticsPresetId): AnalyticsDashb
   return {
     version: 2,
     layoutRevision: 1,
-    cards: PRESET_WIDGET_IDS[preset].map((id) => ({ id, size: ANALYTICS_WIDGET_CATALOG.find((widget) => widget.id === id)!.defaultSize })),
+    cards: PRESET_WIDGET_IDS[preset].map((id) => ({ id, size: preset === "overview" && id === "coverage" ? "compact" : ANALYTICS_WIDGET_CATALOG.find((widget) => widget.id === id)!.defaultSize })),
   };
 }
 
@@ -97,6 +97,9 @@ export function normalizeAnalyticsDashboardConfig(value: unknown): AnalyticsDash
   if (value && typeof value === "object" && "version" in value && value.version === 2) {
     if (!("cards" in value) || !Array.isArray(value.cards)) return createAnalyticsPreset("overview");
     const cards = parseAnalyticsCards(value.cards);
+    // Upgrade only the former untouched overview; custom orders and sizes stay intact.
+    const previousOverview: AnalyticsCardId[] = ["pace", "levels", "accuracy", "srs", "coverage", "workload", "burns", "activity", "timing"];
+    if (cards.length === previousOverview.length && cards.every((card, index) => card.id === previousOverview[index] && (card.size === ANALYTICS_WIDGET_CATALOG.find(widget => widget.id === card.id)!.defaultSize || card.id === "pace" && !("layoutRevision" in value)))) return createAnalyticsPreset("overview");
     for (const presetId of ["overview", "deep-dive"] as const) {
       const preset = createAnalyticsPreset(presetId);
       const wasDefault = cards.length === preset.cards.length && cards.every((card, index) => card.id === preset.cards[index].id && (card.id === "pace" || card.size === preset.cards[index].size));

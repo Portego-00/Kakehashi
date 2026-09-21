@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { BUNPRO_COOKIE, BunproError, bunproIdentity, bunproRequest, bunproToken } from "@/lib/server/bunpro";
+import { loadBunproAnalytics } from "@/lib/server/bunpro-analytics";
 import { sealToken } from "@/lib/server/session-crypto";
 import { WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 import { isTrustedMutationOrigin } from "@/lib/server/request-security";
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ connected: true }, { headers });
     }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);
+    if (action === "analytics") return NextResponse.json(await loadBunproAnalytics(token), { headers });
     if (action === "lesson-queue") return NextResponse.json(await bunproRequest(token, "/user/queue"), { headers });
     if (action === "learn") {
       const deck = z.coerce.number().int().positive().safeParse(request.nextUrl.searchParams.get("deck"));

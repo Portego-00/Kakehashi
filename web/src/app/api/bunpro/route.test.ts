@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ identity: vi.fn(), fetch: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/server/analytics-server", () => ({ analyticsIdentityFromSealedSession: mocks.identity }));
+import { bunproAnalyticsFixture } from '@/features/bunpro/analytics-fixture';
 import { GET, POST, DELETE } from "./route";
 import { sealToken } from "@/lib/server/session-crypto";
 import { BUNPRO_COOKIE } from "@/lib/server/bunpro";
@@ -67,4 +68,43 @@ it.each([0, 4, 10, 12])("saves the knowledge check stage %s with the Bunpro PATC
 it.each([{ action: "coverage", ids: [] }, { action: "coverage", ids: [-1] }, { action: "coverage-save", ids: [1], streak: 99 }])("rejects invalid coverage requests %j", async body => {
   expect((await POST(request("POST", body))).status).toBe(400);
   expect(mocks.fetch).not.toHaveBeenCalled();
+});
+
+it('loads and validates current analytics endpoints independently', async () => {
+  mocks.fetch.mockImplementation(async (url: URL) => url.pathname.endsWith('/base_stats')
+    ? Response.json({ facts: { streak: 2, days_studied: 5, grammar_studied: 10, vocab_studied: 20, last_session: 1, total_badges: 0, weekly_streak: [] } })
+    : url.pathname.endsWith('/due') ? Response.json({ total_due_grammar: 2, total_due_vocab: 3 })
+    : Response.json({}, { status: 503 }));
+  const response = await GET(request('GET', undefined, 'action=analytics'));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ facts: { streak: 2 }, due: { total_due_grammar: 2 }, srs: null, unavailable: ['activity', 'forecast', 'srs', 'jlpt', 'reviewTotals', 'heatmap', 'cram'] });
+  expect(mocks.fetch).toHaveBeenCalledTimes(9);
+  expect(response.headers.get('Cache-Control')).toContain('no-store');
+});
+it('rejects malformed analytics rather than inventing zero counts', async () => {
+  const response = await GET(request('GET', undefined, 'action=analytics'));
+  expect(response.status).toBe(502);
+});
+it('propagates revoked keys even if other analytics endpoints succeed', async () => {
+  mocks.fetch.mockImplementation(async (url: URL) => url.pathname.endsWith('/due') ? Response.json({ total_due_grammar: 2, total_due_vocab: 3 }) : Response.json({}, { status: 401 }));
+  expect((await GET(request('GET', undefined, 'action=analytics'))).status).toBe(401);
+});
+it('does not request analytics using a key belonging to another account', async () => {
+  expect((await GET(request('GET', undefined, 'action=analytics', 'other'))).status).toBe(401);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+
+it('uses the verified daily-history endpoint and validates the extended statistics', async () => {
+  const fixture = bunproAnalyticsFixture;
+  const payloads: Record<string, unknown> = {
+    base_stats: { facts: fixture.facts }, activity_daily: fixture.activity, forecast_daily: fixture.forecast,
+    srs_level_overview: fixture.srs, jlpt_progress_mixed: fixture.jlpt, total_review_stats: fixture.reviewTotals,
+    review_heatmap: fixture.heatmap, total_cram_stats: fixture.cram, due: fixture.due,
+  };
+  mocks.fetch.mockImplementation(async (url: URL) => Response.json(payloads[url.pathname.split('/').at(-1)!] ?? {}));
+  const response = await GET(request('GET', undefined, 'action=analytics'));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ unavailable: [], activity: fixture.activity, reviewTotals: fixture.reviewTotals, heatmap: fixture.heatmap });
+  expect(mocks.fetch.mock.calls.some(([url]) => url.pathname.endsWith('/activity_daily'))).toBe(true);
+  expect(mocks.fetch.mock.calls.some(([url]) => url.pathname.endsWith('/review_activity'))).toBe(false);
 });

@@ -505,7 +505,7 @@ export default function RadicalDetails({
           </TouchableOpacity>
 
           <View style={styles.headerActions}>
-            <SubjectHistoryButton subjectType="radical" meaning={radical.meanings.find(item => item.primary)?.meaning} subjectId={radical.id} label={radical.characters || "Radical"} />
+            <SubjectHistoryButton subjectType="radical" iconColor={radicalHeaderTextColor} meaning={radical.meanings.find(item => item.primary)?.meaning} subjectId={radical.id} label={radical.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
                 onPress={onAddToList}

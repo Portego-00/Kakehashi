@@ -16,6 +16,7 @@ import { VocabularyContextSection } from "./sections/VocabularyContextSection";
 import { ReadingDefaultsSection } from "./sections/ReadingDefaultsSection";
 import { MusicPlaybackSection } from "./sections/MusicPlaybackSection";
 import { LessonSettingsSection } from "./sections/LessonSettingsSection";
+import { SubjectDetailsSection } from "./sections/SubjectDetailsSection";
 import { SubjectListsSection } from "./sections/SubjectListsSection";
 import { ReviewSettingsSection } from "./sections/ReviewSettingsSection";
 import { NotesSection } from "./sections/NotesSection";
@@ -168,6 +169,7 @@ function SettingsScreenContent() {
         <MusicPlaybackSection />
         <LessonSettingsSection />
         <SubjectListsSection />
+        <SubjectDetailsSection />
         <ReviewSettingsSection />
         <NotesSection />
         <HapticSection />

@@ -39,9 +39,9 @@ describe("analytics dashboard configuration", () => {
     expect(normalizeAnalyticsDashboardConfig({ version: 2, cards: [{ id: "levels", size: "compact" }, { id: "achievements", size: "wide" }] }).cards).toEqual([{ id: "levels", size: "compact" }]);
     const oldDefault = createAnalyticsPreset("overview");
     delete oldDefault.layoutRevision;
-    oldDefault.cards[0].size = "compact";
-    expect(normalizeAnalyticsDashboardConfig(oldDefault).cards[0].size).toBe("wide");
-    expect(normalizeAnalyticsDashboardConfig({ ...oldDefault, layoutRevision: 1 }).cards[0].size).toBe("compact");
+    oldDefault.cards.find(card => card.id === "pace")!.size = "compact";
+    expect(normalizeAnalyticsDashboardConfig(oldDefault).cards.find(card => card.id === "pace")?.size).toBe("wide");
+    expect(normalizeAnalyticsDashboardConfig({ ...oldDefault, layoutRevision: 1 }).cards.find(card => card.id === "pace")?.size).toBe("compact");
   });
   it.each([
     [{ id: "timing", size: "compact" }, { id: "accuracy", size: "wide" }],
@@ -90,4 +90,11 @@ describe("analytics dashboard configuration", () => {
     expect(matchingAnalyticsPreset({ ...config, cards: toggleAnalyticsCardSize(config.cards, "summary") })).toBeNull();
     expect(matchingAnalyticsPreset({ ...config, cards: moveAnalyticsCardBy(config.cards, "summary", 1) })).toBeNull();
   });
+});
+
+it("updates the old overview without changing a custom arrangement", () => {
+  const cards = ["pace", "levels", "accuracy", "srs", "coverage", "workload", "burns", "activity", "timing"].map(id => ({ id, size: ANALYTICS_WIDGET_CATALOG.find(widget => widget.id === id)!.defaultSize }));
+  expect(normalizeAnalyticsDashboardConfig({ version: 2, layoutRevision: 1, cards })).toEqual(createAnalyticsPreset("overview"));
+  const custom = { version: 2, layoutRevision: 1, cards: [...cards].reverse() };
+  expect(normalizeAnalyticsDashboardConfig(custom).cards).toEqual(custom.cards);
 });

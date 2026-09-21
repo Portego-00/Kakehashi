@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore } from '../../utils/store';
+import { useAuthStore, useSettingsStore } from '../../utils/store';
 import { useTheme } from '../../utils/theme';
 import { fieldLabel, type HistoryPage, type HistoryEntry } from '../../../shared/subject-history/model';
 
@@ -27,14 +27,18 @@ async function readHistory(subjectId: number, cursor: string | null, token: stri
   return page;
 }
 
-export function SubjectHistoryButton({ subjectId, label, meaning, subjectType = "kanji" }: { subjectId: number; label: string; meaning?: string; subjectType?: string }) {
+export function SubjectHistoryButton({ subjectId, label, meaning, subjectType = "kanji", iconColor = "#fff" }: { subjectId: number; label: string; meaning?: string; subjectType?: string; iconColor?: string }) {
   const [open, setOpen] = useState(false);
+  const [contentMounted, setContentMounted] = useState(false);
+  const { theme } = useTheme();
   const token = useAuthStore(state => state.apiToken);
-  if (!Number.isSafeInteger(subjectId) || subjectId < 1) return null;
+  const showSubjectHistory = useSettingsStore(state => state.showSubjectHistory);
+  if (!showSubjectHistory || !Number.isSafeInteger(subjectId) || subjectId < 1) return null;
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="Change history" onPress={() => setOpen(true)} style={styles.trigger}><Ionicons name="time-outline" size={20} color="white" /></Pressable>
-    <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOpen(false)}>
-      {open ? <HistoryContent key={`${subjectId}:${token}`} token={token} subjectId={subjectId} label={label} meaning={meaning} subjectType={subjectType} onClose={() => setOpen(false)} /> : null}
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change history" onPress={() => { setContentMounted(true); setOpen(true); }} style={styles.trigger}><Ionicons name="time-outline" size={20} color={iconColor} /></TouchableOpacity>
+    <Modal visible={open} animationType="slide" presentationStyle="pageSheet" backdropColor={theme.backgroundColor} onRequestClose={() => setOpen(false)} onDismiss={() => { setOpen(false); setContentMounted(false); }}>
+      {/* Preserve the painted sheet until the native dismissal animation finishes. */}
+      {contentMounted ? <HistoryContent key={`${subjectId}:${token}`} token={token} subjectId={subjectId} label={label} meaning={meaning} subjectType={subjectType} onClose={() => setOpen(false)} /> : null}
     </Modal>
   </>;
 }
@@ -66,7 +70,7 @@ function HistoryContent({ subjectId, label, meaning, subjectType, onClose, token
   const next = pages.at(-1)?.cursor;
   const baseline = pages[0]?.baselineAt;
   return <View style={[styles.screen, { backgroundColor: theme.backgroundColor, paddingTop: 0 }]}>
-    <View style={{ backgroundColor: hero, paddingTop: Math.max(insets.top, 16), paddingBottom: 24 }}>
+    <View style={{ backgroundColor: hero, paddingTop: 16, paddingBottom: 24 }}>
       <View style={styles.header}><Text accessibilityRole="header" style={{ fontSize: 15, fontWeight: '600', color: heroInk }}>Change history</Text><Pressable accessibilityRole="button" accessibilityLabel="Close change history" onPress={onClose} style={styles.close}><Ionicons name="close" size={24} color={heroInk} /></Pressable></View>
       <Text style={{ color: heroInk, fontSize: label.length > 6 ? 30 : 48, textAlign: 'center', marginTop: 8 }}>{label}</Text>
       {meaning ? <Text style={{ color: heroInk, fontSize: 20, fontWeight: '600', textAlign: 'center', marginTop: 6 }}>{meaning}</Text> : null}
@@ -98,7 +102,7 @@ function HistoryItem({ entry, subjectType, initiallyOpen }: { entry: HistoryEntr
   </View>;
 }
 const styles = StyleSheet.create({
-  trigger: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  trigger: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center' },
   screen: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
