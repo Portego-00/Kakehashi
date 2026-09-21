@@ -8,10 +8,11 @@ import { BunproText } from "./BunproText";
 import { sanitizeText, type BunproReviewableDetailsResponse } from "./model";
 import { BunproExample, ExampleAudioProvider } from "./BunproExample";
 import { DictionaryDefinition, VocabPronunciation, ReviewProgress } from "./BunproDetailPanels";
+import { BunproCoverage } from "./BunproCoverage";
 import { BunproLoading } from "./BunproLoading";
 import styles from "./bunpro.module.css";
 
-export function BunproDetails({ kind, slug, content, review }: { kind: "grammar" | "vocab"; slug: string; content?: BunproLearnContentItem; review?: Record<string, unknown> }) {
+export function BunproDetails({ kind, slug, content, review, deckId }: { kind: "grammar" | "vocab"; slug: string; content?: BunproLearnContentItem; review?: Record<string, unknown>; deckId?: number }) {
   const id = useId();
   const [tab, setTab] = useState("Details");
   const [polite, setPolite] = useState(false);
@@ -26,7 +27,8 @@ export function BunproDetails({ kind, slug, content, review }: { kind: "grammar"
   const writeup = data.included?.find((item) => item.type === "writeup")?.attributes;
   const title = sanitizeText(attributes.title);
   const progress = review ?? data.included?.find((item) => item.type === "review")?.attributes;
-  const vocabulary = data.included?.filter((item) => item.type === "reviewable_base_attribute_mixed" && item.attributes.type_snake === "vocab") ?? [];
+  const coverageIds = Array.isArray(attributes.coverage_vocab_ids) ? new Set(attributes.coverage_vocab_ids.map(Number)) : null;
+  const vocabulary = data.included?.filter((item) => item.type === "reviewable_base_attribute_mixed" && item.attributes.type_snake === "vocab" && (!coverageIds || coverageIds.has(Number(item.attributes.id ?? item.id)))) ?? [];
   const Heading = content ? "h1" : "h2";
   return <section className={styles.details} aria-label="Bunpro item details">
     <header className={styles.detailHeader}><div><Heading lang="ja"><BunproText value={attributes.title} /></Heading><p lang="ja"><BunproText value={attributes.furigana || attributes.kana} /></p><div><BunproText value={attributes.meaning} /></div></div><span>{kind === "grammar" ? "Grammar" : "Vocabulary"} · {sanitizeText(attributes.level || attributes.jlpt_level)}</span></header>
@@ -40,7 +42,7 @@ export function BunproDetails({ kind, slug, content, review }: { kind: "grammar"
         {attributes.nuance_translation || attributes.nuance || attributes.caution ? <section className={styles.about}><h3>Nuance</h3><div><BunproText value={attributes.nuance_translation} /></div><div><BunproText value={attributes.nuance} /></div><div><BunproText value={attributes.caution} /></div></section> : null}
         {writeup?.body ? <section className={styles.about}><h3>About {title}</h3><div><Writeup value={writeup.body} examples={examples} title={title} /></div></section> : null}
         {kind === "vocab" && examples.length ? <section className={styles.about}><h3>Examples</h3>{examples.map((item) => <BunproExample key={item.id} attributes={item.attributes} title={title} />)}</section> : null}
-        {vocabulary.length ? <section className={styles.about}><h3>Vocabulary in this lesson</h3><dl className={styles.lessonVocabulary}>{vocabulary.map((item) => <div key={item.id}><dt lang="ja"><BunproText value={item.attributes.furigana || item.attributes.title} /></dt><dd><BunproText value={item.attributes.meaning} /></dd></div>)}</dl></section> : null}
+        {vocabulary.length ? <BunproCoverage key={`${kind}:${slug}`} vocabulary={vocabulary} deckId={deckId} /> : null}
         {attributes.rare_kanji_warning ? <p><BunproText value={attributes.rare_kanji_warning} /></p> : null}
       </> : null}
       {tab === "Examples" ? <><div className={styles.exampleControls}><button type="button" aria-pressed={showSentence} onClick={() => setShowSentence(!showSentence)}>Sentence</button><button type="button" aria-pressed={showTranslation} onClick={() => setShowTranslation(!showTranslation)}>Translation</button></div>{examples.length ? examples.map((item) => <BunproExample key={item.id} attributes={item.attributes} title={title} showSentence={showSentence} showTranslation={showTranslation} />) : <p>No example sentences available.</p>}</> : null}

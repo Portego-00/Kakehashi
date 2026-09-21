@@ -10,6 +10,7 @@ import {
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  AppState,
   Dimensions,
   type GestureResponderEvent,
   InteractionManager,
@@ -45,6 +46,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { SvgXml } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import AudioSessionManager from "../modules/AudioSessionManager";
+import { VoiceAnswerStatus } from "./VoiceAnswerStatus";
 import { Subject as WKSubject } from "../types/wanikani";
 import {
   AnswerCheckerResult,
@@ -1214,6 +1216,10 @@ export default function ReviewQuestionScreen({
     useState(false);
   const [isUsingDefaultJitaiFont, setIsUsingDefaultJitaiFont] = useState(false);
   const [isVoiceRecognizing, setIsVoiceRecognizing] = useState(false);
+  const [voiceSessionEnabled, setVoiceSessionEnabled] = useState(false);
+  const [voiceRestartNonce, setVoiceRestartNonce] = useState(0);
+  const [isVocabularyAudioPlaying, setIsVocabularyAudioPlaying] = useState(false);
+  const voiceLevel = useSharedValue(0);
   const [voiceInterimTranscript, setVoiceInterimTranscript] = useState("");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [skipCueText, setSkipCueText] = useState<string | null>(null);
@@ -1242,6 +1248,9 @@ export default function ReviewQuestionScreen({
   const nativeVoiceStateRef = useRef<"inactive" | "active" | "stopping">("inactive");
   const pendingVoiceStartRef = useRef<(() => void) | null>(null);
   const isVoiceRetryPendingRef = useRef(false);
+  const voiceSessionEnabledRef = useRef(false);
+  const voiceAnswerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingVoiceAnswerRef = useRef<(() => void) | null>(null);
   const skipCueHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAnkiSubmitCallbackRef = useRef<(() => void) | null>(null);
   const pausedDetailsRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -1256,6 +1265,12 @@ export default function ReviewQuestionScreen({
   const vocabularyAudioFinalizeRef = useRef<(() => void) | null>(null);
   const reviewSubmissionGuardRef = useRef(createReviewSubmissionGuard());
 
+  const clearVoiceAnswerTimer = useCallback(() => {
+    if (voiceAnswerTimerRef.current) clearTimeout(voiceAnswerTimerRef.current);
+    voiceAnswerTimerRef.current = null;
+    pendingVoiceAnswerRef.current = null;
+  }, []);
+
   const cancelVoiceRecognition = useCallback((retry = false) => {
     // Invalidate before asking native to cancel: queued results and delayed
     // submissions must not become answers for the next question.
@@ -1263,6 +1278,9 @@ export default function ReviewQuestionScreen({
     pendingVoiceStartRef.current = null;
     isVoiceRetryPendingRef.current = retry;
     latestVoiceResultsRef.current = [];
+    clearVoiceAnswerTimer();
+    voiceLevel.value = 0;
+    if (mountedRef.current) setIsVoiceRecognizing(false);
     if (nativeVoiceStateRef.current === "active") {
       nativeVoiceStateRef.current = "stopping";
       try {
@@ -1275,7 +1293,7 @@ export default function ReviewQuestionScreen({
         }
       }
     }
-  }, []);
+  }, [clearVoiceAnswerTimer, voiceLevel]);
 
   useEffect(() => {
     setLocalStudyMaterials(studyMaterials);
@@ -2091,16 +2109,22 @@ export default function ReviewQuestionScreen({
     }
   }, [shouldUseOnDeviceVoiceRecognition]);
 
+  const canListenForVoiceAnswer = isVoiceReviewEnabled && isScreenFocused &&
+    !answered && !isPausedOnWrong && !isPausedOnCloseAnswer && !isPausedOnCorrect &&
+    !navigatingToDetail && !effectiveAnkiCardMode && !usesMultipleChoice &&
+    !studyMaterialNoteModalVisible && !noteSubjectPreviewOpen &&
+    !pausedDetailsSheetVisible && !isVocabularyAudioPlaying;
+
+  const stopVoiceRecognition = useCallback(() => {
+    voiceSessionEnabledRef.current = false;
+    setVoiceSessionEnabled(false);
+    cancelVoiceRecognition();
+    setVoiceInterimTranscript("");
+  }, [cancelVoiceRecognition]);
+
   const startVoiceRecognition = async () => {
-    if (
-      !isVoiceReviewEnabled ||
-      answered ||
-      isPausedOnWrong ||
-      isPausedOnCloseAnswer ||
-      isPausedOnCorrect ||
-      navigatingToDetail ||
-      voiceCaptureRef.current
-    ) {
+    if (!voiceSessionEnabledRef.current || !canListenForVoiceAnswer ||
+      AppState.currentState === "background" || voiceCaptureRef.current) {
       return;
     }
 
@@ -2113,7 +2137,7 @@ export default function ReviewQuestionScreen({
       const granted = await requestVoicePermissions();
       if (!isCurrentCapture()) return;
       if (!granted) {
-        voiceCaptureRef.current = null;
+        stopVoiceRecognition();
         return;
       }
     }
@@ -2136,16 +2160,18 @@ export default function ReviewQuestionScreen({
         ExpoSpeechRecognitionModule.start({
           lang: questionType === "reading" ? "ja-JP" : "en-US",
           interimResults: true,
-          continuous: false,
+          continuous: true,
           maxAlternatives: 5,
           contextualStrings: getVoiceContextualStrings(),
           addsPunctuation: false,
           iosTaskHint: questionType === "reading" ? "confirmation" : "search",
           requiresOnDeviceRecognition: useOnDeviceRecognition,
+          volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
         });
       } catch (error) {
         voiceCaptureRef.current = null;
         nativeVoiceStateRef.current = "inactive";
+        stopVoiceRecognition();
         console.error("Error starting speech recognition:", error);
         setVoiceError("Failed to start voice recognition.");
       }
@@ -2159,12 +2185,6 @@ export default function ReviewQuestionScreen({
       startCapture();
     }
   };
-
-  const stopVoiceRecognition = useCallback(() => {
-    cancelVoiceRecognition();
-    setIsVoiceRecognizing(false);
-    setVoiceInterimTranscript("");
-  }, [cancelVoiceRecognition]);
 
   const clearVoiceCapturedInput = () => {
     userAnswerRef.current = "";
@@ -2193,6 +2213,7 @@ export default function ReviewQuestionScreen({
     }
 
     capture.phase = "submitting";
+    clearVoiceAnswerTimer();
     isVoiceRetryPendingRef.current = false;
     setVoiceError(null);
     setVoiceInterimTranscript(
@@ -2202,7 +2223,7 @@ export default function ReviewQuestionScreen({
     userAnswerRef.current = detectedAnswer;
     kanaInputRef.current?.setInputText?.(detectedAnswer);
 
-    if (shouldStopRecognition) {
+    if (shouldStopRecognition && nativeVoiceStateRef.current === "active") {
       try {
         nativeVoiceStateRef.current = "stopping";
         ExpoSpeechRecognitionModule.stop();
@@ -2224,6 +2245,7 @@ export default function ReviewQuestionScreen({
     if (voiceCaptureRef.current === capture) {
       voiceCaptureRef.current = null;
     }
+    if (mountedRef.current) setVoiceRestartNonce((nonce) => nonce + 1);
   };
 
   const handleRetryVoiceRecognition = () => {
@@ -2233,30 +2255,6 @@ export default function ReviewQuestionScreen({
 
     clearVoiceCapturedInput();
     cancelVoiceRecognition(true);
-  };
-
-  const handleStopAndSubmitVoice = () => {
-    const selected = selectBestVoiceCandidate(latestVoiceResultsRef.current);
-    const bestCandidate = pickHigherScoringVoiceCandidate(
-      selected,
-      voiceInterimTranscript,
-    );
-    const answerToSubmit = bestCandidate.answer;
-
-    if (!answerToSubmit) {
-      void stopVoiceRecognition();
-      setVoiceError("No speech detected. Please try again.");
-      return;
-    }
-
-    if (shouldRetryVoiceReadingFromScriptMismatch(bestCandidate)) {
-      void stopVoiceRecognition();
-      setVoiceInterimTranscript("");
-      setVoiceError(VOICE_READING_SCRIPT_MISMATCH_ERROR);
-      return;
-    }
-
-    void submitDetectedVoiceAnswer(answerToSubmit, true);
   };
 
   useEffect(() => {
@@ -2352,6 +2350,38 @@ export default function ReviewQuestionScreen({
     feedbackOpacity,
     ankiContainerHeight,
   ]);
+
+  // Keep the user's hands-free choice across questions, but never carry a native
+  // capture across questions or record the app's pronunciation playback.
+  const startVoiceRecognitionRef = useRef(startVoiceRecognition);
+  useLayoutEffect(() => {
+    startVoiceRecognitionRef.current = startVoiceRecognition;
+  });
+
+  useLayoutEffect(() => {
+    if (!isVoiceReviewEnabled || !isScreenFocused || navigatingToDetail ||
+      effectiveAnkiCardMode || usesMultipleChoice) {
+      stopVoiceRecognition();
+    } else if (!canListenForVoiceAnswer) {
+      cancelVoiceRecognition();
+      setVoiceInterimTranscript("");
+    }
+  }, [isVoiceReviewEnabled, isScreenFocused, navigatingToDetail, effectiveAnkiCardMode,
+    usesMultipleChoice, canListenForVoiceAnswer, stopVoiceRecognition, cancelVoiceRecognition]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "background") stopVoiceRecognition();
+    });
+    return () => subscription.remove();
+  }, [stopVoiceRecognition]);
+
+  useEffect(() => {
+    if (!voiceSessionEnabled || !canListenForVoiceAnswer) return;
+    // Back off briefly if native ends an empty capture, instead of spinning.
+    const timer = setTimeout(() => void startVoiceRecognitionRef.current(), 250);
+    return () => clearTimeout(timer);
+  }, [voiceSessionEnabled, canListenForVoiceAnswer, currentQuestionKey, voiceRestartNonce]);
 
   // Animate SRS progression card when it should show
   useEffect(() => {
@@ -2735,6 +2765,8 @@ export default function ReviewQuestionScreen({
 
     const requestId = ++vocabularyAudioRequestIdRef.current;
     finalizeCurrentVocabularyAudio();
+    cancelVoiceRecognition();
+    setIsVocabularyAudioPlaying(true);
 
     if (showReplayLoading && mountedRef.current) {
       setIsReplayingAudio(true);
@@ -2798,6 +2830,9 @@ export default function ReviewQuestionScreen({
 
     if (showReplayLoading && mountedRef.current) {
       setIsReplayingAudio(false);
+    }
+    if (mountedRef.current && requestId === vocabularyAudioRequestIdRef.current) {
+      setIsVocabularyAudioPlaying(false);
     }
   };
 
@@ -3135,11 +3170,13 @@ export default function ReviewQuestionScreen({
   };
 
   const handleVoiceAnswerButton = () => {
-    if (isVoiceRecognizing) {
-      handleStopAndSubmitVoice();
+    if (voiceSessionEnabledRef.current) {
+      stopVoiceRecognition();
       return;
     }
 
+    voiceSessionEnabledRef.current = true;
+    setVoiceSessionEnabled(true);
     void startVoiceRecognition();
   };
 
@@ -3158,12 +3195,17 @@ export default function ReviewQuestionScreen({
 
   useSpeechRecognitionEvent("end", () => {
     nativeVoiceStateRef.current = "inactive";
+    // Some native sessions end with only an interim result. Settle that result
+    // before releasing its capture; a silent session simply starts listening again.
+    pendingVoiceAnswerRef.current?.();
+    clearVoiceAnswerTimer();
     const capture = voiceCaptureRef.current;
     if (capture?.phase === "starting" || capture?.phase === "listening") {
       voiceCaptureRef.current = null;
     }
 
     setIsVoiceRecognizing(false);
+    voiceLevel.value = 0;
     // A result accepted before end still owns its 750 ms confirmation delay.
     if (capture?.phase !== "submitting") {
       setVoiceInterimTranscript("");
@@ -3176,6 +3218,13 @@ export default function ReviewQuestionScreen({
     } else if (isVoiceRetryPendingRef.current) {
       isVoiceRetryPendingRef.current = false;
       void startVoiceRecognition();
+    }
+    setVoiceRestartNonce((nonce) => nonce + 1);
+  });
+
+  useSpeechRecognitionEvent("volumechange", ({ value }) => {
+    if (voiceCaptureRef.current?.phase === "listening") {
+      voiceLevel.value = withTiming(Math.max(0, Math.min(1, value / 10)), { duration: 100 });
     }
   });
 
@@ -3194,11 +3243,7 @@ export default function ReviewQuestionScreen({
     }
 
     if (
-      answered ||
-      isPausedOnWrong ||
-      isPausedOnCloseAnswer ||
-      isPausedOnCorrect ||
-      navigatingToDetail
+      !canListenForVoiceAnswer
     ) {
       return;
     }
@@ -3208,43 +3253,40 @@ export default function ReviewQuestionScreen({
       confidence: result.confidence ?? -1,
     }));
     const selected = selectBestVoiceCandidate(latestVoiceResultsRef.current);
+    clearVoiceAnswerTimer();
 
     if (selected.answer && selected.score >= 3) {
       void submitDetectedVoiceAnswer(selected.answer, true, 750);
       return;
     }
 
-    if (!event.isFinal) {
-      const interimKana = selectMostProbableVoiceKana(
-        latestVoiceResultsRef.current,
-      );
-      const interim =
-        interimKana ||
-        (selected.answer && !KANJI_CHARACTER_REGEX.test(selected.answer)
-          ? selected.answer
-          : "");
-      setVoiceInterimTranscript(interim);
-      return;
-    }
-
+    const interimKana = selectMostProbableVoiceKana(latestVoiceResultsRef.current);
+    const interim = interimKana ||
+      (selected.answer && !KANJI_CHARACTER_REGEX.test(selected.answer) ? selected.answer : "");
+    setVoiceInterimTranscript(interim);
     const bestCandidate = pickHigherScoringVoiceCandidate(
       selected,
-      voiceInterimTranscript,
+      interim || voiceInterimTranscript,
     );
 
-    if (shouldRetryVoiceReadingFromScriptMismatch(bestCandidate)) {
-      setVoiceError(VOICE_READING_SCRIPT_MISMATCH_ERROR);
-      setVoiceInterimTranscript("");
-      return;
-    }
+    const settleAnswer = () => {
+      if (voiceCaptureRef.current !== capture || capture.phase !== "listening") return;
+      clearVoiceAnswerTimer();
+      if (shouldRetryVoiceReadingFromScriptMismatch(bestCandidate)) {
+        stopVoiceRecognition();
+        setVoiceError(VOICE_READING_SCRIPT_MISMATCH_ERROR);
+        return;
+      }
 
-    if (!bestCandidate.answer) {
-      setVoiceError("No speech detected. Please try again.");
-      setVoiceInterimTranscript("");
-      return;
-    }
+      if (bestCandidate.answer) void submitDetectedVoiceAnswer(bestCandidate.answer, true);
+    };
 
-    void submitDetectedVoiceAnswer(bestCandidate.answer, false);
+    if (event.isFinal) {
+      settleAnswer();
+    } else if (bestCandidate.answer) {
+      pendingVoiceAnswerRef.current = settleAnswer;
+      voiceAnswerTimerRef.current = setTimeout(settleAnswer, 3000);
+    }
   });
 
   useSpeechRecognitionEvent("error", (event) => {
@@ -3259,15 +3301,17 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    voiceCaptureRef.current = null;
-    setIsVoiceRecognizing(false);
-    setVoiceInterimTranscript("");
+    if (event.error === "no-speech" || event.error === "speech-timeout") {
+      cancelVoiceRecognition();
+      setVoiceInterimTranscript("");
+      return;
+    }
+
+    stopVoiceRecognition();
 
     let message = "Speech recognition failed. Please try again.";
     if (event.error === "not-allowed") {
       message = "Microphone permission denied. Enable it in Settings.";
-    } else if (event.error === "no-speech" || event.error === "speech-timeout") {
-      message = "No speech detected. Please try again.";
     } else if (event.message) {
       message = event.message;
     }
@@ -7028,13 +7072,15 @@ export default function ReviewQuestionScreen({
                       <TouchableOpacity
                         style={[
                           styles.voiceButtonInside,
-                          isVoiceRecognizing ? styles.voiceButtonActive : null,
+                          voiceSessionEnabled ? styles.voiceButtonActive : null,
                         ]}
                         onPress={handleVoiceAnswerButton}
-                        disabled={navigatingToDetail || isPausedOnAnswer || answered}
+                        accessibilityRole="button"
+                        accessibilityLabel={voiceSessionEnabled ? "Stop voice answers" : "Start voice answers"}
+                        disabled={!voiceSessionEnabled && !canListenForVoiceAnswer}
                       >
                         <Ionicons
-                          name={isVoiceRecognizing ? "stop" : "mic"}
+                          name={voiceSessionEnabled ? "stop" : "mic"}
                           size={20}
                           color="#fff"
                         />
@@ -7044,6 +7090,8 @@ export default function ReviewQuestionScreen({
                         <TouchableOpacity
                           style={styles.voiceRetryButtonInside}
                           onPress={handleRetryVoiceRecognition}
+                          accessibilityRole="button"
+                          accessibilityLabel="Retry voice answer"
                           disabled={navigatingToDetail || isPausedOnAnswer || answered}
                         >
                           <Ionicons
@@ -7108,30 +7156,14 @@ export default function ReviewQuestionScreen({
                 )}
 
               {isVoiceReviewEnabled &&
-                (isVoiceRecognizing || voiceError || voiceInterimTranscript) && (
-                  <View
-                    style={[
-                      styles.voiceStatusContainer,
-                      isVoiceRecognizing || (!voiceError && !!voiceInterimTranscript)
-                        ? styles.voiceStatusListening
-                        : styles.voiceStatusError,
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        isVoiceRecognizing || (!voiceError && !!voiceInterimTranscript)
-                          ? "radio"
-                          : "warning-outline"
-                      }
-                      size={14}
-                      color="white"
-                    />
-                    <Text style={styles.voiceStatusText} numberOfLines={2}>
-                      {isVoiceRecognizing
-                        ? voiceInterimTranscript || "Listening..."
-                        : voiceError || voiceInterimTranscript || "Voice recognition stopped."}
-                    </Text>
-                  </View>
+                (voiceSessionEnabled || voiceError || voiceInterimTranscript) && (
+                  <VoiceAnswerStatus
+                    listening={isVoiceRecognizing}
+                    paused={!canListenForVoiceAnswer}
+                    transcript={voiceInterimTranscript}
+                    error={voiceError}
+                    level={voiceLevel}
+                  />
                 )}
             </Animated.View>
 
@@ -7770,26 +7802,6 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     marginTop: 10,
-  },
-  voiceStatusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 8,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  voiceStatusListening: {
-    backgroundColor: "rgba(25, 118, 210, 0.9)",
-  },
-  voiceStatusError: {
-    backgroundColor: "rgba(244, 67, 54, 0.9)",
-  },
-  voiceStatusText: {
-    flex: 1,
-    marginLeft: 6,
-    color: "white",
-    fontSize: 13,
   },
   retryFeedbackText: {
     fontSize: 14,

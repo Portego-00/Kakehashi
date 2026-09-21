@@ -327,7 +327,7 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByRole("button", { name: /Wrong$/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Again" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Correct$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
   });
 
@@ -832,9 +832,6 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
     fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Incorrect");
-    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
     expect(screen.getByText("Correct responses").closest("div")).toHaveTextContent("0 / 1");
   });
@@ -865,8 +862,8 @@ describe("extra-study quiz interaction", () => {
 
     fireEvent.keyDown(window, { key: "Enter" });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Correct");
-    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Session results" })).toBeInTheDocument();
+    expect(screen.getByText("Correct responses").closest("div")).toHaveTextContent("1 / 1");
   });
 
   it("shows the full subject screen sections in a normal extra-study mode", async () => {
@@ -1421,7 +1418,8 @@ describe("extra-study quiz interaction", () => {
     expect(screen.queryByRole("heading", { name: "防ぐ" })).not.toBeInTheDocument();
   });
 
-  it("groups both custom-review prompts into one buttonless Anki grade", async () => {
+  it.each([false, true])("groups custom-review Anki prompts with custom keys %s", async (customKeys) => {
+    const studyShortcuts = { ...DEFAULT_WEB_SETTINGS.study.studyShortcuts, ...(customKeys ? { progress: " ", markCorrect: "j" } : {}) };
     const meaning = makeQuestion({ id: "1:meaning", kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" });
     const reading = makeQuestion({ id: "1:reading", kind: "reading" });
     renderQuiz({
@@ -1432,6 +1430,7 @@ describe("extra-study quiz interaction", () => {
       reviewPreferences: {
         ...DEFAULT_WEB_SETTINGS.study,
         ankiMode: "both",
+        studyShortcuts,
         ankiGroupQuestions: true,
         ankiButtonlessMode: true,
       },
@@ -1443,14 +1442,13 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByRole("region", { name: "Anki answer" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByText("Meaning + Reading")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Reveal answer" }));
+    fireEvent.keyDown(document.body, { key: studyShortcuts.progress });
     expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("Prevent");
     expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("ふせぐ");
     expect(screen.getByRole("group", { name: "Buttonless Anki controls" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap right: mark correct" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Correct");
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
 
     expect(await screen.findByRole("heading", { name: "Session results" })).toBeInTheDocument();
     expect(screen.getByText("Correct responses").closest("div")).toHaveTextContent("2 / 2");

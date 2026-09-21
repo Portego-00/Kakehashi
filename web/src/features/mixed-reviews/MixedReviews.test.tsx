@@ -12,7 +12,7 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({ useWebSettings
 vi.mock("@/features/study/feedback-audio", () => ({ playAnswerFeedback: vi.fn() }));
 vi.mock("@/features/core-study/CoreStudySession", () => ({ CoreStudySession: ({ mixed }: { mixed: MixedBridge }) => {
   const [step, setStep] = useState(0);
-  const report = useEffectEvent(() => { mixed.report(step === 2 ? null : { id: `wk-${step}`, source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" }); });
+  const report = useEffectEvent(() => { mixed.reportResults?.({ items: Array.from({ length: step }, (_, i) => ({ id: `wk-result-${i}`, source: "wanikani", kind: "kanji", title: `川${i + 1}`, meaning: "River", correct: true, href: `/subjects/${i + 1}` })), durationMs: 10000, pendingCount: step === 2 ? 1 : 0 }); mixed.reportProgress?.({ completed: step, total: 2 }); mixed.report(step === 2 ? null : { id: `wk-${step}`, source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" }); });
   useEffect(() => { report(); }, [step]);
   return <>{mixed.active ? <MixedPreviousBadge answer={mixed.previous} animate={false} /> : null}<button onClick={() => { mixed.onAnswer?.({ id: `wk-${step}`, source: "wanikani", title: "川", correct: true }); setStep(step + 1); }}>{step === 2 ? "WK complete" : `Complete WK question ${step + 1}`}</button></>;
 } }));
@@ -39,6 +39,8 @@ it("interleaves both Bunpro queues and keeps each session's submission independe
   expect(screen.queryByRole("navigation", { name: "Active review service" })).not.toBeInTheDocument();
   expect(await screen.findByLabelText("Previous WaniKani answer: 川, correct")).toBeVisible();
   for (const answer of ["です", "ねこ"]) {
+    await waitFor(() => expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "4"));
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", answer === "です" ? "1" : "3");
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: answer } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
@@ -51,6 +53,12 @@ it("interleaves both Bunpro queues and keeps each session's submission independe
     }
   }
   await screen.findByRole("heading", { name: "Mixed reviews complete" });
+  expect(screen.getByText("4 subjects reviewed · 10s")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open です details" })).toHaveAttribute("href", "/bunpro/grammar/desu");
+  expect(screen.getByRole("link", { name: "Open 猫 details" })).toHaveAttribute("href", "/bunpro/vocab/neko");
+  expect(screen.getByRole("link", { name: "Open 川1 details" })).toHaveAttribute("href", "/subjects/1");
+  expect(screen.queryByRole("heading", { name: "Bunpro reviews complete" })).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("1 WaniKani submission");
   const posts = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST").map(([, options]) => JSON.parse(String(options?.body)));
   expect(posts).toHaveLength(2);
   expect(posts[0]).toMatchObject({ reviewId: "10", sessionId: 101, mode: "grammar", correct: true });

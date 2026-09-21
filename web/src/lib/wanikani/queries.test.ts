@@ -1,8 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchAvailableReviewCount, wkKeys } from "./queries";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { fetchAvailableReviewCount, userQuery, wkKeys } from "./queries";
 
 describe("WaniKani queries", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("checks Vacation Mode on mount without polling every minute", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { current_vacation_started_at: null } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const observer = new QueryObserver(client, userQuery());
+    const unsubscribe = observer.subscribe(() => {});
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+      client.clear();
+      vi.useRealTimers();
+    }
+  });
 
   it("uses WaniKani's filtered review scope and collection total", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

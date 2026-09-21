@@ -180,7 +180,7 @@ describe("custom vocabulary pack hub", () => {
     expect(within(mixedPack).getByText("Show 3 more words")).toBeInTheDocument();
     expect(screen.getByText("Cloud progress", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/adaptive FSRS/i)).toBeInTheDocument();
-    expect(screen.getByText(/does not reproduce WaniKani’s exact schedule/i)).toBeInTheDocument();
+    expect(screen.getByText(/Changing settings preserves existing due dates/i)).toBeInTheDocument();
     expect(screen.getByText("How custom SRS timing works")).toBeInTheDocument();
     expect(container.querySelectorAll('[data-subject-type="vocabulary"]')).not.toHaveLength(0);
     expect(screen.getByRole("link", { name: "JMdict/EDICT project" })).toHaveAttribute("href", "https://www.edrdg.org/jmdict/j_jmdict.html");

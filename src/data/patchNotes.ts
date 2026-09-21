@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.16",
+    date: "2026-09-20",
+    changes: [
+      {
+        type: "improvement",
+        title: "Continuous Voice Review Answers",
+        description:
+          "On iOS, tap the mic once to keep answering consecutive review questions, with an animated listening indicator that responds to your voice. Listening pauses during pronunciation playback. Tap the mic again to stop.",
+      },
+    ],
+  },
+  {
     version: "1.4.15",
     date: "2026-09-15",
     changes: [

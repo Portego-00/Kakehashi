@@ -1,6 +1,6 @@
 import { clearCustomSrsAuthCacheForTests, handleCustomSrsRequest, validateCustomSrsRequest } from "./index.ts";
 import catalog from "../../../web/src/features/custom-srs/catalog.generated.json" with { type: "json" };
-import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack } from "../../../web/src/features/custom-srs/model.ts";
+import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, updateCustomSrsSettings } from "../../../web/src/features/custom-srs/model.ts";
 import type { CustomSrsState, CustomVocabularyPack } from "../../../web/src/features/custom-srs/types.ts";
 
 function assert(condition: unknown, message = "Assertion failed"): asserts condition { if (!condition) throw new Error(message); }
@@ -36,7 +36,7 @@ function backend(options: { username?: string; state?: CustomSrsState; revision?
         reviewLog: stored.reviewLog.filter((entry) => entry.eventId === body.p_event_id),
       } } : null));
     }
-    if (url.endsWith("patch_custom_srs_state")) {
+    if (url.endsWith("patch_custom_srs_state_v2")) {
       const body = JSON.parse(String(init?.body));
       equal(body.p_user_id, "wk-account-uuid");
       if (options.failSave) return Promise.resolve(Response.json({ error: "private failure" }, { status: 500 }));
@@ -127,7 +127,7 @@ Deno.test("retries compare-and-set conflicts without overwriting cloud revisions
   const server = backend({ state: enrollCustomVocabularyPack(createCustomSrsState(now), pack, now), conflict: true });
   const result = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: pack.words[0].id, eventId }), { env, fetch: server.fetcher, now: () => now });
   equal(result.status, 200); equal(server.revision(), 2);
-  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 2);
+  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state_v2")).length, 2);
 });
 
 Deno.test("failed saves and unsupported cloud policies cannot be silently replaced", async () => {
@@ -136,11 +136,11 @@ Deno.test("failed saves and unsupported cloud policies cannot be silently replac
   const server = backend({ state: initial, failSave: true });
   const result = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: pack.words[0].id, eventId }), { env, fetch: server.fetcher, now: () => now });
   equal(result.status, 503); equal(server.state(), initial);
-  const badState = { ...initial, policy: { ...initial.policy, version: 2 } } as unknown as CustomSrsState;
+  const badState = { ...initial, policy: { ...initial.policy, version: 999 } } as unknown as CustomSrsState;
   const unsupported = backend({ state: badState });
   const rejected = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: pack.words[0].id, eventId }), { env, fetch: unsupported.fetcher, now: () => now });
   equal(rejected.status, 503);
-  equal(unsupported.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 0);
+  equal(unsupported.calls.filter((call) => call.url.endsWith("patch_custom_srs_state_v2")).length, 0);
 });
 
 Deno.test("no custom action is submitted to WaniKani mutation endpoints", async () => {
@@ -159,7 +159,7 @@ Deno.test("damaged learned cards fail safely without resetting progress", async 
   const server = backend({ state: initial });
   const result = await handleCustomSrsRequest(request({ action: "enroll_pack", packId: pack.id, eventId }), { env, fetch: server.fetcher, now: () => now });
   equal(result.status, 503);
-  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 0);
+  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state_v2")).length, 0);
 });
 
 Deno.test("current clients receive only a card delta and unchanged reads avoid loading progress", async () => {
@@ -186,5 +186,20 @@ Deno.test("a replayed native answer cannot grade a newer occurrence", async () =
   const result = await handleCustomSrsRequest(request(action), { env, fetch: server.fetcher, now: () => new Date("2026-09-10T15:00:00Z") });
   equal(result.status, 200);
   equal(server.revision(), 4);
-  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state")).length, 0);
+  equal(server.calls.filter((call) => call.url.endsWith("patch_custom_srs_state_v2")).length, 0);
+});
+
+Deno.test("mobile lessons and reviews honor settings saved by the web account", async () => {
+  clearCustomSrsAuthCacheForTests();
+  let initial = enrollCustomVocabularyPack(createCustomSrsState(now), pack, now);
+  if (initial.policy.version !== 2) throw new Error("Expected configurable policy");
+  initial = updateCustomSrsSettings(initial, { ...initial.policy.settings, stageIntervals: [10, 20, 30, 60, 120, 240, 480, 960], roundToHour: false }, 0, "settings", now);
+  const server = backend({ state: initial });
+  const result = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: pack.words[0].id, eventId }), { env, fetch: server.fetcher, now: () => now });
+  equal(result.status, 200);
+  equal(server.state()!.assignments[pack.words[0].id].availableAt, new Date(now.getTime() + 10 * 60_000).toISOString());
+  const due = new Date(now.getTime() + 10 * 60_000);
+  const review = await handleCustomSrsRequest(request({ action: "submit_review", wordId: pack.words[0].id, eventId: "22222222-2222-4222-8222-222222222222", incorrectAnswers: 0 }), { env, fetch: server.fetcher, now: () => due });
+  equal(review.status, 200);
+  equal(server.state()!.assignments[pack.words[0].id].availableAt, new Date(due.getTime() + 20 * 60_000).toISOString());
 });

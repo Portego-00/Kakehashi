@@ -1,5 +1,7 @@
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type CardInput, type Grade } from "ts-fsrs";
-import type { CustomSrsPolicyMetadata, CustomSrsStage, SerializedFsrsCard } from "./types";
+import type { CustomSrsPolicyMetadata, LegacyCustomSrsPolicyMetadata, CustomSrsStage, SerializedFsrsCard } from "./types";
+
+import { settingsForPolicy, stepMinutes } from "./srs-settings";
 
 const parameters = generatorParameters({
   enable_fuzz: false,
@@ -11,7 +13,7 @@ const parameters = generatorParameters({
 });
 const scheduler = fsrs(parameters);
 
-export const CUSTOM_SRS_POLICY: CustomSrsPolicyMetadata = {
+export const CUSTOM_SRS_POLICY: LegacyCustomSrsPolicyMetadata = {
   id: "fsrs-wk-shaped",
   version: 1,
   library: "ts-fsrs",
@@ -60,18 +62,40 @@ function hydrateCard(card: SerializedFsrsCard): CardInput {
   };
 }
 
-function schedule(card: CardInput | Card, now: Date, rating: Grade) {
-  const result = scheduler.next(card, now, rating);
-  const due = topOfHour(result.card.due);
+function schedule(card: CardInput | Card, now: Date, rating: Grade, policy: CustomSrsPolicyMetadata) {
+  const settings = settingsForPolicy(policy);
+  const engine = policy.version === 1 ? scheduler : fsrs(generatorParameters({
+    enable_fuzz: false, enable_short_term: true,
+    learning_steps: settings.learningSteps as typeof parameters.learning_steps,
+    relearning_steps: settings.relearningSteps as typeof parameters.relearning_steps,
+    maximum_interval: settings.maximumInterval, request_retention: settings.requestRetention,
+  }));
+  // A shorter step list can be selected while a card is still learning.
+  const limit = card.state === "Relearning" || card.state === State.Relearning ? settings.relearningSteps.length : settings.learningSteps.length;
+  const input = policy.version === 1 ? card : { ...card, learning_steps: Math.min(card.learning_steps ?? 0, limit - 1) };
+  const result = engine.next(input, now, rating);
+  // FSRS can separate Good/Easy by a day even at the configured cap.
+  // Enforce the user's ceiling on the actual Review card, not just engine parameters.
+  const capped = policy.version === 2 && result.card.state === State.Review;
+  const latest = now.getTime() + settings.maximumInterval * 86400_000;
+  const due = roundedDue(capped ? new Date(Math.min(result.card.due.getTime(), latest)) : result.card.due, now, settings.roundToHour);
   return {
-    card: serializeCard({ ...result.card, due }),
+    card: serializeCard({ ...result.card, due, ...(capped ? { scheduled_days: Math.min(result.card.scheduled_days, settings.maximumInterval) } : {}) }),
     due,
     rating: Rating[rating] as "Again" | "Hard" | "Good" | "Easy",
   };
 }
 
-export function introduceCustomCard(now: Date) {
-  const due = topOfHour(new Date(now.getTime() + 4 * 60 * 60_000));
+function roundedDue(due: Date, now: Date, round: boolean) {
+  const rounded = round ? topOfHour(due) : due;
+  // Short learning steps must never be rounded into the past or made immediately due.
+  return rounded > now ? rounded : due;
+}
+
+export function introduceCustomCard(now: Date, policy: CustomSrsPolicyMetadata = CUSTOM_SRS_POLICY) {
+  const settings = settingsForPolicy(policy);
+  const minutes = settings.mode === "wanikani" ? settings.stageIntervals[0] : stepMinutes(settings.learningSteps[0]);
+  const due = roundedDue(new Date(now.getTime() + minutes * 60_000), now, settings.roundToHour);
   const card = createEmptyCard(now);
   return {
     card: serializeCard({ ...card, due, state: State.Learning }),
@@ -80,8 +104,12 @@ export function introduceCustomCard(now: Date) {
   };
 }
 
-export function reviewCustomCard(card: SerializedFsrsCard, now: Date, correct: boolean) {
-  return schedule(hydrateCard(card), now, correct ? Rating.Good : Rating.Again);
+export function reviewCustomCard(card: SerializedFsrsCard, now: Date, correct: boolean, policy: CustomSrsPolicyMetadata = CUSTOM_SRS_POLICY, endingStage: CustomSrsStage = 1) {
+  const result = schedule(hydrateCard(card), now, correct ? Rating.Good : Rating.Again, policy);
+  const settings = settingsForPolicy(policy);
+  if (settings.mode === "fsrs") return result;
+  const due = roundedDue(new Date(now.getTime() + settings.stageIntervals[Math.min(8, endingStage) - 1] * 60_000), now, settings.roundToHour);
+  return { ...result, due, card: { ...result.card, due: due.toISOString() } };
 }
 
 export function nextCustomSrsStage(current: CustomSrsStage, incorrectAnswers: number) {

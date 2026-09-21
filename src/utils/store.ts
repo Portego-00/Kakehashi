@@ -613,6 +613,7 @@ type SettingsState = {
   showMnemonicIllustrations: boolean; // Show radical mnemonic illustrations in subject details and lessons
   showInlineRadicalReminders: boolean; // Expand radical mnemonics inline from kanji details
   showKanjiEtymology: boolean; // Show kanji etymology in subject details and lessons
+  showSubjectHistory: boolean;
   kanjiReadingTextToSpeechEnabled: boolean; // Make kanji reading chips speak their Japanese pronunciation
   myAnimeListUsername: string | null;
   aniListUsername: string | null;
@@ -810,6 +811,7 @@ type SettingsState = {
   setShowMnemonicIllustrations: (show: boolean) => void;
   setShowInlineRadicalReminders: (show: boolean) => void;
   setShowKanjiEtymology: (show: boolean) => void;
+  setShowSubjectHistory: (show: boolean) => void;
   setKanjiReadingTextToSpeechEnabled: (enabled: boolean) => void;
   setMyAnimeListUsername: (username: string | null) => void;
   setAniListUsername: (username: string | null) => void;
@@ -981,6 +983,7 @@ export const useSettingsStore = create<SettingsState>()(
       showMnemonicIllustrations: true, // Default to enabled (show radical mnemonic illustrations)
       showInlineRadicalReminders: false, // Default to disabled (open full radical details instead)
       showKanjiEtymology: false, // Default to disabled so etymology stays opt-in
+      showSubjectHistory: false,
       kanjiReadingTextToSpeechEnabled: false, // Default to disabled so reading chips remain non-interactive
       myAnimeListUsername: null, // No MyAnimeList user configured by default
       aniListUsername: null, // No AniList user configured by default
@@ -1251,6 +1254,7 @@ export const useSettingsStore = create<SettingsState>()(
       setShowInlineRadicalReminders: (show) =>
         set({ showInlineRadicalReminders: show }),
       setShowKanjiEtymology: (show) => set({ showKanjiEtymology: show }),
+      setShowSubjectHistory: (show) => set({ showSubjectHistory: show }),
       setKanjiReadingTextToSpeechEnabled: (enabled) =>
         set({ kanjiReadingTextToSpeechEnabled: enabled }),
       setMyAnimeListUsername: (username) =>

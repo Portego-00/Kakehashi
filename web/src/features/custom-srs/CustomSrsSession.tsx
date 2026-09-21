@@ -349,7 +349,7 @@ export function CustomSrsSession({
 
   return <CustomSrsSessionGate
     mode={mode}
-    packs={packs}
+    packs={customSrs.packs ?? packs}
     lessonBatchSize={lessonBatchSize}
     detailSettings={webSettings.subjectDetails}
     studySettings={webSettings.study}

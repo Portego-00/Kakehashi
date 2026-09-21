@@ -18,7 +18,7 @@ function Connection() {
   const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: () => bunpro<{ connected: boolean }>("action=connection"), retry: false });
   const save = useMutation({
     mutationFn: (disconnect: boolean) => bunpro<{ connected: boolean }>("", { method: disconnect ? "DELETE" : "POST", ...(disconnect ? {} : { body: JSON.stringify({ action: "connect", token }) }) }),
-    onSuccess: (data) => { setToken(""); cache.removeQueries({ queryKey: ["bunpro", "details"] }); cache.setQueryData(["bunpro", "connection"], data); },
+    onSuccess: (data) => { setToken(""); cache.removeQueries({ queryKey: ["bunpro", "details"] }); cache.removeQueries({ queryKey: ["bunpro", "analytics"] }); cache.setQueryData(["bunpro", "connection"], data); },
   });
   return <section id="bunpro-api-key" data-settings-search="" data-search-keywords="bunpro api key grammar vocabulary" className={styles.settings} aria-labelledby="bunpro-heading">
     <div className={styles.row}><h2 id="bunpro-heading">Bunpro</h2><span className={styles.connectionStatus} role="status">{connection.isPending ? "Checking…" : connection.data?.connected ? "Connected" : ""}</span></div>

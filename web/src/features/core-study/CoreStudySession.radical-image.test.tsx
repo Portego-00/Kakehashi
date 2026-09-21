@@ -111,7 +111,6 @@ const fixtures = vi.hoisted(() => {
       vocabularyAudioVoice: "female",
       ankiMode: "off",
       ankiGroupQuestions: false,
-      ankiHideAnswerCompletely: false,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,

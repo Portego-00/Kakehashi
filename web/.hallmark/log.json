@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-09-21",
+    "macrostructure": "Workbench",
+    "theme": "existing Kakehashi",
+    "enrichment": "none",
+    "brief": "Separate Bunpro study tracks, proportional honeycomb SRS, solid-bar forecast, official stage marks, true weekly calendar, accuracy and review heatmap from verified live APIs.",
+    "checks": "Chrome live-key verification; empty data hidden; grammar/vocabulary split; exact counts beside approximate cells; keyboard-accessible data tables; responsive light/dark browser checks at 320\u20131440px. Single-track cards reflow into one shared grid; filtered desktop and mobile geometry verified. Source arrival and card position transitions at 220ms, animated SVG forecast values, reduced-motion fallback; source switches retain WaniKani state."
+  },
+  {
     "date": "2026-08-31",
     "scope": "custom-vocabulary-hub-dashboard-details",
     "macrostructure": "Study Workbench / compact queue / flat pack catalog / lower-dashboard action widget / Focused Subject detail",
@@ -8,14 +16,14 @@
     "brief": "Modernize custom vocabulary, add one lower-dashboard widget for lessons, reviews, and packs, then make every kana word open a familiar subject detail page",
     "score": "P5 H5 E5 S5 R5 V5",
     "result": "pass",
-    "checks": "vocabulary purple limited to semantic identity, progress, and counts; no gradients, nested cards, fabricated metrics, raw colors, transition-all, bounce, or layout-property animation; 80–220ms functional motion with complete reduced-motion spatial fallback; whole-row 4.5rem word links with visible focus and stable catalog URLs; subject-style Meaning, Reading, and Context panels; default dashboard placement immediately after Subject Lists; light and dark visual review; no horizontal overflow or wrapped custom actions at 320, 375, 414, 768, and 1280 pixels; contrast pairs 4.68:1 or higher; 106 focused unit tests; focused Playwright desktop and mobile; typecheck; lint with zero errors; production build; full suite 1,363 passing with one pre-existing unrelated Japanese Reader failure"
+    "checks": "vocabulary purple limited to semantic identity, progress, and counts; no gradients, nested cards, fabricated metrics, raw colors, transition-all, bounce, or layout-property animation; 80\u2013220ms functional motion with complete reduced-motion spatial fallback; whole-row 4.5rem word links with visible focus and stable catalog URLs; subject-style Meaning, Reading, and Context panels; default dashboard placement immediately after Subject Lists; light and dark visual review; no horizontal overflow or wrapped custom actions at 320, 375, 414, 768, and 1280 pixels; contrast pairs 4.68:1 or higher; 106 focused unit tests; focused Playwright desktop and mobile; typecheck; lint with zero errors; production build; full suite 1,363 passing with one pre-existing unrelated Japanese Reader failure"
   },
   {
     "date": "2026-08-28",
     "scope": "authentication-compact-artwork",
     "macrostructure": "Split Studio / static brand-and-form diptych / compact supporting artwork",
     "theme": "studied-DNA (source: Kakehashi design.md + existing phone-login artwork)",
-    "enrichment": "existing Kakehashi crab-throne artwork at 12–16rem",
+    "enrichment": "existing Kakehashi crab-throne artwork at 12\u201316rem",
     "brief": "Restore the phone-login artwork at a deliberately smaller size while keeping authentication simple and static",
     "score": "P5 H5 E5 S5 R5 V4",
     "result": "pass",
@@ -41,7 +49,7 @@
     "brief": "Bring Custom Lessons into the same subject-first selection workspace as Custom Review while preserving lesson-specific filtering and selection behavior",
     "score": "P5 H5 E5 S5 R5 V4",
     "result": "pass",
-    "checks": "reading and romaji search with direct clearing; exact-stage, type, 1–60 level, and saved-list filters; lesson lists narrow the visible catalog without erasing selected subjects; hidden and stale IDs cannot enable an empty lesson; adaptive long-vocabulary and radical-image tiles; stable accessible toggle names and focus restoration after filter reset; 200-row render cap with all-match bulk selection; direct lesson start action; light and dark visual checks; no horizontal overflow or wrapped actions at 320, 375, 414, 768, 1280, and 1920 pixels; 12 focused tests; 905 full-suite tests with 1 skipped; changed-file lint; typecheck; production build"
+    "checks": "reading and romaji search with direct clearing; exact-stage, type, 1\u201360 level, and saved-list filters; lesson lists narrow the visible catalog without erasing selected subjects; hidden and stale IDs cannot enable an empty lesson; adaptive long-vocabulary and radical-image tiles; stable accessible toggle names and focus restoration after filter reset; 200-row render cap with all-match bulk selection; direct lesson start action; light and dark visual checks; no horizontal overflow or wrapped actions at 320, 375, 414, 768, 1280, and 1920 pixels; 12 focused tests; 905 full-suite tests with 1 skipped; changed-file lint; typecheck; production build"
   },
   {
     "date": "2026-08-27",
@@ -151,7 +159,7 @@
     "brief": "Bring the web dashboard widgets and their settings previews much closer to the mobile and macOS app",
     "score": "P5 H5 E5 S5 R5 V5",
     "result": "pass",
-    "checks": "shared live and preview components; assignment-backed nine-stage radical, kanji, and vocabulary bars with five-group toggle; current-level Guru target, timing, and subject-stage tiles; truthful seven-day streak status; native-shaped Today’s Study and Extra Study cards; 320, 375, 414, and 768 pixel overflow and visual checks; 44 pixel chart control; 4 focused test files and 30 tests; lint; optimized webpack compilation before unrelated repository type failures"
+    "checks": "shared live and preview components; assignment-backed nine-stage radical, kanji, and vocabulary bars with five-group toggle; current-level Guru target, timing, and subject-stage tiles; truthful seven-day streak status; native-shaped Today\u2019s Study and Extra Study cards; 320, 375, 414, and 768 pixel overflow and visual checks; 44 pixel chart control; 4 focused test files and 30 tests; lint; optimized webpack compilation before unrelated repository type failures"
   },
   {
     "date": "2026-08-25",
@@ -204,23 +212,5 @@
     "theme": "studied-DNA",
     "enrichment": "none",
     "brief": "Card-oriented dashboard with truthful charts and N10 floating scroll-morph app bar"
-  },
-  {
-    "date": "2026-08-25",
-    "scope": "app",
-    "macrostructure": "Workbench / focused media",
-    "theme": "studied-DNA",
-    "enrichment": "none",
-    "brief": "Songs and lyrics search, synchronized playback, quiz, and source correction redesign"
-  },
-  {
-    "date": "2026-08-25",
-    "phase": "subjects-progress-analytics-redesign",
-    "scope": "app",
-    "macrostructure": "Index-First / Focused Subject / Native Progress / Custom Workbench",
-    "theme": "studied-DNA (source: supplied Kakehashi macOS references)",
-    "score": "P5 H5 E5 S5 R5 V5",
-    "result": "pass",
-    "checks": "adaptive subject glyphs through long vocabulary; URL-backed search return state; representative search and detail skeletons; subject-colour detail stage with accessible tabs; native level progress hierarchy; truthful analytics cards; persisted drag, reorder, compact, and full-width dashboard controls; semantic tokens; visible focus; reduced motion; 73 test files and 238 tests; lint, typecheck, and production build"
   }
 ]

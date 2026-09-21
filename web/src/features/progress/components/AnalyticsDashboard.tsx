@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Activity, BookOpen, CalendarDays, ChartNoAxesColumnIncreasing, CircleAlert, Clock3, Download, Flame, Gauge, Grid2X2, Info, RefreshCw, RotateCcw, Share2, SlidersHorizontal, Target, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
+import { BunproAnalyticsSource } from "@/features/bunpro/BunproAnalytics";
+import { canAccessBunpro } from "@/features/bunpro/access";
 import { useSession } from "@/lib/session";
 import { useProgressData } from "../data";
 import { useAnalyticsHistory } from "../analytics-history";
@@ -38,10 +40,11 @@ export function AnalyticsDashboard() {
   if (progress.isError) return <main className={`page ${progressStyles.page}`} data-compact-workspace><ProgressTabs active="analytics" /><div className={progressStyles.errorState}><CircleAlert size={28} aria-hidden /><h1>Analytics are unavailable</h1><p>WaniKani could not return your progress. Try loading it again.</p><Button state={retrying ? "loading" : "idle"} onClick={async () => { setRetrying(true); try { await progress.retry(); } catch { /* The error state remains visible until a successful retry. */ } finally { setRetrying(false); } }}>Try again</Button></div></main>;
   const userId = String(user?.data.id ?? user?.id ?? user?.data.username ?? "anonymous");
   const scope = `${isDemo ? "demo" : "account"}:${userId}`;
-  return <AnalyticsDashboardBody key={scope} progress={progress} accountKey={scope} studyTimeKey={userId} username={user?.data.username ?? "Learner"} level={user?.data.level ?? 1} startedAt={user?.data.started_at ?? ""} vacation={Boolean(user?.data.current_vacation_started_at)} />;
+  const dashboard = (sourceNavigation?: ReactNode) => <AnalyticsDashboardBody key={scope} sourceNavigation={sourceNavigation} progress={progress} accountKey={scope} studyTimeKey={userId} username={user?.data.username ?? "Learner"} level={user?.data.level ?? 1} startedAt={user?.data.started_at ?? ""} vacation={Boolean(user?.data.current_vacation_started_at)} />;
+  return !isDemo && canAccessBunpro(user?.data.username) ? <BunproAnalyticsSource key={scope} accountKey={scope}>{dashboard}</BunproAnalyticsSource> : dashboard();
 }
 
-function AnalyticsDashboardBody({ progress, accountKey, studyTimeKey, username, level, startedAt, vacation }: { progress: ReturnType<typeof useProgressData>; accountKey: string; studyTimeKey: string; username: string; level: number; startedAt: string; vacation: boolean }) {
+function AnalyticsDashboardBody({ sourceNavigation, progress, accountKey, studyTimeKey, username, level, startedAt, vacation }: { sourceNavigation?: ReactNode; progress: ReturnType<typeof useProgressData>; accountKey: string; studyTimeKey: string; username: string; level: number; startedAt: string; vacation: boolean }) {
   const [config, setConfig] = useState<AnalyticsDashboardConfig>(() => createAnalyticsPreset("overview"));
   const [previousConfig, setPreviousConfig] = useState<AnalyticsDashboardConfig | null>(null);
   const [ready, setReady] = useState(false);
@@ -115,6 +118,7 @@ function AnalyticsDashboardBody({ progress, accountKey, studyTimeKey, username, 
 
   return <main className={`page ${progressStyles.page} ${styles.workspace}`} data-compact-workspace>
     <ProgressTabs active="analytics" action={<div className={styles.headerActions}><Button tone="ghost" size="small" onClick={() => setShare(true)}><Share2 size={16} aria-hidden />Share</Button><Button tone="ghost" size="small" onClick={() => setCustomizing(true)}><SlidersHorizontal size={16} aria-hidden />Customize</Button></div>} />
+    {sourceNavigation}
     <section className={styles.overview} aria-label="Analytics overview">
     <div className={styles.toolbar}>
       <div className={`${styles.toolbarActions} ${styles.dashboardFilters}`}><label>Dashboard<select aria-label="Dashboard preset" value={preset ?? "custom"} onChange={(event) => saveConfig(createAnalyticsPreset(event.target.value as AnalyticsPresetId))}>{!preset ? <option value="custom">Custom</option> : null}{ANALYTICS_PRESETS.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><label>Activity period<select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="30">30 days</option><option value="90">90 days</option><option value="365">Past year</option><option value="all">All time</option></select></label></div>

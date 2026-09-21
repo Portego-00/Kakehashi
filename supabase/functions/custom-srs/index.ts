@@ -1,5 +1,5 @@
 import { customSrsWireResult } from "../../../web/src/features/custom-srs/transport.ts";
-import { customSrsStatePatch } from "../../../web/src/features/custom-srs/state-patch.ts";
+import { customSrsStatePatch } from "../../../web/src/features/custom-srs/state-patch";
 import catalog from "../../../web/src/features/custom-srs/catalog.generated.json" with { type: "json" };
 import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview } from "../../../web/src/features/custom-srs/model";
 import { parseCustomSrsStateStrict } from "../../../web/src/features/custom-srs/storage.ts";
@@ -230,7 +230,7 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
         }
       } catch { throw new RequestError(409, "This word is no longer ready for this action. Refresh your progress and try again."); }
       if (state === current.state) return respond(current);
-      const response = await dependencies.fetch(`${url}/rest/v1/rpc/patch_custom_srs_state`, {
+      const response = await dependencies.fetch(`${url}/rest/v1/rpc/patch_custom_srs_state_v2`, {
         method: "POST", headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000),
         body: JSON.stringify({ p_user_id: identity.id, p_expected_revision: current.revision, ...customSrsStatePatch(current.state, state) }),
       });

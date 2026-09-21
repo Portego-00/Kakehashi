@@ -23,9 +23,9 @@ afterEach(cleanup);
 async function start() { setup(); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); }
 it.each([["Grammar", "grammar"], ["Vocabulary", "vocab"], ["Grammar & vocabulary", "all"]])("loads %s reviews", async (label, mode) => { setup(); fireEvent.click(screen.getByLabelText(label)); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); expect(bunpro).toHaveBeenCalledWith(`action=queue&mode=${mode}`); });
 it("accepts alternate answers, converts kana, and saves only on Continue", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "da" } }); expect(screen.getByLabelText("Your answer")).toHaveValue("だ"); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Correct")).toBeVisible(); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); const call = vi.mocked(bunpro).mock.calls.find(([, options]) => options?.method === "POST"); expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ correct: true, sessionId: 1, reviewId: "10" }); });
-it("gives an alternate-answer hint without marking incorrect", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "でした" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Use the present tense.")).toBeVisible(); expect(screen.queryByText("Incorrect")).not.toBeInTheDocument(); });
-it("repeats a missed item without submitting it twice", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findAllByText("Practice again"); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1); });
-it("keeps the current answer when saving fails", async () => { await start(); vi.mocked(bunpro).mockRejectedValueOnce(new Error("Service unavailable")); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByRole("alert"); expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled(); expect(screen.queryAllByText("Practice again")).toHaveLength(0); });
+it("gives an alternate-answer hint without marking incorrect", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "でした" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Use the present tense.")).toBeVisible(); expect(screen.getByLabelText("Your answer").parentElement).toHaveAttribute("data-result", "warning"); expect(screen.getByText("Close — try another answer")).toBeVisible(); expect(screen.queryByText("Incorrect")).not.toBeInTheDocument(); });
+it("repeats a missed item without submitting it twice", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findAllByText("Retrying missed item"); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1); });
+it("keeps the current answer when saving fails", async () => { await start(); vi.mocked(bunpro).mockRejectedValueOnce(new Error("Service unavailable")); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByRole("alert"); expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled(); expect(screen.queryAllByText("Retrying missed item")).toHaveLength(0); });
 it.each(["Learner", "demo-level-21"])("hides settings and the home button from %s", (username) => { session.user.data.username = username; setup(<><BunproSettings /><BunproHomeButton /></>); expect(screen.queryByText("Bunpro API key")).not.toBeInTheDocument(); expect(screen.queryByText("Bunpro reviews")).not.toBeInTheDocument(); expect(bunpro).not.toHaveBeenCalled(); });
 it("validates and clears the API-key field after saving", async () => { setup(<BunproSettings />); fireEvent.change(screen.getByLabelText("Bunpro API key"), { target: { value: "private-key" } }); vi.mocked(bunpro).mockResolvedValueOnce({ connected: true }); fireEvent.click(screen.getByRole("button", { name: "Save" })); await waitFor(() => expect(screen.getByLabelText("Bunpro API key")).toHaveValue("")); expect(bunpro).toHaveBeenCalledWith("", expect.objectContaining({ body: JSON.stringify({ action: "connect", token: "private-key" }) })); });
 it("preserves furigana and strips executable markup", () => { const { container } = render(<BunproText value={'<strong>私(わたし)</strong><script>alert(1)</script><a href="javascript:alert(1)">bad link</a><img src="x" onerror="alert(1)">'} />); expect(container.querySelector("ruby rt")).toHaveTextContent("わたし"); expect(container.querySelector("script, img, a")).toBeNull(); expect(screen.getByText("bad link")).toBeVisible(); });
@@ -73,12 +73,12 @@ it("opens Bunpro details on a paused wrong answer when enabled", async () => {
   expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
   expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled();
 });
-it("plays the preferred voices and keeps the answer until Next", async () => {
-  const players: EventTarget[] = [];
+it.each(["both", "male"] as const)("autoplays only the female voice with %s selected and keeps the answer until Next", async (vocabularyAudioVoice) => {
+  const players: (EventTarget & { src: string })[] = [];
   const play = vi.fn().mockResolvedValue(undefined);
   const pause = vi.fn();
   vi.stubGlobal("Audio", class extends EventTarget { constructor(public src: string) { super(); players.push(this); } play = play; pause = pause; });
-  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: false, autoplayAudio: true, vocabularyAudioVoice: "both" } });
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: false, autoplayAudio: true, vocabularyAudioVoice } });
   vi.mocked(bunpro).mockImplementation(async (query) => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [{ ...item, included: item.included!.map((resource) => resource.type === "study_question" ? { ...resource, attributes: { ...resource.attributes, female_audio_url: "https://audio.test/female.mp3", male_audio_url: "https://audio.test/male.mp3" } } : resource) }], pending_wrapup: [] } : {});
   try {
     await start();
@@ -91,8 +91,8 @@ it("plays the preferred voices and keeps the answer until Next", async () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
     expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
     await act(async () => { players[0].dispatchEvent(new Event("ended")); });
-    expect(play).toHaveBeenCalledTimes(2);
-    await act(async () => { players[1].dispatchEvent(new Event("ended")); });
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(players[0].src).toBe("https://audio.test/female.mp3");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Bunpro reviews complete");
   } finally { vi.unstubAllGlobals(); }
@@ -225,8 +225,6 @@ it("lets the learner undo, inspect alternatives, and correct a grade before savi
   expect(screen.getByRole("heading", { name: "Accepted answers" })).toBeVisible();
   expect(screen.getByText("Use the present tense.")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
-  expect(vi.mocked(bunpro).mock.calls.filter(([, o]) => o?.method === "POST")).toHaveLength(0);
-  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("Bunpro reviews complete");
   expect(JSON.parse(String(vi.mocked(bunpro).mock.calls.find(([, o]) => o?.method === "POST")?.[1]?.body)).correct).toBe(true);
 });
@@ -255,18 +253,19 @@ it("skips a question without grading it or revealing the next answer", async () 
 function studySettings(study: Partial<typeof DEFAULT_WEB_SETTINGS.study>) {
   vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, autoplayAudio: false, showAnswerStopSubjectDetails: false, ...study } });
 }
-it("uses reading Anki settings, reveals without saving, then submits the selected grade", async () => {
-  studySettings({ ankiMode: "reading", ankiHideAnswerCompletely: true, ankiShowOtherAcceptedAnswersAndUserSynonyms: true });
+it.each([false, true])("uses reading Anki settings with custom keys %s", async (customKeys) => {
+  const studyShortcuts = { ...DEFAULT_WEB_SETTINGS.study.studyShortcuts, ...(customKeys ? { progress: " ", markCorrect: "j" } : {}) };
+  studySettings({ studyShortcuts, ankiMode: "reading", ankiShowOtherAcceptedAnswersAndUserSynonyms: true });
   setup(<BunproReviews initialMode="grammar" />);
   await screen.findByRole("button", { name: "Reveal answer" });
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  expect(screen.getByTestId("anki-answer-preview")).toHaveAttribute("data-visibility", "hidden");
-  fireEvent.keyDown(document.body, { key: "Enter" });
-  expect(screen.getByRole("button", { name: "2 · Correct" })).toBeVisible();
+  expect(screen.getByTestId("anki-answer-preview")).toHaveAttribute("data-visibility", "blurred");
+  fireEvent.keyDown(document.body, { key: studyShortcuts.progress });
+  expect(screen.getByRole("button", { name: "Correct" }).querySelector("kbd")).toHaveTextContent(customKeys ? "J" : "2");
   expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("だ");
   expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
-  fireEvent.keyDown(document.body, { key: "2" });
-  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
+
   await screen.findByText("Bunpro reviews complete");
   expect(JSON.parse(String(vi.mocked(bunpro).mock.calls.find(([, options]) => options?.method === "POST")?.[1]?.body))).toMatchObject({ reviewId: "10", correct: true });
 });
@@ -277,7 +276,8 @@ it("supports buttonless Anki grading and disables keyboard grading when configur
   fireEvent.keyDown(document.body, { key: "2" });
   expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Tap left: mark wrong" }));
-  expect(screen.getByText("Incorrect")).toBeVisible();
+  await screen.findByRole("button", { name: "Reveal answer" });
+  expect(JSON.parse(String(vi.mocked(bunpro).mock.calls.find(([, options]) => options?.method === "POST")?.[1]?.body))).toMatchObject({ correct: false });
 });
 it("keeps grammar typed in meaning-only Anki mode and applies Jitai and control settings", async () => {
   studySettings({ ankiMode: "meaning", jitaiEnabled: true, jitaiSelectedFontIds: ["mincho"], allowSkippingReviews: false, reviewSearchButtonEnabled: false, voiceAnswers: true });
@@ -321,12 +321,12 @@ it("applies the batch limit and SRS order without refilling beyond the batch", a
   expect(posts.every(post => post.requestMore === false)).toBe(true);
 });
 it("uses meaning Anki for English vocabulary answers without exposing translation first", async () => {
-  studySettings({ ankiMode: "meaning", ankiHideAnswerCompletely: true });
+  studySettings({ ankiMode: "meaning" });
   const vocab = { ...item, data: { ...item.data, attributes: { ...item.data.attributes, reviewable_type: "Vocab" }, relationships: { ...item.data.relationships, reviewable: { data: { id: "20", type: "vocab" } } } }, included: item.included!.map(resource => resource.type === "study_question" ? { ...resource, attributes: { content: "外側", answer: "outside", translation: "outside" } } : { ...resource, type: "vocab", attributes: { title: "外側", kana: "そとがわ", meaning: "outside" } }) };
   vi.mocked(bunpro).mockImplementation(async query => query === "action=connection" ? { connected: true } : { review_session_id: 1, pending_attempt: [vocab] });
   setup(<BunproReviews initialMode="vocab" />);
   const reveal = await screen.findByRole("button", { name: "Reveal answer" });
-  expect(screen.queryByText("outside")).not.toBeInTheDocument();
+  expect(screen.getByText("outside").closest("[aria-hidden=true]")).toBeInTheDocument();
   fireEvent.click(reveal);
   expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("Expected meaningoutside");
 });
@@ -341,4 +341,133 @@ it("wraps up after the configured number without loading additional items", asyn
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("Bunpro reviews complete");
   expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+
+it("advances mixed reviews after a successful null submission response", async () => {
+  const report = vi.fn();
+  const onAnswer = vi.fn();
+  setup(<BunproReviews initialMode="all" mixed={{ active: true, report, onAnswer }} />);
+  await screen.findByLabelText("Your answer");
+  vi.mocked(bunpro).mockImplementation(async (query, options) => options?.method === "POST" ? null : query === "action=connection" ? { connected: true } : {});
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(onAnswer).toHaveBeenCalledWith(expect.objectContaining({ bunproSubject: { kind: "grammar", slug: "desu" } }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+
+it("shows matching keycaps and supports corrections, alternatives, and undo from the answered input", async () => {
+  await start();
+  const input = screen.getByLabelText("Your answer");
+  fireEvent.change(input, { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  for (const [button, key] of [["Undo", "U"], ["Info", "D"], ["Alternatives", "A"], ["Mark Incorrect", "1"]]) {
+    expect(screen.getByRole("button", { name: button }).querySelector("kbd")).toHaveTextContent(key);
+  }
+  fireEvent.keyDown(input, { key: "a" });
+  expect(screen.getByRole("heading", { name: "Accepted answers" })).toBeVisible();
+  fireEvent.keyDown(input, { key: "u" });
+  expect(input).toHaveValue("");
+  fireEvent.change(input, { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.keyDown(input, { key: "x" });
+  await screen.findByText("Retrying missed item");
+  expect(screen.getByRole("button", { name: "Check" })).toBeVisible();
+  expect(JSON.parse(String(vi.mocked(bunpro).mock.calls.find(([, o]) => o?.method === "POST")?.[1]?.body)).correct).toBe(false);
+});
+
+it("counts a missed review only after its retry is answered correctly", async () => {
+  await start();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Retrying missed item");
+  expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+
+it("starts closing details while saving instead of waiting for Bunpro", async () => {
+  await start();
+  vi.mocked(bunpro).mockResolvedValueOnce({ data: { id: "20", attributes: { title: "です", meaning: "To be" } }, included: [] });
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Info" }));
+  await screen.findByRole("region", { name: "Bunpro item details" });
+  let finish!: (value: unknown) => void;
+  vi.mocked(bunpro).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(document.querySelector("[data-review-details-reveal]")).toHaveAttribute("data-open", "false");
+  await act(async () => finish(null));
+});
+
+
+it.each([true, false])("plays feedback for a corrected grade (%s) before advancing", async (correct) => {
+  await start();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: correct ? "wrong" : "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  expect(playAnswerFeedback).toHaveBeenLastCalledWith(!correct);
+  fireEvent.click(screen.getByRole("button", { name: correct ? "Mark Correct" : "Mark Incorrect" }));
+  expect(playAnswerFeedback).toHaveBeenLastCalledWith(correct);
+  expect(playAnswerFeedback).toHaveBeenCalledTimes(2);
+  if (correct) await screen.findByText("Bunpro reviews complete");
+  else await screen.findByText("Retrying missed item");
+});
+it("shows and accepts typing in the next question before the previous save returns", async () => {
+  let finish!: (value: unknown) => void;
+  const second = { ...item, data: { ...item.data, id: "11" } };
+  vi.mocked(bunpro).mockImplementation(async (query, options) => options?.method === "POST" ? new Promise(resolve => { finish = resolve; }) : query === "action=connection" ? { connected: true } : { review_session_id: 1, pending_attempt: [item, second] });
+  setup(<BunproReviews initialMode="grammar" />);
+  const firstInput = await screen.findByLabelText("Your answer");
+  fireEvent.change(firstInput, { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getByLabelText("Your answer")).not.toBe(firstInput);
+  expect(screen.getByLabelText("Your answer")).toBeEnabled();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "だ" } });
+  await act(async () => { finish(null); });
+  expect(screen.getByLabelText("Your answer")).toHaveValue("だ");
+});
+it.each(["です", "ちがう"])("reports the next mixed question immediately after %s without replaying the badge on save", async answer => {
+  let finish!: (value: unknown) => void;
+  const report = vi.fn(); const onAnswer = vi.fn();
+  const second = { ...item, data: { ...item.data, id: "11" } };
+  vi.mocked(bunpro).mockImplementation(async (query, options) => options?.method === "POST" ? new Promise(resolve => { finish = resolve; }) : query === "action=connection" ? { connected: true } : { review_session_id: 1, pending_attempt: [item, second] });
+  setup(<BunproReviews initialMode="grammar" mixed={{ active: true, report, onAnswer }} />);
+  await screen.findByLabelText("Your answer");
+  const firstId = report.mock.calls.at(-1)?.[0]?.id;
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: answer } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(report.mock.calls.at(-1)?.[0]?.id).not.toBe(firstId);
+  expect(onAnswer).toHaveBeenCalledTimes(1);
+  await act(async () => { finish(null); });
+  expect(onAnswer).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", answer === "です" ? "1" : "0");
+});
+it("restores an unsaved answer on failure and preserves typing in the next question for retry", async () => {
+  let fail!: (error: Error) => void;
+  let attempts = 0;
+  const reportError = vi.fn();
+  const second = { ...item, data: { ...item.data, id: "11" } };
+  vi.mocked(bunpro).mockImplementation(async (query, options) => options?.method === "POST" ? ++attempts === 1 ? new Promise((_, reject) => { fail = reject; }) : null : query === "action=connection" ? { connected: true } : { review_session_id: 1, pending_attempt: [item, second] });
+  setup(<BunproReviews initialMode="grammar" mixed={{ active: true, report: vi.fn(), reportError }} />);
+  await screen.findByLabelText("Your answer");
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "だ" } });
+  await act(async () => { fail(new Error("Not saved")); });
+  expect(screen.getByRole("alert")).toHaveTextContent("Not saved");
+  expect(screen.getByLabelText("Your answer")).toHaveValue("です");
+  expect(reportError).toHaveBeenLastCalledWith(true);
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Check" })).toBeEnabled());
+  expect(screen.getByLabelText("Your answer")).toHaveValue("だ");
+  expect(attempts).toBe(2);
 });

@@ -18,3 +18,11 @@ it("preserves service-specific levels and compares relative wait", () => {
   expect(compareMixedHeads(wk, bp, { ...DEFAULT_WEB_SETTINGS.study, reviewOrder: "lowestLevelFirst" })).toBe(0);
   expect(compareMixedHeads(wk, bp, { ...DEFAULT_WEB_SETTINGS.study, reviewOrder: "longestRelativeWait" }, 1000)).toBeLessThan(0);
 });
+
+
+it("shares a single wrap-up budget across all mixed lanes", async () => {
+  const { mixedWrapUpLimits } = await import("./ordering");
+  expect(mixedWrapUpLimits(["wanikani", "grammar", "vocab"], { wanikani: 20, grammar: 30, vocab: 15 }, "grammar", 10)).toEqual({ wanikani: 3, grammar: 4, vocab: 3 });
+  expect(mixedWrapUpLimits(["wanikani", "grammar"], { wanikani: 1, grammar: 30 }, "wanikani", 10)).toEqual({ wanikani: 1, grammar: 9 });
+  expect(mixedWrapUpLimits(["wanikani", "grammar"], { wanikani: 2, grammar: 30 }, "grammar", 1)).toEqual({ wanikani: 0, grammar: 1 });
+});

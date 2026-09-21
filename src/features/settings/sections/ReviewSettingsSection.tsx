@@ -968,7 +968,7 @@ export function ReviewSettingsSection() {
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
-                Answer review questions with speech recognition
+                Tap the mic once to answer consecutive questions. Tap again to stop.
               </Text>
             </View>
             <Switch

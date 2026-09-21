@@ -1,3 +1,4 @@
+import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -1963,6 +1964,7 @@ export default function KanjiDetails({
           </TouchableOpacity>
 
           <View style={styles.headerActions}>
+            <SubjectHistoryButton subjectType="kanji" meaning={kanji.meanings.find(item => item.primary)?.meaning} subjectId={kanji.id} label={kanji.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
                 onPress={onAddToList}

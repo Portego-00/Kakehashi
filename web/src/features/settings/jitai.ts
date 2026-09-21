@@ -4,6 +4,9 @@ export const BUILT_IN_JITAI_FONTS = [
   { id: "gothic", name: "Gothic", family: '"Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif' },
   { id: "mincho", name: "Mincho", family: '"Yu Mincho", "Hiragino Mincho ProN", serif' },
   { id: "rounded", name: "Rounded", family: '"Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif' },
+  { id: "zen-kurenaido", name: "Zen Kurenaido", family: 'var(--font-jitai-zen), sans-serif' },
+  { id: "yuji-syuku", name: "Yuji Syuku", family: 'var(--font-jitai-yuji), serif' },
+  { id: "reggae-one", name: "Reggae One", family: 'var(--font-jitai-reggae), sans-serif' },
 ] as const;
 
 export const MAX_CUSTOM_FONT_BYTES = 2 * 1024 * 1024;

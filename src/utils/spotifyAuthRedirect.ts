@@ -8,7 +8,9 @@ export function isSpotifyAuthRedirect(path: string): boolean {
     const redirect = new URL(SPOTIFY_REDIRECT_URI);
     return incoming.protocol === redirect.protocol &&
       incoming.host === redirect.host &&
-      incoming.pathname === redirect.pathname;
+      // Native callbacks can represent an empty root path as '/'. Treat these
+      // as equivalent without accepting other paths under the callback host.
+      (incoming.pathname || "/") === (redirect.pathname || "/");
   } catch {
     return false;
   }

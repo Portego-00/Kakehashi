@@ -1,8 +1,10 @@
+import { customSrsSettingsError } from "@/features/custom-srs/srs-settings";
+import type { CustomSrsSettings } from "@/features/custom-srs/types";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
 import { CUSTOM_VOCABULARY_PACKS, customVocabularyPack } from "@/features/custom-srs/catalog";
-import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview } from "@/features/custom-srs/model";
+import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview, updateCustomSrsSettings } from "@/features/custom-srs/model";
 import { readBoundedRequestJson } from "@/features/content/server-security";
 import { analyticsIdentityFromSealedSession } from "@/lib/server/analytics-server";
 import { customSrsBackendConfigured, mutateRemoteCustomSrsState, readCustomSrsRevision, readRemoteCustomSrsState } from "@/lib/server/custom-srs-server";
@@ -18,7 +20,9 @@ const CUSTOM_SRS_MUTATION_LIMIT_PER_TEN_MINUTES = Math.max(
   120,
   CUSTOM_VOCABULARY_PACKS.reduce((total, pack) => total + pack.words.length, 0) + CUSTOM_SRS_MUTATION_RETRY_MARGIN,
 );
+const schedulingSettings = z.custom<CustomSrsSettings>((value) => customSrsSettingsError(value) === null);
 const mutationSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("update_settings"), settings: schedulingSettings, expectedSettingsRevision: z.number().int().min(0), eventId, accountId, knownRevision }).strict(),
   z.object({ action: z.literal("enroll_pack"), packId: z.string().trim().min(1).max(120), eventId, accountId, knownRevision }).strict(),
   z.object({ action: z.literal("complete_lesson"), wordId: z.string().trim().min(1).max(180), eventId, accountId, knownRevision }).strict(),
   z.object({ action: z.literal("submit_review"), wordId: z.string().trim().min(1).max(180), incorrectAnswers: z.number().int().min(0).max(100), eventId, accountId, knownRevision, expectedAssignmentUpdatedAt: z.iso.datetime({ offset: true }).optional() }).strict(),
@@ -73,6 +77,7 @@ export async function POST(request: NextRequest) {
     if (!customSrsBackendConfigured()) return privateResponse({ error: "Custom vocabulary cloud storage is not configured. Your saved progress has not changed." }, 503);
     const result = await mutateRemoteCustomSrsState(identity.id, CUSTOM_VOCABULARY_PACKS, (state, now) => {
       const mutation = parsed.data;
+      if (mutation.action === "update_settings") return updateCustomSrsSettings(state, mutation.settings, mutation.expectedSettingsRevision, mutation.eventId, now);
       if (mutation.action === "enroll_pack") {
         const pack = customVocabularyPack(mutation.packId);
         if (!pack) throw new Error("Custom vocabulary pack not found.");
@@ -86,13 +91,13 @@ export async function POST(request: NextRequest) {
       if (assignment && mutation.expectedAssignmentUpdatedAt !== undefined && assignment.updatedAt !== mutation.expectedAssignmentUpdatedAt) return state;
       return recordCustomReview(state, mutation.wordId, mutation.incorrectAnswers, now, mutation.eventId);
     }, undefined, parsed.data.knownRevision, {
-      wordIds: parsed.data.action === "enroll_pack" ? customVocabularyPack(parsed.data.packId)?.words.map((word) => word.id) ?? [] : [parsed.data.wordId],
+      wordIds: parsed.data.action === "update_settings" ? [] : parsed.data.action === "enroll_pack" ? customVocabularyPack(parsed.data.packId)?.words.map((word) => word.id) ?? [] : [parsed.data.wordId],
       eventId: parsed.data.eventId,
     });
     return privateResponse(result);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "";
-    const clientError = /not found|not active|not due yet/i.test(message);
+    const clientError = /not found|not active|not due yet|settings changed/i.test(message);
     return privateResponse({ error: clientError ? message : "Custom vocabulary progress could not be saved." }, clientError ? 409 : 503);
   }
 }

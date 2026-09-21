@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import styles from "./review-exit-guard.module.css";
+
+const subscribeToMount = () => () => {};
 
 /** Guard answers still held in this session; submitted reviews already live in the durable outbox. */
 export function ReviewExitGuard({ pendingSubjects }: { pendingSubjects: number }) {
   const id = useId();
+  const mounted = useSyncExternalStore(subscribeToMount, () => true, () => false);
   const count = useRef(pendingSubjects);
   const allowed = useRef(false);
   const entry = useRef<{ url: string; state: object } | null>(null);
@@ -76,9 +80,9 @@ export function ReviewExitGuard({ pendingSubjects }: { pendingSubjects: number }
     } else if (!leave && modal.open) {
       if (typeof modal.close === "function") modal.close(); else modal.removeAttribute("open");
     }
-  }, [leave]);
+  }, [leave, mounted]);
 
-  return <dialog ref={dialog} className={styles.dialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
+  return mounted ? createPortal(<dialog ref={dialog} className={styles.dialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
     onCancel={(event) => { event.preventDefault(); setLeave(null); }}>
     <h2 id={`${id}-title`}>Leave this session?</h2>
     <p id={`${id}-description`}>{pendingSubjects} {pendingSubjects === 1 ? "subject has" : "subjects have"} answers that haven’t been submitted yet. Finish each subject’s questions to submit its progress. Submitted reviews are already saved.</p>
@@ -86,5 +90,5 @@ export function ReviewExitGuard({ pendingSubjects }: { pendingSubjects: number }
       <Button tone="ghost" onClick={() => { allowed.current = true; leave?.(); }}>Leave anyway</Button>
       <Button tone="primary" data-keep-reviewing autoFocus onClick={() => setLeave(null)}>Keep reviewing</Button>
     </div>
-  </dialog>;
+  </dialog>, document.body) : null;
 }

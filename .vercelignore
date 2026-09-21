@@ -39,3 +39,14 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !src/utils/reviewUtils.ts
 !src/utils/vocabularyTypeFilter.ts
 !.vercelignore
+!shared
+!shared/subject-history
+!shared/subject-history/model.ts
+!shared/subject-history/diff.ts
+
+!shared/subject-history/archive.ts
+
+!assets/fonts
+!assets/fonts/ZenKurenaido-Regular.ttf
+!assets/fonts/YujiSyuku-Regular.ttf
+!assets/fonts/ReggaeOne-Regular.ttf

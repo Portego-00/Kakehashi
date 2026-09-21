@@ -1,18 +1,21 @@
 "use client";
 
+import { DEFAULT_STUDY_SHORTCUTS, shortcutLabel, type StudyShortcuts } from "@/features/settings/study-shortcuts";
 import { type PointerEvent, useRef } from "react";
-import { Check, Eye, Volume2, X } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { BookOpen, Check, ChevronDown, ChevronUp, Eye, Volume2, X } from "lucide-react";
 import {
   pitchAccentLabel,
   splitReadingIntoMoras,
   type PitchAccentEntry,
 } from "@/features/subjects/enrichments";
+import quiz from "@/features/study/study.module.css";
 import styles from "./AnkiAnswerContent.module.css";
 
 export type AnkiAnswerContentProps = {
   revealed: boolean;
-  hideAnswerCompletely?: boolean;
+  detailsOpen?: boolean;
+  keyboardShortcuts?: boolean;
+  studyKeys?: StudyShortcuts;
   questionKind: "meaning" | "reading";
   groupQuestions?: boolean;
   meaningAnswer: string;
@@ -231,7 +234,9 @@ function PitchAccentDetails({
 
 export function AnkiAnswerContent({
   revealed,
-  hideAnswerCompletely = false,
+  detailsOpen = false,
+  keyboardShortcuts = true,
+  studyKeys = DEFAULT_STUDY_SHORTCUTS,
   questionKind,
   groupQuestions = false,
   meaningAnswer,
@@ -413,40 +418,15 @@ export function AnkiAnswerContent({
           onClick={onReveal}
           aria-label="Reveal answer"
           data-testid="anki-answer-preview"
-          data-visibility={hideAnswerCompletely ? "hidden" : "blurred"}
+          data-visibility="blurred"
         >
-          {hideAnswerCompletely ? (
-            <span className={styles.hiddenPreview} aria-hidden="true">
-              <span />
-              <span />
-            </span>
-          ) : (
-            <span className={styles.blurredPreview} aria-hidden="true">
-              {primaryAnswers}
-            </span>
-          )}
+          <span className={styles.blurredPreview} aria-hidden="true">{primaryAnswers}</span>
           <span className={styles.revealHint}>
             <Eye size={17} aria-hidden />
             Show answer
           </span>
         </button>
       )}
-
-      {revealed && showReplayAudioButton && onReplayAudio && !buttonlessMode ? (
-        <div className={styles.replayAction}>
-          <Button
-            type="button"
-            tone="ghost"
-            size="small"
-            disabled={replayingAudio}
-            aria-label="Replay vocabulary audio"
-            onClick={() => void onReplayAudio()}
-          >
-            <Volume2 size={16} aria-hidden />
-            {replayingAudio ? "Replaying…" : "Replay"}
-          </Button>
-        </div>
-      ) : null}
 
       {revealed && buttonlessMode ? (
         <div className={styles.buttonlessControls} role="group" aria-label="Buttonless Anki controls">
@@ -455,15 +435,17 @@ export function AnkiAnswerContent({
           <button className={styles.buttonlessZone} data-side="right" type="button" aria-label="Tap right: mark correct" onClick={() => handleButtonlessGrade(true)} />
         </div>
       ) : revealed ? (
-        <div className={styles.gradeActions}>
-          <Button type="button" tone="danger" onClick={onGradeIncorrect}>
+        <div className={`${quiz.reviewTools} ${styles.gradeActions}`} aria-label="Anki answer controls">
+          <button className={quiz.correctionButton} type="button" onClick={onGradeIncorrect}>
             <X size={18} aria-hidden />
-            1 · Wrong
-          </Button>
-          <Button type="button" tone="primary" onClick={onGradeCorrect}>
+            Wrong{keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.markIncorrect)}</kbd> : null}
+          </button>
+          <button className={quiz.correctionButton} type="button" onClick={onGradeCorrect}>
             <Check size={18} aria-hidden />
-            2 · Correct
-          </Button>
+            Correct{keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.markCorrect)}</kbd> : null}
+          </button>
+          {onShowDetails ? <button className={quiz.correctionButton} type="button" aria-expanded={detailsOpen} onClick={onShowDetails}><BookOpen size={17} aria-hidden />{detailsOpen ? "Hide subject details" : "Show subject details"}{keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.details)}</kbd> : null}{detailsOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}</button> : null}
+          {showReplayAudioButton && onReplayAudio ? <button className={quiz.correctionButton} type="button" disabled={replayingAudio} aria-label="Replay vocabulary audio" onClick={() => void onReplayAudio()}><Volume2 size={17} aria-hidden />{replayingAudio ? "Replaying…" : "Audio"}{keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.replayAudio)}</kbd> : null}</button> : null}
         </div>
       ) : null}
     </section>

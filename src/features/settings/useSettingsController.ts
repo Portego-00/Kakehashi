@@ -302,6 +302,7 @@ type SettingsSectionKey =
   | "musicPlayback"
   | "lessons"
   | "subjectLists"
+  | "subjectDetails"
   | "reviews"
   | "notes"
   | "haptic"
@@ -336,6 +337,7 @@ const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   lessons: "lessons",
   vocabContext: "vocabContext",
   subjectLists: "subjectLists",
+  subjectDetails: "subjectDetails",
   levelRecap: "levelRecap",
   jpdbApiKey: "profile",
   jpdb: "profile",
@@ -727,6 +729,7 @@ export function useSettingsController() {
     chips.push(
       { key: "lessons", label: "Lessons", icon: "school-outline" },
       { key: "subjectLists", label: "Subject Lists", icon: "list-outline" },
+      { key: "subjectDetails", label: "Subject Details", icon: "information-circle-outline" },
       { key: "reviews", label: "Reviews", icon: "checkmark-done-outline" },
       { key: "notes", label: "Notes", icon: "create-outline" },
       { key: "haptic", label: "Haptic", icon: "phone-portrait-outline" },

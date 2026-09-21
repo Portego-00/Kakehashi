@@ -1,3 +1,4 @@
+import { strFromU8, strToU8, unzlibSync, zlibSync } from "fflate";
 import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview } from "./model";
 import { customSrsStorageKey, parseCustomSrsStateStrict, withCustomSrsStorageLock } from "./storage";
 import type { CustomSrsState, CustomVocabularyPack } from "./types";
@@ -50,7 +51,8 @@ function validPending(value: PendingCustomSrsMutation, scope: string | number) {
 export function parseCustomSrsOutbox(raw: string, scope: string | number): CustomSrsOutbox | null {
   if (!raw) return null;
   try {
-    const value = JSON.parse(raw) as CustomSrsOutbox;
+    const decoded = raw.startsWith("z1:") ? strFromU8(unzlibSync(Uint8Array.from(atob(raw.slice(3)), (character) => character.charCodeAt(0)))) : raw;
+    const value = JSON.parse(decoded) as CustomSrsOutbox;
     if (value.version !== 1 || !value.confirmed?.state || value.confirmed.state.version !== 1
       || !value.confirmed.state.assignments || !Array.isArray(value.confirmed.state.enrolledPackIds)
       || !Array.isArray(value.confirmed.state.reviewLog) || (!Number.isSafeInteger(value.confirmed.revision) || value.confirmed.revision < -1) || !Array.isArray(value.pending)
@@ -76,7 +78,15 @@ export function readCustomSrsOutbox(scope: string | number) {
 export function saveCustomSrsOutbox(scope: string | number, value: CustomSrsOutbox) {
   // The confirmed snapshot and commands are one atomic localStorage write. An
   // accepted answer must survive a reload even if the POST has not started yet.
-  window.localStorage.setItem(customSrsOutboxKey(scope), JSON.stringify(value));
+  const raw = JSON.stringify(value);
+  let stored = raw;
+  if (raw.length > 500_000) {
+    const compressed = zlibSync(strToU8(raw), { level: 1 });
+    let binary = "";
+    for (let offset = 0; offset < compressed.length; offset += 32_768) binary += String.fromCharCode(...compressed.subarray(offset, offset + 32_768));
+    stored = `z1:${btoa(binary)}`;
+  }
+  window.localStorage.setItem(customSrsOutboxKey(scope), stored);
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: customSrsOutboxKey(scope) }));
 }
 

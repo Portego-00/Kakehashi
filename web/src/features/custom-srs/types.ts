@@ -42,6 +42,7 @@ export interface SerializedFsrsCard extends Omit<CardInput, "due" | "last_review
 }
 
 export interface CustomSrsAssignment {
+  archivedAt?: string | null;
   wordId: string;
   packId: string;
   stage: CustomSrsStage;
@@ -66,7 +67,7 @@ export interface CustomSrsReviewLog {
   nextReviewAt: string | null;
 }
 
-export interface CustomSrsPolicyMetadata {
+export interface LegacyCustomSrsPolicyMetadata {
   id: "fsrs-wk-shaped";
   version: 1;
   library: "ts-fsrs";
@@ -82,7 +83,28 @@ export interface CustomSrsPolicyMetadata {
   };
 }
 
+export interface CustomSrsSettings {
+  mode: "wanikani" | "fsrs";
+  stageIntervals: number[];
+  learningSteps: string[];
+  relearningSteps: string[];
+  requestRetention: number;
+  maximumInterval: number;
+  roundToHour: boolean;
+}
+
+export interface ConfigurableCustomSrsPolicy extends Omit<LegacyCustomSrsPolicyMetadata, "id" | "version"> {
+  id: "custom-srs";
+  version: 2;
+  settings: CustomSrsSettings;
+  settingsRevision: number;
+  lastSettingsEventId: string | null;
+}
+
+export type CustomSrsPolicyMetadata = LegacyCustomSrsPolicyMetadata | ConfigurableCustomSrsPolicy;
+
 export interface CustomSrsState {
+  personalLibraryRevision?: number;
   version: 1;
   policy: CustomSrsPolicyMetadata;
   enrolledPackIds: string[];

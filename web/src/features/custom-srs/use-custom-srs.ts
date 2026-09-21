@@ -1,14 +1,15 @@
 "use client";
 
+import { usePersonalLibrary } from "./use-personal-library";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { expandCustomSrsWireResult, type CustomSrsConfirmed } from "./transport";
 import { parseCustomSrsStateStrict } from "./storage";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
-import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview } from "./model";
+import { completeCustomLesson, enrollCustomVocabularyPack, recordCustomReview, updateCustomSrsSettings } from "./model";
 import { customSrsOutboxSnapshot, enqueueCustomSrsMutation, flushCustomSrsOutbox, newerCustomSrsResponse, parseCustomSrsOutbox, projectCustomSrsOutbox, readCustomSrsOutbox, rememberCustomSrsRemote, retryCustomSrsOutbox, subscribeCustomSrsOutbox, type MutationPayload, type RemoteStateResponse } from "./outbox";
 import { customSrsSnapshot, customSrsStorageKey, loadCustomSrsState, saveCustomSrsState, subscribeCustomSrs, withCustomSrsStorageLock } from "./storage";
-import type { CustomSrsState, CustomVocabularyPack } from "./types";
+import type { CustomSrsState, CustomSrsSettings, CustomVocabularyPack } from "./types";
 import { isDemoMode } from "@/features/demo/runtime";
 
 type CloudRevisionNotice = {
@@ -67,7 +68,9 @@ export async function fetchCustomSrsState(signal?: AbortSignal, scope?: string |
   return parseResponse(await fetch(`/api/custom-srs${account}${revision}`, { cache: "no-store", signal }), previous);
 }
 
-export async function mutateCustomSrs(payload: MutationPayload, previous?: CustomSrsConfirmed) {
+export type SettingsMutationPayload = { action: "update_settings"; accountId: string; eventId: string; settings: CustomSrsSettings; expectedSettingsRevision: number };
+
+export async function mutateCustomSrs(payload: MutationPayload | SettingsMutationPayload, previous?: CustomSrsConfirmed) {
   if (isDemoMode()) return { available: false, state: null, revision: 0 };
   return parseResponse(await fetch("/api/custom-srs", {
     method: "POST",
@@ -214,12 +217,41 @@ export function useCustomSrs(scope: string | number, packs: readonly CustomVocab
     (current, now) => recordCustomReview(current, wordId, incorrectAnswers, now, eventId),
   ), [commit, scope, state.assignments]);
 
-  const error = storageError || restored.error || outbox?.syncError || remote.error;
-  const isUnavailable = Boolean(restored.error) || (remote.isError && remote.data === undefined && !outbox);
+  const saveSettings = useCallback(async (settings: CustomSrsSettings, expectedSettingsRevision: number, eventId: string) => {
+    if (readCustomSrsOutbox(scope)?.pending.length) throw new Error("Wait for your saved answers to sync before changing the schedule.");
+    await queryClient.cancelQueries({ queryKey, exact: true });
+    const current = queryClient.getQueryData<RemoteStateResponse>(queryKey);
+    if (isDemoMode()) return updateLocal((state) => updateCustomSrsSettings(state, settings, expectedSettingsRevision, eventId));
+    if (!current?.available || !current.state) throw new Error("Load your saved progress before changing the schedule.");
+    const incoming = await mutateCustomSrs({ action: "update_settings", accountId: String(scope), eventId, settings, expectedSettingsRevision }, { state: current.state, revision: current.revision });
+    if (!incoming.available || !incoming.state) throw new Error("The server did not confirm your scheduling settings.");
+    if (!active.current.mounted || active.current.scope !== scope) throw new Error("Your account changed. Open settings again.");
+    queryClient.setQueryData<RemoteStateResponse>(queryKey, (cached) => newerCustomSrsResponse(cached, incoming));
+    await rememberCustomSrsRemote(scope, incoming);
+    notifyCloudRevision(scope, incoming.revision);
+    return incoming.state;
+  }, [queryClient, queryKey, scope, updateLocal]);
+
+  const library = usePersonalLibrary(String(scope), Boolean(state.personalLibraryRevision), state.personalLibraryRevision ?? 0);
+  const allPacks = useMemo(() => [...packs, ...library.packs], [packs, library.packs]);
+  const refetchRemote = remote.refetch;
+  const refetchLibrary = library.refetch;
+  const refreshAll = useCallback(async () => {
+    const response = await refetchRemote();
+    if (response.data?.state?.personalLibraryRevision) {
+      const personal = await refetchLibrary();
+      if (personal.error) throw personal.error;
+    }
+    return response;
+  }, [refetchRemote, refetchLibrary]);
+
+  const error = storageError || restored.error || outbox?.syncError || remote.error || library.error;
+  const isUnavailable = Boolean(library.error) || Boolean(restored.error) || (remote.isError && remote.data === undefined && !outbox);
   return {
     state,
+    packs: allPacks,
     storageMode: remote.data?.available === false && !outbox?.pending.length ? "browser" as const : "cloud" as const,
-    isLoading: remote.isLoading && !outbox,
+    isLoading: (remote.isLoading && !outbox) || (library.needsSync && !library.error),
     isRefreshing: remote.isFetching,
     isUnavailable,
     isSaving: false,
@@ -227,10 +259,11 @@ export function useCustomSrs(scope: string | number, packs: readonly CustomVocab
     isSyncing: Boolean(outbox?.pending.length && !outbox.syncError),
     syncError: storageError || restored.error || outbox?.syncError || "",
     error: error instanceof Error ? error.message : error || "",
+    saveSettings,
     enrollPack,
     completeLesson,
     submitReview,
     retrySync,
-    refresh: remote.refetch,
+    refresh: refreshAll,
   };
 }

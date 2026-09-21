@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Alert, AppState, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import { Audio } from "../../utils/expoAvCompat";
@@ -14,6 +14,7 @@ const mockEditorFlush = jest.fn((value?: string) =>
   Promise.resolve(mockFlushedNoteText ?? value ?? ""),
 );
 const mockAlert = jest.spyOn(Alert, "alert");
+const mockAppStateListener = jest.spyOn(AppState, "addEventListener");
 
 function respondToDiscardAlert(action: "Keep editing" | "Discard") {
   const buttons = mockAlert.mock.calls.at(-1)?.[2];
@@ -30,6 +31,11 @@ const mockGetAssignments = jest.fn<Promise<unknown[] | null>, [{ ignoreTTL: bool
 const mockSpeechListeners = new Map<string, (event: unknown) => void>();
 let mockUseRealKanaInput = false;
 let mockVoicePermissionsGranted = false;
+let mockScreenFocused = true;
+
+jest.mock("../../utils/navigation-focus", () => ({
+  useOptionalScreenIsFocused: () => mockScreenFocused,
+}));
 
 jest.mock("../../utils/cache", () => ({
   getSubjectById: (id: number) => mockGetSubjectById(id),
@@ -176,9 +182,12 @@ jest.mock("react-native-reanimated", () => {
       return outputRange.at(index) ?? outputRange[0];
     },
     useAnimatedStyle: (factory: () => object) => factory(),
+    useReducedMotion: () => false,
+    cancelAnimation: jest.fn(),
     useSharedValue: (value: unknown) => React.useRef({ value }).current,
     withDelay: (_delay: number, value: unknown) => value,
     withSequence: (...values: unknown[]) => values.at(-1),
+    withRepeat: (value: unknown) => value,
     withTiming: (
       value: unknown,
       _config?: object,
@@ -440,6 +449,7 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 describe("ReviewQuestionScreen question occurrences", () => {
   beforeEach(() => {
     mockAlert.mockClear();
+    mockAppStateListener.mockClear();
     jest.mocked(router.push).mockClear();
     mockEditorFlush.mockClear();
     mockFlushedNoteText = undefined;
@@ -449,7 +459,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSpeechListeners.clear();
     mockUseRealKanaInput = false;
     mockVoicePermissionsGranted = false;
+    mockScreenFocused = true;
     jest.mocked(ExpoSpeechRecognitionModule.start).mockClear();
+    jest.mocked(ExpoSpeechRecognitionModule.stop).mockClear();
+    jest.mocked(ExpoSpeechRecognitionModule.abort).mockClear();
     mockAuthState.userData = { username: "Portego" };
     mockAuthState.apiToken = null;
     mockReviewSynonymsChange = undefined;
@@ -764,7 +777,8 @@ describe("ReviewQuestionScreen question occurrences", () => {
       expect(onAnswer).toHaveBeenCalledTimes(1);
 
       act(() => mockSpeechListeners.get("end")?.({}));
-      await startVoiceCapture(screen);
+      await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2));
+      act(() => mockSpeechListeners.get("start")?.({}));
       await act(async () => {
         mockSpeechListeners.get("result")?.({
           isFinal: true,
@@ -796,6 +810,158 @@ describe("ReviewQuestionScreen question occurrences", () => {
       results: [{ transcript, confidence: 1 }],
     });
 
+    it("keeps listening after a correct answer without another mic tap", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      expect(screen.getByText("Listening…")).toBeTruthy();
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenLastCalledWith(expect.objectContaining({
+        continuous: true, lang: "en-US", requiresOnDeviceRecognition: false,
+      }));
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("cat", false));
+        mockSpeechListeners.get("end")?.({});
+        jest.advanceTimersByTime(750);
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      await act(async () => jest.advanceTimersByTime(250));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2);
+      act(() => mockSpeechListeners.get("start")?.({}));
+      expect(screen.getByText("Listening…")).toBeTruthy();
+      expect(screen.getByLabelText("Stop voice answers")).toBeTruthy();
+    });
+
+    it("waits silently and resumes after a native no-speech timeout", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      await act(async () => jest.advanceTimersByTime(10000));
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(ExpoSpeechRecognitionModule.stop).not.toHaveBeenCalled();
+      await act(async () => {
+        mockSpeechListeners.get("error")?.({ error: "no-speech" });
+        mockSpeechListeners.get("end")?.({});
+      });
+      await act(async () => jest.advanceTimersByTime(250));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText("Try again")).toBeNull();
+      expect(onAnswer).not.toHaveBeenCalled();
+    });
+
+    it("gives an unfinished answer three seconds after its latest result", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      act(() => mockSpeechListeners.get("result")?.(result("su", false)));
+      expect(screen.getByText("su")).toBeTruthy();
+      await act(async () => jest.advanceTimersByTime(2500));
+      act(() => mockSpeechListeners.get("result")?.(result("sushi", false)));
+      await act(async () => jest.advanceTimersByTime(2999));
+      expect(onAnswer).not.toHaveBeenCalled();
+      await act(async () => jest.advanceTimersByTime(1));
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      expect(onAnswer).toHaveBeenCalledWith(audioItem, "meaning", false, true, false);
+      expect(ExpoSpeechRecognitionModule.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it("settles an interim answer if native ends before the answer timer", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("sushi", false));
+        mockSpeechListeners.get("end")?.({});
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      await act(async () => jest.advanceTimersByTime(3500));
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops without submitting the pending answer or restarting", async () => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      act(() => mockSpeechListeners.get("result")?.(result("cat", false)));
+      fireEvent.press(screen.getByLabelText("Stop voice answers"));
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("cat"));
+        mockSpeechListeners.get("end")?.({});
+        jest.advanceTimersByTime(10000);
+      });
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("Start voice answers")).toBeTruthy();
+      expect(screen.queryByText("Listening…")).toBeNull();
+    });
+
+    it.each(["background", "blur"] as const)("stops the session on %s and requires a new mic tap", async (reason) => {
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      const onAppStateChange = mockAppStateListener.mock.calls.at(-1)![1];
+      act(() => mockSpeechListeners.get("result")?.(result("sushi", false)));
+      if (reason === "background") {
+        act(() => onAppStateChange("background"));
+      } else {
+        mockScreenFocused = false;
+        screen.rerender(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} />);
+      }
+      await act(async () => {
+        mockSpeechListeners.get("end")?.({});
+        onAppStateChange("active");
+      });
+      mockScreenFocused = true;
+      screen.rerender(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} />);
+      await act(async () => jest.advanceTimersByTime(5000));
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("Start voice answers")).toBeTruthy();
+    });
+
+    it("switches language automatically after the previous capture ends", async () => {
+      mockGetAllSubjects.mockResolvedValue([audioItem.subject]);
+      const onAnswer = jest.fn();
+      const screen = renderAudioQuestion(onAnswer);
+      await startVoiceCapture(screen);
+      screen.rerender(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />);
+      await act(async () => jest.advanceTimersByTime(250));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
+      await act(async () => mockSpeechListeners.get("end")?.({}));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2);
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenLastCalledWith(expect.objectContaining({
+        continuous: true, lang: "ja-JP", iosTaskHint: "confirmation",
+      }));
+    });
+
+    it("waits for pronunciation playback to finish before the next capture", async () => {
+      mockSettings.autoplayVocabularyAudio = true;
+      const item = { ...audioItem, subject: { ...audioItem.subject, id: -2, data: {
+        ...audioItem.subject.data,
+        pronunciation_audios: [{ url: "file:///cat.mp3", content_type: "audio/mpeg", metadata: { gender: "female", pronunciation: "ねこ" } }],
+      } } };
+      let playbackStatus: ((status: unknown) => void) | null = null;
+      jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: {
+        setOnPlaybackStatusUpdate: (callback: typeof playbackStatus) => { playbackStatus = callback; },
+        stopAsync: jest.fn(async () => {}), unloadAsync: jest.fn(async () => {}),
+      } } as never);
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={item} questionType="reading" onAnswer={onAnswer} />);
+      await startVoiceCapture(screen);
+      await act(async () => {
+        mockSpeechListeners.get("result")?.(result("ねこ"));
+        mockSpeechListeners.get("end")?.({});
+        jest.advanceTimersByTime(750);
+      });
+      await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(1));
+      await act(async () => jest.advanceTimersByTime(1000));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Mic paused")).toBeTruthy();
+      await act(async () => playbackStatus?.({ isLoaded: true, didJustFinish: true }));
+      await act(async () => jest.advanceTimersByTime(250));
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(2);
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+    });
+
     it("ignores recognition events without a requested capture", async () => {
       const onAnswer = jest.fn();
       const screen = renderAudioQuestion(onAnswer);
@@ -815,7 +981,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
       await act(async () => mockSpeechListeners.get("result")?.(result("sushi")));
       fireEvent.press(screen.getByText("Mark Correct"));
 
-      await act(async () => fireEvent.press(screen.getByText("mic")));
+      await act(async () => jest.advanceTimersByTime(250));
       expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledTimes(1);
       await act(async () => {
         mockSpeechListeners.get("start")?.({});

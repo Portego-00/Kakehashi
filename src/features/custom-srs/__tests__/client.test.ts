@@ -39,7 +39,7 @@ describe("custom vocabulary cloud state", () => {
     const policy = Object.fromEntries(Object.entries(learned.policy).reverse());
     expect(parseCustomSrsCloudResult({ available: true, state: { ...learned, policy }, revision: 3 }).state).toEqual(learned);
     expect(() => parseCustomSrsCloudResult({ available: false, state: null, revision: -1 })).toThrow();
-    expect(() => parseCustomSrsCloudResult({ available: true, state: { ...learned, policy: { ...policy, version: 2 } }, revision: 3 })).toThrow();
+    expect(() => parseCustomSrsCloudResult({ available: true, state: { ...learned, policy: { ...policy, version: 999 } }, revision: 3 })).toThrow();
   });
 
   it("rejects damaged learned cards instead of resetting them to unlearned", () => {

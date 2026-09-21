@@ -295,3 +295,36 @@ describe("useCustomSrs", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("cloud scheduling settings", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    vi.stubGlobal("navigator", { locks: createTestWebLocks() });
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it("waits for confirmation, refreshes the account cache, and keeps other accounts separate", async () => {
+    const { DEFAULT_CUSTOM_SRS_SETTINGS, settingsForPolicy } = await import("./srs-settings");
+    const { updateCustomSrsSettings } = await import("./model");
+    const response = deferred<Response>();
+    const initial = createCustomSrsState();
+    const fetchMock = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => init?.method === "POST" ? response.promise : Promise.resolve(jsonResponse({ available: true, state: initial, revision: 1 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result, rerender } = renderHook(({ scope }) => useCustomSrs(scope, [pack]), { initialProps: { scope: "one" }, wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const settings = { ...DEFAULT_CUSTOM_SRS_SETTINGS, requestRetention: 0.95 };
+    let confirmed = false;
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.saveSettings(settings, 0, "event").then(() => { confirmed = true; }); });
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
+    expect(confirmed).toBe(false);
+    expect(settingsForPolicy(result.current.state.policy).requestRetention).toBe(0.9);
+    await act(async () => { response.resolve(jsonResponse({ available: true, state: updateCustomSrsSettings(initial, settings, 0, "event"), revision: 2 })); await pending; });
+    await waitFor(() => expect(settingsForPolicy(result.current.state.policy).requestRetention).toBe(0.95));
+    expect(parseCustomSrsOutbox(window.localStorage.getItem(customSrsOutboxKey("one"))!, "one")?.confirmed.revision).toBe(2);
+    rerender({ scope: "two" });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(settingsForPolicy(result.current.state.policy).requestRetention).toBe(0.9);
+  });
+});
