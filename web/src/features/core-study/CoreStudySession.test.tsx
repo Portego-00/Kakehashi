@@ -1404,12 +1404,13 @@ describe("core study prompt layout", () => {
     fixtures.settings.study.backToBackQuestions = true;
     const report = vi.fn();
     const onAnswer = vi.fn();
+    const reportProgression = vi.fn();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report, onAnswer, previous: { id: "bp-1", source: "bunpro", title: "だけど", correct: false } }} /></QueryClientProvider>);
+    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report, onAnswer, reportProgression, previous: { id: "bp-1", source: "bunpro", title: "だけど", correct: false } }} /></QueryClientProvider>);
     await submitAnswer("river", "meaning");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "reading" });
-    expect(screen.getByLabelText("Previous Bunpro answer: だけど, incorrect")).toBeVisible();
+    expect(screen.queryByLabelText("Previous Bunpro answer: だけど, incorrect")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Previous meaning answer: River, correct" })).not.toBeInTheDocument();
     expect(onAnswer).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", title: "River", correct: true }));
     expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", keepTurn: true, id: "100:reading" }));
@@ -1417,6 +1418,7 @@ describe("core study prompt layout", () => {
     await submitAnswer("かわ", "reading");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => expect(report).toHaveBeenLastCalledWith(null));
+    await waitFor(() => expect(reportProgression).toHaveBeenCalledWith(expect.objectContaining({ source: "wanikani", progression: expect.objectContaining({ assignmentId: 100 }) })));
     await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(1));
   });
 

@@ -53,7 +53,6 @@ import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunci
 import { ReviewExitGuard } from "./ReviewExitGuard";
 import { ReviewDetailsReveal, REVIEW_DETAILS_DURATION_MS } from "@/features/study/components/ReviewDetailsReveal";
 
-import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { wkHead, type MixedBridge } from "@/features/mixed-reviews/ordering";
 
 type Mode = "lessons" | "reviews";
@@ -225,6 +224,10 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
   }, []);
 
+  const reportMixedProgression = useEffectEvent(() => {
+    if (srsProgression) mixed?.reportProgression?.({ id: `wanikani:${srsProgression.assignmentId}`, source: "wanikani", progression: srsProgression });
+  });
+  useEffect(() => { reportMixedProgression(); }, [srsProgression]);
   const progressionSubjectId = srsProgression?.subjectId;
   useEffect(() => {
     if (progressionSubjectId === undefined) return;
@@ -968,7 +971,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     durationMs={displayNow - new Date(sessionStartedAt).getTime()}
     pendingCount={outboxCount}
     permissionError={outboxMessage}
-    progression={reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}
+    progression={reserveResultsProgressionSlot && !mixed ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}
   />;
 
   if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
@@ -1049,7 +1052,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     const accuracy = selectedAssignments.length ? Math.round((progress / attempts) * 100) : 0;
     const minutes = Math.max(1, Math.round((displayNow - new Date(sessionStartedAt).getTime()) / 60_000));
     const dailyLimitReached = mode === "lessons" && preferences.dailyLessonLimit > 0 && dailyRemaining <= 0 && available.length > 0;
-    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => mode === "lessons" && pickedLessonIds?.length ? restartSession() : window.location.reload()}><RotateCcw size={17} />{mode === "lessons" && pickedLessonIds?.length ? "Next batch" : "Check for More"}</Button> : null}</div></section></div>;
+    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot && !mixed ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => mode === "lessons" && pickedLessonIds?.length ? restartSession() : window.location.reload()}><RotateCcw size={17} />{mode === "lessons" && pickedLessonIds?.length ? "Next batch" : "Check for More"}</Button> : null}</div></section></div>;
   }
 
   if (!current) return null;
@@ -1097,7 +1100,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
         </div>
 
         {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}
-          {mixed ? (mixed.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} claimAnimation={mixed.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null) : previousAnswerItem ? <Link key={`${previousAnswerItem.subject.id}:${previousAnswerItem.kind}`} className={quiz.previousSubjectLink} target="_blank" rel="noopener noreferrer" data-type={previousAnswerItem.subject.object} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={quiz.previousSubjectCharacter} imageSize="1em" /><span className={quiz.previousSubjectStatus} data-correct={previousAnswerItem.isCorrect} aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
+          {!mixed && previousAnswerItem ? <Link key={`${previousAnswerItem.subject.id}:${previousAnswerItem.kind}`} className={quiz.previousSubjectLink} target="_blank" rel="noopener noreferrer" data-type={previousAnswerItem.subject.object} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={quiz.previousSubjectCharacter} imageSize="1em" /><span className={quiz.previousSubjectStatus} data-correct={previousAnswerItem.isCorrect} aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
       <header className={quiz.questionCard} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
           <h2 style={{ fontSize: reviewCharacterSize }}><SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} data-jitai-font={jitaiFamily && current.subject.data.characters ? true : undefined} style={{ fontSize: "inherit", fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties} eager /></h2>
           <VocabularyFrequencyBadge subject={current.subject} enabled={preferences.showVocabularyFrequency} />
@@ -1182,7 +1185,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
           {speechError ? <p className={styles.error} role="alert">{speechError}</p> : null}
         </form> : null}
 
-        <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} />
+        <SrsProgressionSlot progression={mixed ? null : srsProgression} mode={preferences.srsProgressionCardDisplayMode} />
 
           {preferences.voiceAnswers && !selfAssessment ? <Button className={quiz.textButton} type="button" tone="ghost" disabled={!voiceAvailable || listening || Boolean(feedback)} aria-label={!voiceAvailable ? "Voice answer unavailable" : listening ? "Listening for voice answer" : "Voice answer"} onClick={startVoiceAnswer}><Mic size={17} aria-hidden /><span>{listening ? "Listening…" : "Voice"}</span></Button> : null}
 

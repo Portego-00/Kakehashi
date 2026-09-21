@@ -1,3 +1,5 @@
+import type { SrsProgression } from "@/features/core-study/SrsProgressionSlot";
+import type { BunproProgression } from "@/features/bunpro/progression";
 import type { AccuracyCounts } from "@/features/study/components/ReviewAccuracy";
 import type { SessionResultsData } from "./session-results";
 import type { Subject } from "@/types/wanikani";
@@ -7,8 +9,9 @@ import { reviewContent, type BunproReviewQueueItem } from "@/features/bunpro/mod
 export type ReviewSource = "wanikani" | "bunpro";
 export type MixedHead = { id: string; source: ReviewSource; stage: number; level: number; available: number; interval: number; subjectType: string; critical?: boolean; keepTurn?: boolean };
 export type MixedPreviousAnswer = { id: string; source: ReviewSource; title: string; correct: boolean; bunproSubject?: { kind: "grammar" | "vocab"; slug: string }; subject?: Subject };
+export type MixedSrsProgression = { id: string; source: "wanikani"; progression: SrsProgression } | { id: string; source: "bunpro"; progression: BunproProgression };
 export type MixedProgress = { completed: number; total: number };
-export type MixedBridge = { accuracy?: AccuracyCounts; reportAccuracy?: (accuracy: AccuracyCounts) => void; reportResults?: (results: SessionResultsData) => void; wrapUpRequest?: { id: number; limit: number }; onWrapUp?: () => void; claimPreviousAnimation?: () => boolean; progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
+export type MixedBridge = { reportProgression?: (progression: MixedSrsProgression) => void; accuracy?: AccuracyCounts; reportAccuracy?: (accuracy: AccuracyCounts) => void; reportResults?: (results: SessionResultsData) => void; wrapUpRequest?: { id: number; limit: number }; onWrapUp?: () => void; claimPreviousAnimation?: () => boolean; progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
 const wkHours = [0, 4, 8, 23, 47, 167, 335, 719, 2879];
 export function wkHead(question: CoreQuestion | undefined, userLevel: number, keepTurn = false): MixedHead | null {
   if (!question) return null;

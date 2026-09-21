@@ -29,7 +29,6 @@ import { ReviewExitGuard } from "@/features/core-study/ReviewExitGuard";
 import { ReviewDetailsReveal } from "@/features/study/components/ReviewDetailsReveal";
 import { SessionResults } from "@/features/mixed-reviews/SessionResults";
 import type { SessionResult } from "@/features/mixed-reviews/session-results";
-import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import quiz from "@/features/study/study.module.css";
 import core from "@/features/core-study/core-study.module.css";
 import styles from "./bunpro.module.css";
@@ -49,6 +48,10 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const phoneInput = usePhoneStudyInput();
   const audio = useBunproAudio();
   const [progression, setProgression] = useState<Progression | null>(null);
+  const reportMixedProgression = useEffectEvent(() => {
+    if (progression) mixed?.reportProgression?.({ id: `bunpro:${progression.id}`, source: "bunpro", progression });
+  });
+  useEffect(() => { reportMixedProgression(); }, [progression]);
   const [mode, setMode] = useState<ReviewMode>(initialMode ?? "all");
   const [phase, setPhase] = useState<"choose" | "loading" | "review" | "complete">(lessonSession ? "review" : "choose");
   const [queue, setQueue] = useState<BunproReviewQueueItem[]>(() => lessonSession ? buildReviewQueue(lessonSession) : []);
@@ -340,7 +343,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   if (phase === "choose" && initialMode && connection.isPending) return <BunproLoading kind="reviews" />;
   if (phase === "choose") return <main className={styles.chooser}><div className={styles.row}><h1>Bunpro reviews</h1><ButtonLink href="/dashboard" tone="ghost">Back</ButtonLink></div><p>Choose what you want to review.</p><fieldset className={styles.choices}><legend>Review type</legend>{(["grammar", "vocab", "all"] as const).map((value) => <label key={value}><input type="radio" name="bunpro-mode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span>{labels[value]}</span></label>)}</fieldset>{connection.isPending ? <p role="status">Checking Bunpro connection…</p> : connection.data?.connected ? <Button tone="primary" onClick={start}>Start reviews</Button> : <ButtonLink href="/settings#bunpro-api-key">Add Bunpro API key</ButtonLink>}{error || connection.error ? <p role="alert">{error || connection.error?.message}</p> : null}</main>;
   if (phase === "loading") return <BunproLoading kind="reviews" />;
-  if (phase === "complete") return <SessionResults progression={<BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} />} items={results} durationMs={durationMs} pendingCount={0} title={results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"} onContinue={onContinueLessons} onRestart={() => setPhase("choose")} />;
+  if (phase === "complete") return <SessionResults progression={<BunproProgression progression={mixed ? null : progression} mode={preferences.srsProgressionCardDisplayMode} />} items={results} durationMs={durationMs} pendingCount={0} title={results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"} onContinue={onContinueLessons} onRestart={() => setPhase("choose")} />;
   if (!current || !content) return null;
   const valid = Boolean(answer && sanitizeQuestionContent(question.content));
   const displayTotal = mixed?.progress?.total ?? total;
@@ -348,7 +351,6 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   return <main ref={reviewViewportRef} className={`${quiz.quizShell} ${styles.reviewShell}`} data-study-session="active" data-advancing={(saving && !backgroundAdvance) || undefined} style={{ "--jitai-font": jitaiFamily } as CSSProperties}>
       <ReviewExitGuard pendingSubjects={saving ? 1 : 0} />
       <div className={quiz.quizTopbar}><span>{mixed ? "Mixed reviews" : "Bunpro"} · {Math.min(displayCompleted + 1, displayTotal)} / {displayTotal}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={displayCompleted} aria-valuemin={0} aria-valuemax={Math.max(1, displayTotal)}><span style={{ transform: `scaleX(${displayCompleted / Math.max(1, displayTotal)})` }} /></div><div className={quiz.quizTopbarActions}><ReviewAccuracy {...(mixed?.accuracy ?? answerAccuracy)} />{!lessonSession && !mixed?.wrapUpRequest && (mixed?.progress ? mixed.progress.total - mixed.progress.completed : queue.length) > preferences.reviewWrapUpSize ? <Button tone="ghost" size="small" disabled={saving} onClick={() => mixed?.onWrapUp ? mixed.onWrapUp() : wrapUp()}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink href={`/search?q=${encodeURIComponent(sanitizeText(content.attributes.title))}`} target="_blank" tone="ghost" aria-label="Search this item"><Search size={18} /></ButtonLink> : null}<ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
-      {mixed?.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} claimAnimation={mixed.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null}
       <header className={`${quiz.questionCard} ${styles.sentenceArea}`} aria-label="Bunpro review">
           {submitted.has(current.data.id) ? <p>Retrying missed item</p> : null}
           {(hintLevel >= 2 || revealed) && question.tense ? <p><BunproText value={question.tense} /></p> : null}
@@ -358,7 +360,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           {hintLevel >= 3 ? <div className={styles.grammarHint} aria-live="polite">{hintLevel >= 4 ? <p lang="ja"><BunproText value={content.attributes.nuance} /></p> : null}<p><BunproText value={content.attributes.nuance_translation} /></p>{question.extra_info ? <p><BunproText value={question.extra_info} /></p> : null}</div> : null}
       </header>
       <div className={quiz.answerArea}>
-        <BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} idleContent={<div className={core.itemMeta}>{preferences.showReviewItemLevelAndSrsStage ? <><span>{sanitizeText(content.attributes.level || content.attributes.jlpt_level)}</span>{bunproStage(current.data.attributes).label ? <span>{bunproStage(current.data.attributes).label}</span> : null}</> : null}<span>{`${completedCount} completed`}</span></div>} />
+        <BunproProgression progression={mixed ? null : progression} mode={preferences.srsProgressionCardDisplayMode} idleContent={<div className={core.itemMeta}>{preferences.showReviewItemLevelAndSrsStage ? <><span>{sanitizeText(content.attributes.level || content.attributes.jlpt_level)}</span>{bunproStage(current.data.attributes).label ? <span>{bunproStage(current.data.attributes).label}</span> : null}</> : null}<span>{`${completedCount} completed`}</span></div>} />
         {!valid ? <p role="alert">This review is missing its sentence or accepted answers. Pause and reload the queue before continuing.</p> : selfAssessment ? <>
           {!outcome ? <AnkiAnswerContent studyKeys={studyKeys} detailsOpen={details} keyboardShortcuts={preferences.keyboardShortcuts} revealed={ankiRevealed} questionKind={questionKind}
             meaningAnswer={questionKind === "meaning" ? answer : sanitizeText(content.attributes.meaning)} readingAnswer={questionKind === "reading" ? answer : sanitizeText(content.attributes.kana)}
