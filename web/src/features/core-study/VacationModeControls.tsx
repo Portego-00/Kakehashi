@@ -44,9 +44,12 @@ export function VacationModeControls({ active, refresh, className, showRefresh =
     };
   }, [checkStatus]);
 
+  // Only offer controls for an existing vacation; never show an enable action.
+  if (!active) return null;
+
   return <div className={className}>
     <ButtonLink href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer" tone="primary" size="small" prefetch={false} onClick={() => { awaitingReturn.current = true; }}>
-      {active ? "Turn off in WaniKani" : "Turn on in WaniKani"}<ExternalLink size={15} aria-hidden />
+      Turn off in WaniKani<ExternalLink size={15} aria-hidden />
     </ButtonLink>
     {showRefresh ? <Button type="button" tone="ghost" size="small" state={refreshState} onClick={() => void checkStatus()}>{refreshState === "loading" ? "Checking…" : "Check status"}</Button> : null}
     <span className="sr-only" role="status" aria-live="polite">{announcement}</span>

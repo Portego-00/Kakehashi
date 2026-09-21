@@ -31,3 +31,7 @@ describe("core study preferences", () => {
     expect(canonicalAnswer(subject, "reading")).toBe("みず");
   });
 });
+
+it("pauses close answers whenever correct answers pause", () => {
+  expect(shouldPauseAfterResult("close", { ...preferences, pauseOnCorrect: true, pauseOnClose: false })).toBe(true);
+});

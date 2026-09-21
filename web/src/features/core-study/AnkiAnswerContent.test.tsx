@@ -17,9 +17,20 @@ function props(overrides: Partial<AnkiAnswerContentProps> = {}): AnkiAnswerConte
 }
 
 describe("AnkiAnswerContent", () => {
-  it("offers a blurred preview or removes the answer entirely before reveal", () => {
+  it("groups grading and reference controls with consistent shortcut badges", () => {
+    const onShowDetails = vi.fn();
+    render(<AnkiAnswerContent {...props({ revealed: true, onShowDetails, showReplayAudioButton: true, onReplayAudio: vi.fn() })} />);
+    const toolbar = screen.getByLabelText("Anki answer controls");
+    for (const [label, key] of [["Wrong", "1"], ["Correct", "2"], ["Show subject details", "D"], ["Replay vocabulary audio", "R"]]) {
+      expect(within(toolbar).getByRole("button", { name: label }).querySelector("kbd")).toHaveTextContent(key);
+    }
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Show subject details" }));
+    expect(onShowDetails).toHaveBeenCalledOnce();
+  });
+
+  it("offers a blurred preview before reveal", () => {
     const onReveal = vi.fn();
-    const { rerender } = render(<AnkiAnswerContent {...props({ onReveal })} />);
+    render(<AnkiAnswerContent {...props({ onReveal })} />);
 
     const preview = screen.getByTestId("anki-answer-preview");
     expect(preview).toHaveAttribute("data-visibility", "blurred");
@@ -28,9 +39,7 @@ describe("AnkiAnswerContent", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reveal answer" }));
     expect(onReveal).toHaveBeenCalledOnce();
 
-    rerender(<AnkiAnswerContent {...props({ hideAnswerCompletely: true, onReveal })} />);
-    expect(screen.getByTestId("anki-answer-preview")).toHaveAttribute("data-visibility", "hidden");
-    expect(screen.queryByText("to eat")).not.toBeInTheDocument();
+
   });
 
   it("reveals grouped meaning and reading answers together", () => {

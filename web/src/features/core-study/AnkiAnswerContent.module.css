@@ -7,6 +7,8 @@
   background: var(--color-surface);
 }
 
+.card :global(:lang(ja)) { font-family: var(--font-japanese); }
+
 .card[data-buttonless="true"] {
   touch-action: none;
   user-select: none;
@@ -47,23 +49,6 @@
   pointer-events: none;
   user-select: none;
 }
-
-.hiddenPreview {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-sm);
-  width: min(100%, 18rem);
-  padding-block: var(--space-md);
-}
-
-.hiddenPreview span {
-  height: 1.25rem;
-  border-radius: var(--radius-sm);
-  background: var(--color-rule-2);
-}
-
-.hiddenPreview span:first-child { width: 62%; }
-.hiddenPreview span:last-child { width: 42%; }
 
 .revealHint {
   display: inline-flex;
@@ -190,18 +175,7 @@
   text-anchor: middle;
 }
 
-.replayAction {
-  display: flex;
-  justify-content: center;
-}
-
-.gradeActions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm);
-  width: min(100%, 30rem);
-  margin-inline: auto;
-}
+.card .gradeActions { justify-content: center; width: 100%; margin: 0; }
 
 .buttonlessControls {
   position: relative;

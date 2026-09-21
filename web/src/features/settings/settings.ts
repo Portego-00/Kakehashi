@@ -1,3 +1,4 @@
+import { DEFAULT_STUDY_SHORTCUTS, normalizeStudyShortcuts, type StudyShortcuts } from "./study-shortcuts";
 import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 import type { ListStorage } from "@/features/subjects/lists";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
@@ -80,7 +81,7 @@ export interface WebStudyPreferences {
   vocabularyAudioVoice: VocabularyAudioVoice;
   ankiMode: AnkiMode;
   ankiGroupQuestions: boolean;
-  ankiHideAnswerCompletely: boolean;
+  studyShortcuts: StudyShortcuts;
   ankiShowOtherAcceptedAnswersAndUserSynonyms: boolean;
   ankiShowWaniKaniGrammarTags: boolean;
   ankiShowPitchAccentNumbers: boolean;
@@ -344,7 +345,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     vocabularyAudioVoice: "female",
     ankiMode: "off",
     ankiGroupQuestions: false,
-    ankiHideAnswerCompletely: false,
+    studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
     ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
     ankiShowWaniKaniGrammarTags: false,
     ankiShowPitchAccentNumbers: false,
@@ -354,7 +355,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     acceptAnyKanjiOnyomiReading: false,
     voiceAnswers: false,
     jitaiEnabled: false,
-    jitaiSelectedFontIds: ["gothic", "mincho", "rounded"],
+    jitaiSelectedFontIds: ["gothic", "mincho", "rounded", "zen-kurenaido", "yuji-syuku", "reggae-one"],
     jitaiCustomFonts: [],
     immersionKitAnimeSources: [ALL_ANIME_SOURCE],
     epubDailyGoalMinutes: 5,
@@ -561,7 +562,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
         ankiGroupQuestions: typeof parsed.study?.ankiGroupQuestions === "boolean" ? parsed.study.ankiGroupQuestions : DEFAULT_WEB_SETTINGS.study.ankiGroupQuestions,
-        ankiHideAnswerCompletely: typeof parsed.study?.ankiHideAnswerCompletely === "boolean" ? parsed.study.ankiHideAnswerCompletely : DEFAULT_WEB_SETTINGS.study.ankiHideAnswerCompletely,
+        studyShortcuts: normalizeStudyShortcuts(parsed.study?.studyShortcuts),
         ankiShowOtherAcceptedAnswersAndUserSynonyms: typeof parsed.study?.ankiShowOtherAcceptedAnswersAndUserSynonyms === "boolean" ? parsed.study.ankiShowOtherAcceptedAnswersAndUserSynonyms : DEFAULT_WEB_SETTINGS.study.ankiShowOtherAcceptedAnswersAndUserSynonyms,
         ankiShowWaniKaniGrammarTags: typeof parsed.study?.ankiShowWaniKaniGrammarTags === "boolean" ? parsed.study.ankiShowWaniKaniGrammarTags : DEFAULT_WEB_SETTINGS.study.ankiShowWaniKaniGrammarTags,
         ankiShowPitchAccentNumbers: typeof parsed.study?.ankiShowPitchAccentNumbers === "boolean" ? parsed.study.ankiShowPitchAccentNumbers : DEFAULT_WEB_SETTINGS.study.ankiShowPitchAccentNumbers,

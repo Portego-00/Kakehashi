@@ -1,12 +1,14 @@
+import type { AccuracyCounts } from "@/features/study/components/ReviewAccuracy";
+import type { SessionResultsData } from "./session-results";
 import type { Subject } from "@/types/wanikani";
 import type { WebStudyPreferences } from "@/features/settings/settings";
 import type { CoreQuestion } from "@/features/core-study/queue";
 import { reviewContent, type BunproReviewQueueItem } from "@/features/bunpro/model";
 export type ReviewSource = "wanikani" | "bunpro";
 export type MixedHead = { id: string; source: ReviewSource; stage: number; level: number; available: number; interval: number; subjectType: string; critical?: boolean; keepTurn?: boolean };
-export type MixedPreviousAnswer = { id: string; source: ReviewSource; title: string; correct: boolean; subject?: Subject };
+export type MixedPreviousAnswer = { id: string; source: ReviewSource; title: string; correct: boolean; bunproSubject?: { kind: "grammar" | "vocab"; slug: string }; subject?: Subject };
 export type MixedProgress = { completed: number; total: number };
-export type MixedBridge = { progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
+export type MixedBridge = { accuracy?: AccuracyCounts; reportAccuracy?: (accuracy: AccuracyCounts) => void; reportResults?: (results: SessionResultsData) => void; wrapUpRequest?: { id: number; limit: number }; onWrapUp?: () => void; claimPreviousAnimation?: () => boolean; progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
 const wkHours = [0, 4, 8, 23, 47, 167, 335, 719, 2879];
 export function wkHead(question: CoreQuestion | undefined, userLevel: number, keepTurn = false): MixedHead | null {
   if (!question) return null;
@@ -53,4 +55,18 @@ export function orderBunproReviews(items: BunproReviewQueueItem[], settings: Web
   const shuffled = [...items];
   for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
   return shuffled.sort((a, b) => compareMixedHeads(bpHead(a)!, bpHead(b)!, settings));
+}
+
+export function mixedWrapUpLimits<T extends string>(lanes: T[], remaining: Partial<Record<T, number>>, active: T, limit: number): Record<T, number> {
+  const allocation = Object.fromEntries(lanes.map(lane => [lane, 0])) as Record<T, number>;
+  const ordered = [active, ...lanes.filter(lane => lane !== active)];
+  let slots = Math.max(0, limit);
+  while (slots > 0) {
+    let assigned = false;
+    for (const lane of ordered) {
+      if (slots > 0 && allocation[lane] < (remaining[lane] ?? 0)) { allocation[lane]++; slots--; assigned = true; }
+    }
+    if (!assigned) break;
+  }
+  return allocation;
 }

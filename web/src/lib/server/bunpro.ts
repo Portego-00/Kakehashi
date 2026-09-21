@@ -20,13 +20,13 @@ export function bunproToken(sealed: string | undefined, owner: string): string |
     return value.owner === owner && typeof value.token === "string" ? value.token : null;
   } catch { return null; }
 }
-export async function bunproRequest<T>(token: string, path: string, body?: unknown): Promise<T> {
+export async function bunproRequest<T>(token: string, path: string, body?: unknown, method?: "PATCH"): Promise<T> {
   const url = new URL(`https://api.bunpro.jp/api/frontend${path}`);
   url.searchParams.set("dangerously_authenticate_using_api_token", "true");
   let response: Response;
   try {
     response = await fetch(url, {
-      method: body === undefined ? "GET" : "POST", cache: "no-store", redirect: "error",
+      method: method ?? (body === undefined ? "GET" : "POST"), cache: "no-store", redirect: "error",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000),
     });

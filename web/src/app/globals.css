@@ -108,3 +108,11 @@ h1[id], h2[id], h3[id] { scroll-margin-top: 4.5rem; }
     transition-duration: 150ms !important;
   }
 }
+
+/* Reveal the usual prompt face without changing the selected Jitai font.
+   Hover-capable devices only, so touch taps cannot leave the reveal stuck on. */
+@media (hover: hover) {
+  [data-jitai-font]:hover {
+    font-family: var(--jitai-standard-font) !important;
+  }
+}

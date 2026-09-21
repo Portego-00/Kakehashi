@@ -5,13 +5,13 @@ import { VacationModeControls } from "./VacationModeControls";
 import { WANIKANI_VACATION_SETTINGS_URL } from "./vacation";
 
 describe("VacationModeControls", () => {
-  it("sends users to the official account setting with a state-specific action", () => {
-    const { rerender } = render(<VacationModeControls active={false} refresh={vi.fn()} />);
-    expect(screen.getByRole("link", { name: /Turn on in WaniKani/ })).toHaveAttribute("href", WANIKANI_VACATION_SETTINGS_URL);
-    expect(screen.getByRole("link", { name: /Turn on in WaniKani/ })).toHaveAttribute("target", "_blank");
+  it("never offers to enable Vacation Mode when it is off", () => {
+    const { container, rerender } = render(<VacationModeControls active={false} refresh={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("link", { name: /Turn on in WaniKani/ })).not.toBeInTheDocument();
 
     rerender(<VacationModeControls active refresh={vi.fn()} />);
-    expect(screen.getByRole("link", { name: /Turn off in WaniKani/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Turn off in WaniKani/ })).toHaveAttribute("href", WANIKANI_VACATION_SETTINGS_URL);
   });
 
   it("checks the live status manually and after returning from WaniKani", async () => {
@@ -28,7 +28,7 @@ describe("VacationModeControls", () => {
   });
 
   it("announces a failed status check", async () => {
-    render(<VacationModeControls active={false} refresh={vi.fn().mockRejectedValue(new Error("offline"))} />);
+    render(<VacationModeControls active refresh={vi.fn().mockRejectedValue(new Error("offline"))} />);
     fireEvent.click(screen.getByRole("button", { name: "Check status" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("could not be refreshed"));
   });

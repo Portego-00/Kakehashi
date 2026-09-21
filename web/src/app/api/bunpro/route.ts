@@ -75,6 +75,17 @@ export async function POST(request: NextRequest) {
       return response;
     }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);
+    if (body?.action === "coverage") {
+      const parsed = z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }).safeParse(body);
+      if (!parsed.success) throw new BunproError("Invalid vocabulary selection.", 400);
+      return NextResponse.json(await bunproRequest(token, "/reviews/hydrate_reviewables", { reviewables: [...new Set(parsed.data.ids)].map(id => ["Vocab", id]) }), { headers });
+    }
+    if (body?.action === "coverage-save") {
+      const parsed = z.object({ ids: z.array(z.number().int().positive()).min(1).max(500), streak: z.union([z.literal(0), z.literal(4), z.literal(10), z.literal(12)]), deckId: z.number().int().positive().optional() }).safeParse(body);
+      if (!parsed.success) throw new BunproError("Invalid knowledge check.", 400);
+      const { ids, streak, deckId } = parsed.data;
+      return NextResponse.json(await bunproRequest(token, "/reviews/update_via_action_type", { action_type: streak === 12 ? "mark_known" : "set_streak", ...(streak === 12 ? { deck_id: deckId ?? null } : { new_streak: streak }), reviewables: [...new Set(ids)].map(id => ["Vocab", id]) }, "PATCH"), { headers });
+    }
     if (body?.action === "lesson-quiz") {
       const parsed = z.object({ deckId: z.number().int().positive(), reviewables: z.array(z.tuple([z.enum(["GrammarPoint", "Vocab"]), z.number().int().positive()])).min(1).max(100) }).safeParse(body);
       if (!parsed.success) throw new BunproError("Invalid lesson batch.", 400);

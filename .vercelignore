@@ -45,3 +45,8 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !shared/subject-history/diff.ts
 
 !shared/subject-history/archive.ts
+
+!assets/fonts
+!assets/fonts/ZenKurenaido-Regular.ttf
+!assets/fonts/YujiSyuku-Regular.ttf
+!assets/fonts/ReggaeOne-Regular.ttf

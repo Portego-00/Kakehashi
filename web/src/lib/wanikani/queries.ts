@@ -23,7 +23,6 @@ export const userQuery = () => queryOptions({
   staleTime: 0,
   refetchOnMount: "always" as const,
   refetchOnWindowFocus: true,
-  refetchInterval: 60_000,
 });
 export const summaryQuery = () => queryOptions({ queryKey: wkKeys.summary(), queryFn: () => wkRequest<WKSummary>("summary"), staleTime: 5 * 60_000 });
 export const assignmentsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.assignments(filters), queryFn: () => wkCollection<Assignment>(`assignments${filters ? `?${filters}` : ""}`), staleTime: 5 * 60_000 });

@@ -7,6 +7,16 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("persists study keys and drops the retired hidden-answer preference", () => {
+    const studyShortcuts = { ...DEFAULT_WEB_SETTINGS.study.studyShortcuts, progress: " ", replayAudio: "p" };
+    const loaded = loadWebSettings(storage({ study: { studyShortcuts, ankiHideAnswerCompletely: true } }), "tester");
+    expect(loaded.study.studyShortcuts).toEqual(studyShortcuts);
+    expect(loaded.study).not.toHaveProperty("ankiHideAnswerCompletely");
+    let saved = "";
+    saveWebSettings({ setItem: (_key, value) => { saved = value; } }, "tester", loaded);
+    expect(loadWebSettings({ getItem: () => saved }, "tester").study.studyShortcuts).toEqual(studyShortcuts);
+  });
+
   it("enables pronunciation autoplay by default while preserving saved choices", () => {
     expect(loadWebSettings({ getItem: () => null }, "new-user").study.autoplayAudio).toBe(true);
     expect(loadWebSettings(storage({ study: {} }), "legacy-user").study.autoplayAudio).toBe(true);
@@ -104,7 +114,6 @@ describe("web settings persistence", () => {
       vocabularyAudioVoice: "both" as const,
       ankiMode: "reading",
       ankiGroupQuestions: true,
-      ankiHideAnswerCompletely: true,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: true,
       ankiShowWaniKaniGrammarTags: true,
       ankiShowPitchAccentNumbers: true,
@@ -243,7 +252,6 @@ describe("web settings persistence", () => {
       acceptUserSynonymsAsAnswers: false,
       vocabularyAudioVoice: "female",
       ankiGroupQuestions: false,
-      ankiHideAnswerCompletely: false,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,

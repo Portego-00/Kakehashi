@@ -53,7 +53,7 @@ export function BunproLessons({ initialDeck }: { initialDeck?: number }) {
   const kind = current.data.type === "vocab" ? "vocab" : "grammar";
   return <main className={styles.lessonPage}>
     <header className={styles.lessonHeader}><Link href="/dashboard" aria-label="Return to dashboard"><LogOut size={24} /></Link><div><p>{sanitizeText(attributes.level || attributes.jlpt_level)} {attributes.lesson_id ? `Lesson ${attributes.lesson_id}` : ""} · {index + 1}/{items.length}</p><span>{deck.deckTitle}</span></div></header>
-    <BunproDetails key={`${current.data.type}:${current.data.id}`} kind={kind} slug={sanitizeText(attributes.slug)} content={current} />
+    <BunproDetails key={`${current.data.type}:${current.data.id}`} kind={kind} slug={sanitizeText(attributes.slug)} content={current} deckId={lesson.data.deck.deckId ?? undefined} />
     <footer className={styles.lessonFooter}><button type="button" disabled={index === 0 || busy} onClick={() => navigate(index - 1)}><ArrowLeft size={20} /> Previous</button><nav aria-label="Lesson batch">{items.map((item, i) => <button type="button" key={item.data.id} disabled={busy} aria-label={`Lesson ${i + 1}: ${sanitizeText(item.data.attributes.title)}`} aria-current={i === index ? "step" : undefined} onClick={() => navigate(i)} />)}</nav><button type="button" className={styles.lessonNext} disabled={busy} onClick={() => index + 1 < items.length ? navigate(index + 1) : void startQuiz()}><ArrowRight size={20} />{busy ? "Preparing quiz…" : index + 1 < items.length ? "Next" : "Start Quiz"}</button>{error ? <p role="alert">{error}</p> : null}</footer>
   </main>;
 }

@@ -1,3 +1,4 @@
+import { DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -148,8 +149,8 @@ const fixtures = vi.hoisted(() => {
       showListeningTranslation: true,
       vocabularyAudioVoice: "female",
       ankiMode: "off",
+      studyShortcuts: undefined as typeof DEFAULT_STUDY_SHORTCUTS | undefined,
       ankiGroupQuestions: false,
-      ankiHideAnswerCompletely: false,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,
@@ -219,6 +220,60 @@ async function submitAnswer(value: string, kind: "meaning" | "reading") {
 }
 
 describe("core study prompt layout", () => {
+  it("keeps an active review available when a background Vacation Mode check fails", async () => {
+    const { client } = renderSession("reviews");
+    await submitAnswer("River", "meaning");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    expect(screen.getByRole("heading", { name: "reading" })).toBeVisible();
+    fireEvent.change(input, { target: { value: "かわ" } });
+
+    vi.mocked(wkRequest).mockRejectedValueOnce(new Error("Temporary user lookup failure"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["wanikani", "user"], exact: true });
+    });
+    await waitFor(() => expect(client.getQueryState(["wanikani", "user"])?.status).toBe("error"));
+    expect(screen.queryByText("Study availability could not be checked")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBe(input);
+    expect(input).toHaveValue("かわ");
+    fireEvent.submit(input.closest("form")!);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(wkRequest).toHaveBeenCalledWith("reviews", expect.anything()));
+  });
+
+  it("blocks study when the first Vacation Mode check fails", async () => {
+    vi.mocked(wkRequest).mockRejectedValueOnce(new Error("User lookup unavailable"));
+    renderSession("reviews");
+    expect(await screen.findByText("Study availability could not be checked")).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    expect(wkCollection).not.toHaveBeenCalledWith("assignments?immediately_available_for_review=true");
+  });
+
+  it("keeps mixed reviews available after a background Vacation Mode check fails", async () => {
+    const reportError = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report: vi.fn(), reportError }} /></QueryClientProvider>);
+    await screen.findByRole("textbox", { name: "Your answer" });
+    vi.mocked(wkRequest).mockRejectedValueOnce(new Error("Temporary user lookup failure"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["wanikani", "user"], exact: true });
+    });
+    await waitFor(() => expect(client.getQueryState(["wanikani", "user"])?.status).toBe("error"));
+    expect(reportError).not.toHaveBeenCalledWith(true);
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeVisible();
+  });
+
+  it("pauses an active review when a refresh confirms Vacation Mode is enabled", async () => {
+    const { client } = renderSession("reviews");
+    await screen.findByRole("textbox", { name: "Your answer" });
+    vi.mocked(wkRequest).mockResolvedValueOnce({ ...fixtures.user, data: { ...fixtures.user.data, current_vacation_started_at: "2026-09-20T00:00:00Z" } });
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["wanikani", "user"], exact: true });
+    });
+    expect(await screen.findByRole("heading", { name: "Vacation Mode" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+  });
+
   it("discards a saved review session and never writes a review resume snapshot", async () => {
     const key = `kakehashi-core-session:${fixtures.user.data.username}:reviews`;
     localStorage.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), questionIds: [`${fixtures.reviewAssignment.id}:reading`], completed: { [fixtures.reviewAssignment.id]: ["meaning"] }, errors: {}, submittedIds: [] }));
@@ -247,13 +302,8 @@ describe("core study prompt layout", () => {
   it("corrects a result in either direction without erasing earlier mistakes", async () => {
     fixtures.settings.study.pauseOnCorrect = true;
     renderSession("reviews");
-    await submitAnswer("wrong", "meaning");
-    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
-    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
+    await submitAnswer("River", "meaning");
     fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
-    expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "reading" });
     await submitAnswer("かわ", "reading");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -262,7 +312,6 @@ describe("core study prompt layout", () => {
     expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mark Correct" }));
     expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => expect(wkRequest).toHaveBeenCalledWith("reviews", expect.objectContaining({ body: expect.objectContaining({ review: expect.objectContaining({ incorrect_meaning_answers: 1, incorrect_reading_answers: 0 }) }) })));
   });
 
@@ -276,7 +325,6 @@ describe("core study prompt layout", () => {
       renderSession("reviews");
       fireEvent.click(await screen.findByRole("button", { name: /Reveal answer/i }));
       fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
-      fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
       expect(await screen.findByRole("heading", { name: "Reviews Complete" }, { timeout: 300 })).toBeInTheDocument();
       expect(screen.getByLabelText("SRS progression")).toHaveTextContent("Apprentice IV");
       expect(JSON.parse(window.localStorage.getItem(reviewOutboxKey(fixtures.user.data.username)) || "[]")).toHaveLength(1);
@@ -383,8 +431,8 @@ describe("core study prompt layout", () => {
       shuffleSubjects: false,
       vocabularyAudioVoice: "female",
       ankiMode: "off",
+      studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
       ankiGroupQuestions: false,
-      ankiHideAnswerCompletely: false,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,
@@ -488,19 +536,34 @@ describe("core study prompt layout", () => {
     expect(screen.getByRole("link", { name: "Search this item" })).toHaveAttribute("href", "/search?q=%E5%B7%9D");
   });
 
-  it("groups meaning and reading on self-assessment cards", async () => {
+  it.each([false, true])("groups Anki questions with custom keys %s", async (customKeys) => {
+    const studyShortcuts = { ...DEFAULT_STUDY_SHORTCUTS, ...(customKeys ? { progress: " ", markCorrect: "j" } : {}) };
+    fixtures.settings.study.studyShortcuts = studyShortcuts;
     fixtures.settings.study.ankiMode = "both";
     fixtures.settings.study.ankiGroupQuestions = true;
     renderSession("reviews");
 
     expect(await screen.findByRole("region", { name: "Anki answer" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
+    fireEvent.keyDown(document.body, { key: studyShortcuts.progress });
     const revealedAnswer = screen.getByTestId("anki-answer-content");
     expect(revealedAnswer).toHaveTextContent("River");
     expect(revealedAnswer).toHaveTextContent("かわ");
-    fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
-    expect(await screen.findByText("Correct")).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
+    expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  });
+
+  it("immediately requeues wrong Anki answers despite pause-on-wrong", async () => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.settings.study.pauseOnWrong = true;
+    renderSession("reviews");
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wrong" }));
+    expect(await screen.findByRole("button", { name: "Reveal answer" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Accuracy: 0%, 0 of 2 answers correct on the first attempt")).toBeVisible();
   });
 
   it("shows results immediately while the dashboard refresh is still pending", async () => {
@@ -512,7 +575,6 @@ describe("core study prompt layout", () => {
     const refresh = vi.spyOn(client, "invalidateQueries").mockImplementation(() => new Promise<void>(() => {}));
     fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
-    fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(await screen.findByRole("heading", { name: "Reviews Complete" }, { timeout: 300 })).toBeVisible();
     act(() => { client.setQueryData(["core-study", "reviews", "assignments"], []); });
@@ -537,15 +599,15 @@ describe("core study prompt layout", () => {
     expect(reservedSlot).toHaveAttribute("data-mode", "compact");
     expect(reservedSlot).toHaveAttribute("data-progression-visible", "false");
     expect(reservedSlot).not.toHaveAttribute("aria-hidden");
+    expect(reservedSlot?.closest("[hidden]")).toBeNull();
     expect(screen.queryByLabelText("Question status")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText("SRS progression")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
     const timeoutSpy = vi.spyOn(window, "setTimeout");
+    fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
 
     try {
-      fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
 
       const progression = await screen.findByLabelText("SRS progression");
       expect(progression).toHaveAttribute("data-mode", "compact");
@@ -750,7 +812,7 @@ describe("core study prompt layout", () => {
     expect(document.getElementById("study-item-details")).not.toBeInTheDocument();
   });
 
-  it("keeps automatic details closed for self-assessment feedback but still allows manual Info", async () => {
+  it("keeps automatic details closed for revealed self-assessment answers but still allows manual Info", async () => {
     fixtures.settings.study.ankiMode = "meaning";
     fixtures.settings.study.pauseOnCorrect = true;
     fixtures.settings.study.showAnswerStopSubjectDetails = true;
@@ -758,8 +820,6 @@ describe("core study prompt layout", () => {
 
     expect(await screen.findByRole("region", { name: "Anki answer" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
-    expect(await screen.findByText("Correct")).toBeInTheDocument();
 
     const info = screen.getByRole("button", { name: /subject details/i });
     expect(info).toHaveAttribute("aria-expanded", "false");
@@ -961,8 +1021,8 @@ describe("core study prompt layout", () => {
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     fireEvent.change(input, { target: { value: "River" } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
-    fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
 
+    fireEvent.click(await screen.findByRole("button", { name: /^(Next|Next Question)$/ }));
     const previous = await screen.findByRole("link", { name: "Previous meaning answer: River, correct" });
     expect(previous).toHaveAttribute("href", "/subjects/200");
     expect(previous).toHaveAttribute("data-animate", "true");

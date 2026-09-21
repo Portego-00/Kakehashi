@@ -12,7 +12,7 @@
 .sentenceArea { min-height: 19rem; padding: var(--space-xl) var(--space-md); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: var(--space-lg); text-align: center; }
 .sentence { max-width: 36ch; font-size: clamp(1.6rem, 3vw, 2.8rem); line-height: 2.4; overflow-wrap: anywhere; }
 .sentence rt, .details rt { font-size: .5em; color: var(--color-muted); }
-.blank { display: inline-block; min-width: 4ch; border-bottom: 2px solid var(--color-ink-2); line-height: 1.7; padding-inline: .2em; }
+.blank { color: var(--bp-accent, #c64949); display: inline-block; min-width: 4ch; border-bottom: 2px solid var(--color-ink-2); line-height: 1.7; padding-inline: .2em; }
 .blank[data-correct="true"] { color: var(--color-success); border-color: currentColor; }
 .blank[data-correct="false"] { color: var(--color-danger); border-color: currentColor; }
 .translation { max-width: 65ch; font-size: var(--text-lg); }
@@ -296,4 +296,10 @@
 /* Let the detail backgrounds reach the review shell edges outside the answer gutter. */
 .reviewDetails { min-width: 0; }
 
-.reviewShell .sentence, .reviewShell :global([aria-label="Anki answer"]) :global([lang="ja"]) { font-family: var(--jitai-font, var(--font-japanese)); }
+.reviewShell .sentence, .reviewShell .sentence :global(:lang(ja)) { font-family: var(--jitai-font, var(--font-japanese)); }
+
+:global([data-theme="dark"]) .reviewShell, :global([data-theme="midnight"]) .reviewShell { --bp-accent: #ec8888; }
+
+.closeFeedback { display: grid; gap: 6px; color: var(--color-ink); }
+.closeFeedback > strong { display: flex; align-items: center; gap: 8px; font-size: var(--text-base); font-weight: 600; }
+.closeFeedback > p { margin: 0; color: var(--color-muted); }

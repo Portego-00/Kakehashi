@@ -53,3 +53,18 @@ it("does not request more quiz items until the loaded batch gets low", async () 
   await POST(request("POST", { action: "review", requestMore: false, reviewId: "10", sessionId: 3, correct: true, mode: "grammar", reviewableType: "GrammarPoint", loadedIds: [10, 11] }));
   expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ loaded_review_ids: null, loaded_ghost_review_ids: null, loaded_self_study_review_ids: null, only_review: "GrammarPoint" });
 });
+it("hydrates only the requested vocabulary coverage with deduplicated IDs", async () => {
+  const response = await POST(request("POST", { action: "coverage", ids: [1, 2, 1] }));
+  expect(response.status).toBe(200);
+  expect(mocks.fetch.mock.calls[0][0].pathname).toBe("/api/frontend/reviews/hydrate_reviewables");
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toEqual({ reviewables: [["Vocab", 1], ["Vocab", 2]] });
+});
+it.each([0, 4, 10, 12])("saves the knowledge check stage %s with the Bunpro PATCH contract", async streak => {
+  expect((await POST(request("POST", { action: "coverage-save", ids: [2], streak }))).status).toBe(200);
+  expect(mocks.fetch.mock.calls[0][1].method).toBe("PATCH");
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toEqual({ action_type: streak === 12 ? "mark_known" : "set_streak", ...(streak === 12 ? { deck_id: null } : { new_streak: streak }), reviewables: [["Vocab", 2]] });
+});
+it.each([{ action: "coverage", ids: [] }, { action: "coverage", ids: [-1] }, { action: "coverage-save", ids: [1], streak: 99 }])("rejects invalid coverage requests %j", async body => {
+  expect((await POST(request("POST", body))).status).toBe(400);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});

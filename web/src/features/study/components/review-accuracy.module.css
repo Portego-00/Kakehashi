@@ -1,0 +1,4 @@
+.accuracy { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: inherit; }
+.accuracy strong { font-weight: 600; }
+.accuracy > span { opacity: .75; }
+@media (max-width: 40rem) { .accuracy > span { display: none; } }
