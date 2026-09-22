@@ -39,12 +39,12 @@ const WIDGET_CONTENT_OPTIONS: {
     description: "Show available reviews, next review timing, and today total",
     icon: "time",
   },
-  // {
-  //   value: "critical",
-  //   title: "Critical Items",
-  //   description: "Show critical item count and recent mistakes context",
-  //   icon: "warning",
-  // },
+  {
+    value: "critical",
+    title: "Critical Items",
+    description: "Lowest-accuracy items: one in small, up to three in medium. Starts below 75%, expanding to 80%, 85%, then 90% if empty.",
+    icon: "warning",
+  },
   {
     value: "streak",
     title: "App Use Streak",
@@ -66,7 +66,7 @@ const WIDGET_COLOR_MODE_OPTIONS: {
   {
     value: "defaults",
     title: "Defaults",
-    description: "Uses curated defaults for streak and review widgets",
+    description: "Uses the default colors for each widget",
   },
 ];
 

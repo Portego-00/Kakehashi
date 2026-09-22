@@ -57,6 +57,16 @@ npm run test:all
 
 This runs linting, strict TypeScript checking, unit and integration tests, a production build, and Playwright scenarios across desktop and mobile. Coverage includes authentication and demo isolation, study modes, content/progress routes, account-scoped storage, live preference changes, focus containment, custom-font migration, community creation, vacation blocking, review-answer concealment, NHK images, accessibility, and mobile overflow. Demo JPDB tests also verify that credentials stay server-side, real accounts cannot borrow the demo credential, and individual translated lines obey the shared budgets.
 
+## Production web deployment
+
+Run from the repository root and explicitly select the web configuration, since the root `vercel.json` belongs to the separate marketing website:
+
+```sh
+npx vercel deploy --prod --skip-domain --yes --local-config web/vercel.json
+```
+
+Check the returned deployment URL before promoting it with `npx vercel promote <deployment-url> --yes`. Browser smoke checks can target an existing build with `PLAYWRIGHT_BASE_URL=<url> npm --prefix web run test:e2e -- web-feedback.spec.ts core-review-sync.spec.ts`.
+
 ## Community deployment
 
 Development can use the ignored `web/.data/community.json` store or the native app's Supabase URL and anonymous key. Production supports read-only community access with an anonymous key; posting requires `SUPABASE_SERVICE_ROLE_KEY` and `supabase/migrations/20260807000000_community_atomic_mutations.sql`. See `docs/community-security.md` for the RLS and write-boundary requirements.
@@ -76,4 +86,4 @@ Account-synced custom SRS progress requires a server-only Supabase service key a
 - `src/lib/wanikani` is the typed browser client; `src/app/api` is the strict server-side WaniKani gateway and encrypted session boundary.
 - `tokens.css` is the central visual system for color, typography, spacing, motion, and stacking.
 
-The WaniKani gateway uses an allowlist, bounded/coalesced server caching, explicit fresh reconciliation reads, pagination support, rate limits, exact revision headers, and no automatic review-mutation retries. An account-scoped review outbox reconciles ambiguous responses before allowing another submission. The development token in `.env.local` is ignored by Git.
+The WaniKani gateway uses an allowlist, bounded/coalesced server caching, explicit fresh reconciliation reads, pagination support, rate limits, exact revision headers, and automatic retries for explicit rate-limit rejections. It preserves session and subject caches across study mutations and shares a conservative upstream request budget between session checks and API calls. An account-scoped review outbox reconciles ambiguous responses before allowing another submission. The development token in `.env.local` is ignored by Git.

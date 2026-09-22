@@ -61,6 +61,8 @@ export async function deliverReview(entry: ReviewOutboxEntry, api: {
     await api.submitReview(entry);
     return "submitted" as const;
   } catch (cause) {
+    // A rejected rate-limited write was not applied; do not spend another call reconciling it.
+    if ((cause as { status?: number } | null)?.status === 429) throw cause;
     try {
       const after = await api.readAssignment(entry.assignmentId);
       if (!assignmentStillReviewable(after)) return "already-applied" as const;

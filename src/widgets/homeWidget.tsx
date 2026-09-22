@@ -9,6 +9,7 @@ import {
   ZStack,
 } from "@expo/ui/swift-ui";
 import {
+  accessibilityLabel,
   aspectRatio,
   allowsTightening,
   clipped,
@@ -42,6 +43,8 @@ import {
   selectWidgetTimelineTimestamps,
   type BackgroundReviewSyncData,
 } from "./homeWidgetBackgroundSync";
+
+import type { CriticalWidgetItem } from "./criticalWidgetData";
 
 export type { BackgroundReviewSyncData } from "./homeWidgetBackgroundSync";
 
@@ -145,11 +148,6 @@ const DEFAULT_REVIEW_GRADIENT_BY_BUCKET: Record<
   veryHigh: ["#FB7185", "#E11D48", "#9F1239"],
 };
 
-type TopCriticalItem = {
-  characters: string | null;
-  meaning: string;
-  percentage: number;
-};
 
 export type HomeWidgetSnapshotInput = {
   contentMode: WidgetContentMode;
@@ -161,7 +159,8 @@ export type HomeWidgetSnapshotInput = {
   todayReviewTotal: number;
   reviewUpcomingBuckets: ReviewUpcomingBucket[];
   criticalCount: number;
-  topCriticalItem: TopCriticalItem | null;
+  topCriticalItem: CriticalWidgetItem | null;
+  criticalItems?: CriticalWidgetItem[];
   recentMistakesCount: number;
   currentStreak: number;
   longestStreak: number;
@@ -182,6 +181,8 @@ type HomeWidgetProps = {
   reviewIllustrationUris: ReviewIllustrationUris;
   reviewsImageAspectRatio: number;
   reviewsIconUri: string;
+  criticalItems: CriticalWidgetItem[];
+  criticalCount: number;
   criticalPrimaryLabel: string;
   criticalSecondaryLabel: string;
   criticalTertiaryLabel: string;
@@ -243,6 +244,8 @@ const DEFAULT_WIDGET_PROPS: HomeWidgetProps = {
   reviewIllustrationUris: {},
   reviewsImageAspectRatio: 1.6,
   reviewsIconUri: "",
+  criticalItems: [],
+  criticalCount: 0,
   criticalPrimaryLabel: "0 critical items",
   criticalSecondaryLabel: "No critical items right now",
   criticalTertiaryLabel: "0 recent mistakes",
@@ -1150,79 +1153,163 @@ function KakehashiHomeWidget(
     );
   }
 
-  const modeTitle = props.contentMode === "critical" ? "Critical" : "Reviews";
-  const modeIcon =
-    props.contentMode === "critical"
-      ? "exclamationmark.triangle.fill"
-      : "clock.fill";
-  const primaryLabel =
-    props.contentMode === "critical"
-      ? props.criticalPrimaryLabel
-      : props.reviewsPrimaryLabel;
-  const secondaryLabel =
-    props.contentMode === "critical"
-      ? props.criticalSecondaryLabel
-      : props.reviewsSecondaryLabel;
-  const tertiaryLabel =
-    props.contentMode === "critical"
-      ? props.criticalTertiaryLabel
-      : props.reviewsTertiaryLabel;
+  const criticalItems = (props.criticalItems ?? []).slice(0, isMedium ? 3 : 1);
+  const firstItem = criticalItems[0];
+  const gradientColors =
+    Array.isArray(props.streakGradientColors) &&
+    props.streakGradientColors.length >= 2 &&
+    props.streakGradientColors.every((color) => /^#[0-9a-f]{6}$/i.test(color))
+      ? props.streakGradientColors
+      : ["#FF7A18", "#FF5A3D", "#FF3F6C"];
+  // Keep contrast logic inside the serialized widget. Channel bounds cover
+  // every point of the gradient, including colors between the stops.
+  const channels = gradientColors.map((color) => [
+    parseInt(color.slice(1, 3), 16) / 255,
+    parseInt(color.slice(3, 5), 16) / 255,
+    parseInt(color.slice(5, 7), 16) / 255,
+  ]);
+  const luminance = (rgb: number[]) => rgb.reduce((total, channel, index) => {
+    const linear = channel <= 0.04045
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4);
+    return total + linear * [0.2126, 0.7152, 0.0722][index];
+  }, 0);
+  const darkest = luminance(
+    [0, 1, 2].map((index) => channels.reduce((min, rgb) => Math.min(min, rgb[index]), 1)),
+  );
+  const brightest = luminance(
+    [0, 1, 2].map((index) => channels.reduce((max, rgb) => Math.max(max, rgb[index]), 0)),
+  );
+  const useBlackText = (darkest + 0.05) / 0.05 >= 4.6;
+  // A small margin above 4.5:1 protects even the smallest labels. Using a
+  // linear-light bound also covers the darker sRGB alpha compositing case.
+  const scrimOpacity = useBlackText || brightest === 0
+    ? 0
+    : Math.max(0, Math.ceil((1 - (1.05 / 4.6 - 0.05) / brightest) * 100) / 100);
+  const textStyle = shouldRenderGradientBackground
+    ? foregroundStyle(useBlackText ? "#000000" : "#FFFFFF")
+    : foregroundStyle({ type: "hierarchical", style: "primary" });
 
   return (
-    <VStack alignment="leading" spacing={8} modifiers={[padding({ all: 12 })]}>
-      <HStack spacing={6} alignment="center">
-        <Image systemName={modeIcon} size={13} color="#4F46E5" />
-        <Text
-          modifiers={[font({ size: 13, weight: "semibold" }), lineLimit(1)]}
-        >
-          {modeTitle}
-        </Text>
-        <Spacer />
-        {isMedium ? (
-          <Text
-            modifiers={[
-              font({ size: 10 }),
-              foregroundStyle({ type: "hierarchical", style: "secondary" }),
-              lineLimit(1),
-            ]}
-          >
-            {props.updatedAtLabel}
-          </Text>
-        ) : null}
-      </HStack>
-
-      <Text
-        modifiers={[
-          font({ size: isMedium ? 27 : 24, weight: "bold", design: "rounded" }),
-          monospacedDigit(),
-          lineLimit(1),
-        ]}
-      >
-        {primaryLabel}
-      </Text>
-
-      <Text
-        modifiers={[
-          font({ size: 12 }),
-          foregroundStyle({ type: "hierarchical", style: "secondary" }),
-          lineLimit(isMedium ? 2 : 1),
-        ]}
-      >
-        {secondaryLabel}
-      </Text>
-
-      {isMedium ? (
-        <Text
+    <ZStack modifiers={[frame({ maxWidth: 999, maxHeight: 999 })]}>
+      {shouldRenderGradientBackground ? (
+        <RoundedRectangle
+          cornerRadius={0}
           modifiers={[
-            font({ size: 11 }),
-            foregroundStyle({ type: "hierarchical", style: "tertiary" }),
-            lineLimit(1),
+            foregroundStyle({
+              type: "linearGradient",
+              colors: gradientColors,
+              startPoint: { x: 0, y: 0 },
+              endPoint: { x: 1, y: 1 },
+            }),
+            frame({ maxWidth: 999, maxHeight: 999 }),
           ]}
-        >
-          {tertiaryLabel}
-        </Text>
+        />
       ) : null}
-    </VStack>
+      {shouldRenderGradientBackground && scrimOpacity > 0 ? (
+        <RoundedRectangle
+          cornerRadius={0}
+          modifiers={[
+            foregroundStyle("#000000"),
+            opacity(scrimOpacity),
+            frame({ maxWidth: 999, maxHeight: 999 }),
+          ]}
+        />
+      ) : null}
+      <VStack alignment="leading" spacing={6} modifiers={[padding({ all: 14 })]}>
+        <HStack spacing={4}>
+          <Text modifiers={[textStyle, font({ size: 12, weight: "semibold" }), lineLimit(1)]}>
+            Critical Items
+          </Text>
+          <Spacer />
+          <Text modifiers={[
+            textStyle,
+            font({ size: 12, weight: "semibold" }), monospacedDigit(),
+            accessibilityLabel(`${props.criticalCount ?? 0} critical items`),
+          ]}>
+            {props.criticalCount ?? 0}
+          </Text>
+        </HStack>
+        {firstItem ? (
+          isMedium ? (
+            <VStack alignment="leading" spacing={7}>
+              {criticalItems.map((item, index) => (
+                <HStack key={index} spacing={10}>
+                  <Text modifiers={[
+                    textStyle,
+                    font({ size: (item.characters?.length ?? 0) > 4 ? 15 : 24, weight: "semibold" }),
+                    lineLimit(1), allowsTightening(true),
+                    frame({ width: 86, alignment: "leading" }),
+                  ]}>
+                    {item.characters?.trim() || "Radical"}
+                  </Text>
+                  <VStack alignment="leading" spacing={1} modifiers={[frame({ maxWidth: 999, alignment: "leading" })]}>
+                    <Text modifiers={[textStyle, font({ size: 12, weight: "medium" }), lineLimit(1)]}>
+                      {item.meaning}
+                    </Text>
+                    {item.reading ? (
+                      <Text modifiers={[
+                        textStyle,
+                        font({ size: 11 }), lineLimit(1),
+                      ]}>
+                        {item.reading}
+                      </Text>
+                    ) : null}
+                  </VStack>
+                  <Text modifiers={[
+                    textStyle,
+                    font({ size: 11 }), monospacedDigit(),
+                    accessibilityLabel(`${Math.round(item.percentage)} percent correct`),
+                  ]}>
+                    {Math.round(item.percentage)}%
+                  </Text>
+                </HStack>
+              ))}
+            </VStack>
+          ) : (
+            <VStack alignment="leading" spacing={3}>
+              <Text modifiers={[
+                textStyle,
+                font({ size: !firstItem.characters ? 20 : firstItem.characters.length > 4 ? 24 : 38, weight: "semibold" }),
+                lineLimit(1), allowsTightening(true),
+              ]}>
+                {firstItem.characters?.trim() || "Radical"}
+              </Text>
+              {firstItem.reading ? (
+                <Text modifiers={[
+                  textStyle,
+                  font({ size: 12 }), lineLimit(1),
+                ]}>
+                  {firstItem.reading}
+                </Text>
+              ) : null}
+              <Text modifiers={[textStyle, font({ size: 13, weight: "medium" }), lineLimit(1)]}>
+                {firstItem.meaning}
+              </Text>
+              <Text modifiers={[
+                textStyle,
+                font({ size: 11 }), monospacedDigit(),
+              ]}>
+                {Math.round(firstItem.percentage)}% correct
+              </Text>
+            </VStack>
+          )
+        ) : (
+          <VStack alignment="leading" spacing={6}>
+            <Text modifiers={[textStyle, font({ size: 18, weight: "semibold" }), lineLimit(2)]}>
+              {(props.criticalCount ?? 0) > 0 ? "Open Kakehashi" : "No critical items"}
+            </Text>
+            <Text modifiers={[
+              textStyle,
+              font({ size: 12 }), lineLimit(2),
+            ]}>
+              {(props.criticalCount ?? 0) > 0 ? "Refresh to see your items." : "No items below 90% accuracy."}
+            </Text>
+          </VStack>
+        )}
+        <Spacer minLength={0} />
+      </VStack>
+    </ZStack>
   );
 }
 
@@ -1721,6 +1808,8 @@ function buildWidgetProps(
     reviewIllustrationUris: options.reviewIllustrationUris,
     reviewsImageAspectRatio: resolveReviewIllustrationAspectRatio(reviewCount),
     reviewsIconUri: options.reviewAccessoryIconUri,
+    criticalItems: (input.criticalItems ?? (input.topCriticalItem ? [input.topCriticalItem] : [])).slice(0, 3),
+    criticalCount,
     criticalPrimaryLabel: `${criticalCount} critical ${pluralize(criticalCount, "item", "items")}`,
     criticalSecondaryLabel: buildCriticalSecondaryLabel(input),
     criticalTertiaryLabel: `${recentMistakesCount} recent ${pluralize(recentMistakesCount, "mistake", "mistakes")}`,
@@ -2191,6 +2280,7 @@ export async function syncHomeWidgetFromBackgroundReviewData(
     reviewUpcomingBuckets: reviewSchedule.reviewUpcomingBuckets,
     criticalCount: existingInput?.criticalCount ?? 0,
     topCriticalItem: existingInput?.topCriticalItem ?? null,
+    criticalItems: existingInput?.criticalItems,
     recentMistakesCount: existingInput?.recentMistakesCount ?? 0,
     currentStreak: existingInput?.currentStreak ?? 0,
     longestStreak: existingInput?.longestStreak ?? 0,

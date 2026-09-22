@@ -1,3 +1,4 @@
+import { fetchWaniKani } from "@/lib/server/wk-upstream";
 import "server-only";
 
 import {
@@ -31,7 +32,7 @@ export async function getWaniKaniSessionUser(token: string) {
   return coalesceWkRequest(versionedWkCacheKey(cacheKey, generation), async () => {
     let response: Response;
     try {
-      response = await fetch("https://api.wanikani.com/v2/user", {
+      response = await fetchWaniKani(token, "https://api.wanikani.com/v2/user", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Wanikani-Revision": "20170710",

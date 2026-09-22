@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { clearWkBudgetsForTests } from "@/lib/server/wk-upstream";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyNotebookMutation, createNotebookState, DEFAULT_NOTEBOOK_LIMITS, type NotebookState } from "@/features/notebooks/model";
@@ -34,6 +35,7 @@ describe("native notebook API", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+  clearWkBudgetsForTests();
     vi.resetModules();
     clearRateLimitsForTests();
     clearWkCacheForTests();

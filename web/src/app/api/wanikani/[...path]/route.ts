@@ -1,11 +1,12 @@
+import { fetchWaniKani } from "@/lib/server/wk-upstream";
 import { canAccessCoreStudy } from "@/features/core-study/access";
-import { getWaniKaniSessionUser } from "@/lib/server/wanikani-session";
+import { getWaniKaniSessionUser, SessionUpstreamError } from "@/lib/server/wanikani-session";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { unsealToken } from "@/lib/server/session-crypto";
 import { clientAddress, isTrustedMutationOrigin } from "@/lib/server/request-security";
 import { opaqueRateLimitKey, takeRateLimit, type RateLimitResult } from "@/lib/server/rate-limit";
-import { clearWkCache, coalesceWkRequest, isWkCacheBypass, readWkCache, versionedWkCacheKey, wkCacheGeneration, wkCacheKey, writeWkCacheIfCurrent } from "@/lib/server/wk-cache";
+import { invalidateWkStudyCache, coalesceWkRequest, isWkCacheBypass, readWkCache, versionedWkCacheKey, wkCacheGeneration, wkCacheKey, writeWkCacheIfCurrent } from "@/lib/server/wk-cache";
 
 const API_BASE = "https://api.wanikani.com/v2";
 const ALLOWED_ROOTS = new Set([
@@ -91,7 +92,18 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return NextResponse.json({ error: "The mutation body is invalid.", code: 422, details: parsed.error.flatten() }, { status: 422 });
     if (schema === reviewBody || schema === lessonBody) {
-      const verifiedUser = await getWaniKaniSessionUser(token).catch(() => null) as { data?: { username?: string } } | null;
+      let verifiedUser: { data?: { username?: string } } | null;
+      try { verifiedUser = await getWaniKaniSessionUser(token) as typeof verifiedUser; }
+      catch (cause) {
+        if (cause instanceof SessionUpstreamError) {
+          return NextResponse.json({ error: cause.message, code: cause.status }, { status: cause.status, headers: {
+            "Cache-Control": "private, no-store",
+            ...(cause.retryAfter ? { "Retry-After": cause.retryAfter } : {}),
+            ...(cause.resetAt ? { "RateLimit-Reset": cause.resetAt } : {}),
+          } });
+        }
+        return error("Your account could not be verified. Try again shortly.", 503);
+      }
       if (!verifiedUser) return error("Your account could not be verified. Try again shortly.", 503);
       if (!canAccessCoreStudy(verifiedUser.data?.username)) return error("Lessons and reviews are not available for this account yet.", 403);
     }
@@ -100,7 +112,7 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
 
   try {
     const load = async () => {
-      const upstream = await fetch(target, {
+      const upstream = await fetchWaniKani(token!, target, {
       method: request.method,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -119,9 +131,9 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
       });
       return { body: responseBody, status: upstream.status, ok: upstream.ok, headers: forwardedHeaders };
     };
-    const upstream = request.method === "GET" && !bypassCache ? await coalesceWkRequest(versionedWkCacheKey(cacheKey, cacheGeneration), load) : await load();
+    const upstream = request.method === "GET" ? await coalesceWkRequest(versionedWkCacheKey(`${cacheKey}${bypassCache ? ":fresh" : ""}`, cacheGeneration), load) : await load();
     if (upstream.ok && request.method === "GET" && !bypassCache) writeWkCacheIfCurrent(token, cacheGeneration, cacheKey, upstream.body, cacheTtl(root));
-    if (upstream.ok && request.method !== "GET") clearWkCache(token);
+    if (upstream.ok && request.method !== "GET") invalidateWkStudyCache(token, root);
     const response = NextResponse.json(upstream.body, { status: upstream.status });
     response.headers.set("Cache-Control", "private, no-store");
     Object.entries(upstream.headers).forEach(([name, value]) => response.headers.set(name, value));

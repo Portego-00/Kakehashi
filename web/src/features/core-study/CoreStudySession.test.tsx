@@ -1,6 +1,6 @@
 import { DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
 import "@testing-library/jest-dom/vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
@@ -173,7 +173,7 @@ const fixtures = vi.hoisted(() => {
     data_updated_at: "2026-08-17T00:00:00.000Z",
     data: { subject_id: 200, subject_type: "vocabulary", meaning_synonyms: ["watercourse"], meaning_note: null, reading_note: null, hidden: false, created_at: "2026-01-01T00:00:00.000Z" },
   };
-  return { componentKanji, lessonAssignment, lessonAssignmentsResponse: [lessonAssignment], reviewAssignment, reviewAssignmentsResponse: [reviewAssignment], reviewResponse, secondLessonAssignment, secondSubject, settings, studyMaterial, studyMaterialsRequest: null as Promise<typeof studyMaterial[]> | null, subject, user };
+  return { startedAssignmentsResponse: [] as typeof reviewAssignment[], componentKanji, lessonAssignment, lessonAssignmentsResponse: [lessonAssignment], reviewAssignment, reviewAssignmentsResponse: [reviewAssignment], reviewResponse, secondLessonAssignment, secondSubject, settings, studyMaterial, studyMaterialsRequest: null as Promise<typeof studyMaterial[]> | null, subject, user };
 });
 
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
@@ -192,6 +192,7 @@ vi.mock("@/lib/wanikani/client", () => ({
   WaniKaniApiError: class extends Error {},
   wkRequest: vi.fn(async (endpoint: string) => endpoint === "user" ? fixtures.user : endpoint === "reviews" ? fixtures.reviewResponse : endpoint.startsWith("study_materials") ? fixtures.studyMaterial : fixtures.reviewAssignment),
   wkCollection: vi.fn(async (endpoint: string) => {
+    if (endpoint.includes("started=true")) return fixtures.startedAssignmentsResponse;
     if (endpoint.includes("immediately_available_for_lessons")) return fixtures.lessonAssignmentsResponse;
     if (endpoint.includes("immediately_available_for_review")) return fixtures.reviewAssignmentsResponse;
     if (endpoint.startsWith("assignments?subject_ids=")) {
@@ -390,6 +391,8 @@ describe("core study prompt layout", () => {
     window.sessionStorage.clear();
     vi.clearAllMocks();
     vi.mocked(window.matchMedia).mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaQueryList);
+    fixtures.settings.study.dailyLessonLimit = 0;
+    fixtures.startedAssignmentsResponse = [];
     fixtures.studyMaterialsRequest = null;
     fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment];
     fixtures.reviewAssignmentsResponse = [fixtures.reviewAssignment];
@@ -564,6 +567,25 @@ describe("core study prompt layout", () => {
     expect(await screen.findByRole("button", { name: "Reveal answer" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Accuracy: 0%, 0 of 2 answers correct on the first attempt")).toBeVisible();
+  });
+
+  it("does not refetch the full assignment history after each completed review", async () => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    const { client } = renderSession("reviews");
+    const key = ["wanikani", "assignments", ""];
+    client.setQueryData(key, [fixtures.reviewAssignment]);
+    const refetch = vi.fn(async () => [fixtures.reviewAssignment]);
+    const observer = new QueryObserver(client, { queryKey: key, queryFn: refetch, staleTime: Infinity });
+    const unsubscribe = observer.subscribe(() => {});
+    try {
+      fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+      fireEvent.click(screen.getByRole("button", { name: "Correct" }));
+      await waitFor(() => expect(wkRequest).toHaveBeenCalledWith("reviews", expect.anything()));
+      await waitFor(() => expect(JSON.parse(localStorage.getItem(reviewOutboxKey(fixtures.user.data.username)) || "[]")).toHaveLength(0));
+      expect(refetch).not.toHaveBeenCalled();
+      expect(client.getQueryData(key)).toEqual([fixtures.reviewResponse.resources_updated.assignment]);
+    } finally { unsubscribe(); }
   });
 
   it("shows results immediately while the dashboard refresh is still pending", async () => {
@@ -1147,6 +1169,24 @@ describe("core study prompt layout", () => {
     expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
   });
 
+  it("blocks new lessons after the daily allowance was used on mobile", async () => {
+    fixtures.settings.study.dailyLessonLimit = 1;
+    fixtures.startedAssignmentsResponse = [{ ...fixtures.reviewAssignment, data: { ...fixtures.reviewAssignment.data, started_at: new Date().toISOString() } }];
+    renderSession("lessons");
+    expect(await screen.findByRole("heading", { name: "Daily Lesson Limit Reached" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Start lesson review" })).not.toBeInTheDocument();
+  });
+
+  it("trims a restored lesson batch to the remaining allowance after mobile lessons", async () => {
+    fixtures.settings.study.dailyLessonLimit = 2;
+    fixtures.startedAssignmentsResponse = [{ ...fixtures.reviewAssignment, data: { ...fixtures.reviewAssignment.data, started_at: new Date().toISOString() } }];
+    fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
+    localStorage.setItem(`kakehashi:core-study:${fixtures.user.data.username}:lesson-teaching`, JSON.stringify({ savedAt: new Date().toISOString(), subjectIds: [200, 202], index: 0, tab: "meaning" }));
+    renderSession("lessons");
+    expect(await screen.findByRole("button", { name: "Lesson 1: River" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Lesson 2: Fire" })).not.toBeInTheDocument();
+  });
+
   it("uses the subject-page grammar for lesson teaching before its review", async () => {
     renderSession("lessons");
 
@@ -1404,12 +1444,13 @@ describe("core study prompt layout", () => {
     fixtures.settings.study.backToBackQuestions = true;
     const report = vi.fn();
     const onAnswer = vi.fn();
+    const reportProgression = vi.fn();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report, onAnswer, previous: { id: "bp-1", source: "bunpro", title: "だけど", correct: false } }} /></QueryClientProvider>);
+    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report, onAnswer, reportProgression, previous: { id: "bp-1", source: "bunpro", title: "だけど", correct: false } }} /></QueryClientProvider>);
     await submitAnswer("river", "meaning");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "reading" });
-    expect(screen.getByLabelText("Previous Bunpro answer: だけど, incorrect")).toBeVisible();
+    expect(screen.queryByLabelText("Previous Bunpro answer: だけど, incorrect")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Previous meaning answer: River, correct" })).not.toBeInTheDocument();
     expect(onAnswer).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", title: "River", correct: true }));
     expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", keepTurn: true, id: "100:reading" }));
@@ -1417,6 +1458,7 @@ describe("core study prompt layout", () => {
     await submitAnswer("かわ", "reading");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => expect(report).toHaveBeenLastCalledWith(null));
+    await waitFor(() => expect(reportProgression).toHaveBeenCalledWith(expect.objectContaining({ source: "wanikani", progression: expect.objectContaining({ assignmentId: 100 }) })));
     await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(1));
   });
 

@@ -68,6 +68,21 @@ export async function coalesceWkRequest<T>(key: string, load: () => Promise<T>):
   return next;
 }
 
+/** Invalidate changing study data without discarding account verification or static catalogs. */
+export function invalidateWkStudyCache(token: string, root: string) {
+  const prefix = `${tokenKey(token)}:`;
+  const affected = root === "study_materials" ? ["study_materials"] : ["assignments", "summary", "review_statistics", "level_progressions", "user"];
+  // Advance the generation to prevent older reads from restoring stale study data.
+  const identity = tokenKey(token);
+  generations.set(identity, (generations.get(identity) ?? 0) + 1);
+  for (const key of store.keys()) {
+    if (key.startsWith(prefix) && affected.some((resource) => {
+      const path = key.slice(prefix.length).replace("https://api.wanikani.com/v2/", "");
+      return path === resource || path.startsWith(`${resource}?`) || path.startsWith(`${resource}/`);
+    })) store.delete(key);
+  }
+}
+
 export function clearWkCache(token: string) {
   const identity = tokenKey(token);
   const prefix = `${identity}:`;

@@ -137,11 +137,20 @@ export function lessonHistoryKey(username: string) { return `${LESSON_HISTORY_PR
 export function coreSessionKey(username: string, mode: "lessons" | "reviews") { return `kakehashi-core-session:${encodeURIComponent(username.trim().toLocaleLowerCase())}:${mode}`; }
 export function localDay(value = new Date()) { return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`; }
 
-export function lessonsStartedToday(storage: Pick<Storage, "getItem">, username: string, now = new Date()) {
+export function lessonsStartedToday(storage: Pick<Storage, "getItem">, username: string, now = new Date(), assignments: readonly Assignment[] = []) {
+  const day = localDay(now);
+  const ids = new Set(assignments.filter((row) => row.data.started_at && localDay(new Date(row.data.started_at)) === day).map((row) => row.id));
   try {
-    const rows = JSON.parse(storage.getItem(lessonHistoryKey(username)) || "[]") as Array<{ assignmentId: number; day: string }>;
-    return new Set(rows.filter((row) => row.day === localDay(now)).map((row) => row.assignmentId)).size;
-  } catch { return 0; }
+    const rows: unknown = JSON.parse(storage.getItem(lessonHistoryKey(username)) || "[]");
+    if (Array.isArray(rows)) for (const row of rows) {
+      if (row?.day === day && Number.isInteger(row.assignmentId)) ids.add(row.assignmentId);
+    }
+  } catch { /* WaniKani history still counts when local storage is unavailable. */ }
+  return ids.size;
+}
+
+export function remainingDailyLessons(limit: number, startedToday: number) {
+  return limit > 0 ? Math.max(0, Math.floor(limit) - startedToday) : Infinity;
 }
 
 export function recordLessonStarted(storage: Pick<Storage, "getItem" | "setItem">, username: string, assignmentId: number, now = new Date()) {

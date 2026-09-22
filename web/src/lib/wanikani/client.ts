@@ -1,6 +1,10 @@
+import { rateLimitDelay, waitForRetry } from "./retry";
 import type { WKCollection } from "@/types/wanikani";
 import { isDemoMode } from "@/features/demo/runtime";
 import { captureReviewRecordingContext, recordCompletedWaniKaniReview } from "@/features/progress/analytics-review-ledger";
+
+let rateLimitedUntil = 0;
+export function resetWkRequestCooldown() { rateLimitedUntil = 0; }
 
 const API_ROOT = "/api/wanikani";
 
@@ -8,7 +12,7 @@ export class WaniKaniApiError extends Error {
   constructor(message: string, public status: number, public code?: number, public retryAfterMs?: number) { super(message); this.name = "WaniKaniApiError"; }
 }
 
-export interface RequestOptions extends Omit<RequestInit, "body"> { body?: unknown; fresh?: boolean }
+export interface RequestOptions extends Omit<RequestInit, "body"> { body?: unknown; fresh?: boolean; retryRateLimit?: boolean }
 
 export async function wkRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   if (isDemoMode()) {
@@ -25,17 +29,27 @@ export async function wkRequest<T>(path: string, options: RequestOptions = {}): 
   const requestOptions = { ...options };
   delete requestOptions.body;
   delete requestOptions.fresh;
+  delete requestOptions.retryRateLimit;
 
-  const response = await fetch(`${API_ROOT}/${cleanPath}`, {
-    ...requestOptions,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response: Response;
+  let attempt = 0;
+  while (true) {
+    while (rateLimitedUntil > Date.now()) await waitForRetry(rateLimitedUntil - Date.now(), options.signal);
+    options.signal?.throwIfAborted();
+    response = await fetch(`${API_ROOT}/${cleanPath}`, {
+      ...requestOptions,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (response.status !== 429) break;
+    const delay = rateLimitDelay(response.headers, Math.min(60_000, 5_000 * 2 ** Math.min(attempt++, 4)));
+    rateLimitedUntil = Math.max(rateLimitedUntil, Date.now() + delay);
+    if (options.retryRateLimit === false) break;
+    await response.body?.cancel();
+  }
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
-    const resetAt = Number(response.headers.get("ratelimit-reset"));
-    const retryAfter = Number(response.headers.get("retry-after"));
-    const retryAfterMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Number.isFinite(resetAt) && resetAt > 0 ? Math.max(0, resetAt * 1000 - Date.now()) : undefined;
+    const retryAfterMs = response.status === 429 ? rateLimitDelay(response.headers) : undefined;
     throw new WaniKaniApiError(payload?.error || "WaniKani request failed.", response.status, payload?.code, retryAfterMs);
   }
   if (recordingContext) recordCompletedWaniKaniReview(recordingContext, payload);

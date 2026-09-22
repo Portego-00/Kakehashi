@@ -35,6 +35,14 @@ describe("review outbox", () => {
     expect(submitReview).toHaveBeenCalledOnce();
   });
 
+  it("does not issue an extra reconciliation read after an explicit rate limit", async () => {
+    const readAssignment = vi.fn().mockResolvedValue(assignment(true));
+    const limited = Object.assign(new Error("Rate limit"), { status: 429 });
+    const submitReview = vi.fn().mockRejectedValue(limited);
+    await expect(deliverReview({ assignmentId: 9, incorrectMeaningAnswers: 0, incorrectReadingAnswers: 0, createdAt: "", attempts: 0 }, { readAssignment, submitReview })).rejects.toBe(limited);
+    expect(readAssignment).toHaveBeenCalledOnce();
+  });
+
   it("reconciles a review accepted upstream when its submission response is lost", async () => {
     const readAssignment = vi.fn()
       .mockResolvedValueOnce(assignment(true))

@@ -107,7 +107,7 @@
 .toggleRow input:disabled + i { opacity: .6; }
 .toggleRow input:disabled:not(:checked) + i { background: var(--color-paper-2); }
 .selectRow[aria-disabled="true"] { cursor: default; color: var(--color-ink-2); }
-.selectRow select { max-width: min(100%, 22rem); min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
+.selectRow select, .selectRow input[type="number"] { max-width: min(100%, 22rem); min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
 .selectRow select:disabled { opacity: .65; cursor: not-allowed; }
 .textInput { width: min(100%, 22rem); min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
 .settingsAnchor { scroll-margin-block-start: calc(var(--banner-height) + var(--space-lg)); }
@@ -232,6 +232,7 @@
   .colorInputs > label > span:last-child { width: 100%; }
   .colorInputs input[type="text"] { width: 100%; }
   .selectRow select,
+  .selectRow input[type="number"],
   .profileControls,
   .textInput,
   .downloadRow > button,

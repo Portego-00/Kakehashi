@@ -80,6 +80,7 @@ export interface WebStudyPreferences {
   showListeningTranslation: boolean;
   vocabularyAudioVoice: VocabularyAudioVoice;
   ankiMode: AnkiMode;
+  ankiHideAnswerCompletely: boolean;
   ankiGroupQuestions: boolean;
   studyShortcuts: StudyShortcuts;
   ankiShowOtherAcceptedAnswersAndUserSynonyms: boolean;
@@ -344,6 +345,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     showListeningTranslation: true,
     vocabularyAudioVoice: "female",
     ankiMode: "off",
+    ankiHideAnswerCompletely: false,
     ankiGroupQuestions: false,
     studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
     ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
@@ -540,7 +542,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         shuffleSubjects: typeof parsed.study?.shuffleSubjects === "boolean" ? parsed.study.shuffleSubjects : DEFAULT_WEB_SETTINGS.study.shuffleSubjects,
         lessonsBatchSize: [3, 5, 10, 15, 20].includes(parsed.study?.lessonsBatchSize ?? 0) ? parsed.study!.lessonsBatchSize : DEFAULT_WEB_SETTINGS.study.lessonsBatchSize,
         answerOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder : DEFAULT_WEB_SETTINGS.study.answerOrder,
-        dailyLessonLimit: [0, 5, 10, 15, 20, 30].includes(parsed.study?.dailyLessonLimit ?? -1) ? parsed.study!.dailyLessonLimit : DEFAULT_WEB_SETTINGS.study.dailyLessonLimit,
+        dailyLessonLimit: Number.isInteger(parsed.study?.dailyLessonLimit) && parsed.study!.dailyLessonLimit >= 0 && parsed.study!.dailyLessonLimit <= 500 ? parsed.study!.dailyLessonLimit : DEFAULT_WEB_SETTINGS.study.dailyLessonLimit,
         lessonOrder: ["available", "subject-type", "level"].includes(parsed.study?.lessonOrder ?? "") ? parsed.study!.lessonOrder : DEFAULT_WEB_SETTINGS.study.lessonOrder,
         reviewOrder: normalizeReviewOrder(persistedStudy?.reviewOrder, DEFAULT_WEB_SETTINGS.study.reviewOrder),
         customReviewOrder: normalizeReviewOrder(persistedStudy?.customReviewOrder, DEFAULT_WEB_SETTINGS.study.customReviewOrder),
@@ -561,6 +563,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
         vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
+        ankiHideAnswerCompletely: typeof parsed.study?.ankiHideAnswerCompletely === "boolean" ? parsed.study.ankiHideAnswerCompletely : DEFAULT_WEB_SETTINGS.study.ankiHideAnswerCompletely,
         ankiGroupQuestions: typeof parsed.study?.ankiGroupQuestions === "boolean" ? parsed.study.ankiGroupQuestions : DEFAULT_WEB_SETTINGS.study.ankiGroupQuestions,
         studyShortcuts: normalizeStudyShortcuts(parsed.study?.studyShortcuts),
         ankiShowOtherAcceptedAnswersAndUserSynonyms: typeof parsed.study?.ankiShowOtherAcceptedAnswersAndUserSynonyms === "boolean" ? parsed.study.ankiShowOtherAcceptedAnswersAndUserSynonyms : DEFAULT_WEB_SETTINGS.study.ankiShowOtherAcceptedAnswersAndUserSynonyms,

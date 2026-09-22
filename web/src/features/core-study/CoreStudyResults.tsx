@@ -41,7 +41,8 @@ function ResultSubject({ item, showAnswers }: { item: ReviewResultItem; showAnsw
   </li>;
 }
 
-export function CoreStudyResults({ items, mode, durationMs, pendingCount = 0, permissionError, progression }: { items: ReviewResultItem[]; mode: "reviews" | "lessons"; durationMs: number; pendingCount?: number; permissionError?: string; progression?: ReactNode }) {
+export function CoreStudyResults({ items, mode, durationMs, pendingCount = 0, permissionError, progression, title }: { items: ReviewResultItem[]; mode: "reviews" | "lessons"; durationMs: number; pendingCount?: number; permissionError?: string; progression?: ReactNode; title?: string }) {
+  const Heading = title ? "h2" : "h1";
   const summary = reviewResultsSummary(items);
   const mistakes = items.filter((item) => resultMistakes(item) > 0);
   const [selectedTab, setSelectedTab] = useState<"mistakes" | "all">(mistakes.length ? "mistakes" : "all");
@@ -51,7 +52,7 @@ export function CoreStudyResults({ items, mode, durationMs, pendingCount = 0, pe
   const seconds = Math.floor(Math.max(0, durationMs) / 1_000) % 60;
   const practiceHref = `/study/custom-review?subjectIds=${Array.from(new Set(mistakes.map((item) => item.subject.id))).join(",")}&start=1`;
   return <section className={styles.results} aria-labelledby="review-results-title">
-    <header className={styles.header}><div><h1 id="review-results-title">{mode === "reviews" ? "Reviews" : "Lessons"} Complete</h1><p>{items.length} {items.length === 1 ? "subject" : "subjects"} completed · {minutes ? `${minutes}m ${seconds}s` : `${seconds}s`}</p></div><ButtonLink href="/dashboard" tone="primary">Back to Dashboard<ArrowRight size={17} aria-hidden /></ButtonLink></header>
+    <header className={styles.header}><div><Heading id="review-results-title">{title ?? `${mode === "reviews" ? "Reviews" : "Lessons"} Complete`}</Heading><p>{items.length} {items.length === 1 ? "subject" : "subjects"} completed · {minutes ? `${minutes}m ${seconds}s` : `${seconds}s`}</p></div><ButtonLink href="/dashboard" tone="primary">Back to Dashboard<ArrowRight size={17} aria-hidden /></ButtonLink></header>
     {permissionError ? <p className={styles.syncNotice} role="alert">{permissionError}</p> : null}
     {pendingCount ? <p className={styles.syncNotice} role="status">{pendingCount} completed {pendingCount === 1 ? "review is" : "reviews are"} saved on this device and waiting to sync with WaniKani.</p> : null}
     <div className={styles.summary}>
