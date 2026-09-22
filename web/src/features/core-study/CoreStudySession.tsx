@@ -39,7 +39,7 @@ import { checkAnswer, type AnswerResult, type QuestionKind } from "./answer-chec
 import { createQuestionQueue, kindsForSubject, lessonAssignments, moveCoreQuestionPairToEnd, reviewAssignments, type CoreQuestion } from "./queue";
 import { predictedReviewStage } from "./review-sync";
 import { useReviewSync } from "./use-review-sync";
-import { coreSessionKey, lessonsStartedToday, recordLessonStarted, selectCoreAssignments } from "./session-planning";
+import { coreSessionKey, lessonsStartedToday, localDay, recordLessonStarted, remainingDailyLessons, selectCoreAssignments } from "./session-planning";
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
 import { canonicalAnswer, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
 import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationStudyMessage, WANIKANI_VACATION_SETTINGS_URL } from "./vacation";
@@ -176,6 +176,15 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const username = liveUser?.data.username || user?.data.username || "anonymous";
   const webSettings = useWebSettings(username);
   const preferences = webSettings.study;
+  const [lessonDay, setLessonDay] = useState(() => localDay());
+  const dailyAssignmentsQuery = useQuery({
+    queryKey: ["wanikani", "assignments", "lessons-started", lessonDay],
+    queryFn: ({ signal }) => wkCollection<Assignment>(`assignments?started=true&updated_after=${encodeURIComponent(new Date(`${lessonDay}T00:00:00`).toISOString())}`, 30, { signal }),
+    enabled: mode === "lessons" && preferences.dailyLessonLimit > 0 && hasConfirmedUser && !isOnVacation,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const dailyHistoryReady = mode !== "lessons" || preferences.dailyLessonLimit === 0 || dailyAssignmentsQuery.data !== undefined;
   const phoneInput = usePhoneStudyInput();
   const [phase, setPhase] = useState<Phase>("loading");
   const [lessonIndex, setLessonIndex] = useState(0);
@@ -237,18 +246,27 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setLessonStartsToday(lessonsStartedToday(window.localStorage, username));
+      setLessonStartsToday(lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [username]);
+  }, [username, dailyAssignmentsQuery.data, lessonDay]);
 
   useEffect(() => {
     if (mode !== "lessons") return;
+    const timer = window.setInterval(() => {
+      setLessonDay(localDay());
+      setLessonStartsToday(lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data));
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [mode, username, dailyAssignmentsQuery.data]);
+
+  useEffect(() => {
+    if (mode !== "lessons" || !dailyHistoryReady) return;
     const timer = window.setTimeout(() => {
       let snapshot = pickLessons ? null : loadLessonTeachingSession(window.localStorage, username);
       let picked = pickLessons ? null : loadPickedLessons(window.localStorage, username);
-      const startedToday = lessonsStartedToday(window.localStorage, username);
-      const remaining = preferences.dailyLessonLimit > 0 ? Math.max(0, preferences.dailyLessonLimit - startedToday) : Infinity;
+      const startedToday = lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data);
+      const remaining = remainingDailyLessons(preferences.dailyLessonLimit, startedToday);
       const limit = Math.min(preferences.lessonsBatchSize, remaining);
       if (snapshot && snapshot.subjectIds.length > limit) {
         picked = [...new Set([...snapshot.subjectIds, ...(picked ?? [])])];
@@ -265,7 +283,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       setLessonBatchStorageReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [mode, username, pickLessons, preferences.lessonsBatchSize, preferences.dailyLessonLimit]);
+  }, [mode, username, pickLessons, preferences.lessonsBatchSize, preferences.dailyLessonLimit, dailyHistoryReady, dailyAssignmentsQuery.data]);
 
   const assignmentQuery = useQuery({
     queryKey: ["core-study", mode, "assignments"],
@@ -291,7 +309,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     staleTime: 24 * 60 * 60_000,
   });
   const subjects = subjectsQuery.data || EMPTY_SUBJECTS;
-  const dailyRemaining = preferences.dailyLessonLimit > 0 ? Math.max(0, preferences.dailyLessonLimit - lessonStartsToday) : Number.POSITIVE_INFINITY;
+  const dailyRemaining = remainingDailyLessons(preferences.dailyLessonLimit, lessonStartsToday);
   const assignmentLimit = mode === "lessons" ? Math.min(preferences.lessonsBatchSize, dailyRemaining) : preferences.reviewBatchSize;
   const plannedAssignments = useMemo(
     () => {
@@ -314,7 +332,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   );
 
   useEffect(() => {
-    if (pickingLessons || mode !== "lessons" || !lessonBatchStorageReady || !assignmentQuery.isSuccess || !subjectsQuery.isSuccess) return;
+    if (!dailyHistoryReady || pickingLessons || mode !== "lessons" || !lessonBatchStorageReady || !assignmentQuery.isSuccess || !subjectsQuery.isSuccess) return;
     if (lessonBatchIds !== null && (lessonBatchIds.length === 0 || restoredLessonAssignments.length === lessonBatchIds.length)) return;
     if (lessonBatchIds?.length && (restoredAssignmentsQuery.isLoading || restoredAssignmentsQuery.isError)) return;
     const timer = window.setTimeout(() => {
@@ -333,7 +351,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       setLessonBatchIds(subjectIds);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [pickingLessons, assignmentQuery.isSuccess, lessonBatchIds, lessonBatchStorageReady, mode, plannedAssignments, restoredAssignmentsQuery.isError, restoredAssignmentsQuery.isLoading, restoredLessonAssignments.length, subjectsQuery.isSuccess, username]);
+  }, [dailyHistoryReady, pickingLessons, assignmentQuery.isSuccess, lessonBatchIds, lessonBatchStorageReady, mode, plannedAssignments, restoredAssignmentsQuery.isError, restoredAssignmentsQuery.isLoading, restoredLessonAssignments.length, subjectsQuery.isSuccess, username]);
 
   const selectedAssignments = useMemo(() => {
     if (mode !== "lessons") return plannedAssignments;
@@ -458,13 +476,17 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     return () => window.cancelAnimationFrame(frame);
   }, [phase, questions, mixed?.active]);
 
-  const reviewSync = useReviewSync(username, mode === "reviews" && !isOnVacation && assignmentQuery.isSuccess && username !== "anonymous", (entry, confirmation) => {
+  const reviewSync = useReviewSync(username, mode === "reviews" && !isOnVacation && assignmentQuery.data !== undefined && username !== "anonymous", (entry, confirmation) => {
+    if (confirmation.assignment) {
+      const updated = confirmation.assignment;
+      queryClient.setQueryData<Assignment[]>(wkKeys.assignments(""), (rows) => rows?.map((row) => row.id === updated.id ? updated : row));
+    }
     if (confirmation.stage !== undefined) {
       setResultItems((items) => items.map((item) => item.assignmentId === entry.assignmentId ? { ...item, endingStage: confirmation.stage } : item));
       // A late response may correct its own visible cue, never replace a newer one.
       setSrsProgression((previous) => previous?.assignmentId === entry.assignmentId ? { ...previous, endingStage: confirmation.stage!, isCorrect: confirmation.stage! > previous.startingStage, nextReviewInterval: formatNextReviewInterval(confirmation.availableAt, confirmation.stage!) } : previous);
     }
-    void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
+    void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments(), refetchType: "none" }), queryClient.invalidateQueries({ queryKey: wkKeys.summary(), refetchType: "none" })]).catch(() => undefined);
   });
   const current = questions[0];
   const answerAccuracy = coreAccuracy(completed, errors, questions[0] && feedback && feedback.status !== "blocked" ? { id: questions[0].assignment.id, kinds: answeredKinds.length ? answeredKinds : [questions[0].kind], correct: lastCorrect } : undefined);
@@ -472,7 +494,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   useEffect(() => { reportMixedAccuracy(); }, [answerAccuracy.correct, answerAccuracy.answered]);
   const outboxCount = reviewSync.pendingCount;
   const outboxMessage = reviewSync.permissionError;
-  const reportMixedResults = useEffectEvent(() => mixed?.reportResults?.({ items: wanikaniSessionResults(resultItems), durationMs: Math.max(0, displayNow - new Date(sessionStartedAt).getTime()), pendingCount: outboxCount, error: outboxMessage }));
+  const reportMixedResults = useEffectEvent(() => mixed?.reportResults?.({ items: wanikaniSessionResults(resultItems), wanikaniResults: resultItems, durationMs: Math.max(0, displayNow - new Date(sessionStartedAt).getTime()), pendingCount: outboxCount, error: outboxMessage }));
   useEffect(() => { reportMixedResults(); }, [resultItems, displayNow, sessionStartedAt, outboxCount, outboxMessage]);
   const finishReviewSync = reviewSync.finish;
   useEffect(() => {
@@ -485,7 +507,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     mixedPrevious.current = current?.id;
     mixed?.report(wkHead(isOnVacation ? undefined : current, liveUser?.data.level ?? 1, Boolean(previous && current && previous.split(":")[0] === String(current.assignment.id) && preferences.backToBackQuestions)));
   });
-  const mixedFailed = Boolean(availabilityCheckFailed || assignmentQuery.error || subjectsQuery.error || materialsQuery.error || answerContextQuery.error);
+  const mixedFailed = Boolean(availabilityCheckFailed || (assignmentQuery.error && !assignmentQuery.data) || (subjectsQuery.error && !subjectsQuery.data) || (materialsQuery.error && !materialsQuery.data) || (answerContextQuery.error && !answerContextQuery.data));
   const mixedLoading = currentUserQuery.isPending || (!isOnVacation && (assignmentQuery.isPending || subjectsQuery.isPending || materialsQuery.isLoading || answerContextQuery.isLoading));
   const reportMixedError = useEffectEvent(() => mixed?.reportError?.(mixedFailed));
   useEffect(() => { reportMixedError(); }, [mixedFailed]);
@@ -595,7 +617,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     },
     onSuccess: (_, assignmentId) => {
       recordLessonStarted(window.localStorage, username, assignmentId);
-      setLessonStartsToday(lessonsStartedToday(window.localStorage, username));
+      setLessonStartsToday(lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data));
       if (pickedLessonIds) {
         const subjectId = selectedAssignments.find((assignment) => assignment.id === assignmentId)?.data.subject_id;
         const remaining = pickedLessonIds.filter((id) => id !== subjectId);
@@ -778,11 +800,10 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
         window.localStorage.removeItem(coreSessionKey(username, mode));
         if (mode === "lessons") clearLessonTeachingSession(window.localStorage, username);
         // This timestamp is read when the async answer submission finishes, not during render.
-        // eslint-disable-next-line react-hooks/purity
         setDisplayNow(Date.now());
         setPhase("results");
         // Completion must not wait for dashboard queries; the session is already saved.
-        void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments() }), queryClient.invalidateQueries({ queryKey: wkKeys.summary() })]).catch(() => undefined);
+        void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments(), refetchType: "none" }), queryClient.invalidateQueries({ queryKey: wkKeys.summary(), refetchType: "none" })]).catch(() => undefined);
       } else window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
     } catch (cause) {
       setSessionError(formatFailure(cause, mode === "reviews" ? "This review could not be saved on this device. Please try again before continuing." : "The lesson remains in place; retry when the connection returns."));
@@ -965,7 +986,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     setPhase(mode === "lessons" ? "loading" : queue.length ? "quiz" : "results");
   }
 
-  if (mode === "reviews" && phase === "results" && resultItems.length) return <CoreStudyResults
+  if (mode === "reviews" && phase === "results" && resultItems.length) return mixed ? null : <CoreStudyResults
     items={resultItems}
     mode={mode}
     durationMs={displayNow - new Date(sessionStartedAt).getTime()}
@@ -977,11 +998,13 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   if (currentVacationStartedAt) return <div className={styles.stage}><section className={styles.vacationPause} role="status"><div className={styles.vacationIcon}><Umbrella size={28} aria-hidden /></div><div><h1>Vacation Mode</h1><p>{vacationStudyMessage(mode)}</p><span>On vacation since {vacationDateLabel(currentVacationStartedAt)}</span></div><div className="cluster"><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink><a href={WANIKANI_VACATION_SETTINGS_URL} target="_blank" rel="noreferrer">Turn off in WaniKani</a></div></section></div>;
   if (availabilityCheckFailed) return <div className={styles.stage}><div className={styles.loading}><h1>Study availability could not be checked</h1><p className={styles.error} role="alert">Kakehashi could not confirm whether Vacation Mode is active. No lesson or review session has been started.</p><div className="cluster"><Button onClick={() => void currentUserQuery.refetch()}>Try Again</Button><ButtonLink href="/dashboard" tone="ghost">Leave</ButtonLink></div></div></div>;
   if (currentUserQuery.isLoading) return mode === "lessons" ? <LessonLoading picking={pickingLessons} /> : <ReviewLoading />;
-  if (assignmentQuery.error || subjectsQuery.error || (restoredAssignmentsQuery.error && !lessonBatchResolved)) return <div className={styles.stage}><div className={styles.loading}><h1>{mode === "lessons" ? "Lessons" : "Reviews"} could not load</h1><p className={styles.error} role="alert">{formatFailure(assignmentQuery.error || subjectsQuery.error || restoredAssignmentsQuery.error, "Refresh when the connection is available.")}</p><Button onClick={() => {
+  if ((assignmentQuery.error && !assignmentQuery.data) || (subjectsQuery.error && !subjectsQuery.data) || (restoredAssignmentsQuery.error && !lessonBatchResolved)) return <div className={styles.stage}><div className={styles.loading}><h1>{mode === "lessons" ? "Lessons" : "Reviews"} could not load</h1><p className={styles.error} role="alert">{formatFailure(assignmentQuery.error || subjectsQuery.error || restoredAssignmentsQuery.error, "Refresh when the connection is available.")}</p><Button onClick={() => {
     if (assignmentQuery.error) void assignmentQuery.refetch();
     if (subjectsQuery.error) void subjectsQuery.refetch();
     if (restoredAssignmentsQuery.error) void restoredAssignmentsQuery.refetch();
   }}>Try Again</Button></div></div>;
+  if (!dailyHistoryReady && dailyAssignmentsQuery.isError) return <div className={styles.stage}><p role="alert">Today’s lesson count could not be checked.</p><Button onClick={() => void dailyAssignmentsQuery.refetch()}>Try Again</Button></div>;
+  if (!dailyHistoryReady) return <LessonLoading picking={pickingLessons} />;
   if (pickingLessons && assignmentQuery.isSuccess && subjectsQuery.isSuccess && lessonBatchStorageReady) return <LessonPicker
     subjects={subjects.filter((subject) => candidateIds.includes(subject.id))}
     limit={dailyRemaining}
@@ -1001,7 +1024,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       window.history.replaceState(null, "", "/lessons");
     }}
   />;
-  if (materialsQuery.error || answerContextQuery.error) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
+  if ((materialsQuery.error && !materialsQuery.data) || (answerContextQuery.error && !answerContextQuery.data)) return <div className={styles.stage}><div className={styles.loading}><h1>Answer data could not load</h1><p className={styles.error} role="alert">{formatFailure(materialsQuery.error || answerContextQuery.error, "Retry before answering so personal synonyms and reading warnings are checked correctly.")}</p><Button onClick={() => { if (materialsQuery.error) void materialsQuery.refetch(); if (answerContextQuery.error) void answerContextQuery.refetch(); }}>Try Again</Button></div></div>;
   if (assignmentQuery.isLoading || subjectsQuery.isLoading || materialsQuery.isLoading || answerContextQuery.isLoading || (phase === "loading" || (phase === "quiz" && !reviewFontReady))) return mode === "lessons" && phase !== "quiz" ? <LessonLoading picking={pickingLessons} /> : <ReviewLoading />;
 
   if (phase === "resume" && resumeSnapshot) {
@@ -1052,7 +1075,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     const accuracy = selectedAssignments.length ? Math.round((progress / attempts) * 100) : 0;
     const minutes = Math.max(1, Math.round((displayNow - new Date(sessionStartedAt).getTime()) / 60_000));
     const dailyLimitReached = mode === "lessons" && preferences.dailyLessonLimit > 0 && dailyRemaining <= 0 && available.length > 0;
-    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot && !mixed ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit in this browser.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => mode === "lessons" && pickedLessonIds?.length ? restartSession() : window.location.reload()}><RotateCcw size={17} />{mode === "lessons" && pickedLessonIds?.length ? "Next batch" : "Check for More"}</Button> : null}</div></section></div>;
+    return <div className={styles.stage}>{outboxMessage ? <p className={styles.error} role="alert">{outboxMessage}</p> : null}{reserveResultsProgressionSlot && !mixed ? <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} /> : null}<section className={styles.results}><Check size={44} style={{ marginInline: "auto", color: "var(--color-success)" }} aria-hidden /><div><h1>{selectedAssignments.length ? `${mode === "lessons" ? "Lessons" : "Reviews"} Complete` : dailyLimitReached ? "Daily Lesson Limit Reached" : `No ${mode} Waiting`}</h1><p>{selectedAssignments.length ? outboxCount ? "Your answers are complete. Saved submissions will reconcile when WaniKani is available." : "Your WaniKani progress is up to date." : dailyLimitReached ? `You have reached today’s ${preferences.dailyLessonLimit}-lesson limit.` : mode === "lessons" ? "New lessons will appear after you unlock more subjects." : "Come back when the next review becomes available."}</p></div>{selectedAssignments.length ? <div className={styles.resultGrid}><div><div className={styles.resultNumber}>{submittedIds.length}</div><span>items completed</span></div><div><div className={styles.resultNumber}>{accuracy}%</div><span>answer accuracy</span></div><div><div className={styles.resultNumber}>{incorrect}</div><span>incorrect attempts</span></div><div><div className={styles.resultNumber}>{minutes}</div><span>minutes studied</span></div></div> : null}<div className="cluster" style={{ justifyContent: "center" }}><ButtonLink href="/dashboard" tone="primary">Back to Dashboard</ButtonLink>{selectedAssignments.length ? <Button tone="ghost" onClick={() => mode === "lessons" && pickedLessonIds?.length ? restartSession() : window.location.reload()}><RotateCcw size={17} />{mode === "lessons" && pickedLessonIds?.length ? "Next batch" : "Check for More"}</Button> : null}</div></section></div>;
   }
 
   if (!current) return null;
@@ -1114,7 +1137,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       <div className={quiz.answerArea}>
 
         {selfAssessment ? <div className={quiz.promptTypeStrip} data-tone={current.kind}><span>{subjectType}</span><strong id="study-prompt-title" role="heading" aria-level={1}>{current.kind}</strong></div> : null}
-        {selfAssessment && !feedback ? <AnkiAnswerContent studyKeys={studyKeys} detailsOpen={studyDetailsShouldOpen} keyboardShortcuts={preferences.keyboardShortcuts}
+        {selfAssessment && !feedback ? <AnkiAnswerContent hideAnswerCompletely={preferences.ankiHideAnswerCompletely} studyKeys={studyKeys} detailsOpen={studyDetailsShouldOpen} keyboardShortcuts={preferences.keyboardShortcuts}
           revealed={ankiRevealed}
           questionKind={current.kind}
           groupQuestions={groupedSelfAssessment}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { BUNPRO_CREDENTIAL_HEADER } from "@/features/bunpro/credential";
 import { BUNPRO_COOKIE, BunproError, bunproIdentity, bunproRequest, bunproToken } from "@/lib/server/bunpro";
 import { loadBunproAnalytics } from "@/lib/server/bunpro-analytics";
 import { sealToken } from "@/lib/server/session-crypto";
@@ -13,12 +14,15 @@ const reviewSchema = z.object({ action: z.literal("review"), reviewId: z.string(
 function failure(error: unknown) { return NextResponse.json({ error: error instanceof BunproError ? error.message : "Unable to complete the Bunpro request." }, { status: error instanceof BunproError ? error.status : 502, headers }); }
 async function access(request: NextRequest) {
   const identity = await bunproIdentity(request.cookies.get(WANIKANI_SESSION_COOKIE)?.value);
-  const token = bunproToken(request.cookies.get(BUNPRO_COOKIE)?.value, identity.id);
-  return { identity, token };
+  const saved = request.headers.get(BUNPRO_CREDENTIAL_HEADER) ?? undefined;
+  const savedToken = bunproToken(saved, identity.id);
+  const credential = savedToken ? saved : request.cookies.get(BUNPRO_COOKIE)?.value;
+  const token = savedToken ?? bunproToken(credential, identity.id);
+  return { identity, token, credential };
 }
 export async function GET(request: NextRequest) {
   try {
-    const { token } = await access(request);
+    const { token, credential } = await access(request);
     const action = request.nextUrl.searchParams.get("action");
     if (action === "connection") {
       if (!token) return NextResponse.json({ connected: false }, { headers });
@@ -27,7 +31,7 @@ export async function GET(request: NextRequest) {
         if (error instanceof BunproError && [401, 403].includes(error.status)) return NextResponse.json({ connected: false }, { headers });
         throw error;
       }
-      return NextResponse.json({ connected: true }, { headers });
+      return NextResponse.json({ connected: true }, { headers: { ...headers, [BUNPRO_CREDENTIAL_HEADER]: credential! } });
     }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);
     if (action === "analytics") return NextResponse.json(await loadBunproAnalytics(token), { headers });
@@ -72,8 +76,9 @@ export async function POST(request: NextRequest) {
       const parsed = z.object({ token: z.string().trim().min(1).max(512) }).safeParse(body);
       if (!parsed.success) throw new BunproError("Enter a valid Bunpro API key.", 400);
       await bunproRequest(parsed.data.token, "/user");
-      const response = NextResponse.json({ connected: true }, { headers });
-      response.cookies.set(BUNPRO_COOKIE, sealToken(JSON.stringify({ owner: identity.id, token: parsed.data.token })), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 60 * 60 * 24 * 30 });
+      const credential = sealToken(JSON.stringify({ owner: identity.id, token: parsed.data.token }));
+      const response = NextResponse.json({ connected: true }, { headers: { ...headers, [BUNPRO_CREDENTIAL_HEADER]: credential } });
+      response.cookies.set(BUNPRO_COOKIE, credential, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 60 * 60 * 24 * 30 });
       return response;
     }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);

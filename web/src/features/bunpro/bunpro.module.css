@@ -297,6 +297,9 @@
 .reviewDetails { min-width: 0; }
 
 .reviewShell .sentence, .reviewShell .sentence :global(:lang(ja)) { font-family: var(--jitai-font, var(--font-japanese)); }
+@media (hover: hover) {
+  .reviewShell .sentence:hover { --jitai-font: var(--font-japanese); }
+}
 
 :global([data-theme="dark"]) .reviewShell, :global([data-theme="midnight"]) .reviewShell { --bp-accent: #ec8888; }
 

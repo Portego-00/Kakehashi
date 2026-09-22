@@ -11,7 +11,7 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({ useWebSettings
 vi.mock("@/features/study/feedback-audio", () => ({ playAnswerFeedback: vi.fn() }));
 vi.mock("@/features/core-study/CoreStudySession", () => ({ CoreStudySession: ({ mixed }: { mixed: MixedBridge }) => {
   const [step, setStep] = useState(0);
-  const report = useEffectEvent(() => { mixed.reportResults?.({ items: Array.from({ length: step }, (_, i) => ({ id: `wk-result-${i}`, source: "wanikani", kind: "kanji", title: `川${i + 1}`, meaning: "River", correct: true, href: `/subjects/${i + 1}` })), durationMs: 10000, pendingCount: step === 2 ? 1 : 0 }); mixed.reportProgress?.({ completed: step, total: 2 }); mixed.report(step === 2 ? null : { id: `wk-${step}`, source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" }); });
+  const report = useEffectEvent(() => { mixed.reportResults?.({ wanikaniResults: Array.from({ length: step }, (_, i) => ({ assignmentId: i + 1, meaningMistakes: 0, readingMistakes: 0, subject: { id: i + 1, object: "kanji" as const, url: "", data_updated_at: "", data: { level: 1, created_at: "", slug: "川", document_url: "", hidden_at: null, auxiliary_meanings: [], characters: `川${i + 1}`, meanings: [{ meaning: "River", primary: true, accepted_answer: true }], readings: [{ reading: "かわ", primary: true, accepted_answer: true }] } } })), items: Array.from({ length: step }, (_, i) => ({ id: `wk-result-${i}`, source: "wanikani", kind: "kanji", title: `川${i + 1}`, meaning: "River", correct: true, href: `/subjects/${i + 1}` })), durationMs: 10000, pendingCount: step === 2 ? 1 : 0 }); mixed.reportProgress?.({ completed: step, total: 2 }); mixed.report(step === 2 ? null : { id: `wk-${step}`, source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" }); });
   useEffect(() => { report(); }, [step]);
   return <><button onClick={() => { mixed.reportProgression?.({ id: `wanikani:${step}`, source: "wanikani", progression: { assignmentId: step, startingStage: 1, endingStage: 2, nextReviewInterval: "8 hours", isCorrect: true } }); mixed.onAnswer?.({ id: `wk-${step}`, source: "wanikani", title: "川", correct: true }); setStep(step + 1); }}>{step === 2 ? "WK complete" : `Complete WK question ${step + 1}`}</button><button onClick={() => mixed.reportProgression?.({ id: "wanikani:0", source: "wanikani", progression: { startingStage: 1, endingStage: 3, nextReviewInterval: "1 day", isCorrect: true } })}>Confirm earlier WK stage</button><button onClick={() => mixed.report({ id: "wk-skipped", source: "wanikani", stage: 1, level: 1, available: 0, interval: 1, subjectType: "kanji" })}>Rotate lane without answer</button></>;
 } }));
@@ -63,12 +63,12 @@ it("interleaves both Bunpro queues and keeps each session's submission independe
   }
   fireEvent.click(await screen.findByRole("button", { name: "Complete WK question 2" }));
   await screen.findByRole("heading", { name: "Mixed reviews complete" });
-  expect(screen.getByText("4 subjects reviewed · 10s")).toBeInTheDocument();
+  expect(screen.getByText("2 subjects reviewed")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open です details" })).toHaveAttribute("href", "/bunpro/grammar/desu");
   expect(screen.getByRole("link", { name: "Open 猫 details" })).toHaveAttribute("href", "/bunpro/vocab/neko");
-  expect(screen.getByRole("link", { name: "Open 川1 details" })).toHaveAttribute("href", "/subjects/1");
+  expect(screen.getByRole("link", { name: "Open 川1 (River) subject details" })).toHaveAttribute("href", "/subjects/1");
   expect(screen.queryByRole("heading", { name: "Bunpro reviews complete" })).not.toBeInTheDocument();
-  expect(screen.getByText(/1 WaniKani submission/)).toBeVisible();
+  expect(screen.getByText(/1 completed review is/)).toBeVisible();
   const posts = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST").map(([, options]) => JSON.parse(String(options?.body)));
   expect(posts).toHaveLength(2);
   expect(posts[0]).toMatchObject({ reviewId: "10", sessionId: 101, mode: "grammar", correct: true });

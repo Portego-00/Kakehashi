@@ -79,6 +79,8 @@ import {
   updateHomeWidgetSnapshot,
 } from "../../../src/widgets/homeWidget";
 
+import { buildCriticalWidgetSnapshot } from "../../../src/widgets/criticalWidgetData";
+
 const STREAK_REVIEW_PROMPT_THRESHOLD = 5;
 const STREAK_REVIEW_PROMPTED_CACHE_KEY_PREFIX = "rate_app_streak_prompted";
 const STREAK_DAY_KEY_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>();
@@ -281,7 +283,10 @@ export default function StudyTab() {
     () => dashboardData.forecast[0]?.totalCount ?? dashboardData.reviewCount,
     [dashboardData.forecast, dashboardData.reviewCount],
   );
-  const topCriticalItem = dashboardData.criticalItems[0] ?? null;
+  const criticalWidgetSnapshot = useMemo(
+    () => buildCriticalWidgetSnapshot(dashboardData.reviewStatistics, dashboardData.subjects),
+    [dashboardData.reviewStatistics, dashboardData.subjects],
+  );
   const activeHomeWidgetOrder = useMemo(
     () => normalizeHomeWidgetOrder(homeWidgetOrder),
     [homeWidgetOrder],
@@ -613,14 +618,7 @@ export default function StudyTab() {
       reviewCount: dashboardData.reviewCount,
       nextReviewDate: dashboardData.nextReviewDate,
       todayReviewTotal,
-      criticalCount: dashboardData.criticalItems.length,
-      topCriticalItem: topCriticalItem
-        ? {
-            characters: topCriticalItem.characters,
-            meaning: topCriticalItem.meaning,
-            percentage: topCriticalItem.percentage,
-          }
-        : null,
+      ...criticalWidgetSnapshot,
       recentMistakesCount: dashboardData.recentMistakes.length,
       currentStreak,
       longestStreak,
@@ -677,7 +675,6 @@ export default function StudyTab() {
     }
   }, [
     currentStreak,
-    dashboardData.criticalItems.length,
     dashboardData.nextReviewDate,
     dashboardData.recentMistakes.length,
     dashboardData.reviewCount,
@@ -690,7 +687,7 @@ export default function StudyTab() {
     longestStreak,
     widgetReviewUpcomingBuckets,
     streakRecentDays,
-    topCriticalItem,
+    criticalWidgetSnapshot,
     todayReviewTotal,
     isDark,
     manualWidgetRefreshToken,

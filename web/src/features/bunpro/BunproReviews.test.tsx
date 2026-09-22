@@ -97,6 +97,28 @@ it.each(["both", "male"] as const)("autoplays only the female voice with %s sele
     await screen.findByText("Bunpro reviews complete");
   } finally { vi.unstubAllGlobals(); }
 });
+it.each([false, true])("keeps sentence audio playing after Next (mixed: %s) and stops on exit", async (mixed) => {
+  const pause = vi.fn();
+  vi.stubGlobal("Audio", class extends EventTarget {
+    constructor(public src: string) { super(); }
+    play = vi.fn().mockResolvedValue(undefined);
+    pause = pause;
+  });
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, autoplayAudio: true, showAnswerStopSubjectDetails: false } });
+  const voiced = { ...item, included: item.included!.map(resource => resource.type === "study_question" ? { ...resource, attributes: { ...resource.attributes, female_audio_url: "https://audio.test/female.mp3" } } : resource) };
+  vi.mocked(bunpro).mockImplementation(async query => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [voiced, { ...voiced, data: { ...item.data, id: "11" } }], pending_wrapup: [] } : {});
+  const mixedBridge = mixed ? { active: true, report: vi.fn() } : undefined;
+  const view = setup(<BunproReviews initialMode="grammar" mixed={mixedBridge} />);
+  try {
+    fireEvent.change(await screen.findByLabelText("Your answer"), { target: { value: "です" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(screen.getByLabelText("Your answer")).toHaveValue(""));
+    expect(pause).not.toHaveBeenCalled();
+    view.unmount();
+    expect(pause).toHaveBeenCalledTimes(1);
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
+});
 it("renders the mobile Home review card and its grammar/vocab breakdown", async () => {
   vi.mocked(bunpro).mockImplementation(async (query) => query === "action=connection" ? { connected: true } : { total_due_grammar: 8, total_due_vocab: 12 });
   setup(<BunproHomeButton />);

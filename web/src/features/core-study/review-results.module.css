@@ -1,6 +1,6 @@
 .results { max-width: 72rem; width: 100%; margin-inline: auto; padding: clamp(1.25rem, 4vw, 3rem); color: var(--color-ink); }
 .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
-.header h1 { font-size: clamp(1.65rem, 4vw, 2.2rem); }
+.header h1, .header h2 { font-size: clamp(1.65rem, 4vw, 2.2rem); }
 .header p { color: var(--color-muted); margin-top: .4rem; }
 .summary { display: grid; grid-template-columns: minmax(10rem, .8fr) minmax(12rem, 1fr) minmax(12rem, 1fr); gap: 2rem; align-items: center; padding: 1.5rem; border: 1px solid var(--color-rule); border-radius: .5rem; background: var(--color-surface); }
 .accuracyRing { display: grid; justify-items: center; gap: .5rem; }

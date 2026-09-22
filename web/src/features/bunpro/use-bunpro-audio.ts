@@ -13,7 +13,7 @@ export function bunproAudioUrls(question: Record<string, unknown>, voice: WebStu
   return preferred ? [preferred] : [];
 }
 
-/** Own playback so leaving or advancing never leaves another sentence playing. */
+/** Keep playback across questions; replace it on replay and stop it when leaving. */
 export function useBunproAudio() {
   const active = useRef<{ audio: HTMLAudioElement; finish: () => void } | null>(null);
   const generation = useRef(0);

@@ -196,7 +196,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     if (correctOverride !== undefined && preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correctOverride);
     setOutcome(result);
     recognitionRef.current?.stop();
-    locked.current = true; setSaving(true); setError(""); audio.stop();
+    locked.current = true; setSaving(true); setError("");
     setDetailsOverride(false); setAlternativesOpen(false);
     setPendingAccuracy({ id: `bunpro:${current.data.id}`, correct: result.correct });
     const retryImmediately = !result.correct && preferences.backToBackQuestions && preferences.backToBackImmediateRetryIncorrect;
@@ -362,7 +362,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
       <div className={quiz.answerArea}>
         <BunproProgression progression={mixed ? null : progression} mode={preferences.srsProgressionCardDisplayMode} idleContent={<div className={core.itemMeta}>{preferences.showReviewItemLevelAndSrsStage ? <><span>{sanitizeText(content.attributes.level || content.attributes.jlpt_level)}</span>{bunproStage(current.data.attributes).label ? <span>{bunproStage(current.data.attributes).label}</span> : null}</> : null}<span>{`${completedCount} completed`}</span></div>} />
         {!valid ? <p role="alert">This review is missing its sentence or accepted answers. Pause and reload the queue before continuing.</p> : selfAssessment ? <>
-          {!outcome ? <AnkiAnswerContent studyKeys={studyKeys} detailsOpen={details} keyboardShortcuts={preferences.keyboardShortcuts} revealed={ankiRevealed} questionKind={questionKind}
+          {!outcome ? <AnkiAnswerContent hideAnswerCompletely={preferences.ankiHideAnswerCompletely} studyKeys={studyKeys} detailsOpen={details} keyboardShortcuts={preferences.keyboardShortcuts} revealed={ankiRevealed} questionKind={questionKind}
             meaningAnswer={questionKind === "meaning" ? answer : sanitizeText(content.attributes.meaning)} readingAnswer={questionKind === "reading" ? answer : sanitizeText(content.attributes.kana)}
             groupQuestions={preferences.ankiMode === "both" && preferences.ankiGroupQuestions}
             otherMeaningAnswers={questionKind === "meaning" ? displayAnswers.filter((value) => value !== answer) : []} otherReadingAnswers={questionKind === "reading" ? displayAnswers.filter((value) => value !== answer) : []}

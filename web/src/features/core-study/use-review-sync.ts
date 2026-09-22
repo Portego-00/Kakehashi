@@ -6,7 +6,7 @@ import { wkRequest } from "@/lib/wanikani/client";
 import { deliverReview, type ReviewOutboxEntry } from "./review-outbox";
 import { createReviewSync, REVIEW_PERMISSION_MESSAGE } from "./review-sync";
 
-export type ReviewConfirmation = { stage?: number; availableAt?: string | null };
+export type ReviewConfirmation = { stage?: number; availableAt?: string | null; assignment?: Assignment };
 
 export function useReviewSync(username: string, enabled: boolean, onConfirmed: (entry: ReviewOutboxEntry, confirmation: ReviewConfirmation) => void) {
   const [pendingCount, setPendingCount] = useState(0);
@@ -30,22 +30,23 @@ export function useReviewSync(username: string, enabled: boolean, onConfirmed: (
         await deliverReview(entry, {
           readAssignment: async (id) => {
             signal.throwIfAborted();
-            assignment = await wkRequest<Assignment>(`assignments/${id}`, { cache: "no-store", fresh: true, signal: requestSignal() });
+            assignment = await wkRequest<Assignment>(`assignments/${id}`, { cache: "no-store", fresh: true, retryRateLimit: false, signal: requestSignal() });
             return assignment;
           },
           submitReview: async (row) => {
             signal.throwIfAborted();
-            response = await wkRequest<ReviewCreateResponse>("reviews", { signal: requestSignal(), method: "POST", body: { review: { assignment_id: row.assignmentId, incorrect_meaning_answers: row.incorrectMeaningAnswers, incorrect_reading_answers: row.incorrectReadingAnswers, created_at: row.createdAt } } });
+            response = await wkRequest<ReviewCreateResponse>("reviews", { signal: requestSignal(), retryRateLimit: false, method: "POST", body: { review: { assignment_id: row.assignmentId, incorrect_meaning_answers: row.incorrectMeaningAnswers, incorrect_reading_answers: row.incorrectReadingAnswers, created_at: row.createdAt } } });
           },
         });
-        return { stage: response?.data.ending_srs_stage ?? assignment?.data.srs_stage, availableAt: response?.resources_updated?.assignment?.data.available_at ?? assignment?.data.available_at };
+        return { assignment: response ? response.resources_updated?.assignment : assignment, stage: response?.data.ending_srs_stage ?? assignment?.data.srs_stage, availableAt: response?.resources_updated?.assignment?.data.available_at ?? assignment?.data.available_at };
       },
     });
     worker.current = sync;
     sync.retryPending();
     const online = () => sync.retryPending();
     window.addEventListener("online", online);
-    return () => { worker.current = null; sync.dispose(); window.removeEventListener("online", online); };
+    const retryTimer = window.setInterval(() => sync.retryPending(), 30_000);
+    return () => { window.clearInterval(retryTimer); worker.current = null; sync.dispose(); window.removeEventListener("online", online); };
   }, [enabled, username]);
 
   const enqueue = useCallback((entry: Omit<ReviewOutboxEntry, "attempts" | "lastError">) => {

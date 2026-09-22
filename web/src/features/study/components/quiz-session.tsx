@@ -800,7 +800,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
           return <button type="button" key={choice} className={styles.choiceButton} data-selected={selected} data-correct={correctChoice} data-result={result} disabled={Boolean(answer)} onClick={() => commit(choice)}><kbd>{index + 1}</kbd><span lang={question.kind === "listening-meaning" || question.kind === "listening" ? "en" : "ja"}>{choice}</span><span className={styles.choiceResult} data-choice-result data-visible={Boolean(result)} aria-hidden={!result}><span data-active={result === "correct"}><Check size={18} />Correct</span><span data-active={result === "incorrect"}><X size={18} />Incorrect</span><span data-active={result === "correct-answer"}><Check size={18} />Correct answer</span></span></button>;
         })}</div></> : ankiEnabled && customReviewPreferences ? <>
           <div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{groupedAnkiQuestions ? "Meaning + Reading" : promptType?.label}</strong></div>
-          {!answer ? <ExtraStudyAnkiAnswer studyKeys={studyKeys} detailsOpen={detailsOpen} keyboardShortcuts={keyboardShortcuts}
+          {!answer ? <ExtraStudyAnkiAnswer hideAnswerCompletely={customReviewPreferences.ankiHideAnswerCompletely} studyKeys={studyKeys} detailsOpen={detailsOpen} keyboardShortcuts={keyboardShortcuts}
             subject={currentSubject}
             revealed={ankiRevealed}
             questionKind={reviewKind ?? "meaning"}

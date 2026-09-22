@@ -6,6 +6,7 @@ import { Dashboard } from "./Dashboard";
 
 const { dashboardTestState, levelProgressions } = vi.hoisted(() => ({
   dashboardTestState: {
+    dailyLessonLimit: 0,
     dashboardOrder: ["level-timing"],
     isDemo: false,
     user: { id: 1, data: { username: "tester", level: 15, current_vacation_started_at: null as string | null } },
@@ -29,6 +30,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
+  useWebSettings: () => ({ study: { dailyLessonLimit: dashboardTestState.dailyLessonLimit } }),
   useWorkspacePreferences: () => ({
     dashboardOrder: dashboardTestState.dashboardOrder,
     hiddenDashboard: [],
@@ -90,11 +92,27 @@ afterEach(() => {
   dashboardTestState.isDemo = false;
   dashboardTestState.user.data.username = "tester";
   dashboardTestState.user.data.current_vacation_started_at = null;
+  dashboardTestState.dailyLessonLimit = 0;
   dashboardTestState.assignments = [];
   dashboardTestState.subjects = [];
 });
 
 describe("dashboard", () => {
+  it("shows 10 lessons rather than all 39 when the daily limit is 10", () => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    dashboardTestState.dailyLessonLimit = 10;
+    dashboardTestState.assignments = Array.from({ length: 39 }, (_, index) => ({
+      id: index + 1, object: "assignment", url: "", data_updated_at: "",
+      data: { subject_id: index + 1, subject_type: "kanji", srs_stage: 0, available_at: null, started_at: null, unlocked_at: "2020-01-01T00:00:00Z", passed_at: null, burned_at: null, resurrected_at: null, hidden: false, created_at: "" },
+    }));
+    const { rerender } = render(<Dashboard />);
+    expect(within(screen.getByRole("article", { name: "Lessons study queue" })).getByText("10")).toBeVisible();
+    const first = dashboardTestState.assignments[0];
+    dashboardTestState.assignments = [{ ...first, data: { ...first.data, srs_stage: 1, started_at: new Date().toISOString() } }, ...dashboardTestState.assignments.slice(1)];
+    rerender(<Dashboard />);
+    expect(within(screen.getByRole("article", { name: "Lessons study queue" })).getByText("9")).toBeVisible();
+  });
+
   it("enables normal study queues for another account while hiding Bunpro", () => {
     dashboardTestState.dashboardOrder = ["daily-study"];
     render(<Dashboard />);

@@ -153,6 +153,22 @@ test("temporary errors stay silent and retry again after the normal retries at s
   expect(new Set(times).size).toBe(1);
 });
 
+test("rate limits keep reviews usable and retry the saved answer after cooldown", async ({ page }) => {
+  const { submissions } = await openQuiz(page, { multipleSubjects: true, study: { backToBackQuestions: true }, submit: async (route, attempt) => {
+    if (attempt === 1) await route.fulfill({ status: 429, headers: { "Retry-After": "2" }, contentType: "application/json", body: JSON.stringify({ error: "Rate limit exceeded" }) });
+    else await fulfillJson(route, success());
+  } });
+  await completePair(page, "River", "kawa");
+  await expect(page.getByRole("textbox", { name: "Your answer" })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  await expect.poll(() => submissions.length).toBe(2);
+  await expect.poll(() => pendingCount(page)).toBe(0);
+  expect(submissions[0]).toEqual(submissions[1]);
+  await completePair(page, "Forest", "mori");
+  await expect(page.getByRole("heading", { name: "Reviews Complete", exact: true })).toBeVisible();
+  await expect.poll(() => pendingCount(page)).toBe(0);
+});
+
 test("only permission errors surface, and completed answers remain saved", async ({ page }) => {
   const { submissions } = await openQuiz(page, { submit: route => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "Permission denied" }) }) });
   await completePair(page, "River", "kawa");

@@ -583,3 +583,14 @@ describe("dashboard layout drag targets", () => {
     expect(savedWorkspace).toMatchObject(DEFAULT_WEB_SETTINGS.workspace);
   });
 });
+
+it("saves custom daily lesson limits and the restored hide-answer setting", () => {
+  window.localStorage.clear();
+  render(<SettingsWorkspace />);
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Daily lesson limit" }), { target: { value: "7" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "Anki mode" }), { target: { value: "both" } });
+  fireEvent.click(screen.getByRole("checkbox", { name: /Hide answer completely/ }));
+  const saved = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester"))!);
+  expect(saved.study.dailyLessonLimit).toBe(7);
+  expect(saved.study.ankiHideAnswerCompletely).toBe(true);
+});

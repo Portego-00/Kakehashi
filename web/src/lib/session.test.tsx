@@ -21,7 +21,38 @@ function mount() {
 const realUser = { ...DEMO_USER, id: 42, data: { ...DEMO_USER.data, id: "42", username: "Real learner" } };
 describe("demo session transitions", () => {
   beforeEach(() => { setDemoMode(false); window.localStorage.clear(); mocks.seed.mockClear(); });
-  afterEach(() => { setDemoMode(false); vi.unstubAllGlobals(); });
+  afterEach(() => { setDemoMode(false); vi.unstubAllGlobals(); vi.useRealTimers(); });
+  it("automatically recovers an initial rate limit without signing out", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(Response.json({ error: "Rate limit exceeded" }, { status: 429, headers: { "Retry-After": "3" } }))
+      .mockResolvedValueOnce(Response.json({ user: realUser }));
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(session.status).toBe("unavailable");
+    expect(session.error).toMatch(/rate limit.*automatically/i);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+    expect(session.status).toBe("authenticated");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an authenticated review mounted and quietly retries a rate-limited refresh", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json({ user: realUser }))
+      .mockResolvedValueOnce(Response.json({ error: "Rate limit exceeded" }, { status: 429, headers: { "Retry-After": "2" } }))
+      .mockResolvedValueOnce(Response.json({ user: realUser })));
+    mount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    await act(async () => { await session.refresh(); });
+    expect(session.status).toBe("authenticated");
+    expect(session.error).toBe("");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(session.status).toBe("authenticated");
+  });
+
   it("seeds once on entry, clears stale data on account switches, and does not send a token for demo", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(new Response("{}", { status: 401 }))
