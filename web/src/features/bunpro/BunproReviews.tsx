@@ -1,4 +1,5 @@
 "use client";
+import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
 import { type CSSProperties, useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -80,6 +81,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const [speechError, setSpeechError] = useState("");
   useEffect(() => () => recognitionRef.current?.stop(), []);
   const inputRef = useRef<HTMLInputElement>(null);
+  const answerInputRef = useReviewAnswerFocus(inputRef, mixed?.active !== false);
   const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: () => bunpro<{ connected: boolean }>("action=connection"), retry: false });
   async function start() {
     if (locked.current) return;
@@ -371,7 +373,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
         </> : <form className={quiz.answerForm} onSubmit={(event) => { event.preventDefault(); if (outcome) void advance(); else check(); }}>
           <label className={quiz.promptTypeStrip} data-tone={questionKind} htmlFor={answerId}><span>{content.kind === "grammar" ? "Grammar" : "Vocabulary"}</span><strong>{questionKind === "meaning" ? "Meaning" : "Reading"}</strong>{questionKind === "reading" ? <small>Romaji → かな</small> : null}</label>
           <div className={quiz.answerInputRow} data-result={outcome ? outcome.correct ? "correct" : "incorrect" : hint ? "warning" : undefined}>
-            <input key={current.data.id} ref={inputRef} autoFocus={mixed?.active !== false} id={answerId} aria-label="Your answer" style={{ fontSize: `calc(var(--text-md) * ${preferences.reviewInputFontScale})` }} value={input} readOnly={Boolean(outcome)} disabled={saving && !backgroundAdvance} autoComplete="off" autoCapitalize="off" spellCheck={false} enterKeyHint="go" aria-describedby={hint ? `${helperId} ${helperId}-feedback` : helperId} placeholder={questionKind === "meaning" ? "Type the meaning…" : "Type kana or romaji…"} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={(event) => { composing.current = false; setInput(event.currentTarget.value); }} onChange={(event) => { setInput(composing.current || questionKind === "meaning" ? event.target.value : composeKanaInput(event.target.value)); setHint(""); }} onKeyDown={(event) => { if (event.key === "Enter" && (event.repeat || event.nativeEvent.isComposing || composing.current || event.keyCode === 229)) event.preventDefault(); }} />
+            <input key={current.data.id} ref={answerInputRef} autoFocus={mixed?.active !== false} id={answerId} aria-label="Your answer" style={{ fontSize: `calc(var(--text-md) * ${preferences.reviewInputFontScale})` }} value={input} readOnly={Boolean(outcome)} disabled={saving && !backgroundAdvance} autoComplete="off" autoCapitalize="off" spellCheck={false} enterKeyHint="go" aria-describedby={hint ? `${helperId} ${helperId}-feedback` : helperId} placeholder={questionKind === "meaning" ? "Type the meaning…" : "Type kana or romaji…"} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={(event) => { composing.current = false; setInput(event.currentTarget.value); }} onChange={(event) => { setInput(composing.current || questionKind === "meaning" ? event.target.value : composeKanaInput(event.target.value)); setHint(""); }} onKeyDown={(event) => { if (event.key === "Enter" && (event.repeat || event.nativeEvent.isComposing || composing.current || event.keyCode === 229)) event.preventDefault(); }} />
             {preferences.voiceAnswers && !outcome ? <Button type="button" tone="ghost" aria-label="Answer with voice" disabled={listening || saving} onClick={startVoiceAnswer}><Mic size={18} aria-hidden />{listening ? "Listening…" : "Speak"}</Button> : null}
             <Button className={quiz.primaryButton} type="submit" tone="primary" onMouseDown={(event) => { if (phoneInput) event.preventDefault(); }} disabled={saving || (!outcome && !input.trim())} state={saving && phoneInput ? "loading" : "idle"}>{outcome ? <ArrowRight size={18} aria-hidden /> : <Check size={18} aria-hidden />}{outcome ? "Next" : "Check"}</Button>
           </div>

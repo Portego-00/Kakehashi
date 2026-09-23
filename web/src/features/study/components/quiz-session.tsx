@@ -1,4 +1,5 @@
 "use client";
+import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { ReviewAccuracy } from "./ReviewAccuracy";
 
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
@@ -353,6 +354,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const [value, setValue] = useState("");
   const [answerWarning, setAnswerWarning] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const answerInputRef = useReviewAnswerFocus(inputRef);
   const phoneInput = usePhoneStudyInput();
   const autoPlayedQuestionRef = useRef<string | null>(null);
   const audioVocabPlayerRef = useRef<AudioVocabPlayer>(null);
@@ -763,7 +765,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   );
 
   return (
-    <section ref={reviewViewportRef} className={styles.quizShell} data-type={question.subjectType} data-listening={listeningQuestion || undefined} data-scene={Boolean(question.imageUrl) || undefined} data-details-open={detailsOpen || undefined} data-advancing={advancingQuestion || undefined} aria-labelledby="question-prompt">
+    <section data-review-answer-focus ref={reviewViewportRef} className={styles.quizShell} data-type={question.subjectType} data-listening={listeningQuestion || undefined} data-scene={Boolean(question.imageUrl) || undefined} data-details-open={detailsOpen || undefined} data-advancing={advancingQuestion || undefined} aria-labelledby="question-prompt">
       <div className={styles.quizTopbar}>
         <span className={styles.numeric}>{displayedCurrent} / {visibleTotal}</span>
         <div className={styles.progressTrack} role="progressbar" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={visibleTotal}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
@@ -836,7 +838,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         </> : <form className={styles.answerForm} data-result={answer ? currentAnswerStatus === "close" ? "warning" : answer.correct ? "correct" : "incorrect" : answerWarning ? "warning" : undefined} onSubmit={(event) => { event.preventDefault(); if (closeAnswerNeedsResolution) resolveCloseAnswer("correct"); else if (answer) next(); else commit(value); }}>
           <label className={styles.promptTypeStrip} data-tone={promptType?.tone} htmlFor="study-answer"><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong>{kanaComposition ? <small>Romaji → かな</small> : null}</label>
           <div className={styles.answerInputRow} data-result={answer ? currentAnswerStatus === "close" ? "warning" : answer.correct ? "correct" : "incorrect" : answerWarning ? "warning" : undefined}>
-            <input ref={inputRef} id="study-answer" autoFocus autoComplete="off" spellCheck={false} lang={kanaComposition ? "ja" : undefined} style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : customReviewPreferences ? `${reviewInputScale}rem` : undefined }} value={value} onChange={(event) => { if (answer) return; setAnswerWarning(null); setValue(kanaComposition ? composeKanaInput(event.target.value) : event.target.value); }} readOnly={!phoneInput && Boolean(answer)} enterKeyHint={phoneInput ? "go" : undefined} onKeyDown={(event) => {
+            <input ref={answerInputRef} id="study-answer" autoFocus autoComplete="off" spellCheck={false} lang={kanaComposition ? "ja" : undefined} style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : customReviewPreferences ? `${reviewInputScale}rem` : undefined }} value={value} onChange={(event) => { if (answer) return; setAnswerWarning(null); setValue(kanaComposition ? composeKanaInput(event.target.value) : event.target.value); }} readOnly={!phoneInput && Boolean(answer)} enterKeyHint={phoneInput ? "go" : undefined} onKeyDown={(event) => {
               if (!phoneInput || event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
               event.preventDefault();
               if (event.repeat) return;

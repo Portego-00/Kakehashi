@@ -1,5 +1,6 @@
 "use client";
 
+import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, ExternalLink, Info, RotateCcw, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -468,6 +469,7 @@ function ReadyCustomSrsSession({
   const [lastProgression, setLastProgression] = useState<CustomSrsProgression | null>(null);
   const dismissProgression = useCallback(() => setLastProgression(null), []);
   const inputRef = useRef<HTMLInputElement>(null);
+  const answerInputRef = useReviewAnswerFocus(inputRef);
   const phoneInput = usePhoneStudyInput();
   const committingRef = useRef(false);
   const committedWordsRef = useRef(new Set<string>());
@@ -760,7 +762,7 @@ function ReadyCustomSrsSession({
         </label>
         <div className={studyStyles.answerInputRow} data-result={resultTone}>
           <input
-            ref={inputRef}
+            ref={answerInputRef}
             id="custom-review-answer"
             name="custom-review-answer"
             value={answer}

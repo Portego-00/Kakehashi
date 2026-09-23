@@ -867,3 +867,33 @@
 .previousSubjectLink[data-type="kanji"] { --previous-subject-color: var(--color-kanji); }
 .previousSubjectLink[data-type="vocabulary"], .previousSubjectLink[data-type="kana_vocabulary"] { --previous-subject-color: var(--color-vocabulary); }
 .previousSubjectLink[data-type="bunpro"] { --previous-subject-color: var(--color-paper); --color-subject-text: var(--color-ink); }
+
+/* Review header controls share one size and treatment across button implementations. */
+.quizTopbar .quizTopbarActions > :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 2.75rem;
+  padding-block: 0;
+  border: 1px solid var(--color-subject-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-subject-scrim);
+  color: var(--color-subject-text);
+  font: inherit;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+.quizTopbar .quizTopbarActions > :is(button, a) > svg { width: 1.125rem; height: 1.125rem; }
+.quizTopbar .quizTopbarActions > :is(button, a):is(:disabled, [aria-disabled="true"]) { opacity: .5; }
+@media (hover: hover) {
+  .quizTopbar .quizTopbarActions > :is(button, a):hover:not(:disabled):not([aria-disabled="true"]) {
+    background: color-mix(in srgb, var(--color-subject-scrim), var(--color-subject-text) 8%);
+  }
+}
+@media (max-width: 47.999rem) {
+  .quizTopbar { grid-template-columns: auto minmax(0, 1fr); }
+  .quizTopbarActions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
+  .quizTopbar .quizTopbarActions > :is(button, a) { min-height: 2.5rem; }
+}

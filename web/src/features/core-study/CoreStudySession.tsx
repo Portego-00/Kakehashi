@@ -1,5 +1,6 @@
 "use client";
 
+import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, ExternalLink, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
@@ -212,6 +213,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const [listening, setListening] = useState(false);
   const [speechError, setSpeechError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const answerInputRef = useReviewAnswerFocus(inputRef, mixed?.active !== false);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const advancingQuestionRef = useRef(false);
   const advanceTimerRef = useRef<number | null>(null);
@@ -1141,7 +1143,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
           <label className={quiz.promptTypeStrip} data-tone={current.kind} htmlFor="review-answer"><span>{subjectType}</span><strong id="study-prompt-title" role="heading" aria-level={1}>{current.kind}</strong>{current.kind === "reading" ? <small>Romaji → かな</small> : null}</label>
           <div className={quiz.answerInputRow} data-result={answerResult}>
             <input
-              ref={inputRef}
+              ref={answerInputRef}
               id="review-answer"
               name="review-answer"
               aria-label="Your answer"

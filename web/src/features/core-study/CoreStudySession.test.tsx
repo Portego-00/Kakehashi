@@ -732,6 +732,35 @@ describe("core study prompt layout", () => {
     expect(input).toHaveFocus();
   });
 
+  it("restores the answer when returning to the review tab", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === "(min-width: 48rem)", addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    renderSession("reviews");
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    input.focus();
+    input.blur();
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(input).toHaveFocus());
+    input.blur();
+    fireEvent(document, new Event("visibilitychange"));
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("returns pointer-clicked review controls to the answer without stealing keyboard focus", async () => {
+    fixtures.settings.study.pauseOnCorrect = true;
+    renderSession("reviews");
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const audio = await screen.findByRole("button", { name: "Audio" });
+    audio.focus();
+    fireEvent.click(audio, { detail: 1 });
+    await waitFor(() => expect(input).toHaveFocus());
+    audio.focus();
+    fireEvent.click(audio, { detail: 0 });
+    expect(audio).toHaveFocus();
+  });
+
   it("preserves desktop answer sizing, read-only feedback, and keyboard advance", async () => {
     vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === "(min-width: 48rem)", addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
     fixtures.settings.study.pauseOnCorrect = true;
