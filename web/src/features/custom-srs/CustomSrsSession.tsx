@@ -1,8 +1,11 @@
 "use client";
 
+import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, ExternalLink, Info, RotateCcw, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { ReviewSettingsButton } from "@/features/study/components/ReviewSettingsButton";
+import { reviewOrderingChanged } from "@/features/core-study/reorder-pending";
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { LoadingState, Skeleton } from "@/components/ui/States";
@@ -19,7 +22,7 @@ import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/
 import { SubjectAudioButton, SubjectAudioProvider } from "@/features/subjects/components/SubjectAudioControls";
 import { fetchImmersionExamples } from "@/features/study/immersion";
 import studyStyles from "@/features/study/study.module.css";
-import { composeKanaInput } from "@/lib/kana";
+import { composeKanaInput, finalizeKanaInput } from "@/lib/kana";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
@@ -468,6 +471,7 @@ function ReadyCustomSrsSession({
   const [lastProgression, setLastProgression] = useState<CustomSrsProgression | null>(null);
   const dismissProgression = useCallback(() => setLastProgression(null), []);
   const inputRef = useRef<HTMLInputElement>(null);
+  const answerInputRef = useReviewAnswerFocus(inputRef);
   const phoneInput = usePhoneStudyInput();
   const committingRef = useRef(false);
   const committedWordsRef = useRef(new Set<string>());
@@ -531,7 +535,9 @@ function ReadyCustomSrsSession({
   function submitAnswer(event: FormEvent) {
     event.preventDefault();
     if (!currentSubject || !currentKind || feedback || committingRef.current) return;
-    const result = checkAnswer(currentSubject, currentKind, answer);
+    const submitted = currentKind === "reading" ? finalizeKanaInput(answer) : answer;
+    setAnswer(submitted);
+    const result = checkAnswer(currentSubject, currentKind, submitted);
     setFeedback(result);
     setCommitError("");
     if (result.status === "incorrect") {
@@ -700,7 +706,6 @@ function ReadyCustomSrsSession({
     ? feedback.status === "correct" ? "correct" : feedback.status === "incorrect" ? "incorrect" : "warning"
     : undefined;
   const reviewCharacterScale = studySettings.reviewCharacterFontScale ?? 1;
-  const reviewInputScale = studySettings.reviewInputFontScale ?? 1;
   const reviewCharacterSize = `clamp(${2.75 * reviewCharacterScale}rem, ${9 * reviewCharacterScale}vw, ${6.5 * reviewCharacterScale}rem)`;
   const acceptedAnswer = feedback?.canonical ?? (isReadingQuestion ? currentWord.reading : currentWord.meanings[0]);
   // Kanji meaning comes before an unrevealed reading in many queue orders.
@@ -728,6 +733,15 @@ function ReadyCustomSrsSession({
         <span style={{ transform: `scaleX(${itemProgress})` }} />
       </div>
       <div className={studyStyles.quizTopbarActions}>
+        <ReviewSettingsButton order={mode === "lessons" ? "lessonQuestionOrder" : "customReviewOrder"} ankiSupported={false} disabled={committing} onStudyChange={(next, previous) => {
+          if (!reviewOrderingChanged(next, previous)) return;
+          setQueue((pending) => {
+            if (!pending.length) return pending;
+            const remaining = new Map(pending.slice(1).map((question) => [`${question.word.id}:${question.kind}`, question]));
+            const reordered = createCustomQuestionQueue(sessionWords, state, mode, next);
+            return [pending[0], ...reordered.flatMap((question) => { const existing = remaining.get(`${question.word.id}:${question.kind}`); return existing ? [existing] : []; })];
+          });
+        }} />
         <Link className={studyStyles.iconButton} href="/custom-vocabulary" aria-label="Pause and exit session"><X size={19} aria-hidden /></Link>
       </div>
     </div>
@@ -760,7 +774,7 @@ function ReadyCustomSrsSession({
         </label>
         <div className={studyStyles.answerInputRow} data-result={resultTone}>
           <input
-            ref={inputRef}
+            ref={answerInputRef}
             id="custom-review-answer"
             name="custom-review-answer"
             value={answer}
@@ -785,7 +799,7 @@ function ReadyCustomSrsSession({
             lang={isReadingQuestion ? "ja" : undefined}
             spellCheck={false}
             inputMode={isReadingQuestion ? "text" : undefined}
-            style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : `${reviewInputScale}rem` }}
+            style={{ fontSize: phoneInput ? "max(16px, 1rem)" : "1rem" }}
           />
           <button
             id={feedback ? "custom-study-advance" : undefined}

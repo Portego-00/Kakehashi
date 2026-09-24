@@ -1,0 +1,14 @@
+.card { margin-top: 20px; padding: 20px; border: 1px solid #c64949; border-radius: 12px; background: #c64949; color: #fff; display: grid; gap: 12px; }
+.heading, .labelRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading h2 { font-size: 20px; margin: 0; }
+.card p { margin: 0; font-size: 14px; }
+.card form { display: grid; gap: 8px; }
+.labelRow { flex-wrap: wrap; font-size: 14px; }
+.labelRow a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.controls input { flex: 1 1 16rem; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-rule); border-radius: 8px; background: var(--color-paper); color: var(--color-ink); }
+.controls button { min-height: 44px; padding: 10px 16px; border: 1px solid #fff; border-radius: 8px; background: #fff; color: #862f2f; font-weight: 600; cursor: pointer; }
+.dismiss { display: grid; place-items: center; width: 44px; height: 44px; margin: -10px -10px -10px 0; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.dismiss:hover { background: #ffffff18; }
+.card button:disabled { opacity: .65; cursor: default; }
+.card :is(input, button, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }

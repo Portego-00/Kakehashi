@@ -255,6 +255,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canUpdateStatus, setCanUpdateStatus] = useState(false);
   const [writable, setWritable] = useState(true);
   const [commentPage, setCommentPage] = useState(0);
   const [commentsHasMore, setCommentsHasMore] = useState(false);
@@ -269,8 +270,9 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); setError("");
     try {
-      const payload = await readJson<{ issue: SharedIssue; comments: SharedComment[]; writable?: boolean; canManage?: boolean; commentsHasMore?: boolean }>(await fetch(`/community/api?action=issue&id=${encodeURIComponent(id)}&commentPage=${commentPage}`, { cache: "no-store", signal }));
+      const payload = await readJson<{ issue: SharedIssue; comments: SharedComment[]; writable?: boolean; canManage?: boolean; canUpdateStatus?: boolean; commentsHasMore?: boolean }>(await fetch(`/community/api?action=issue&id=${encodeURIComponent(id)}&commentPage=${commentPage}`, { cache: "no-store", signal }));
       setIssue(payload.issue); setComments(payload.comments || []); setWritable(payload.writable !== false); setCanManage(Boolean(payload.canManage)); setCommentsHasMore(Boolean(payload.commentsHasMore));
+      setCanUpdateStatus(Boolean(payload.canUpdateStatus ?? payload.canManage));
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") return;
       setError(cause instanceof Error ? cause.message : "The issue could not be loaded.");
@@ -316,7 +318,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   }
 
   async function updateStatus() {
-    if (!issue) return;
+    if (!issue || !writable || !canUpdateStatus || busy) return;
     setBusy(true); setError("");
     try {
       const payload = await postCommunity<{ item: SharedIssue }>({ action: "updateStatus", issueId: issue.id, status: issue.status === "open" ? "closed" : "open" });
@@ -338,7 +340,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   return <main className={styles.page}>
     <Link className={styles.back} href="/community"><ArrowLeft size={17} aria-hidden="true" />Back to community</Link>
     <article className={styles.thread}>
-      <header><UserMark name={issue.user_username} hash={issue.user_gravatar_hash} level={issue.user_level} /><div className={styles.threadTitle}><div><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div><h1>{issue.title}</h1><p className={`${styles.meta} ${styles.authorMeta}`}><AuthorName name={issue.user_username} isDeveloper={issue.is_developer} isPatreonSupporter={issue.is_patreon_supporter} /><span aria-hidden="true">·</span><span>{relativeTime(issue.created_at)}</span></p></div><div className={styles.actions}>{writable ? <button className={styles.secondary} type="button" disabled={pendingLikes.has(`issue:${issue.id}`)} aria-pressed={Boolean(issue.is_liked)} aria-label={`${issue.is_liked ? "Unlike" : "Like"} issue, ${issue.likes_count || 0} likes`} onClick={() => void toggleLike("issue", issue.id)}><Heart size={17} fill={issue.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(issue.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={17} aria-hidden="true" />{countLabel(issue.likes_count)}</span>}{canManage ? <><button className={styles.secondary} type="button" disabled={busy} onClick={() => void updateStatus()}><CheckCircle2 size={17} aria-hidden="true" />{issue.status === "open" ? "Close" : "Reopen"}</button><button className={styles.dangerButton} type="button" disabled={busy} onClick={() => void deleteIssue()}><Trash2 size={17} aria-hidden="true" />Delete</button></> : null}</div></div></header>
+      <header><UserMark name={issue.user_username} hash={issue.user_gravatar_hash} level={issue.user_level} /><div className={styles.threadTitle}><div><div className={styles.issueFlags}><IssueOriginBadge labels={issue.labels} /><span className={issue.status === "open" ? styles.open : styles.closed}>{issue.status}</span></div><h1>{issue.title}</h1><p className={`${styles.meta} ${styles.authorMeta}`}><AuthorName name={issue.user_username} isDeveloper={issue.is_developer} isPatreonSupporter={issue.is_patreon_supporter} /><span aria-hidden="true">·</span><span>{relativeTime(issue.created_at)}</span></p></div><div className={styles.actions}>{writable ? <button className={styles.secondary} type="button" disabled={pendingLikes.has(`issue:${issue.id}`)} aria-pressed={Boolean(issue.is_liked)} aria-label={`${issue.is_liked ? "Unlike" : "Like"} issue, ${issue.likes_count || 0} likes`} onClick={() => void toggleLike("issue", issue.id)}><Heart size={17} fill={issue.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(issue.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={17} aria-hidden="true" />{countLabel(issue.likes_count)}</span>}{writable && canUpdateStatus ? <button className={styles.secondary} type="button" disabled={busy} onClick={() => void updateStatus()}><CheckCircle2 size={17} aria-hidden="true" />{issue.status === "open" ? "Close issue" : "Reopen issue"}</button> : null}{writable && canManage ? <button className={styles.dangerButton} type="button" disabled={busy} onClick={() => void deleteIssue()}><Trash2 size={17} aria-hidden="true" />Delete</button> : null}</div></div></header>
       <CommunityMarkdown>{issue.content}</CommunityMarkdown>
     </article>
     {error ? <p className={styles.error} role="alert">{error}</p> : null}

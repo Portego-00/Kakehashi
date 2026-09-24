@@ -22,6 +22,7 @@ import { boundedIdChunks, boundedPage } from "@/features/community/pagination";
 import { webIssueOriginLabels } from "@/features/community/issue-origin";
 import { COMMUNITY_COMMENT_READ_SELECT, COMMUNITY_ISSUE_READ_SELECT, publicCommunityComment, publicCommunityIssue } from "@/features/community/public-issue";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
+import { canModerateCommunityStatus } from "@/features/community/security-model";
 
 const requestId = z.string().uuid();
 const gravatarEmail = z.string().max(254).refine((value) => Boolean(normalizeGravatarEmail(value))).transform((value) => normalizeGravatarEmail(value)).optional();
@@ -95,7 +96,9 @@ export async function GET(request: NextRequest) {
         issueLiked = Array.isArray(issueLikes) && issueLikes.length > 0;
         commentLikePages.forEach((page) => { if (Array.isArray(page)) page.forEach((like) => likedCommentIds.add(String((like as Record<string, unknown>).comment_id || ""))); });
       }
-      return NextResponse.json({ configured: true, writable: communityWritable(), issue: { ...issue, is_liked: issueLiked }, comments: comments.map((comment) => ({ ...comment, is_liked: likedCommentIds.has(String(comment.id)) })), commentPage, commentsHasMore: allCommentRows.length > 50, canManage: Boolean(communityWritable() && identity && canManageCommunityIssue(rawIssue, identity)) });
+      const canManage = Boolean(communityWritable() && identity && canManageCommunityIssue(rawIssue, identity));
+      const canUpdateStatus = canManage || Boolean(communityWritable() && identity && canModerateCommunityStatus(identity));
+      return NextResponse.json({ configured: true, writable: communityWritable(), issue: { ...issue, is_liked: issueLiked }, comments: comments.map((comment) => ({ ...comment, is_liked: likedCommentIds.has(String(comment.id)) })), commentPage, commentsHasMore: allCommentRows.length > 50, canManage, canUpdateStatus });
     }
     if (action === "supporters") {
       const page = boundedPage(request.nextUrl.searchParams.get("page"));
@@ -158,7 +161,10 @@ export async function POST(request: NextRequest) {
     }
     if (parsed.data.action === "updateStatus" || parsed.data.action === "deleteIssue") {
       const owned = await supabaseRequest(`issues?select=id,user_id,user_username&id=eq.${parsed.data.issueId}&limit=1`) as Array<Record<string, unknown>>;
-      if (!owned[0] || !canManageCommunityIssue(owned[0], identity)) return jsonError("Only the author can change this issue.", 403);
+      if (!owned[0]) return jsonError("Issue not found.", 404);
+      const canManage = canManageCommunityIssue(owned[0], identity);
+      const allowed = canManage || (parsed.data.action === "updateStatus" && canModerateCommunityStatus(identity));
+      if (!allowed) return jsonError("You do not have permission to change this issue.", 403);
       if (parsed.data.action === "deleteIssue") {
         await deleteCommunityIssue(parsed.data.issueId);
         return NextResponse.json({ ok: true });

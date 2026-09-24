@@ -117,7 +117,6 @@ const fixtures = vi.hoisted(() => {
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
       reviewCharacterFontScale: 1,
-      reviewInputFontScale: 1,
       pauseOnWrong: true,
       pauseOnClose: false,
       pauseOnCorrect: false,
@@ -190,7 +189,7 @@ vi.mock("@/features/study/feedback-audio", () => ({ playAnswerFeedback: vi.fn() 
 
 vi.mock("@/lib/wanikani/client", () => ({
   WaniKaniApiError: class extends Error {},
-  wkRequest: vi.fn(async (endpoint: string) => endpoint === "user" ? fixtures.user : endpoint === "reviews" ? fixtures.reviewResponse : endpoint.startsWith("study_materials") ? fixtures.studyMaterial : fixtures.reviewAssignment),
+  wkRequest: vi.fn(async (endpoint: string) => endpoint === "user" ? fixtures.user : endpoint === "reviews" ? fixtures.reviewResponse : endpoint.startsWith("study_materials") ? fixtures.studyMaterial : endpoint.startsWith(`assignments/${fixtures.lessonAssignment.id}`) ? fixtures.lessonAssignment : endpoint.startsWith(`assignments/${fixtures.secondLessonAssignment.id}`) ? fixtures.secondLessonAssignment : fixtures.reviewAssignment),
   wkCollection: vi.fn(async (endpoint: string) => {
     if (endpoint.includes("immediately_available_for_lessons")) return fixtures.lessonAssignmentsResponse;
     if (endpoint.includes("immediately_available_for_review")) return fixtures.reviewAssignmentsResponse;
@@ -418,7 +417,6 @@ describe("core study prompt layout", () => {
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
       reviewCharacterFontScale: 1,
-      reviewInputFontScale: 1,
       answerFeedbackSoundEnabled: true,
       pauseOnWrong: true,
       pauseOnClose: false,
@@ -440,6 +438,28 @@ describe("core study prompt layout", () => {
       ankiButtonlessMode: false,
       ankiShowReplayAudioButton: false,
     });
+  });
+
+  it("adds the current review to a new custom list without advancing or submitting", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ lists: [] }) }));
+    renderSession("reviews");
+    const bookmark = await screen.findByRole("button", { name: "Add to saved lists" });
+    fireEvent.click(bookmark);
+    expect(screen.getByRole("dialog", { name: "Add to Lists" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "New list" }), { target: { value: "Practice later" } });
+    fireEvent.submit(screen.getByRole("textbox", { name: "New list" }).closest("form")!);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(bookmark).toHaveAttribute("aria-pressed", "true");
+    expect(JSON.parse(window.localStorage.getItem("kakehashi-web:subject-lists:study-test:v1")!).lists[0]).toMatchObject({ name: "Practice later", subjectIds: [200] });
+    expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(0);
+    fireEvent.click(bookmark);
+    expect(screen.getByRole("checkbox")).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(bookmark).toHaveAttribute("aria-pressed", "true");
   });
 
   it("chunks large answer-context and study-material ID collections", async () => {
@@ -495,7 +515,7 @@ describe("core study prompt layout", () => {
   });
 
   it("looks up and formats vocabulary frequency only when enabled", async () => {
-    const frequencyFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const frequencyFetch = vi.fn().mockImplementation(async (url: string) => new Response(JSON.stringify(url.includes("/api/subjects/lists") ? { lists: [] } : {
       result: {
         provider: "jiten",
         frequencyRank: 1500,
@@ -511,14 +531,14 @@ describe("core study prompt layout", () => {
     renderSession("reviews");
     expect(await screen.findByRole("heading", { name: "meaning" })).toBeInTheDocument();
     expect(screen.queryByLabelText(/Vocabulary frequency/)).not.toBeInTheDocument();
-    expect(frequencyFetch).not.toHaveBeenCalled();
+    expect(frequencyFetch.mock.calls.filter(([url]) => String(url).includes("vocabulary-frequency"))).toHaveLength(0);
 
     cleanup();
     window.localStorage.clear();
     fixtures.settings.study.showVocabularyFrequency = true;
     renderSession("reviews");
     expect(await screen.findByLabelText("Vocabulary frequency #1,500")).toHaveTextContent("#1,500");
-    expect(frequencyFetch).toHaveBeenCalledOnce();
+    expect(frequencyFetch.mock.calls.filter(([url]) => String(url).includes("vocabulary-frequency"))).toHaveLength(1);
   });
 
   it("always offers skip while keeping search opt-in", async () => {
@@ -732,15 +752,43 @@ describe("core study prompt layout", () => {
     expect(input).toHaveFocus();
   });
 
+  it("restores the answer when returning to the review tab", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === "(min-width: 48rem)", addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
+    renderSession("reviews");
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    input.focus();
+    input.blur();
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(input).toHaveFocus());
+    input.blur();
+    fireEvent(document, new Event("visibilitychange"));
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("returns pointer-clicked review controls to the answer without stealing keyboard focus", async () => {
+    fixtures.settings.study.pauseOnCorrect = true;
+    renderSession("reviews");
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const audio = await screen.findByRole("button", { name: "Audio" });
+    audio.focus();
+    fireEvent.click(audio, { detail: 1 });
+    await waitFor(() => expect(input).toHaveFocus());
+    audio.focus();
+    fireEvent.click(audio, { detail: 0 });
+    expect(audio).toHaveFocus();
+  });
+
   it("preserves desktop answer sizing, read-only feedback, and keyboard advance", async () => {
     vi.mocked(window.matchMedia).mockImplementation((query) => ({ matches: query === "(min-width: 48rem)", addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList);
     fixtures.settings.study.pauseOnCorrect = true;
-    fixtures.settings.study.reviewInputFontScale = 0.8;
     renderSession("reviews");
 
     const input = await screen.findByRole("textbox", { name: "Your answer" });
     await waitFor(() => expect(input).toHaveFocus());
-    expect(input).toHaveStyle({ fontSize: "0.8rem" });
+    expect(input).toHaveStyle({ fontSize: "1rem" });
     fireEvent.change(input, { target: { value: "River" } });
     fireEvent.submit(input.closest("form")!);
     expect(await screen.findByText("Correct")).toBeInTheDocument();
@@ -908,6 +956,30 @@ describe("core study prompt layout", () => {
 
     fireEvent.keyDown(window, { key: "Enter" });
     expect(await screen.findByRole("heading", { name: "reading" })).toBeInTheDocument();
+  });
+
+  it("leaves English meaning answers unchanged when submitted", async () => {
+    renderSession("reviews");
+    const input = await screen.findByRole("textbox", { name: "Your answer" });
+    fireEvent.change(input, { target: { value: "can" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(input).toHaveValue("can");
+  });
+
+  it.each(["ちあん", "かわ"])("shows finalized kana after submitting a reading with expected answer %s", async expected => {
+    const readings = fixtures.subject.data.readings;
+    fixtures.subject.data.readings = [{ reading: expected, primary: true, accepted_answer: true }];
+    fixtures.settings.study.reviewQuestionOrder = "reading-first";
+    fixtures.settings.study.pauseOnCorrect = true;
+    try {
+      renderSession("reviews");
+      const input = await screen.findByRole("textbox", { name: "Your answer" });
+      fireEvent.change(input, { target: { value: "chian" } });
+      expect(input).toHaveValue("ちあn");
+      fireEvent.submit(input.closest("form")!);
+      expect(input).toHaveValue("ちあん");
+      expect(screen.getByText(expected === "ちあん" ? "Correct" : "Incorrect", { exact: true })).toBeVisible();
+    } finally { fixtures.subject.data.readings = readings; }
   });
 
   it("composes romaji into hiragana while a reading answer is typed", async () => {
@@ -1147,6 +1219,51 @@ describe("core study prompt layout", () => {
     expect(screen.queryByText(/^\d+ mistakes?$/)).not.toBeInTheDocument();
   });
 
+  it("advances through lesson answers and completes the batch while starts are pending", async () => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
+    const original = vi.mocked(wkRequest).getMockImplementation()!;
+    vi.mocked(wkRequest).mockImplementation((endpoint, options) => endpoint.endsWith("/start") ? new Promise(() => {}) : original(endpoint, options));
+    try {
+      renderSession("lessons");
+      fireEvent.click(await screen.findByRole("button", { name: "Lesson 2: Fire" }));
+      fireEvent.click(screen.getByRole("button", { name: "Start lesson review" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Reveal answer/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^Correct/ }));
+      expect(screen.getByLabelText("Lesson quiz prompt")).toHaveTextContent("火");
+      await waitFor(() => expect(wkRequest).toHaveBeenCalledWith(`assignments/${fixtures.lessonAssignment.id}/start`, expect.objectContaining({ method: "PUT" })));
+      fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
+      fireEvent.click(screen.getByRole("button", { name: /Wrong/i }));
+      expect(screen.getByRole("button", { name: /Reveal answer/i })).toBeEnabled();
+      await act(async () => {});
+      fireEvent.click(screen.getByRole("button", { name: /Reveal answer/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^Correct/ }));
+      expect(screen.getByRole("heading", { name: "Lessons Complete!" })).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("2 waiting to sync");
+      const rows = JSON.parse(window.localStorage.getItem(reviewOutboxKey(fixtures.user.data.username, "lesson")) || "[]");
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row: { operation: string }) => row.operation === "lesson")).toBe(true);
+      expect(vi.mocked(wkRequest).mock.calls.some(([endpoint]) => endpoint === "reviews")).toBe(false);
+    } finally { vi.mocked(wkRequest).mockImplementation(original); }
+  });
+
+  it("keeps a completed lesson saved and shows background permission failures on results", async () => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    const original = vi.mocked(wkRequest).getMockImplementation()!;
+    vi.mocked(wkRequest).mockImplementation((endpoint, options) => endpoint.endsWith("/start") ? Promise.reject(Object.assign(new Error("Forbidden"), { status: 403 })) : original(endpoint, options));
+    try {
+      renderSession("lessons");
+      fireEvent.click(await screen.findByRole("button", { name: "Start lesson review" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Reveal answer/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^Correct/ }));
+      expect(screen.getByRole("heading", { name: "Lessons Complete!" })).toBeInTheDocument();
+      expect(await screen.findByRole("alert")).toHaveTextContent("assignments:start");
+      expect(JSON.parse(window.localStorage.getItem(reviewOutboxKey(fixtures.user.data.username, "lesson")) || "[]")).toEqual([expect.objectContaining({ assignmentId: fixtures.lessonAssignment.id, operation: "lesson", attempts: 1 })]);
+    } finally { vi.mocked(wkRequest).mockImplementation(original); }
+  });
+
   it("uses the subject-page grammar for lesson teaching before its review", async () => {
     renderSession("lessons");
 
@@ -1182,7 +1299,7 @@ describe("core study prompt layout", () => {
       fireEvent.click(screen.getByRole("button", { name: /Correct/i }));
       expect(await screen.findByRole("heading", { name: "Batch Complete!" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Items learned" })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Upcoming batches" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Next batch" })).toBeInTheDocument();
       expect(screen.queryByRole("tablist", { name: "Reviewed subjects" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: /River/ })).toHaveAttribute("href", "/subjects/200");
       expect(screen.getByRole("link", { name: /Fire/ })).toHaveAttribute("href", "/subjects/202");
@@ -1399,6 +1516,15 @@ describe("core study prompt layout", () => {
     expect(screen.getByRole("tab", { name: "Meaning" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "River" })).toBeInTheDocument();
   });
+  it("counts separate WaniKani questions for mixing when back-to-back is disabled", async () => {
+    fixtures.settings.study.backToBackQuestions = false;
+    const report = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report }} /></QueryClientProvider>);
+    await screen.findByRole("heading", { name: "meaning" });
+    expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ remaining: 2 }));
+  });
+
   it("reports mixed-session turns without saving half a WaniKani review", async () => {
     fixtures.settings.study.pauseOnCorrect = true;
     fixtures.settings.study.backToBackQuestions = true;
@@ -1406,18 +1532,47 @@ describe("core study prompt layout", () => {
     const onAnswer = vi.fn();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report, onAnswer, previous: { id: "bp-1", source: "bunpro", title: "だけど", correct: false } }} /></QueryClientProvider>);
+    await screen.findByRole("heading", { name: "meaning" });
+    expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ remaining: 1 }));
     await submitAnswer("river", "meaning");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "reading" });
     expect(screen.getByLabelText("Previous Bunpro answer: だけど, incorrect")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Previous meaning answer: River, correct" })).not.toBeInTheDocument();
     expect(onAnswer).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", title: "River", correct: true }));
-    expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", keepTurn: true, id: "100:reading" }));
+    expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ source: "wanikani", keepTurn: true, id: "100:reading", remaining: 1 }));
     expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(0);
     await submitAnswer("かわ", "reading");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => expect(report).toHaveBeenLastCalledWith(null));
     await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.filter(([path]) => path === "reviews")).toHaveLength(1));
   });
+
+
+it("retries a missed WaniKani question after a random 2–10 question gap", async () => {
+  fixtures.settings.study.reviewBatchSizeEnabled = false;
+  fixtures.settings.study.pauseOnCorrect = true;
+  const assignments = Array.from({ length: 20 }, (_, index) => ({ ...fixtures.reviewAssignment, id: 100 + index, data: { ...fixtures.reviewAssignment.data, subject_id: 200 + index } }));
+  const subjects = assignments.map((assignment) => ({ ...fixtures.subject, id: assignment.data.subject_id, object: "kana_vocabulary", data: { ...fixtures.subject.data, readings: [] } }));
+  vi.mocked(wkCollection).mockImplementation(async (endpoint) => endpoint.includes("immediately_available_for_review") ? assignments : endpoint.startsWith("subjects?ids=") ? subjects : []);
+  const report = vi.fn();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" mixed={{ active: true, report }} /></QueryClientProvider>);
+  await screen.findByRole("textbox", { name: "Your answer" });
+  const missed = report.mock.calls.at(-1)?.[0].id;
+  const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+  await submitAnswer("wrong", "meaning");
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  let gap = 0;
+  while (report.mock.calls.at(-1)?.[0]?.id !== missed && gap <= 10) {
+    await submitAnswer("river", "meaning");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    gap++;
+  }
+  random.mockRestore();
+  expect(gap).toBeGreaterThanOrEqual(2);
+  expect(gap).toBeLessThanOrEqual(10);
+  expect(report.mock.calls.at(-1)?.[0]?.id).toBe(missed);
+});
 
 });

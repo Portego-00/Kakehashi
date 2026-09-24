@@ -84,8 +84,8 @@ describe("mobile-parity dashboard derivations", () => {
     const rows = [assignment({ started_at: "2026-08-23T10:00:00Z", srs_stage: 2 })];
     rows[0].data_updated_at = "2026-08-25T10:00:00Z";
     const activity = assignmentActivityDays(rows, 3, now);
-    expect(activity.map((day) => day.count)).toEqual([1, 0, 1]);
-    expect(usageStreak(activity)).toEqual({ current: 1, longest: 1 });
+    expect(activity.map((day) => day.count)).toEqual([1, 0, 0]);
+    expect(usageStreak(activity)).toEqual({ current: 0, longest: 1 });
     expect(todayStudyActivity(rows, [statistic({}, "2026-08-25T11:00:00Z")], now)).toEqual({ lessons: 0, reviews: 1 });
   });
 

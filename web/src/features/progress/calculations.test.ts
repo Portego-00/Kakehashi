@@ -39,9 +39,9 @@ describe("progress calculations", () => {
     expect(forecast.map((day) => day.count)).toEqual([1, 0]);
   });
 
-  it("uses assignment updates and milestones for the activity approximation", () => {
+  it("uses study milestones for the activity approximation", () => {
     const assignments = [resource(1, "assignment", { hidden: false, started_at: "2026-08-05T12:00:00Z", passed_at: null, burned_at: null }, "2026-08-06T12:00:00Z")] as Assignment[];
-    expect(calculateApproximateActivity(assignments, new Date("2026-08-06T18:00:00"), 2).map((day) => day.count)).toEqual([1, 1]);
+    expect(calculateApproximateActivity(assignments, new Date("2026-08-06T18:00:00"), 2).map((day) => day.count)).toEqual([1, 0]);
   });
 
   it("starts all-time heatmap history at the first activity year's January", () => {

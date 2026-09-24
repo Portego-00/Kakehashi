@@ -1,3 +1,4 @@
+import { assignmentActivityDays } from "@/lib/wanikani/assignment-activity";
 import type { Assignment, ReviewStatistic, Subject, SubjectType } from "@/types/wanikani";
 
 export type SrsBucket = "Locked" | "Apprentice" | "Guru" | "Master" | "Enlightened" | "Burned";
@@ -135,52 +136,7 @@ export function calculateForecast(assignments: Assignment[], start = new Date(),
 }
 
 export function calculateApproximateActivity(assignments: Assignment[], start = new Date(), days: number | "all" = 365): ActivityDay[] {
-  const result: ActivityDay[] = [];
-  const byKey = new Map<string, ActivityDay>();
-  const first = new Date(start);
-  first.setHours(0, 0, 0, 0);
-  if (days === "all") {
-    const activityDates = assignments.flatMap((assignment) => assignment.data.started_at && !assignment.data.hidden
-      ? [assignment.data_updated_at, assignment.data.started_at, assignment.data.passed_at, assignment.data.burned_at]
-        .filter((value): value is string => Boolean(value))
-        .map((value) => new Date(value))
-        .filter((date) => !Number.isNaN(date.getTime()) && date <= start)
-      : []);
-    const earliest = activityDates.length ? new Date(Math.min(...activityDates.map((date) => date.getTime()))) : null;
-    if (earliest) first.setFullYear(earliest.getFullYear(), 0, 1);
-    else first.setDate(first.getDate() - 364);
-  } else {
-    first.setDate(first.getDate() - (days - 1));
-  }
-  const dayCount = Math.round((Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()) - Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) / 86_400_000) + 1;
-
-  for (let offset = 0; offset < dayCount; offset += 1) {
-    const date = new Date(first);
-    date.setDate(date.getDate() + offset);
-    const day = { key: localDayKey(date), date, count: 0 };
-    result.push(day);
-    byKey.set(day.key, day);
-  }
-
-  // WaniKani no longer exposes review history. Keep this aligned with the
-  // mobile heatmap by combining assignment updates with learning milestones.
-  for (const assignment of assignments) {
-    if (assignment.data.hidden || !assignment.data.started_at) continue;
-    const activityDates = [
-      assignment.data_updated_at,
-      assignment.data.started_at,
-      assignment.data.passed_at,
-      assignment.data.burned_at,
-    ];
-    for (const value of activityDates) {
-      if (!value) continue;
-      const date = new Date(value);
-      if (date.getTime() > start.getTime()) continue;
-      const day = byKey.get(localDayKey(date));
-      if (day) day.count += 1;
-    }
-  }
-  return result;
+  return assignmentActivityDays(assignments, days, start);
 }
 
 function daysBetween(start: string | null, end: string | null, now: Date): number | null {

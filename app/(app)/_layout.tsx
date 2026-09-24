@@ -24,6 +24,7 @@ export default function AppLayout() {
       <Stack.Screen name="bunpro-lessons" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       {/* Disable swipe-to-go-back on active study flows that require explicit exit confirmation */}
       <Stack.Screen name="reviews" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
+      <Stack.Screen name="mixed-reviews" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="lessons" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="recent-lessons-review" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />
       <Stack.Screen name="custom-review" options={INTENTIONAL_EXIT_SCREEN_OPTIONS} />

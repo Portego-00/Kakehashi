@@ -125,6 +125,18 @@ function renderSession(mode: "lessons" | "reviews", packs: CustomVocabularyPack[
 }
 
 describe("custom vocabulary lesson and review sessions", () => {
+  it("shows finalized kana when a custom reading answer is submitted", () => {
+    window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewQuestionOrder: "reading-first", reviewQuestionOrderEnabled: true, pauseOnWrong: true } }));
+    const pack: CustomVocabularyPack = { id: "kanji", title: "Kanji", description: "Common words", script: "kanji", words: [footsteps] };
+    hook.state = stateFor(pack, { [footsteps.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    renderSession("reviews", [pack]);
+    const input = screen.getByRole("textbox", { name: "Vocabulary Reading" });
+    fireEvent.change(input, { target: { value: "chian" } });
+    expect(input).toHaveValue("ちあn");
+    fireEvent.submit(input.closest("form")!);
+    expect(screen.getByRole("textbox")).toHaveValue("ちあん");
+  });
+
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoViewMock });
     if (!window.requestAnimationFrame) Object.defineProperty(window, "requestAnimationFrame", { configurable: true, value: (callback: FrameRequestCallback) => window.setTimeout(callback, 0) });
@@ -179,7 +191,7 @@ describe("custom vocabulary lesson and review sessions", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({
       ...DEFAULT_WEB_SETTINGS,
-      study: { ...DEFAULT_WEB_SETTINGS.study, reviewInputFontScale: 0.8 },
+      study: { ...DEFAULT_WEB_SETTINGS.study },
     }));
     const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat, dog] };
     const initial = stateFor(pack, {
@@ -191,7 +203,7 @@ describe("custom vocabulary lesson and review sessions", () => {
     hook.submitReview.mockImplementation(() => new Promise<CustomSrsState>((resolve) => { finishSave = resolve; }));
     renderSession("reviews", [pack]);
     const input = screen.getByRole("textbox");
-    expect(input).toHaveStyle({ fontSize: "max(16px, 0.8rem)" });
+    expect(input).toHaveStyle({ fontSize: "max(16px, 1rem)" });
     input.focus();
     const firstWord = screen.getByRole("heading", { level: 2 }).textContent === cat.characters ? cat : dog;
     fireEvent.change(input, { target: { value: firstWord.meanings[0] } });

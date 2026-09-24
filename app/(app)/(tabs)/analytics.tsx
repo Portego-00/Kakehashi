@@ -26,6 +26,10 @@ import ReviewStatsTable from "../../../src/components/ReviewStatsTable";
 import SrsBreakdown from "../../../src/components/SrsBreakdown";
 import StudyTimeCard from "../../../src/components/StudyTimeCard";
 import TodayStudyActivityCard from "../../../src/components/TodayStudyActivityCard";
+import BunproAnalytics from "../../../src/components/bunpro/BunproAnalytics";
+import BunproAnalyticsSourceTabs from "../../../src/components/bunpro/BunproAnalyticsSourceTabs";
+import { isPortegoUsername } from "../../../src/utils/portegoAccess";
+import { useAuthStore } from "../../../src/utils/store";
 import { useDashboardData } from "../../../src/hooks/useDashboardData";
 import {
   AllProgressData,
@@ -39,6 +43,40 @@ import { useTheme } from "../../../src/utils/theme";
 type ProgressCategory = 'jlpt' | 'joyo' | 'frequency';
 
 export default function AnalyticsTab() {
+  const { theme } = useTheme();
+  const username = useAuthStore(state => state.userData?.username);
+  const eligible = isPortegoUsername(username);
+  const [source, setSource] = useState<"wanikani" | "bunpro">("wanikani");
+  const activeSource = eligible ? source : "wanikani";
+  return <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View style={[styles.header, { backgroundColor: theme.headerBackground }]}>
+        <View style={styles.headerOverlay} />
+        <View style={styles.headerContent}>
+          <Text style={[styles.headerTitle, { color: theme.headerText }]}>Analytics</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.headerText }]}>
+            Progress insights and statistics
+          </Text>
+        </View>
+        <View style={styles.headerButtons}>
+          <GlassButton
+            iconName="search-outline"
+            onPress={() => router.push("/search")}
+            iconColor={theme.headerText}
+          />
+          <GlassButton
+            iconName="settings-outline"
+            onPress={() => router.push("/settings")}
+            iconColor={theme.headerText}
+          />
+        </View>
+      </View>
+
+    {eligible ? <BunproAnalyticsSourceTabs source={activeSource} onChange={setSource} /> : null}
+    {activeSource === "bunpro" ? <BunproAnalytics /> : <WaniKaniAnalytics />}
+  </View>;
+}
+
+function WaniKaniAnalytics() {
   const { theme } = useTheme();
   const {
     dashboardData,
@@ -205,27 +243,6 @@ export default function AnalyticsTab() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <View style={[styles.header, { backgroundColor: theme.headerBackground }]}>
-        <View style={styles.headerOverlay} />
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: theme.headerText }]}>Analytics</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.headerText }]}>
-            Progress insights and statistics
-          </Text>
-        </View>
-        <View style={styles.headerButtons}>
-          <GlassButton
-            iconName="search-outline"
-            onPress={() => router.push("/search")}
-            iconColor={theme.headerText}
-          />
-          <GlassButton
-            iconName="settings-outline"
-            onPress={() => router.push("/settings")}
-            iconColor={theme.headerText}
-          />
-        </View>
-      </View>
 
       <LoadingProgressBar
         isLoading={isLoading}

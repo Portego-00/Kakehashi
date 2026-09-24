@@ -57,6 +57,8 @@ npm run test:all
 
 This runs linting, strict TypeScript checking, unit and integration tests, a production build, and Playwright scenarios across desktop and mobile. Coverage includes authentication and demo isolation, study modes, content/progress routes, account-scoped storage, live preference changes, focus containment, custom-font migration, community creation, vacation blocking, review-answer concealment, NHK images, accessibility, and mobile overflow. Demo JPDB tests also verify that credentials stay server-side, real accounts cannot borrow the demo credential, and individual translated lines obey the shared budgets.
 
+Run `npm run test:e2e:review-layout` for the mixed-review geometry regressions. This suite starts an isolated sample account on port 3101 and checks answer, SRS, and keyboard-hint positions across providers, feedback states, and desktop sizes.
+
 ## Community deployment
 
 Development can use the ignored `web/.data/community.json` store or the native app's Supabase URL and anonymous key. Production supports read-only community access with an anonymous key; posting requires `SUPABASE_SERVICE_ROLE_KEY` and `supabase/migrations/20260807000000_community_atomic_mutations.sql`. See `docs/community-security.md` for the RLS and write-boundary requirements.

@@ -95,6 +95,38 @@ afterEach(() => {
 });
 
 describe("dashboard", () => {
+  it.each(["2026-09-18T12:00:00", null])("keeps vacation updates out of the heatmap with current vacation %s", (vacationStartedAt) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-22T18:00:00"));
+    dashboardTestState.dashboardOrder = ["review-heatmap"];
+    dashboardTestState.user.data.current_vacation_started_at = vacationStartedAt;
+    dashboardTestState.assignments = [1, 2, 3].map((id) => ({
+      id,
+      object: "assignment",
+      url: "",
+      data_updated_at: "2026-09-18T12:00:00",
+      data: {
+        subject_id: id,
+        subject_type: "kanji",
+        srs_stage: 5,
+        available_at: "2026-09-23T12:00:00",
+        started_at: "2026-09-02T12:00:00",
+        unlocked_at: "2026-09-01T12:00:00",
+        passed_at: id === 1 ? "2026-09-18T10:00:00" : null,
+        burned_at: null,
+        resurrected_at: null,
+        hidden: false,
+        created_at: "2026-09-01T12:00:00",
+      },
+    }));
+
+    render(<Dashboard />);
+
+    expect(screen.getByRole("button", { name: "1 activity signal on Friday, September 18, 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "3 activity signals on Wednesday, September 2, 2026" })).toBeInTheDocument();
+    expect(screen.getByText("Lesson, Guru and burn milestones by day")).toBeInTheDocument();
+  });
+
   it("enables normal study queues for another account while hiding Bunpro", () => {
     dashboardTestState.dashboardOrder = ["daily-study"];
     render(<Dashboard />);

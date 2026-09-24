@@ -24,6 +24,7 @@ import CustomSrsDashboardCard from "../../../src/features/custom-srs/CustomSrsDa
 import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
 import OpenSourceModal from "../../../src/components/OpenSourceModal";
 import { BunproSwitchIcon } from "../../../src/components/SwitchModeIcons";
+import BunproHomeStudy from "../../../src/components/bunpro/BunproHomeStudy";
 import { UserAvatar } from "../../../src/components/UserAvatar";
 import { useBackgroundTasks } from "../../../src/contexts/BackgroundTasksContext";
 import { useDashboardData } from "../../../src/hooks/useDashboardData";
@@ -1162,6 +1163,15 @@ export default function StudyTab() {
           }
         />,
       );
+      if (widgetId === "lessonsReviews" && canAccessBunpro) {
+        widgetElements.push(
+          <BunproHomeStudy
+            key="bunpro-study"
+            wanikaniCount={isOnVacation ? 0 : dashboardData.dataLoadingState.summary ? dashboardData.reviewCount : undefined}
+            refreshKey={manualWidgetRefreshToken}
+          />,
+        );
+      }
     }
 
     return widgetElements;

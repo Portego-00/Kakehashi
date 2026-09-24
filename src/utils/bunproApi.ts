@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { bunproAnalyticsResources, type BunproAnalyticsData, type BunproAnalyticsResource } from "./bunproAnalytics";
 import {
   BunproBaseStatsResponse,
   BunproDashboardPayload,
@@ -14,6 +15,7 @@ import {
   BunproLearnReviewableTuple,
   BunproReviewOnlyFilter,
   BunproReviewQuizIndexResponse,
+  BunproReviewType,
   BunproReviewUpdateRequest,
   BunproReviewUpdateResponse,
   BunproVocabAttributes,
@@ -216,7 +218,26 @@ export async function getBunproReviewActivity(options?: {
   apiToken?: string | null;
   signal?: AbortSignal;
 }): Promise<BunproReviewActivityResponse> {
-  return bunproRequest<BunproReviewActivityResponse>("/user_stats/review_activity", options);
+  return bunproRequest<BunproReviewActivityResponse>("/user_stats/activity_daily", options);
+}
+
+export async function getBunproAnalytics(options?: {
+  apiToken?: string | null;
+  signal?: AbortSignal;
+}): Promise<BunproAnalyticsData> {
+  const keys = Object.keys(bunproAnalyticsResources) as BunproAnalyticsResource[];
+  const results = await Promise.allSettled(keys.map(async key => {
+    const resource = bunproAnalyticsResources[key];
+    return resource.schema.parse(await bunproRequest(resource.path, options));
+  }));
+  const authError = results.find(result => result.status === "rejected" && result.reason instanceof BunproApiError && [401, 403].includes(result.reason.status));
+  if (authError?.status === "rejected") throw authError.reason;
+  if (options?.signal?.aborted) throw new Error("Bunpro request cancelled.");
+  if (results.every(result => result.status === "rejected")) throw new BunproApiError("Bunpro analytics could not be loaded. Please try again.", 503);
+  return {
+    ...Object.fromEntries(keys.map((key, index) => [key, results[index].status === "fulfilled" ? results[index].value : null])),
+    unavailable: keys.filter((_, index) => results[index].status === "rejected"),
+  } as BunproAnalyticsData;
 }
 
 export async function getBunproDue(options?: {
@@ -293,6 +314,7 @@ export async function getBunproReviewQuizIndex(options?: {
 
 export async function updateBunproReview(options: {
   reviewId: string | number;
+  reviewType?: BunproReviewType;
   payload: BunproReviewUpdateRequest;
   apiToken?: string | null;
   signal?: AbortSignal;
@@ -302,8 +324,16 @@ export async function updateBunproReview(options: {
     throw new BunproApiError("Review ID is missing.", 400, "missing_review_id");
   }
 
+  // Bunpro's client at https://bunpro.jp/reviews submits each review category separately.
+  const reviewType = options.reviewType ?? "review";
+  if (!["review", "ghost_review", "self_study_review"].includes(reviewType)) {
+    throw new BunproApiError("Review type is invalid.", 400, "invalid_review_type");
+  }
+  const collection = reviewType === "ghost_review" ? "ghost_reviews"
+    : reviewType === "self_study_review" ? "self_study_reviews" : "reviews";
+
   return bunproRequest<BunproReviewUpdateResponse>(
-    `/reviews/${encodePathSegment(reviewId)}/update`,
+    `/${collection}/${encodePathSegment(reviewId)}/update`,
     {
       apiToken: options.apiToken,
       signal: options.signal,

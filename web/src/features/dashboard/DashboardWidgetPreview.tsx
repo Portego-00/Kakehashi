@@ -105,7 +105,7 @@ function DashboardWidgetPreviewComponent({ id, density = "canvas" }: { id: Dashb
   } else if (id === "subject-lists") {
     preview = <SummaryPreview title="Subject lists" detail="Reusable collections saved in this browser" first="Lists" second="Saved subjects" />;
   } else if (id === "review-heatmap") {
-    preview = <section className={styles.section}><PreviewHeader title="Review heatmap" detail="Assignment activity signals over the last 14 weeks" /><div className={styles.heatmap}>{HEATMAP_LEVELS.map((level, index) => <span key={index} data-level={level} />)}</div></section>;
+    preview = <section className={styles.section}><PreviewHeader title="Review heatmap" detail="Lesson, Guru and burn milestones by day" /><div className={styles.heatmap}>{HEATMAP_LEVELS.map((level, index) => <span key={index} data-level={level} />)}</div></section>;
   } else if (id === "level-timing") {
     preview = <section className={`${styles.section} ${styles.dashboardTimingWidget}`}><PreviewHeader title="Level timing" detail="Average, median, and elapsed days across all levels" /><LevelTimingChart timings={TIMING_PREVIEW_ROWS} resetCount={null} density="dashboard" /></section>;
   } else if (id === "today-study") {

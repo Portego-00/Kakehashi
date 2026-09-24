@@ -2309,7 +2309,7 @@ test("keeps dense mobile-parity review options usable at 320px with large text",
   await page.getByLabel("Review subject order", { exact: true }).selectOption("oldestAvailableFirst");
   await page.getByLabel("Wrap-up size").selectOption("5");
   await page.getByLabel("Review character size").selectOption("1.2");
-  await page.getByLabel("Review answer size").selectOption("1.2");
+  await expect(page.getByLabel("Review answer size")).toHaveCount(0);
   const enableToggle = async (label: string) => {
     const checkbox = page.getByRole("checkbox", { name: label });
     if (!await checkbox.isChecked()) await page.getByText(label, { exact: true }).click();

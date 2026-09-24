@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Assignment, ReviewCreateResponse } from "@/types/wanikani";
 import { wkRequest } from "@/lib/wanikani/client";
-import { deliverReview, type ReviewOutboxEntry } from "./review-outbox";
+import { deliverLesson, deliverReview, type ReviewOutboxEntry, type StudySubmissionKind } from "./review-outbox";
 import { createReviewSync, REVIEW_PERMISSION_MESSAGE } from "./review-sync";
 
 export type ReviewConfirmation = { stage?: number; availableAt?: string | null };
 
-export function useReviewSync(username: string, enabled: boolean, onConfirmed: (entry: ReviewOutboxEntry, confirmation: ReviewConfirmation) => void) {
+export function useReviewSync(username: string, enabled: boolean, onConfirmed: (entry: ReviewOutboxEntry, confirmation: ReviewConfirmation) => void, kind: StudySubmissionKind = "review") {
   const [pendingCount, setPendingCount] = useState(0);
   const [permissionError, setPermissionError] = useState("");
   const callback = useRef(onConfirmed);
@@ -20,13 +20,23 @@ export function useReviewSync(username: string, enabled: boolean, onConfirmed: (
     const sync = createReviewSync<ReviewConfirmation>({
       storage: window.localStorage,
       username,
+      kind,
       onChange: setPendingCount,
-      onPermissionError: () => setPermissionError(REVIEW_PERMISSION_MESSAGE),
+      onPermissionError: (entry) => setPermissionError(entry.operation === "lesson" ? "Your API token cannot start lessons. Enable assignments:start permission in WaniKani, then sign in again. Completed lessons are saved on this device." : REVIEW_PERMISSION_MESSAGE),
       onConfirmed: (entry, confirmation) => callback.current(entry, confirmation),
       deliver: async (entry, signal) => {
         let response: ReviewCreateResponse | undefined;
         let assignment: Assignment | undefined;
         const requestSignal = () => AbortSignal.any([signal, AbortSignal.timeout(15_000)]);
+        if (entry.operation === "lesson") {
+          await deliverLesson(entry, {
+            readAssignment: (id) => wkRequest<Assignment>(`assignments/${id}`, { cache: "no-store", fresh: true, signal: requestSignal() }),
+            startLesson: async (row) => {
+              await wkRequest<Assignment>(`assignments/${row.assignmentId}/start`, { signal: requestSignal(), method: "PUT", body: { assignment: { started_at: row.createdAt } } });
+            },
+          });
+          return { stage: 1 };
+        }
         await deliverReview(entry, {
           readAssignment: async (id) => {
             signal.throwIfAborted();
@@ -46,7 +56,7 @@ export function useReviewSync(username: string, enabled: boolean, onConfirmed: (
     const online = () => sync.retryPending();
     window.addEventListener("online", online);
     return () => { worker.current = null; sync.dispose(); window.removeEventListener("online", online); };
-  }, [enabled, username]);
+  }, [enabled, username, kind]);
 
   const enqueue = useCallback((entry: Omit<ReviewOutboxEntry, "attempts" | "lastError">) => {
     if (!worker.current) throw new Error("Review saving is not ready. Please try again.");

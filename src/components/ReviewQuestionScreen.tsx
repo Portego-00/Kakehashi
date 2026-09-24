@@ -220,6 +220,7 @@ interface ReviewQuestionProps {
   onAskAgain?: (item: ReviewItem, questionType: QuestionType) => void;
   onSkip?: (item: ReviewItem, questionType: QuestionType) => void;
   onExit?: () => void;
+  mixedPrevious?: { title: string; correct: boolean; source: "wanikani" | "bunpro" } | null;
   // Custom subjects open their own detail route, not a WaniKani subject ID.
   onViewSubjectDetails?: (subjectId: number) => void;
   showHeader?: boolean;
@@ -990,6 +991,7 @@ export default function ReviewQuestionScreen({
   onAskAgain,
   onSkip,
   onExit,
+  mixedPrevious,
   onViewSubjectDetails,
   showHeader = true,
   showBackgroundColor = true,
@@ -1057,6 +1059,7 @@ export default function ReviewQuestionScreen({
     showAddSynonymButton,
     acceptAnyKanjiOnyomiReading,
     jitaiEnabled,
+    jitaiCycleAllFonts,
     autoSwitchKeyboard,
     voiceReviewAnswersEnabled,
     reviewIncorrectKeyboardShortcuts,
@@ -1214,7 +1217,7 @@ export default function ReviewQuestionScreen({
   const [showContextHint, setShowContextHint] = useState(false);
   const [showContextHintTranslations, setShowContextHintTranslations] =
     useState(false);
-  const [isUsingDefaultJitaiFont, setIsUsingDefaultJitaiFont] = useState(false);
+  const [jitaiFontCycleIndex, setJitaiFontCycleIndex] = useState(0);
   const [isVoiceRecognizing, setIsVoiceRecognizing] = useState(false);
   const [voiceSessionEnabled, setVoiceSessionEnabled] = useState(false);
   const [voiceRestartNonce, setVoiceRestartNonce] = useState(0);
@@ -2313,7 +2316,7 @@ export default function ReviewQuestionScreen({
     setEditingStudyMaterialNoteText("");
     setShowContextHint(false);
     setShowContextHintTranslations(false);
-    setIsUsingDefaultJitaiFont(false);
+    setJitaiFontCycleIndex(0);
     setVoiceInterimTranscript("");
     setVoiceError(null);
     shakeAnimation.value = 0;
@@ -2935,10 +2938,8 @@ export default function ReviewQuestionScreen({
       stopVoiceRecognition();
     }
 
-    // Reset temporary default-font override after submitting this question.
-    if (isUsingDefaultJitaiFont) {
-      setIsUsingDefaultJitaiFont(false);
-    }
+    // Restore the initial font after submitting this question.
+    setJitaiFontCycleIndex(0);
 
     // Needed for the single-kanji vocabulary warning when users input a kanji reading.
     if (!choice && questionType === "reading" && isSingleKanjiVocabularySubject(item.subject)) {
@@ -4586,10 +4587,8 @@ export default function ReviewQuestionScreen({
       return;
     }
 
-    // Reset temporary default-font override once an answer is submitted.
-    if (isUsingDefaultJitaiFont) {
-      setIsUsingDefaultJitaiFont(false);
-    }
+    // Restore the initial font once an answer is submitted.
+    setJitaiFontCycleIndex(0);
 
     const characters =
       subject.data.characters ||
@@ -4821,6 +4820,8 @@ export default function ReviewQuestionScreen({
     !audioPrompt &&
     !overridePromptText &&
     Boolean(subject.data.characters);
+  const isUsingDefaultJitaiFont =
+    !jitaiCycleAllFonts && jitaiFontCycleIndex % 2 === 1;
   const showReviewSearchButton = reviewSearchButtonEnabled && !isLessonFlow;
   const showWrapUpButton = isWrapUpAvailable && !isLessonFlow && !isWrapUpMode;
   const showWrapUpIndicator = isWrapUpMode && !isLessonFlow;
@@ -5809,12 +5810,19 @@ export default function ReviewQuestionScreen({
             styles.floatingReviewToolButton,
             { top: floatingJitaiButtonTop, right: floatingJitaiButtonRight },
           ]}
-          onPress={() => setIsUsingDefaultJitaiFont((current) => !current)}
+          onPress={() =>
+            setJitaiFontCycleIndex((current) =>
+              jitaiCycleAllFonts ? current + 1 : (current + 1) % 2,
+            )
+          }
           activeOpacity={0.8}
+          accessibilityRole="button"
           accessibilityLabel={
-            isUsingDefaultJitaiFont
-              ? "Switch to random font for this question"
-              : "Switch to default font for this question"
+            jitaiCycleAllFonts
+              ? "Switch to next font for this question"
+              : isUsingDefaultJitaiFont
+                ? "Switch to random font for this question"
+                : "Switch to default font for this question"
           }
         >
           <View style={styles.floatingReviewToolButtonInner} />
@@ -5827,7 +5835,16 @@ export default function ReviewQuestionScreen({
       )}
 
       {/* Previous Answered Item Box */}
-      {previousAnswerItem && (
+      {mixedPrevious ? (
+        <View style={styles.answeredItemBox} accessibilityLabel={`Previous ${mixedPrevious.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${mixedPrevious.title}, ${mixedPrevious.correct ? "correct" : "incorrect"}`}>
+          <View style={[styles.answeredItemBoxTouchable, { backgroundColor: mixedPrevious.source === "bunpro" ? "#cc5b5d" : theme.primary }]}>
+            <Text numberOfLines={2} style={{ color: "white", fontSize: 18, textAlign: "center" }}>{mixedPrevious.title}</Text>
+            <View style={[styles.answeredItemStatusIndicator, { backgroundColor: mixedPrevious.correct ? "#4caf50" : "#f44336" }]}>
+              <Ionicons name={mixedPrevious.correct ? "checkmark" : "close"} size={20} color="white" />
+            </View>
+          </View>
+        </View>
+      ) : previousAnswerItem && (
         <Animated.View style={[styles.answeredItemBox, answeredItemBoxStyle]}>
           <TouchableOpacity
             style={[
@@ -5974,7 +5991,7 @@ export default function ReviewQuestionScreen({
               <ReviewPromptCharacters
                 subject={subject}
                 size={contextHintPromptSize}
-                forceDefaultFont={isUsingDefaultJitaiFont}
+                fontCycleIndex={jitaiFontCycleIndex}
               />
             )}
           </View>

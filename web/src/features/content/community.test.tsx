@@ -225,3 +225,43 @@ describe("community author identity", () => {
     });
   });
 });
+
+describe("community status controls", () => {
+  const issue = { id: "issue-1", user_username: "Author", title: "Status controls", content: "A reported problem.", status: "open", created_at: CREATED_AT, updated_at: CREATED_AT, likes_count: 0, reply_count: 0 };
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+  it("closes and reopens with server permission without displaying Delete", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (_url, init) => init?.method === "POST"
+      ? jsonResponse({ item: { ...issue, status: JSON.parse(String(init.body)).status } })
+      : jsonResponse({ issue, comments: [], writable: true, canManage: false, canUpdateStatus: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<IssueDetailWorkspace id={issue.id} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Close issue" }));
+    expect(await screen.findByRole("button", { name: "Reopen issue" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reopen issue" }));
+    expect(await screen.findByRole("button", { name: "Close issue" })).toBeEnabled();
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST").map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
+      { action: "updateStatus", issueId: issue.id, status: "closed" },
+      { action: "updateStatus", issueId: issue.id, status: "open" },
+    ]);
+  });
+
+  it.each([{ writable: true, canUpdateStatus: false }, { writable: false, canUpdateStatus: true }])("hides unavailable status controls (%j)", async (permissions) => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => jsonResponse({ issue, comments: [], canManage: false, ...permissions })));
+    render(<IssueDetailWorkspace id={issue.id} />);
+    await screen.findByRole("heading", { name: issue.title });
+    expect(screen.queryByRole("button", { name: "Close issue" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the issue open and reports a failed close", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (_url, init) => init?.method === "POST"
+      ? new Response(JSON.stringify({ error: "The status could not be changed." }), { status: 502 })
+      : jsonResponse({ issue, comments: [], writable: true, canUpdateStatus: true, canManage: false })));
+    render(<IssueDetailWorkspace id={issue.id} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Close issue" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The status could not be changed.");
+    expect(screen.getByRole("button", { name: "Close issue" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Reopen issue" })).not.toBeInTheDocument();
+  });
+});

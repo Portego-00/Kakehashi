@@ -104,7 +104,6 @@ describe("web settings persistence", () => {
       allowSkippingReviews: true,
       reviewSearchButtonEnabled: true,
       reviewCharacterFontScale: 0.7,
-      reviewInputFontScale: 1.2,
       pauseOnWrong: false,
       pauseOnClose: true,
       pauseOnCorrect: true,
@@ -244,7 +243,6 @@ describe("web settings persistence", () => {
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
       reviewCharacterFontScale: 1,
-      reviewInputFontScale: 1,
       pauseOnWrong: true,
       pauseOnClose: false,
       pauseOnCorrect: true,
@@ -294,19 +292,27 @@ describe("web settings persistence", () => {
     }
   });
 
+  it("drops legacy answer-size preferences while preserving question size", () => {
+    const loaded = loadWebSettings(storage({ study: { reviewInputFontScale: 1.2, reviewCharacterFontScale: 1.4 } }), "tester");
+    expect(loaded.study).not.toHaveProperty("reviewInputFontScale");
+    expect(loaded.study.reviewCharacterFontScale).toBe(1.4);
+    let saved = "";
+    saveWebSettings({ setItem: (_key, value) => { saved = value; } }, "tester", loaded);
+    expect(JSON.parse(saved).study).not.toHaveProperty("reviewInputFontScale");
+    expect(loadWebSettings({ getItem: () => saved }, "tester").study.reviewCharacterFontScale).toBe(1.4);
+  });
+
   it("accepts only supported review scales and vocabulary voice values", () => {
-    for (const reviewFontScale of [0.7, 0.8, 0.9, 1, 1.1, 1.2]) {
-      const loaded = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewCharacterFontScale: reviewFontScale, reviewInputFontScale: reviewFontScale } }), "tester").study;
+    for (const reviewFontScale of [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.4]) {
+      const loaded = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewCharacterFontScale: reviewFontScale } }), "tester").study;
       expect(loaded.reviewCharacterFontScale).toBe(reviewFontScale);
-      expect(loaded.reviewInputFontScale).toBe(reviewFontScale);
     }
     for (const vocabularyAudioVoice of ["female", "male", "random", "both"] as const) {
       expect(loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, vocabularyAudioVoice } }), "tester").study.vocabularyAudioVoice).toBe(vocabularyAudioVoice);
     }
 
-    const repaired = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewCharacterFontScale: 0.75, reviewInputFontScale: 1.3, vocabularyAudioVoice: "robot", srsProgressionCardDisplayMode: "floating" } }), "tester").study;
+    const repaired = loadWebSettings(storage({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewCharacterFontScale: 0.75, vocabularyAudioVoice: "robot", srsProgressionCardDisplayMode: "floating" } }), "tester").study;
     expect(repaired.reviewCharacterFontScale).toBe(1);
-    expect(repaired.reviewInputFontScale).toBe(1);
     expect(repaired.vocabularyAudioVoice).toBe("female");
     expect(repaired.srsProgressionCardDisplayMode).toBe("normal");
   });
@@ -325,7 +331,6 @@ describe("web settings persistence", () => {
       pauseOnClose: true,
       answerFeedbackSoundEnabled: false,
       reviewCharacterFontScale: 0.8,
-      reviewInputFontScale: 1.1,
       vocabularyAudioVoice: "random" as const,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: true,
       srsProgressionCardDisplayMode: "hidden" as const,

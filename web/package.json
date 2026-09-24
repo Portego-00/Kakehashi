@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:review-layout": "playwright test --config=playwright.review-layout.config.ts",
     "test:all": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e",
     "test:custom-srs-db": "node --test scripts/tests/custom-srs-storage.integration.mjs"
   },

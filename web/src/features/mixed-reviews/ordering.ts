@@ -1,28 +1,31 @@
+import type { MixedPendingQuestion } from "./retry-ordering";
 import type { AccuracyCounts } from "@/features/study/components/ReviewAccuracy";
 import type { SessionResultsData } from "./session-results";
 import type { Subject } from "@/types/wanikani";
 import type { WebStudyPreferences } from "@/features/settings/settings";
 import type { CoreQuestion } from "@/features/core-study/queue";
-import { reviewContent, type BunproReviewQueueItem } from "@/features/bunpro/model";
+import { reviewContent, reviewKey, type BunproReviewQueueItem } from "@/features/bunpro/model";
+import type { BunproProgression } from "@/features/bunpro/progression";
+import type { BunproReviewSavePolicy } from "@/features/bunpro/review-save-policy";
 export type ReviewSource = "wanikani" | "bunpro";
-export type MixedHead = { id: string; source: ReviewSource; stage: number; level: number; available: number; interval: number; subjectType: string; critical?: boolean; keepTurn?: boolean };
+export type MixedHead = { id: string; source: ReviewSource; stage: number; level: number; available: number; interval: number; subjectType: string; critical?: boolean; keepTurn?: boolean; remaining?: number; pending?: MixedPendingQuestion[]; activate?: (id: string) => void };
 export type MixedPreviousAnswer = { id: string; source: ReviewSource; title: string; correct: boolean; bunproSubject?: { kind: "grammar" | "vocab"; slug: string }; subject?: Subject };
 export type MixedProgress = { completed: number; total: number };
-export type MixedBridge = { accuracy?: AccuracyCounts; reportAccuracy?: (accuracy: AccuracyCounts) => void; reportResults?: (results: SessionResultsData) => void; wrapUpRequest?: { id: number; limit: number }; onWrapUp?: () => void; claimPreviousAnimation?: () => boolean; progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
+export type MixedBridge = { bunproSavePolicy?: BunproReviewSavePolicy; accuracy?: AccuracyCounts; reportAccuracy?: (accuracy: AccuracyCounts) => void; reportResults?: (results: SessionResultsData) => void; wrapUpRequest?: { id: number; limit: number }; onWrapUp?: () => void; claimPreviousAnimation?: () => boolean; progress?: MixedProgress; reportProgress?: (progress: MixedProgress) => void; bunproProgression?: BunproProgression | null; reportBunproProgression?: (change: BunproProgression) => void; active: boolean; previous?: MixedPreviousAnswer | null; onAnswer?: (answer: MixedPreviousAnswer) => void; report: (head: MixedHead | null) => void; reportError?: (failed: boolean) => void };
 const wkHours = [0, 4, 8, 23, 47, 167, 335, 719, 2879];
-export function wkHead(question: CoreQuestion | undefined, userLevel: number, keepTurn = false): MixedHead | null {
+export function wkHead(question: CoreQuestion | undefined, userLevel: number, keepTurn = false, remaining = 1): MixedHead | null {
   if (!question) return null;
   const { assignment, subject } = question;
-  return { id: question.id, source: "wanikani", stage: assignment.data.srs_stage, level: subject.data.level, available: Date.parse(assignment.data.available_at ?? "") || 0, interval: (wkHours[assignment.data.srs_stage] || 4) * 3600000, subjectType: subject.object, critical: subject.data.level === userLevel && ["radical", "kanji"].includes(subject.object) && assignment.data.srs_stage <= 4, keepTurn };
+  return { id: question.id, source: "wanikani", stage: assignment.data.srs_stage, level: subject.data.level, available: Date.parse(assignment.data.available_at ?? "") || 0, interval: (wkHours[assignment.data.srs_stage] || 4) * 3600000, subjectType: subject.object, critical: subject.data.level === userLevel && ["radical", "kanji"].includes(subject.object) && assignment.data.srs_stage <= 4, keepTurn, remaining };
 }
-export function bpHead(item: BunproReviewQueueItem | undefined, keepTurn = false): MixedHead | null {
+export function bpHead(item: BunproReviewQueueItem | undefined, keepTurn = false, remaining = 1): MixedHead | null {
   if (!item) return null;
   const attributes = item.data.attributes;
   const content = reviewContent(item);
   const available = Date.parse(String(attributes.next_review ?? "")) || 0;
   const previous = Date.parse(String(attributes.updated_at ?? attributes.started_studying_at ?? "")) || 0;
   const jlpt = Number(String(content.attributes.level ?? content.attributes.jlpt_level ?? "").match(/[1-5]/)?.[0]);
-  return { id: item.data.id, source: "bunpro", stage: Number(attributes.streak) || 0, level: jlpt ? 6 - jlpt : 0, available, interval: available > previous && previous > 0 ? available - previous : 86400000, subjectType: "vocabulary", keepTurn };
+  return { id: reviewKey(item), source: "bunpro", stage: Number(attributes.streak) || 0, level: jlpt ? 6 - jlpt : 0, available, interval: available > previous && previous > 0 ? available - previous : 86400000, subjectType: "vocabulary", keepTurn, remaining };
 }
 export function compareMixedHeads(a: MixedHead, b: MixedHead, settings: WebStudyPreferences, now = Date.now()): number {
   if (settings.prioritizeCriticalItems && Boolean(a.critical) !== Boolean(b.critical)) return a.critical ? -1 : 1;
@@ -45,11 +48,15 @@ export function compareMixedHeads(a: MixedHead, b: MixedHead, settings: WebStudy
 }
 export function chooseMixedLane<T extends string>(available: { lane: T; head: MixedHead }[], settings: WebStudyPreferences, previous: T, keepPrevious: boolean, random = Math.random()): T {
   if (keepPrevious && available.find(({ lane }) => lane === previous)?.head.keepTurn) return previous;
-  // Each provider has already applied the user's ordering preferences. Mix those
-  // ordered queues here, rather than draining one provider by comparing unlike SRS scales.
-  const others = keepPrevious ? available.filter(({ lane }) => lane !== previous) : available;
-  const candidates = others.length ? others : available;
-  return candidates[Math.min(candidates.length - 1, Math.floor(random * candidates.length))].lane;
+  // Keep each provider's ordered queue intact, but draw proportionally to its
+  // remaining reviews so a small queue is not exhausted near the start.
+  const weights = available.map(({ head }) => Math.max(1, head.remaining ?? 1));
+  let draw = random * weights.reduce((sum, weight) => sum + weight, 0);
+  for (let index = 0; index < available.length; index++) {
+    draw -= weights[index];
+    if (draw < 0) return available[index].lane;
+  }
+  return available[available.length - 1].lane;
 }
 export function orderBunproReviews(items: BunproReviewQueueItem[], settings: WebStudyPreferences) {
   const shuffled = [...items];
@@ -57,10 +64,10 @@ export function orderBunproReviews(items: BunproReviewQueueItem[], settings: Web
   return shuffled.sort((a, b) => compareMixedHeads(bpHead(a)!, bpHead(b)!, settings));
 }
 
-export function mixedWrapUpLimits<T extends string>(lanes: T[], remaining: Partial<Record<T, number>>, active: T, limit: number): Record<T, number> {
-  const allocation = Object.fromEntries(lanes.map(lane => [lane, 0])) as Record<T, number>;
+export function mixedWrapUpLimits<T extends string>(lanes: T[], remaining: Partial<Record<T, number>>, active: T, limit: number, open: Partial<Record<T, number>> = {}): Record<T, number> {
+  const allocation = Object.fromEntries(lanes.map(lane => [lane, Math.min(remaining[lane] ?? 0, open[lane] ?? 0)])) as Record<T, number>;
   const ordered = [active, ...lanes.filter(lane => lane !== active)];
-  let slots = Math.max(0, limit);
+  let slots = Math.max(0, limit - lanes.reduce((sum, lane) => sum + allocation[lane], 0));
   while (slots > 0) {
     let assigned = false;
     for (const lane of ordered) {

@@ -1,4 +1,4 @@
-import { enqueueReview, loadReviewOutbox, noteReviewFailure, removeReview, type ReviewOutboxEntry } from "./review-outbox";
+import { enqueueReview, loadReviewOutbox, noteReviewFailure, removeReview, type ReviewOutboxEntry, type StudySubmissionKind } from "./review-outbox";
 
 type StorageAccess = Pick<Storage, "getItem" | "setItem">;
 export const REVIEW_PERMISSION_MESSAGE = "Your API token cannot submit reviews. Enable reviews:create permission in WaniKani, then sign in again with the updated token. Your completed reviews are saved on this device.";
@@ -16,7 +16,7 @@ export function predictedReviewStage(stage: number, meaning: number, reading: nu
 }
 
 /** A single delivery lane: local saves never wait for it, and retries cannot overlap. */
-export function createReviewSync<T>({ storage, username, deliver, onConfirmed, onChange, onPermissionError, wait = (ms, signal) => new Promise<void>((resolve) => {
+export function createReviewSync<T>({ storage, username, kind = "review", deliver, onConfirmed, onChange, onPermissionError, wait = (ms, signal) => new Promise<void>((resolve) => {
   const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); resolve(); };
   const timer = setTimeout(done, ms);
   signal.addEventListener("abort", done, { once: true });
@@ -24,10 +24,11 @@ export function createReviewSync<T>({ storage, username, deliver, onConfirmed, o
 }) }: {
   storage: StorageAccess;
   username: string;
+  kind?: StudySubmissionKind;
   deliver: (entry: ReviewOutboxEntry, signal: AbortSignal) => Promise<T>;
   onConfirmed: (entry: ReviewOutboxEntry, result: T) => void;
   onChange: (pending: number) => void;
-  onPermissionError: () => void;
+  onPermissionError: (entry: ReviewOutboxEntry) => void;
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
 }) {
   const controller = new AbortController();
@@ -38,7 +39,7 @@ export function createReviewSync<T>({ storage, username, deliver, onConfirmed, o
   let finalPassStarted = false;
   let permissionBlocked = false;
   let notBefore = 0;
-  const pending = () => loadReviewOutbox(storage, username);
+  const pending = () => loadReviewOutbox(storage, username, kind);
   const changed = () => { if (!controller.signal.aborted) onChange(pending().length); };
 
   async function send(entry: ReviewOutboxEntry) {
@@ -49,17 +50,17 @@ export function createReviewSync<T>({ storage, username, deliver, onConfirmed, o
       try {
         const result = await deliver(entry, controller.signal);
         if (controller.signal.aborted) return;
-        removeReview(storage, username, entry.assignmentId);
+        removeReview(storage, username, entry.assignmentId, kind);
         onConfirmed(entry, result);
         changed();
         return;
       } catch (error) {
         if (controller.signal.aborted) return;
-        noteReviewFailure(storage, username, entry.assignmentId, error instanceof Error ? error.message : "Review delivery is pending.");
+        noteReviewFailure(storage, username, entry.assignmentId, error instanceof Error ? error.message : "Review delivery is pending.", kind);
         changed();
         if (isReviewPermissionError(error)) {
           permissionBlocked = true;
-          onPermissionError();
+          onPermissionError(entry);
           return;
         }
         const retryAfterMs = (error as { retryAfterMs?: number } | null)?.retryAfterMs;
@@ -98,7 +99,7 @@ export function createReviewSync<T>({ storage, username, deliver, onConfirmed, o
   return {
     enqueue(input: Omit<ReviewOutboxEntry, "attempts" | "lastError">) {
       // Let write failures reach the caller: never advance without a durable row.
-      const entry = enqueueReview(storage, username, input);
+      const entry = enqueueReview(storage, username, input, kind);
       changed();
       if (active !== entry.assignmentId) queued.add(entry.assignmentId);
       pump();

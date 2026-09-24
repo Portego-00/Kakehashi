@@ -12,6 +12,10 @@ import {
 } from "react-native";
 import { Assignment } from "../utils/api";
 import {
+  getAssignmentActivityByDay,
+  getLocalActivityDateString as getLocalDateString,
+} from "../utils/assignmentActivity";
+import {
   DEFAULT_ANALYTICS_WIDGET_STYLE_COLORS,
   normalizeAnalyticsWidgetColor,
 } from "../utils/analyticsWidgetStyles";
@@ -22,14 +26,6 @@ interface ReviewData {
   date: string; // YYYY-MM-DD format
   count: number;
 }
-
-// Helper to get local YYYY-MM-DD string
-const getLocalDateString = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 interface ReviewHeatmapProps {
   // Optional props for future customization
@@ -152,62 +148,16 @@ const ReviewHeatmap: React.FC<ReviewHeatmapProps> = ({
     };
   }, [selectedPage, currentYear]);
 
-  // Process assignments data to extract review activity for the selected range
+  // Process study milestones from assignments for the selected range.
   useEffect(() => {
     setIsLoading(true);
 
     try {
-      // Group review activities by date from assignments
-      const reviewsByDate: { [key: string]: number } = {};
-      const now = new Date();
-
-      assignments.forEach((assignment) => {
-        const assignmentData = assignment.data;
-
-        // Use data_updated_at to track when items were last touched (reviewed or updated)
-        // Only if they have actually been started in lessons
-        if (assignmentData.started_at && assignment.data_updated_at) {
-          const updatedDate = new Date(assignment.data_updated_at);
-
-          if (
-            updatedDate <= now &&
-            isDateWithinRange(
-              updatedDate,
-              selectedRange.rangeStart,
-              selectedRange.rangeEnd,
-            )
-          ) {
-            const dateString = getLocalDateString(updatedDate);
-            reviewsByDate[dateString] = (reviewsByDate[dateString] || 0) + 1;
-          }
-        }
-
-        // Also count milestone achievements as review activity
-        // These are more granular indicators of specific progress steps
-        const milestonedates = [
-          assignmentData.started_at, // When lesson was completed
-          assignmentData.passed_at, // When reached Guru (stage 5)
-          assignmentData.burned_at, // When reached Burned (stage 9)
-        ].filter(Boolean);
-
-        milestonedates.forEach((dateStr) => {
-          const date = new Date(dateStr!);
-
-          if (
-            date <= now &&
-            isDateWithinRange(
-              date,
-              selectedRange.rangeStart,
-              selectedRange.rangeEnd,
-            )
-          ) {
-            const dateString = getLocalDateString(date);
-            // Avoid double-counting if milestone is same day as data_updated_at for this assignment
-            // (We just increment anyway as we want to capture "activity events")
-            reviewsByDate[dateString] = (reviewsByDate[dateString] || 0) + 1;
-          }
-        });
-      });
+      const reviewsByDate = getAssignmentActivityByDay(
+        assignments,
+        selectedRange.rangeStart,
+        selectedRange.rangeEnd,
+      );
 
       // Convert to array format
       const reviewDataArray = Object.entries(reviewsByDate).map(
@@ -470,6 +420,10 @@ const ReviewHeatmap: React.FC<ReviewHeatmapProps> = ({
         )}
       </View>
 
+      <Text style={[styles.description, { color: theme.textSecondary }]}>
+        Lesson, Guru and Burn milestones; not every review.
+      </Text>
+
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -552,9 +506,9 @@ const ReviewHeatmap: React.FC<ReviewHeatmapProps> = ({
                         if (cell.count > 0) {
                           Alert.alert(
                             formatDate(cell.date),
-                            `${cell.count} review${
+                            `${cell.count} item${
                               cell.count === 1 ? "" : "s"
-                            } completed`
+                            } with study milestones`
                           );
                         }
                       }}
@@ -625,6 +579,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "bold",
+  },
+  description: {
+    fontSize: 14,
+    marginBottom: 16,
   },
   yearSelector: {
     flexDirection: "row",

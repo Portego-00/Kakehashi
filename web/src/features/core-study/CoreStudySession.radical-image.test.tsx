@@ -88,7 +88,6 @@ const fixtures = vi.hoisted(() => {
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
       reviewCharacterFontScale: 1,
-      reviewInputFontScale: 1,
       pauseOnWrong: true,
       pauseOnClose: false,
       pauseOnCorrect: false,
