@@ -331,7 +331,11 @@ export default function NewsScreen() {
   };
 
   const openSourceFallbackMenu = () => {
-    Alert.alert("News Source", "Choose which news to show.", [
+    Alert.alert("News Filters", "Choose which news to show.", [
+      {
+        text: unreadOnly ? "Show all stories" : "Unread only",
+        onPress: () => setUnreadOnly((value) => !value),
+      },
       ...SOURCE_OPTIONS.map((option) => ({
         text: `${newsSourcePreference === option.value ? "✓ " : ""}${option.label}`,
         onPress: () => setNewsSourcePreference(option.value),
@@ -383,7 +387,7 @@ export default function NewsScreen() {
             { color: theme.textColor, fontSize: 30 },
           ]}
         >
-          Recent News
+          {unreadOnly ? "Unread News" : "Recent News"}
         </Text>
         {Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host matchContents style={styles.sortMenuHost}>
@@ -393,13 +397,18 @@ export default function NewsScreen() {
                   <GlassButton
                     iconName="filter-outline"
                     iconSize={18}
-                    iconColor={theme.textColor}
+                    iconColor={unreadOnly ? theme.primary : theme.textColor}
                     style={styles.sortMenuButton}
                     variant={theme.isDark ? "colored" : "light"}
                   />
                 </SwiftUI.RNHostView>
               }
             >
+              <SwiftUI.Button
+                label="Unread only"
+                systemImage={unreadOnly ? "checkmark.circle.fill" : "circle"}
+                onPress={() => setUnreadOnly((value) => !value)}
+              />
               {SOURCE_OPTIONS.map((option) => (
                 <SwiftUI.Button
                   key={option.value}
@@ -418,7 +427,7 @@ export default function NewsScreen() {
           <GlassButton
             iconName="filter-outline"
             iconSize={18}
-            iconColor={theme.textColor}
+            iconColor={unreadOnly ? theme.primary : theme.textColor}
             onPress={openSourceFallbackMenu}
             style={[styles.sortMenuButton, styles.sourceMenuFallbackButton]}
             variant={theme.isDark ? "colored" : "light"}
@@ -426,44 +435,6 @@ export default function NewsScreen() {
         )}
       </View>
 
-      <View
-        style={{
-          flexDirection: "row",
-          gap: 8,
-          marginBottom: 16,
-          paddingHorizontal: 16,
-        }}
-      >
-        {[false, true].map((unread) => (
-          <Pressable
-            key={String(unread)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: unreadOnly === unread }}
-            onPress={() => setUnreadOnly(unread)}
-            style={{
-              minHeight: 44,
-              justifyContent: "center",
-              paddingHorizontal: 16,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: unreadOnly === unread ? theme.primary : theme.border,
-              backgroundColor: theme.cardBackground,
-            }}
-          >
-            <Text
-              style={{
-                color:
-                  unreadOnly === unread ? theme.primary : theme.textSecondary,
-                fontWeight: "600",
-              }}
-            >
-              {unread
-                ? `Unread (${news.filter((item) => !readIds.has(newsReadKey(item))).length})`
-                : "All stories"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
       {loadError ? (
         <View style={styles.loadErrorRow}>
           <Ionicons
@@ -642,7 +613,7 @@ export default function NewsScreen() {
           />
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
             {unreadOnly && news.length > 0
-              ? "You’re all caught up. Switch to All stories to read them again."
+              ? "You’re all caught up. Turn off Unread only in the filter menu to see all stories."
               : "No articles are available for this source right now."}
           </Text>
         </View>

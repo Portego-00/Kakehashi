@@ -2,8 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { format } from "date-fns";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  Easing,
+  interpolateColor,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import type { GestureResponderEvent } from "react-native";
 import type { NewsItem } from "../../services/NhkNewsService";
 import { useTheme } from "../../utils/theme";
@@ -33,6 +41,33 @@ export const NewsCard: React.FC<NewsCardProps> = ({
   showSourceBadge = false,
 }) => {
   const { theme } = useTheme();
+  const readProgress = useSharedValue(isRead ? 1 : 0);
+
+  useEffect(() => {
+    readProgress.value = withTiming(isRead ? 1 : 0, {
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [isRead, readProgress]);
+
+  const imageReadStyle = useAnimatedStyle(() => ({
+    opacity: 1 - readProgress.value * 0.5,
+  }));
+  const titleReadStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      readProgress.value,
+      [0, 1],
+      [theme.textColor, theme.textSecondary],
+    ),
+  }));
+  const unreadIconStyle = useAnimatedStyle(() => ({
+    opacity: 1 - readProgress.value,
+  }));
+  const readIconStyle = useAnimatedStyle(() => ({
+    opacity: readProgress.value,
+    transform: [{ scale: 0.85 + readProgress.value * 0.15 }],
+  }));
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
   const movedBeyondTapThresholdRef = useRef(false);
   const parsedDate = item.pubDate ? new Date(item.pubDate) : null;
@@ -122,38 +157,29 @@ export const NewsCard: React.FC<NewsCardProps> = ({
       accessibilityLabel={`${isRead ? "Mark unread" : "Mark as read"}: ${item.title}`}
       accessibilityState={{ selected: isRead }}
       onPress={() => onToggleRead?.(item)}
-      style={{
-        minHeight: 44,
-        paddingHorizontal: 12,
-        flexDirection: "row",
-        gap: 6,
-        alignItems: "center",
-        justifyContent: "center",
-        ...(onImage
-          ? {
-              position: "absolute" as const,
-              top: 8,
-              right: 8,
-              borderRadius: 8,
-              backgroundColor: "rgba(0,0,0,0.75)",
-            }
-          : {}),
-      }}
+      disabled={onImage && disablePress}
+      style={[styles.readControl, onImage && styles.readControlOnImage]}
     >
-      <Ionicons
-        name={isRead ? "checkmark-circle" : "ellipse-outline"}
-        size={16}
-        color={onImage ? "#fff" : theme.textSecondary}
-      />
-      <Text
-        style={{
-          color: onImage ? "#fff" : theme.textSecondary,
-          fontSize: 12,
-          fontWeight: "600",
-        }}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.readIcon, unreadIconStyle]}
       >
-        {isRead ? "Read" : "Mark read"}
-      </Text>
+        <Ionicons
+          name="ellipse-outline"
+          size={20}
+          color={onImage ? "#fff" : theme.textSecondary}
+        />
+      </Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.readIcon, readIconStyle]}
+      >
+        <Ionicons
+          name="checkmark-circle"
+          size={20}
+          color={onImage ? "#fff" : theme.textSecondary}
+        />
+      </Animated.View>
     </Pressable>
   );
 
@@ -176,16 +202,17 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           onTouchMove={handleTouchMove}
         >
           {item.imageUrl && (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={[
-                StyleSheet.absoluteFillObject,
-                { opacity: isRead ? 0.5 : 1 },
-              ]}
-              contentFit="cover"
-              transition={200}
+            <Animated.View
               pointerEvents="none"
-            />
+              style={[StyleSheet.absoluteFillObject, imageReadStyle]}
+            >
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                transition={200}
+              />
+            </Animated.View>
           )}
 
           {/* Gradient Overlay for Text Readability */}
@@ -242,31 +269,40 @@ export const NewsCard: React.FC<NewsCardProps> = ({
       >
         <View style={styles.contentContainer}>
           {item.imageUrl && (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={[styles.standardImage, { opacity: isRead ? 0.5 : 1 }]}
-              contentFit="cover"
-              transition={200}
+            <Animated.View
               pointerEvents="none"
-            />
+              style={[styles.standardImage, imageReadStyle]}
+            >
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                transition={200}
+              />
+            </Animated.View>
           )}
           <View style={styles.textContainer}>
-            <Text
-              style={[
-                styles.title,
-                { color: isRead ? theme.textSecondary : theme.textColor },
-              ]}
+            <Animated.Text
+              style={[styles.title, titleReadStyle]}
               numberOfLines={2}
             >
               {item.title}
-            </Text>
+            </Animated.Text>
             {/* Tag + Date Row */}
             <View style={styles.metaRow}>
               <View style={styles.metaBadges}>
                 {renderSourceBadge()}
                 {renderPercentageBadge()}
               </View>
-              <Text style={[styles.date, { color: theme.textSecondary }]}>
+              <Text
+                style={[
+                  styles.date,
+                  {
+                    color: theme.textSecondary,
+                    paddingRight: onToggleRead ? 32 : 0,
+                  },
+                ]}
+              >
                 {formattedDate}
               </Text>
             </View>
@@ -279,6 +315,27 @@ export const NewsCard: React.FC<NewsCardProps> = ({
 };
 
 const styles = StyleSheet.create({
+  readIcon: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  readControl: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  readControlOnImage: {
+    top: 8,
+    right: 8,
+    bottom: "auto",
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.58)",
+  },
   container: {
     borderRadius: 16,
     overflow: "hidden",
