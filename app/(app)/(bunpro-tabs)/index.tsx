@@ -29,7 +29,6 @@ import {
 import {
   BunproApiError,
   clearBunproApiToken,
-  getBunproApiTokenFromEnv,
   getBunproDashboard,
   getStoredBunproApiToken,
   saveBunproApiToken,
@@ -325,8 +324,7 @@ export default function BunproTab() {
       setIsLoadingToken(true);
       try {
         const storedToken = await getStoredBunproApiToken();
-        const envToken = getBunproApiTokenFromEnv();
-        const initialToken = storedToken ?? envToken ?? "";
+        const initialToken = storedToken ?? "";
 
         if (!isMounted) {
           return;

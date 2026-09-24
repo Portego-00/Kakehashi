@@ -1,5 +1,7 @@
 "use client";
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
+import { ReviewSettingsButton } from "./ReviewSettingsButton";
+import { reorderPendingStudyQuestions, reviewOrderingChanged } from "@/features/core-study/reorder-pending";
 import { ReviewAccuracy } from "./ReviewAccuracy";
 
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
@@ -29,6 +31,7 @@ import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import type { Assignment, StudyMaterial, Subject } from "@/types/wanikani";
 import { advanceStudySession, answerStudyQuestion, getSessionSummary, getStudyItemProgress, } from "../engine";
 import { playAnswerFeedback } from "../feedback-audio";
+import { finalizeKanaInput } from "@/lib/kana";
 import { composeKanaInput, questionUsesKanaComposition } from "../kana-composition";
 import { clearStudySession, saveStudySession } from "../storage";
 import type { StudyAnswer, StudyAnswerStatus, StudyQuestion, StudySession } from "../types";
@@ -313,32 +316,29 @@ function AddMeaningSynonymButton({ subject, synonym, existingMaterial, disabled,
   </div>;
 }
 
-function QuizSessionWithStudyMaterials(props: QuizSessionProps) {
+export function QuizSession(props: QuizSessionProps) {
+  const needsStudyMaterials = props.acceptUserSynonymsAsAnswers || ((props.initialSession.mode === "custom-review" || props.initialSession.mode === "audio-vocab" || props.reviewPreferences?.ankiMode !== "off" && props.reviewPreferences?.ankiMode !== undefined) && Boolean(props.reviewPreferences?.ankiShowOtherAcceptedAnswersAndUserSynonyms || props.reviewPreferences?.showAddSynonymButton));
+  const [needsInitialLoad] = useState(needsStudyMaterials && props.studyMaterials === undefined);
   const subjectIds = useMemo(() => Array.from(new Set(props.initialSession.questions.map((question) => question.subjectId))), [props.initialSession.questions]);
   const materialsQuery = useQuery({
     queryKey: ["extra-study", "answer-materials", props.scope, subjectIds.join(",")],
     queryFn: () => fetchStudyMaterialsBySubjectIds(subjectIds),
-    enabled: subjectIds.length > 0,
+    enabled: needsStudyMaterials && props.studyMaterials === undefined && subjectIds.length > 0,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   });
 
-  if (materialsQuery.isLoading) {
+  if (needsInitialLoad && materialsQuery.isLoading) {
     return <section className={styles.quizShell}><LoadingState label="Loading answer data" detail="Preparing your personal meaning synonyms." /></section>;
   }
-  if (materialsQuery.error && !materialsQuery.data) {
+  if (needsInitialLoad && materialsQuery.error && !materialsQuery.data) {
     return <section className={styles.quizShell}><div className={styles.authNotice} role="alert"><AlertCircle size={25} /><h2>Answer data didn’t load</h2><p>Personal meaning synonyms could not be checked yet.</p><button className={styles.primaryButton} type="button" onClick={() => void materialsQuery.refetch()}>Try again</button></div></section>;
   }
-  return <QuizSessionContent {...props} studyMaterials={materialsQuery.data ?? []} />;
-}
-
-export function QuizSession(props: QuizSessionProps) {
-  const needsStudyMaterials = props.acceptUserSynonymsAsAnswers || ((props.initialSession.mode === "custom-review" || props.initialSession.mode === "audio-vocab") && (props.reviewPreferences?.ankiShowOtherAcceptedAnswersAndUserSynonyms || props.reviewPreferences?.showAddSynonymButton));
-  if (!needsStudyMaterials || props.studyMaterials !== undefined) return <QuizSessionContent {...props} />;
-  return <QuizSessionWithStudyMaterials {...props} />;
+  return <QuizSessionContent {...props} studyMaterials={props.studyMaterials ?? materialsQuery.data ?? []} />;
 }
 
 function QuizSessionContent({ scope, initialSession, subjects = [], assignments = [], studyMaterials = [], reviewPreferences, subjectDetailSettings, immersionSources = [], showDetailsAtAnswerStops = false, pauseOnWrong = true, pauseOnClose: configuredPauseOnClose = false, pauseOnCorrect = false, acceptUserSynonymsAsAnswers = false, acceptAnyKanjiOnyomiReading = false, autoplayVocabularyAudio = false, vocabularyAudioVoice = "female", answerFeedbackSoundEnabled = true, showListeningTranslation = true, keyboardShortcuts = true, loadingMore = false, expectedSubjectCount, onExit }: QuizSessionProps) {
+  const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
   const pauseOnClose = pauseOnCorrect || configuredPauseOnClose;
   const [localSession, setSession] = useState(initialSession);
   const [savedStudyMaterials, setSavedStudyMaterials] = useState<StudyMaterial[]>([]);
@@ -387,7 +387,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   const currentAssignment = currentSubject ? assignments.find((assignment) => assignment.data.subject_id === currentSubject.id) : undefined;
   // Prompt extras mirror the mobile review question screen across quiz modes.
   // Audio vocab uses the same answer settings as custom review.
-  const customReviewPreferences = session.mode === "custom-review" || session.mode === "audio-vocab" ? reviewPreferences : undefined;
+  const customReviewPreferences = reviewPreferences;
   const reviewKind = question ? reviewKindForStudyQuestion(question) : null;
   const ankiEnabled = Boolean(customReviewPreferences && reviewKind && usesSelfAssessment(reviewKind, customReviewPreferences));
   const reviewViewportRef = useMobileReviewViewport(
@@ -500,6 +500,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
   function commit(candidate: string) {
     if (!question || answer || !candidate.trim()) return;
+    if (!question.choices && kanaComposition) {
+      candidate = finalizeKanaInput(candidate);
+      setValue(candidate);
+    }
     const reviewKind = !question.choices ? reviewKindForStudyQuestion(question) : null;
     let semanticStatus: StudyAnswerStatus | undefined;
     if (currentSubject && reviewKind) {
@@ -662,12 +666,12 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   }, [question?.kind, question?.audioUrl, question?.autoPlayAudio, question?.autoPlaySentenceAudio, question?.id, question?.sentence?.ja]);
 
   useEffect(() => {
-    if (!answer) return;
+    if (reviewSettingsOpen || !answer) return;
     if (ankiEnabled) return;
     if (answerPaused) return;
     const timer = window.setTimeout(next, 900);
     return () => window.clearTimeout(timer);
-  }, [answer, answerPaused, ankiEnabled, next]);
+  }, [reviewSettingsOpen, answer, answerPaused, ankiEnabled, next]);
 
   useEffect(() => {
     detailsShouldOpenRef.current = detailsShouldOpen;
@@ -736,7 +740,6 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   }
 
   const reviewCharacterScale = customReviewPreferences?.reviewCharacterFontScale ?? 1;
-  const reviewInputScale = customReviewPreferences?.reviewInputFontScale ?? 1;
   const reviewCharacterSize = customReviewPreferences ? `clamp(${2.75 * reviewCharacterScale}rem, ${9 * reviewCharacterScale}vw, ${6.5 * reviewCharacterScale}rem)` : undefined;
   const jitaiFamily = customReviewPreferences ? resolveJitaiFontFamily(customReviewPreferences, question.id) : undefined;
   const contextSentences = currentSubject?.data.context_sentences?.filter((sentence) => sentence.ja.trim()).slice(0, 3) ?? [];
@@ -770,9 +773,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         <span className={styles.numeric}>{displayedCurrent} / {visibleTotal}</span>
         <div className={styles.progressTrack} role="progressbar" aria-valuenow={displayedCurrent} aria-valuemin={1} aria-valuemax={visibleTotal}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
         <div className={styles.quizTopbarActions}><ReviewAccuracy correct={[...firstAnswers.values()].filter(Boolean).length} answered={firstAnswers.size} />
-          {reviewPreferences?.reviewSearchButtonEnabled ? <Link className={styles.iconButton} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" aria-label="Search this item"><Search size={17} /></Link> : null}
           {canSkipQuestion ? <button type="button" className={styles.skipButton} onClick={skipQuestion} aria-label="Skip review"><SkipForward size={17} />Skip</button> : null}
-          <button type="button" className={styles.iconButton} onClick={onExit} aria-label="Pause and exit session"><X size={19} /></button>
+          {reviewPreferences?.reviewSearchButtonEnabled ? <Link className={styles.iconButton} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" aria-label="Search this item"><Search size={17} /></Link> : null}
+
+          <ReviewSettingsButton order="customReviewOrder" ankiSupported={Boolean(reviewKind)} disabled={advancingQuestion} onOpenChange={setReviewSettingsOpen} onStudyChange={(next, previous) => { if (reviewOrderingChanged(next, previous)) { const reordered = reorderPendingStudyQuestions(session, subjects, assignments, next); setSession(reordered); saveStudySession(scope, reordered); } }} /><button type="button" className={styles.iconButton} onClick={onExit} aria-label="Pause and exit session"><X size={19} /></button>
         </div>
       </div>
 
@@ -838,7 +842,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         </> : <form className={styles.answerForm} data-result={answer ? currentAnswerStatus === "close" ? "warning" : answer.correct ? "correct" : "incorrect" : answerWarning ? "warning" : undefined} onSubmit={(event) => { event.preventDefault(); if (closeAnswerNeedsResolution) resolveCloseAnswer("correct"); else if (answer) next(); else commit(value); }}>
           <label className={styles.promptTypeStrip} data-tone={promptType?.tone} htmlFor="study-answer"><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong>{kanaComposition ? <small>Romaji → かな</small> : null}</label>
           <div className={styles.answerInputRow} data-result={answer ? currentAnswerStatus === "close" ? "warning" : answer.correct ? "correct" : "incorrect" : answerWarning ? "warning" : undefined}>
-            <input ref={answerInputRef} id="study-answer" autoFocus autoComplete="off" spellCheck={false} lang={kanaComposition ? "ja" : undefined} style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : customReviewPreferences ? `${reviewInputScale}rem` : undefined }} value={value} onChange={(event) => { if (answer) return; setAnswerWarning(null); setValue(kanaComposition ? composeKanaInput(event.target.value) : event.target.value); }} readOnly={!phoneInput && Boolean(answer)} enterKeyHint={phoneInput ? "go" : undefined} onKeyDown={(event) => {
+            <input ref={answerInputRef} id="study-answer" autoFocus autoComplete="off" spellCheck={false} lang={kanaComposition ? "ja" : undefined} style={{ fontSize: phoneInput ? "max(16px, 1rem)" : "1rem" }} value={value} onChange={(event) => { if (answer) return; setAnswerWarning(null); setValue(kanaComposition ? composeKanaInput(event.target.value) : event.target.value); }} readOnly={!phoneInput && Boolean(answer)} enterKeyHint={phoneInput ? "go" : undefined} onKeyDown={(event) => {
               if (!phoneInput || event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
               event.preventDefault();
               if (event.repeat) return;

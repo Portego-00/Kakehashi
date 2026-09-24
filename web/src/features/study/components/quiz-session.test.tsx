@@ -1,14 +1,22 @@
 import "@testing-library/jest-dom/vitest";
-import { StrictMode, type ComponentProps } from "react";
+import { StrictMode, type ReactElement, type ComponentProps } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render as renderBase, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
+import { useWebSettings } from "@/features/settings/use-workspace-preferences";
+import { DEFAULT_WEB_SETTINGS, saveWebSettings } from "@/features/settings/settings";
 import { PHONE_STUDY_MEDIA_QUERY } from "@/features/core-study/use-phone-study-input";
 import type { Assignment, StudyMaterial, Subject } from "@/types/wanikani";
 import type { StudyQuestion, StudySession } from "../types";
 import { loadStudySession, sessionKey } from "../storage";
 import { itemDetailsTabForQuestion, promptTypePresentation, QuizSession } from "./quiz-session";
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return renderBase(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+}
+
+vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
 const { wkCollectionMock, wkRequestMock } = vi.hoisted(() => ({ wkCollectionMock: vi.fn(), wkRequestMock: vi.fn() }));
 
@@ -171,9 +179,9 @@ describe("extra-study quiz interaction", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === PHONE_STUDY_MEDIA_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     const first = makeQuestion();
     const second = makeQuestion({ id: "question-2", prompt: "猫", acceptedAnswers: ["ねこ"], displayAnswer: "ねこ" });
-    renderQuiz({ scope: "test", initialSession: { ...makeSession(first), mode: "custom-review", questions: [first, second] }, reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewInputFontScale: 0.8 }, pauseOnCorrect: true, answerFeedbackSoundEnabled: false, keyboardShortcuts: false, onExit: vi.fn() });
+    renderQuiz({ scope: "test", initialSession: { ...makeSession(first), mode: "custom-review", questions: [first, second] }, reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study }, pauseOnCorrect: true, answerFeedbackSoundEnabled: false, keyboardShortcuts: false, onExit: vi.fn() });
     const input = await screen.findByRole("textbox");
-    expect(input).toHaveStyle({ fontSize: "max(16px, 0.8rem)" });
+    expect(input).toHaveStyle({ fontSize: "max(16px, 1rem)" });
     input.focus();
     fireEvent.change(input, { target: { value: "fusegu" } });
     fireEvent.submit(input.closest("form")!);
@@ -423,6 +431,16 @@ describe("extra-study quiz interaction", () => {
 
     fireEvent.keyDown(window, { key: "3" });
     expect(screen.getByText(/to continue/)).toHaveTextContent("Press Enter to continue");
+  });
+
+  it("shows finalized kana when a practice answer is checked", () => {
+    render(<QuizSession scope="test" initialSession={makeSession(makeQuestion())} onExit={vi.fn()} />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "chian" } });
+    expect(input).toHaveValue("ちあn");
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(input).toHaveValue("ちあん");
+    expect(screen.getByText("Incorrect", { exact: true })).toBeVisible();
   });
 
   it("converts romaji live and uses a compact, explicit incorrect state", () => {
@@ -1390,7 +1408,6 @@ describe("extra-study quiz interaction", () => {
         allowSkippingReviews: false,
         reviewSearchButtonEnabled: true,
         reviewCharacterFontScale: 1.2,
-        reviewInputFontScale: 1.2,
         jitaiEnabled: true,
         jitaiSelectedFontIds: ["mincho"],
       },
@@ -1401,7 +1418,7 @@ describe("extra-study quiz interaction", () => {
     const prompt = screen.getByRole("heading", { name: "防ぐ" });
     expect(prompt).toHaveAttribute("data-character-scale", "1.2");
     expect(prompt.style.fontFamily).toContain("Yu Mincho");
-    expect(screen.getByRole("textbox")).toHaveStyle({ fontSize: "1.2rem" });
+    expect(screen.getByRole("textbox")).toHaveStyle({ fontSize: "1rem" });
     expect(screen.getByLabelText("Question status")).toHaveTextContent("Level 12");
     expect(screen.getByLabelText("Question status")).toHaveTextContent("Apprentice III");
     expect(await screen.findByLabelText("Vocabulary frequency #1,500")).toHaveTextContent("#1,500");
@@ -1842,5 +1859,54 @@ describe("extra-study quiz interaction", () => {
     render(<QuizSession scope="test" initialSession={session} subjects={[makeSubject()]} onExit={vi.fn()} />);
 
     expect(loadStudySession("test", session.mode)).toBeNull();
+  });
+});
+
+
+describe("in-session review settings", () => {
+  afterEach(() => { cleanup(); localStorage.clear(); vi.useRealTimers(); });
+
+  it("keeps the active input and completed answers when enabling synonyms and Anki", async () => {
+    const first = makeQuestion({ kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" });
+    const second = makeQuestion({ id: "question-2" });
+    const session = { ...makeSession(first), questions: [first, second] };
+    saveWebSettings(localStorage, "test", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "off", acceptUserSynonymsAsAnswers: false, showAddSynonymButton: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, answerFeedbackSoundEnabled: false, pauseOnCorrect: true, autoplayAudio: false } });
+    wkCollectionMock.mockResolvedValue([]);
+    function LiveQuiz() {
+      const { study } = useWebSettings("test");
+      return <QuizSession scope="test" initialSession={session} reviewPreferences={study} pauseOnCorrect={study.pauseOnCorrect} acceptUserSynonymsAsAnswers={study.acceptUserSynonymsAsAnswers} answerFeedbackSoundEnabled={false} onExit={vi.fn()} />;
+    }
+    render(<LiveQuiz />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Prevent" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "fu" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+    fireEvent.click(screen.getByLabelText("Accept user synonyms"));
+    await waitFor(() => expect(wkCollectionMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("textbox")).toHaveValue("ふ");
+    expect(loadStudySession("test", session.mode)?.answers).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+    fireEvent.change(screen.getByLabelText("Anki mode"), { target: { value: "both" } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(loadStudySession("test", session.mode)?.answers).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Reveal/ })).toBeVisible();
+  });
+
+  it("does not auto-advance a listening answer while settings are open", () => {
+    vi.useFakeTimers();
+    const first = makeQuestion({ kind: "listening-meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" });
+    const session = { ...makeSession(first), mode: "listening" as const, questions: [first, makeQuestion({ id: "question-2" })] };
+    render(<QuizSession scope="test" initialSession={session} pauseOnCorrect={false} answerFeedbackSoundEnabled={false} onExit={vi.fn()} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Prevent" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+    act(() => vi.advanceTimersByTime(2000));
+    expect(loadStudySession("test", "listening")?.currentIndex).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    act(() => vi.advanceTimersByTime(1000));
+    expect(loadStudySession("test", "listening")?.currentIndex).toBe(1);
   });
 });

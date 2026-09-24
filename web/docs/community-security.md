@@ -4,6 +4,8 @@ The web community backend reads Supabase configuration only in server modules. I
 
 Production writes require `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`). Without a server secret, the UI deliberately reports the community as read-only and mutation requests fail closed.
 
+The server-verified WaniKani username `Portego` may close or reopen any issue, matching the mobile status controls. Issue detail exposes this as `canUpdateStatus`; POST checks the same verified identity before changing status. This privilege does not grant deletion. Existing author and `COMMUNITY_ADMIN_USER_IDS` permissions remain available through `canManage`. Request-body usernames, profile badges, and Gravatar emails never grant moderation access.
+
 Apply `supabase/migrations/20260807000000_community_atomic_mutations.sql` before enabling writes. It provides service-role-only RPCs for idempotent comments and atomic like toggles, unique like constraints, and a receipt table whose RLS policy grants no client access.
 
 The existing community tables should have RLS enabled. Browser roles should retain only the reads the product intentionally exposes and must not receive `INSERT`, `UPDATE`, or `DELETE` policies. All web mutations pass through the same-origin, size-limited, rate-limited server route, which verifies the current WaniKani identity before calling the service-role RPCs. If the mobile client is migrated to this server route, remove any legacy anonymous write policies at the same time.

@@ -9,7 +9,9 @@ import { isTrustedMutationOrigin } from "@/lib/server/request-security";
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
 const modeSchema = z.enum(["all", "grammar", "vocab"]);
-const reviewSchema = z.object({ action: z.literal("review"), reviewId: z.string().regex(/^\d+$/), sessionId: z.number().int().positive(), correct: z.boolean(), mode: modeSchema, reviewableType: z.enum(["GrammarPoint", "Vocab", "Vocabulary"]), requestMore: z.boolean().optional(), context: z.enum(["review", "learn"]).optional(), loadedIds: z.array(z.number().int().positive()).max(500) });
+const loadedIdsSchema = z.array(z.number().int().positive()).max(500);
+const reviewSchema = z.object({ action: z.literal("review"), reviewType: z.enum(["review", "ghost_review", "self_study_review"]).default("review"), reviewId: z.string().regex(/^\d+$/), reviewableId: z.number().int().positive().optional(), sessionId: z.number().int().positive(), correct: z.boolean(), mode: modeSchema, reviewableType: z.enum(["GrammarPoint", "Vocab", "Vocabulary"]), requestMore: z.boolean().optional(), context: z.enum(["review", "learn"]).optional(), loadedIds: loadedIdsSchema, loadedGhostIds: loadedIdsSchema.default([]), loadedSelfStudyIds: loadedIdsSchema.default([]) });
+const hydratedReviewSchema = z.object({ id: z.union([z.string(), z.number()]), type: z.literal("review"), attributes: z.record(z.string(), z.unknown()) }).passthrough();
 function failure(error: unknown) { return NextResponse.json({ error: error instanceof BunproError ? error.message : "Unable to complete the Bunpro request." }, { status: error instanceof BunproError ? error.status : 502, headers }); }
 async function access(request: NextRequest) {
   const identity = await bunproIdentity(request.cookies.get(WANIKANI_SESSION_COOKIE)?.value);
@@ -91,12 +93,31 @@ export async function POST(request: NextRequest) {
     if (body?.action === "lesson-quiz") {
       const parsed = z.object({ deckId: z.number().int().positive(), reviewables: z.array(z.tuple([z.enum(["GrammarPoint", "Vocab"]), z.number().int().positive()])).min(1).max(100) }).safeParse(body);
       if (!parsed.success) throw new BunproError("Invalid lesson batch.", 400);
-      return NextResponse.json(await bunproRequest(token, "/learn/quiz", { deck_id: parsed.data.deckId, reviewables: parsed.data.reviewables }), { headers });
+      // The lesson quiz uses objects with snake-case types, unlike the hydrate/action tuple APIs.
+      const reviewables = parsed.data.reviewables.map(([type, id]) => ({ reviewable_id: id, reviewable_type: type === "GrammarPoint" ? "grammar_point" : "vocab" }));
+      return NextResponse.json(await bunproRequest(token, "/learn/quiz", { deck_id: parsed.data.deckId, reviewables }), { headers });
     }
     const parsed = reviewSchema.safeParse(body);
     if (!parsed.success) throw new BunproError("Invalid Bunpro review.", 400);
     const review = parsed.data;
-    return NextResponse.json(await bunproRequest(token, `/reviews/${review.reviewId}/update`, { review_session_id: review.sessionId, correct: review.correct, fsrs_input: null, loaded_review_ids: review.context === "learn" || review.requestMore === false ? null : review.loadedIds, loaded_ghost_review_ids: review.context === "learn" || review.requestMore === false ? null : [], loaded_self_study_review_ids: review.context === "learn" || review.requestMore === false ? null : [], deck_id: null, only_review: review.context === "learn" ? null : review.mode === "all" ? review.reviewableType : review.mode === "grammar" ? "GrammarPoint" : "Vocab" }), { headers });
+    // Bunpro's client at https://bunpro.jp/reviews uses a distinct update endpoint for each review category.
+    const reviewCollection = { review: "reviews", ghost_review: "ghost_reviews", self_study_review: "self_study_reviews" }[review.reviewType];
+    const requestMore = review.context !== "learn" && review.requestMore !== false;
+    const result = await bunproRequest<unknown>(token, `/${reviewCollection}/${review.reviewId}/update`, { review_session_id: review.sessionId, correct: review.correct, fsrs_input: null, loaded_review_ids: requestMore ? review.loadedIds : null, loaded_ghost_review_ids: requestMore ? review.loadedGhostIds : null, loaded_self_study_review_ids: requestMore ? review.loadedSelfStudyIds : null, deck_id: null, only_review: review.context === "learn" ? null : review.mode === "all" ? review.reviewableType : review.mode === "grammar" ? "GrammarPoint" : "Vocab" });
+    if (review.reviewType === "review" && review.reviewableId) {
+      try {
+        // Quiz updates return queue data. Read the saved review instead of predicting its SRS stage.
+        const hydrated = await bunproRequest<unknown>(token, "/reviews/hydrate_reviewables", { reviewables: [[review.reviewableType === "GrammarPoint" ? "GrammarPoint" : "Vocab", review.reviewableId]] }, undefined, 3_000);
+        const collection = z.object({ data: z.array(z.unknown()) }).safeParse(hydrated);
+        const updated = collection.success ? collection.data.data.map(value => hydratedReviewSchema.safeParse(value)).find(candidate => candidate.success && String(candidate.data.id) === review.reviewId) : undefined;
+        if (updated?.success) {
+          return NextResponse.json({ ...(result && typeof result === "object" && !Array.isArray(result) ? result : {}), updated_review: updated.data }, { headers });
+        }
+      } catch {
+        // The answer is already saved; a failed stage lookup must never trigger resubmission.
+      }
+    }
+    return NextResponse.json(result, { headers });
   } catch (error) { return failure(error); }
 }
 export async function DELETE(request: NextRequest) {

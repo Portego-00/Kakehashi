@@ -3,7 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { SessionResults } from "./SessionResults";
 import type { SessionResult } from "./session-results";
 const items: SessionResult[] = [
-  { id: "bunpro:1", source: "bunpro", kind: "grammar", title: "です", meaning: "To be", correct: true, href: "/bunpro/grammar/desu", sentence: { before: "学生", answer: "です", after: "。" }, translation: "I am a student.", audioUrls: ["https://audio.test/desu.mp3"], previousStage: "Beginner 1", stage: "Beginner 2" },
+  { id: "bunpro:1", source: "bunpro", kind: "grammar", title: "です", meaning: "To be", correct: true, href: "/bunpro/grammar/desu", sentence: { parts: ["学生", "。"], answer: "です" }, translation: "I am a student.", audioUrls: ["https://audio.test/desu.mp3"], previousStage: "Beginner 1", stage: "Beginner 2" },
   { id: "wanikani:2", source: "wanikani", kind: "vocabulary", title: "学校", meaning: "School", reading: "がっこう", correct: false, href: "/subjects/2", stage: "Apprentice 2" },
 ];
 afterEach(cleanup);

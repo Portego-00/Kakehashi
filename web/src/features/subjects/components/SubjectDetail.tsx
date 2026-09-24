@@ -504,7 +504,7 @@ export function AnimeSentence({ example, query }: { example: ImmersionExample; q
 
 }
 
-function AnimeContext({ examples, query, loading, failed }: { examples: ImmersionExample[]; query: string; loading: boolean; failed: boolean }) {
+export function AnimeContext({ examples, query, loading, failed }: { examples: ImmersionExample[]; query: string; loading: boolean; failed: boolean }) {
   const [visibleCount, setVisibleCount] = useState(10);
   if (loading) return <DetailSection title="Anime context"><Skeleton height="10rem" /></DetailSection>;
   if (failed || !examples.length) return <DetailSection title="Anime context"><p className={styles.contextUnavailable}>No matching ImmersionKit scene was found for this subject and source selection.</p></DetailSection>;

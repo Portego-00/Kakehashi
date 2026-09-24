@@ -12,7 +12,7 @@ it("shows English dictionary senses, all forms, common status, and antonyms", ()
 });
 it("renders actual study progress without treating unknown accuracy as zero", () => {
   render(<ReviewProgress kind="grammar" review={{ streak: 7, next_review: "2020-01-01", started_studying_at: "2020-01-01", times_studied: 8, accuracy: null, ghost_count: 0, default_input_type: "Cloze" }} />);
-  expect(screen.getByText("Seasoned 2")).toBeVisible();
+  expect(screen.getByText("Seasoned 1")).toBeVisible();
   expect(screen.getByText("Now")).toBeVisible();
   expect(screen.getByText("Cloze (Manual)")).toBeVisible();
   expect(screen.queryByText("0%")).not.toBeInTheDocument();

@@ -1,9 +1,16 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderBase, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { VocabularyAudioVoice } from "@/features/settings/settings";
 import type { Subject } from "@/types/wanikani";
 import { StudyModeClient } from "./study-mode-client";
+
+import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return renderBase(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+}
 
 const preferenceState = vi.hoisted(() => ({
   autoplayAudio: true,

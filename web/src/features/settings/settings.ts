@@ -21,6 +21,7 @@ export type ReviewOrderSetting =
 export type ReviewTypeOrderSetting = "radical" | "kanji" | "vocabulary";
 export type ReaderDetailsInteraction = "click" | "hover";
 export type ReaderRecognitionMode = "wk" | "wk-jpdb";
+export const REVIEW_CHARACTER_FONT_SCALES: readonly number[] = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.4];
 export const REVIEW_ORDER_VALUES = [
   "random",
   "ascendingSrsStage",
@@ -48,7 +49,6 @@ export interface WebStudyPreferences {
   allowSkippingReviews: boolean;
   reviewSearchButtonEnabled: boolean;
   reviewCharacterFontScale: number;
-  reviewInputFontScale: number;
   pauseOnWrong: boolean;
   pauseOnClose: boolean;
   pauseOnCorrect: boolean;
@@ -312,7 +312,6 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     allowSkippingReviews: false,
     reviewSearchButtonEnabled: false,
     reviewCharacterFontScale: 1,
-    reviewInputFontScale: 1,
     pauseOnWrong: true,
     pauseOnClose: false,
     pauseOnCorrect: true,
@@ -528,8 +527,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
         allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
         reviewSearchButtonEnabled: typeof parsed.study?.reviewSearchButtonEnabled === "boolean" ? parsed.study.reviewSearchButtonEnabled : DEFAULT_WEB_SETTINGS.study.reviewSearchButtonEnabled,
-        reviewCharacterFontScale: [0.7, 0.8, 0.9, 1, 1.1, 1.2].includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
-        reviewInputFontScale: [0.7, 0.8, 0.9, 1, 1.1, 1.2].includes(parsed.study?.reviewInputFontScale ?? 0) ? parsed.study!.reviewInputFontScale : DEFAULT_WEB_SETTINGS.study.reviewInputFontScale,
+        reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
         pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
         pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
         pauseOnCorrect: typeof parsed.study?.pauseOnCorrect === "boolean" ? parsed.study.pauseOnCorrect : legacyAnswerStopBehavior ? legacyAnswerStopBehavior === "always" : DEFAULT_WEB_SETTINGS.study.pauseOnCorrect,

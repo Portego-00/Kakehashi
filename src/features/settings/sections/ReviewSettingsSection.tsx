@@ -14,6 +14,8 @@ import { styles } from "../styles";
 export function ReviewSettingsSection() {
   const multipleChoiceEnabled = useSettingsStore((state) => state.reviewMultipleChoiceEnabled);
   const setMultipleChoiceEnabled = useSettingsStore((state) => state.setReviewMultipleChoiceEnabled);
+  const jitaiCycleAllFonts = useSettingsStore((state) => state.jitaiCycleAllFonts);
+  const setJitaiCycleAllFonts = useSettingsStore((state) => state.setJitaiCycleAllFonts);
   const {
     acceptAnyKanjiOnyomiReading,
     acceptUserSynonymsAsAnswers,
@@ -313,6 +315,36 @@ export function ReviewSettingsSection() {
               color={theme.textSecondary}
             />
           </TouchableOpacity>
+        )}
+
+        {jitaiEnabled && (
+          <AdvancedSetting>
+            <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+              <Ionicons
+                name="text"
+                size={24}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Cycle through all Jitai fonts
+                </Text>
+                <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
+                  Cycle all selected styles, with Source Han Sans second unless
+                  shown first. When off, switch between the initial font and
+                  Source Han Sans.
+                </Text>
+              </View>
+              <Switch
+                accessibilityLabel="Cycle through all Jitai fonts"
+                value={jitaiCycleAllFonts}
+                onValueChange={setJitaiCycleAllFonts}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
+            </View>
+          </AdvancedSetting>
         )}
 
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>

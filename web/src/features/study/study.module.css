@@ -267,6 +267,64 @@
 .answerArea { width: 100%; display: grid; align-content: start; gap: var(--space-sm); padding: var(--space-lg) var(--page-gutter)
     max(var(--space-lg), env(safe-area-inset-bottom)); background: var(--color-paper); }
 .answerArea:has(.answerForm) { min-height: 23rem; }
+/* Typed reviews share stable desktop anchors even when feedback adds content. */
+.reviewAnswerControls, .reviewProgressionSlot, .reviewKeyboardHint { display: contents; }
+
+@media (min-width: 48rem) {
+  .typedReviewShell {
+    --review-controls-height: 3.5rem;
+    --review-footer-height: 25rem;
+    --review-progression-height: 4rem;
+    grid-template-rows: var(--quiz-topbar-height) max(16rem, calc(100dvh - var(--banner-height) - var(--quiz-topbar-height) - var(--review-footer-height))) auto;
+    grid-auto-rows: max-content;
+    align-content: start;
+  }
+  .typedReviewShell { transition: grid-template-rows 520ms cubic-bezier(.4, 0, .6, 1); overflow-anchor: none; }
+  .typedReviewShell:has([data-review-details-reveal][data-open="true"][data-reveal-in-viewport="true"]) {
+    grid-template-rows: var(--quiz-topbar-height) 12rem auto;
+  }
+  .typedReviewShell:has([data-review-details-reveal][data-open="true"][data-reveal-in-viewport="true"]) > .questionCard {
+    gap: var(--space-xs);
+    padding-block: var(--space-sm);
+  }
+  @media (prefers-reduced-motion: reduce) { .typedReviewShell { transition: none; } }
+  .typedReviewShell > .quizTopbar { grid-row: 1; }
+  .quizShell.typedReviewShell > .questionCard {
+    grid-row: 2;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: safe center;
+    justify-content: safe center;
+  }
+  .typedReviewShell > .answerArea {
+    grid-row: 3;
+    grid-template-rows: max-content minmax(var(--review-controls-height), max-content) var(--review-progression-height) 1.5rem;
+    grid-auto-rows: max-content;
+  }
+  .typedReviewShell > .answerArea:has(> .reviewProgressionSlot > [data-srs-progression-slot][data-mode="compact"]) { --review-progression-height: 3rem; }
+  .typedReviewShell > .answerArea:not(:has(> .reviewProgressionSlot > [data-srs-progression-slot])) { --review-progression-height: 0rem; }
+  .typedReviewShell > .answerArea > .answerForm { grid-row: 1; }
+  .typedReviewShell > .answerArea > .reviewAnswerControls {
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-sm);
+    padding: 0;
+  }
+  .typedReviewShell .reviewAnswerControls > .closeAnswerActions,
+  .typedReviewShell .reviewAnswerControls > .reviewTools { display: contents; }
+  .typedReviewShell > .answerArea > .reviewProgressionSlot { grid-row: 3; display: grid; align-items: center; }
+  .typedReviewShell > .answerArea > .reviewKeyboardHint { grid-row: 4; display: grid; place-items: center; min-width: 0; }
+  .typedReviewShell .reviewKeyboardHint > .keyboardHint { margin: 0; }
+}
+
+@media (min-width: 48rem) and (max-width: 80rem) {
+  .typedReviewShell { --review-controls-height: 7rem; --review-footer-height: 28.5rem; }
+}
+
 .promptTypeStrip { position: relative; min-height: 2.625rem; display: flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 0 var(--space-md); background: var(--color-prompt-other); color: var(--color-prompt-other-ink); font-size: var(--text-sm); cursor: text; }
 .promptTypeStrip[data-tone="meaning"] { background: var(--color-prompt-meaning); color: var(--color-prompt-meaning-ink); }
 .promptTypeStrip[data-tone="reading"] { background: var(--color-prompt-reading); color: var(--color-prompt-reading-ink); }

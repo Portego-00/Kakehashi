@@ -1,10 +1,11 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
 import { Alert, AppState, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
+import ReviewPromptCharacters from "../ReviewPromptCharacters";
 import { Audio } from "../../utils/expoAvCompat";
 import { getStudyMaterials, updateStudyMaterial } from "../../utils/api";
 import { buildReviewQuestionQueue } from "../../utils/reviewOrdering";
@@ -82,6 +83,8 @@ const mockSettings = {
   showAddSynonymButton: false,
   acceptAnyKanjiOnyomiReading: false,
   jitaiEnabled: false,
+  jitaiCycleAllFonts: false,
+  jitaiSelectedFontIds: [] as string[],
   autoSwitchKeyboard: false,
   voiceReviewAnswersEnabled: false,
   reviewIncorrectKeyboardShortcuts: undefined,
@@ -484,6 +487,181 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnWrong = false;
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
+  });
+
+  describe("review font cycling", () => {
+    const item = {
+      id: 1,
+      subject: {
+        id: 1,
+        object: "vocabulary" as const,
+        data: {
+          characters: "猫",
+          meanings: [{ meaning: "cat", primary: true, accepted_answer: true }],
+          readings: [{ reading: "ねこ", primary: true, accepted_answer: true }],
+        },
+      },
+    };
+    let random: jest.SpyInstance;
+
+    const currentFont = (screen: ReturnType<typeof render>) => {
+      const prompt = within(screen.UNSAFE_getByType(ReviewPromptCharacters));
+      return StyleSheet.flatten(prompt.getByText("猫").props.style).fontFamily;
+    };
+    const nextFont = (screen: ReturnType<typeof render>) =>
+      fireEvent.press(screen.getByRole("button", {
+        name: /Switch to (next|default|random) font for this question/,
+      }));
+
+    beforeEach(() => {
+      mockSettings.jitaiEnabled = true;
+      mockSettings.jitaiCycleAllFonts = true;
+      mockSettings.jitaiSelectedFontIds = [
+        "source-han-sans",
+        "zen-kurenaido",
+        "reggae-one",
+        "yuji-syuku",
+      ];
+      random = jest.spyOn(Math, "random").mockReturnValue(0);
+    });
+
+    afterEach(() => {
+      random.mockRestore();
+    });
+
+    it("cycles through every selected font, with Source Han Sans second, before repeating", () => {
+      const screen = render(
+        <ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />,
+      );
+      expect(currentFont(screen)).toBe("ZenKurenaido-Regular");
+      expect(screen.getByRole("button", {
+        name: "Switch to next font for this question",
+      })).toBeTruthy();
+
+      for (const family of [
+        "SourceHanSansJP-Regular",
+        "ReggaeOne-Regular",
+        "YujiSyuku-Regular",
+        "ZenKurenaido-Regular",
+        "SourceHanSansJP-Regular",
+      ]) {
+        nextFont(screen);
+        expect(currentFont(screen)).toBe(family);
+      }
+    });
+
+    it("keeps the original random/default toggle when cycling all fonts is disabled", () => {
+      mockSettings.jitaiCycleAllFonts = false;
+      const screen = render(
+        <ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />,
+      );
+      expect(currentFont(screen)).toBe("ZenKurenaido-Regular");
+
+      for (let repeat = 0; repeat < 3; repeat += 1) {
+        const defaultButton = screen.getByRole("button", {
+          name: "Switch to default font for this question",
+        });
+        expect(within(defaultButton).getByText("text")).toBeTruthy();
+        fireEvent.press(defaultButton);
+        expect(currentFont(screen)).toBe("SourceHanSansJP-Regular");
+
+        const randomButton = screen.getByRole("button", {
+          name: "Switch to random font for this question",
+        });
+        expect(within(randomButton).getByText("shuffle")).toBeTruthy();
+        fireEvent.press(randomButton);
+        expect(currentFont(screen)).toBe("ZenKurenaido-Regular");
+      }
+      expect(screen.queryByRole("button", {
+        name: "Switch to next font for this question",
+      })).toBeNull();
+    });
+
+    it("keeps Source Han Sans when it is the initially randomized font in default mode", () => {
+      mockSettings.jitaiCycleAllFonts = false;
+      random.mockReturnValue(0.75);
+      const screen = render(
+        <ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />,
+      );
+      expect(currentFont(screen)).toBe("SourceHanSansJP-Regular");
+
+      for (let press = 0; press < 5; press += 1) {
+        nextFont(screen);
+        expect(currentFont(screen)).toBe("SourceHanSansJP-Regular");
+      }
+    });
+
+    it.each([
+      { change: "subject", cycleAllFonts: false },
+      { change: "question type", cycleAllFonts: false },
+      { change: "subject", cycleAllFonts: true },
+      { change: "question type", cycleAllFonts: true },
+    ])(
+      "starts a fresh font cycle when the $change changes (cycle all fonts: $cycleAllFonts)",
+      ({ change, cycleAllFonts }) => {
+        mockSettings.jitaiCycleAllFonts = cycleAllFonts;
+        const onAnswer = jest.fn();
+        const screen = render(
+          <ReviewQuestionScreen item={item} questionType="meaning" onAnswer={onAnswer} />,
+        );
+        nextFont(screen);
+        if (cycleAllFonts) nextFont(screen);
+        expect(currentFont(screen)).toBe(cycleAllFonts
+          ? "ReggaeOne-Regular"
+          : "SourceHanSansJP-Regular");
+
+        const nextItem = change === "subject"
+          ? { ...item, id: 5, subject: { ...item.subject, id: 5 } }
+          : item;
+        screen.rerender(
+          <ReviewQuestionScreen
+            item={nextItem}
+            questionType={change === "question type" ? "reading" : "meaning"}
+            onAnswer={onAnswer}
+          />,
+        );
+
+        expect(currentFont(screen)).toBe("ZenKurenaido-Regular");
+        nextFont(screen);
+        expect(currentFont(screen)).toBe("SourceHanSansJP-Regular");
+      },
+    );
+
+    it.each([
+      { anki: false, cycleAllFonts: false },
+      { anki: true, cycleAllFonts: false },
+      { anki: false, cycleAllFonts: true },
+      { anki: true, cycleAllFonts: true },
+    ])(
+      "resets the font cycle after submitting an answer (Anki: $anki, cycle all fonts: $cycleAllFonts)",
+      async ({ anki, cycleAllFonts }) => {
+        mockSettings.ankiCardMode = anki;
+        mockSettings.jitaiCycleAllFonts = cycleAllFonts;
+        const onAnswer = jest.fn();
+        const screen = render(
+          <ReviewQuestionScreen item={item} questionType="meaning" onAnswer={onAnswer} />,
+        );
+        nextFont(screen);
+        if (cycleAllFonts) nextFont(screen);
+        expect(currentFont(screen)).toBe(cycleAllFonts
+          ? "ReggaeOne-Regular"
+          : "SourceHanSansJP-Regular");
+
+        if (anki) {
+          fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+          fireEvent.press(screen.getByText("Correct"));
+        } else {
+          fireEvent(screen.getByTestId("answer-input"), "submitEditing", {
+            nativeEvent: { text: "cat" },
+          });
+        }
+
+        await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+        expect(currentFont(screen)).toBe("ZenKurenaido-Regular");
+        nextFont(screen);
+        expect(currentFont(screen)).toBe("SourceHanSansJP-Regular");
+      },
+    );
   });
 
   it.each([false, true])("stacks the JLPT chip above level and SRS (Anki: %s)", (anki) => {

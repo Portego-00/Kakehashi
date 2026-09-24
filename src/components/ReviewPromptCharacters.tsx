@@ -23,13 +23,13 @@ const ReviewPromptCharacters = React.memo(
   function ReviewPromptCharacters({
     subject,
     size = Math.min(width * 0.25, 120),
-    forceDefaultFont = false,
+    fontCycleIndex = 0,
   }: {
     subject: WKSubject;
     size?: number;
-    forceDefaultFont?: boolean;
+    fontCycleIndex?: number;
   }) {
-    const { jitaiEnabled, jitaiSelectedFontIds } = useSettingsStore();
+    const { jitaiEnabled, jitaiSelectedFontIds, jitaiCycleAllFonts } = useSettingsStore();
     const downloadedSelectionKey =
       jitaiEnabled && jitaiSelectedFontIds.some((id) => !bundledFontIds.has(id))
         ? JSON.stringify(jitaiSelectedFontIds)
@@ -49,6 +49,11 @@ const ReviewPromptCharacters = React.memo(
     const waitingForDownloadedFonts =
       downloadedSelectionKey !== null &&
       downloadedFonts?.selectionKey !== downloadedSelectionKey;
+    const [loadingFontPosition, setLoadingFontPosition] = useState<{
+      subjectId: number;
+      selectionKey: string | null;
+      index: number;
+    } | null>(null);
     const isRadical = subject.object === "radical";
 
     const bestImg =
@@ -88,6 +93,24 @@ const ReviewPromptCharacters = React.memo(
       };
     }, [downloadedSelectionKey, waitingForDownloadedFonts]);
 
+    useEffect(() => {
+      if (!jitaiCycleAllFonts || fontCycleIndex === 0) {
+        setLoadingFontPosition(null);
+      } else if (waitingForDownloadedFonts) {
+        setLoadingFontPosition({
+          subjectId: subject.id,
+          selectionKey: downloadedSelectionKey,
+          index: fontCycleIndex,
+        });
+      }
+    }, [
+      jitaiCycleAllFonts,
+      fontCycleIndex,
+      waitingForDownloadedFonts,
+      subject.id,
+      downloadedSelectionKey,
+    ]);
+
     const availableFontsKey = waitingForDownloadedFonts
       ? null
       : JSON.stringify(
@@ -101,23 +124,45 @@ const ReviewPromptCharacters = React.memo(
 
     // Choose once per subject and actual candidate set. Async manifest updates
     // must not replace a font that the user is already reading.
-    const selectedRandomFont = React.useMemo(() => {
+    const fontCycle = React.useMemo(() => {
       if (availableFontsKey === null) return null;
       const availableFonts: string[] = JSON.parse(availableFontsKey);
       const randomIndex = Math.floor(Math.random() * availableFonts.length);
       const subjectOffset = subject.id % availableFonts.length;
-      return (
+      const initialFont =
         availableFonts[(randomIndex + subjectOffset) % availableFonts.length] ??
-        DEFAULT_JITAI_FONT_FAMILY
-      );
+        DEFAULT_JITAI_FONT_FAMILY;
+
+      // Keep the readable default one tap away unless it is already first,
+      // then visit every selected family once before returning to the start.
+      return [
+        ...new Set([initialFont, DEFAULT_JITAI_FONT_FAMILY, ...availableFonts]),
+      ];
     }, [subject.id, availableFontsKey]);
 
-    const fontToUse = forceDefaultFont
-      ? DEFAULT_JITAI_FONT_FAMILY
-      : selectedRandomFont;
+    // A tap during loading displays the default immediately. Anchor that tap
+    // to the default's resolved position so loading cannot change visible text.
+    const resolvedCycleIndex =
+      fontCycle &&
+      loadingFontPosition?.subjectId === subject.id &&
+      loadingFontPosition.selectionKey === downloadedSelectionKey &&
+      fontCycleIndex >= loadingFontPosition.index
+        ? fontCycleIndex - loadingFontPosition.index +
+          fontCycle.indexOf(DEFAULT_JITAI_FONT_FAMILY)
+        : fontCycleIndex;
+    const cycledFont = fontCycle
+      ? fontCycle[resolvedCycleIndex % fontCycle.length]
+      : fontCycleIndex > 0
+        ? DEFAULT_JITAI_FONT_FAMILY
+        : null;
+    const fontToUse = jitaiCycleAllFonts
+      ? cycledFont
+      : fontCycleIndex % 2 === 1
+        ? DEFAULT_JITAI_FONT_FAMILY
+        : fontCycle?.[0] ?? null;
 
     if (subject.data.characters) {
-      // Never expose a fallback-font frame while the selected font is loading.
+      // Only show a fallback while fonts load if the user explicitly cycles.
       if (fontToUse === null) return null;
       return (
         <Text
@@ -159,7 +204,7 @@ const ReviewPromptCharacters = React.memo(
   (prev, next) =>
     prev.subject.id === next.subject.id &&
     prev.size === next.size &&
-    prev.forceDefaultFont === next.forceDefaultFont,
+    prev.fontCycleIndex === next.fontCycleIndex,
 );
 
 export default ReviewPromptCharacters;

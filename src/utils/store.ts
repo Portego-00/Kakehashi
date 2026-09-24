@@ -635,6 +635,7 @@ type SettingsState = {
   // New features
   vocabTooltipEnabled: boolean;
   jitaiEnabled: boolean;
+  jitaiCycleAllFonts: boolean;
   jitaiSelectedFontIds: string[]; // Font IDs to include in Jitai randomization
   showStrokeOrder: boolean;
   disableAutoProgressOnWrong: boolean;
@@ -827,6 +828,7 @@ type SettingsState = {
   setGravatarEmail: (email: string | null) => void;
   setVocabTooltipEnabled: (enabled: boolean) => void;
   setJitaiEnabled: (enabled: boolean) => void;
+  setJitaiCycleAllFonts: (enabled: boolean) => void;
   setJitaiSelectedFontIds: (fontIds: string[]) => void;
   setShowStrokeOrder: (show: boolean) => void;
   setDisableAutoProgressOnWrong: (disable: boolean) => void;
@@ -999,6 +1001,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       vocabTooltipEnabled: true, // Default to true
       jitaiEnabled: false, // Default to false
+      jitaiCycleAllFonts: false, // Preserve the initial/default font toggle unless enabled
       jitaiSelectedFontIds: [
         "source-han-sans",
         "zen-kurenaido",
@@ -1287,6 +1290,7 @@ export const useSettingsStore = create<SettingsState>()(
       setVocabTooltipEnabled: (enabled) =>
         set({ vocabTooltipEnabled: enabled }),
       setJitaiEnabled: (enabled) => set({ jitaiEnabled: enabled }),
+      setJitaiCycleAllFonts: (enabled) => set({ jitaiCycleAllFonts: enabled }),
       setJitaiSelectedFontIds: (fontIds) => set({ jitaiSelectedFontIds: fontIds }),
       setShowStrokeOrder: (show) => set({ showStrokeOrder: show }),
       setDisableAutoProgressOnWrong: (disable) =>

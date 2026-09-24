@@ -12,11 +12,12 @@ export type SessionResult = {
   href?: string;
   subject?: Subject;
   reading?: string;
-  sentence?: { before: string; answer: string; after: string };
+  sentence?: { parts: string[]; answer: string };
   translation?: string;
   audioUrls?: string[];
   stage?: string;
   previousStage?: string;
+  saveFailed?: boolean;
 };
 export type SessionResultsData = { items: SessionResult[]; durationMs: number; pendingCount: number; error?: string };
 export function wanikaniSessionResults(items: ReviewResultItem[]): SessionResult[] {

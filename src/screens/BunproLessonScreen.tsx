@@ -21,7 +21,6 @@ import Animated, {
 import PagerView from "react-native-pager-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import BunproReviewScreen, { buildReviewQueue } from "./BunproReviewScreen";
-import AudioSessionManager from "../modules/AudioSessionManager";
 import type {
   BunproJsonApiResource,
   BunproLearnContentItem,
@@ -36,7 +35,9 @@ import {
   getBunproQueue,
 } from "../utils/bunproApi";
 import { summarizeBunproQueue } from "../utils/bunproQueue";
-import { Audio, type AudioSound } from "../utils/expoAvCompat";
+import { Audio } from "../utils/expoAvCompat";
+import { useBunproAudio } from "../hooks/useBunproAudio";
+import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
 import { isPortegoUsername } from "../utils/portegoAccess";
 import { useAuthStore } from "../utils/store";
 import { getBestContrastTextColor, withAlpha } from "../utils/subjectColors";
@@ -558,13 +559,15 @@ function toExampleItem(
   resource: BunproJsonApiResource,
   fallback: string
 ): LessonExample | null {
-  if (resource.type !== "study_question") {
+  if (resource.type !== "study_question" && !resource.type.endsWith("_study_question")) {
     return null;
   }
 
   const attributes = resource.attributes as BunproStudyQuestionAttributes &
     Record<string, unknown>;
-  const rawJapanese = typeof attributes.content === "string" ? attributes.content : "";
+  const rawJapanese = typeof attributes.content === "string"
+    ? attributes.content.replace(/\[\[[\s\S]*?\]\]/g, "")
+    : "";
   const replacement = getExampleReplacement(attributes, fallback);
   const japaneseHtml = replacement
     ? rawJapanese.replace(/(?:_{2,}|＿{2,})/g, `<strong>${replacement}</strong>`)
@@ -853,7 +856,11 @@ export default function BunproLessonScreen() {
   const requestedDeckId = readNumberParam(params.deckId);
   const isPortegoUser = isPortegoUsername(userData?.username);
   const lessonPagerRef = useRef<PagerView>(null);
-  const activeSoundRef = useRef<AudioSound | null>(null);
+  const audio = useBunproAudio();
+  const stopActiveSound = audio.stop;
+  const screenFocused = useOptionalScreenIsFocused();
+  const requestGenerationRef = useRef(0);
+  const quizLockRef = useRef(false);
 
   const [phase, setPhase] = useState<LessonPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -868,8 +875,8 @@ export default function BunproLessonScreen() {
   const [quizQueue, setQuizQueue] = useState<BunproReviewQueueItem[]>([]);
   const [reviewSessionId, setReviewSessionId] = useState<number | null>(null);
   const [completedBatchCount, setCompletedBatchCount] = useState(0);
-  const [playingAudioKey, setPlayingAudioKey] = useState<string | null>(null);
-  const [loadingAudioKey, setLoadingAudioKey] = useState<string | null>(null);
+  const playingAudioKey = audio.playingKey;
+  const loadingAudioKey = audio.loadingKey;
   const completedDeckIdsRef = useRef<number[]>([]);
 
   const accent = isDark ? "#db6466" : "#cc5b5d";
@@ -906,89 +913,11 @@ export default function BunproLessonScreen() {
     };
   });
 
-  const stopActiveSound = useCallback(async () => {
-    if (!activeSoundRef.current) {
-      setPlayingAudioKey(null);
-      return;
-    }
+  const playAudio = audio.play;
 
-    try {
-      await activeSoundRef.current.unloadAsync();
-    } catch {
-      // noop
-    } finally {
-      activeSoundRef.current = null;
-      setPlayingAudioKey(null);
-      setLoadingAudioKey(null);
-    }
-  }, []);
-
-  const playAudio = useCallback(
-    async (audioKey: string, rawUrls: (string | null | undefined)[]) => {
-      const urls = rawUrls
-        .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
-        .map((url) => url.trim());
-
-      if (urls.length === 0) {
-        return;
-      }
-
-      if (playingAudioKey === audioKey && !loadingAudioKey) {
-        await stopActiveSound();
-        return;
-      }
-
-      setLoadingAudioKey(audioKey);
-      await stopActiveSound();
-
-      if (Platform.OS === "ios") {
-        try {
-          await AudioSessionManager.overrideSpeaker();
-        } catch {
-          // noop
-        }
-      }
-
-      let createdSound: AudioSound | null = null;
-      let lastError: unknown = null;
-
-      for (const url of urls) {
-        try {
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: url },
-            { shouldPlay: true }
-          );
-          createdSound = sound;
-          break;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-
-      setLoadingAudioKey(null);
-
-      if (!createdSound) {
-        if (lastError) {
-          console.warn("[BunproLesson] Failed to play audio", lastError);
-        }
-        return;
-      }
-
-      activeSoundRef.current = createdSound;
-      setPlayingAudioKey(audioKey);
-
-      createdSound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) {
-          return;
-        }
-
-        if (status.didJustFinish) {
-          void stopActiveSound();
-        }
-      });
-    },
-    [loadingAudioKey, playingAudioKey, stopActiveSound]
-  );
+  useEffect(() => {
+    if (!screenFocused || phase !== "details") void stopActiveSound();
+  }, [screenFocused, phase, stopActiveSound]);
 
   const presentLessonBatch = useCallback(
     (pool: LessonItem[], cursor: number, requestedBatchSize: number) => {
@@ -1018,6 +947,8 @@ export default function BunproLessonScreen() {
         return;
       }
 
+      const generation = ++requestGenerationRef.current;
+      void stopActiveSound();
       setPhase("loading");
       setErrorMessage(null);
       setQuizQueue([]);
@@ -1025,6 +956,7 @@ export default function BunproLessonScreen() {
 
       try {
         const queueResponse = await getBunproQueue();
+        if (generation !== requestGenerationRef.current) return;
         const queueSummary = summarizeBunproQueue(queueResponse);
         const deckIdsToSkip = new Set([
           ...completedDeckIdsRef.current,
@@ -1056,6 +988,7 @@ export default function BunproLessonScreen() {
           nextDeck.batchSize > 0 ? nextDeck.batchSize : nextDeck.remaining
         );
         const learnResponse = await getBunproLearnIndex({ deckId: nextDeckId });
+        if (generation !== requestGenerationRef.current) return;
         const lessonItems = buildLessonItems(
           learnResponse.content ?? [],
           nextDeck.remaining
@@ -1078,11 +1011,12 @@ export default function BunproLessonScreen() {
         setLessonBatchSize(nextBatchSize);
         presentLessonBatch(lessonItems, 0, nextBatchSize);
       } catch (error) {
+        if (generation !== requestGenerationRef.current) return;
         setErrorMessage(formatBunproError(error));
         setPhase("error");
       }
     },
-    [isPortegoUser, presentLessonBatch]
+    [isPortegoUser, presentLessonBatch, stopActiveSound]
   );
 
   useEffect(() => {
@@ -1101,19 +1035,24 @@ export default function BunproLessonScreen() {
       shouldDuckAndroid: true,
       playThroughEarpieceAndroid: false,
       staysActiveInBackground: false,
-    });
+    }).catch(() => undefined);
 
     return () => {
+      requestGenerationRef.current += 1;
       void stopActiveSound();
     };
   }, [stopActiveSound]);
 
   const startQuiz = useCallback(async () => {
+    if (quizLockRef.current) return;
     if (!deckId || batchItems.length === 0) {
       setPhase("done");
       return;
     }
 
+    quizLockRef.current = true;
+    const generation = ++requestGenerationRef.current;
+    void stopActiveSound();
     setPhase("quiz-loading");
     setErrorMessage(null);
 
@@ -1122,21 +1061,23 @@ export default function BunproLessonScreen() {
         deckId,
         reviewables: batchItems.map((item) => item.tuple),
       });
+      if (generation !== requestGenerationRef.current) return;
       const nextQuizQueue = buildReviewQueue(response);
-
-      if (nextQuizQueue.length === 0) {
-        setPhase("done");
-        return;
+      if (!Number.isInteger(response.review_session_id) || response.review_session_id <= 0 || !nextQuizQueue.length) {
+        throw new Error("Bunpro did not return lesson questions for this batch. Please try again.");
       }
 
       setQuizQueue(nextQuizQueue);
       setReviewSessionId(response.review_session_id ?? null);
       setPhase("quiz");
     } catch (error) {
+      if (generation !== requestGenerationRef.current) return;
       setErrorMessage(formatBunproError(error));
-      setPhase("error");
+      setPhase("details");
+    } finally {
+      quizLockRef.current = false;
     }
-  }, [batchItems, deckId]);
+  }, [batchItems, deckId, stopActiveSound]);
 
   const handleNextDetail = useCallback(() => {
     if (detailIndex >= batchItems.length - 1) {
@@ -1144,12 +1085,13 @@ export default function BunproLessonScreen() {
       return;
     }
 
+    void stopActiveSound();
     const nextIndex = detailIndex + 1;
     setDetailIndex(nextIndex);
     setStructureMode("casual");
     scrollY.value = 0;
     lessonPagerRef.current?.setPage(nextIndex);
-  }, [batchItems.length, detailIndex, scrollY, startQuiz]);
+  }, [batchItems.length, detailIndex, scrollY, startQuiz, stopActiveSound]);
 
   const handleQuizComplete = useCallback(() => {
     setCompletedBatchCount((previousValue) => previousValue + 1);
@@ -1291,6 +1233,7 @@ export default function BunproLessonScreen() {
   if (phase === "quiz") {
     return (
       <BunproReviewScreen
+        key={`lesson-quiz-${reviewSessionId}-${lessonCursor}`}
         initialQueue={quizQueue}
         initialReviewSessionId={reviewSessionId}
         initialMode="all"
@@ -1367,7 +1310,9 @@ export default function BunproLessonScreen() {
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <StatusBar style={theme.statusBarStyle} />
 
+      {errorMessage ? <Text accessibilityRole="alert" style={{ color: theme.error, paddingHorizontal: 20, paddingVertical: 12 }}>{errorMessage}</Text> : null}
       <PagerView
+        key={`lesson-batch-${deckId}-${lessonCursor}`}
         ref={lessonPagerRef}
         style={styles.pager}
         initialPage={0}
@@ -1443,7 +1388,7 @@ export default function BunproLessonScreen() {
                       {pageKindLabel} Lesson
                     </Text>
                     <Text style={[styles.headerInfo, { color: theme.headerText }]}>{pageHeaderInfo}</Text>
-                    <Text style={[styles.subjectTitle, { color: accent }]}>{lessonItem.title}</Text>
+                    <Text style={[styles.subjectTitle, { color: theme.headerText }]}>{lessonItem.title}</Text>
                     {lessonItem.reading ? (
                       <Text style={[styles.subjectReading, { color: headerMutedTextColor }]}>
                         {lessonItem.reading}
