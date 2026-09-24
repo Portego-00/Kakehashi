@@ -74,6 +74,59 @@ describe("NHK News web source parity", () => {
     vi.unstubAllGlobals();
   });
 
+
+  it("persists manual read status, filters unread stories, and allows undo without navigating", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle, { ...easyArticle, id: "easy:102", title: "新しいニュース" }]))));
+    const first = render(<NewsIndex />);
+    const mark = await screen.findByRole("button", { name: `Mark as read: ${easyArticle.title}` });
+    fireEvent.click(mark);
+    expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toHaveAttribute("aria-pressed", "true");
+    expect(readLocal("news-read-history", [])).toEqual([easyArticle.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Unread (1)" }));
+    expect(screen.queryByText(easyArticle.title)).not.toBeInTheDocument();
+    expect(screen.getByText("新しいニュース")).toBeInTheDocument();
+    first.unmount();
+    render(<NewsIndex />);
+    fireEvent.click(await screen.findByRole("button", { name: `Mark unread: ${easyArticle.title}` }));
+    expect(screen.getByRole("button", { name: "Unread (2)" })).toBeInTheDocument();
+    expect(readLocal("news-read-history", [])).toEqual([]);
+  });
+
+  it("marks resolved articles read once and preserves a manual unread change after refresh", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    const first = render(<NewsArticleView articleId={easyArticle.id} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Mark unread" }));
+    expect(readLocal("news-read-history", [])).toEqual([]);
+    expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument();
+    first.unmount();
+    render(<NewsIndex />);
+    expect(await screen.findByRole("button", { name: `Mark as read: ${easyArticle.title}` })).toBeInTheDocument();
+  });
+
+  it("shows an all-caught-up state and restores read cards when leaving the filter", async () => {
+    writeLocal("news-read-history", [easyArticle.id]);
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    render(<NewsIndex />);
+    await screen.findByText(easyArticle.title);
+    fireEvent.click(screen.getByRole("button", { name: "Unread (0)" }));
+    expect(screen.getByText("You’re all caught up")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "All stories" }));
+    expect(screen.getByText(easyArticle.title)).toBeInTheDocument();
+  });
+
+  it("updates read status from other tabs and reports failed saves", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    render(<NewsIndex />);
+    await screen.findByText(easyArticle.title);
+    writeLocal("news-read-history", [easyArticle.id]);
+    fireEvent(window, new StorageEvent("storage", { key: "kakehashi:content:v1:news-read-history" }));
+    expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toBeInTheDocument();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Storage full"); });
+    fireEvent.click(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` }));
+    expect(screen.getByRole("status")).toHaveTextContent("Could not save read status");
+    expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("defaults to Easy, persists source changes, and caches providers separately", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);

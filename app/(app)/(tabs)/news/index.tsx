@@ -1,3 +1,8 @@
+import {
+  newsReadKey,
+  setNewsRead,
+  useNewsReadHistory,
+} from "../../../../src/hooks/useNewsReadHistory";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
@@ -63,6 +68,13 @@ const SOURCE_OPTIONS: readonly {
 
 export default function NewsScreen() {
   useActivityTracking("news", { mode: "focus" });
+  const readIds = useNewsReadHistory();
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const toggleRead = (item: NewsItem) => {
+    void setNewsRead(item, !readIds.has(newsReadKey(item))).catch(() =>
+      Alert.alert("Could not save read status", "Please try again."),
+    );
+  };
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -242,7 +254,14 @@ export default function NewsScreen() {
   };
 
   const ref = useRef<ICarouselInstance>(null);
-  const breakingNews = news.slice(0, 5);
+  const visibleNews = useMemo(
+    () =>
+      unreadOnly
+        ? news.filter((item) => !readIds.has(newsReadKey(item)))
+        : news,
+    [news, unreadOnly, readIds],
+  );
+  const breakingNews = visibleNews.slice(0, 5);
   const knownKanjiPercentageById = useMemo(() => {
     const percentageMap = new Map<string, number>();
 
@@ -263,7 +282,7 @@ export default function NewsScreen() {
     knownKanjiPercentageById.get(item.id) ?? 0;
 
   const sortedRecommendationNews = useMemo(() => {
-    const otherNews = news.slice(5);
+    const otherNews = visibleNews.slice(5);
 
     if (otherNewsSortMode === "knownKanji") {
       return otherNews.sort((a, b) => {
@@ -289,7 +308,7 @@ export default function NewsScreen() {
         (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate)
       );
     });
-  }, [news, otherNewsSortMode, knownKanjiPercentageById]);
+  }, [visibleNews, otherNewsSortMode, knownKanjiPercentageById]);
 
   const sortButtonText =
     otherNewsSortMode === "date" ? "Date" : "Known Kanji %";
@@ -407,6 +426,44 @@ export default function NewsScreen() {
         )}
       </View>
 
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 8,
+          marginBottom: 16,
+          paddingHorizontal: 16,
+        }}
+      >
+        {[false, true].map((unread) => (
+          <Pressable
+            key={String(unread)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: unreadOnly === unread }}
+            onPress={() => setUnreadOnly(unread)}
+            style={{
+              minHeight: 44,
+              justifyContent: "center",
+              paddingHorizontal: 16,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: unreadOnly === unread ? theme.primary : theme.border,
+              backgroundColor: theme.cardBackground,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  unreadOnly === unread ? theme.primary : theme.textSecondary,
+                fontWeight: "600",
+              }}
+            >
+              {unread
+                ? `Unread (${news.filter((item) => !readIds.has(newsReadKey(item))).length})`
+                : "All stories"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       {loadError ? (
         <View style={styles.loadErrorRow}>
           <Ionicons
@@ -468,6 +525,8 @@ export default function NewsScreen() {
                   }}
                 >
                   <NewsCard
+                    isRead={readIds.has(newsReadKey(item))}
+                    onToggleRead={toggleRead}
                     item={item}
                     onPress={handlePress}
                     variant="breaking"
@@ -582,7 +641,9 @@ export default function NewsScreen() {
             color={theme.textLight}
           />
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-            No articles are available for this source right now.
+            {unreadOnly && news.length > 0
+              ? "You’re all caught up. Switch to All stories to read them again."
+              : "No articles are available for this source right now."}
           </Text>
         </View>
       )}
@@ -598,6 +659,8 @@ export default function NewsScreen() {
         renderItem={({ item }) => (
           <View style={{ paddingHorizontal: 16 }}>
             <NewsCard
+              isRead={readIds.has(newsReadKey(item))}
+              onToggleRead={toggleRead}
               item={item}
               onPress={handlePress}
               variant="standard"

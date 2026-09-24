@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ChevronDown, ExternalLink, RefreshCw, Search } from "lucide-react";
+import { Check, Circle, ChevronDown, ExternalLink, RefreshCw, Search } from "lucide-react";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import { JapaneseReader } from "./JapaneseReader";
 import {
@@ -14,6 +14,7 @@ import { ContentHeader, ContentPage, EmptyState, Panel } from "./ui";
 import { normalizeNewsAudioUrl } from "./news-audio";
 import { proxyNewsImageUrl } from "./news-images";
 import { NewsAudioPlayer } from "./NewsAudioPlayer";
+import { setNewsRead, useNewsReadHistory } from "./news-read-history";
 import { readLocal, writeLocal } from "./storage";
 import type {
   FuriganaRange,
@@ -448,7 +449,33 @@ function NewsImage({
   );
 }
 
+function ReadButton({
+  article,
+  isRead,
+  onChange,
+}: {
+  article: NewsArticle;
+  isRead: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.newsReadButton}
+      aria-label={`${isRead ? "Mark unread" : "Mark as read"}: ${article.title}`}
+      aria-pressed={isRead}
+      title={isRead ? "Mark unread" : "Mark as read"}
+      onClick={onChange}
+    >
+      {isRead ? <Check size={16} aria-hidden="true" /> : <Circle size={16} aria-hidden="true" />}
+      {isRead ? "Read" : "Mark read"}
+    </button>
+  );
+}
+
 export function NewsIndex() {
+  const readIds = useNewsReadHistory();
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const { dataset } = useStudyDataset();
   const firstNewsReveal = useFirstContentReveal();
   const [sourcePreference, setSourcePreference] =
@@ -469,6 +496,11 @@ export function NewsIndex() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<NewsSort>("date");
   const requestIdRef = useRef(0);
+  const toggleRead = (article: NewsArticle) => {
+    if (!setNewsRead(article.id, !readIds.has(article.id))) {
+      setMessage("Could not save read status in this browser. Please try again.");
+    }
+  };
 
   const refresh = useCallback(async (preference: NewsSourcePreference) => {
     const requestId = ++requestIdRef.current;
@@ -544,13 +576,13 @@ export function NewsIndex() {
     return (
       feed?.articles.filter(
         (article) =>
-          !needle ||
-          `${article.title} ${article.body ?? ""}`
+          (!unreadOnly || !readIds.has(article.id)) &&
+          (!needle || `${article.title} ${article.body ?? ""}`
             .toLocaleLowerCase("ja")
-            .includes(needle),
+            .includes(needle)),
       ) ?? []
     );
-  }, [feed, query]);
+  }, [feed, query, unreadOnly, readIds]);
   const passedKanji = useMemo(
     () =>
       dataset
@@ -633,6 +665,12 @@ export function NewsIndex() {
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+      <div className={styles.newsReadFilters} role="group" aria-label="Reading status">
+        <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>All stories</button>
+        <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>
+          Unread ({feed?.articles.filter((article) => !readIds.has(article.id)).length ?? 0})
+        </button>
+      </div>
       {message ? (
         <div className={styles.notice} role="status">
           {message}
@@ -655,29 +693,28 @@ export function NewsIndex() {
             </div>
             <div className={styles.recentNewsRail}>
               {filtered.slice(0, 5).map((article) => (
-                <Link
-                  className={styles.recentNewsCard}
-                  href={`/news/${encodeURIComponent(article.id)}`}
-                  key={article.id}
-                >
-                  <NewsImage article={article} recent />
-                  <span className={styles.recentNewsCopy}>
-                    <span className={styles.newsMeta}>
-                      <time dateTime={article.publishedAt}>
-                        {new Date(article.publishedAt).toLocaleDateString()}
-                      </time>
-                      <span className={styles.newsCardBadges}>
-                        {showSourceBadges ? (
-                          <SourceBadge source={article.source} />
-                        ) : null}
-                        <KnownScore
-                          value={knownByArticle.get(article.id) ?? null}
-                        />
+                <article className={styles.recentNewsCard} data-read={readIds.has(article.id)} key={article.id}>
+                  <Link className={styles.newsStoryLink} href={`/news/${encodeURIComponent(article.id)}`}>
+                    <NewsImage article={article} recent />
+                    <span className={styles.recentNewsCopy}>
+                      <span className={styles.newsMeta}>
+                        <time dateTime={article.publishedAt}>
+                          {new Date(article.publishedAt).toLocaleDateString()}
+                        </time>
+                        <span className={styles.newsCardBadges}>
+                          {showSourceBadges ? (
+                            <SourceBadge source={article.source} />
+                          ) : null}
+                          <KnownScore
+                            value={knownByArticle.get(article.id) ?? null}
+                          />
+                        </span>
                       </span>
+                      <strong lang="ja">{article.title}</strong>
                     </span>
-                    <strong lang="ja">{article.title}</strong>
-                  </span>
-                </Link>
+                  </Link>
+                  <ReadButton article={article} isRead={readIds.has(article.id)} onChange={() => toggleRead(article)} />
+                </article>
               ))}
             </div>
           </section>
@@ -714,26 +751,25 @@ export function NewsIndex() {
               </div>
               <div className={styles.articleList}>
                 {otherArticles.map((article) => (
-                  <Link
-                    className={styles.articleRow}
-                    href={`/news/${encodeURIComponent(article.id)}`}
-                    key={article.id}
-                  >
-                    <NewsImage article={article} />
-                    <time dateTime={article.publishedAt}>
-                      {new Date(article.publishedAt).toLocaleDateString()}
-                    </time>
-                    <h2 lang="ja">{article.title}</h2>
-                    <span className={styles.articleBadges}>
-                      {showSourceBadges ? (
-                        <SourceBadge source={article.source} />
-                      ) : null}
-                      <KnownScore
-                        value={knownByArticle.get(article.id) ?? null}
-                      />
-                    </span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
+                  <article className={styles.newsListEntry} data-read={readIds.has(article.id)} key={article.id}>
+                    <Link className={styles.articleRow} href={`/news/${encodeURIComponent(article.id)}`}>
+                      <NewsImage article={article} />
+                      <time dateTime={article.publishedAt}>
+                        {new Date(article.publishedAt).toLocaleDateString()}
+                      </time>
+                      <h2 lang="ja">{article.title}</h2>
+                      <span className={styles.articleBadges}>
+                        {showSourceBadges ? (
+                          <SourceBadge source={article.source} />
+                        ) : null}
+                        <KnownScore
+                          value={knownByArticle.get(article.id) ?? null}
+                        />
+                      </span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
+                    <ReadButton article={article} isRead={readIds.has(article.id)} onChange={() => toggleRead(article)} />
+                  </article>
                 ))}
               </div>
             </section>
@@ -742,9 +778,8 @@ export function NewsIndex() {
       ) : loading ? (
         <Panel className={styles.loading}>{loadingLabel(sourcePreference)}</Panel>
       ) : (
-        <EmptyState title="No articles found">
-          Try a different search or source. If the feed is offline, return after
-          a connection is available so Kakehashi can create a local cache.
+        <EmptyState title={unreadOnly && !query && feed?.articles.length ? "You’re all caught up" : "No articles found"}>
+          {unreadOnly ? "Switch to All stories to see articles you’ve already read, or try another search or source." : "Try a different search or source. If the feed is offline, return when a connection is available."}
         </EmptyState>
       )}
       {feed ? (
@@ -865,6 +900,8 @@ function StandardNewsSummary({ article }: { article: NewsArticle }) {
 }
 
 export function NewsArticleView({ articleId }: { articleId: string }) {
+  const readIds = useNewsReadHistory();
+  const [readError, setReadError] = useState("");
   const normalizedId = normalizedArticleId(
     articleId,
     sourceFromArticleId(articleId),
@@ -919,6 +956,14 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
   }, [articleSource, normalizedId]);
 
   const article = feed?.articles.find((item) => item.id === normalizedId);
+  const resolvedArticleId = article?.id;
+  useEffect(() => {
+    if (!resolvedArticleId) return;
+    const timer = window.setTimeout(() => {
+      setReadError(setNewsRead(resolvedArticleId, true) ? "" : "Could not save read status in this browser. Please try again.");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [resolvedArticleId]);
   const sourceLabel = SOURCE_LABELS[articleSource];
   if (!article) {
     return (
@@ -948,6 +993,12 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
         description={`${SOURCE_LABELS[article.source]} · ${new Date(article.publishedAt).toLocaleString()}`}
         actions={
           <>
+            <button className={styles.secondaryButton} type="button" onClick={() => {
+              setReadError(setNewsRead(article.id, !readIds.has(article.id)) ? "" : "Could not save read status in this browser. Please try again.");
+            }}>
+              {readIds.has(article.id) ? <Check size={16} aria-hidden="true" /> : <Circle size={16} aria-hidden="true" />}
+              {readIds.has(article.id) ? "Mark unread" : "Mark as read"}
+            </button>
             <Link className={styles.secondaryButton} href="/news">
               All stories
             </Link>
@@ -963,6 +1014,7 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
           </>
         }
       />
+      {readError ? <div className={styles.notice} role="alert">{readError}</div> : null}
       {article.audioUrl ? (
         <NewsAudioPlayer key={article.id} src={article.audioUrl} title={article.title} />
       ) : null}

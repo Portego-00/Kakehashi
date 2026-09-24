@@ -1,3 +1,4 @@
+import { setNewsRead } from "../../../src/hooks/useNewsReadHistory";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
@@ -333,6 +334,7 @@ export default function NewsDetailScreen() {
     const inMemoryItem = NhkNewsService.getItemById(id, source);
     if (inMemoryItem) {
       setItem(inMemoryItem);
+      void setNewsRead(inMemoryItem, true).catch((error) => console.warn("Could not save read status", error));
       setIsResolvingItem(false);
       return () => {
         isActive = false;
@@ -345,7 +347,9 @@ export default function NewsDetailScreen() {
         if (!isActive) return;
 
         NhkNewsService.setCachedItems(cachedItems);
-        setItem(NhkNewsService.getItemById(id, source));
+        const restored = NhkNewsService.getItemById(id, source);
+        setItem(restored);
+        if (restored) void setNewsRead(restored, true).catch((error) => console.warn("Could not save read status", error));
       } catch (error) {
         console.warn("Error restoring cached NHK article:", error);
       } finally {

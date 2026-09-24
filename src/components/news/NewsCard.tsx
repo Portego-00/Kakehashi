@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { format } from "date-fns";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,6 +9,8 @@ import type { NewsItem } from "../../services/NhkNewsService";
 import { useTheme } from "../../utils/theme";
 
 interface NewsCardProps {
+  isRead?: boolean;
+  onToggleRead?: (item: NewsItem) => void;
   item: NewsItem;
   onPress: (item: NewsItem) => void;
   variant?: "breaking" | "standard";
@@ -21,6 +24,8 @@ const MAX_TAP_MOVEMENT_PX = 8;
 
 export const NewsCard: React.FC<NewsCardProps> = ({
   item,
+  isRead = false,
+  onToggleRead,
   onPress,
   variant = "standard",
   knownKanjiPercentage,
@@ -111,103 +116,165 @@ export const NewsCard: React.FC<NewsCardProps> = ({
     );
   };
 
+  const readControl = (onImage = false) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${isRead ? "Mark unread" : "Mark as read"}: ${item.title}`}
+      accessibilityState={{ selected: isRead }}
+      onPress={() => onToggleRead?.(item)}
+      style={{
+        minHeight: 44,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        gap: 6,
+        alignItems: "center",
+        justifyContent: "center",
+        ...(onImage
+          ? {
+              position: "absolute" as const,
+              top: 8,
+              right: 8,
+              borderRadius: 8,
+              backgroundColor: "rgba(0,0,0,0.75)",
+            }
+          : {}),
+      }}
+    >
+      <Ionicons
+        name={isRead ? "checkmark-circle" : "ellipse-outline"}
+        size={16}
+        color={onImage ? "#fff" : theme.textSecondary}
+      />
+      <Text
+        style={{
+          color: onImage ? "#fff" : theme.textSecondary,
+          fontSize: 12,
+          fontWeight: "600",
+        }}
+      >
+        {isRead ? "Read" : "Mark read"}
+      </Text>
+    </Pressable>
+  );
+
   if (variant === "breaking") {
     return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.container,
-          styles.breakingContainer,
-          {
-            backgroundColor: theme.cardBackground,
-            opacity: pressed ? 0.9 : 1,
-            shadowColor: "#000",
-            borderColor: "transparent", // No border for full image look
-          },
-        ]}
-        onPress={handleBreakingPress}
-        onPressIn={handlePressIn}
-        onTouchMove={handleTouchMove}
-      >
-        {item.imageUrl && (
-          <Image
-            source={{ uri: item.imageUrl }}
+      <View style={{ width: "100%" }}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.container,
+            styles.breakingContainer,
+            {
+              backgroundColor: theme.cardBackground,
+              opacity: pressed ? 0.9 : 1,
+              shadowColor: "#000",
+              borderColor: "transparent", // No border for full image look
+            },
+          ]}
+          onPress={handleBreakingPress}
+          onPressIn={handlePressIn}
+          onTouchMove={handleTouchMove}
+        >
+          {item.imageUrl && (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={[
+                StyleSheet.absoluteFillObject,
+                { opacity: isRead ? 0.5 : 1 },
+              ]}
+              contentFit="cover"
+              transition={200}
+              pointerEvents="none"
+            />
+          )}
+
+          {/* Gradient Overlay for Text Readability */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.8)"]}
             style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-            transition={200}
             pointerEvents="none"
           />
-        )}
 
-        {/* Gradient Overlay for Text Readability */}
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)"]}
-          style={StyleSheet.absoluteFillObject}
-          pointerEvents="none"
-        />
+          <View style={styles.breakingContent}>
+            {/* Optional Tag or Badge (e.g., "NHK News") if available */}
+            <View style={styles.breakingMetaRowTop}>
+              {renderSourceBadge(true)}
+              {renderPercentageBadge()}
+            </View>
 
-        <View style={styles.breakingContent}>
-          {/* Optional Tag or Badge (e.g., "NHK News") if available */}
-          <View style={styles.breakingMetaRowTop}>
-            {renderSourceBadge(true)}
-            {renderPercentageBadge()}
+            <View>
+              <Text style={[styles.breakingTitle]} numberOfLines={2}>
+                {item.title}
+              </Text>
+              <Text style={styles.breakingDate}>{formattedDate}</Text>
+            </View>
           </View>
-
-          <View>
-            <Text style={[styles.breakingTitle]} numberOfLines={2}>
-              {item.title}
-            </Text>
-            <Text style={styles.breakingDate}>{formattedDate}</Text>
-          </View>
-        </View>
-      </Pressable>
+        </Pressable>
+        {onToggleRead ? readControl(true) : null}
+      </View>
     );
   }
 
   // Standard Variant (Horizontal List Item)
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.container,
-        styles.standardContainer,
-        {
-          backgroundColor: theme.cardBackground,
-          opacity: pressed ? 0.7 : 1,
-          borderColor: theme.border,
-          shadowColor: "#000",
-        },
-      ]}
-      onPress={() => onPress(item)}
+    <View
+      style={{
+        marginBottom: 12,
+        borderRadius: 12,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: theme.border,
+        backgroundColor: theme.cardBackground,
+      }}
     >
-      <View style={styles.contentContainer}>
-        {item.imageUrl && (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.standardImage}
-            contentFit="cover"
-            transition={200}
-            pointerEvents="none"
-          />
-        )}
-        <View style={styles.textContainer}>
-          <Text
-            style={[styles.title, { color: theme.textColor }]}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          {/* Tag + Date Row */}
-          <View style={styles.metaRow}>
-            <View style={styles.metaBadges}>
-              {renderSourceBadge()}
-              {renderPercentageBadge()}
-            </View>
-            <Text style={[styles.date, { color: theme.textSecondary }]}>
-              {formattedDate}
+      <Pressable
+        style={({ pressed }) => [
+          styles.container,
+          styles.standardContainer,
+          {
+            backgroundColor: theme.cardBackground,
+            opacity: pressed ? 0.7 : 1,
+            borderColor: theme.border,
+            shadowColor: "#000",
+          },
+        ]}
+        onPress={() => onPress(item)}
+      >
+        <View style={styles.contentContainer}>
+          {item.imageUrl && (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={[styles.standardImage, { opacity: isRead ? 0.5 : 1 }]}
+              contentFit="cover"
+              transition={200}
+              pointerEvents="none"
+            />
+          )}
+          <View style={styles.textContainer}>
+            <Text
+              style={[
+                styles.title,
+                { color: isRead ? theme.textSecondary : theme.textColor },
+              ]}
+              numberOfLines={2}
+            >
+              {item.title}
             </Text>
+            {/* Tag + Date Row */}
+            <View style={styles.metaRow}>
+              <View style={styles.metaBadges}>
+                {renderSourceBadge()}
+                {renderPercentageBadge()}
+              </View>
+              <Text style={[styles.date, { color: theme.textSecondary }]}>
+                {formattedDate}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </Pressable>
+      </Pressable>
+      {onToggleRead ? readControl() : null}
+    </View>
   );
 };
 
@@ -253,8 +320,8 @@ const styles = StyleSheet.create({
 
   // Standard (List) Styles
   standardContainer: {
-    borderWidth: 1,
-    marginBottom: 12,
+    borderWidth: 0,
+    marginBottom: 0,
   },
   contentContainer: {
     flexDirection: "row",
