@@ -127,13 +127,13 @@ describe("dashboard", () => {
     expect(screen.getByText("Lesson, Guru and burn milestones by day")).toBeInTheDocument();
   });
 
-  it("enables normal study queues for another account while hiding Bunpro", () => {
+  it("shows empty study queues for another account while hiding Bunpro", () => {
     dashboardTestState.dashboardOrder = ["daily-study"];
     render(<Dashboard />);
 
-    expect(screen.getByRole("link", { name: "Start lessons" })).toHaveAttribute("href", "/lessons");
-    expect(screen.getByRole("link", { name: "Pick lessons" })).toHaveAttribute("href", "/lesson-picker");
-    expect(screen.getByRole("link", { name: "Start reviews" })).toHaveAttribute("href", "/reviews");
+    expect(screen.getByText("No lessons available right now.")).toBeInTheDocument();
+    expect(screen.getByText("There are no more reviews to do right now.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Start lessons|Pick lessons|Start reviews/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Bunpro/)).not.toBeInTheDocument();
   });
 

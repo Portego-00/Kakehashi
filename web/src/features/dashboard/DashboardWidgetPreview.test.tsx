@@ -171,6 +171,21 @@ describe("dashboard widget previews", () => {
     expect(within(screen.getByRole("article", { name: "Reviews study queue" })).getByRole("link", { name: "Start reviews" })).toHaveAttribute("href", "/reviews");
   });
 
+  it("shows mobile empty states without start links for available empty queues", () => {
+    render(<><StudyQueueCard available type="lesson" count={0} /><StudyQueueCard available type="review" count={0} /></>);
+    for (const card of screen.getAllByRole("article")) expect(card).toHaveAttribute("data-state", "empty");
+    expect(screen.getByText("You've done all your available lessons!")).toBeVisible();
+    expect(screen.getByText("There are no more reviews to do right now.")).toBeVisible();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("does not show an empty state or start links before availability loads", () => {
+    render(<StudyQueueCard available type="review" loading />);
+    expect(screen.getByRole("article")).not.toHaveAttribute("data-state", "empty");
+    expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("uses the mobile empty-state artwork while a queue is clear", () => {
     const { container } = render(<><StudyQueueCard type="lesson" count={0} /><StudyQueueCard type="review" count={0} /></>);
 

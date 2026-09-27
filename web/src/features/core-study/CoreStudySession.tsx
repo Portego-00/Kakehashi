@@ -283,7 +283,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   const assignmentQuery = useQuery({
     queryKey: ["core-study", mode, "assignments"],
-    queryFn: () => wkCollection<Assignment>(mode === "reviews" ? "assignments?immediately_available_for_review=true" : "assignments?immediately_available_for_lessons=true"),
+    queryFn: () => wkCollection<Assignment>(mode === "reviews" ? "assignments?immediately_available_for_review=true" : "assignments?immediately_available_for_lessons=true", 30, { cache: "no-store", fresh: true }),
     enabled: hasConfirmedUser && !isOnVacation,
     staleTime: 0,
     refetchOnMount: "always",
@@ -398,6 +398,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   useEffect(() => {
     if (phase === "results" && resultItems.length) return;
+    // A new review session must not freeze the previous visit's cached queue.
+    // Once started, keep its queue stable through background refreshes.
+    if (mode === "reviews" && reviewSessionAssignments === null && (!assignmentQuery.isFetchedAfterMount || assignmentQuery.isFetching)) return;
     if (!subjectsQuery.isSuccess || !lessonBatchResolved) return;
     const initializationKey = `${username}:${mode}:${selectedAssignments.map((assignment) => assignment.id).join(",")}`;
     if (initializedSessionKeyRef.current === initializationKey) return;
@@ -449,7 +452,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
+  }, [assignmentQuery.isFetchedAfterMount, assignmentQuery.isFetching, reviewSessionAssignments, lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
 
   useEffect(() => {
     if (mode !== "lessons" || phase !== "quiz") return;

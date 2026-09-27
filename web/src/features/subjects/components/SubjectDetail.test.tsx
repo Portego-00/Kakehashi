@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildImmersionExamples } from "@/features/study/immersion-kit";
 import { createListRepository } from "@/features/subjects/lists";
 import type { StudyMaterial, Subject } from "@/types/wanikani";
+import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { AnimeSentence, ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
 
 const { wkCollectionMock, wkRequestMock } = vi.hoisted(() => ({ wkCollectionMock: vi.fn(), wkRequestMock: vi.fn() }));
@@ -592,4 +593,42 @@ it("falls back to the original sentence for mismatched source furigana", () => {
   const { container } = render(<AnimeSentence example={{ sentence: "猫です。", sentenceWithFurigana: "犬[いぬ]です。", title: "Example", translation: "A cat." }} query="猫" />);
   expect(container.textContent).toBe("猫です。");
   expect(container.querySelector("ruby")).toBeNull();
+});
+
+
+describe("embedded subject reference", () => {
+  it("follows nested scrolling, updates the subject, and hides with its disclosure", async () => {
+    const scroller = document.createElement("div");
+    scroller.style.overflowY = "auto";
+    const details = document.createElement("div");
+    scroller.append(details);
+    document.body.append(scroller);
+    let detailsTop = 180;
+    scroller.getBoundingClientRect = () => new DOMRect(20, 100, 350, 600);
+    details.getBoundingClientRect = () => new DOMRect(20, detailsTop, 350, 1000);
+    const detailsRef = { current: details };
+    const view = render(<EmbeddedSubjectHeader subject={oneSubject} meaning="One" detailsRef={detailsRef} />);
+    try {
+      expect(screen.queryByRole("button", { name: "Back to One details" })).not.toBeInTheDocument();
+      detailsTop = 50;
+      fireEvent.scroll(scroller);
+      const header = await screen.findByRole("button", { name: "Back to One details" });
+      expect(header).toHaveStyle({ top: "100px", left: "20px", width: "350px" });
+      expect(document.body).toContainElement(header);
+      expect(scroller).not.toContainElement(header);
+      const nextSubject = { ...oneSubject, id: 999, data: { ...oneSubject.data, characters: "二" } };
+      view.rerender(<EmbeddedSubjectHeader subject={nextSubject} meaning="Two" detailsRef={detailsRef} />);
+      expect(await screen.findByRole("button", { name: "Back to Two details" })).toHaveTextContent("二");
+      scroller.setAttribute("aria-hidden", "true");
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Back to Two details" })).not.toBeInTheDocument());
+      scroller.removeAttribute("aria-hidden");
+      expect(await screen.findByRole("button", { name: "Back to Two details" })).toBeInTheDocument();
+      detailsTop = -1100;
+      fireEvent.scroll(scroller);
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Back to Two details" })).not.toBeInTheDocument());
+    } finally {
+      view.unmount();
+      scroller.remove();
+    }
+  });
 });

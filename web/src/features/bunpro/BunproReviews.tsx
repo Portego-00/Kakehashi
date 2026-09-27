@@ -257,8 +257,9 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
       const isRepeat = handledIds.has(currentKey);
       let handled = handledIds;
       let expectedTotal = reviewTotal;
-      // Bunpro's lesson quiz saves only correct answers; misses remain local until learned.
-      if (!isRepeat && (!lessonSession || result.correct)) {
+      // Lessons and regular Beginner 0 items need a correct submission to start their SRS interval.
+      const needsFirstCorrect = Boolean(lessonSession) || (currentReviewType === "review" && current.data.attributes.streak === 0);
+      if (!isRepeat && (!needsFirstCorrect || result.correct)) {
         let response: (Partial<BunproReviewQuizIndexResponse> & Record<string, unknown>) | null = null;
         const saveFailed = continueWithoutSaving;
         if (!continueWithoutSaving) try {

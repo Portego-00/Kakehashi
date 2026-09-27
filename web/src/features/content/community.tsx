@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, Heart, MessageSquare, Monitor, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
 import { PatreonIcon } from "@/components/icons/BrandIcons";
 import { UserAvatar } from "@/components/profile/UserAvatar";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useSession } from "@/lib/session";
 import { communityAccountScope, useDraftNavigationGuard, usePersistentCommunityDraft } from "@/features/community/drafts";
+import { CommunityEditor } from "@/features/community/CommunityEditor";
 import { CommunityMarkdown, safeCommunityMediaUrl } from "@/features/community/CommunityMarkdown";
 import { hasWebIssueOrigin } from "@/features/community/issue-origin";
 import { EmptyState } from "./ui";
@@ -221,19 +222,14 @@ export function NewIssueWorkspace() {
   const webSettings = useWebSettings(user?.data.username ?? "anonymous");
   const [draft, setDraft, discardDraft] = usePersistentCommunityDraft(communityAccountScope(user), "new-issue", { title: "", content: "" });
   const { title, content } = draft;
-  const [preview, setPreview] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const writeTab = useRef<HTMLButtonElement>(null);
-  const previewTab = useRef<HTMLButtonElement>(null);
   const dirty = Boolean(title.trim() || content.trim());
   useDraftNavigationGuard(dirty);
 
-  function changeEditorMode(nextPreview: boolean) { setPreview(nextPreview); (nextPreview ? previewTab : writeTab).current?.focus(); }
-  function editorKeys(event: KeyboardEvent<HTMLButtonElement>) { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); changeEditorMode(event.key === "ArrowRight"); } }
-
   async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
+    event.preventDefault(); if (uploading) return; setBusy(true); setError("");
     try {
       const gravatarEmail = webSettings.profile.gravatarEmail.trim();
       const payload = await postCommunity<{ item: SharedIssue }>({ action: "createIssue", title, content, ...(gravatarEmail ? { gravatarEmail } : {}) });
@@ -242,7 +238,7 @@ export function NewIssueWorkspace() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "The issue could not be created."); setBusy(false); }
   }
 
-  return <main className={styles.page}><Link className={styles.back} href="/community"><ArrowLeft size={17} aria-hidden="true" />Back to community</Link><header className={styles.compactHero}><h1>New issue</h1><p>Posting as {user?.data.username || "learner"}. Markdown links and existing image or video URLs are supported.</p></header><form className={styles.composer} onSubmit={(event) => void submit(event)}><div className={styles.modeTabs} role="tablist" aria-label="Editor mode"><button ref={writeTab} id="write-tab" type="button" role="tab" aria-selected={!preview} aria-controls="write-panel" tabIndex={preview ? -1 : 0} onKeyDown={editorKeys} onClick={() => changeEditorMode(false)}>Write</button><button ref={previewTab} id="preview-tab" type="button" role="tab" aria-selected={preview} aria-controls="preview-panel" tabIndex={preview ? 0 : -1} onKeyDown={editorKeys} onClick={() => changeEditorMode(true)}>Preview</button></div>{preview ? <article id="preview-panel" role="tabpanel" aria-labelledby="preview-tab" className={styles.preview}><h2>{title || "Untitled issue"}</h2>{content ? <CommunityMarkdown>{content}</CommunityMarkdown> : <p>Nothing to preview yet.</p>}</article> : <div id="write-panel" role="tabpanel" aria-labelledby="write-tab" className={styles.modePanel}><label>Title<input value={title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} maxLength={160} required placeholder="A concise problem statement" /></label><label>Details<textarea value={content} onChange={(event) => setDraft((current) => ({ ...current, content: event.target.value }))} maxLength={12_000} required placeholder="Steps, context, expected result, and what happened instead" /></label></div>}{error ? <p className={styles.error} role="alert">{error}</p> : null}<div className={styles.actions}><Link className={styles.secondary} href="/community">Cancel</Link><button className={styles.secondary} type="button" disabled={!dirty || busy} onClick={discardDraft}>Discard draft</button><button className={styles.primary} type="submit" disabled={busy || title.trim().length < 4 || content.trim().length < 8}><Send size={17} aria-hidden="true" />{busy ? "Submitting…" : "Submit issue"}</button></div></form></main>;
+  return <main className={styles.page}><Link className={styles.back} href="/community"><ArrowLeft size={17} aria-hidden="true" />Back to community</Link><header className={styles.compactHero}><h1>New issue</h1><p>Posting as {user?.data.username || "learner"}. Attach screenshots and preview your Markdown before posting.</p></header><form className={styles.composer} onSubmit={(event) => void submit(event)}><label>Title<input value={title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} maxLength={160} required placeholder="A concise problem statement" /></label><CommunityEditor label="Details" value={content} onChange={(content) => setDraft((current) => ({ ...current, content }))} onUploadingChange={setUploading} maxLength={12_000} placeholder="Steps, context, expected result, and what happened instead" disabled={busy} />{error ? <p className={styles.error} role="alert">{error}</p> : null}<div className={styles.actions}><Link className={styles.secondary} href="/community">Cancel</Link><button className={styles.secondary} type="button" disabled={!dirty || busy || uploading} onClick={discardDraft}>Discard draft</button><button className={styles.primary} type="submit" disabled={busy || uploading || title.trim().length < 4 || content.trim().length < 8}><Send size={17} aria-hidden="true" />{busy ? "Submitting…" : "Submit issue"}</button></div></form></main>;
 }
 
 export function IssueDetailWorkspace({ id }: { id: string }) {
@@ -254,6 +250,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [canUpdateStatus, setCanUpdateStatus] = useState(false);
   const [writable, setWritable] = useState(true);
@@ -282,7 +279,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   useEffect(() => { const controller = new AbortController(); const timer = window.setTimeout(() => void load(controller.signal), 0); return () => { window.clearTimeout(timer); controller.abort(); }; }, [load]);
 
   async function addReply(event: FormEvent) {
-    event.preventDefault(); if (!reply.trim()) return;
+    event.preventDefault(); if (uploading || !reply.trim()) return;
     setBusy(true); setError("");
     const operationId = replyDraft.requestId || crypto.randomUUID();
     if (!replyDraft.requestId) setReplyDraft((current) => ({ ...current, requestId: operationId }));
@@ -348,7 +345,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
       <h2>{countLabel(issue.reply_count)} {issue.reply_count === 1 ? "reply" : "replies"}</h2>
       {comments.map((comment) => { const parent = comments.find((candidate) => candidate.id === comment.reply_to_comment_id); return <article key={comment.id}><header><div className={styles.commentAuthor}><UserMark name={comment.user_username} hash={comment.user_gravatar_hash} level={comment.user_level} /><div><AuthorName name={comment.user_username} isDeveloper={comment.is_developer} isPatreonSupporter={comment.is_patreon_supporter} /><span className={styles.meta}>{relativeTime(comment.created_at)}</span></div></div>{writable ? <button className={styles.textButton} type="button" disabled={pendingLikes.has(`comment:${comment.id}`)} aria-pressed={Boolean(comment.is_liked)} aria-label={`${comment.is_liked ? "Unlike" : "Like"} reply by ${comment.user_username || "learner"}, ${comment.likes_count || 0} likes`} onClick={() => void toggleLike("comment", comment.id)}><Heart size={15} fill={comment.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(comment.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={15} aria-hidden="true" />{countLabel(comment.likes_count)}</span>}</header>{comment.reply_to_comment_id ? <div className={styles.replyContext}><span>Replying to {parent?.user_username || "an earlier comment"}</span>{parent ? <p>{parent.content}</p> : null}</div> : null}<CommunityMarkdown>{comment.content}</CommunityMarkdown>{writable ? <button className={styles.replyAction} type="button" onClick={() => { setReplyDraft((current) => ({ ...current, replyToCommentId: comment.id, requestId: "" })); document.getElementById("community-reply")?.focus(); }}>Reply</button> : null}</article>; })}
       <nav className={styles.pagination} aria-label="Reply pages"><button type="button" disabled={commentPage === 0 || busy} onClick={() => setCommentPage((value) => Math.max(0, value - 1))}>Previous</button><span>Page {commentPage + 1}</span><button type="button" disabled={!commentsHasMore || busy} onClick={() => setCommentPage((value) => value + 1)}>Next</button></nav>
-      {writable ? <form className={styles.replyBox} onSubmit={(event) => void addReply(event)}>{replyTarget ? <div className={styles.replyingTo}><span>Replying to {replyTarget.user_username || "Learner"}</span><button type="button" aria-label="Cancel reply to comment" onClick={() => setReplyDraft((current) => ({ ...current, replyToCommentId: "", requestId: "" }))}><X size={16} aria-hidden="true" /></button></div> : null}<label htmlFor="community-reply">Reply as {user?.data.username || "learner"}</label><textarea id="community-reply" value={reply} onChange={(event) => setReplyDraft((current) => ({ ...current, content: event.target.value, requestId: "" }))} placeholder="Add a useful reply" maxLength={6_000} /><div className={styles.actions}><button className={styles.secondary} type="button" disabled={!replyDirty || busy} onClick={discardReplyDraft}>Discard draft</button><button className={styles.primary} type="submit" disabled={busy || !reply.trim()}><MessageSquare size={17} aria-hidden="true" />{busy ? "Posting…" : "Reply"}</button></div></form> : <div className={styles.notice}><strong>Read-only community</strong><span>This deployment needs a server-side Supabase secret key before it can post replies or likes.</span></div>}
+      {writable ? <form className={styles.replyBox} onSubmit={(event) => void addReply(event)}>{replyTarget ? <div className={styles.replyingTo}><span>Replying to {replyTarget.user_username || "Learner"}</span><button type="button" aria-label="Cancel reply to comment" onClick={() => setReplyDraft((current) => ({ ...current, replyToCommentId: "", requestId: "" }))}><X size={16} aria-hidden="true" /></button></div> : null}<CommunityEditor id="community-reply" label={`Reply as ${user?.data.username || "learner"}`} value={reply} onChange={(content) => setReplyDraft((current) => ({ ...current, content, requestId: "" }))} onUploadingChange={setUploading} maxLength={6_000} placeholder="Add a useful reply" disabled={busy} /><div className={styles.actions}><button className={styles.secondary} type="button" disabled={!replyDirty || busy || uploading} onClick={discardReplyDraft}>Discard draft</button><button className={styles.primary} type="submit" disabled={busy || uploading || !reply.trim()}><MessageSquare size={17} aria-hidden="true" />{busy ? "Posting…" : "Reply"}</button></div></form> : <div className={styles.notice}><strong>Read-only community</strong><span>This deployment needs a server-side Supabase secret key before it can post replies or likes.</span></div>}
     </section>
   </main>;
 }

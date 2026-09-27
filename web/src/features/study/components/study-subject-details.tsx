@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
@@ -78,7 +78,7 @@ export function StudySubjectDetails({
   });
 
   return (
-    <section id="study-item-details" className={styles.itemDetails} aria-labelledby="study-item-details-title">
+    <section id="study-item-details" className={styles.itemDetails} aria-labelledby="study-item-details-title" style={{ "--subject-color": `var(--color-${record.object === "radical" ? "radical" : record.object === "kanji" ? "kanji" : "vocabulary"})` } as CSSProperties}>
       <header className={styles.itemDetailsHeader}>
         <div className={styles.itemDetailsIdentity}>
           <SubjectCharacter subject={record} className={styles.itemDetailsCharacter} imageTone="subject" eager />

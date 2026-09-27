@@ -166,6 +166,38 @@ it("keeps answer controls available until Next and shows the confirmed Bunpro SR
   await screen.findByText("Bunpro reviews complete");
   expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toHaveTextContent("Adept 1");
 });
+it.each([
+  { type: "review", streak: 0, saveCorrect: true },
+  { type: "review", streak: 1, saveCorrect: false },
+  { type: "review", streak: null, saveCorrect: false },
+  { type: "review", streak: undefined, saveCorrect: false },
+  { type: "ghost_review", streak: 0, saveCorrect: false },
+])("saves a correct retry only for regular Beginner 0 reviews: $type/$streak", async ({ type, streak, saveCorrect }) => {
+  const review = { ...item, data: { ...item.data, type, attributes: { ...item.data.attributes, streak } } };
+  vi.mocked(bunpro).mockImplementation(async (query, options) => {
+    if (query === "action=connection") return { connected: true };
+    if (options?.method === "POST") return { updated_review: { id: "10", type: "review", attributes: { streak: 1 } } };
+    return { review_session_id: 1, pending_attempt: [review], pending_wrapup: [] };
+  });
+  await start();
+  for (const answer of ["ちがう", "ちがう", "です"]) {
+    fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: answer } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); });
+    if (answer !== "です") {
+      expect(screen.getByRole("progressbar", { name: "Review progress" })).toHaveAttribute("aria-valuenow", "0");
+      expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(saveCorrect ? 0 : 1);
+    }
+  }
+  await screen.findByText("Bunpro reviews complete");
+  const posts = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST");
+  expect(posts).toHaveLength(1);
+  const payload = JSON.parse(String(posts[0][1]?.body));
+  expect(payload).toMatchObject({ reviewId: "10", reviewType: type, correct: saveCorrect });
+  expect(payload.context).toBeUndefined();
+  if (saveCorrect) expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toHaveTextContent("Beginner 1");
+});
+
 it("waits for the correct retry before showing the saved stage without resubmitting the review", async () => {
   vi.mocked(bunpro).mockImplementation(async (query, options) => {
     if (query === "action=connection") return { connected: true };

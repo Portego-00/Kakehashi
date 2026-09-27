@@ -253,3 +253,15 @@
 @media (prefers-reduced-motion: reduce) {
   .primary, .secondary, .dangerButton, .textButton, .issue { transition: none; }
 }
+
+.editor { display: grid; gap: var(--space-sm); min-width: 0; }
+.editorPreview { min-height: 10rem; padding: var(--space-md); border: var(--rule-thin) solid var(--color-rule); background: var(--color-surface); overflow-wrap: anywhere; }
+.attachmentToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
+.attachmentToolbar span { color: var(--color-muted); font-size: var(--text-sm); }
+.markdown ol { margin: 0; padding-left: var(--space-lg); }
+.markdown pre { max-width: 100%; overflow-x: auto; padding: var(--space-md); background: var(--color-paper-3); }
+.markdown pre code { padding: 0; }
+.markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown th, .markdown td { border: var(--rule-thin) solid var(--color-rule); padding: var(--space-xs) var(--space-sm); }
+.markdown li > p { margin-block: var(--space-xs); }
+.mediaFallback { display: block; padding: var(--space-sm); border: var(--rule-thin) solid var(--color-rule); }

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Check, Circle, ChevronDown, ExternalLink, RefreshCw, Search } from "lucide-react";
+import { useCachedNewsKanji } from "./use-cached-news-kanji";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import { JapaneseReader } from "./JapaneseReader";
 import {
@@ -476,7 +477,7 @@ function ReadButton({
 export function NewsIndex() {
   const readIds = useNewsReadHistory();
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const { dataset } = useStudyDataset();
+  const { dataset, user, status } = useStudyDataset();
   const firstNewsReveal = useFirstContentReveal();
   const [sourcePreference, setSourcePreference] =
     useState<NewsSourcePreference>(() =>
@@ -583,12 +584,15 @@ export function NewsIndex() {
       ) ?? []
     );
   }, [feed, query, unreadOnly, readIds]);
-  const passedKanji = useMemo(
-    () =>
-      dataset
-        ? passedKanjiCharacters(dataset.subjects, dataset.assignments)
-        : null,
-    [dataset],
+  const subjects = dataset?.subjects;
+  const assignments = dataset?.assignments;
+  const freshPassedKanji = useMemo(
+    () => subjects && assignments ? passedKanjiCharacters(subjects, assignments) : null,
+    [subjects, assignments],
+  );
+  const passedKanji = useCachedNewsKanji(
+    status === "authenticated" ? user?.data.username ?? null : null,
+    freshPassedKanji,
   );
   const knownByArticle = useMemo(
     () =>
