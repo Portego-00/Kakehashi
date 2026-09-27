@@ -15,6 +15,8 @@
 .blank { color: var(--bp-accent, #c64949); display: inline-block; min-width: 4ch; border-bottom: 2px solid var(--color-ink-2); line-height: 1.7; padding-inline: .2em; }
 .blank[data-correct="true"] { color: var(--color-success); border-color: currentColor; }
 .blank[data-correct="false"] { color: var(--color-danger); border-color: currentColor; }
+.concealedHint { display: none; }
+@media (min-width: 48rem) { .concealedHint { display: block; visibility: hidden; } }
 .translation { max-width: 65ch; font-size: var(--text-lg); }
 .workspace { max-width: var(--study-max); margin-inline: auto; padding: var(--space-lg) var(--space-md); display: grid; gap: var(--space-md); width: 100%; }
 .feedback { display: flex; gap: var(--space-md); align-items: baseline; padding: var(--space-md); border-left: 3px solid var(--color-danger); background: var(--color-paper-2); }

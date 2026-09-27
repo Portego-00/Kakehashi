@@ -8,11 +8,19 @@ import { summarizeBunproQueue } from "../../../../src/utils/bunproQueue";
 import type { BunproQueueResponse } from "../../../../src/types/bunpro";
 import { canAccessBunpro } from "./access";
 import { bunpro } from "./client";
+import { BunproConnectCard } from "./BunproConnectCard";
 import styles from "./bunpro.module.css";
+// Read-only counts can briefly fail just after a key is connected. Keep retries
+// bounded, including an intermittent 401; a persistent rejection stays visible.
+function retryCounts(failureCount: number, error: Error) {
+  const status = "status" in error ? error.status : undefined;
+  return failureCount < 2 && (status === undefined || status === 401 || status === 408 || status === 429 || (typeof status === "number" && status >= 500));
+}
+const countRetryDelay = (attempt: number) => 500 * (attempt + 1);
 type HomeProps = { wanikaniCount?: number };
 export function BunproHomeButton({ wanikaniCount }: HomeProps) {
   const { user, isDemo } = useSession();
-  return !isDemo && canAccessBunpro(user?.data.username) ? <BunproStudyCards wanikaniCount={wanikaniCount} /> : null;
+  return !isDemo && canAccessBunpro(user?.data.username) ? <BunproStudyCards key={user!.data.username} username={user!.data.username} wanikaniCount={wanikaniCount} /> : null;
 }
 function Goal({ done, goal, batch }: { done: number; goal: number; batch: number }) {
   const segments = Math.min(Math.max(goal, 1), 20);
@@ -21,14 +29,14 @@ function Goal({ done, goal, batch }: { done: number; goal: number; batch: number
 function GoalCount({ done, goal, batch }: { done: number; goal: number; batch: number }) {
   return <span className={styles.goalCount} aria-label={`${done} of ${goal} learned; next batch: ${batch}`}><span className={styles.goalCountIdle} aria-hidden="true">{done} / {goal}</span><span className={styles.goalCountHover} aria-hidden="true">+{batch}</span></span>;
 }
-function BunproStudyCards({ wanikaniCount }: HomeProps) {
+function BunproStudyCards({ wanikaniCount, username }: HomeProps & { username: string }) {
   const [mixedOpen, setMixedOpen] = useState(false);
   const [expanded, setExpanded] = useState<"learn" | "review" | null>(null);
   const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: ({ signal }) => bunpro<{ connected: boolean }>("action=connection", { signal }), staleTime: 30_000, retry: false });
   const enabled = connection.data?.connected === true;
-  const due = useQuery({ queryKey: ["bunpro", "due"], queryFn: ({ signal }) => bunpro<{ total_due_grammar: number; total_due_vocab: number }>("action=due", { signal }), enabled, staleTime: 30_000, retry: false });
-  const queue = useQuery({ queryKey: ["bunpro", "lesson-queue"], queryFn: ({ signal }) => bunpro<BunproQueueResponse>("action=lesson-queue", { signal }), enabled, staleTime: 30_000, retry: false });
-  if (!enabled) return null;
+  const due = useQuery({ queryKey: ["bunpro", "due"], queryFn: ({ signal }) => bunpro<{ total_due_grammar: number; total_due_vocab: number }>("action=due", { signal }), enabled, staleTime: 30_000, retry: retryCounts, retryDelay: countRetryDelay });
+  const queue = useQuery({ queryKey: ["bunpro", "lesson-queue"], queryFn: ({ signal }) => bunpro<BunproQueueResponse>("action=lesson-queue", { signal }), enabled, staleTime: 30_000, retry: retryCounts, retryDelay: countRetryDelay });
+  if (!enabled) return connection.isSuccess && connection.data.connected === false ? <BunproConnectCard username={username} /> : null;
   const summary = summarizeBunproQueue(queue.data);
   const grammar = due.data?.total_due_grammar;
   const vocab = due.data?.total_due_vocab;
@@ -66,6 +74,6 @@ function BunproStudyCards({ wanikaniCount }: HomeProps) {
         </nav></div>
       </div>
     </div>
-    {due.error || queue.error ? <p role="status" className={styles.homeReviewError}>Bunpro counts unavailable. <button type="button" onClick={() => { void due.refetch(); void queue.refetch(); }}>Retry</button></p> : null}
+    {due.error || queue.error ? <p role="status" className={styles.homeReviewError}>{due.error ? "Bunpro review counts could not be refreshed. " : ""}{queue.error ? "Bunpro lessons could not be refreshed. " : ""}<button type="button" disabled={due.isFetching || queue.isFetching} onClick={() => { if (due.isError) void due.refetch(); if (queue.isError) void queue.refetch(); }}>{due.isFetching || queue.isFetching ? "Retrying…" : "Retry"}</button></p> : null}
   </section>;
 }

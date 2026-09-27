@@ -30,6 +30,7 @@ import { AddToSubjectListsDialog } from "./AddToSubjectListsDialog";
 import { SubjectAudioButton, SubjectAudioProvider } from "./SubjectAudioControls";
 import { SubjectHistory } from "./SubjectHistory";
 import { SubjectCharacter } from "./SubjectCharacter";
+import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { StrokeOrder } from "./StrokeOrder";
 import styles from "../subjects.module.css";
 
@@ -504,7 +505,7 @@ export function AnimeSentence({ example, query }: { example: ImmersionExample; q
 
 }
 
-function AnimeContext({ examples, query, loading, failed }: { examples: ImmersionExample[]; query: string; loading: boolean; failed: boolean }) {
+export function AnimeContext({ examples, query, loading, failed }: { examples: ImmersionExample[]; query: string; loading: boolean; failed: boolean }) {
   const [visibleCount, setVisibleCount] = useState(10);
   if (loading) return <DetailSection title="Anime context"><Skeleton height="10rem" /></DetailSection>;
   if (failed || !examples.length) return <DetailSection title="Anime context"><p className={styles.contextUnavailable}>No matching ImmersionKit scene was found for this subject and source selection.</p></DetailSection>;
@@ -587,6 +588,7 @@ export function SubjectDetailPanels({
   showVocabularyFrequency = false,
   autoplayPronunciation = false,
 }: SubjectDetailPanelsProps) {
+  const detailsRef = useRef<HTMLDivElement>(null);
   const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SubjectDetailTab>(initialTab);
   const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
   const selectTab = useCallback((tab: SubjectDetailTab) => {
@@ -653,7 +655,8 @@ export function SubjectDetailPanels({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigateSequentially, sequentialNavigation]);
 
-  return <SubjectAudioProvider key={record.id} autoplay={autoplayPronunciation && firstPronunciation ? { audioKey: `pronunciation:${firstPronunciation.metadata.source_id}`, src: firstPronunciation.url } : undefined}><div className={`${styles.subjectDetailPanels}${embedded ? ` ${styles.embeddedSubjectDetails}` : ""}`} data-subject-detail-type={tone}>
+  return <SubjectAudioProvider key={record.id} autoplay={autoplayPronunciation && firstPronunciation ? { audioKey: `pronunciation:${firstPronunciation.metadata.source_id}`, src: firstPronunciation.url } : undefined}><div ref={detailsRef} className={`${styles.subjectDetailPanels}${embedded ? ` ${styles.embeddedSubjectDetails}` : ""}`} data-subject-detail-type={tone}>
+    {embedded ? <EmbeddedSubjectHeader subject={record} meaning={meaning} detailsRef={detailsRef} /> : null}
     <nav className={`${styles.detailTabs}${embedded ? ` ${styles.embeddedDetailTabs}` : ""}`} data-count={tabs.length} data-sequential-navigation={sequentialNavigation ? "true" : undefined} role="tablist" aria-label="Subject details">
       {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={tabId(tab.id)} aria-selected={resolvedActiveTab === tab.id} aria-controls={panelId(tab.id)} tabIndex={resolvedActiveTab === tab.id ? 0 : -1} onClick={() => selectTab(tab.id)} onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;

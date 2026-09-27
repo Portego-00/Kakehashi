@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BunproContext } from "../components/bunpro/BunproContext";
 import AudioSessionManager from "../modules/AudioSessionManager";
 import { BunproApiError, getBunproReviewableDetails } from "../utils/bunproApi";
 import { Audio, type AudioSound } from "../utils/expoAvCompat";
@@ -1391,7 +1392,7 @@ export default function BunproReviewableDetailsScreen() {
         </View>
 
         <View style={styles.tabsRow}>
-          {TAB_TITLES.map((label, index) => (
+          {(isVocab ? ["Meaning", "Examples", "Context", "Resources"] : TAB_TITLES).map((label, index) => (
             <TabButton
               key={label}
               label={label}
@@ -1410,6 +1411,7 @@ export default function BunproReviewableDetailsScreen() {
         style={styles.pager}
         initialPage={0}
         onPageSelected={(event) => {
+          void stopActiveSound();
           setActiveTabIndex(event.nativeEvent.position);
         }}
       >
@@ -1662,6 +1664,11 @@ export default function BunproReviewableDetailsScreen() {
           </ScrollView>
         </View>
 
+        {isVocab ? <View key="context" style={styles.pageContainer}>
+          <ScrollView style={styles.pageScroll} contentContainerStyle={[styles.pageScrollContent, { paddingBottom: insets.bottom + 28 }]}>
+            {activeTabIndex === 2 ? <BunproContext key={slugParam} query={title} /> : null}
+          </ScrollView>
+        </View> : null}
         <View key="resources" style={styles.pageContainer}>
           <ScrollView
             style={styles.pageScroll}

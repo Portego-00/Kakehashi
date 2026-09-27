@@ -22,7 +22,12 @@ import type {
   BunproStudyQuestionAttributes,
 } from "../types/bunpro";
 import { BunproApiError, getBunproReviewQuizIndex, updateBunproReview } from "../utils/bunproApi";
-import { Audio, type AudioSound } from "../utils/expoAvCompat";
+import { useBunproAudio } from "../hooks/useBunproAudio";
+import { orderBunproReviews } from "../utils/bunproReviewOrdering";
+import { getBunproLoadedReviewIds, getBunproReviewKey, getBunproReviewType } from "../utils/bunproReviewIdentity";
+import { createBunproReviewSavePolicy, type BunproReviewSaveFailure, type BunproReviewSavePolicy } from "../utils/bunproReviewSavePolicy";
+import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
+import type { MixedReviewBridge } from "../types/mixedReviews";
 import { isPortegoUsername } from "../utils/portegoAccess";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
@@ -36,7 +41,9 @@ export type BunproReviewCompletionSummary = {
   totalItems: number;
 };
 
-type BunproReviewScreenProps = {
+export type BunproReviewScreenProps = {
+  mixed?: MixedReviewBridge;
+  savePolicy?: BunproReviewSavePolicy;
   initialQueue?: BunproReviewQueueItem[] | null;
   initialReviewSessionId?: number | null;
   initialMode?: BunproReviewMode;
@@ -86,6 +93,8 @@ type BunproReviewResultItem = {
   correctAnswer: string;
   wasCorrect: boolean;
   stageLabel: string;
+  saveStatus: "saved" | "unconfirmed";
+  saveError?: string;
 };
 
 type FuriganaRun =
@@ -489,14 +498,17 @@ function buildAnswerFeedbackMap(value: unknown): Map<string, string> {
 }
 
 function mapBunproStageNumber(stage: number): string {
+  if (stage === 0) return "Beginner 0";
   const labels = [
     "Beginner 1",
     "Beginner 2",
     "Beginner 3",
     "Adept 1",
     "Adept 2",
+    "Adept 3",
     "Seasoned 1",
     "Seasoned 2",
+    "Seasoned 3",
     "Expert 1",
     "Expert 2",
     "Master",
@@ -531,8 +543,17 @@ function tryReadNumberKey(source: Record<string, unknown>, keys: string[]): numb
 
 function extractStageLabelFromSubmission(
   response: Record<string, unknown> | null,
-  reviewAttributes: Record<string, unknown> | null
+  reviewAttributes: Record<string, unknown> | null,
+  reviewType: "review" | "ghost_review" | "self_study_review" = "review",
 ): string {
+  if (reviewType === "self_study_review") return "Self-study";
+  if (reviewType === "ghost_review") {
+    const data = response?.data;
+    const attributes = data && typeof data === "object" && "attributes" in data ? data.attributes : undefined;
+    const source = attributes && typeof attributes === "object" ? attributes as Record<string, unknown> : reviewAttributes;
+    if (source?.is_slain === true) return "Ghost cleared";
+    return typeof source?.streak === "number" ? `Ghost ${source.streak + 1}` : "";
+  }
   const stringKeyCandidates = [
     "new_srs_stage_name",
     "srs_stage_name",
@@ -659,7 +680,7 @@ export function buildReviewQueue(response: {
   ];
 
   queueBuckets.forEach((item) => {
-    const reviewId = item.data?.id ? String(item.data.id) : "";
+    const reviewId = item.data?.id ? getBunproReviewKey(item) : "";
     if (reviewId && seenReviewIds.has(reviewId)) {
       return;
     }
@@ -683,13 +704,13 @@ function mergeReviewQueueItems(
 
   const seenReviewIds = new Set(
     existingQueue
-      .map((item) => (item.data?.id ? String(item.data.id) : ""))
+      .map((item) => (item.data?.id ? getBunproReviewKey(item) : ""))
       .filter(Boolean)
   );
   const mergedQueue = [...existingQueue];
 
   nextItems.forEach((item) => {
-    const reviewId = item.data?.id ? String(item.data.id) : "";
+    const reviewId = item.data?.id ? getBunproReviewKey(item) : "";
     if (reviewId && seenReviewIds.has(reviewId)) {
       return;
     }
@@ -913,7 +934,9 @@ function BunproResultCard({
         ) : null}
       </View>
 
-      {result.stageLabel ? (
+      {result.saveStatus === "unconfirmed" ? (
+        <Text style={[styles.inlineError, { color: theme.error }]}>Save unconfirmed. {result.saveError}</Text>
+      ) : result.stageLabel ? (
         <View style={styles.resultStageRow}>
           <Ionicons
             name={result.wasCorrect ? "arrow-up" : "arrow-down"}
@@ -968,7 +991,8 @@ function BunproResultsScreen({
   const accuracyPercent = Math.round((correctCount / scoredTotal) * 100);
   const scoreColor = getAccuracyColor(accuracyPercent, theme.error);
   const missedResults = results.filter((result) => !result.wasCorrect);
-  const displayedResults = missedResults.length > 0 ? missedResults : results.slice(0, 10);
+  const unconfirmedResults = results.filter((result) => result.saveStatus === "unconfirmed");
+  const displayedResults = unconfirmedResults.length ? results.filter((result) => !result.wasCorrect || result.saveStatus === "unconfirmed") : missedResults.length > 0 ? missedResults : results.slice(0, 10);
   const detailTitle = missedResults.length > 0 ? "Needs Review" : "Clean Sweep";
   const detailSubtitle =
     missedResults.length > 0
@@ -1049,6 +1073,9 @@ function BunproResultsScreen({
           </View>
         </View>
 
+        {unconfirmedResults.length ? <Text accessibilityRole="alert" style={[styles.inlineError, { color: theme.error }]}>
+          {unconfirmedResults.length} Bunpro answer{unconfirmedResults.length === 1 ? " has" : "s have"} an unconfirmed save and may still be due in Bunpro.
+        </Text> : null}
         <View style={styles.resultsSectionHeading}>
           <Text style={[styles.resultsSectionTitle, { color: theme.textColor }]}>
             {detailTitle}
@@ -1105,6 +1132,8 @@ function BunproResultsScreen({
 }
 
 export default function BunproReviewScreen({
+  mixed,
+  savePolicy: sharedSavePolicy,
   initialQueue,
   initialReviewSessionId,
   initialMode,
@@ -1122,10 +1151,35 @@ export default function BunproReviewScreen({
   const autoSwitchKeyboard = useSettingsStore(
     (state) => state.autoSwitchKeyboard,
   );
+  const reviewOrder = useSettingsStore((state) => state.reviewOrder);
+  const backToBackQuestions = useSettingsStore((state) => state.backToBackQuestions);
+  const backToBackImmediateRetryIncorrect = useSettingsStore((state) => state.backToBackImmediateRetryIncorrect);
+  const immediateRetry = backToBackQuestions && backToBackImmediateRetryIncorrect;
+  const reviewBatchSizeEnabled = useSettingsStore((state) => state.reviewBatchSizeEnabled);
+  const reviewBatchSize = useSettingsStore((state) => state.reviewBatchSize);
+  const reviewPreferencesRef = useRef({ reviewOrder, reviewBatchSizeEnabled, reviewBatchSize });
+  reviewPreferencesRef.current = { reviewOrder, reviewBatchSizeEnabled, reviewBatchSize };
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string }>();
   const inputRef = useRef<KanaInputHandle>(null);
-  const activeSoundRef = useRef<AudioSound | null>(null);
+  const audio = useBunproAudio();
+  const stopActiveSound = audio.stop;
+  const playBunproAudio = audio.play;
+  const screenFocused = useOptionalScreenIsFocused();
+  const isActive = screenFocused && mixed?.active !== false;
+  const activeRef = useRef(isActive);
+  activeRef.current = isActive;
+  const mixedRef = useRef(mixed);
+  mixedRef.current = mixed;
+  const sessionGenerationRef = useRef(0);
+  const committedOccurrenceRef = useRef<string | null>(null);
+  const processedIdsRef = useRef(new Set<string>());
+  const unconfirmedRef = useRef(new Map<string, string>());
+  const localSavePolicyRef = useRef(createBunproReviewSavePolicy());
+  const savePolicy = sharedSavePolicy ?? localSavePolicyRef.current;
+  const sessionLimitRef = useRef(Infinity);
+  const appliedWrapUpRef = useRef<number | null>(null);
+  const promptScrollRef = useRef<ScrollView>(null);
   const commitLockRef = useRef(false);
 
   const isPortegoUser = isPortegoUsername(userData?.username);
@@ -1146,13 +1200,16 @@ export default function BunproReviewScreen({
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [inputValue, setInputValue] = useState("");
+  const inputValueRef = useRef(inputValue);
+  inputValueRef.current = inputValue;
   const [isLoading, setIsLoading] = useState(!hasExternalQueue);
-  const [isSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [saveFailure, setSaveFailure] = useState<BunproReviewSaveFailure | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [incorrectCount, setIncorrectCount] = useState(0);
   const [isHintsVisible, setIsHintsVisible] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const isPlayingAudio = Boolean(audio.playingKey || audio.loadingKey);
   const [pendingOutcome, setPendingOutcome] = useState<PendingOutcome | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showAlternatives, setShowAlternatives] = useState(false);
@@ -1168,43 +1225,29 @@ export default function BunproReviewScreen({
   const backgroundColor = isDark ? "#0d1118" : theme.backgroundColor;
   const inputBorder = isDark ? "rgba(255,255,255,0.2)" : theme.border;
 
-  const stopActiveSound = useCallback(async () => {
-    if (!activeSoundRef.current) {
-      setIsPlayingAudio(false);
-      return;
-    }
-
-    try {
-      await activeSoundRef.current.unloadAsync();
-    } catch {
-      // noop
-    } finally {
-      activeSoundRef.current = null;
-      setIsPlayingAudio(false);
-    }
-  }, []);
-
   const clearReviewInput = useCallback(() => {
     inputRef.current?.clearInput();
     inputRef.current?.setInputText?.("");
+    inputValueRef.current = "";
     setInputValue("");
     setInputResetSignal((previousValue) => previousValue + 1);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
   }, []);
 
   const handleBack = useCallback(() => {
+    if (commitLockRef.current) return;
+    void stopActiveSound();
+    if (mixedRef.current) { mixedRef.current.onExit(); return; }
     if (onBack) {
       onBack();
       return;
     }
 
     router.back();
-  }, [onBack, router]);
+  }, [onBack, router, stopActiveSound]);
 
   useEffect(() => {
     return () => {
+      sessionGenerationRef.current += 1;
       void stopActiveSound();
     };
   }, [stopActiveSound]);
@@ -1214,6 +1257,7 @@ export default function BunproReviewScreen({
       return;
     }
 
+    const generation = ++sessionGenerationRef.current;
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -1221,9 +1265,27 @@ export default function BunproReviewScreen({
       const response = await getBunproReviewQuizIndex({
         onlyReview: onlyReviewFilter,
       });
-      const nextQueue = buildReviewQueue(response);
+      if (generation !== sessionGenerationRef.current) return;
+      const preferences = reviewPreferencesRef.current;
+      const limit = preferences.reviewBatchSizeEnabled ? Math.max(1, preferences.reviewBatchSize || 50) : Infinity;
+      const nextQueue = orderBunproReviews(buildReviewQueue(response), preferences.reviewOrder).slice(0, limit);
+      if (!Number.isInteger(response.review_session_id) || response.review_session_id <= 0) {
+        throw new Error("Bunpro did not return a valid review session. Please try again.");
+      }
+      if (!nextQueue.length && readPendingTotal(response) > 0) {
+        throw new Error("Bunpro reports pending reviews but returned no questions. Please try again.");
+      }
+      processedIdsRef.current.clear();
+      unconfirmedRef.current.clear();
+      setSaveFailure(null);
+      localSavePolicyRef.current.succeeded();
+      commitLockRef.current = false;
+      setIsSubmitting(false);
+      committedOccurrenceRef.current = null;
+      sessionLimitRef.current = limit;
+      setMasteryRepeatReviewIds([]);
       setQueue(nextQueue);
-      setLoadedReviewTotal(Math.max(nextQueue.length, readPendingTotal(response)));
+      setLoadedReviewTotal(Math.min(limit, Math.max(nextQueue.length, readPendingTotal(response))));
       setReviewSessionId(response.review_session_id ?? null);
       setCurrentIndex(0);
       setCorrectCount(0);
@@ -1233,10 +1295,11 @@ export default function BunproReviewScreen({
       clearReviewInput();
       setIsHintsVisible(false);
     } catch (error) {
+      if (generation !== sessionGenerationRef.current) return;
       setErrorMessage(formatBunproError(error));
       setIsLoadingMoreReviews(false);
     } finally {
-      setIsLoading(false);
+      if (generation === sessionGenerationRef.current) setIsLoading(false);
     }
   }, [clearReviewInput, hasExternalQueue, onlyReviewFilter]);
 
@@ -1245,13 +1308,23 @@ export default function BunproReviewScreen({
       return;
     }
 
+    sessionGenerationRef.current += 1;
+    processedIdsRef.current.clear();
+    unconfirmedRef.current.clear();
+    setSaveFailure(null);
+    localSavePolicyRef.current.succeeded();
+    commitLockRef.current = false;
+    setIsSubmitting(false);
+    committedOccurrenceRef.current = null;
+    sessionLimitRef.current = Infinity;
     setQueue(initialQueue ?? []);
     setLoadedReviewTotal(initialQueue?.length ?? 0);
     setReviewSessionId(initialReviewSessionId ?? null);
     setCurrentIndex(0);
     setCorrectCount(0);
     setIncorrectCount(0);
-    setErrorMessage(null);
+    setErrorMessage(initialQueue?.length && (!initialReviewSessionId || initialReviewSessionId <= 0)
+      ? "Bunpro did not return a valid review session. Please restart these lessons." : null);
     setIsLoadingMoreReviews(false);
     setReviewResults([]);
     setPendingOutcome(null);
@@ -1283,13 +1356,18 @@ export default function BunproReviewScreen({
     | Record<string, unknown>
     | null;
   const currentReviewId = currentItem?.data?.id ?? null;
+  const currentReviewType = currentItem ? getBunproReviewType(currentItem) : "review";
   const reviewableType = sanitizeText(currentReviewAttributes?.reviewable_type);
 
-  const studyQuestionId = currentItem?.data?.relationships?.study_question?.data?.id;
+  const studyQuestionRelation = currentReviewType === "self_study_review"
+    ? currentItem?.data?.relationships?.user_study_question?.data
+    : currentItem?.data?.relationships?.study_question?.data;
+  const userStudyQuestionId = currentReviewAttributes?.user_study_question_id;
+  const studyQuestionId = studyQuestionRelation?.id ?? (currentReviewType === "self_study_review" && (typeof userStudyQuestionId === "number" || typeof userStudyQuestionId === "string") ? String(userStudyQuestionId) : undefined);
   const studyQuestionResource = getIncludedResource(
     currentItem?.included,
     studyQuestionId,
-    "study_question"
+    currentReviewType === "self_study_review" ? "user_study_question" : studyQuestionRelation?.type ?? "study_question"
   );
   const studyQuestionAttributes = useMemo(
     () =>
@@ -1329,7 +1407,10 @@ export default function BunproReviewScreen({
     canonicalAnswer
   );
   const hasAlternatives = alternativeAnswers.length > 0;
-  const currentReviewIdString = currentReviewId ? String(currentReviewId) : "";
+  const questionError = currentItem && (!studyQuestionResource || !canonicalAnswer)
+    ? "Bunpro did not provide a complete question. Go back and reopen these reviews to try again."
+    : null;
+  const currentReviewIdString = currentItem ? getBunproReviewKey(currentItem) : "";
   const isMasteryRepeat =
     currentReviewIdString.length > 0 &&
     masteryRepeatReviewIds.includes(currentReviewIdString);
@@ -1349,7 +1430,13 @@ export default function BunproReviewScreen({
   );
 
   const reviewableRelation = currentItem?.data?.relationships?.reviewable?.data;
-  const reviewableKind = reviewableRelation?.type === "grammar_point" ? "grammar" : "vocab";
+  const reviewableKind = reviewableRelation?.type === "grammar_point" || reviewableType === "GrammarPoint" ? "grammar" : "vocab";
+  const questionKind = reviewableKind === "vocab" && canonicalAnswer && !/[\u3040-\u30ff\u3400-\u9fff]/u.test(canonicalAnswer) ? "meaning" : "reading";
+  const normalizeCurrentAnswer = (value: string) => questionKind === "meaning"
+    ? value.trim().toLocaleLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ")
+    : normalizeAnswer(value);
+  const occurrenceId = `${currentIndex}:${currentReviewIdString}:${studyQuestionId ?? ""}`;
+  const answerAlreadySaved = processedIdsRef.current.has(currentReviewIdString) && !isMasteryRepeat;
   const reviewableResource = getIncludedResource(
     currentItem?.included,
     reviewableRelation?.id,
@@ -1371,9 +1458,9 @@ export default function BunproReviewScreen({
     sanitizeText(reviewableAttributes.jlpt_level);
 
   const totalItems = queue.length;
-  const displayTotalItems = Math.max(totalItems, loadedReviewTotal);
+  const displayTotalItems = loadedReviewTotal;
   const displayCurrentItem = Math.min(
-    currentIndex + 1,
+    correctCount + incorrectCount + (isMasteryRepeat ? 0 : 1),
     Math.max(1, displayTotalItems)
   );
   const isWaitingForMoreReviews =
@@ -1382,75 +1469,67 @@ export default function BunproReviewScreen({
 
   useEffect(() => {
     setPendingOutcome(null);
+    setSaveFailure(null);
     setShowAnswer(false);
     setShowAlternatives(false);
     setReviewFeedback(null);
     clearReviewInput();
     void stopActiveSound();
+    promptScrollRef.current?.scrollTo({ y: 0, animated: false });
     setIsHintsVisible(false);
-  }, [clearReviewInput, currentIndex, currentReviewId, stopActiveSound]);
+  }, [clearReviewInput, occurrenceId, stopActiveSound]);
 
   useEffect(() => {
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
+    if (!isActive) { void stopActiveSound(); return; }
+    inputRef.current?.setInputText?.(inputValueRef.current);
+    const frame = requestAnimationFrame(() => {
+      if (activeRef.current) inputRef.current?.focus();
     });
-  }, [currentIndex]);
+    return () => cancelAnimationFrame(frame);
+  }, [isActive, occurrenceId, stopActiveSound]);
 
   const playCurrentAudio = useCallback(async () => {
-    if (!studyQuestionAttributes) {
-      return;
-    }
-
-    const urls = [
+    if (!activeRef.current) return;
+    await playBunproAudio(occurrenceId, [
       sanitizeText(studyQuestionAttributes.female_audio_url),
       sanitizeText(studyQuestionAttributes.male_audio_url),
-    ].filter((value) => value.length > 0);
+    ]);
+  }, [playBunproAudio, occurrenceId, studyQuestionAttributes]);
 
-    if (urls.length === 0) {
-      return;
-    }
+  useEffect(() => {
+    mixedRef.current?.reportSaving?.(isSubmitting);
+  }, [isSubmitting]);
+  useEffect(() => {
+    mixedRef.current?.reportError(errorMessage ?? questionError);
+  }, [errorMessage, questionError]);
+  useEffect(() => {
+    if (isLoading || (errorMessage && !queue.length)) return;
+    mixedRef.current?.report(currentItem ? { id: occurrenceId, ...(isMasteryRepeat && immediateRetry ? { keepTurn: true } : {}) } : null);
+  }, [isLoading, occurrenceId, currentItem, isMasteryRepeat, immediateRetry, errorMessage, queue.length]);
+  useEffect(() => {
+    const completed = correctCount + incorrectCount - masteryRepeatReviewIds.length;
+    mixedRef.current?.reportProgress({ completed, total: loadedReviewTotal });
+    mixedRef.current?.reportAccuracy({ correct: correctCount, answered: correctCount + incorrectCount });
+  }, [correctCount, incorrectCount, masteryRepeatReviewIds.length, loadedReviewTotal]);
+  const wrapUpRequest = mixed?.wrapUpRequest;
+  useEffect(() => {
+    if (!wrapUpRequest || isLoading || isSubmitting || appliedWrapUpRef.current === wrapUpRequest.id) return;
+    appliedWrapUpRef.current = wrapUpRequest.id;
+    const retained = queue.slice(currentIndex, currentIndex + Math.max(0, wrapUpRequest.limit));
+    const keptIds = new Set(retained.map((item) => getBunproReviewKey(item)));
+    setMasteryRepeatReviewIds((ids) => ids.filter((id) => keptIds.has(id)));
+    const pending = retained.filter((item) => !processedIdsRef.current.has(getBunproReviewKey(item))).length;
+    sessionLimitRef.current = processedIdsRef.current.size + pending;
+    setLoadedReviewTotal(sessionLimitRef.current);
+    setQueue((items) => [...items.slice(0, currentIndex), ...retained]);
+  // A wrap-up is applied once per request; later questions keep the retained queue.
+  }, [wrapUpRequest, isLoading, isSubmitting, currentIndex, queue]);
 
-    if (isPlayingAudio) {
-      await stopActiveSound();
-      return;
-    }
-
-    await stopActiveSound();
-
-    let createdSound: AudioSound | null = null;
-    for (const url of urls) {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: url },
-          { shouldPlay: true }
-        );
-        createdSound = sound;
-        break;
-      } catch {
-        // try next audio source
-      }
-    }
-
-    if (!createdSound) {
-      return;
-    }
-
-    activeSoundRef.current = createdSound;
-    setIsPlayingAudio(true);
-
-    createdSound.setOnPlaybackStatusUpdate((status) => {
-      if (!status.isLoaded) {
-        return;
-      }
-
-      if (status.didJustFinish) {
-        void stopActiveSound();
-      }
-    });
-  }, [isPlayingAudio, stopActiveSound, studyQuestionAttributes]);
-
-  const submitCurrentAnswer = useCallback(async () => {
+  const submitCurrentAnswer = async (continueWithoutSaving = false) => {
     if (
+      !activeRef.current ||
+      questionError ||
+      committedOccurrenceRef.current === occurrenceId ||
       !currentItem ||
       !currentReviewId ||
       !reviewSessionId ||
@@ -1459,6 +1538,7 @@ export default function BunproReviewScreen({
     ) {
       return;
     }
+    if (continueWithoutSaving && (!saveFailure || saveFailure.pause)) return;
 
     if (!pendingOutcome) {
       const flushedInput = inputRef.current?.flushKana() ?? inputValue;
@@ -1469,10 +1549,12 @@ export default function BunproReviewScreen({
 
       setInputValue(flushedInput);
 
-      const normalizedInput = normalizeAnswer(flushedInput);
-      const acceptedAnswers = collectAcceptedAnswers(
-        (studyQuestionAttributes as unknown as Record<string, unknown>) ?? {}
-      );
+      const normalizedInput = normalizeCurrentAnswer(flushedInput);
+      const acceptedAnswers = questionKind === "meaning"
+        ? [canonicalAnswer, studyQuestionAttributes.answer, ...alternativeAnswers]
+            .filter((value): value is string => typeof value === "string")
+            .map(normalizeCurrentAnswer)
+        : collectAcceptedAnswers(studyQuestionAttributes);
       const correct = normalizedInput.length > 0 && acceptedAnswers.includes(normalizedInput);
       const alternateFeedbackMessage =
         normalizedInput.length > 0 ? alternateAnswerFeedback.get(normalizedInput) : undefined;
@@ -1493,7 +1575,7 @@ export default function BunproReviewScreen({
       setPendingOutcome({
         correct,
         enteredText,
-        stageLabel: extractStageLabelFromSubmission(null, currentReviewAttributes),
+        stageLabel: extractStageLabelFromSubmission(null, currentReviewAttributes, currentReviewType),
       });
       setReviewFeedback(
         !correct && wrongFeedbackMessage
@@ -1508,209 +1590,113 @@ export default function BunproReviewScreen({
       return;
     }
 
-    const remainingLoadedQueue = queue.slice(currentIndex);
-    const shouldRequestMoreReviews =
-      submissionContext === "review" &&
-      !hasExternalQueue &&
-      remainingLoadedQueue.length > 1 &&
-      remainingLoadedQueue.length <= 10;
-    const loadedReviewIds = remainingLoadedQueue
-      .map((item) => Number.parseInt(item.data.id, 10))
-      .filter((value) => Number.isFinite(value));
+    const generation = sessionGenerationRef.current;
+    const remainingLoadedQueue = queue.slice(currentIndex).filter((item) => !processedIdsRef.current.has(getBunproReviewKey(item)));
+    const shouldRequestMoreReviews = submissionContext === "review" && !hasExternalQueue &&
+      processedIdsRef.current.size + remainingLoadedQueue.length < sessionLimitRef.current &&
+      remainingLoadedQueue.length <= 1;
+    const itemOnlyReview = submissionContext === "learn" ? null : onlyReviewFilter ?? (reviewableType || null);
+    const outcome = pendingOutcome;
+    commitLockRef.current = true;
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    void stopActiveSound();
 
-    const itemOnlyReview =
-      submissionContext === "learn"
-        ? null
-        : reviewableType.length > 0
-          ? reviewableType
-          : onlyReviewFilter ?? null;
-    const resultItem: BunproReviewResultItem = {
-      reviewId: currentReviewIdString,
-      reviewableKind,
-      reviewableSlug,
-      reviewableTitle,
-      reviewableMeaning,
-      reviewableLevel,
-      question: questionSentence,
-      translation: translationText,
-      tenseHint,
-      enteredAnswer: pendingOutcome.enteredText,
-      correctAnswer: canonicalAnswer,
-      wasCorrect: pendingOutcome.correct,
-      stageLabel: pendingOutcome.stageLabel,
-    };
-
-    const submitToApi = async (correct: boolean): Promise<Record<string, unknown> | null> => {
-      const payloadVariants = [
-        {
-          review_session_id: reviewSessionId,
-          correct,
-          fsrs_input: null,
-          loaded_review_ids: shouldRequestMoreReviews ? loadedReviewIds : null,
-          loaded_ghost_review_ids: shouldRequestMoreReviews ? [] : null,
-          loaded_self_study_review_ids: shouldRequestMoreReviews ? [] : null,
-          deck_id: null,
-          only_review: itemOnlyReview,
-        },
-        {
-          review_session_id: reviewSessionId,
-          correct,
-          fsrs_input: null,
-          loaded_review_ids: null,
-          loaded_ghost_review_ids: null,
-          loaded_self_study_review_ids: null,
-          deck_id: null,
-          only_review: itemOnlyReview,
-        },
-        {
-          review_session_id: reviewSessionId,
-          correct,
-          fsrs_input: null,
-          loaded_review_ids: null,
-          loaded_ghost_review_ids: null,
-          loaded_self_study_review_ids: null,
-          deck_id: null,
-        },
-      ];
-
-      let lastSubmissionError: unknown = null;
-
-      for (const payload of payloadVariants) {
-        try {
-          const response = await updateBunproReview({
-            reviewId: currentReviewId,
-            payload,
-          });
-          return response && typeof response === "object"
-            ? (response as Record<string, unknown>)
-            : null;
-        } catch (error) {
-          lastSubmissionError = error;
+    try {
+      let updatedQueue = queue;
+      if (!processedIdsRef.current.has(currentReviewIdString)) {
+        const loadedIds = getBunproLoadedReviewIds(remainingLoadedQueue);
+        const response = continueWithoutSaving ? null : await updateBunproReview({
+          reviewId: currentReviewId,
+          reviewType: currentReviewType,
+          payload: {
+            review_session_id: reviewSessionId,
+            correct: outcome.correct,
+            fsrs_input: null,
+            loaded_review_ids: shouldRequestMoreReviews ? loadedIds.loaded_review_ids : null,
+            loaded_ghost_review_ids: shouldRequestMoreReviews ? loadedIds.loaded_ghost_review_ids : null,
+            loaded_self_study_review_ids: shouldRequestMoreReviews ? loadedIds.loaded_self_study_review_ids : null,
+            deck_id: null,
+            only_review: itemOnlyReview,
+          },
+        });
+        if (generation !== sessionGenerationRef.current) return;
+        if (continueWithoutSaving) unconfirmedRef.current.set(currentReviewIdString, errorMessage ?? "Bunpro review could not be saved.");
+        else savePolicy.succeeded();
+        setSaveFailure(null);
+        // Remember saved answers and explicit skips before fetching another page.
+        // A page-load retry must not submit either answer again.
+        processedIdsRef.current.add(currentReviewIdString);
+        if (outcome.correct) setCorrectCount((count) => count + 1);
+        else setIncorrectCount((count) => count + 1);
+        setReviewResults((results) => [...results, {
+          reviewId: currentReviewIdString, reviewableKind, reviewableSlug, reviewableTitle,
+          reviewableMeaning, reviewableLevel, question: questionSentence,
+          translation: translationText, tenseHint, enteredAnswer: outcome.enteredText,
+          correctAnswer: canonicalAnswer, wasCorrect: outcome.correct,
+          stageLabel: continueWithoutSaving ? "" : extractStageLabelFromSubmission(response, null, currentReviewType),
+          saveStatus: continueWithoutSaving ? "unconfirmed" : "saved",
+          ...(continueWithoutSaving ? { saveError: errorMessage ?? undefined } : {}),
+        }]);
+        if (!hasExternalQueue && submissionContext === "review") {
+          const fresh = orderBunproReviews(buildReviewQueue(response ?? {}), reviewPreferencesRef.current.reviewOrder);
+          const availableSlots = sessionLimitRef.current - new Set(queue.map((item) => getBunproReviewKey(item))).size;
+          const knownIds = new Set(queue.map((item) => getBunproReviewKey(item)));
+          updatedQueue = mergeReviewQueueItems(queue, fresh.filter((item) => !knownIds.has(getBunproReviewKey(item))).slice(0, Math.max(0, availableSlots)));
+          setQueue(updatedQueue);
         }
       }
 
-      throw lastSubmissionError;
-    };
-
-    const submitToApiInBackground = (correct: boolean) => {
-      if (shouldRequestMoreReviews) {
+      let nextItems = updatedQueue.slice(currentIndex + 1);
+      if (!outcome.correct) nextItems = immediateRetry ? [currentItem, ...nextItems] : [...nextItems, currentItem];
+      if (!hasExternalQueue && submissionContext === "review" && !nextItems.length &&
+          processedIdsRef.current.size < Math.min(loadedReviewTotal, sessionLimitRef.current)) {
         setIsLoadingMoreReviews(true);
+        const more = await getBunproReviewQuizIndex({ onlyReview: onlyReviewFilter });
+        if (generation !== sessionGenerationRef.current) return;
+        if (!Number.isInteger(more.review_session_id) || more.review_session_id <= 0) {
+          throw new Error("Could not load the next review batch. Tap Next to retry.");
+        }
+        const page = buildReviewQueue(more);
+        const remaining = Math.max(0, readPendingTotal(more) - page.filter((item) => processedIdsRef.current.has(getBunproReviewKey(item))).length);
+        nextItems = orderBunproReviews(page, reviewPreferencesRef.current.reviewOrder).filter((item) => !processedIdsRef.current.has(getBunproReviewKey(item))).slice(0, Math.max(0, sessionLimitRef.current - processedIdsRef.current.size));
+        if (!nextItems.length && remaining > 0) {
+          throw new Error("Bunpro still has reviews pending but returned no new questions. Tap Next to retry.");
+        }
+        setReviewSessionId(more.review_session_id);
+        setLoadedReviewTotal(Math.min(sessionLimitRef.current, processedIdsRef.current.size + Math.max(nextItems.length, remaining)));
       }
-
-      void submitToApi(correct)
-        .then((response) => {
-          if (!response) {
-            return;
-          }
-
-          const nextQueueItems = buildReviewQueue(response);
-          const nextTotal = readPendingTotal(response);
-
-          if (nextQueueItems.length > 0) {
-            setQueue((previousQueue) =>
-              mergeReviewQueueItems(previousQueue, nextQueueItems)
-            );
-          }
-
-          if (nextTotal > 0) {
-            setLoadedReviewTotal((previousTotal) =>
-              Math.max(previousTotal, correctCount + incorrectCount + nextTotal)
-            );
-          }
-        })
-        .catch((error) => {
-          setErrorMessage(`Background sync failed: ${formatBunproError(error)}`);
-        })
-        .finally(() => {
-          if (shouldRequestMoreReviews) {
-            setIsLoadingMoreReviews(false);
-          }
-        });
-    };
-
-    const advanceToNext = () => {
+      if (outcome.correct) {
+        setMasteryRepeatReviewIds((ids) => ids.filter((id) => id !== currentReviewIdString));
+      } else {
+        setMasteryRepeatReviewIds((ids) => ids.includes(currentReviewIdString) ? ids : [...ids, currentReviewIdString]);
+      }
+      committedOccurrenceRef.current = occurrenceId;
       clearReviewInput();
-      setCurrentIndex((previousValue) => previousValue + 1);
+      setQueue([...updatedQueue.slice(0, currentIndex + 1), ...nextItems]);
+      setCurrentIndex((index) => index + 1);
       setPendingOutcome(null);
       setShowAnswer(false);
       setShowAlternatives(false);
       setReviewFeedback(null);
-      void stopActiveSound();
-    };
-
-    try {
-      commitLockRef.current = true;
-
-      if (pendingOutcome.correct) {
-        if (isMasteryRepeat) {
-          setMasteryRepeatReviewIds((previousIds) =>
-            previousIds.filter((id) => id !== currentReviewIdString)
-          );
-          advanceToNext();
-          return;
-        }
-
-        setCorrectCount((previousValue) => previousValue + 1);
-        setReviewResults((previousResults) => [...previousResults, resultItem]);
-        submitToApiInBackground(true);
-        advanceToNext();
-        return;
-      }
-
-      if (!isMasteryRepeat) {
-        setIncorrectCount((previousValue) => previousValue + 1);
-        setReviewResults((previousResults) => [...previousResults, resultItem]);
-        submitToApiInBackground(false);
-
-        if (currentReviewIdString) {
-          setMasteryRepeatReviewIds((previousIds) =>
-            previousIds.includes(currentReviewIdString)
-              ? previousIds
-              : [...previousIds, currentReviewIdString]
-          );
-        }
-      }
-
-      setQueue((previousQueue) => [...previousQueue, currentItem]);
-      advanceToNext();
+      mixedRef.current?.onAnswer({ id: `bunpro:${currentReviewIdString}`, source: "bunpro", title: reviewableTitle || canonicalAnswer, correct: outcome.correct, saveStatus: unconfirmedRef.current.has(currentReviewIdString) ? "unconfirmed" : "saved", saveError: unconfirmedRef.current.get(currentReviewIdString), ...(reviewableSlug ? { bunproSubject: { kind: reviewableKind, slug: reviewableSlug } } : {}) });
     } catch (error) {
-      setErrorMessage(formatBunproError(error));
+      if (generation === sessionGenerationRef.current) {
+        if (!processedIdsRef.current.has(currentReviewIdString)) {
+          setSaveFailure(savePolicy.failed(error));
+          setErrorMessage(formatBunproError(error));
+        } else {
+          setErrorMessage(`${formatBunproError(error)} Your answer is kept. Tap Next to retry.`);
+        }
+      }
     } finally {
-      commitLockRef.current = false;
+      if (generation === sessionGenerationRef.current) {
+        commitLockRef.current = false;
+        setIsSubmitting(false);
+        setIsLoadingMoreReviews(false);
+      }
     }
-  }, [
-    currentItem,
-    currentReviewAttributes,
-    currentReviewId,
-    currentReviewIdString,
-    currentIndex,
-    correctCount,
-    incorrectCount,
-    canonicalAnswer,
-    hasExternalQueue,
-    inputValue,
-    isMasteryRepeat,
-    isSubmitting,
-    onlyReviewFilter,
-    pendingOutcome,
-    queue,
-    reviewSessionId,
-    reviewableType,
-    stopActiveSound,
-    clearReviewInput,
-    studyQuestionAttributes,
-    alternateAnswerFeedback,
-    wrongAnswerFeedback,
-    submissionContext,
-    questionSentence,
-    reviewableKind,
-    reviewableLevel,
-    reviewableMeaning,
-    reviewableSlug,
-    reviewableTitle,
-    tenseHint,
-    translationText,
-  ]);
+  };
 
   const translatedPrompt = pendingOutcome
     ? pendingOutcome.correct || !showAnswer
@@ -1746,6 +1732,8 @@ export default function BunproReviewScreen({
       : showAnswer
         ? !hasAlternatives
         : false;
+
+  if (mixed && !isActive) return null;
 
   if (!isPortegoUser) {
     return (
@@ -1788,6 +1776,7 @@ export default function BunproReviewScreen({
         >
           <Text style={styles.primaryButtonText}>Try again</Text>
         </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={handleBack} style={styles.iconButton}><Text style={{ color: theme.textColor }}>Back</Text></TouchableOpacity>
       </SafeAreaView>
     );
   }
@@ -1801,6 +1790,7 @@ export default function BunproReviewScreen({
         <Text style={[styles.emptySubtitle, { color: mutedColor }]}>
           {emptySubtitle ?? `You are all caught up for ${getModeLabel(mode)}.`}
         </Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={handleBack} style={[styles.primaryButton, { backgroundColor: accent }]}><Text style={styles.primaryButtonText}>Back</Text></TouchableOpacity>
       </SafeAreaView>
     );
   }
@@ -1861,12 +1851,17 @@ export default function BunproReviewScreen({
       <View style={[styles.header, { borderBottomColor: inputBorder }]}>
         <View style={styles.headerLeftGroup}>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={mixed ? "Exit mixed reviews" : "Back"}
+            disabled={isSubmitting}
             style={styles.iconButton}
             onPress={handleBack}
           >
             <Ionicons name="arrow-back-outline" size={24} color={theme.textColor} />
           </TouchableOpacity>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Search Bunpro"
             style={styles.iconButton}
             onPress={() => {
               router.push("/(app)/(bunpro-tabs)/bunpro-search");
@@ -1877,7 +1872,7 @@ export default function BunproReviewScreen({
         </View>
 
         <View style={styles.headerRightGroup}>
-          {pendingOutcome?.stageLabel ? (
+          {!mixed && pendingOutcome?.stageLabel && !saveFailure ? (
             <View style={styles.stageRow}>
               <Ionicons
                 name={pendingOutcome.correct ? "arrow-up" : "arrow-down"}
@@ -1889,9 +1884,17 @@ export default function BunproReviewScreen({
               </Text>
             </View>
           ) : null}
-          <Text style={[styles.headerStatsText, { color: mutedColor }]}>
-            {displayCurrentItem}/{displayTotalItems}
+          {mixed ? <Text accessibilityLabel="Mixed review accuracy" style={[styles.headerStatsText, { color: mutedColor }]}>
+            {mixed.accuracy.answered ? `${Math.round(mixed.accuracy.correct / mixed.accuracy.answered * 100)}%` : "—"}
+          </Text> : null}
+          <Text accessibilityLabel={mixed ? "Mixed review progress" : "Bunpro review progress"} style={[styles.headerStatsText, { color: mutedColor }]}>
+            {mixed ? `${mixed.progress.completed}/${mixed.progress.total}` : `${displayCurrentItem}/${displayTotalItems}`}
           </Text>
+          {mixed && !mixed.wrapUpRequest && mixed.progress.completed < mixed.progress.total ? (
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Wrap up mixed reviews" disabled={isSubmitting} style={styles.iconButton} onPress={mixed.onWrapUp}>
+              <Ionicons name="stop-circle-outline" size={24} color={theme.textColor} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
@@ -1899,7 +1902,21 @@ export default function BunproReviewScreen({
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.promptArea}>
+        {mixed?.previous ? (
+          <View style={[styles.previousAnswer, { borderColor: inputBorder }]} accessibilityLabel={`Previous ${mixed.previous.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${mixed.previous.title}, ${mixed.previous.correct ? "correct" : "incorrect"}`}>
+            <Ionicons name={mixed.previous.correct ? "checkmark-circle" : "close-circle"} size={18} color={mixed.previous.correct ? "#4caf50" : theme.error} />
+            <Text numberOfLines={1} style={{ color: mutedColor, flexShrink: 1 }}>{mixed.previous.title}</Text>
+          </View>
+        ) : null}
+        <ScrollView
+          ref={promptScrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.promptArea}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={[styles.questionType, { color: accent }]}>
+            {reviewableKind === "grammar" ? "Bunpro grammar" : "Bunpro vocabulary"} · {questionKind === "meaning" ? "Meaning" : "Reading"}{currentReviewType === "ghost_review" ? " · Ghost review" : currentReviewType === "self_study_review" ? " · Self-study review" : ""}{isMasteryRepeat ? " · Retry" : ""}
+          </Text>
           {tenseHint ? (
             <Text style={[styles.tenseLabel, { color: mutedColor }]}>{tenseHint}</Text>
           ) : null}
@@ -1983,12 +2000,24 @@ export default function BunproReviewScreen({
             </View>
           ) : null}
 
-          {!!errorMessage ? (
-            <Text style={[styles.inlineError, { color: theme.error }]}>{errorMessage}</Text>
+          {errorMessage || questionError ? (
+            <Text accessibilityRole="alert" style={[styles.inlineError, { color: theme.error }]}>{errorMessage ?? questionError}</Text>
           ) : null}
-        </View>
+          {saveFailure ? <Text style={[styles.inlineError, { color: theme.error }]}>{saveFailure.message}</Text> : null}
+          {!saveFailure && unconfirmedRef.current.size ? <Text style={[styles.inlineError, { color: warningColor }]}>
+            {unconfirmedRef.current.size} answer{unconfirmedRef.current.size === 1 ? " has" : "s have"} an unconfirmed save.
+          </Text> : null}
+        </ScrollView>
 
         <View style={styles.bottomArea}>
+          {saveFailure && pendingOutcome ? <View style={styles.saveActions}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry save" disabled={isSubmitting} onPress={() => { void submitCurrentAnswer(); }} style={[styles.saveActionButton, { borderColor: inputBorder }]}>
+              <Text style={{ color: theme.textColor }}>Retry save</Text>
+            </TouchableOpacity>
+            {!saveFailure.pause ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Continue without saving" disabled={isSubmitting} onPress={() => { void submitCurrentAnswer(true); }} style={[styles.saveActionButton, { borderColor: inputBorder }]}>
+              <Text style={{ color: theme.textColor }}>Continue without saving</Text>
+            </TouchableOpacity> : null}
+          </View> : null}
           {!isFrozenOnResult ? (
             <View style={styles.bottomActions}>
               <TouchableOpacity
@@ -2007,8 +2036,10 @@ export default function BunproReviewScreen({
               <View style={styles.resultActionSlot}>
                 <TouchableOpacity
                   activeOpacity={0.86}
-                  style={[styles.resultActionButton, { borderColor: inputBorder }]}
+                  style={[styles.resultActionButton, { borderColor: inputBorder, opacity: isSubmitting || answerAlreadySaved || saveFailure ? 0.5 : 1 }]}
+                  disabled={isSubmitting || answerAlreadySaved || Boolean(saveFailure)}
                   onPress={() => {
+                    if (commitLockRef.current || answerAlreadySaved || saveFailure) return;
                     setPendingOutcome(null);
                     setShowAnswer(false);
                     setShowAlternatives(false);
@@ -2112,6 +2143,8 @@ export default function BunproReviewScreen({
             <KanaInput
               ref={inputRef}
               onKanaChange={(nextKana) => {
+                if (commitLockRef.current || !activeRef.current || answerAlreadySaved || saveFailure) return;
+                inputValueRef.current = nextKana;
                 setInputValue(nextKana);
 
                 if (pendingOutcome) {
@@ -2130,25 +2163,28 @@ export default function BunproReviewScreen({
                   setReviewFeedback(null);
                 }
               }}
-              initialValue=""
-              enableKanaConversion
-              useJapaneseKeyboard={autoSwitchKeyboard}
+              initialValue={inputValue}
+              enableKanaConversion={questionKind === "reading"}
+              useJapaneseKeyboard={questionKind === "reading" && autoSwitchKeyboard}
               resetSignal={inputResetSignal}
               autoCorrect={false}
               autoCapitalize="none"
-              placeholder="Type your answer..."
+              accessibilityLabel="Bunpro answer"
+              placeholder={questionKind === "meaning" ? "Type the meaning..." : "Type your answer..."}
               placeholderTextColor={mutedColor}
               style={[styles.answerInput, { color: isFrozenOnResult ? statusColor : theme.textColor }]}
               returnKeyType="send"
               onSubmitEditing={() => {
                 void submitCurrentAnswer();
               }}
-              editable={!isSubmitting}
+              editable={isActive && !isSubmitting && !answerAlreadySaved && !saveFailure}
               blurOnSubmit={false}
             />
 
             <TouchableOpacity
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isActive || Boolean(questionError) || Boolean(saveFailure)}
+              accessibilityRole="button"
+              accessibilityLabel={isFrozenOnResult ? "Next question" : "Check answer"}
               style={styles.submitButton}
               activeOpacity={0.82}
               onPress={() => {
@@ -2272,8 +2308,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
   },
+  previousAnswer: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  questionType: { fontSize: 13, fontWeight: "600", marginBottom: 12, textAlign: "center" },
   promptArea: {
-    flex: 1,
+    flexGrow: 1,
+    paddingVertical: 20,
     paddingHorizontal: 24,
     alignItems: "center",
     justifyContent: "center",
@@ -2386,6 +2425,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  saveActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  saveActionButton: {
+    borderWidth: 1,
+    borderRadius: 14,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    justifyContent: "center",
   },
   hintButton: {
     borderWidth: 1,

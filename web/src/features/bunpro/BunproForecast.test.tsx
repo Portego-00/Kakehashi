@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { BunproForecast } from "./BunproForecast";
 import { bunpro } from "./client";
 import { createReviewForecast, type ReviewForecastEntry } from "@/features/dashboard/review-forecast";
-vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { data: { username: "Portego" } }, isDemo: false }) }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { data: { username: "Learner" } }, isDemo: false }) }));
 vi.mock("./client", () => ({ bunpro: vi.fn() }));
 // Keep this test focused on source selection; the actual chart has its own tests.
 vi.mock("@/features/dashboard/ReviewForecast", () => ({ ReviewForecast: ({ forecast, unavailable, loading }: { forecast: { dueNow: { count: number } }; unavailable?: React.ReactNode; loading?: boolean }) => <div>{loading ? "Loading" : unavailable ?? <span>{forecast.dueNow.count} due now</span>}</div> }));

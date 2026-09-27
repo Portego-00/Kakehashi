@@ -210,7 +210,7 @@ export function ActivityWidget({ insights, assignments, subjects, expanded, asOf
       <dl className={styles.headlineMetrics}><Metric primary label="Activity signals" value={formatNumber(activity.reduce((sum, day) => sum + day.count, 0))} /><Metric label="Active days" value={activity.filter((day) => day.count > 0).length} /><Metric label="Activity streak" value={`${streak.current} ${streak.current === 1 ? "day" : "days"}`} /></dl>
       {metricTabs}
       <ReviewActivityHeatmap days={activity} label="Assignment activity in selected period" />
-      <p className={styles.note}>Assignment updates, lessons, Guru and burn milestones, not historical review counts.</p>
+      <p className={styles.note}>Lessons, Guru and burn milestones, not historical review counts.</p>
     </>;
   }
   return <>

@@ -5,7 +5,8 @@ import { Check, X, ExternalLink, Volume2, RotateCcw } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { CoreStudyResults } from "@/features/core-study/CoreStudyResults";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
-import { BunproText, RubyText } from "@/features/bunpro/BunproText";
+import { BunproSentence, BunproText, RubyText } from "@/features/bunpro/BunproText";
+import { BunproSaveWarning } from "@/features/bunpro/BunproSaveWarning";
 import { useBunproAudio } from "@/features/bunpro/use-bunpro-audio";
 import type { SessionResult, SessionResultsData } from "./session-results";
 import styles from "./session-results.module.css";
@@ -35,6 +36,7 @@ function BunproSessionResults({ items, durationMs, pendingCount = 0, error, titl
     <header className={styles.header}><div><Heading id={id}>{title}</Heading><p>{items.length ? `${items.length} subjects reviewed${embedded ? "" : ` · ${time}`}` : "You're all caught up."}</p></div><ButtonLink href="/dashboard" tone="primary">Back to home</ButtonLink></header>
     {pendingCount > 0 ? <p role="status" className={styles.notice}>{pendingCount} WaniKani {pendingCount === 1 ? "submission is" : "submissions are"} saved on this device and waiting to sync.</p> : null}
     {error ? <p role="alert">{error}</p> : null}
+    <BunproSaveWarning count={items.filter(item => item.saveFailed).length} />
     {progression}
     <div className={styles.layout}><aside className={styles.summary} aria-label="Session summary">
       <div className={styles.accuracy}><strong>{items.length ? `${percent}%` : "—"}</strong><span>First-try accuracy</span><small>Subjects correct without a missed answer</small></div>
@@ -51,12 +53,14 @@ function BunproSessionResults({ items, durationMs, pendingCount = 0, error, titl
   </section>;
 }
 function ResultRow({ item, play }: { item: SessionResult; play: () => void }) {
+  const sentence = item.sentence;
   return <li className={styles.item} data-source={item.source}>
     <div className={styles.resultIcon} data-correct={item.correct} title={item.correct ? "Correct first try" : "Missed on first try"}>{item.correct ? <Check size={20} aria-label="Correct first try" /> : <X size={20} aria-label="Missed on first try" />}</div>
     {item.subject ? <div className={styles.subject} data-type={item.subject.object}><SubjectCharacter subject={item.subject} imageTone="light" imageSize="2rem" /></div> : null}
     <div className={styles.content}><div className={styles.title}>{item.href ? <Link href={item.href} target="_blank" rel="noopener noreferrer" lang="ja">{item.title}</Link> : <span lang="ja">{item.title}</span>}<span className={styles.kind}>{item.source === "wanikani" ? "WaniKani" : "Bunpro"} · {item.kind === "vocab" ? "vocabulary" : item.kind}</span></div>
-      {item.sentence ? <p className={styles.sentence} lang="ja"><RubyText text={item.sentence.before} /><span data-correct={item.correct}><RubyText text={item.sentence.answer} /></span><RubyText text={item.sentence.after} /></p> : item.reading ? <p lang="ja">{item.reading}</p> : null}
+      {sentence ? <p className={styles.sentence} lang="ja"><BunproSentence parts={sentence.parts}><span data-correct={item.correct}><RubyText text={sentence.answer} /></span></BunproSentence></p> : item.reading ? <p lang="ja">{item.reading}</p> : null}
       <div className={styles.meaning}><BunproText value={item.translation || item.meaning} /></div>
+      {item.saveFailed ? <p>Save not confirmed</p> : null}
       {item.stage || item.previousStage ? <p className={styles.stage}>{item.previousStage && item.stage && item.previousStage !== item.stage ? `${item.previousStage} → ${item.stage}` : item.stage || item.previousStage}</p> : null}
     </div><div className={styles.rowActions}>{item.audioUrls?.length ? <button type="button" onClick={play} aria-label={`Play audio for ${item.title}`}><Volume2 size={19} /></button> : null}{item.href ? <Link href={item.href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${item.title} details`}><ExternalLink size={18} /></Link> : null}</div>
   </li>;

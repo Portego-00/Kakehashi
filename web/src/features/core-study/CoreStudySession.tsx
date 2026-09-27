@@ -1,9 +1,14 @@
 "use client";
 
+import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, ExternalLink, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
+import { ArrowRight, BookOpen, Bookmark, Check, ChevronDown, ChevronUp, ExternalLink, Mic, Plus, RotateCcw, Search, SkipForward, Umbrella, Volume2, X } from "lucide-react";
 import Link from "next/link";
+import { ReviewSettingsButton } from "@/features/study/components/ReviewSettingsButton";
+import { advanceReviewRetrySchedule, createReviewRetrySchedule, insertReviewRetry, orderReviewRetries, retainWrapUpReviews } from "@/features/study/review-queue";
+import { useReviewOrdering } from "./use-review-ordering";
+import { reorderPendingCoreQuestions } from "./reorder-pending";
 import { FormEvent, type MouseEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { ReviewLoading } from "./ReviewLoading";
@@ -11,9 +16,11 @@ import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import type { WebStudyPreferences } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
-import { composeKanaInput } from "@/lib/kana";
+import { composeKanaInput, finalizeKanaInput } from "@/lib/kana";
 import { installCustomJitaiFonts, resolveJitaiFontFamily } from "@/features/settings/jitai";
 import { SubjectDetailPanels, type SubjectDetailTab } from "@/features/subjects/components/SubjectDetail";
+import { AddToSubjectListsDialog } from "@/features/subjects/components/AddToSubjectListsDialog";
+import { useSubjectLists } from "@/features/subjects/use-subject-lists";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { fetchImmersionExamples } from "@/features/study/immersion";
@@ -34,10 +41,12 @@ import { ReviewAccuracy, coreAccuracy } from "@/features/study/components/Review
 import { CoreStudyResults } from "./CoreStudyResults";
 import type { ReviewResultItem } from "./review-results";
 import { SrsProgressionSlot, type SrsProgression } from "./SrsProgressionSlot";
+import { BunproProgression } from "@/features/bunpro/BunproProgression";
 import { VocabularyFrequencyBadge } from "./VocabularyFrequencyBadge";
 import { checkAnswer, type AnswerResult, type QuestionKind } from "./answer-checker";
 import { createQuestionQueue, kindsForSubject, lessonAssignments, moveCoreQuestionPairToEnd, reviewAssignments, type CoreQuestion } from "./queue";
 import { predictedReviewStage } from "./review-sync";
+import { loadReviewOutbox } from "./review-outbox";
 import { useReviewSync } from "./use-review-sync";
 import { coreSessionKey, lessonsStartedToday, localDay, recordLessonStarted, remainingDailyLessons, selectCoreAssignments } from "./session-planning";
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
@@ -50,6 +59,7 @@ import { reviewSubjectFont } from "./review-subject-font";
 import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
 
+import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { ReviewExitGuard } from "./ReviewExitGuard";
 import { ReviewDetailsReveal, REVIEW_DETAILS_DURATION_MS } from "@/features/study/components/ReviewDetailsReveal";
 
@@ -175,6 +185,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const isOnVacation = Boolean(currentVacationStartedAt);
   const username = liveUser?.data.username || user?.data.username || "anonymous";
   const webSettings = useWebSettings(username);
+  const subjectLists = useSubjectLists(username);
+  const [listDialogOpen, setListDialogOpen] = useState(false);
   const preferences = webSettings.study;
   const [lessonDay, setLessonDay] = useState(() => localDay());
   const dailyAssignmentsQuery = useQuery({
@@ -192,13 +204,17 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const [lessonTeachingSnapshot, setLessonTeachingSnapshot] = useState<LessonTeachingSnapshot | null>(null);
   const [lessonBatchIds, setLessonBatchIds] = useState<number[] | null>(mode === "reviews" ? [] : null);
   const [lessonBatchStorageReady, setLessonBatchStorageReady] = useState(mode === "reviews");
+  const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
+  const [reviewSessionAssignments, setReviewSessionAssignments] = useState<Assignment[] | null>(null);
   const [questions, setQuestions] = useState<CoreQuestion[]>([]);
+  useReviewOrdering(preferences, (next) => setQuestions((pending) => reorderPendingCoreQuestions(pending, next, mode, liveUser?.data.level)));
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
   const [lastCorrect, setLastCorrect] = useState(false);
   const [completed, setCompleted] = useState<Record<number, QuestionKind[]>>({});
   const [errors, setErrors] = useState<ErrorCounts>({});
+  const [startedLessonIds, setStartedLessonIds] = useState<number[]>([]);
   const [submittedIds, setSubmittedIds] = useState<number[]>([]);
   const [resultItems, setResultItems] = useState<ReviewResultItem[]>([]);
   const [sessionError, setSessionError] = useState("");
@@ -220,6 +236,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const [listening, setListening] = useState(false);
   const [speechError, setSpeechError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const answerInputRef = useReviewAnswerFocus(inputRef, mixed?.active !== false);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const advancingQuestionRef = useRef(false);
   const advanceTimerRef = useRef<number | null>(null);
@@ -233,10 +250,6 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
   }, []);
 
-  const reportMixedProgression = useEffectEvent(() => {
-    if (srsProgression) mixed?.reportProgression?.({ id: `wanikani:${srsProgression.assignmentId}`, source: "wanikani", progression: srsProgression });
-  });
-  useEffect(() => { reportMixedProgression(); }, [srsProgression]);
   const progressionSubjectId = srsProgression?.subjectId;
   useEffect(() => {
     if (progressionSubjectId === undefined) return;
@@ -247,6 +260,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setLessonStartsToday(lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data));
+      setStartedLessonIds(loadReviewOutbox(window.localStorage, username, "lesson").filter((entry) => entry.operation === "lesson").map((entry) => entry.assignmentId));
     }, 0);
     return () => window.clearTimeout(timer);
   }, [username, dailyAssignmentsQuery.data, lessonDay]);
@@ -287,13 +301,13 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   const assignmentQuery = useQuery({
     queryKey: ["core-study", mode, "assignments"],
-    queryFn: () => wkCollection<Assignment>(mode === "reviews" ? "assignments?immediately_available_for_review=true" : "assignments?immediately_available_for_lessons=true"),
+    queryFn: () => wkCollection<Assignment>(mode === "reviews" ? "assignments?immediately_available_for_review=true" : "assignments?immediately_available_for_lessons=true", 30, { cache: "no-store", fresh: true }),
     enabled: hasConfirmedUser && !isOnVacation,
     staleTime: 0,
     refetchOnMount: "always",
   });
   const available = useMemo(() => mode === "reviews" ? reviewAssignments(assignmentQuery.data || []) : lessonAssignments(assignmentQuery.data || []), [assignmentQuery.data, mode]);
-  const candidateAssignments = available;
+  const candidateAssignments = useMemo(() => mode === "lessons" ? available.filter((assignment) => !startedLessonIds.includes(assignment.id)) : available, [available, mode, startedLessonIds]);
   const candidateIds = useMemo(() => candidateAssignments.map((assignment) => assignment.data.subject_id), [candidateAssignments]);
   const restoredAssignmentsQuery = useQuery({
     queryKey: ["core-study", "lessons", "restored-assignments", lessonBatchIds?.join(",") ?? ""],
@@ -322,8 +336,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     [assignmentLimit, candidateAssignments, candidateIds, dailyRemaining, pickedLessonIds, liveUser?.data.level, mode, preferences, subjects],
   );
   const lessonAssignmentBySubjectId = useMemo(() => new Map(
-    [...candidateAssignments, ...(restoredAssignmentsQuery.data ?? [])].map((assignment) => [assignment.data.subject_id, assignment]),
-  ), [candidateAssignments, restoredAssignmentsQuery.data]);
+    [...available, ...(restoredAssignmentsQuery.data ?? [])].map((assignment) => [assignment.data.subject_id, assignment]),
+  ), [available, restoredAssignmentsQuery.data]);
   const restoredLessonAssignments = useMemo(() => lessonBatchIds?.map((subjectId) => lessonAssignmentBySubjectId.get(subjectId)).filter((assignment): assignment is Assignment => Boolean(assignment)) ?? [], [lessonAssignmentBySubjectId, lessonBatchIds]);
   const lessonBatchResolved = mode !== "lessons" || Boolean(
     lessonBatchStorageReady
@@ -354,9 +368,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   }, [dailyHistoryReady, pickingLessons, assignmentQuery.isSuccess, lessonBatchIds, lessonBatchStorageReady, mode, plannedAssignments, restoredAssignmentsQuery.isError, restoredAssignmentsQuery.isLoading, restoredLessonAssignments.length, subjectsQuery.isSuccess, username]);
 
   const selectedAssignments = useMemo(() => {
-    if (mode !== "lessons") return plannedAssignments;
+    if (mode !== "lessons") return reviewSessionAssignments ?? plannedAssignments;
     return lessonBatchResolved ? restoredLessonAssignments : [];
-  }, [lessonBatchResolved, mode, plannedAssignments, restoredLessonAssignments]);
+  }, [lessonBatchResolved, mode, plannedAssignments, restoredLessonAssignments, reviewSessionAssignments]);
   const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject])), [subjects]);
   const selectedSubjects = useMemo(() => selectedAssignments.map((assignment) => subjectById.get(assignment.data.subject_id)).filter((subject): subject is Subject => Boolean(subject)), [selectedAssignments, subjectById]);
   const reviewFontText = selectedSubjects.map((subject) => subject.data.characters ?? "").join("");
@@ -402,6 +416,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   useEffect(() => {
     if (phase === "results" && resultItems.length) return;
+    // A new review session must not freeze the previous visit's cached queue.
+    // Once started, keep its queue stable through background refreshes.
+    if (mode === "reviews" && reviewSessionAssignments === null && (!assignmentQuery.isFetchedAfterMount || assignmentQuery.isFetching)) return;
     if (!subjectsQuery.isSuccess || !lessonBatchResolved) return;
     const initializationKey = `${username}:${mode}:${selectedAssignments.map((assignment) => assignment.id).join(",")}`;
     if (initializedSessionKeyRef.current === initializationKey) return;
@@ -409,6 +426,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     const timer = window.setTimeout(() => {
       if (initializedSessionKeyRef.current === initializationKey) return;
       initializedSessionKeyRef.current = initializationKey;
+      if (mode === "reviews") setReviewSessionAssignments(selectedAssignments);
       let restored: SessionSnapshot | null = null;
       try {
         if (mode === "reviews") window.localStorage.removeItem(coreSessionKey(username, mode));
@@ -452,7 +470,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
+  }, [assignmentQuery.isFetchedAfterMount, assignmentQuery.isFetching, reviewSessionAssignments, lessonBatchResolved, lessonTeachingSnapshot, subjectsQuery.isSuccess, selectedAssignments, selectedSubjects, selectedIds, mode, makeQueue, username, phase, resultItems.length]);
 
   useEffect(() => {
     if (mode !== "lessons" || phase !== "quiz") return;
@@ -476,7 +494,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     return () => window.cancelAnimationFrame(frame);
   }, [phase, questions, mixed?.active]);
 
-  const reviewSync = useReviewSync(username, mode === "reviews" && !isOnVacation && assignmentQuery.data !== undefined && username !== "anonymous", (entry, confirmation) => {
+  const reviewSync = useReviewSync(username, !isOnVacation && assignmentQuery.isSuccess && username !== "anonymous", (entry, confirmation) => {
     if (confirmation.assignment) {
       const updated = confirmation.assignment;
       queryClient.setQueryData<Assignment[]>(wkKeys.assignments(""), (rows) => rows?.map((row) => row.id === updated.id ? updated : row));
@@ -487,7 +505,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       setSrsProgression((previous) => previous?.assignmentId === entry.assignmentId ? { ...previous, endingStage: confirmation.stage!, isCorrect: confirmation.stage! > previous.startingStage, nextReviewInterval: formatNextReviewInterval(confirmation.availableAt, confirmation.stage!) } : previous);
     }
     void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments(), refetchType: "none" }), queryClient.invalidateQueries({ queryKey: wkKeys.summary(), refetchType: "none" })]).catch(() => undefined);
-  });
+  }, mode === "lessons" ? "lesson" : "review");
   const current = questions[0];
   const answerAccuracy = coreAccuracy(completed, errors, questions[0] && feedback && feedback.status !== "blocked" ? { id: questions[0].assignment.id, kinds: answeredKinds.length ? answeredKinds : [questions[0].kind], correct: lastCorrect } : undefined);
   const reportMixedAccuracy = useEffectEvent(() => mixed?.reportAccuracy?.(answerAccuracy));
@@ -498,14 +516,25 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   useEffect(() => { reportMixedResults(); }, [resultItems, displayNow, sessionStartedAt, outboxCount, outboxMessage]);
   const finishReviewSync = reviewSync.finish;
   useEffect(() => {
-    if (mode === "reviews" && phase === "results") finishReviewSync();
+    if (phase === "results") finishReviewSync();
   }, [mode, phase, finishReviewSync]);
 
+  const retrySchedule = useRef(createReviewRetrySchedule());
   const mixedPrevious = useRef<string | undefined>(undefined);
   const reportMixed = useEffectEvent(() => {
     const previous = mixedPrevious.current;
     mixedPrevious.current = current?.id;
-    mixed?.report(wkHead(isOnVacation ? undefined : current, liveUser?.data.level ?? 1, Boolean(previous && current && previous.split(":")[0] === String(current.assignment.id) && preferences.backToBackQuestions)));
+    const head = wkHead(isOnVacation ? undefined : current, liveUser?.data.level ?? 1, Boolean(previous && current && previous.split(":")[0] === String(current.assignment.id) && preferences.backToBackQuestions), preferences.backToBackQuestions ? new Set(questions.map(question => question.assignment.id)).size : questions.length);
+    const open = openReviewIds();
+    mixed?.report(head ? { ...head, pending: questions.map(question => ({ id: question.id, subjectId: String(question.assignment.id), open: open.has(question.assignment.id) })), activate: (id) => {
+      setAnswer(""); setFeedback(null); setAnkiRevealed(false); setAnsweredKinds([]); setStudyDetailsOverride(null);
+      setQuestions(pending => {
+      const selected = pending.find(question => question.id === id);
+      if (!selected || pending[0] === selected) return pending;
+      const pair = preferences.backToBackQuestions ? pending.filter(question => question !== selected && question.assignment.id === selected.assignment.id) : [];
+      return [selected, ...pair, ...pending.filter(question => question !== selected && !pair.includes(question))];
+      });
+    } } : null);
   });
   const mixedFailed = Boolean(availabilityCheckFailed || (assignmentQuery.error && !assignmentQuery.data) || (subjectsQuery.error && !subjectsQuery.data) || (materialsQuery.error && !materialsQuery.data) || (answerContextQuery.error && !answerContextQuery.data));
   const mixedLoading = currentUserQuery.isPending || (!isOnVacation && (assignmentQuery.isPending || subjectsQuery.isPending || materialsQuery.isLoading || answerContextQuery.isLoading));
@@ -610,23 +639,6 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     return () => { window.cancelAnimationFrame(frame); window.cancelAnimationFrame(openingFrame); };
   }, [studyDetailsShouldOpen]);
 
-  const lessonMutation = useMutation({
-    mutationFn: (assignmentId: number) => {
-      if (isOnVacation) throw new Error(vacationStudyMessage("lessons"));
-      return wkRequest<Assignment>(`assignments/${assignmentId}/start`, { method: "PUT", body: { assignment: { started_at: new Date().toISOString() } } });
-    },
-    onSuccess: (_, assignmentId) => {
-      recordLessonStarted(window.localStorage, username, assignmentId);
-      setLessonStartsToday(lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data));
-      if (pickedLessonIds) {
-        const subjectId = selectedAssignments.find((assignment) => assignment.id === assignmentId)?.data.subject_id;
-        const remaining = pickedLessonIds.filter((id) => id !== subjectId);
-        savePickedLessons(window.localStorage, username, remaining);
-        setPickedLessonIds(remaining);
-      }
-    },
-    retry: 0,
-  });
 
   async function playAudio(subject: Subject) {
     const audios = preferredAudiosFor(subject, preferences.vocabularyAudioVoice);
@@ -675,7 +687,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     event.preventDefault();
     if (feedback) { if (!unresolvedCloseAnswer) void advance(); return; }
     if (!current) return;
-    const result = checkAnswer(current.subject, current.kind, answer, preferences.acceptUserSynonymsAsAnswers ? material : undefined, current.kind === "reading" ? { singleKanjiReadings, acceptAnyKanjiOnyomiReading: preferences.acceptAnyKanjiOnyomiReading } : undefined);
+    const submitted = current.kind === "reading" ? finalizeKanaInput(answer) : answer;
+    setAnswer(submitted);
+    const result = checkAnswer(current.subject, current.kind, submitted, preferences.acceptUserSynonymsAsAnswers ? material : undefined, current.kind === "reading" ? { singleKanjiReadings, acceptAnyKanjiOnyomiReading: preferences.acceptAnyKanjiOnyomiReading } : undefined);
     setFeedback(result);
     if (result.status === "blocked") return;
     setAnsweredKinds([current.kind]);
@@ -756,10 +770,17 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     const retryQuestions = resolvedAnsweredKinds.map((kind) => questions.find((question) => question.assignment.id === current.assignment.id && question.kind === kind) || { ...current, id: `${current.assignment.id}:${kind}`, kind });
     const remaining = questions.filter((question, index) => index !== 0 && !(question.assignment.id === current.assignment.id && answeredKindSet.has(question.kind)));
     setPreviousAnswerItem({ subject: current.subject, kind: current.kind, isCorrect: resolvedCorrect });
+    const retryRandom = resolvedCorrect ? 0 : Math.random();
+    function prepareNextQuestions(next: CoreQuestion[]) {
+      retrySchedule.current = advanceReviewRetrySchedule(retrySchedule.current, retryQuestions.map(question => question.id), resolvedCorrect, retryRandom);
+      const immediate = preferences.backToBackQuestions && preferences.backToBackImmediateRetryIncorrect;
+      return orderReviewRetries(next, openReviewIds(current!.assignment.id), question => question.assignment.id, question => question.id, retrySchedule.current, immediate);
+    }
     if (!resolvedCorrect) {
       mixed?.onAnswer?.({ id: current.id, source: "wanikani", subject: current.subject, title: primaryMeaning(current.subject), correct: resolvedCorrect });
       const retryImmediately = preferences.backToBackQuestions && preferences.backToBackImmediateRetryIncorrect;
-      setQuestions(retryImmediately ? [...retryQuestions, ...remaining] : [...remaining, ...retryQuestions]);
+      const next = retryImmediately ? [...retryQuestions, ...remaining] : insertReviewRetry(remaining, retryQuestions, { random: retryRandom, subjectId: preferences.backToBackQuestions ? question => question.assignment.id : undefined });
+      setQuestions(prepareNextQuestions(next));
       setAnswer("");
       setFeedback(null);
       setAnkiRevealed(false);
@@ -783,13 +804,25 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
             setReserveResultsProgressionSlot(remaining.length === 0);
             setSrsProgression({ assignmentId: current.assignment.id, subjectId: current.subject.id, startingStage, endingStage: resultingStage, isCorrect: resultingStage > startingStage, nextReviewInterval: formatNextReviewInterval(undefined, resultingStage) });
           }
-        } else await lessonMutation.mutateAsync(current.assignment.id);
+        } else {
+          if (isOnVacation) throw new Error(vacationStudyMessage("lessons"));
+          reviewSync.enqueue({ operation: "lesson", assignmentId: current.assignment.id, incorrectMeaningAnswers: 0, incorrectReadingAnswers: 0, createdAt: new Date().toISOString() });
+          setStartedLessonIds((ids) => [...new Set([...ids, current.assignment.id])]);
+          // Daily limits and picked batches follow local completion, never network timing.
+          try { recordLessonStarted(window.localStorage, username, current.assignment.id); } catch { /* The durable submission already protects this completion. */ }
+          setLessonStartsToday(lessonsStartedToday(window.localStorage, username, new Date(), dailyAssignmentsQuery.data));
+          if (pickedLessonIds) {
+            const remainingIds = pickedLessonIds.filter((id) => id !== current.subject.id);
+            savePickedLessons(window.localStorage, username, remainingIds);
+            setPickedLessonIds(remainingIds);
+          }
+        }
         setSubmittedIds((previous) => [...previous, current.assignment.id]);
         setResultItems((previous) => [...previous.filter((item) => item.assignmentId !== current.assignment.id), { assignmentId: current.assignment.id, subject: current.subject, meaningMistakes: errorOverride?.meaning ?? errors[current.assignment.id]?.meaning ?? 0, readingMistakes: errorOverride?.reading ?? errors[current.assignment.id]?.reading ?? 0, endingStage: resultingStage }]);
       }
       mixed?.onAnswer?.({ id: current.id, source: "wanikani", subject: current.subject, title: primaryMeaning(current.subject), correct: resolvedCorrect });
       setCompleted((previous) => ({ ...previous, [current.assignment.id]: finishedKinds }));
-      setQuestions(remaining);
+      setQuestions(prepareNextQuestions(remaining));
       setAnswer("");
       setFeedback(null);
       setAnkiRevealed(false);
@@ -799,14 +832,14 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       if (!remaining.length) {
         window.localStorage.removeItem(coreSessionKey(username, mode));
         if (mode === "lessons") clearLessonTeachingSession(window.localStorage, username);
-        // This timestamp is read when the async answer submission finishes, not during render.
+        // Record local completion without waiting for background delivery.
         setDisplayNow(Date.now());
         setPhase("results");
         // Completion must not wait for dashboard queries; the session is already saved.
         void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments(), refetchType: "none" }), queryClient.invalidateQueries({ queryKey: wkKeys.summary(), refetchType: "none" })]).catch(() => undefined);
       } else window.requestAnimationFrame(() => inputRef.current?.focus(phoneInput ? { preventScroll: true } : undefined));
     } catch (cause) {
-      setSessionError(formatFailure(cause, mode === "reviews" ? "This review could not be saved on this device. Please try again before continuing." : "The lesson remains in place; retry when the connection returns."));
+      setSessionError(formatFailure(cause, mode === "reviews" ? "This review could not be saved on this device. Please try again before continuing." : "This lesson could not be saved on this device. Please try again before continuing."));
     }
   }
 
@@ -837,12 +870,12 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   const autoAdvance = useEffectEvent(() => { void advance(); });
   useEffect(() => {
-    if (mixed?.active === false || !feedback || feedback.status === "blocked") return;
+    if (listDialogOpen || reviewSettingsOpen || mixed?.active === false || !feedback || feedback.status === "blocked") return;
     if (currentUsesSelfAssessment) return;
     if (shouldPauseAfterResult(feedback.status, preferences) || studyDetailsOverrideForCurrent === true || addSynonymMutation.isPending) return;
     const timer = window.setTimeout(autoAdvance, preferences.answerStopBehavior === "never" ? 550 : 350);
     return () => window.clearTimeout(timer);
-  }, [feedback, lastCorrect, preferences, currentUsesSelfAssessment, studyDetailsOverrideForCurrent, addSynonymMutation.isPending, mixed?.active]);
+  }, [listDialogOpen, reviewSettingsOpen, feedback, lastCorrect, preferences, currentUsesSelfAssessment, studyDetailsOverrideForCurrent, addSynonymMutation.isPending, mixed?.active]);
 
   useEffect(() => {
     if (mixed?.active === false || phase !== "quiz" || !preferences.keyboardShortcuts) return;
@@ -864,13 +897,13 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       if (action === "progress" && unresolvedCloseAnswer) {
         if (shouldIgnoreReviewShortcut(event)) return;
         event.preventDefault();
-        if (!lessonMutation.isPending) resolveCloseAnswer(true);
+        resolveCloseAnswer(true);
         return;
       }
       if (action === "progress" && feedback) {
         if (shouldIgnoreReviewAdvance(event)) return;
         event.preventDefault();
-        if (!lessonMutation.isPending) void advance();
+        void advance();
         return;
       }
       if (action === "progress" && shouldIgnoreReviewShortcut(event)) return;
@@ -888,13 +921,12 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
+  function openReviewIds(currentId?: number) {
+    return new Set([...Object.keys(completed).map(Number), ...Object.keys(errors).map(Number), ...(currentId === undefined ? [] : [currentId])]);
+  }
+
   function wrapUp(limit = preferences.reviewWrapUpSize) {
-    const keep = new Set<number>();
-    for (const question of questions) {
-      if (keep.size >= limit && !keep.has(question.assignment.id)) continue;
-      keep.add(question.assignment.id);
-    }
-    const trimmed = questions.filter((question) => keep.has(question.assignment.id));
+    const trimmed = retainWrapUpReviews(questions, openReviewIds(mixed?.active === false ? undefined : current?.assignment.id), question => question.assignment.id, limit);
     setQuestions(trimmed);
     setTotalQuestions(answered + trimmed.length);
     setWrapUpActive(true);
@@ -1061,6 +1093,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       : selectCoreAssignments(remaining, subjects, "lessons", preferences, dailyRemaining);
     const upcomingSubjects = upcoming.map((assignment) => subjectById.get(assignment.data.subject_id)).filter((subject): subject is Subject => Boolean(subject));
     return <LessonBatchComplete
+      pendingCount={outboxCount}
+      syncError={outboxMessage}
       completed={selectedSubjects.filter((subject) => submittedIds.some((id) => lessonAssignmentBySubjectId.get(subject.id)?.id === id))}
       upcoming={upcomingSubjects}
       batchSize={preferences.lessonsBatchSize}
@@ -1092,7 +1126,6 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const showContextHint = preferences.showVocabContextSentencesInReviews && isVocabularyQuestion && contextSentences.length > 0;
   const showReviewMetadata = preferences.showReviewItemLevelAndSrsStage;
   const reviewCharacterScale = preferences.reviewCharacterFontScale ?? 1;
-  const reviewInputScale = preferences.reviewInputFontScale ?? 1;
   const reviewCharacterSize = `clamp(${2.75 * reviewCharacterScale}rem, ${9 * reviewCharacterScale}vw, ${6.5 * reviewCharacterScale}rem)`;
   const searchQuery = current.subject.data.characters || current.subject.data.slug;
   const ankiMeaningAnswer = canonicalAnswer(current.subject, "meaning");
@@ -1114,17 +1147,17 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   ].filter((id) => !submittedIds.includes(id)));
   const questionMetadata = showReviewMetadata ? <div className={quiz.reviewPromptMetadata} aria-label="Question status"><span>Level {current.subject.data.level}</span><span><SrsStageIcon stage={current.assignment.data.srs_stage} size={16} />{srsStageLabel(current.assignment.data.srs_stage)}</span></div> : null;
 
-  return <div ref={reviewViewportRef} className={quiz.quizShell} data-study-session="active" data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title">
+  return <div ref={reviewViewportRef} className={`${quiz.quizShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title">
         <ReviewExitGuard pendingSubjects={pendingSubjectIds.size} />
         <div className={quiz.quizTopbar}>
           <div className={styles.sessionProgress}><span>{mixed ? "Mixed reviews" : mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(displayTotal, displayCompleted + 1)} / {displayTotal}</strong></div>
         <div className={quiz.progressTrack} role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={displayTotal} aria-valuenow={displayCompleted}><span style={{ transform: `scaleX(${itemProgress})` } as React.CSSProperties} /></div>
-          <div className={quiz.quizTopbarActions}><ReviewAccuracy {...(mixed?.accuracy ?? answerAccuracy)} />{mode === "lessons" ? <Button className={styles.bandAction} tone="ghost" size="small" disabled={lessonMutation.isPending} onClick={startLessonsOver}>Start over</Button> : null}{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={() => mixed?.onWrapUp ? mixed.onWrapUp() : wrapUp()}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{!feedback ? <Button className={quiz.skipButton} tone="ghost" size="small" aria-label="Skip review" disabled={!questions.some((question) => question.assignment.id !== current.assignment.id)} onClick={skipCurrentQuestion}><SkipForward size={17} aria-hidden />Skip</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink className={quiz.iconButton} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small" aria-label="Search this item"><Search size={17} aria-hidden /></ButtonLink> : null}<ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" size="small" aria-label="Pause"><X size={19} aria-hidden /></ButtonLink></div>
+          <div className={quiz.quizTopbarActions}><ReviewAccuracy {...(mixed?.accuracy ?? answerAccuracy)} />{mode === "lessons" ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={startLessonsOver}>Start over</Button> : null}{wrapUpAvailable ? <Button className={styles.bandAction} tone="ghost" size="small" onClick={() => mixed?.onWrapUp ? mixed.onWrapUp() : wrapUp()}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{!feedback ? <Button className={quiz.skipButton} tone="ghost" size="small" aria-label="Skip review" disabled={!questions.some((question) => question.assignment.id !== current.assignment.id)} onClick={skipCurrentQuestion}><SkipForward size={17} aria-hidden />Skip</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink className={quiz.iconButton} href={`/search?q=${encodeURIComponent(searchQuery)}`} target="_blank" rel="noopener noreferrer" tone="ghost" size="small" aria-label="Search this item"><Search size={17} aria-hidden /></ButtonLink> : null}<Button className={quiz.iconButton} type="button" tone="ghost" size="small" aria-label="Add to saved lists" title="Add to saved lists" aria-pressed={subjectLists.lists.some((list) => list.subjectIds.includes(current.subject.id))} aria-haspopup="dialog" disabled={advancingQuestion} onClick={() => { recognitionRef.current?.stop(); setListDialogOpen(true); }}><Bookmark size={18} fill={subjectLists.lists.some((list) => list.subjectIds.includes(current.subject.id)) ? "currentColor" : "none"} aria-hidden /></Button><ReviewSettingsButton order={mode === "lessons" ? "lessonQuestionOrder" : "reviewOrder"} disabled={advancingQuestion} onOpenChange={(open) => { setReviewSettingsOpen(open); if (open) recognitionRef.current?.stop(); }} /><ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" size="small" aria-label="Pause"><X size={19} aria-hidden /></ButtonLink></div>
         </div>
 
-        {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}
-          {!mixed && previousAnswerItem ? <Link key={`${previousAnswerItem.subject.id}:${previousAnswerItem.kind}`} className={quiz.previousSubjectLink} target="_blank" rel="noopener noreferrer" data-type={previousAnswerItem.subject.object} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={quiz.previousSubjectCharacter} imageSize="1em" /><span className={quiz.previousSubjectStatus} data-correct={previousAnswerItem.isCorrect} aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
+          {mixed ? (mixed.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} claimAnimation={mixed.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null) : previousAnswerItem ? <Link key={`${previousAnswerItem.subject.id}:${previousAnswerItem.kind}`} className={quiz.previousSubjectLink} target="_blank" rel="noopener noreferrer" data-type={previousAnswerItem.subject.object} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={quiz.previousSubjectCharacter} imageSize="1em" /><span className={quiz.previousSubjectStatus} data-correct={previousAnswerItem.isCorrect} aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
       <header className={quiz.questionCard} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
+        {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}
           <h2 style={{ fontSize: reviewCharacterSize }}><SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} data-jitai-font={jitaiFamily && current.subject.data.characters ? true : undefined} style={{ fontSize: "inherit", fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties} eager /></h2>
           <VocabularyFrequencyBadge subject={current.subject} enabled={preferences.showVocabularyFrequency} />
           {showContextHint ? <div className={quiz.reviewContextHint}>
@@ -1167,11 +1200,11 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
           <label className={quiz.promptTypeStrip} data-tone={current.kind} htmlFor="review-answer"><span>{subjectType}</span><strong id="study-prompt-title" role="heading" aria-level={1}>{current.kind}</strong>{current.kind === "reading" ? <small>Romaji → かな</small> : null}</label>
           <div className={quiz.answerInputRow} data-result={answerResult}>
             <input
-              ref={inputRef}
+              ref={answerInputRef}
               id="review-answer"
               name="review-answer"
               aria-label="Your answer"
-              style={{ fontSize: phoneInput ? `max(16px, ${reviewInputScale}rem)` : `${reviewInputScale}rem` }}
+              style={{ fontSize: phoneInput ? "max(16px, 1rem)" : "1rem" }}
               value={answer}
               onChange={(event) => {
                 if (feedback && feedback.status !== "blocked") return;
@@ -1182,7 +1215,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
                 if (!feedback || event.key !== "Enter") return;
                 if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 event.preventDefault();
-                if (event.repeat || lessonMutation.isPending || addSynonymMutation.isPending) return;
+                if (event.repeat || addSynonymMutation.isPending) return;
                 if (unresolvedCloseAnswer) resolveCloseAnswer(true);
                 else void advance();
               }}
@@ -1201,36 +1234,39 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
               onMouseDown={preservePhoneInputFocus}
               onClick={feedback ? () => void advance() : undefined}
               disabled={feedback ? unresolvedCloseAnswer || advancingQuestion || addSynonymMutation.isPending : !answer.trim()}
-              state={phoneInput && feedback && (lessonMutation.isPending) ? "loading" : "idle"}
+
             >{feedback ? <ArrowRight size={18} aria-hidden /> : <Check size={18} aria-hidden />}{feedback ? unresolvedCloseAnswer ? "Choose result" : feedback.status === "blocked" ? "Try Again" : "Next" : "Check"}</Button>
           </div>
           <p id="review-answer-helper" className="sr-only">{current.kind === "reading" ? "Kana and romaji are accepted." : preferences.acceptUserSynonymsAsAnswers ? "Accepted meanings and your synonyms are checked." : "Accepted WaniKani meanings are checked."}</p>
-          {speechError ? <p className={styles.error} role="alert">{speechError}</p> : null}
         </form> : null}
 
-        <SrsProgressionSlot progression={mixed ? null : srsProgression} mode={preferences.srsProgressionCardDisplayMode} />
+        <div className={quiz.reviewProgressionSlot}>
+          {mixed?.bunproProgression ? <BunproProgression progression={mixed.bunproProgression} mode={preferences.srsProgressionCardDisplayMode} /> : <SrsProgressionSlot progression={srsProgression} mode={preferences.srsProgressionCardDisplayMode} />}
+        </div>
 
-          {preferences.voiceAnswers && !selfAssessment ? <Button className={quiz.textButton} type="button" tone="ghost" disabled={!voiceAvailable || listening || Boolean(feedback)} aria-label={!voiceAvailable ? "Voice answer unavailable" : listening ? "Listening for voice answer" : "Voice answer"} onClick={startVoiceAnswer}><Mic size={17} aria-hidden /><span>{listening ? "Listening…" : "Voice"}</span></Button> : null}
-
-        {feedback ? <><div className={quiz.answerStatus} role="status" aria-live="polite">
+        {speechError ? <p className={styles.error} role="alert">{speechError}</p> : null}
+        {feedback ? <div className={quiz.answerStatus} role="status" aria-live="polite">
           <strong className={quiz.answerVerdict} data-correct={feedback.status === "correct"} data-warning={answerResult === "warning"}>{feedback.status === "correct" ? <Check size={18} aria-hidden /> : feedback.status === "incorrect" ? <X size={18} aria-hidden /> : <RotateCcw size={18} aria-hidden />}{feedback.status === "correct" ? "Correct" : feedback.status === "close" ? "Accepted with a typo" : feedback.status === "blocked" ? "Try another answer" : "Incorrect"}</strong>
           {feedback.status === "incorrect" ? <span className={quiz.correctAnswer}><small>Correct answer</small><strong lang={current.kind === "reading" ? "ja" : undefined}>{canonicalAnswer(current.subject, current.kind)}</strong></span> : feedback.status !== "correct" || feedback.message.startsWith("Added") || feedback.message.startsWith("Marked") ? <span>{feedback.message}</span> : null}
           {sessionError ? <p className={styles.error} role="alert">{sessionError}</p> : null}
-        </div>
-          {feedback.status !== "blocked" ? <div className={quiz.closeAnswerActions} aria-label="Answer result controls">
+        </div> : null}
+        <div className={quiz.reviewAnswerControls}>
+          {preferences.voiceAnswers && !selfAssessment ? <Button className={quiz.textButton} type="button" tone="ghost" disabled={!voiceAvailable || listening || Boolean(feedback)} aria-label={!voiceAvailable ? "Voice answer unavailable" : listening ? "Listening for voice answer" : "Voice answer"} onClick={startVoiceAnswer}><Mic size={17} aria-hidden /><span>{listening ? "Listening…" : "Voice"}</span></Button> : null}
+          {feedback && feedback.status !== "blocked" ? <div className={quiz.closeAnswerActions} aria-label="Answer result controls">
             <Button aria-label="Mark Incorrect" className={quiz.correctionButton} type="button" tone="ghost" disabled={advancingQuestion || addSynonymMutation.isPending} onMouseDown={preservePhoneInputFocus} onClick={() => !unresolvedCloseAnswer && !lastCorrect ? advance() : markAnswer(false)}><X size={17} aria-hidden />Mark Incorrect{preferences.keyboardShortcuts ? <kbd aria-hidden>{!unresolvedCloseAnswer && !lastCorrect ? shortcutLabel(studyKeys.progress) : shortcutLabel(studyKeys.markIncorrect)}</kbd> : null}</Button>
             {unresolvedCloseAnswer || !lastCorrect ? <Button aria-label="Mark Correct" className={quiz.correctionButton} type="button" tone="ghost" disabled={advancingQuestion || addSynonymMutation.isPending} onMouseDown={preservePhoneInputFocus} onClick={() => markAnswer(true)}><Check size={17} aria-hidden />Mark Correct{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.markCorrect)}</kbd> : null}</Button> : null}
             {canAddSynonym ? <Button aria-label="Add as synonym" className={quiz.correctionButton} type="button" tone="ghost" disabled={addSynonymMutation.isPending || advancingQuestion} state={addSynonymMutation.isPending ? "loading" : "idle"} onMouseDown={preservePhoneInputFocus} onClick={() => addSynonymMutation.mutate({ subject: current.subject, assignmentId: current.assignment.id, kind: current.kind, synonym: synonymCandidate, existingMaterial: material })}><Plus size={17} aria-hidden />Add as synonym{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.addSynonym)}</kbd> : null}</Button> : null}
-            {selfAssessment && !unresolvedCloseAnswer ? <Button tone="primary" disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()} state={lessonMutation.isPending ? "loading" : "idle"}>Next Question<ArrowRight size={17} /></Button> : null}
+            {selfAssessment && !unresolvedCloseAnswer ? <Button tone="primary" disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()}>Next Question<ArrowRight size={17} /></Button> : null}
           </div> : null}
-        </> : null}
 
-        {revealStudyDetails && (!selfAssessment || feedback || preferences.ankiButtonlessMode) ? <div className={quiz.reviewTools} aria-label="Answer controls">
-          <Button className={quiz.itemDetailsButton} type="button" tone="ghost" disabled={!revealStudyDetails || advancingQuestion} aria-controls="study-item-details" aria-expanded={studyDetailsShouldOpen} onClick={toggleStudyDetails}><BookOpen size={17} aria-hidden /><span>{studyDetailsShouldOpen ? "Hide subject details" : "Show subject details"}</span>{preferences.keyboardShortcuts ? <kbd>{shortcutLabel(studyKeys.details)}</kbd> : null}{studyDetailsShouldOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}</Button>
-          {audioFor(current.subject, preferences.vocabularyAudioVoice) ? <Button className={quiz.textButton} type="button" tone="ghost" onClick={() => void playAudio(current.subject)}><Volume2 size={17} aria-hidden /><span>Audio</span>{preferences.keyboardShortcuts ? <kbd aria-hidden>R</kbd> : null}</Button> : null}
-        </div> : null}
+          {revealStudyDetails && (!selfAssessment || feedback || preferences.ankiButtonlessMode) ? <div className={quiz.reviewTools} aria-label="Answer controls">
+            <Button className={quiz.itemDetailsButton} type="button" tone="ghost" disabled={!revealStudyDetails || advancingQuestion} aria-controls="study-item-details" aria-expanded={studyDetailsShouldOpen} onClick={toggleStudyDetails}><BookOpen size={17} aria-hidden /><span>{studyDetailsShouldOpen ? "Hide subject details" : "Show subject details"}</span>{preferences.keyboardShortcuts ? <kbd>{shortcutLabel(studyKeys.details)}</kbd> : null}{studyDetailsShouldOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}</Button>
+            {audioFor(current.subject, preferences.vocabularyAudioVoice) ? <Button className={quiz.textButton} type="button" tone="ghost" onClick={() => void playAudio(current.subject)}><Volume2 size={17} aria-hidden /><span>Audio</span>{preferences.keyboardShortcuts ? <kbd aria-hidden>R</kbd> : null}</Button> : null}
+          </div> : null}
 
-        <ReviewDetailsReveal open={studyDetailsExpanded}>
+        </div>
+
+        <ReviewDetailsReveal open={studyDetailsExpanded} revealInViewport>
           {revealStudyDetails ? <section id="study-item-details" className={quiz.itemDetails} aria-labelledby="study-details-title" style={{ "--subject-color": subjectColor(current.subject) } as React.CSSProperties}>
             <header className={quiz.itemDetailsHeader}>
               <div className={quiz.itemDetailsIdentity}>
@@ -1261,7 +1297,18 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
             />
           </section> : null}
         </ReviewDetailsReveal>
-        {preferences.keyboardShortcuts && !(selfAssessment && ankiRevealed && !feedback) ? <p className={quiz.keyboardHint}>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to {feedback ? "continue" : selfAssessment ? "reveal" : "check"}{revealStudyDetails ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details{audioFor(current.subject, preferences.vocabularyAudioVoice) ? <> · <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> replays audio</> : null}</> : null}</p> : null}
+        <AddToSubjectListsDialog
+          key={current.subject.id}
+          open={listDialogOpen}
+          subjectId={current.subject.id}
+          subjectLabel={current.subject.data.characters || current.subject.data.slug}
+          subjectType={current.subject.object}
+          subjectLists={subjectLists}
+          onClose={() => setListDialogOpen(false)}
+        />
+        <div className={quiz.reviewKeyboardHint}>
+          {preferences.keyboardShortcuts && !(selfAssessment && ankiRevealed && !feedback) ? <p className={quiz.keyboardHint}>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to {feedback ? "continue" : selfAssessment ? "reveal" : "check"}{revealStudyDetails ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details{audioFor(current.subject, preferences.vocabularyAudioVoice) ? <> · <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> replays audio</> : null}</> : null}</p> : null}
+        </div>
       </div>
   </div>;
 }

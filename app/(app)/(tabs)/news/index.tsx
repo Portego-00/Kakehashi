@@ -1,3 +1,8 @@
+import {
+  newsReadKey,
+  setNewsRead,
+  useNewsReadHistory,
+} from "../../../../src/hooks/useNewsReadHistory";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
@@ -63,6 +68,13 @@ const SOURCE_OPTIONS: readonly {
 
 export default function NewsScreen() {
   useActivityTracking("news", { mode: "focus" });
+  const readIds = useNewsReadHistory();
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const toggleRead = (item: NewsItem) => {
+    void setNewsRead(item, !readIds.has(newsReadKey(item))).catch(() =>
+      Alert.alert("Could not save read status", "Please try again."),
+    );
+  };
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -242,7 +254,14 @@ export default function NewsScreen() {
   };
 
   const ref = useRef<ICarouselInstance>(null);
-  const breakingNews = news.slice(0, 5);
+  const visibleNews = useMemo(
+    () =>
+      unreadOnly
+        ? news.filter((item) => !readIds.has(newsReadKey(item)))
+        : news,
+    [news, unreadOnly, readIds],
+  );
+  const breakingNews = visibleNews.slice(0, 5);
   const knownKanjiPercentageById = useMemo(() => {
     const percentageMap = new Map<string, number>();
 
@@ -263,7 +282,7 @@ export default function NewsScreen() {
     knownKanjiPercentageById.get(item.id) ?? 0;
 
   const sortedRecommendationNews = useMemo(() => {
-    const otherNews = news.slice(5);
+    const otherNews = visibleNews.slice(5);
 
     if (otherNewsSortMode === "knownKanji") {
       return otherNews.sort((a, b) => {
@@ -289,7 +308,7 @@ export default function NewsScreen() {
         (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate)
       );
     });
-  }, [news, otherNewsSortMode, knownKanjiPercentageById]);
+  }, [visibleNews, otherNewsSortMode, knownKanjiPercentageById]);
 
   const sortButtonText =
     otherNewsSortMode === "date" ? "Date" : "Known Kanji %";
@@ -312,7 +331,11 @@ export default function NewsScreen() {
   };
 
   const openSourceFallbackMenu = () => {
-    Alert.alert("News Source", "Choose which news to show.", [
+    Alert.alert("News Filters", "Choose which news to show.", [
+      {
+        text: unreadOnly ? "Show all stories" : "Unread only",
+        onPress: () => setUnreadOnly((value) => !value),
+      },
       ...SOURCE_OPTIONS.map((option) => ({
         text: `${newsSourcePreference === option.value ? "✓ " : ""}${option.label}`,
         onPress: () => setNewsSourcePreference(option.value),
@@ -364,7 +387,7 @@ export default function NewsScreen() {
             { color: theme.textColor, fontSize: 30 },
           ]}
         >
-          Recent News
+          {unreadOnly ? "Unread News" : "Recent News"}
         </Text>
         {Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host matchContents style={styles.sortMenuHost}>
@@ -374,13 +397,18 @@ export default function NewsScreen() {
                   <GlassButton
                     iconName="filter-outline"
                     iconSize={18}
-                    iconColor={theme.textColor}
+                    iconColor={unreadOnly ? theme.primary : theme.textColor}
                     style={styles.sortMenuButton}
                     variant={theme.isDark ? "colored" : "light"}
                   />
                 </SwiftUI.RNHostView>
               }
             >
+              <SwiftUI.Button
+                label="Unread only"
+                systemImage={unreadOnly ? "checkmark.circle.fill" : "circle"}
+                onPress={() => setUnreadOnly((value) => !value)}
+              />
               {SOURCE_OPTIONS.map((option) => (
                 <SwiftUI.Button
                   key={option.value}
@@ -399,7 +427,7 @@ export default function NewsScreen() {
           <GlassButton
             iconName="filter-outline"
             iconSize={18}
-            iconColor={theme.textColor}
+            iconColor={unreadOnly ? theme.primary : theme.textColor}
             onPress={openSourceFallbackMenu}
             style={[styles.sortMenuButton, styles.sourceMenuFallbackButton]}
             variant={theme.isDark ? "colored" : "light"}
@@ -468,6 +496,8 @@ export default function NewsScreen() {
                   }}
                 >
                   <NewsCard
+                    isRead={readIds.has(newsReadKey(item))}
+                    onToggleRead={toggleRead}
                     item={item}
                     onPress={handlePress}
                     variant="breaking"
@@ -582,7 +612,9 @@ export default function NewsScreen() {
             color={theme.textLight}
           />
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-            No articles are available for this source right now.
+            {unreadOnly && news.length > 0
+              ? "You’re all caught up. Turn off Unread only in the filter menu to see all stories."
+              : "No articles are available for this source right now."}
           </Text>
         </View>
       )}
@@ -598,6 +630,8 @@ export default function NewsScreen() {
         renderItem={({ item }) => (
           <View style={{ paddingHorizontal: 16 }}>
             <NewsCard
+              isRead={readIds.has(newsReadKey(item))}
+              onToggleRead={toggleRead}
               item={item}
               onPress={handlePress}
               variant="standard"

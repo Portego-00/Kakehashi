@@ -302,8 +302,8 @@ describe("review question preferences", () => {
     fireEvent.change(screen.getByRole("combobox", { name: /SRS progression/i }), { target: { value: "compact" } });
     fireEvent.change(screen.getByRole("combobox", { name: /Anki mode/i }), { target: { value: "both" } });
     fireEvent.click(screen.getByRole("checkbox", { name: /Group meaning and reading/i }));
-    fireEvent.change(screen.getByRole("combobox", { name: /Review character size/i }), { target: { value: "1.2" } });
-    fireEvent.change(screen.getByRole("combobox", { name: /Review answer size/i }), { target: { value: "0.9" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /Review character size/i }), { target: { value: "1.4" } });
+    expect(screen.queryByRole("combobox", { name: /Review answer size/i })).not.toBeInTheDocument();
 
     const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
     expect(study).toMatchObject({
@@ -316,8 +316,7 @@ describe("review question preferences", () => {
       srsProgressionCardDisplayMode: "compact",
       ankiMode: "both",
       ankiGroupQuestions: true,
-      reviewCharacterFontScale: 1.2,
-      reviewInputFontScale: 0.9,
+      reviewCharacterFontScale: 1.4,
     });
   }, 10_000);
 

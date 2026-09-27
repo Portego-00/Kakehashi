@@ -11,7 +11,11 @@ export default async function Page({ params }: { params: Promise<{ kind: string;
   const jar = await cookies();
   const identity = await bunproIdentity(jar.get(WANIKANI_SESSION_COOKIE)?.value).catch(() => notFound());
   if (!bunproToken(jar.get(BUNPRO_COOKIE)?.value, identity.id)) redirect("/settings#bunpro-api-key");
-  const { kind, slug } = await params;
+  const { kind, slug: routeSlug } = await params;
+  // Route params can retain URL encoding; the details client encodes the raw slug itself.
+  let slug: string;
+  try { slug = decodeURIComponent(routeSlug); }
+  catch { notFound(); }
   if ((kind !== "grammar" && kind !== "vocab") || !slug.trim() || slug.length > 500) notFound();
   return <BunproDetails kind={kind} slug={slug} />;
 }

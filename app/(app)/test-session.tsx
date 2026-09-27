@@ -24,6 +24,7 @@ import {
   Assignment,
   Subject as ApiSubject,
   getAllAssignmentsCached,
+  getStudyMaterials,
 } from "../../src/utils/api";
 import { getAllSubjects, getSubjectById } from "../../src/utils/cache";
 import {
@@ -53,6 +54,10 @@ import { useTheme } from "../../src/utils/theme";
 
 type QuestionType = "meaning" | "reading";
 type TestSessionMode = "random-test" | "hiragana-vocab-meaning" | "audio-vocab";
+
+interface TestStudyMaterials {
+  meaning_synonyms?: string[];
+}
 
 interface TestQuestion {
   id: number;
@@ -492,6 +497,7 @@ function TestSessionScreen() {
     reviewQuestionOrderEnabled,
     meaningFirst,
     vocabularyAudioVoice,
+    acceptUserSynonymsAsAnswers,
   } = useSettingsStore();
   const preferredQuestionType: QuestionType = meaningFirst ? "meaning" : "reading";
 
@@ -506,6 +512,87 @@ function TestSessionScreen() {
   const shouldRevealResults = useExtraStudyResultsReveal(isTestComplete);
   const [config, setConfig] = useState<TestSessionConfig | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
+  const studyMaterialSubjectIdsKey = useMemo(
+    () =>
+      [...new Set(reviewItems.map((item) => item.subjectId))]
+        .sort((left, right) => left - right)
+        .join(","),
+    [reviewItems],
+  );
+  const [sessionStudyMaterials, setSessionStudyMaterials] = useState<{
+    subjectIdsKey: string;
+    apiToken: string;
+    materials: Map<number, TestStudyMaterials>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!acceptUserSynonymsAsAnswers) {
+      setSessionStudyMaterials(null);
+      return;
+    }
+    if (isAuthLoading || !apiToken || !studyMaterialSubjectIdsKey) return;
+
+    let cancelled = false;
+    const loadStudyMaterials = async () => {
+      const materialsMap = new Map<number, TestStudyMaterials>();
+      try {
+        const response = await getStudyMaterials(
+          apiToken,
+          { subject_ids: studyMaterialSubjectIdsKey.split(",").map(Number) },
+          { skipCache: true },
+        );
+        for (const material of response.data) {
+          materialsMap.set(material.data.subject_id, {
+            meaning_synonyms: material.data.meaning_synonyms || [],
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[Random Test] Failed to load user synonyms:", error);
+          Alert.alert(
+            "User Synonyms Unavailable",
+            "Your quiz will continue, but user synonyms could not be loaded and will not be accepted in this session. Reopen the quiz to try loading them again.",
+          );
+        }
+      }
+      if (!cancelled) {
+        setSessionStudyMaterials({
+          subjectIdsKey: studyMaterialSubjectIdsKey,
+          apiToken,
+          materials: materialsMap,
+        });
+      }
+    };
+    void loadStudyMaterials();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    acceptUserSynonymsAsAnswers,
+    apiToken,
+    isAuthLoading,
+    studyMaterialSubjectIdsKey,
+  ]);
+
+  // Gate the first render too, before the loading effect has had a chance to run.
+  const isLoadingStudyMaterials =
+    acceptUserSynonymsAsAnswers &&
+    Boolean(studyMaterialSubjectIdsKey) &&
+    (isAuthLoading ||
+      sessionStudyMaterials?.apiToken !== apiToken ||
+      sessionStudyMaterials?.subjectIdsKey !== studyMaterialSubjectIdsKey);
+
+  const handleSynonymAdded = useCallback(
+    (subjectId: number, synonyms: string[]) => {
+      setSessionStudyMaterials((previous) => {
+        if (!previous) return previous;
+        const materials = new Map(previous.materials);
+        materials.set(subjectId, { meaning_synonyms: synonyms });
+        return { ...previous, materials };
+      });
+    },
+    [],
+  );
 
   const clearSavedRandomTestSession = useCallback(async () => {
     await clearExtraStudySessionState(sessionStorageKey);
@@ -1295,7 +1382,7 @@ function TestSessionScreen() {
     [completedItems, progressCounters, reviewItems.length],
   );
 
-  if (isLoading) {
+  if (isLoading || isLoadingStudyMaterials) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.backgroundColor }]}
@@ -1409,6 +1496,10 @@ function TestSessionScreen() {
         },
       }}
       questionType={currentQuestion.questionType}
+      studyMaterials={sessionStudyMaterials?.materials.get(
+        currentQuestion.subject.id,
+      )}
+      onSynonymAdded={handleSynonymAdded}
       onAnswer={handleAnswer}
       onSkip={handleSkip}
       onExit={handleExit}

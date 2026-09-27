@@ -1,13 +1,36 @@
-.page { width: min(100%, 52rem); margin-inline: auto; padding: var(--space-2xl) var(--page-gutter); display: grid; gap: var(--space-xl); }
-.header { display: grid; gap: var(--space-sm); }
-.header > svg { color: var(--color-success); }
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4
+ * Existing Kakehashi tokens · compact completion, learned cards, next-batch preview. */
+.page { width: min(100%, 62rem); margin-inline: auto; padding: clamp(1rem, 3vw, 2rem) var(--page-gutter); display: grid; gap: var(--space-lg); color: var(--color-ink); }
 .page h1, .page h2, .page p { margin: 0; }
-.page h2 { font-size: var(--text-lg); margin-block-end: var(--space-md); }
-.items { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--space-sm); }
-.items a { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-sm); color: inherit; text-decoration: none; }
-.items a:hover { text-decoration: underline; }
-.character { font-size: 2rem; min-width: 3rem; text-align: center; }
-.metadata { display: block; font-size: var(--text-sm); opacity: .7; }
-.batch { padding-block: var(--space-sm); }
-.batch summary { cursor: pointer; padding-block: var(--space-sm); }
-.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); }
+.header { display: grid; gap: var(--space-xs); }
+.header h1 { font-size: clamp(1.5rem, 3vw, 2rem); overflow-wrap: anywhere; }
+.header p, .notice { color: var(--color-muted); font-size: var(--text-sm); }
+.page h2 { font-size: var(--text-sm); font-weight: 600; margin-block-end: var(--space-sm); }
+.items { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: var(--space-sm); max-height: 44dvh; overflow-y: auto; }
+.items li { min-width: 0; }
+.card { padding: .75rem; gap: .6rem; }
+.cardTop { margin: -.75rem -.75rem 0; padding: .75rem; min-height: 4rem; align-items: center; }
+.character { font-size: 1.8rem; }
+.cardCopy { display: grid; gap: .15rem; min-width: 0; }
+.cardCopy strong { font-size: var(--text-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardCopy > span { color: var(--color-muted); font-family: var(--font-japanese); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.next { padding-block-start: var(--space-md); border-block-start: 1px solid var(--color-rule); }
+.nextHeading { display: flex; align-items: baseline; gap: var(--space-sm); }
+.nextHeading > span { color: var(--color-muted); font-size: var(--text-xs); }
+.preview { list-style: none; padding: 0; margin: 0; display: flex; gap: var(--space-xs); overflow-x: auto; }
+.preview li { flex: none; }
+.preview a { display: grid; place-items: center; min-height: 2.75rem; min-width: 2.75rem; padding: .35rem .6rem; border: 1px solid var(--color-rule); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-vocabulary); text-decoration: none; font-family: var(--font-japanese); font-size: 1.2rem; }
+.preview a[data-type="radical"] { color: var(--color-radical); }
+.preview a[data-type="kanji"] { color: var(--color-kanji); }
+.preview a:hover { background: var(--color-paper-2); border-color: var(--color-ink-2); }
+.actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+.actions > * { white-space: nowrap; }
+@media (max-width: 36rem) {
+  .page { gap: var(--space-md); }
+  .items { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-xs); }
+  .card { padding: .5rem; gap: .4rem; }
+  .cardTop { margin: -.5rem -.5rem 0; padding: .5rem; min-height: 3rem; }
+  .character { font-size: 1.5rem; }
+  .cardCopy strong { font-size: var(--text-xs); }
+  .actions > * { flex: 1; }
+}

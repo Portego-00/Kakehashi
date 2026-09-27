@@ -282,6 +282,7 @@ export interface BunproLearnIndexResponse {
 }
 
 export type BunproReviewOnlyFilter = "GrammarPoint" | "Vocab" | "Vocabulary" | string;
+export type BunproReviewType = "review" | "ghost_review" | "self_study_review";
 
 export interface BunproReviewAttributes extends Record<string, unknown> {
   id: number;
@@ -296,6 +297,9 @@ export interface BunproReviewAttributes extends Record<string, unknown> {
 
 export interface BunproReviewRelationships extends Record<string, unknown> {
   study_question?: {
+    data?: { id: string; type: string };
+  };
+  user_study_question?: {
     data?: { id: string; type: string };
   };
   reviewable?: {

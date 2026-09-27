@@ -4,7 +4,7 @@ import { SessionResults } from "./SessionResults";
 import type { SessionResult } from "./session-results";
 const wanikaniResults: import("@/features/core-study/review-results").ReviewResultItem[] = [{ assignmentId: 2, meaningMistakes: 1, readingMistakes: 0, endingStage: 2, subject: { id: 2, object: "vocabulary", url: "", data_updated_at: "", data: { level: 1, created_at: "", slug: "学校", document_url: "", hidden_at: null, auxiliary_meanings: [], characters: "学校", meanings: [{ meaning: "School", primary: true, accepted_answer: true }], readings: [{ reading: "がっこう", primary: true, accepted_answer: true }] } } }];
 const items: SessionResult[] = [
-  { id: "bunpro:1", source: "bunpro", kind: "grammar", title: "です", meaning: "To be", correct: true, href: "/bunpro/grammar/desu", sentence: { before: "学生", answer: "です", after: "。" }, translation: "I am a student.", audioUrls: ["https://audio.test/desu.mp3"], previousStage: "Beginner 1", stage: "Beginner 2" },
+  { id: "bunpro:1", source: "bunpro", kind: "grammar", title: "です", meaning: "To be", correct: true, href: "/bunpro/grammar/desu", sentence: { parts: ["学生", "。"], answer: "です" }, translation: "I am a student.", audioUrls: ["https://audio.test/desu.mp3"], previousStage: "Beginner 1", stage: "Beginner 2" },
   { id: "wanikani:2", source: "wanikani", kind: "vocabulary", title: "学校", meaning: "School", reading: "がっこう", correct: false, href: "/subjects/2", stage: "Apprentice 2" },
 ];
 afterEach(cleanup);

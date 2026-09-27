@@ -1,0 +1,11 @@
+# Review settings controls and sizing — 22 September 2026
+
+The review settings gear now uses the shared toolbar icon-button style and follows Search in WaniKani, Bunpro, and extra-study sessions. Custom vocabulary sessions use the same shared button before Exit. The modal scrolls only its settings body, keeping Close and Done visible on desktop and mobile.
+
+Question text size now shares the same supported values between persistence, the main settings page, and the review modal, including 140%. Previously, the modal offered 140% while persistence silently reset that value to 100%. Answer text size has been removed from the web settings UI, preference model, and all review renderers; legacy stored answer-size values are discarded when settings load. Native settings are unaffected.
+
+Release source was reconstructed from all 1,078 files in production deployment `dpl_DCSxqBaBGjggYeMdEudAX2NPx4BB`, preserving newer production changes absent from the checkout. Only 17 scoped files changed, with no additions or removals. A toolbar merge preserved the production removal of Bunpro's duplicate mixed-review previous-answer badge. Every uploaded file hash matches the tested release.
+
+Validation: TypeScript and focused lint passed. Nine release-copy suites passed all 304 tests. All six local desktop Chromium/mobile WebKit browser scenarios passed: toolbar style and adjacency, actual 140% and 70% prompt rendering, persisted selection, pinned modal actions, keyboard isolation, paused advancement, and preservation of typed answers, completed work, and submissions. One initial development-server mobile run navigated unexpectedly during advance; isolated rerun and the complete sequential browser run passed.
+
+Deployment: `dpl_3bh5Mdh2s6vdnEyqoS91ybFrUVhg` at https://kakehashi-o6tzu1hgl-portego-00s-projects.vercel.app. Promoted to https://kakehashiapp.com and verified as the canonical READY production deployment. Login returned HTTP 200. All six live desktop/mobile browser scenarios passed, and toolbar and scrolled-modal screenshots were visually inspected. Browser fixtures intercepted review APIs, so no real WaniKani reviews were submitted. Evidence is under `output/review-settings-polish-2026-09-22/`. No database, environment, native-app, Git commit, or Git push changes were made.

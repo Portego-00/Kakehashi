@@ -1,9 +1,12 @@
 "use client";
-import { createElement, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { createElement, Fragment, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { parseFuriganaRuns, sanitizeText } from "./model";
 const subscribe = () => () => {};
 export function RubyText({ text }: { text: string }) {
   return <>{parseFuriganaRuns(text).map((run, i) => run.kind === "ruby" ? <ruby key={i}>{run.base}<rp>(</rp><rt>{run.reading}</rt><rp>)</rp></ruby> : run.text)}</>;
+}
+export function BunproSentence({ parts, children }: { parts: string[]; children: ReactNode }) {
+  return <>{parts.map((part, index) => <Fragment key={index}>{index > 0 ? children : null}<RubyText text={part} /></Fragment>)}</>;
 }
 const allowed = new Set(["p", "div", "span", "strong", "b", "em", "i", "u", "br", "ul", "ol", "li", "ruby", "rt", "rp", "h3", "h4", "blockquote", "table", "tbody", "tr", "td", "th"]);
 function renderNode(node: Node, key: number, ruby = false): ReactNode {

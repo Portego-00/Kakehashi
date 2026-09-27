@@ -1,5 +1,10 @@
 export type CommunityAuthorIdentity = { id: string; username: string };
 
+// Only use an identity verified by the server, never request-body profile data.
+export function canModerateCommunityStatus(identity: CommunityAuthorIdentity) {
+  return identity.username === "Portego";
+}
+
 export function resolveCommunityMode(input: { url: string; serviceRoleKey: string; anonKey?: string; production: boolean; localStoreEnabled?: boolean }) {
   if (input.url && input.serviceRoleKey) return "supabase" as const;
   if (input.url && input.anonKey) return input.production ? "supabase-readonly" as const : "supabase-native-dev" as const;

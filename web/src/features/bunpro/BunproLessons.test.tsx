@@ -18,7 +18,7 @@ it("limits the batch, supports previous and starts a quiz with only that batch",
   fireEvent.click(screen.getByRole("button", { name: "Previous" }));
   await screen.findByRole("heading", { name: "Grammar 1" });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  vi.mocked(bunpro).mockResolvedValueOnce({ review_session_id: 1, pending_attempt: [{ data: { id: "10" } }] });
+  vi.mocked(bunpro).mockResolvedValueOnce({ review_session_id: 1, pending_attempt: [{ data: { id: "10", type: "review", attributes: { ghost_count: 0 } } }] });
   fireEvent.click(screen.getByRole("button", { name: "Start Quiz" }));
   await screen.findByRole("button", { name: "Continue lessons" });
   expect(bunpro).toHaveBeenCalledWith("", expect.objectContaining({ body: JSON.stringify({ action: "lesson-quiz", deckId: 1, reviewables: [["GrammarPoint", 1], ["GrammarPoint", 2]] }) }));

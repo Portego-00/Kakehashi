@@ -30,6 +30,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Asset } from "expo-asset";
 import { Directory, File, Paths } from "expo-file-system";
 import type { Widget, WidgetEnvironment } from "expo-widgets";
+import type { JSX } from "react";
 import { Platform } from "react-native";
 import type {
   WidgetContentMode,

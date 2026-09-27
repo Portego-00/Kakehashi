@@ -30,6 +30,9 @@ import ReviewHeatmap from "../../../src/components/ReviewHeatmap";
 import ReviewStatsTable from "../../../src/components/ReviewStatsTable";
 import SrsBreakdown from "../../../src/components/SrsBreakdown";
 import StudyTimeCard from "../../../src/components/StudyTimeCard";
+import BunproAnalytics from "../../../src/components/bunpro/BunproAnalytics";
+import BunproAnalyticsSourceTabs, { type AnalyticsSource } from "../../../src/components/bunpro/BunproAnalyticsSourceTabs";
+import { isPortegoUsername } from "../../../src/utils/portegoAccess";
 import {
     BurnedItems,
     CriticalItems,
@@ -84,6 +87,9 @@ export default function ProgressTab() {
   }, [analyticsHasOwnTab, itemsHasOwnTab]);
 
   const [activeSegment, setActiveSegment] = useState<TabSegment>('level');
+  const [analyticsSource, setAnalyticsSource] = useState<AnalyticsSource>("wanikani");
+  const canAccessBunpro = isPortegoUsername(userData?.username);
+  const showingBunpro = activeSegment === "analytics" && canAccessBunpro && analyticsSource === "bunpro";
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -441,13 +447,15 @@ export default function ProgressTab() {
         </View>
       )}
 
-      <LoadingProgressBar
+      {activeSegment === "analytics" && canAccessBunpro ? <BunproAnalyticsSourceTabs source={analyticsSource} onChange={setAnalyticsSource} /> : null}
+
+      {!showingBunpro ? <LoadingProgressBar
         isLoading={isLoading}
         progress={loadingProgress}
         color={theme.secondary}
-      />
+      /> : null}
 
-      <ScrollView
+      {showingBunpro ? <BunproAnalytics /> : <ScrollView
         style={styles.content}
         contentContainerStyle={[styles.scrollViewContent, shouldUseNativeTabsPadding && styles.nativeTabsPadding]}
         refreshControl={
@@ -769,7 +777,7 @@ export default function ProgressTab() {
             </>
           )}
         </View>
-      </ScrollView>
+      </ScrollView>}
     </View>
   );
 }

@@ -2,7 +2,7 @@ import * as wanakana from "wanakana";
 import type { BunproJsonApiResource, BunproReviewQueueItem } from "../../../../src/types/bunpro";
 export type { BunproReviewQueueItem, BunproReviewQuizIndexResponse, BunproReviewableDetailsResponse } from "../../../../src/types/bunpro";
 export type ReviewMode = "all" | "grammar" | "vocab";
-type ParsedQuestionSentence = { beforeBlank: string; afterBlank: string; hasBlank: boolean };
+export type BunproReviewType = "review" | "ghost_review" | "self_study_review";
 type FuriganaRun =
   | {
       kind: "text";
@@ -136,24 +136,8 @@ function appendFuriganaTextRun(runs: FuriganaRun[], text: string) {
   runs.push({ kind: "text", text });
 }
 
-export function parseQuestionSentence(value: string): ParsedQuestionSentence {
-  const blankMatch = value.match(/(?:_{2,}|＿{2,})/);
-  if (!blankMatch || blankMatch.index === undefined) {
-    return {
-      beforeBlank: value,
-      afterBlank: "",
-      hasBlank: false,
-    };
-  }
-
-  const beforeBlank = value.slice(0, blankMatch.index);
-  const afterBlank = value.slice(blankMatch.index + blankMatch[0].length);
-
-  return {
-    beforeBlank,
-    afterBlank,
-    hasBlank: true,
-  };
+export function parseQuestionSentence(value: string): string[] {
+  return value.split(/(?:_{2,}|＿{2,})/);
 }
 
 export function parseFuriganaRuns(raw: string): FuriganaRun[] {
@@ -373,12 +357,52 @@ function getIncludedResource(
   return included.find((resource) => resource.id === id && resource.type === type) ?? null;
 }
 
+export function reviewType(item: BunproReviewQueueItem): BunproReviewType {
+  const { type, attributes } = item.data;
+  if (type === "ghost_review" || type === "self_study_review") {
+    return type;
+  }
+  if ("user_study_question_id" in attributes) {
+    return "self_study_review";
+  }
+  // Bunpro distinguishes normal and ghost records by the presence of ghost_count.
+  return "ghost_count" in attributes ? "review" : "ghost_review";
+}
+
+export function reviewKey(item: BunproReviewQueueItem): string {
+  const type = reviewType(item);
+  return type === "review" ? String(item.data.id) : `${type}:${item.data.id}`;
+}
+
+export function loadedReviewIds(items: BunproReviewQueueItem[]): {
+  loadedIds: number[];
+  loadedGhostIds: number[];
+  loadedSelfStudyIds: number[];
+} {
+  const idsByType: Record<BunproReviewType, Set<number>> = {
+    review: new Set(),
+    ghost_review: new Set(),
+    self_study_review: new Set(),
+  };
+  for (const item of items) {
+    const id = Number(item.data.id);
+    if (Number.isSafeInteger(id) && id > 0) {
+      idsByType[reviewType(item)].add(id);
+    }
+  }
+  return {
+    loadedIds: [...idsByType.review],
+    loadedGhostIds: [...idsByType.ghost_review],
+    loadedSelfStudyIds: [...idsByType.self_study_review],
+  };
+}
+
 
 export function buildReviewQueue(response: {
   pending_wrapup?: BunproReviewQueueItem[];
   pending_attempt?: BunproReviewQueueItem[];
 }): BunproReviewQueueItem[] {
-  const seenReviewIds = new Set<string>();
+  const seenReviewKeys = new Set<string>();
   const mergedQueue: BunproReviewQueueItem[] = [];
   const queueBuckets = [
     ...(response.pending_wrapup ?? []),
@@ -386,13 +410,13 @@ export function buildReviewQueue(response: {
   ];
 
   queueBuckets.forEach((item) => {
-    const reviewId = item.data?.id ? String(item.data.id) : "";
-    if (reviewId && seenReviewIds.has(reviewId)) {
+    const key = item.data?.id ? reviewKey(item) : "";
+    if (key && seenReviewKeys.has(key)) {
       return;
     }
 
-    if (reviewId) {
-      seenReviewIds.add(reviewId);
+    if (key) {
+      seenReviewKeys.add(key);
     }
     mergedQueue.push(item);
   });
@@ -400,10 +424,26 @@ export function buildReviewQueue(response: {
   return mergedQueue;
 }
 
+function getUserStudyQuestion(item: BunproReviewQueueItem): BunproJsonApiResource | null {
+  const relation = item.data.relationships?.user_study_question;
+  if (relation && typeof relation === "object" && "data" in relation) {
+    const data = relation.data;
+    if (data && typeof data === "object" && "id" in data && typeof data.id === "string") {
+      const question = getIncludedResource(item.included, data.id, "user_study_question");
+      if (question) return question;
+    }
+  }
+  const id = item.data.attributes.user_study_question_id;
+  return id == null ? null : getIncludedResource(item.included, String(id), "user_study_question");
+}
+
 
 export function reviewContent(item: BunproReviewQueueItem) {
   const relation = item.data.relationships?.study_question?.data;
-  const question = getIncludedResource(item.included, relation?.id, relation?.type ?? "study_question")?.attributes ?? {};
+  const questionResource = reviewType(item) === "self_study_review"
+    ? getUserStudyQuestion(item)
+    : getIncludedResource(item.included, relation?.id, relation?.type ?? "study_question");
+  const question = questionResource?.attributes ?? {};
   const reviewable = item.data.relationships?.reviewable?.data;
   const attributes = getIncludedResource(item.included, reviewable?.id, reviewable?.type ?? "")?.attributes ?? {};
   const kind = reviewable?.type === "grammar_point" || item.data.attributes.reviewable_type === "GrammarPoint" ? "grammar" : "vocab";

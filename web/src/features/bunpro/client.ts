@@ -5,14 +5,24 @@ function savedCredential(): string | null {
   catch { return null; }
 }
 
+export class BunproClientError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "BunproClientError";
+  }
+}
+
 export async function bunpro<T>(query: string, options?: RequestInit): Promise<T> {
   const credential = savedCredential();
   const headers = new Headers(options?.headers);
   headers.set("Content-Type", "application/json");
   if (credential) headers.set(BUNPRO_CREDENTIAL_HEADER, credential);
   const response = await fetch(`/api/bunpro${query ? `?${query}` : ""}`, { ...options, cache: "no-store", headers });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new BunproClientError(typeof data?.error === "string" && data.error ? data.error : "Bunpro request failed.", response.status);
+  }
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Bunpro request failed.");
   try {
     // Explicit saves/disconnects take priority over automatic cookie migration.
     // Ignore stale connection checks after another tab changes the saved key.

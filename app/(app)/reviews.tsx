@@ -9,6 +9,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
@@ -52,6 +53,8 @@ import {
 } from "../../src/utils/reviewOrdering";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
+import type { MixedReviewBridge } from "../../src/types/mixedReviews";
+import { trimMixedWaniKaniQueue } from "../../src/utils/mixedReviews";
 
 type ReviewSubject = Subject & {
   object: "radical" | "kanji" | "vocabulary" | "kana_vocabulary";
@@ -103,7 +106,12 @@ const REVIEW_PERMISSION_WARNING_TITLE = "Review Permission Required";
 const REVIEW_PERMISSION_WARNING_MESSAGE =
   "Your API token does not have review write permission (reviews:create). Open WaniKani Personal Access Tokens, enable review write access, then log in again with the updated token.";
 
-export default function ReviewScreen() {
+export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = {}) {
+  const mixedRef = useRef(mixed);
+  mixedRef.current = mixed;
+  const [mixedLoadError, setMixedLoadError] = useState<string | null>(null);
+  const [questionOccurrence, setQuestionOccurrence] = useState(0);
+  const lastAdvancedItemIdRef = useRef<number | null>(null);
   const isFocused = useIsFocused();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
@@ -225,12 +233,12 @@ export default function ReviewScreen() {
   const locallyModifiedStudyMaterialIdsRef = useRef(new Set<number>());
 
   const shouldKeepReviewAudioWarm =
-    autoplayVocabularyAudio && !isLoading && !isFinished && isFocused;
+    autoplayVocabularyAudio && !isLoading && !isFinished && isFocused && (!mixed || mixed.active);
   useBluetoothAudioKeepAlive(shouldKeepReviewAudioWarm, "Reviews");
 
   // Counts as review time from mount until the results screen, including time
   // on screens pushed on top (subject details, search) while the flow is open.
-  useActivityTracking("reviews", { enabled: !isFinished });
+  useActivityTracking("reviews", { enabled: !isFinished && (!mixed || mixed.active) });
 
   const refreshPendingReviewCount = useCallback(async () => {
     if (!apiToken) {
@@ -872,6 +880,7 @@ export default function ReviewScreen() {
     }
 
     if (!apiToken) {
+      if (mixedRef.current) setMixedLoadError("Sign in to WaniKani to start mixed reviews.");
       setIsLoading(false);
       return;
     }
@@ -881,6 +890,7 @@ export default function ReviewScreen() {
 
     try {
       setIsLoading(true);
+      setMixedLoadError(null);
       hasCheckedFinalSubmissionsRef.current = false;
       pendingSubmissionCountRef.current = 0;
       hasShownReviewPermissionWarningRef.current = false;
@@ -1022,6 +1032,11 @@ export default function ReviewScreen() {
       }
 
       if (availableReviewAssignments.length === 0) {
+        if (mixedRef.current) {
+          setIsFinished(true);
+          setCurrentQuestion(null);
+          return;
+        }
         Alert.alert(
           "No Reviews Available",
           "You don't have any reviews available right now.",
@@ -1296,6 +1311,10 @@ export default function ReviewScreen() {
       }
 
       if (items.length === 0) {
+        if (mixedRef.current) {
+          setMixedLoadError("WaniKani review subjects could not be loaded. Please try again.");
+          return;
+        }
         const prepError = new Error(
           "Failed to prepare review items: all subjects missing from cache",
         );
@@ -1413,7 +1432,9 @@ export default function ReviewScreen() {
         },
       });
 
-      if (isRateLimit) {
+      if (mixedRef.current) {
+        setMixedLoadError(isRateLimit ? "WaniKani is receiving too many requests. Wait a moment, then retry." : "WaniKani reviews could not be loaded. Please try again.");
+      } else if (isRateLimit) {
         Alert.alert(
           "Too Many Requests",
           "You've made too many requests to WaniKani. The rate limit resets every minute. Please wait a moment and try again.",
@@ -1586,6 +1607,8 @@ export default function ReviewScreen() {
   const moveToNextQuestion = (
     answeredQuestion: ReviewQueueQuestion | null = currentQuestionRef.current,
   ) => {
+    lastAdvancedItemIdRef.current = answeredQuestion?.itemId ?? null;
+    setQuestionOccurrence((value) => value + 1);
     // Reconciliation may update the queue while a completed answer is being
     // written locally. Remove only the question that actually completed from
     // the latest queue so newly added live work cannot be skipped.
@@ -1714,6 +1737,8 @@ export default function ReviewScreen() {
 
   // Add a question back to the queue (used when answered incorrectly)
   const requeueQuestion = (question: ReviewQueueQuestion) => {
+    lastAdvancedItemIdRef.current = question.itemId;
+    setQuestionOccurrence((value) => value + 1);
     // Remove current question from the active queue
     const queueWithoutCurrent = activeQueue.slice(1);
     const useBackToBack = backToBackQuestions && !effectiveAnkiGrouping;
@@ -2100,6 +2125,7 @@ export default function ReviewScreen() {
     _wasIncorrect: boolean,
     isGroupedAnswer: boolean = false,
   ) => {
+    if (mixedRef.current && (!mixedRef.current.active || currentQuestionRef.current?.itemId !== item.id || (!isGroupedAnswer && currentQuestionRef.current?.type !== questionType))) return;
     const answerKey = `${item.id}:${questionType}`;
     if (answerInFlightKeysRef.current.has(answerKey)) {
       return;
@@ -2115,6 +2141,7 @@ export default function ReviewScreen() {
       // callbacks cannot both run before React has rendered the next question.
       void Promise.resolve().then(() => {
         answerInFlightKeysRef.current.delete(answerKey);
+        if (answerInFlightKeysRef.current.size === 0) mixedRef.current?.reportSaving?.(false);
       });
     };
 
@@ -2127,6 +2154,16 @@ export default function ReviewScreen() {
     if (itemIndex === -1) {
       releaseAnswerGuard();
       return;
+    }
+    mixedRef.current?.reportSaving?.(true);
+    if (!isGroupedAnswer || questionType === "reading") {
+      mixedRef.current?.onAnswer({
+        id: `wanikani:${item.id}`,
+        source: "wanikani",
+        title: item.subject.data.characters || item.subject.data.slug || "WaniKani",
+        subjectId: item.subject.id,
+        correct: isCorrect && (!isGroupedAnswer || (updatedItems[itemIndex].meaningIncorrect === 0 && updatedItems[itemIndex].readingIncorrect === 0)),
+      });
     }
     const shouldAdvanceAfterAnswer =
       isCorrect && (!isGroupedAnswer || questionType === "reading");
@@ -2297,6 +2334,7 @@ export default function ReviewScreen() {
                     return;
                   }
                   answerInFlightKeysRef.current.add(answerKey);
+                  mixedRef.current?.reportSaving?.(true);
                   void persistCompletedReview().finally(releaseAnswerGuard);
                 },
               },
@@ -2368,7 +2406,7 @@ export default function ReviewScreen() {
                 endingStage,
               );
 
-              if (shouldShowSrsProgression) {
+              if (shouldShowSrsProgression && (!mixedRef.current || (mixedRef.current.active && mixedRef.current.previous?.id === `wanikani:${updatedItems[itemIndex].id}`))) {
                 setSrsProgression({
                   newLevel: getSRSLevelName(endingStage),
                   newStage: endingStage,
@@ -2382,7 +2420,7 @@ export default function ReviewScreen() {
                 upsertFailedSubmission(failure);
               }
 
-              if (shouldShowSrsProgression) {
+              if (shouldShowSrsProgression && (!mixedRef.current || (mixedRef.current.active && mixedRef.current.previous?.id === `wanikani:${updatedItems[itemIndex].id}`))) {
                 const progression = calculateSRSProgression(
                   currentSRSStage,
                   updatedItems[itemIndex].meaningIncorrect,
@@ -2448,6 +2486,7 @@ export default function ReviewScreen() {
     item: { id: number; subject: any },
     questionType: "meaning" | "reading",
   ) => {
+    if (mixedRef.current && (!mixedRef.current.active || currentQuestionRef.current?.itemId !== item.id)) return;
     const newQuestion: ReviewQueueQuestion = {
       type: questionType,
       itemId: item.id,
@@ -2461,6 +2500,9 @@ export default function ReviewScreen() {
     item: { id: number; subject: any },
     questionType: "meaning" | "reading",
   ) => {
+    if (mixedRef.current && (!mixedRef.current.active || currentQuestionRef.current?.itemId !== item.id)) return;
+    lastAdvancedItemIdRef.current = null;
+    setQuestionOccurrence((value) => value + 1);
     const reviewItem = reviewItems.find(
       (reviewItem) => reviewItem.id === item.id,
     );
@@ -2570,6 +2612,55 @@ export default function ReviewScreen() {
       });
   };
 
+  useEffect(() => {
+    if (!mixedRef.current || isLoading) return;
+    mixedRef.current.reportError(mixedLoadError);
+    if (mixedLoadError) return;
+    mixedRef.current.report(isFinished || !currentQuestion ? null : {
+      id: `${currentQuestion.itemId}:${currentQuestion.type}:${questionOccurrence}`,
+      keepTurn: backToBackQuestions && currentQuestion.itemId === lastAdvancedItemIdRef.current,
+    });
+  }, [isLoading, isFinished, currentQuestion, questionOccurrence, mixedLoadError, backToBackQuestions]);
+
+  useEffect(() => {
+    mixedRef.current?.reportProgress({ completed: progress.completedItems, total: progress.totalItems });
+    mixedRef.current?.reportAccuracy({ correct: progress.correctAnswersCount, answered: progress.answeredCount });
+  }, [progress.completedItems, progress.totalItems, progress.correctAnswersCount, progress.answeredCount]);
+
+  useEffect(() => {
+    mixedRef.current?.reportPending?.(pendingReviewCount);
+  }, [pendingReviewCount]);
+
+  const mixedActive = mixed?.active;
+  useEffect(() => {
+    if (mixedActive === false) setSrsProgression(null);
+  }, [mixedActive]);
+
+  const mixedWrapUpId = mixed?.wrapUpRequest?.id;
+  useEffect(() => {
+    const request = mixedRef.current?.wrapUpRequest;
+    if (!request) return;
+    const partialIds = reviewItemsRef.current.filter((item) =>
+      !item.submitted && (item.meaningDone || item.readingDone || item.meaningIncorrect > 0 || item.readingIncorrect > 0),
+    ).map((item) => item.id);
+    const queue = trimMixedWaniKaniQueue([...activeQueueRef.current, ...masterQueueRef.current], request.limit, partialIds);
+    const nextActive = queue.slice(0, ACTIVE_QUEUE_SIZE);
+    const nextMaster = queue.slice(ACTIVE_QUEUE_SIZE);
+    activeQueueRef.current = nextActive;
+    masterQueueRef.current = nextMaster;
+    currentQuestionRef.current = nextActive[0] ?? null;
+    setActiveQueue(nextActive);
+    setMasterQueue(nextMaster);
+    setCurrentQuestion(nextActive[0] ?? null);
+    setIsWrapUpMode(true);
+    const remainingCount = new Set(queue.map((question) => question.itemId)).size;
+    setProgress((previous) => ({ ...previous, totalItems: previous.completedItems + remainingCount }));
+    if (queue.length === 0) {
+      isFinishedRef.current = true;
+      setIsFinished(true);
+    }
+  }, [mixedWrapUpId]);
+
   // Handle back to dashboard
   const handleBackToDashboard = () => {
     void refreshRecentMistakes();
@@ -2638,6 +2729,7 @@ export default function ReviewScreen() {
 
     return (
       <ReviewQuestionScreen
+        mixedPrevious={mixed?.previous}
         item={{
           id: item.id,
           subject: item.subject as any,
@@ -2658,6 +2750,10 @@ export default function ReviewScreen() {
         contextHintDisplayMode="visible"
         contextHintTranslationMode="toggle"
         onExit={() => {
+          if (mixedRef.current) {
+            mixedRef.current.onExit();
+            return;
+          }
           const exitReviews = () => {
             void refreshRecentMistakes();
             router.dismissAll();
@@ -2686,18 +2782,18 @@ export default function ReviewScreen() {
         }}
         showHeader={true}
         showBackgroundColor={true}
-        totalItems={progress.totalItems}
-        currentItem={progress.answeredCount}
-        completedCount={progress.completedItems}
-        correctAnswersCount={progress.correctAnswersCount}
+        totalItems={mixed?.progress.total ?? progress.totalItems}
+        currentItem={mixed?.accuracy.answered ?? progress.answeredCount}
+        completedCount={mixed?.progress.completed ?? progress.completedItems}
+        correctAnswersCount={mixed?.accuracy.correct ?? progress.correctAnswersCount}
         srsProgression={srsProgression || undefined}
         onSRSCardDismiss={dismissSRSCard}
         // Wrap up functionality
-        isWrapUpAvailable={isWrapUpAvailable && !isWrapUpMode}
+        isWrapUpAvailable={mixed ? mixed.progress.total - mixed.progress.completed > WRAP_UP_TARGET_SUBJECTS && !mixed.wrapUpRequest : isWrapUpAvailable && !isWrapUpMode}
         isWrapUpMode={isWrapUpMode}
         wrapUpTargetSubjects={WRAP_UP_TARGET_SUBJECTS}
-        remainingSubjectsCount={getRemainingSubjectsCount()}
-        onWrapUp={handleWrapUp}
+        remainingSubjectsCount={mixed ? mixed.progress.total - mixed.progress.completed : getRemainingSubjectsCount()}
+        onWrapUp={mixed?.onWrapUp ?? handleWrapUp}
         acceptCharactersAsCorrectForReading={true}
       />
     );
@@ -2735,6 +2831,24 @@ export default function ReviewScreen() {
       </View>
     );
   };
+
+  // The provider queue remains mounted, while its interactive question is
+  // unmounted between turns so hidden inputs, timers and audio cannot fire.
+  if (mixed && !mixed.active) return null;
+
+  if (mixedLoadError && mixed) {
+    return <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundColor }]}>
+      <Text accessibilityRole="alert" style={[styles.loadingText, { color: theme.textColor, textAlign: "center", paddingHorizontal: 24 }]}>{mixedLoadError}</Text>
+      <TouchableOpacity accessibilityRole="button" onPress={() => void loadReviews()} style={{ padding: 20 }}>
+        <Text style={{ color: theme.primary, fontSize: 16 }}>Retry WaniKani reviews</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={mixed.onExit} style={{ padding: 16 }}>
+        <Text style={{ color: theme.textSecondary }}>Back</Text>
+      </TouchableOpacity>
+    </View>;
+  }
+
+  if (mixed && isFinished) return null;
 
   if (isLoading) {
     return (
