@@ -59,8 +59,9 @@ function testSession() {
   return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), encrypted.toString("base64url")].join(".");
 }
 
-async function openMixedReviews(page: Page, study: Partial<WebStudyPreferences> = {}, largeQueue = false) {
-  const reviewSubjects = largeQueue ? Array.from({ length: 20 }, (_, index) => vocabulary(index + 1, `川${index + 1}`, "River", "かわ")) : subjects;
+async function openMixedReviews(page: Page, study: Partial<WebStudyPreferences> = {}, largeQueue = false, kanjiFixture = false) {
+  const fixtureSubjects = kanjiFixture ? subjects.map((subject, index) => ({ ...subject, object: "kanji", data: { ...subject.data, visually_similar_subject_ids: [subjects[1 - index].id], readings: subject.data.readings.map((reading) => ({ ...reading, type: "kunyomi" })) } })) : subjects;
+  const reviewSubjects = largeQueue ? Array.from({ length: 20 }, (_, index) => vocabulary(index + 1, `川${index + 1}`, "River", "かわ")) : fixtureSubjects;
   const reviewAssignments = largeQueue ? reviewSubjects.map(subject => ({ ...assignments[0], id: subject.id + 100, data: { ...assignments[0].data, subject_id: subject.id } })) : assignments;
   const reviewGrammar = largeQueue ? Array.from({ length: 20 }, (_, index) => ({ ...grammar[0], data: { ...grammar[0].data, id: String(10 + index), attributes: { ...grammar[0].data.attributes, id: 10 + index } } })) : grammar;
   const url = process.env.MIXED_REVIEW_BASE_URL ?? "http://127.0.0.1:3100";
@@ -537,3 +538,35 @@ test("Bunpro Context keeps the review visible while its code loads", async ({ pa
   expect(errors).toEqual([]);
   expect(navigations).toBe(0);
 });
+
+for (const viewport of [{ width: 1024, height: 768 }, { width: 390, height: 844 }]) {
+test(`review subject stays visible while scrolling details and disappears when closed at ${viewport.width}`, async ({ page }, testInfo) => {
+  await page.setViewportSize(viewport);
+  await page.emulateMedia({ reducedMotion: viewport.width === 1024 ? "no-preference" : "reduce" });
+  await openMixedReviews(page, {}, false, true);
+  await answer(page, "river");
+  await page.getByRole("button", { name: /Show subject details/ }).click();
+  const details = page.locator("#study-item-details");
+  await expect(details).toBeVisible();
+  if (viewport.width >= 768) await expect.poll(async () => (await details.boundingBox())!.y).toBeLessThan(viewport.height - 120);
+  const header = details.locator("header").first();
+  expect(await header.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+  await page.screenshot({ path: testInfo.outputPath("colored-details-header.png") });
+  await details.getByRole("heading", { name: "Visually similar", exact: true }).evaluate((heading) => heading.scrollIntoView({ block: "center" }));
+  const sticky = page.getByRole("button", { name: "Back to River details" });
+  await expect(sticky).toBeVisible();
+  await expect(sticky).toContainText("川");
+  await expect.poll(async () => (await sticky.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(0);
+  const rect = (await sticky.boundingBox())!;
+  expect(rect.y).toBeGreaterThanOrEqual(0);
+  expect(rect.y + rect.height).toBeLessThan(viewport.height);
+  await expect.poll(() => sticky.evaluate((element) => { const rect = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)); })).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("sticky-kanji.png") });
+  await sticky.click();
+  await expect(sticky).toHaveCount(0);
+  await details.getByRole("heading", { name: "Visually similar", exact: true }).evaluate((heading) => heading.scrollIntoView({ block: "center" }));
+  await expect(sticky).toBeVisible();
+  await page.keyboard.press("d");
+  await expect(sticky).toHaveCount(0);
+});
+}

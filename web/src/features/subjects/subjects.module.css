@@ -639,7 +639,7 @@
 .subjectDetailPanels[data-subject-detail-type="radical"] { --subject-color: var(--color-radical); }
 .subjectDetailPanels[data-subject-detail-type="kanji"] { --subject-color: var(--color-kanji); }
 .subjectDetailPanels[data-subject-detail-type="vocabulary"] { --subject-color: var(--color-vocabulary); }
-.embeddedSubjectDetails { min-width: 0; }
+.embeddedSubjectDetails { min-width: 0; scroll-margin-block-start: calc(var(--banner-height) + var(--space-md) + var(--space-sm)); }
 .detailTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-inline: 0; padding: var(--space-sm) var(--page-gutter) 0; border-block-end: var(--rule-thin) solid var(--color-rule); background: var(--color-paper); }
 .detailTabs[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
 .detailTabs[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -913,3 +913,22 @@
 
 .immersionExample ruby { ruby-position: over; }
 .immersionExample rt { font-size: .6em; font-weight: 400; color: var(--color-ink-2); }
+
+.embeddedSubjectHeader {
+  position: fixed;
+  z-index: calc(var(--z-sticky-nav) - 1);
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  border: 0;
+  border-bottom: var(--rule-thin) solid var(--color-subject-rule);
+  background: var(--subject-color);
+  color: var(--color-subject-text);
+  text-align: left;
+  cursor: pointer;
+}
+.embeddedSubjectHeader > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); font-weight: 700; }
+.embeddedStickyCharacter { flex-shrink: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 650 2.5rem/1.3 var(--font-japanese); }
+.embeddedSubjectHeader:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }

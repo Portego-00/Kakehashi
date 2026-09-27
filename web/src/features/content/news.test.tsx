@@ -4,8 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/image", () => ({
   default: ({ alt = "", src }: { alt?: string; src: string }) => <span role="img" aria-label={alt} data-src={src} />,
 }));
+const study = vi.hoisted(() => ({
+  dataset: null as { subjects: Subject[]; assignments: Assignment[] } | null,
+  user: null as WKUser | null,
+  status: "authenticated" as "authenticated" | "loading" | "anonymous",
+}));
 vi.mock("@/features/study/use-study-dataset", () => ({
-  useStudyDataset: () => ({ dataset: null }),
+  useStudyDataset: () => study,
 }));
 vi.mock("./JapaneseReader", () => ({
   JapaneseReader: ({ text, blocks, showFurigana, onShowFuriganaChange }: { text: string; blocks?: Array<{ type: string; furigana?: Array<{ start: number; end: number; reading: string }> }>; showFurigana?: boolean; onShowFuriganaChange?: (value: boolean) => void }) => <><div data-testid="japanese-reader" data-block-order={blocks?.map((block) => block.type).join(",")} data-show-furigana={String(showFurigana)} data-has-furigana={String(blocks?.some((block) => block.furigana?.length))}>{text}</div>{onShowFuriganaChange ? <button type="button" aria-pressed={showFurigana} aria-label="Furigana" onClick={() => onShowFuriganaChange(!showFurigana)}>Furigana</button> : null}</>,
@@ -17,6 +22,10 @@ vi.mock("./useFirstContentReveal", () => ({
 import { NewsArticleView, NewsIndex } from "./news";
 import { readLocal, writeLocal } from "./storage";
 import type { NewsArticle } from "./types";
+
+import type { Assignment, Subject, WKUser } from "@/types/wanikani";
+import { DEMO_USER } from "@/features/demo/runtime";
+import { testSubject, testAssignment } from "@/features/progress/analytics-test-fixtures";
 
 const EASY_AUDIO_URL = "https://nhkeasier.com/media/mp3/easy.mp3";
 
@@ -67,11 +76,141 @@ function response(body: unknown, status = 200) {
 }
 
 describe("NHK News web source parity", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    study.dataset = null;
+    study.user = DEMO_USER;
+    study.status = "authenticated";
+  });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+
+  it("restores known percentages immediately on reopening while study data is still loading", async () => {
+    const article = { ...easyArticle, title: "日本", body: "日本" };
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([article]))));
+    study.dataset = {
+      subjects: [testSubject(1, "kanji", { characters: "日" })],
+      assignments: [testAssignment(1, { srs_stage: 5 })],
+    };
+    const first = render(<NewsIndex />);
+    expect(await screen.findByText("50% Known")).toBeInTheDocument();
+    first.unmount();
+    study.dataset = null;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    render(<NewsIndex />);
+    expect(screen.getByText("50% Known")).toBeInTheDocument();
+    expect(screen.queryByText("… Known")).not.toBeInTheDocument();
+  });
+
+  it("uses cached kanji for new stories and replaces it when fresh progress arrives", async () => {
+    writeLocal("news-known-kanji-v1:demo-level-21", ["日"]);
+    const article = { ...easyArticle, title: "日本", body: "日本" };
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([article]))));
+    const view = render(<NewsIndex />);
+    expect(await screen.findByText("50% Known")).toBeInTheDocument();
+
+    study.dataset = {
+      subjects: [testSubject(1, "kanji", { characters: "日" }), testSubject(2, "kanji", { characters: "本" })],
+      assignments: [testAssignment(1, { srs_stage: 5 }), testAssignment(2, { srs_stage: 5 })],
+    };
+    view.rerender(<NewsIndex />);
+    expect(screen.getByText("100% Known")).toBeInTheDocument();
+    expect(readLocal("news-known-kanji-v1:demo-level-21", null)).toEqual(["日", "本"]);
+
+    // A reset to zero known kanji must replace the saved progress too.
+    study.dataset = { subjects: study.dataset.subjects, assignments: [] };
+    view.rerender(<NewsIndex />);
+    expect(screen.getByText("0% Known")).toBeInTheDocument();
+    view.unmount();
+    study.dataset = null;
+    render(<NewsIndex />);
+    expect(screen.getByText("0% Known")).toBeInTheDocument();
+  });
+
+  it("never shows another account’s cached percentages or uses them before authentication", async () => {
+    writeLocal("news-known-kanji-v1:demo-level-21", ["本", "文"]);
+    writeLocal("news-cache-easy", feed([easyArticle]));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    const view = render(<NewsIndex />);
+    expect(screen.getByText("100% Known")).toBeInTheDocument();
+    study.user = { ...DEMO_USER, data: { ...DEMO_USER.data, username: "another-account" } };
+    view.rerender(<NewsIndex />);
+    expect(screen.getByText("… Known")).toBeInTheDocument();
+    study.user = DEMO_USER;
+    study.status = "loading";
+    view.rerender(<NewsIndex />);
+    expect(screen.getByText("… Known")).toBeInTheDocument();
+    study.status = "authenticated";
+    view.rerender(<NewsIndex />);
+    expect(screen.getByText("100% Known")).toBeInTheDocument();
+  });
+
+  it("ignores malformed kanji caches and keeps live scores working if storage fails", async () => {
+    writeLocal("news-known-kanji-v1:demo-level-21", [42]);
+    writeLocal("news-cache-easy", feed([easyArticle]));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    const view = render(<NewsIndex />);
+    expect(screen.getByText("… Known")).toBeInTheDocument();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Storage full"); });
+    study.dataset = { subjects: [], assignments: [] };
+    view.rerender(<NewsIndex />);
+    expect(screen.getByText("0% Known")).toBeInTheDocument();
+  });
+
+  it("persists manual read status, filters unread stories, and allows undo without navigating", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle, { ...easyArticle, id: "easy:102", title: "新しいニュース" }]))));
+    const first = render(<NewsIndex />);
+    const mark = await screen.findByRole("button", { name: `Mark as read: ${easyArticle.title}` });
+    fireEvent.click(mark);
+    expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toHaveAttribute("aria-pressed", "true");
+    expect(readLocal("news-read-history", [])).toEqual([easyArticle.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Unread (1)" }));
+    expect(screen.queryByText(easyArticle.title)).not.toBeInTheDocument();
+    expect(screen.getByText("新しいニュース")).toBeInTheDocument();
+    first.unmount();
+    render(<NewsIndex />);
+    fireEvent.click(await screen.findByRole("button", { name: `Mark unread: ${easyArticle.title}` }));
+    expect(screen.getByRole("button", { name: "Unread (2)" })).toBeInTheDocument();
+    expect(readLocal("news-read-history", [])).toEqual([]);
+  });
+
+  it("marks resolved articles read once and preserves a manual unread change after refresh", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    const first = render(<NewsArticleView articleId={easyArticle.id} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Mark unread" }));
+    expect(readLocal("news-read-history", [])).toEqual([]);
+    expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument();
+    first.unmount();
+    render(<NewsIndex />);
+    expect(await screen.findByRole("button", { name: `Mark as read: ${easyArticle.title}` })).toBeInTheDocument();
+  });
+
+  it("shows an all-caught-up state and restores read cards when leaving the filter", async () => {
+    writeLocal("news-read-history", [easyArticle.id]);
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    render(<NewsIndex />);
+    await screen.findByText(easyArticle.title);
+    fireEvent.click(screen.getByRole("button", { name: "Unread (0)" }));
+    expect(screen.getByText("You’re all caught up")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "All stories" }));
+    expect(screen.getByText(easyArticle.title)).toBeInTheDocument();
+  });
+
+  it("updates read status from other tabs and reports failed saves", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    render(<NewsIndex />);
+    await screen.findByText(easyArticle.title);
+    writeLocal("news-read-history", [easyArticle.id]);
+    fireEvent(window, new StorageEvent("storage", { key: "kakehashi:content:v1:news-read-history" }));
+    expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toBeInTheDocument();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Storage full"); });
+    fireEvent.click(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` }));
+    expect(screen.getByRole("status")).toHaveTextContent("Could not save read status");
+    expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("defaults to Easy, persists source changes, and caches providers separately", async () => {

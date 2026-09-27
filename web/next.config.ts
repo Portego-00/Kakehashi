@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   reactStrictMode: true,
   poweredByHeader: false,
+  serverExternalPackages: ["heic-decode", "libheif-js"],
   outputFileTracingIncludes: {
     "/api/media-converter/[asset]": [
       "./node_modules/@ffmpeg/core/dist/esm/*",

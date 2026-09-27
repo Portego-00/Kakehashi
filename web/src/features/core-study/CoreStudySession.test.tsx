@@ -586,6 +586,31 @@ describe("core study prompt layout", () => {
     expect(screen.getByLabelText("Accuracy: 0%, 0 of 2 answers correct on the first attempt")).toBeVisible();
   });
 
+  it("waits for the updated queue when returning after completed reviews", async () => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const first = render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" /></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Correct" }));
+    expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
+    await waitFor(() => expect(wkRequest).toHaveBeenCalledWith("reviews", expect.anything()));
+    first.unmount();
+
+    let resolveQueue!: (rows: never[]) => void;
+    const freshQueue = new Promise<never[]>((resolve) => { resolveQueue = resolve; });
+    const original = vi.mocked(wkCollection).getMockImplementation()!;
+    vi.mocked(wkCollection).mockImplementation((endpoint, ...args) => endpoint.includes("immediately_available_for_review") ? freshQueue : original(endpoint, ...args));
+    render(<QueryClientProvider client={client}><CoreStudySession mode="reviews" /></QueryClientProvider>);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    await act(async () => { resolveQueue([]); });
+    await waitFor(() => expect(client.getQueryData(["core-study", "reviews", "assignments"])).toEqual([]));
+    expect(await screen.findByRole("heading", { name: "No reviews Waiting" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
+    vi.mocked(wkCollection).mockImplementation(original);
+    client.clear();
+  });
+
   it("shows results immediately while the dashboard refresh is still pending", async () => {
     fixtures.settings.study.ankiMode = "both";
     fixtures.settings.study.ankiGroupQuestions = true;

@@ -232,3 +232,11 @@ export async function deleteCommunityIssue(issueId: string) {
 }
 
 export function encodeFilter(value: string) { return encodeURIComponent(value.replace(/[, *()]/g, " ").trim()); }
+
+export function communityMediaStorage() {
+  return {
+    url: supabaseUrl,
+    key: serviceRoleKey,
+    buckets: [...new Set([process.env.EXPO_PUBLIC_SUPABASE_ISSUE_MEDIA_BUCKET?.trim(), "issue-media", "issues-media", "issues"].filter((bucket): bucket is string => Boolean(bucket)))],
+  };
+}
