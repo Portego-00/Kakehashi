@@ -605,7 +605,9 @@ describe("core study prompt layout", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
     await act(async () => { resolveQueue([]); });
     await waitFor(() => expect(client.getQueryData(["core-study", "reviews", "assignments"])).toEqual([]));
+    expect(await screen.findByRole("heading", { name: "No reviews Waiting" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
+    vi.mocked(wkCollection).mockImplementation(original);
     client.clear();
   });
 
