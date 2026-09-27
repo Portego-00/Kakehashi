@@ -160,7 +160,10 @@ test("review controls match, prompt scaling works, and modal actions stay visibl
     return { width: css.width, height: css.height, background: css.backgroundColor, border: css.border, color: css.color };
   });
   expect.soft(await styles(settings)).toEqual(await styles(search));
-  expect.soft(await settings.evaluate((node) => node.previousElementSibling?.getAttribute("aria-label"))).toBe("Search this item");
+  const savedLists = page.getByRole("button", { name: "Add to saved lists", exact: true });
+  expect.soft(await styles(savedLists)).toEqual(await styles(search));
+  expect.soft(await settings.evaluate((node) => node.previousElementSibling?.getAttribute("aria-label"))).toBe("Add to saved lists");
+  expect.soft(await savedLists.evaluate((node) => node.previousElementSibling?.getAttribute("aria-label"))).toBe("Search this item");
   const prompt = page.locator('[aria-label="Review prompt"] h2');
   const fontSize = () => prompt.evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
   const initial = await fontSize();

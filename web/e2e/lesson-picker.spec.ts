@@ -16,6 +16,7 @@ test("picks a lesson from the dashboard and keeps its header visible while scrol
   await expect(title).toBeVisible();
   await expect(page.locator("[data-app-header]")).toBeHidden();
   const meaning = await title.textContent();
+  await page.evaluate(() => window.scrollTo(0, 0));
   const sticky = page.locator('[class*="subjectStickyHeader"]');
   await expect(sticky).toHaveAttribute("aria-hidden", "true");
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -49,12 +50,12 @@ test("picked lessons follow the batch size and keep the remaining selection", as
   await page.getByRole("button", { name: "Start lesson review", exact: true }).click();
   for (let index = 0; index < 3; index++) {
     await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
-    await page.getByRole("button", { name: "2 · Correct", exact: true }).click();
-    await expect(page.getByRole("button", { name: "2 · Correct", exact: true })).toBeHidden();
+    await page.getByRole("button", { name: "Correct", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Correct", exact: true })).toBeHidden();
   }
   await expect(page.getByRole("heading", { name: "Batch Complete!" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Items learned" }).getByRole("listitem")).toHaveCount(3);
-  await expect(page.getByRole("region", { name: "Upcoming batches" }).getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("region", { name: "Next batch" }).getByRole("listitem")).toHaveCount(2);
   await page.screenshot({ path: `/tmp/kakehashi-batch-complete-${test.info().project.name}.png`, fullPage: true });
   await page.getByRole("button", { name: "Next batch", exact: true }).click();
   await expect(batch).toHaveCount(2);
@@ -67,12 +68,12 @@ test("picked lessons follow the batch size and keep the remaining selection", as
   await page.getByRole("button", { name: "Start lesson review", exact: true }).click();
   for (let index = 0; index < 2; index++) {
     await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
-    await page.getByRole("button", { name: "2 · Correct", exact: true }).click();
-    await expect(page.getByRole("button", { name: "2 · Correct", exact: true })).toBeHidden();
+    await page.getByRole("button", { name: "Correct", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Correct", exact: true })).toBeHidden();
   }
   await expect(page.getByRole("heading", { name: "Lessons Complete!" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Items learned" }).getByRole("listitem")).toHaveCount(2);
-  await expect(page.getByRole("heading", { name: "Upcoming batches" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Next batch" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Finish", exact: true })).toHaveAttribute("href", "/dashboard");
 
 });

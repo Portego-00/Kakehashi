@@ -14,6 +14,8 @@ vi.mock("@/lib/theme", () => ({
   useTheme: () => ({ theme: "light", resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
+vi.mock("@/features/bunpro/BunproSettings", () => ({ BunproSettings: () => null }));
+
 vi.mock("@/features/anime/AnimePicker", () => ({ AnimePicker: () => null }));
 vi.mock("@/features/dashboard/DashboardWidgetPreview", () => ({ DashboardWidgetPreview: () => null }));
 

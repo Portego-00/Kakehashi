@@ -7,14 +7,19 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
-  it("persists study keys and drops the retired hidden-answer preference", () => {
+  it("persists study keys and restores the hidden-answer preference", () => {
     const studyShortcuts = { ...DEFAULT_WEB_SETTINGS.study.studyShortcuts, progress: " ", replayAudio: "p" };
     const loaded = loadWebSettings(storage({ study: { studyShortcuts, ankiHideAnswerCompletely: true } }), "tester");
     expect(loaded.study.studyShortcuts).toEqual(studyShortcuts);
-    expect(loaded.study).not.toHaveProperty("ankiHideAnswerCompletely");
+    expect(loaded.study.ankiHideAnswerCompletely).toBe(true);
     let saved = "";
     saveWebSettings({ setItem: (_key, value) => { saved = value; } }, "tester", loaded);
     expect(loadWebSettings({ getItem: () => saved }, "tester").study.studyShortcuts).toEqual(studyShortcuts);
+  });
+
+  it("keeps custom daily limits through storage and rejects invalid values", () => {
+    for (const value of [0, 7, 10, 50, 500]) expect(loadWebSettings(storage({ study: { dailyLessonLimit: value } }), "tester").study.dailyLessonLimit).toBe(value);
+    for (const value of [-1, 2.5, 501, "10"]) expect(loadWebSettings(storage({ study: { dailyLessonLimit: value } }), "tester").study.dailyLessonLimit).toBe(0);
   });
 
   it("enables pronunciation autoplay by default while preserving saved choices", () => {

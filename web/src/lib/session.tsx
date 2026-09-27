@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { setDemoMode } from "@/features/demo/runtime";
 import { setReviewRecordingAccount } from "@/features/progress/analytics-review-ledger";
+import { rateLimitDelay } from "@/lib/wanikani/retry";
+import { WaniKaniApiError, resetWkRequestCooldown } from "@/lib/wanikani/client";
 import type { WKUser } from "@/types/wanikani";
 
 export type SessionStatus = "loading" | "authenticated" | "anonymous" | "unavailable";
@@ -22,10 +24,10 @@ const SESSION_EVENT_KEY = "kakehashi-web:session-change";
 type SessionPayload = { user: WKUser; demo?: boolean };
 
 async function readSession(): Promise<SessionPayload | null> {
-  const response = await fetch("/api/session/wanikani", { cache: "no-store" });
+  const response = await fetch("/api/session/wanikani", { cache: "no-store", signal: AbortSignal.timeout(15_000) });
   if (response.status === 401) return null;
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload?.error || "Could not read the current session.");
+  if (!response.ok) throw new WaniKaniApiError(payload?.error || "Could not read the current session.", response.status, payload?.code, rateLimitDelay(response.headers));
   return payload;
 }
 
@@ -41,8 +43,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
   const [error, setError] = useState("");
   const identity = useRef("");
+  const sessionChangedElsewhere = useRef(false);
   const recordingAccount = useRef<string | null>(null);
   const revision = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutationsPending = useRef(0);
   const mutationQueue = useRef<Promise<unknown>>(Promise.resolve());
 
@@ -51,6 +55,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const demo = next?.demo === true;
     const nextIdentity = next ? `${demo ? "demo" : "account"}:${next.user.data.id ?? next.user.id}:${next.user.data.username}` : "";
     if (identity.current !== nextIdentity) {
+      resetWkRequestCooldown();
       setReviewRecordingAccount(null);
       setStatus("loading");
       await queryClient.cancelQueries();
@@ -73,18 +78,27 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setUser(next?.user ?? null);
     setStatus(next ? "authenticated" : "anonymous");
     setError("");
+    sessionChangedElsewhere.current = false;
   }, [queryClient]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async function refreshSession() {
     if (mutationsPending.current) return;
+    if (retryTimer.current) clearTimeout(retryTimer.current);
     const requestRevision = ++revision.current;
     try {
       const next = await readSession();
       if (requestRevision === revision.current) await applySession(next, requestRevision);
     } catch (cause) {
       if (requestRevision !== revision.current) return;
-      setError(cause instanceof Error ? cause.message : "WaniKani could not be reached. Try again shortly.");
+      const limited = cause instanceof WaniKaniApiError && cause.status === 429;
+      const delay = cause instanceof WaniKaniApiError ? cause.retryAfterMs ?? 5_000 : 5_000;
+      setError(identity.current && !sessionChangedElsewhere.current ? "" : limited
+        ? `WaniKani’s rate limit is active. Retrying automatically in ${Math.ceil(delay / 1_000)} seconds.`
+        : "WaniKani could not be reached. Retrying automatically shortly.");
       setStatus((current) => current === "authenticated" ? current : "unavailable");
+      retryTimer.current = setTimeout(() => {
+        if (requestRevision === revision.current) void refreshSession();
+      }, delay);
     }
   }, [applySession]);
 
@@ -92,16 +106,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const timer = window.setTimeout(() => void refresh(), 0);
     const onStorage = (event: StorageEvent) => {
       if (event.key !== SESSION_EVENT_KEY) return;
+      sessionChangedElsewhere.current = true;
       setReviewRecordingAccount(null);
       setStatus("loading");
       void mutationQueue.current.catch(() => undefined).then(() => refresh());
     };
     window.addEventListener("storage", onStorage);
-    return () => { window.clearTimeout(timer); window.removeEventListener("storage", onStorage); };
+    return () => { revision.current += 1; window.clearTimeout(timer); if (retryTimer.current) clearTimeout(retryTimer.current); window.removeEventListener("storage", onStorage); };
   }, [refresh]);
 
   // Serialize cookie changes so a slow earlier response cannot undo a later sign-out.
   const mutateSession = useCallback((path: string, options: RequestInit, fallback: string, signingOut = false) => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
     setReviewRecordingAccount(null);
     const expectedRevision = ++revision.current;
     mutationsPending.current += 1;

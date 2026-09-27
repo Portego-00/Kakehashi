@@ -19,13 +19,13 @@ export const wkKeys = {
 
 export const userQuery = () => queryOptions({
   queryKey: wkKeys.user(),
-  queryFn: () => wkRequest<WKUser>("user", { cache: "no-store", fresh: true }),
-  staleTime: 0,
-  refetchOnMount: "always" as const,
+  queryFn: ({ signal }) => wkRequest<WKUser>("user", { cache: "no-store", fresh: true, signal }),
+  staleTime: 30_000,
+  refetchOnMount: true,
   refetchOnWindowFocus: true,
 });
 export const summaryQuery = () => queryOptions({ queryKey: wkKeys.summary(), queryFn: () => wkRequest<WKSummary>("summary"), staleTime: 5 * 60_000 });
-export const assignmentsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.assignments(filters), queryFn: () => wkCollection<Assignment>(`assignments${filters ? `?${filters}` : ""}`), staleTime: 5 * 60_000 });
+export const assignmentsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.assignments(filters), queryFn: ({ signal }) => wkCollection<Assignment>(`assignments${filters ? `?${filters}` : ""}`, 30, { signal }), staleTime: 5 * 60_000 });
 export async function fetchAvailableReviewCount() {
   const response = await wkRequest<WKCollection<Assignment>>(`assignments?${AVAILABLE_REVIEW_ASSIGNMENT_FILTERS}`, { cache: "no-store", fresh: true });
   return response.total_count;
@@ -34,10 +34,10 @@ export const availableReviewCountQuery = () => queryOptions({
   queryKey: wkKeys.availableReviewCount(),
   queryFn: fetchAvailableReviewCount,
   staleTime: 30_000,
-  refetchOnMount: "always" as const,
-  refetchOnWindowFocus: "always" as const,
+  refetchOnMount: true,
+  refetchOnWindowFocus: true,
   refetchInterval: 60_000,
 });
-export const subjectsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.subjects(filters), queryFn: () => wkCollection<Subject>(`subjects${filters ? `?${filters}` : ""}`), staleTime: 24 * 60 * 60_000 });
+export const subjectsQuery = (filters = "") => queryOptions({ queryKey: wkKeys.subjects(filters), queryFn: ({ signal }) => wkCollection<Subject>(`subjects${filters ? `?${filters}` : ""}`, 30, { signal }), staleTime: 24 * 60 * 60_000 });
 export const reviewStatisticsQuery = () => queryOptions({ queryKey: wkKeys.statistics(), queryFn: () => wkCollection<ReviewStatistic>("review_statistics"), staleTime: 15 * 60_000 });
 export const levelProgressionsQuery = () => queryOptions({ queryKey: wkKeys.levelProgressions(), queryFn: () => wkCollection<LevelProgression>("level_progressions"), staleTime: 60 * 60_000 });

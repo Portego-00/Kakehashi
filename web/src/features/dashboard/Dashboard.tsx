@@ -1,5 +1,7 @@
 "use client";
 
+import { lessonsStartedToday, remainingDailyLessons } from "@/features/core-study/session-planning";
+
 import { BunproHomeButton } from "@/features/bunpro/BunproHomeButton";
 
 import { canAccessCoreStudy } from "@/features/core-study/access";
@@ -16,7 +18,7 @@ import { vacationDateLabel, vacationStartedAt, vacationStudyMessage } from "@/fe
 import { dashboardSectionWidth, type DashboardSectionId } from "@/features/settings/settings";
 import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacter";
 import { useSubjectLists } from "@/features/subjects/use-subject-lists";
-import { useWorkspacePreferences } from "@/features/settings/use-workspace-preferences";
+import { useWebSettings, useWorkspacePreferences } from "@/features/settings/use-workspace-preferences";
 import { STUDY_MODES } from "@/features/study/catalog";
 import { calculateLevelTimings } from "@/features/progress/calculations";
 import { LevelTimingChart } from "@/features/progress/components/AnalyticsOverview";
@@ -70,6 +72,7 @@ export function Dashboard() {
   const { user, isDemo } = useSession();
   const username = user?.data.username ?? "anonymous";
   const workspace = useWorkspacePreferences(username);
+  const { study } = useWebSettings(username);
   const forecastPreferences = useReviewForecastPreferences(username);
   const customSrsAllowed = !isDemo && canAccessCustomSrs(username);
   const visibleSections = workspace.dashboardOrder.filter((id) => !workspace.hiddenDashboard.includes(id) && (id !== "custom-vocabulary" || customSrsAllowed));
@@ -103,7 +106,8 @@ export function Dashboard() {
   const statisticRows = statistics.data || [];
   const allSubjectRows = allSubjects.data || [];
   const availabilityLoading = assignments.isLoading || availableReviewCount.isLoading || (currentUser.isLoading && !currentVacationStartedAt);
-  const lessonCount = assignmentRows.filter((row) => isLessonAvailable(row, currentVacationStartedAt)).length;
+  const startedToday = lessonsStartedToday({ getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key) }, username, now, assignmentRows);
+  const lessonCount = Math.min(assignmentRows.filter((row) => isLessonAvailable(row, currentVacationStartedAt)).length, remainingDailyLessons(study.dailyLessonLimit, startedToday));
   const fallbackReviewCount = assignmentRows.filter((row) => isReviewAvailable(row, now, currentVacationStartedAt)).length;
   const reviewCount = currentVacationStartedAt ? 0 : (availableReviewCount.data ?? fallbackReviewCount);
   const srsSpread = srsStageSpread(assignmentRows);

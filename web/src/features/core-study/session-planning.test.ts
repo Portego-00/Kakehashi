@@ -114,6 +114,17 @@ describe("core session planning", () => {
     expect(coreSessionKey(" User One ", "reviews")).toBe(coreSessionKey("user one", "reviews"));
   });
 
+  it("counts lessons from other devices and local completions once per assignment", () => {
+    const storage = memoryStorage();
+    const now = new Date("2026-09-21T12:00:00");
+    recordLessonStarted(storage, "tester", 1, now);
+    recordLessonStarted(storage, "tester", 3, now);
+    const rows: Assignment[] = [1, 2].map((id) => ({ ...assignment(id, "kanji"), data: { ...assignment(id, "kanji").data, started_at: new Date("2026-09-21T08:00:00").toISOString() } }));
+    rows.push(assignment(4, "kanji"));
+    expect(lessonsStartedToday(storage, "tester", now, rows)).toBe(3);
+    expect(lessonsStartedToday(storage, "tester", new Date("2026-09-22T00:00:00"), rows)).toBe(0);
+  });
+
   it("tracks the local daily lesson limit without double-counting", () => {
     const storage = memoryStorage();
     const now = new Date("2026-01-03T12:00:00");

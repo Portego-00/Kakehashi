@@ -1,3 +1,10 @@
+import { BUNPRO_CREDENTIAL_HEADER, BUNPRO_CREDENTIAL_STORAGE_KEY } from "./credential";
+
+function savedCredential(): string | null {
+  try { return window.localStorage.getItem(BUNPRO_CREDENTIAL_STORAGE_KEY); }
+  catch { return null; }
+}
+
 export class BunproClientError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -6,10 +13,26 @@ export class BunproClientError extends Error {
 }
 
 export async function bunpro<T>(query: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/bunpro${query ? `?${query}` : ""}`, { ...options, cache: "no-store", headers: { "Content-Type": "application/json", ...options?.headers } });
+  const credential = savedCredential();
+  const headers = new Headers(options?.headers);
+  headers.set("Content-Type", "application/json");
+  if (credential) headers.set(BUNPRO_CREDENTIAL_HEADER, credential);
+  const response = await fetch(`/api/bunpro${query ? `?${query}` : ""}`, { ...options, cache: "no-store", headers });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     throw new BunproClientError(typeof data?.error === "string" && data.error ? data.error : "Bunpro request failed.", response.status);
   }
-  return response.json() as Promise<T>;
+  const data = await response.json();
+  try {
+    // Explicit saves/disconnects take priority over automatic cookie migration.
+    // Ignore stale connection checks after another tab changes the saved key.
+    if (options?.method === "POST" || options?.method === "DELETE" || savedCredential() === credential) {
+      if (options?.method === "DELETE") window.localStorage.removeItem(BUNPRO_CREDENTIAL_STORAGE_KEY);
+      else {
+        const nextCredential = response.headers.get(BUNPRO_CREDENTIAL_HEADER);
+        if (nextCredential) window.localStorage.setItem(BUNPRO_CREDENTIAL_STORAGE_KEY, nextCredential);
+      }
+    }
+  } catch { /* The HttpOnly cookie still works when browser storage is unavailable. */ }
+  return data as T;
 }

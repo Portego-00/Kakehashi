@@ -19,7 +19,7 @@ export type SessionResult = {
   previousStage?: string;
   saveFailed?: boolean;
 };
-export type SessionResultsData = { items: SessionResult[]; durationMs: number; pendingCount: number; error?: string };
+export type SessionResultsData = { items: SessionResult[]; wanikaniResults?: ReviewResultItem[]; durationMs: number; pendingCount: number; error?: string };
 export function wanikaniSessionResults(items: ReviewResultItem[]): SessionResult[] {
   return items.map(item => ({
     id: `wanikani:${item.assignmentId}`, source: "wanikani", kind: item.subject.object.replace("_", " "),

@@ -13,6 +13,7 @@ import styles from "./AnkiAnswerContent.module.css";
 
 export type AnkiAnswerContentProps = {
   revealed: boolean;
+  hideAnswerCompletely?: boolean;
   detailsOpen?: boolean;
   keyboardShortcuts?: boolean;
   studyKeys?: StudyShortcuts;
@@ -234,6 +235,7 @@ function PitchAccentDetails({
 
 export function AnkiAnswerContent({
   revealed,
+  hideAnswerCompletely = false,
   detailsOpen = false,
   keyboardShortcuts = true,
   studyKeys = DEFAULT_STUDY_SHORTCUTS,
@@ -418,9 +420,9 @@ export function AnkiAnswerContent({
           onClick={onReveal}
           aria-label="Reveal answer"
           data-testid="anki-answer-preview"
-          data-visibility="blurred"
+          data-visibility={hideAnswerCompletely ? "hidden" : "blurred"}
         >
-          <span className={styles.blurredPreview} aria-hidden="true">{primaryAnswers}</span>
+          {hideAnswerCompletely ? null : <span className={styles.blurredPreview} aria-hidden="true">{primaryAnswers}</span>}
           <span className={styles.revealHint}>
             <Eye size={17} aria-hidden />
             Show answer

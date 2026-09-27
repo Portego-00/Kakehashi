@@ -28,6 +28,14 @@ describe("AnkiAnswerContent", () => {
     expect(onShowDetails).toHaveBeenCalledOnce();
   });
 
+  it("completely hides answers until reveal when enabled", () => {
+    const { rerender } = render(<AnkiAnswerContent {...props({ hideAnswerCompletely: true })} />);
+    expect(screen.queryByText("to eat")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reveal answer" })).toHaveAttribute("data-visibility", "hidden");
+    rerender(<AnkiAnswerContent {...props({ hideAnswerCompletely: true, revealed: true })} />);
+    expect(screen.getByText("to eat")).toBeVisible();
+  });
+
   it("offers a blurred preview before reveal", () => {
     const onReveal = vi.fn();
     render(<AnkiAnswerContent {...props({ onReveal })} />);

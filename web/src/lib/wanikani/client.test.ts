@@ -1,10 +1,51 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { wkCollection, wkRequest } from "./client";
+import { resetWkRequestCooldown, wkCollection, wkRequest } from "./client";
 import { readReviewLedger, setReviewRecordingAccount } from "@/features/progress/analytics-review-ledger";
 import { testReview } from "@/features/progress/analytics-test-fixtures";
 
 describe("WaniKani browser client", () => {
-  afterEach(() => { vi.unstubAllGlobals(); setReviewRecordingAccount(null); localStorage.clear(); });
+  afterEach(() => { resetWkRequestCooldown(); vi.useRealTimers(); vi.unstubAllGlobals(); setReviewRecordingAccount(null); localStorage.clear(); });
+
+  it("retries a rate-limited page and makes other requests share its cooldown", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ error: "Rate limit" }, { status: 429, headers: { "Retry-After": "3" } }))
+      .mockImplementation(async () => Response.json({ id: 7 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const first = wkRequest("subjects");
+    await vi.advanceTimersByTimeAsync(0);
+    const second = wkRequest("user");
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(Promise.all([first, second])).resolves.toEqual([{ id: 7 }, { id: 7 }]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("cancels a rate-limit wait without retrying the request", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({}, { status: 429, headers: { "Retry-After": "60" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const result = wkRequest("user", { signal: controller.signal });
+    const rejected = expect(result).rejects.toMatchObject({ name: "AbortError" });
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+    await rejected;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a lesson start timestamp when retrying an explicit rate limit", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({}, { status: 429, headers: { "Retry-After": "2" } }))
+      .mockResolvedValueOnce(Response.json({ id: 9 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const startedAt = new Date().toISOString();
+    const result = wkRequest("assignments/9/start", { method: "PUT", body: { assignment: { started_at: startedAt } } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    await result;
+    expect(fetchMock.mock.calls.map((call) => JSON.parse(call[1].body).assignment.started_at)).toEqual([startedAt, startedAt]);
+  });
 
   it("marks reconciliation reads as an explicit server-cache bypass", async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {

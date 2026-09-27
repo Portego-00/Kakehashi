@@ -31,11 +31,11 @@ import { BunproDetails } from "./BunproDetails";
 import { BunproSentence, BunproText, RubyText } from "./BunproText";
 import { buildAnswerFeedbackMap, buildReviewQueue, loadedReviewIds, reviewKey, reviewType, collectAcceptedAnswers, normalizeAnswer, parseQuestionSentence, pendingReviewTotal, pickCanonicalAnswer, reviewContent, sanitizeQuestionContent, sanitizeText, type BunproReviewQueueItem, type BunproReviewQuizIndexResponse, type ReviewMode } from "./model";
 import { ReviewAccuracy } from "@/features/study/components/ReviewAccuracy";
+import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { ReviewExitGuard } from "@/features/core-study/ReviewExitGuard";
 import { ReviewDetailsReveal } from "@/features/study/components/ReviewDetailsReveal";
 import { SessionResults } from "@/features/mixed-reviews/SessionResults";
 import type { SessionResult } from "@/features/mixed-reviews/session-results";
-import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import quiz from "@/features/study/study.module.css";
 import core from "@/features/core-study/core-study.module.css";
 import styles from "./bunpro.module.css";
@@ -229,7 +229,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     if (correctOverride !== undefined && preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correctOverride);
     setOutcome(result);
     recognitionRef.current?.stop();
-    locked.current = true; setSaving(true); setError(""); setSaveFailure(null); audio.stop();
+    locked.current = true; setSaving(true); setError(""); setSaveFailure(null);
     setDetailsOverride(false); setAlternativesOpen(false);
     setPendingAccuracy({ id: `bunpro:${currentKey}`, correct: result.correct });
     const previousSchedule = retrySchedule.current;
@@ -412,7 +412,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   if (phase === "choose" && initialMode && connection.isPending) return <BunproLoading kind="reviews" />;
   if (phase === "choose") return <main className={styles.chooser}><div className={styles.row}><h1>Bunpro reviews</h1><ButtonLink href="/dashboard" tone="ghost">Back</ButtonLink></div><p>Choose what you want to review.</p><fieldset className={styles.choices}><legend>Review type</legend>{(["grammar", "vocab", "all"] as const).map((value) => <label key={value}><input type="radio" name="bunpro-mode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span>{labels[value]}</span></label>)}</fieldset>{connection.isPending ? <p role="status">Checking Bunpro connection…</p> : connection.data?.connected ? <Button tone="primary" onClick={start}>Start reviews</Button> : <ButtonLink href="/settings#bunpro-api-key">Add Bunpro API key</ButtonLink>}{error || connection.error ? <p role="alert">{error || connection.error?.message}</p> : null}</main>;
   if (phase === "loading") return <BunproLoading kind="reviews" />;
-  if (phase === "complete") return <SessionResults progression={<BunproProgression progression={progression} mode={preferences.srsProgressionCardDisplayMode} />} items={results} durationMs={durationMs} pendingCount={0} title={results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"} onContinue={onContinueLessons} onRestart={() => setPhase("choose")} />;
+  if (phase === "complete") return <SessionResults progression={<BunproProgression progression={mixed ? null : progression} mode={preferences.srsProgressionCardDisplayMode} />} items={results} durationMs={durationMs} pendingCount={0} title={results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"} onContinue={onContinueLessons} onRestart={() => setPhase("choose")} />;
   if (!current || !content) return null;
   const valid = Boolean(answer && sanitizeQuestionContent(question.content));
   const showQuestionHints = hintLevel >= 2 || revealed;
@@ -436,7 +436,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
       </header>
       <div className={quiz.answerArea}>
         {!valid ? <p role="alert">This review is missing its sentence or accepted answers. Pause and reload the queue before continuing.</p> : selfAssessment ? <>
-          {!outcome ? <AnkiAnswerContent studyKeys={studyKeys} detailsOpen={details} keyboardShortcuts={preferences.keyboardShortcuts} revealed={ankiRevealed} questionKind={questionKind}
+          {!outcome ? <AnkiAnswerContent hideAnswerCompletely={preferences.ankiHideAnswerCompletely} studyKeys={studyKeys} detailsOpen={details} keyboardShortcuts={preferences.keyboardShortcuts} revealed={ankiRevealed} questionKind={questionKind}
             meaningAnswer={questionKind === "meaning" ? answer : sanitizeText(content.attributes.meaning)} readingAnswer={questionKind === "reading" ? answer : sanitizeText(content.attributes.kana)}
             groupQuestions={preferences.ankiMode === "both" && preferences.ankiGroupQuestions}
             otherMeaningAnswers={questionKind === "meaning" ? displayAnswers.filter((value) => value !== answer) : []} otherReadingAnswers={questionKind === "reading" ? displayAnswers.filter((value) => value !== answer) : []}
