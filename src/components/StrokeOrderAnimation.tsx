@@ -70,10 +70,12 @@ function GridOverlay({
   );
 }
 
-export default function StrokeOrderAnimation({
-  character,
-  onPractice,
-}: StrokeOrderAnimationProps) {
+export default function StrokeOrderAnimation(props: StrokeOrderAnimationProps) {
+  // A new lesson must never render the previous character's resolved loader state.
+  return <StrokeOrderPlayer key={props.character} {...props} />;
+}
+
+function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps) {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
   const { width: screenWidth } = useWindowDimensions();
@@ -86,6 +88,9 @@ export default function StrokeOrderAnimation({
     character,
     loader: loadKanjiWriterData,
   });
+
+  const animatorStore = writer.animator.store;
+  useEffect(() => () => animatorStore.setState({ state: "stopped", animationKey: null }), [animatorStore]);
 
   // Track animation state from the writer
   const animatorState = writer.animator.useStore((s) => s.state);
@@ -122,7 +127,7 @@ export default function StrokeOrderAnimation({
     : "rgba(0,0,0,0.1)";
 
   // Loading state
-  if (writer.characterState.status === "pending") {
+  if (writer.characterState.status === "idle" || writer.characterState.status === "pending") {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -141,6 +146,9 @@ export default function StrokeOrderAnimation({
         <Text style={[styles.errorText, { color: theme.textSecondary }]}>
           Stroke order data not available for this kanji
         </Text>
+        <TouchableOpacity accessibilityRole="button" onPress={writer.refetch} style={{ padding: 12 }}>
+          <Text style={{ color: theme.primary }}>Try again</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -257,6 +265,8 @@ export default function StrokeOrderAnimation({
                 borderColor: withAlpha(subjectColors.kanji, 0.3),
               },
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? "Stop stroke animation" : "Play stroke animation"}
             onPress={isPlaying ? handleStop : handlePlay}
             activeOpacity={0.8}
           >

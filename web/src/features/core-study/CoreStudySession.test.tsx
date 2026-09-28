@@ -128,7 +128,8 @@ const fixtures = vi.hoisted(() => {
       lessonsBatchSize: 5,
       answerOrder: "mixed",
       dailyLessonLimit: 0,
-      lessonOrder: "available",
+      lessonOrder: "ascendingSubjectId",
+      excludeKanaVocabularyFromLessons: false,
       reviewOrder: "oldestAvailableFirst",
       customReviewOrder: "random",
       reviewTypeOrderEnabled: false,
@@ -430,6 +431,8 @@ describe("core study prompt layout", () => {
       keyboardShortcuts: true,
       showAnswerStopSubjectDetails: false,
       shuffleSubjects: false,
+      lessonOrder: "ascendingSubjectId",
+      excludeKanaVocabularyFromLessons: false,
       vocabularyAudioVoice: "female",
       ankiMode: "off",
       studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
@@ -1274,6 +1277,27 @@ describe("core study prompt layout", () => {
     expect(screen.queryByRole("button", { name: "Start lesson review" })).not.toBeInTheDocument();
   });
 
+  it.each([false, true])("omits kana-only vocabulary from lessons with a saved selection: %s", async (picked) => {
+    fixtures.settings.study.excludeKanaVocabularyFromLessons = true;
+    fixtures.lessonAssignmentsResponse = [
+      { ...fixtures.lessonAssignment, data: { ...fixtures.lessonAssignment.data, subject_type: "kana_vocabulary" } },
+      fixtures.secondLessonAssignment,
+    ];
+    if (picked) window.localStorage.setItem("kakehashi:core-study:study-test:picked-lessons", JSON.stringify({ savedAt: Date.now(), subjectIds: [200, 202] }));
+    renderSession("lessons");
+    expect(await screen.findByRole("heading", { name: "Fire" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Lesson.*River/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lesson 1: Fire" })).toBeInTheDocument();
+  });
+
+  it("prioritizes current-level kanji in the actual lesson batch", async () => {
+    fixtures.settings.study.prioritizeCriticalItems = true;
+    fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
+    renderSession("lessons");
+    expect(await screen.findByRole("heading", { name: "Fire" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lesson 1: Fire" })).toBeInTheDocument();
+  });
+
   it("trims a restored lesson batch to the remaining allowance after mobile lessons", async () => {
     fixtures.settings.study.dailyLessonLimit = 2;
     fixtures.startedAssignmentsResponse = [{ ...fixtures.reviewAssignment, data: { ...fixtures.reviewAssignment.data, started_at: new Date().toISOString() } }];
@@ -1484,7 +1508,7 @@ describe("core study prompt layout", () => {
   });
 
   it("keeps a shuffled lesson batch stable when a new tab restores it", async () => {
-    fixtures.settings.study.shuffleSubjects = true;
+    fixtures.settings.study.lessonOrder = "random";
     fixtures.lessonAssignmentsResponse = [fixtures.lessonAssignment, fixtures.secondLessonAssignment];
     const random = vi.spyOn(Math, "random").mockReturnValue(0);
     const firstRender = renderSession("lessons");

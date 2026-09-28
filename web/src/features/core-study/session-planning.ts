@@ -1,3 +1,4 @@
+import { ensureMinimumTypesPerBatch, sortLessonItemsForQueue } from "../../../../src/utils/lessonOrdering";
 import type { Assignment, Subject } from "@/types/wanikani";
 import type { ReviewOrderSetting, ReviewTypeOrderSetting, WebStudyPreferences } from "@/features/settings/settings";
 
@@ -16,18 +17,39 @@ export function orderCoreAssignments(assignments: Assignment[], subjects: Subjec
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const ordered = [...assignments];
   if (mode === "lessons") {
-    if (settings.lessonOrder === "subject-type") ordered.sort((a, b) => TYPE_ORDER[a.data.subject_type] - TYPE_ORDER[b.data.subject_type] || a.id - b.id);
-    if (settings.lessonOrder === "level") ordered.sort((a, b) => (subjectById.get(a.data.subject_id)?.data.level || 0) - (subjectById.get(b.data.subject_id)?.data.level || 0) || a.id - b.id);
-    if (settings.lessonOrder === "available") ordered.sort((a, b) => String(a.data.unlocked_at).localeCompare(String(b.data.unlocked_at)) || a.id - b.id);
-    if (settings.shuffleSubjects) shuffle(ordered, options.randomFn);
-    return ordered;
+    const items = ordered
+      .filter((assignment) => !settings.excludeKanaVocabularyFromLessons || assignment.data.subject_type !== "kana_vocabulary")
+      .map((assignment) => ({
+        id: assignment.id,
+        subjectId: assignment.data.subject_id,
+        subject: { object: assignment.data.subject_type, data: { level: subjectById.get(assignment.data.subject_id)?.data.level ?? 0 } },
+        availableAt: assignment.data.available_at ?? assignment.data.unlocked_at,
+        assignment,
+      }));
+    return sortLessonItemsForQueue(items, {
+      lessonOrder: settings.lessonOrder === "subject-type" ? "ascendingSubjectId" : settings.lessonOrder,
+      lessonTypeOrderEnabled: settings.lessonOrder === "subject-type",
+      prioritizeCriticalItems: settings.prioritizeCriticalItems,
+      userLevel: options.userLevel ?? 1,
+      randomFn: options.randomFn,
+    }).map((item) => item.assignment);
   }
 
   return orderReviewAssignments(ordered, subjectById, settings, options);
 }
 
 export function selectCoreAssignments(assignments: Assignment[], subjects: Subject[], mode: "lessons" | "reviews", settings: WebStudyPreferences, limit: number, options: CoreAssignmentOrderOptions = {}) {
-  const ordered = orderCoreAssignments(assignments, subjects, mode, settings, options);
+  let ordered = orderCoreAssignments(assignments, subjects, mode, settings, options);
+  if (mode === "lessons" && settings.minimumRadicalKanjiPerBatchEnabled) {
+    const batchSize = Math.min(settings.lessonsBatchSize, Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : settings.lessonsBatchSize);
+    const items = ordered.map((assignment) => ({
+      id: assignment.id,
+      subjectId: assignment.data.subject_id,
+      subject: { object: assignment.data.subject_type, data: {} },
+      assignment,
+    }));
+    ordered = ensureMinimumTypesPerBatch(items, batchSize, ["radical", "kanji"]).map((item) => item.assignment);
+  }
   if (mode === "reviews" && !settings.reviewBatchSizeEnabled) return ordered;
   return ordered.slice(0, Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : undefined);
 }

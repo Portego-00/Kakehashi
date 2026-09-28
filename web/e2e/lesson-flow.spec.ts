@@ -52,7 +52,7 @@ async function openLessons(page: Page) {
   const lessons = lessonSubjects.map(subject => ({ ...assignments[0], id: subject.id + 100, data: { ...assignments[0].data, subject_id: subject.id, srs_stage: 0, started_at: null, available_at: null } }));
   await page.context().addCookies([{ name: "kakehashi_wk_session", value: testSession(), url }]);
   await page.addInitScript(() => {
-    localStorage.setItem("kakehashi-web:settings:portego:v1", JSON.stringify({ study: { ankiMode: "both", ankiGroupQuestions: true, lessonsBatchSize: 5, lessonOrder: "ascendingLevel", lessonQuestionOrder: "meaning-first", backToBackQuestions: true, autoplayAudio: false, answerFeedbackSoundEnabled: false, showAnswerStopSubjectDetails: false, dailyLessonLimit: 0 } }));
+    localStorage.setItem("kakehashi-web:settings:portego:v1", JSON.stringify({ study: { ankiMode: "both", ankiGroupQuestions: true, lessonsBatchSize: 5, lessonOrder: "lowestLevelFirst", lessonQuestionOrder: "meaning-first", backToBackQuestions: true, autoplayAudio: false, answerFeedbackSoundEnabled: false, showAnswerStopSubjectDetails: false, dailyLessonLimit: 0 } }));
   });
   await page.route("**/api/**", route => fulfillJson(route, {}));
   await page.route("**/api/session/wanikani", route => fulfillJson(route, { user }));

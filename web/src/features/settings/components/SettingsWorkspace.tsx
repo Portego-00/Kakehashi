@@ -1,5 +1,7 @@
 "use client";
 
+import { LESSON_ORDER_OPTIONS } from "../../../../../src/utils/lessonOrdering";
+import { LESSON_SRS_THRESHOLD_MAX } from "../../../../../src/utils/lessonSrsThreshold";
 import { StudyShortcutSettings } from "./StudyShortcutSettings";
 import { BunproSettings } from "@/features/bunpro/BunproSettings";
 
@@ -25,7 +27,7 @@ import { useTheme, type ThemeMode } from "@/lib/theme";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
 import { GITHUB_REPOSITORY_URL, PATREON_URL } from "@/lib/project-links";
 import { BUILT_IN_JITAI_FONTS, deleteCustomJitaiFont, installCustomJitaiFonts, readFontFile, saveCustomJitaiFont } from "../jitai";
-import { applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, NAVBAR_TAB_IDS, OPTIONAL_NAV_ITEMS, REQUIRED_NAVBAR_TAB_IDS, REVIEW_BATCH_SIZE_VALUES, REVIEW_CHARACTER_FONT_SCALES, saveWebSettings, settingsStorageKey, SUBJECT_COLOR_PRESETS, type AnkiMode, type DashboardSectionId, type DashboardSectionWidth, type NavbarTabId, type QuestionOrder, type TextScale, type WebSettings } from "../settings";
+import { LESSON_BATCH_SIZE_VALUES, applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, NAVBAR_TAB_IDS, OPTIONAL_NAV_ITEMS, REQUIRED_NAVBAR_TAB_IDS, REVIEW_BATCH_SIZE_VALUES, REVIEW_CHARACTER_FONT_SCALES, saveWebSettings, settingsStorageKey, SUBJECT_COLOR_PRESETS, type AnkiMode, type DashboardSectionId, type DashboardSectionWidth, type NavbarTabId, type QuestionOrder, type TextScale, type WebSettings } from "../settings";
 import { SettingsSearch } from "./SettingsSearch";
 import styles from "../settings.module.css";
 
@@ -322,9 +324,16 @@ export function SettingsWorkspace() {
     <section className={styles.settingsSection} aria-labelledby="lessons-heading">
       <div className={styles.sectionIntro}><BookOpenText size={19} aria-hidden /><div><h2 id="lessons-heading">Lessons</h2><p>Choose how lessons are selected, grouped, and quizzed.</p></div></div>
       <Card padding="none" className={styles.preferenceCard}>
-        <label data-settings-search="" className={styles.selectRow}><span><strong>Lesson batch size</strong><small>Subjects shown together in one lesson batch.</small></span><select aria-label="Lesson batch size" value={settings.study.lessonsBatchSize} onChange={(event) => updateStudy("lessonsBatchSize", Number(event.target.value))}>{[3, 5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label data-settings-search="" className={styles.selectRow}><span><strong>Lesson batch size</strong><small>Subjects shown together in one lesson batch.</small></span><select aria-label="Lesson batch size" value={settings.study.lessonsBatchSize} onChange={(event) => updateStudy("lessonsBatchSize", Number(event.target.value))}>{LESSON_BATCH_SIZE_VALUES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
         <label data-settings-search="" className={styles.selectRow}><span><strong>Daily lesson limit</strong><small>Limit new WaniKani lessons per day, including lessons completed on other devices. Set 0 for no limit.</small></span><input aria-label="Daily lesson limit" type="number" min={0} max={500} step={1} value={settings.study.dailyLessonLimit} onChange={(event) => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 0 && value <= 500) updateStudy("dailyLessonLimit", value); }} /></label>
-        <label data-settings-search="" className={styles.selectRow}><span><strong>Lesson order</strong><small>Choose how available lessons enter a batch.</small></span><select aria-label="Lesson order" value={settings.study.lessonOrder} onChange={(event) => updateStudy("lessonOrder", event.target.value as WebSettings["study"]["lessonOrder"])}><option value="available">Available first</option><option value="subject-type">Radicals, kanji, vocabulary</option><option value="level">Lowest level first</option></select></label>
+        <label data-settings-search="" className={styles.selectRow}><span><strong>Lesson order</strong><small>Choose how available lessons enter a batch.</small></span><select aria-label="Lesson order" value={settings.study.lessonOrder} onChange={(event) => updateStudy("lessonOrder", event.target.value as WebSettings["study"]["lessonOrder"])}>{LESSON_ORDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}<option value="subject-type">Radicals, kanji, vocabulary</option></select></label>
+        <ToggleRow label="Prioritize critical lesson items" description="Put current-level radicals and kanji first. Also applies to reviews." checked={settings.study.prioritizeCriticalItems} onChange={(value) => updateStudy("prioritizeCriticalItems", value)} />
+        <ToggleRow label="Hide kana vocabulary" description="Exclude kana-only vocabulary from lessons and lesson counts." checked={settings.study.excludeKanaVocabularyFromLessons} onChange={(value) => updateStudy("excludeKanaVocabularyFromLessons", value)} />
+        {(["apprenticeLessonThreshold", "guruLessonThreshold"] as const).map((key) => {
+          const label = key === "apprenticeLessonThreshold" ? "Apprentice lesson threshold" : "Guru lesson threshold";
+          return <label key={key} data-settings-search="" className={styles.selectRow}><span><strong>{label}</strong><small>Stop offering home-page lessons above this count. Set 0 for no limit.</small></span><input aria-label={label} type="number" min={0} max={LESSON_SRS_THRESHOLD_MAX} step={1} value={settings.study[key]} onChange={(event) => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 0 && value <= LESSON_SRS_THRESHOLD_MAX) updateStudy(key, value); }} /></label>;
+        })}
+        <ToggleRow label="Minimum radicals and kanji" description="Pull at least one radical and one kanji into each lesson batch when those item types are available." checked={settings.study.minimumRadicalKanjiPerBatchEnabled} onChange={(value) => updateStudy("minimumRadicalKanjiPerBatchEnabled", value)} />
         <label data-settings-search="" className={styles.selectRow}><span><strong>Lesson question order</strong><small>Order meaning and reading prompts in lesson quizzes.</small></span><select aria-label="Lesson question order" value={settings.study.lessonQuestionOrder} onChange={(event) => updateStudy("lessonQuestionOrder", event.target.value as QuestionOrder)}><option value="mixed">Per subject</option><option value="meaning-first">All meanings first</option><option value="reading-first">All readings first</option></select></label>
       </Card>
     </section>
@@ -345,7 +354,7 @@ export function SettingsWorkspace() {
         {settings.study.reviewQuestionOrderEnabled
           ? <label data-settings-search="" className={styles.selectRow}><span><strong>Review question order</strong><small>Choose whether meaning or reading comes first.</small></span><select aria-label="Review question order" value={settings.study.reviewQuestionOrder === "reading-first" ? "reading-first" : "meaning-first"} onChange={(event) => updateStudy("reviewQuestionOrder", event.target.value as QuestionOrder)}><option value="meaning-first">Meaning first</option><option value="reading-first">Reading first</option></select></label>
           : <p className={styles.conditionalHint}>Turn this on to always show your preferred question type first.</p>}
-        <ToggleRow label="Prioritize critical items" description="Show current-level Apprentice radicals and kanji first." checked={settings.study.prioritizeCriticalItems} onChange={(value) => updateStudy("prioritizeCriticalItems", value)} />
+        <ToggleRow label="Prioritize critical items" description="Show current-level Apprentice radicals and kanji first in reviews. Also prioritizes current-level radicals and kanji in lessons." checked={settings.study.prioritizeCriticalItems} onChange={(value) => updateStudy("prioritizeCriticalItems", value)} />
 
         <div className={styles.subsectionHead}><h3>Prompt</h3><p>Choose the information and aids visible while a review is active.</p></div>
         <ToggleRow label="Show item level & SRS stage" description="Display the subject level and current SRS stage together during reviews." checked={settings.study.showReviewItemLevelAndSrsStage} onChange={(value) => updateStudy("showReviewItemLevelAndSrsStage", value)} />

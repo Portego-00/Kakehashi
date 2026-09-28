@@ -39,6 +39,7 @@
 .vacationHeaderAction { display: flex; align-items: center; }
 .queueRow { --queue-card-start: var(--color-review-card-start); --queue-card-end: var(--color-review-card-end); --queue-action-color: var(--color-review-card-end); position: relative; isolation: isolate; min-width: 0; min-height: 9.375rem; overflow: hidden; border-radius: var(--radius-card); background: linear-gradient(135deg, var(--queue-card-start), var(--queue-card-end)); color: var(--color-study-card-copy); box-shadow: var(--shadow-floating); }
 .queueRow[data-kind="lesson"] { --queue-card-start: var(--color-lesson-card-start); --queue-card-end: var(--color-lesson-card-end); --queue-action-color: var(--color-lesson-card-end); }
+.queueRow[data-state="blocked"],
 .queueRow[data-state="empty"],
 .queueRow[data-state="coming-soon"] { --queue-card-start: var(--color-study-card-disabled-start); --queue-card-end: var(--color-study-card-disabled-end); color: var(--color-study-card-disabled-copy); }
 .queueArtwork { position: absolute; z-index: var(--z-base); inset-block-start: var(--space-lg); inset-inline-end: var(--space-sm); width: 6.25rem; height: 6.25rem; object-fit: contain; pointer-events: none; user-select: none; }

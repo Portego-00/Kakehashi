@@ -229,6 +229,39 @@ describe("navbar tab preferences", () => {
 describe("review question preferences", () => {
   beforeEach(() => window.localStorage.clear());
 
+  it("offers mobile lesson settings and saves their values", async () => {
+    render(<SettingsWorkspace />);
+    const batch = screen.getByRole("combobox", { name: "Lesson batch size" });
+    expect(within(batch).getAllByRole("option").map((option) => option.textContent)).toEqual(["2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    const order = screen.getByRole("combobox", { name: "Lesson order" });
+    expect(order).toHaveValue("random");
+    expect(within(order).getByRole("option", { name: "Current level first" })).toBeInTheDocument();
+    expect(within(order).getByRole("option", { name: "Newest unlocked first" })).toBeInTheDocument();
+    fireEvent.change(batch, { target: { value: "4" } });
+    fireEvent.change(order, { target: { value: "currentLevelFirst" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Hide kana vocabulary/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Prioritize critical lesson items/ }));
+    expect(screen.getByRole("checkbox", { name: /^Prioritize critical items/ })).toBeChecked();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Apprentice lesson threshold" }), { target: { value: "100" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Guru lesson threshold" }), { target: { value: "250" } });
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester"))!).study).toMatchObject({
+      lessonsBatchSize: 4, lessonOrder: "currentLevelFirst", excludeKanaVocabularyFromLessons: true,
+      prioritizeCriticalItems: true, apprenticeLessonThreshold: 100, guruLessonThreshold: 250,
+    }));
+  });
+
+  it("saves the lesson batch minimum toggle", async () => {
+    const { unmount } = render(<SettingsWorkspace />);
+    const toggle = screen.getByRole("checkbox", { name: /Minimum radicals and kanji/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester"))!).study.minimumRadicalKanjiPerBatchEnabled).toBe(true));
+    unmount();
+    render(<SettingsWorkspace />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /Minimum radicals and kanji/ })).toBeChecked());
+  });
+
   it("organizes lesson and review settings like the mobile app", () => {
     render(<SettingsWorkspace />);
 

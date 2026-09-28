@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useMemo } from "react";
 import {
-  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,124 +17,7 @@ import { isPortegoUsername } from "../../src/utils/portegoAccess";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
-type TabId =
-  | "home"
-  | "progress"
-  | "news"
-  | "songs"
-  | "items"
-  | "analytics"
-  | "epubs"
-  | "videos"
-  | "mangas"
-  | "notebooks";
-
-interface TabInfo {
-  id: TabId;
-  label: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  sfIcon?: string;
-  isRequired?: boolean;
-  isClusterable?: boolean; // Can be clustered inside progress
-  requiresFeatureFlag?: boolean;
-}
-
-const TAB_INFO: TabInfo[] = [
-  {
-    id: "home",
-    label: "Home",
-    description: "Dashboard with reviews, lessons, and progress",
-    icon: "home",
-    sfIcon: "house.fill",
-    isRequired: true,
-  },
-  {
-    id: "progress",
-    label: "Level",
-    description: "Current level progress and SRS stages",
-    icon: "trending-up",
-    sfIcon: "chart.line.text.clipboard.fill",
-    isRequired: true,
-  },
-  {
-    id: "items",
-    label: "Items",
-    description: "Browse all radicals, kanji, and vocabulary",
-    icon: "library",
-    sfIcon: "square.stack.3d.up.fill",
-    isClusterable: true,
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    description: "Detailed statistics and review history",
-    icon: "analytics",
-    sfIcon: "chart.bar.fill",
-    isClusterable: true,
-  },
-  {
-    id: "epubs",
-    label: "Books",
-    description: "EPUB library and reader",
-    icon: "book",
-    sfIcon: "book.closed.fill",
-  },
-  {
-    id: "videos",
-    label: "Video",
-    description: "Video player with transcripts and WaniKani/JPDB integration",
-    icon: "videocam",
-    sfIcon: "play.square.fill",
-  },
-  {
-    id: "mangas",
-    label: "Manga",
-    description: "CBZ/PDF manga reader with OCR sentence and word lookup",
-    icon: "bookmarks",
-    sfIcon: "books.vertical.fill",
-  },
-  {
-    id: "notebooks",
-    label: "Notebooks",
-    description: "Study notes, linked vocabulary, and shared notebook pages",
-    icon: "document-text",
-    sfIcon: "note.text",
-  },
-  {
-    id: "news",
-    label: "News",
-    description: "Latest updates from WaniKani",
-    icon: "newspaper",
-    sfIcon: "newspaper.fill",
-  },
-  {
-    id: "songs",
-    label: "Music",
-    description: "Japanese songs for learning",
-    icon: "musical-notes",
-    sfIcon: "music.note.list",
-    requiresFeatureFlag: true,
-  },
-];
-
-function getMaxTabsForDevice(): number {
-  if (Platform.OS !== "ios") {
-    return 5;
-  }
-
-  const majorVersion =
-    typeof Platform.Version === "string"
-      ? Number.parseInt(Platform.Version, 10)
-      : Platform.Version;
-
-  const isIphoneIos26OrGreater =
-    !Platform.isPad &&
-    Number.isFinite(majorVersion) &&
-    Number(majorVersion) >= 26;
-
-  return isIphoneIos26OrGreater ? 4 : 5;
-}
+import { TAB_INFO, getMaxTabsForDevice, partitionTabs, type TabId } from "../../src/utils/tabNavigation";
 
 export default function TabSettings() {
   const { theme } = useTheme();
@@ -184,17 +66,6 @@ export default function TabSettings() {
     }).length;
   }, [enabledTabsInAvailableSet]);
 
-  // Check if we can add more tabs
-  const canAddMoreTabs = visibleTabCount < maxTabs;
-
-  // Check if a tab can be enabled
-  const canEnableTab = useCallback((tabId: TabId) => {
-    if (isTabEnabled(tabId)) return true; // Can always disable
-    const tabInfo = TAB_INFO.find(t => t.id === tabId);
-    if (tabInfo?.isRequired) return true; // Required tabs are always on
-    return canAddMoreTabs;
-  }, [isTabEnabled, canAddMoreTabs]);
-
   // Toggle a tab (auto-saves)
   const toggleTab = useCallback((tabId: TabId) => {
     const tabInfo = TAB_INFO.find(t => t.id === tabId);
@@ -205,14 +76,6 @@ export default function TabSettings() {
       const nextTabs: TabId[] = enabledTabs.filter((id): id is TabId => id !== tabId);
       setCustomTabOrder(nextTabs);
     } else {
-      // Adding - check if we have room
-      if (!canAddMoreTabs) {
-        Alert.alert(
-          "Maximum Tabs Reached",
-          `You can only have ${maxTabs} tabs visible. Remove another tab first.`
-        );
-        return;
-      }
       // Add in the correct position based on TAB_INFO order
       const order: TabId[] = TAB_INFO.map(t => t.id);
       const newTabs: TabId[] = [...enabledTabs, tabId].sort(
@@ -220,7 +83,7 @@ export default function TabSettings() {
       );
       setCustomTabOrder(newTabs);
     }
-  }, [enabledTabs, canAddMoreTabs, maxTabs, setCustomTabOrder]);
+  }, [enabledTabs, setCustomTabOrder]);
 
   // Reset to default (auto-saves)
   const handleReset = useCallback(() => {
@@ -231,16 +94,10 @@ export default function TabSettings() {
     setCustomTabOrder(defaultTabs);
   }, [maxTabs, setCustomTabOrder, showSongsTab]);
 
-  // Get tabs for preview (in display order)
-  const previewTabs = useMemo(() => {
-    const order: TabId[] = TAB_INFO.map(t => t.id);
-    return enabledTabs
-      .filter(id => availableTabs.some(t => t.id === id))
-      .sort((a: TabId, b: TabId) => order.indexOf(a) - order.indexOf(b))
-      .slice(0, maxTabs)
-      .map(id => TAB_INFO.find(t => t.id === id)!)
-      .filter(Boolean);
-  }, [enabledTabs, availableTabs, maxTabs]);
+  const navigation = partitionTabs(enabledTabs, maxTabs, showSongsTab, canAccessMangaTab);
+  const previewTabs = navigation.overflow.length
+    ? [...navigation.direct, { id: "more", label: "More", icon: "ellipsis-horizontal" as const }]
+    : navigation.direct;
 
   // Check which clusterable tabs are hidden (accessible from Level)
   const clusteredTabs = useMemo(() => {
@@ -345,7 +202,7 @@ export default function TabSettings() {
                 Available Tabs
               </Text>
               <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-                {visibleTabCount} of {maxTabs} slots used (Search excluded)
+                {visibleTabCount} enabled · Extra tabs appear in More
               </Text>
             </View>
             <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
@@ -372,7 +229,7 @@ export default function TabSettings() {
           {/* Tab List */}
           {availableTabs.map((tab, index) => {
             const isEnabled = isTabEnabled(tab.id);
-            const canToggle = !tab.isRequired && (isEnabled || canEnableTab(tab.id));
+            const canToggle = !tab.isRequired;
 
             return (
               <View
@@ -420,6 +277,7 @@ export default function TabSettings() {
                   </Text>
                 </View>
                 <Switch
+                  accessibilityLabel={`Show ${tab.label} tab`}
                   value={isEnabled}
                   onValueChange={() => toggleTab(tab.id)}
                   disabled={!canToggle}

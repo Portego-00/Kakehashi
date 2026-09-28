@@ -56,6 +56,28 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.19",
+    date: "2026-09-27",
+    changes: [
+      {
+        type: "feature",
+        title: "More Tabs",
+        description:
+          "Enable more tabs in Customize Tabs. Extra tabs appear in a More menu when your tab bar is full.",
+        link: {
+          route: "/tab-settings",
+          label: "Customize Tabs",
+        },
+      },
+      {
+        type: "fix",
+        title: "Reliable Stroke Order Animation",
+        description:
+          "Fixed kanji stroke order animations skipping or stopping unexpectedly in details and lessons, including when replaying an animation.",
+      },
+    ],
+  },
+  {
     version: "1.4.18",
     date: "2026-09-24",
     changes: [

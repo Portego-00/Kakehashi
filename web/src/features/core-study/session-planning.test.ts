@@ -15,9 +15,64 @@ function memoryStorage() {
 }
 
 describe("core session planning", () => {
+  it.each([
+    ["random", [2, 3, 1]],
+    ["currentLevelFirst", [1, 3, 2]],
+    ["lowestLevelFirst", [2, 3, 1]],
+    ["newestUnlockedFirst", [3, 2, 1]],
+    ["oldestUnlockedFirst", [1, 2, 3]],
+    ["ascendingSubjectId", [2, 3, 1]],
+    ["descendingSubjectId", [1, 3, 2]],
+  ] as const)("supports mobile lesson order %s independently of Extra Study shuffle", (lessonOrder, ids) => {
+    const rows = [assignment(1, "vocabulary"), assignment(2, "radical"), assignment(3, "kanji")];
+    rows.forEach((row) => { row.data.available_at = null; });
+    rows[0].data.subject_id = 30;
+    rows[1].data.subject_id = 10;
+    rows[2].data.subject_id = 20;
+    const subjects = [subject(30, 3, "vocabulary"), subject(10, 1, "radical"), subject(20, 2)];
+    for (const shuffleSubjects of [false, true]) {
+      expect(orderCoreAssignments(rows, subjects, "lessons", { ...DEFAULT_WEB_SETTINGS.study, lessonOrder, shuffleSubjects }, { randomFn: () => 0 }).map((row) => row.id)).toEqual([...ids]);
+    }
+  });
+
+  it("prioritizes current-level radicals and kanji before applying the lesson cap", () => {
+    const rows = [assignment(1, "vocabulary"), assignment(2, "radical"), assignment(3, "kanji"), assignment(4, "radical")];
+    const subjects = [subject(1, 5, "vocabulary"), subject(2, 5, "radical"), subject(3, 5), subject(4, 1, "radical")];
+    const settings = { ...DEFAULT_WEB_SETTINGS.study, lessonOrder: "ascendingSubjectId" as const, prioritizeCriticalItems: true };
+    expect(selectCoreAssignments(rows, subjects, "lessons", settings, 2, { userLevel: 5 }).map((row) => row.id)).toEqual([2, 3]);
+  });
+
+  it("excludes kana-only vocabulary before selecting lessons without excluding reviews", () => {
+    const rows = [assignment(1, "kana_vocabulary"), assignment(2, "vocabulary")];
+    const settings = { ...DEFAULT_WEB_SETTINGS.study, excludeKanaVocabularyFromLessons: true };
+    expect(selectCoreAssignments(rows, [], "lessons", settings, 1)).toEqual([rows[1]]);
+    expect(selectCoreAssignments(rows, [], "reviews", settings, Infinity)).toHaveLength(2);
+  });
+
+  it.each(["oldestUnlockedFirst", "subject-type", "lowestLevelFirst"] as const)("includes minimum types in every %s lesson batch", (lessonOrder) => {
+    const rows = [assignment(1, "vocabulary"), assignment(2, "vocabulary"), assignment(3, "vocabulary"), assignment(4, "vocabulary"), assignment(5, "radical"), assignment(6, "radical"), assignment(7, "kanji"), assignment(8, "kanji"), assignment(9, "radical"), assignment(10, "kanji")];
+    rows.forEach((row) => { row.data.available_at = null; });
+    const settings = { ...DEFAULT_WEB_SETTINGS.study, lessonOrder, lessonsBatchSize: 3, minimumRadicalKanjiPerBatchEnabled: true };
+    const ordered = selectCoreAssignments(rows, [], "lessons", settings, Infinity);
+    for (const offset of [0, 3]) {
+      expect(ordered.slice(offset, offset + 3).map((row) => row.data.subject_type)).toEqual(expect.arrayContaining(["radical", "kanji"]));
+    }
+    expect(ordered.map((row) => row.id).sort()).toEqual(rows.map((row) => row.id).sort());
+    expect(selectCoreAssignments(rows, [], "lessons", { ...settings, minimumRadicalKanjiPerBatchEnabled: false }, Infinity)).toEqual(orderCoreAssignments(rows, [], "lessons", { ...settings, minimumRadicalKanjiPerBatchEnabled: false }));
+  });
+
+  it("respects a reduced daily allowance and unavailable lesson types", () => {
+    const rows = [assignment(1, "vocabulary"), assignment(2, "vocabulary"), assignment(3, "vocabulary"), assignment(4, "radical"), assignment(5, "kanji")];
+    const settings = { ...DEFAULT_WEB_SETTINGS.study, lessonOrder: "ascendingSubjectId" as const, minimumRadicalKanjiPerBatchEnabled: true };
+    expect(selectCoreAssignments(rows, [], "lessons", settings, 2).map((row) => row.data.subject_type)).toEqual(expect.arrayContaining(["radical", "kanji"]));
+    expect(selectCoreAssignments(rows, [], "lessons", settings, 1)).toEqual([rows[0]]);
+    expect(selectCoreAssignments(rows, [], "lessons", settings, 0)).toEqual([]);
+    expect(selectCoreAssignments(rows.slice(0, 3), [], "lessons", settings, 5)).toEqual(rows.slice(0, 3));
+  });
+
   it("orders lessons by subject level and reviews by SRS stage", () => {
     const rows = [assignment(1, "vocabulary", 4), assignment(2, "radical", 1)];
-    expect(orderCoreAssignments(rows, [subject(1, 3), subject(2, 1)], "lessons", { ...DEFAULT_WEB_SETTINGS.study, lessonOrder: "level" }).map((row) => row.id)).toEqual([2, 1]);
+    expect(orderCoreAssignments(rows, [subject(1, 3), subject(2, 1)], "lessons", { ...DEFAULT_WEB_SETTINGS.study, lessonOrder: "lowestLevelFirst" }).map((row) => row.id)).toEqual([2, 1]);
     expect(orderCoreAssignments(rows, [], "reviews", { ...DEFAULT_WEB_SETTINGS.study, reviewOrder: "ascendingSrsStage" }).map((row) => row.id)).toEqual([2, 1]);
   });
 

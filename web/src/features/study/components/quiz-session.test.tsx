@@ -16,6 +16,14 @@ function render(ui: ReactElement) {
   return renderBase(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
 }
 
+vi.mock("@/features/core-study/review-subject-font", () => ({ reviewSubjectFont: { style: { fontFamily: "Noto Sans JP" } } }));
+
+it.each(["custom-review", "recent-lessons", "vocab-reading", "context-sentences", "hiragana-meaning", "random-test", "similar-kanji", "kana-to-kanji", "listening"] as const)("uses regular review typography for %s prompts", (mode) => {
+  render(<QuizSession scope="test" initialSession={{ ...makeSession(makeQuestion()), mode }} onExit={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "防ぐ" })).toHaveStyle({ fontFamily: "Noto Sans JP", fontWeight: 350 });
+  cleanup();
+});
+
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
 const { wkCollectionMock, wkRequestMock } = vi.hoisted(() => ({ wkCollectionMock: vi.fn(), wkRequestMock: vi.fn() }));

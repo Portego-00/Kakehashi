@@ -147,6 +147,40 @@ describe("video workspace", () => {
 
   afterEach(() => { setDemoMode(false); vi.restoreAllMocks(); });
 
+  it("saves subtitle timing, shifts seeking, and restores it when reopened", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    saveLibrary("video", [savedVideo]);
+    const view = render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: `Open ${savedVideo.title}` }));
+    fireEvent.change(screen.getByRole("slider", { name: "Subtitle timing offset" }), { target: { value: "1500" } });
+    expect(loadLibrary("video")[0].metadata?.subtitleOffsetMs).toBe(1500);
+    fireEvent.click(screen.getByRole("button", { name: "Seek to 0:01" }));
+    expect(view.container.querySelector("video")?.currentTime).toBe(2.5);
+    view.unmount();
+    const reopened = render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: `Open ${savedVideo.title}` }));
+    expect(screen.getByText("1.5s later")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset timing" }));
+    expect(loadLibrary("video")[0].metadata?.subtitleOffsetMs).toBe(0);
+    fireEvent.change(screen.getByRole("slider", { name: "Subtitle timing offset" }), { target: { value: "-2000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Seek to 0:01" }));
+    expect(reopened.container.querySelector("video")?.currentTime).toBe(0);
+  });
+
+  it("aligns the active subtitle and YouTube seeks with the same saved offset", () => {
+    const record = { ...savedVideo, text: "[00:01]最初の字幕\n[00:03]次の字幕", metadata: { sourceType: "youtube", youtubeId: "dQw4w9WgXcQ" } };
+    saveLibrary("video", [record]);
+    const view = render(<VideoWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: `Open ${record.title}` }));
+    fireEvent.click(screen.getByRole("button", { name: "Advance video playback" }));
+    expect(view.container.querySelector('article[aria-current="true"]')).toHaveTextContent("次の字幕");
+    fireEvent.change(screen.getByRole("slider", { name: "Subtitle timing offset" }), { target: { value: "2000" } });
+    expect(view.container.querySelector('article[aria-current="true"]')).toHaveTextContent("最初の字幕");
+    fireEvent.click(screen.getByRole("button", { name: "Seek to 0:01" }));
+    expect(youtubePlayerMocks.seekTo).toHaveBeenLastCalledWith(3000);
+  });
+
   it("opens a demo URL with verified captions and automatically saves its full Japanese transcript", async () => {
     setDemoMode(true);
     const sample = DEMO_VIDEOS[0];

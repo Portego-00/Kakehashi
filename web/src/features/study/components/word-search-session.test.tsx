@@ -10,6 +10,8 @@ import { WordSearchGame, type SavedWordSearch } from "./word-search-game";
 
 const datasetState = vi.hoisted(() => ({ dataset: { subjects: [], assignments: [] } as StudyDataset }));
 
+vi.mock("@/features/core-study/review-subject-font", () => ({ reviewSubjectFont: { style: { fontFamily: "Noto Sans JP" } } }));
+
 vi.mock("../use-study-dataset", () => ({
   useStudyDataset: () => ({
     status: "authenticated",

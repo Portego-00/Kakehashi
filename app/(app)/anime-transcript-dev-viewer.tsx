@@ -1,3 +1,6 @@
+import { useSubtitleTiming } from "../../src/hooks/useSubtitleTiming";
+import { SubtitleTimingControls } from "../../src/components/SubtitleTimingControls";
+import { subtitlePlaybackTime } from "../../shared/subtitleTiming";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import Slider from "@react-native-community/slider";
@@ -150,6 +153,7 @@ export default function AnimeTranscriptDevViewerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const session = getAnimeTranscriptDevSession();
+  const subtitleTiming = useSubtitleTiming(session ? JSON.stringify([session.historyEntryId ?? session.videoUri, session.subtitleFileName]) : null);
   const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0);
   const [isCustomFullscreen, setIsCustomFullscreen] = useState(false);
   const [fullscreenRotationDegrees, setFullscreenRotationDegrees] = useState<90 | -90>(
@@ -372,9 +376,9 @@ export default function AnimeTranscriptDevViewerScreen() {
 
   const activeCues = useMemo(() => {
     return subtitleCues.filter(
-      (cue) => currentTimeSeconds >= cue.startTime && currentTimeSeconds < cue.endTime
+      (cue) => currentTimeSeconds - subtitleTiming.offsetMs / 1000 >= cue.startTime && currentTimeSeconds - subtitleTiming.offsetMs / 1000 < cue.endTime
     );
-  }, [currentTimeSeconds, subtitleCues]);
+  }, [currentTimeSeconds, subtitleCues, subtitleTiming.offsetMs]);
   const primaryActiveCue = activeCues[0] ?? null;
   const normalizedSubtitleSearchQuery = subtitleSearchQuery.trim().toLowerCase();
   const subtitleSearchResults = useMemo(() => {
@@ -2790,6 +2794,7 @@ export default function AnimeTranscriptDevViewerScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          {subtitleCues.length > 0 ? <SubtitleTimingControls offsetMs={subtitleTiming.offsetMs} onChange={subtitleTiming.setOffsetMs} ready={subtitleTiming.ready} error={subtitleTiming.error} /> : null}
           {viewerSettings.showSubtitleSearchButton && isSubtitleSearchVisible ? (
             <View
               style={[
@@ -2850,7 +2855,7 @@ export default function AnimeTranscriptDevViewerScreen() {
                           backgroundColor: withAlpha(theme.cardBackground, 0.72),
                         },
                       ]}
-                      onPress={() => seekToTimeSeconds(cue.startTime)}
+                      onPress={() => seekToTimeSeconds(subtitlePlaybackTime(cue.startTime * 1000, subtitleTiming.offsetMs, normalizedDurationForDisplay * 1000) / 1000)}
                       activeOpacity={0.82}
                     >
                       <Text style={[styles.searchResultTime, { color: theme.primary }]}>

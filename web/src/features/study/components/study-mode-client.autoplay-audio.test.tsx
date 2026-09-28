@@ -12,6 +12,8 @@ function render(ui: ReactElement) {
   return renderBase(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
 }
 
+vi.mock("@/features/core-study/review-subject-font", () => ({ reviewSubjectFont: { style: { fontFamily: "Noto Sans JP" } } }));
+
 const preferenceState = vi.hoisted(() => ({
   autoplayAudio: true,
   vocabularyAudioVoice: "female" as "female" | "male" | "both",
