@@ -306,7 +306,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     staleTime: 0,
     refetchOnMount: "always",
   });
-  const available = useMemo(() => mode === "reviews" ? reviewAssignments(assignmentQuery.data || []) : lessonAssignments(assignmentQuery.data || []), [assignmentQuery.data, mode]);
+  const available = useMemo(() => mode === "reviews" ? reviewAssignments(assignmentQuery.data || []) : lessonAssignments(assignmentQuery.data || [], preferences.excludeKanaVocabularyFromLessons), [assignmentQuery.data, mode, preferences.excludeKanaVocabularyFromLessons]);
   const candidateAssignments = useMemo(() => mode === "lessons" ? available.filter((assignment) => !startedLessonIds.includes(assignment.id)) : available, [available, mode, startedLessonIds]);
   const candidateIds = useMemo(() => candidateAssignments.map((assignment) => assignment.data.subject_id), [candidateAssignments]);
   const restoredAssignmentsQuery = useQuery({
@@ -1090,7 +1090,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     const remainingById = new Map(remaining.map((assignment) => [assignment.data.subject_id, assignment]));
     const upcoming = pickedLessonIds
       ? pickedLessonIds.map((id) => remainingById.get(id)).filter((assignment): assignment is Assignment => Boolean(assignment)).slice(0, dailyRemaining)
-      : selectCoreAssignments(remaining, subjects, "lessons", preferences, dailyRemaining);
+      : selectCoreAssignments(remaining, subjects, "lessons", preferences, dailyRemaining, { userLevel: liveUser?.data.level ?? 1 });
     const upcomingSubjects = upcoming.map((assignment) => subjectById.get(assignment.data.subject_id)).filter((subject): subject is Subject => Boolean(subject));
     return <LessonBatchComplete
       pendingCount={outboxCount}

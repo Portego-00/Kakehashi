@@ -7,6 +7,9 @@ import { Dashboard } from "./Dashboard";
 const { dashboardTestState, levelProgressions } = vi.hoisted(() => ({
   dashboardTestState: {
     dailyLessonLimit: 0,
+    excludeKanaVocabularyFromLessons: false,
+    apprenticeLessonThreshold: 0,
+    guruLessonThreshold: 0,
     dashboardOrder: ["level-timing"],
     isDemo: false,
     user: { id: 1, data: { username: "tester", level: 15, current_vacation_started_at: null as string | null } },
@@ -30,7 +33,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
-  useWebSettings: () => ({ study: { dailyLessonLimit: dashboardTestState.dailyLessonLimit } }),
+  useWebSettings: () => ({ study: { dailyLessonLimit: dashboardTestState.dailyLessonLimit, excludeKanaVocabularyFromLessons: dashboardTestState.excludeKanaVocabularyFromLessons, apprenticeLessonThreshold: dashboardTestState.apprenticeLessonThreshold, guruLessonThreshold: dashboardTestState.guruLessonThreshold } }),
   useWorkspacePreferences: () => ({
     dashboardOrder: dashboardTestState.dashboardOrder,
     hiddenDashboard: [],
@@ -93,11 +96,54 @@ afterEach(() => {
   dashboardTestState.user.data.username = "tester";
   dashboardTestState.user.data.current_vacation_started_at = null;
   dashboardTestState.dailyLessonLimit = 0;
+  dashboardTestState.excludeKanaVocabularyFromLessons = false;
+  dashboardTestState.apprenticeLessonThreshold = 0;
+  dashboardTestState.guruLessonThreshold = 0;
   dashboardTestState.assignments = [];
   dashboardTestState.subjects = [];
 });
 
 describe("dashboard", () => {
+  function lessonRow(id: number): Assignment {
+    return { id, object: "assignment", url: "", data_updated_at: "", data: { subject_id: id, subject_type: "kanji", srs_stage: 0, available_at: null, started_at: null, unlocked_at: "2020-01-01T00:00:00Z", passed_at: null, burned_at: null, resurrected_at: null, hidden: false, created_at: "" } };
+  }
+
+  it("excludes kana vocabulary from the lesson count", () => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    const kana = lessonRow(2);
+    kana.data.subject_type = "kana_vocabulary";
+    dashboardTestState.assignments = [lessonRow(1), kana];
+    dashboardTestState.excludeKanaVocabularyFromLessons = true;
+    render(<Dashboard />);
+    expect(within(screen.getByRole("article", { name: "Lessons study queue" })).getByText("1")).toBeVisible();
+  });
+
+  it.each(["apprentice", "guru"] as const)("blocks home-page lessons only above the %s threshold", (group) => {
+    dashboardTestState.dashboardOrder = ["daily-study"];
+    const key = group === "apprentice" ? "apprenticeLessonThreshold" : "guruLessonThreshold";
+    dashboardTestState[key] = 1;
+    const review = lessonRow(2);
+    review.data.srs_stage = group === "apprentice" ? 1 : 5;
+    review.data.started_at = "2020-01-01T00:00:00Z";
+    dashboardTestState.assignments = [lessonRow(1), review];
+    const { rerender } = render(<Dashboard />);
+    expect(screen.getByRole("link", { name: "Start lessons" })).toBeVisible();
+    dashboardTestState.assignments.push({ ...review, id: 3 });
+    rerender(<Dashboard />);
+    expect(screen.queryByRole("link", { name: "Start lessons" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Pick lessons" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Complete reviews to unlock lessons/)).toBeVisible();
+    expect(screen.getByText(new RegExp(`${group === "apprentice" ? "Apprentice" : "Guru"}.*2.*1`))).toBeVisible();
+    // Hidden items do not count toward workload, and 0 disables the threshold.
+    dashboardTestState.assignments[2] = { ...review, id: 3, data: { ...review.data, hidden: true } };
+    rerender(<Dashboard />);
+    expect(screen.getByRole("link", { name: "Start lessons" })).toBeVisible();
+    dashboardTestState[key] = 0;
+    dashboardTestState.assignments[2] = { ...review, id: 3 };
+    rerender(<Dashboard />);
+    expect(screen.getByRole("link", { name: "Start lessons" })).toBeVisible();
+  });
+
   it("shows 10 lessons rather than all 39 when the daily limit is 10", () => {
     dashboardTestState.dashboardOrder = ["daily-study"];
     dashboardTestState.dailyLessonLimit = 10;

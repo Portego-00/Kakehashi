@@ -463,7 +463,7 @@ function findBatchMinimumReplacementIndex<T extends OrderableLessonItem>(
   return batch.length - 1;
 }
 
-function ensureMinimumTypesPerBatch<T extends OrderableLessonItem>(
+export function ensureMinimumTypesPerBatch<T extends OrderableLessonItem>(
   sortedItems: T[],
   batchSize: number,
   minimumTypes: LessonTypeOrderSetting[]

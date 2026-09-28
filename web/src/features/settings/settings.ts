@@ -1,7 +1,19 @@
+import { DEFAULT_LESSON_ORDER, LESSON_ORDER_OPTIONS, type LessonOrderSetting } from "../../../../src/utils/lessonOrdering";
+import { normalizeLessonSrsThreshold } from "../../../../src/utils/lessonSrsThreshold";
 import { DEFAULT_STUDY_SHORTCUTS, normalizeStudyShortcuts, type StudyShortcuts } from "./study-shortcuts";
 import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 import type { ListStorage } from "@/features/subjects/lists";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
+
+export const LESSON_BATCH_SIZE_VALUES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+function normalizeLessonOrder(value: unknown): WebStudyPreferences["lessonOrder"] {
+  if (value === "available") return "oldestUnlockedFirst";
+  if (value === "level") return "lowestLevelFirst";
+  // Preserve the fixed type ordering selected by existing web users.
+  if (value === "subject-type") return value;
+  return LESSON_ORDER_OPTIONS.find((option) => option.value === value)?.value ?? DEFAULT_LESSON_ORDER;
+}
 
 export type TextScale = 0.9 | 1 | 1.1 | 1.2;
 export type QuestionOrder = "meaning-first" | "reading-first" | "mixed";
@@ -60,7 +72,11 @@ export interface WebStudyPreferences {
   lessonsBatchSize: number;
   answerOrder: QuestionOrder;
   dailyLessonLimit: number;
-  lessonOrder: "available" | "subject-type" | "level";
+  minimumRadicalKanjiPerBatchEnabled: boolean;
+  lessonOrder: LessonOrderSetting | "subject-type";
+  excludeKanaVocabularyFromLessons: boolean;
+  apprenticeLessonThreshold: number;
+  guruLessonThreshold: number;
   reviewOrder: ReviewOrderSetting;
   customReviewOrder: ReviewOrderSetting;
   reviewTypeOrderEnabled: boolean;
@@ -324,7 +340,11 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     lessonsBatchSize: 5,
     answerOrder: "mixed",
     dailyLessonLimit: 0,
-    lessonOrder: "available",
+    minimumRadicalKanjiPerBatchEnabled: false,
+    lessonOrder: DEFAULT_LESSON_ORDER,
+    excludeKanaVocabularyFromLessons: false,
+    apprenticeLessonThreshold: 0,
+    guruLessonThreshold: 0,
     reviewOrder: "random",
     customReviewOrder: "random",
     reviewTypeOrderEnabled: false,
@@ -538,10 +558,14 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         showAddSynonymButton: typeof parsed.study?.showAddSynonymButton === "boolean" ? parsed.study.showAddSynonymButton : DEFAULT_WEB_SETTINGS.study.showAddSynonymButton,
         keyboardShortcuts: typeof parsed.study?.keyboardShortcuts === "boolean" ? parsed.study.keyboardShortcuts : DEFAULT_WEB_SETTINGS.study.keyboardShortcuts,
         shuffleSubjects: typeof parsed.study?.shuffleSubjects === "boolean" ? parsed.study.shuffleSubjects : DEFAULT_WEB_SETTINGS.study.shuffleSubjects,
-        lessonsBatchSize: [3, 5, 10, 15, 20].includes(parsed.study?.lessonsBatchSize ?? 0) ? parsed.study!.lessonsBatchSize : DEFAULT_WEB_SETTINGS.study.lessonsBatchSize,
+        lessonsBatchSize: LESSON_BATCH_SIZE_VALUES.includes(parsed.study?.lessonsBatchSize ?? 0) ? parsed.study!.lessonsBatchSize : [15, 20].includes(parsed.study?.lessonsBatchSize ?? 0) ? 10 : DEFAULT_WEB_SETTINGS.study.lessonsBatchSize,
         answerOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder : DEFAULT_WEB_SETTINGS.study.answerOrder,
         dailyLessonLimit: Number.isInteger(parsed.study?.dailyLessonLimit) && parsed.study!.dailyLessonLimit >= 0 && parsed.study!.dailyLessonLimit <= 500 ? parsed.study!.dailyLessonLimit : DEFAULT_WEB_SETTINGS.study.dailyLessonLimit,
-        lessonOrder: ["available", "subject-type", "level"].includes(parsed.study?.lessonOrder ?? "") ? parsed.study!.lessonOrder : DEFAULT_WEB_SETTINGS.study.lessonOrder,
+        minimumRadicalKanjiPerBatchEnabled: typeof parsed.study?.minimumRadicalKanjiPerBatchEnabled === "boolean" ? parsed.study.minimumRadicalKanjiPerBatchEnabled : DEFAULT_WEB_SETTINGS.study.minimumRadicalKanjiPerBatchEnabled,
+        lessonOrder: normalizeLessonOrder(parsed.study?.lessonOrder),
+        excludeKanaVocabularyFromLessons: typeof parsed.study?.excludeKanaVocabularyFromLessons === "boolean" ? parsed.study.excludeKanaVocabularyFromLessons : DEFAULT_WEB_SETTINGS.study.excludeKanaVocabularyFromLessons,
+        apprenticeLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.apprenticeLessonThreshold ?? 0),
+        guruLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.guruLessonThreshold ?? 0),
         reviewOrder: normalizeReviewOrder(persistedStudy?.reviewOrder, DEFAULT_WEB_SETTINGS.study.reviewOrder),
         customReviewOrder: normalizeReviewOrder(persistedStudy?.customReviewOrder, DEFAULT_WEB_SETTINGS.study.customReviewOrder),
         reviewTypeOrderEnabled: legacyReviewTypeGrouping || (typeof parsed.study?.reviewTypeOrderEnabled === "boolean" ? parsed.study.reviewTypeOrderEnabled : DEFAULT_WEB_SETTINGS.study.reviewTypeOrderEnabled),

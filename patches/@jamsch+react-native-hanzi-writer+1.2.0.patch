@@ -1,0 +1,414 @@
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/HanziWriter.js b/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/HanziWriter.js
+index 282d37c..e45c231 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/HanziWriter.js
++++ b/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/HanziWriter.js
+@@ -29,8 +29,7 @@ var _reactNativeGestureHandler = require("react-native-gesture-handler");
+ var _utils = require("./utils");
+ var _jsxRuntime = require("react/jsx-runtime");
+ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+-function _getRequireWildcardCache(e) { if ("function" != typeof WeakMap) return null; var r = new WeakMap(), t = new WeakMap(); return (_getRequireWildcardCache = function (e) { return e ? t : r; })(e); }
+-function _interopRequireWildcard(e, r) { if (!r && e && e.__esModule) return e; if (null === e || "object" != typeof e && "function" != typeof e) return { default: e }; var t = _getRequireWildcardCache(r); if (t && t.has(e)) return t.get(e); var n = { __proto__: null }, a = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var u in e) if ("default" !== u && {}.hasOwnProperty.call(e, u)) { var i = a ? Object.getOwnPropertyDescriptor(e, u) : null; i && (i.get || i.set) ? Object.defineProperty(n, u, i) : n[u] = e[u]; } return n.default = e, t && t.set(e, n), n; }
++function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r = new WeakMap(), n = new WeakMap(); return (_interopRequireWildcard = function (e, t) { if (!t && e && e.__esModule) return e; var o, i, f = { __proto__: null, default: e }; if (null === e || "object" != typeof e && "function" != typeof e) return f; if (o = t ? n : r) { if (o.has(e)) return o.get(e); o.set(e, f); } for (const t in e) "default" !== t && {}.hasOwnProperty.call(e, t) && ((i = (o = Object.defineProperty) && Object.getOwnPropertyDescriptor(e, t)) && (i.get || i.set) ? o(f, t, i) : f[t] = e[t]); return f; })(e, t); }
+ const HanziWriterContext = exports.HanziWriterContext = /*#__PURE__*/(0, _react.createContext)(null);
+ function HanziWriter(props) {
+   return /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+@@ -108,22 +107,49 @@ function CharacterAnimator({
+     children: writer.characterClass.strokes.map((stroke, idx) => {
+       const isLast = idx === writer.characterClass.strokes.length - 1;
+       const colorToUse = stroke.isInRadical ? radicalColor : color;
+-      return /*#__PURE__*/(0, _jsxRuntime.jsx)(_StrokeAnimator.StrokeAnimator, {
+-        ref: ref => {
+-          // Animate the stroke as soon as it's rendered
+-          ref?.animate({
+-            duration: animationState.strokeDuration,
+-            delay: idx * animationState.delayBetweenStrokes + animationState.strokeDuration * idx,
+-            onComplete: isLast ? writer.animator.onAnimationComplete : undefined
+-          });
+-        },
++      return /*#__PURE__*/(0, _jsxRuntime.jsx)(CharacterStrokeAnimator, {
++        animationKey: animationState.animationKey,
++        duration: animationState.strokeDuration,
++        delay: idx * (animationState.delayBetweenStrokes + animationState.strokeDuration),
++        onComplete: isLast ? () => writer.animator.onAnimationComplete(animationState.animationKey) : undefined,
+         strokeColor: colorToUse || color,
+         strokeWidth: 100,
+         stroke: stroke
+-      }, `char.${stroke.strokeNum}`);
++      }, `char.${stroke.strokeNum}.${animationState.animationKey}`);
+     })
+   });
+ }
++
++// A ref callback runs again whenever its identity changes. Start a stroke in an
++// effect keyed to the playback run so ordinary parent renders cannot restart it.
++function CharacterStrokeAnimator({
++  animationKey,
++  duration,
++  delay,
++  onComplete,
++  ...props
++}) {
++  const ref = (0, _react.useRef)(null);
++  const completion = (0, _react.useRef)(onComplete);
++  completion.current = onComplete;
++  (0, _react.useEffect)(() => {
++    let active = true;
++    ref.current?.animate({
++      duration,
++      delay,
++      onComplete: () => {
++        if (active) completion.current?.();
++      }
++    });
++    return () => {
++      active = false;
++    };
++  }, [animationKey, duration, delay]);
++  return /*#__PURE__*/(0, _jsxRuntime.jsx)(_StrokeAnimator.StrokeAnimator, {
++    ref: ref,
++    ...props
++  });
++}
+ function CharacterLoader({
+   loading,
+   error,
+@@ -400,16 +426,18 @@ const useCharacterAnimator = params => {
+       });
+     },
+     cancelAnimation() {
++      animationKeyRef.current = '';
+       characterAnimatorStore.setState({
+-        state: 'stopped'
++        state: 'stopped',
++        animationKey: null
+       });
+     },
+-    onAnimationComplete: () => {
++    onAnimationComplete: completedKey => {
+       const {
+         animationKey
+       } = characterAnimatorStore.getState();
+       // Avoid race conditions
+-      if (animationKeyRef.current === animationKey) {
++      if (completedKey && completedKey === animationKey && animationKeyRef.current === animationKey && characterAnimatorStore.getState().state === 'playing') {
+         characterAnimatorStore.getState().onComplete?.();
+         characterAnimatorStore.setState({
+           state: 'stopped'
+@@ -573,4 +601,3 @@ const useHanziWriter = params => {
+   };
+ };
+ exports.useHanziWriter = useHanziWriter;
+-//# sourceMappingURL=HanziWriter.js.map
+\ No newline at end of file
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/components/StrokeAnimator.js b/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/components/StrokeAnimator.js
+index cd82bc3..ae04cf9 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/components/StrokeAnimator.js
++++ b/node_modules/@jamsch/react-native-hanzi-writer/lib/commonjs/components/StrokeAnimator.js
+@@ -31,13 +31,19 @@ const StrokeAnimator = exports.StrokeAnimator = /*#__PURE__*/(0, _react.forwardR
+         onComplete
+       } = params;
+       const onCompleteCallback = () => onComplete?.();
++      (0, _reactNativeReanimated.cancelAnimation)(progress);
++      progress.value = 0;
++      // Stroke order is instructional, explicitly requested motion.
+       const strokeIn = (0, _reactNativeReanimated.withTiming)(1, {
+         duration,
+-        easing: _reactNativeReanimated.Easing.linear
+-      }, () => (0, _reactNativeWorklets.scheduleOnRN)(onCompleteCallback));
+-      progress.value = delay ? (0, _reactNativeReanimated.withDelay)(delay, strokeIn) : strokeIn;
++        easing: _reactNativeReanimated.Easing.linear,
++        reduceMotion: _reactNativeReanimated.ReduceMotion.Never
++      }, finished => {
++        if (finished) (0, _reactNativeWorklets.scheduleOnRN)(onCompleteCallback);
++      });
++      progress.value = delay ? (0, _reactNativeReanimated.withDelay)(delay, strokeIn, _reactNativeReanimated.ReduceMotion.Never) : strokeIn;
+     }
+-  }));
++  }), [progress]);
+   const path = (0, _react.useMemo)(() => {
+     const extendedMaskPoints = (0, _geometry.extendStart)(stroke.points, strokeWidth / 2);
+     return (0, _geometry.getPathString)(extendedMaskPoints);
+@@ -80,4 +86,3 @@ function AnimatedStroke({
+     strokeDasharray: `${pathLength},${pathLength}`
+   });
+ }
+-//# sourceMappingURL=StrokeAnimator.js.map
+\ No newline at end of file
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/lib/module/HanziWriter.js b/node_modules/@jamsch/react-native-hanzi-writer/lib/module/HanziWriter.js
+index c27cde2..f90db02 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/lib/module/HanziWriter.js
++++ b/node_modules/@jamsch/react-native-hanzi-writer/lib/module/HanziWriter.js
+@@ -1,5 +1,3 @@
+-"use strict";
+-
+ import { StyleSheet, Text, View } from 'react-native';
+ import { strokeMatches, parseCharData, Positioner, UserStroke } from './hanzi-writer';
+ import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector';
+@@ -93,22 +91,49 @@ export function CharacterAnimator({
+     children: writer.characterClass.strokes.map((stroke, idx) => {
+       const isLast = idx === writer.characterClass.strokes.length - 1;
+       const colorToUse = stroke.isInRadical ? radicalColor : color;
+-      return /*#__PURE__*/_jsx(StrokeAnimator, {
+-        ref: ref => {
+-          // Animate the stroke as soon as it's rendered
+-          ref?.animate({
+-            duration: animationState.strokeDuration,
+-            delay: idx * animationState.delayBetweenStrokes + animationState.strokeDuration * idx,
+-            onComplete: isLast ? writer.animator.onAnimationComplete : undefined
+-          });
+-        },
++      return /*#__PURE__*/_jsx(CharacterStrokeAnimator, {
++        animationKey: animationState.animationKey,
++        duration: animationState.strokeDuration,
++        delay: idx * (animationState.delayBetweenStrokes + animationState.strokeDuration),
++        onComplete: isLast ? () => writer.animator.onAnimationComplete(animationState.animationKey) : undefined,
+         strokeColor: colorToUse || color,
+         strokeWidth: 100,
+         stroke: stroke
+-      }, `char.${stroke.strokeNum}`);
++      }, `char.${stroke.strokeNum}.${animationState.animationKey}`);
+     })
+   });
+ }
++
++// A ref callback runs again whenever its identity changes. Start a stroke in an
++// effect keyed to the playback run so ordinary parent renders cannot restart it.
++function CharacterStrokeAnimator({
++  animationKey,
++  duration,
++  delay,
++  onComplete,
++  ...props
++}) {
++  const ref = useRef(null);
++  const completion = useRef(onComplete);
++  completion.current = onComplete;
++  useEffect(() => {
++    let active = true;
++    ref.current?.animate({
++      duration,
++      delay,
++      onComplete: () => {
++        if (active) completion.current?.();
++      }
++    });
++    return () => {
++      active = false;
++    };
++  }, [animationKey, duration, delay]);
++  return /*#__PURE__*/_jsx(StrokeAnimator, {
++    ref: ref,
++    ...props
++  });
++}
+ export function CharacterLoader({
+   loading,
+   error,
+@@ -385,16 +410,18 @@ const useCharacterAnimator = params => {
+       });
+     },
+     cancelAnimation() {
++      animationKeyRef.current = '';
+       characterAnimatorStore.setState({
+-        state: 'stopped'
++        state: 'stopped',
++        animationKey: null
+       });
+     },
+-    onAnimationComplete: () => {
++    onAnimationComplete: completedKey => {
+       const {
+         animationKey
+       } = characterAnimatorStore.getState();
+       // Avoid race conditions
+-      if (animationKeyRef.current === animationKey) {
++      if (completedKey && completedKey === animationKey && animationKeyRef.current === animationKey && characterAnimatorStore.getState().state === 'playing') {
+         characterAnimatorStore.getState().onComplete?.();
+         characterAnimatorStore.setState({
+           state: 'stopped'
+@@ -557,4 +584,3 @@ export const useHanziWriter = params => {
+     refetch
+   };
+ };
+-//# sourceMappingURL=HanziWriter.js.map
+\ No newline at end of file
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/lib/module/components/StrokeAnimator.js b/node_modules/@jamsch/react-native-hanzi-writer/lib/module/components/StrokeAnimator.js
+index ed943e5..bb9c37e 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/lib/module/components/StrokeAnimator.js
++++ b/node_modules/@jamsch/react-native-hanzi-writer/lib/module/components/StrokeAnimator.js
+@@ -1,7 +1,5 @@
+-"use strict";
+-
+ import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+-import { Easing, useAnimatedProps, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
++import { Easing, ReduceMotion, cancelAnimation, useAnimatedProps, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+ import AnimatedPath from '../components/AnimatedPath';
+ import { extendStart, getPathString } from '../geometry';
+ import { scheduleOnRN } from 'react-native-worklets';
+@@ -26,13 +24,19 @@ export const StrokeAnimator = /*#__PURE__*/forwardRef(function StrokeAnimator({
+         onComplete
+       } = params;
+       const onCompleteCallback = () => onComplete?.();
++      cancelAnimation(progress);
++      progress.value = 0;
++      // Stroke order is instructional, explicitly requested motion.
+       const strokeIn = withTiming(1, {
+         duration,
+-        easing: Easing.linear
+-      }, () => scheduleOnRN(onCompleteCallback));
+-      progress.value = delay ? withDelay(delay, strokeIn) : strokeIn;
++        easing: Easing.linear,
++        reduceMotion: ReduceMotion.Never
++      }, finished => {
++        if (finished) scheduleOnRN(onCompleteCallback);
++      });
++      progress.value = delay ? withDelay(delay, strokeIn, ReduceMotion.Never) : strokeIn;
+     }
+-  }));
++  }), [progress]);
+   const path = useMemo(() => {
+     const extendedMaskPoints = extendStart(stroke.points, strokeWidth / 2);
+     return getPathString(extendedMaskPoints);
+@@ -75,4 +79,3 @@ function AnimatedStroke({
+     strokeDasharray: `${pathLength},${pathLength}`
+   });
+ }
+-//# sourceMappingURL=StrokeAnimator.js.map
+\ No newline at end of file
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/lib/typescript/HanziWriter.d.ts b/node_modules/@jamsch/react-native-hanzi-writer/lib/typescript/HanziWriter.d.ts
+index 2b02a2c..ab23c0c 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/lib/typescript/HanziWriter.d.ts
++++ b/node_modules/@jamsch/react-native-hanzi-writer/lib/typescript/HanziWriter.d.ts
+@@ -19,7 +19,7 @@ export declare const HanziWriterContext: import("react").Context<{
+             onComplete?: () => void;
+         }): void;
+         cancelAnimation(): void;
+-        onAnimationComplete: () => void;
++        onAnimationComplete: (completedKey: string | null) => void;
+     };
+     quiz: {
+         store: {
+@@ -150,7 +150,7 @@ export declare const useHanziWriter: (params: {
+             onComplete?: () => void;
+         }): void;
+         cancelAnimation(): void;
+-        onAnimationComplete: () => void;
++        onAnimationComplete: (completedKey: string | null) => void;
+     };
+     quiz: {
+         store: {
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/src/HanziWriter.tsx b/node_modules/@jamsch/react-native-hanzi-writer/src/HanziWriter.tsx
+index 6bd8600..8492cca 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/src/HanziWriter.tsx
++++ b/node_modules/@jamsch/react-native-hanzi-writer/src/HanziWriter.tsx
+@@ -152,22 +152,14 @@ export function CharacterAnimator({
+         const isLast = idx === writer.characterClass!.strokes.length - 1;
+         const colorToUse = stroke.isInRadical ? radicalColor : color;
+         return (
+-          <StrokeAnimator
+-            ref={(ref) => {
+-              // Animate the stroke as soon as it's rendered
+-              ref?.animate({
+-                duration: animationState.strokeDuration,
+-                delay:
+-                  idx * animationState.delayBetweenStrokes +
+-                  animationState.strokeDuration * idx,
+-                onComplete: isLast
+-                  ? writer.animator.onAnimationComplete
+-                  : undefined,
+-              });
+-            }}
++          <CharacterStrokeAnimator
++            animationKey={animationState.animationKey}
++            duration={animationState.strokeDuration}
++            delay={idx * (animationState.delayBetweenStrokes + animationState.strokeDuration)}
++            onComplete={isLast ? () => writer.animator.onAnimationComplete(animationState.animationKey) : undefined}
+             strokeColor={colorToUse || color}
+             strokeWidth={100}
+-            key={`char.${stroke.strokeNum}`}
++            key={`char.${stroke.strokeNum}.${animationState.animationKey}`}
+             stroke={stroke}
+           />
+         );
+@@ -176,6 +168,30 @@ export function CharacterAnimator({
+   );
+ }
+ 
++// A ref callback runs again whenever its identity changes. Start a stroke in an
++// effect keyed to the playback run so ordinary parent renders cannot restart it.
++function CharacterStrokeAnimator({ animationKey, duration, delay, onComplete, ...props }: {
++  animationKey: string | null;
++  duration: number;
++  delay: number;
++  onComplete?: () => void;
++  stroke: Character['strokes'][number];
++  strokeColor: string;
++  strokeWidth: number;
++}) {
++  const ref = useRef<import('./components/StrokeAnimator').StrokeAnimatorRef>(null);
++  const completion = useRef(onComplete);
++  completion.current = onComplete;
++  useEffect(() => {
++    let active = true;
++    ref.current?.animate({ duration, delay, onComplete: () => {
++      if (active) completion.current?.();
++    } });
++    return () => { active = false; };
++  }, [animationKey, duration, delay]);
++  return <StrokeAnimator ref={ref} {...props} />;
++}
++
+ interface CharacterLoaderProps {
+   /** What to display while the character is loading */
+   loading?: React.ReactNode;
+@@ -512,12 +528,13 @@ const useCharacterAnimator = (params: { character: string }) => {
+       });
+     },
+     cancelAnimation() {
+-      characterAnimatorStore.setState({ state: 'stopped' });
++      animationKeyRef.current = '';
++      characterAnimatorStore.setState({ state: 'stopped', animationKey: null });
+     },
+-    onAnimationComplete: () => {
++    onAnimationComplete: (completedKey: string | null) => {
+       const { animationKey } = characterAnimatorStore.getState();
+       // Avoid race conditions
+-      if (animationKeyRef.current === animationKey) {
++      if (completedKey && completedKey === animationKey && animationKeyRef.current === animationKey && characterAnimatorStore.getState().state === 'playing') {
+         characterAnimatorStore.getState().onComplete?.();
+         characterAnimatorStore.setState({ state: 'stopped' });
+       }
+diff --git a/node_modules/@jamsch/react-native-hanzi-writer/src/components/StrokeAnimator.tsx b/node_modules/@jamsch/react-native-hanzi-writer/src/components/StrokeAnimator.tsx
+index c6082a7..3dc8b1a 100644
+--- a/node_modules/@jamsch/react-native-hanzi-writer/src/components/StrokeAnimator.tsx
++++ b/node_modules/@jamsch/react-native-hanzi-writer/src/components/StrokeAnimator.tsx
+@@ -1,6 +1,8 @@
+ import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+ import {
+   Easing,
++  ReduceMotion,
++  cancelAnimation,
+   type SharedValue,
+   useAnimatedProps,
+   useSharedValue,
+@@ -52,12 +54,15 @@ export const StrokeAnimator = forwardRef<
+     }) => {
+       const { duration, delay, onComplete } = params;
+       const onCompleteCallback = () => onComplete?.();
+-      const strokeIn = withTiming(1, { duration, easing: Easing.linear }, () =>
+-        scheduleOnRN(onCompleteCallback)
+-      );
+-      progress.value = delay ? withDelay(delay, strokeIn) : strokeIn;
++      cancelAnimation(progress);
++      progress.value = 0;
++      // Stroke order is instructional, explicitly requested motion.
++      const strokeIn = withTiming(1, { duration, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (finished) => {
++        if (finished) scheduleOnRN(onCompleteCallback);
++      });
++      progress.value = delay ? withDelay(delay, strokeIn, ReduceMotion.Never) : strokeIn;
+     },
+-  }));
++  }), [progress]);
+ 
+   const path = useMemo(() => {
+     const extendedMaskPoints = extendStart(stroke.points, strokeWidth / 2);

@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeSubtitleOffset, subtitlePlaybackTime, formatSubtitleOffset, SUBTITLE_OFFSET_LIMIT_MS, SUBTITLE_OFFSET_STEP_MS } from "../../../../shared/subtitleTiming";
 import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -297,6 +298,8 @@ export function VideoWorkspace() {
   const linkedResolutionGeneration = useRef(0);
   const linkedPermissionHandle = useRef<{ videoId: string; handle: FileSystemFileHandle } | null>(null);
   const activeVideo = videos.find((video) => video.id === activeId) ?? null;
+  const subtitleOffsetMs = normalizeSubtitleOffset(activeVideo?.metadata?.subtitleOffsetMs);
+  const subtitleElapsedMs = elapsedMs - subtitleOffsetMs;
   const activeSourceType = activeVideo ? videoSourceType(activeVideo) : null;
   const activeYoutubeId = activeVideo ? youtubeIdForRecord(activeVideo) : "";
   const activeVideoUrl = activeVideo ? metadataText(activeVideo, "videoUrl") : "";
@@ -350,10 +353,10 @@ export function VideoWorkspace() {
   const subtitleAnalysisContexts = useMemo(() => buildSubtitleAnalysisContexts(sortedCues), [sortedCues]);
   const activeCue = useMemo(() => {
     if (!transcript.timed) return null;
-    const matched = findCueAt(sortedCues, elapsedMs);
+    const matched = findCueAt(sortedCues, subtitleElapsedMs);
     if (matched) return matched;
-    return sortedCues.findLast((cue) => elapsedMs >= cue.startMs) ?? sortedCues[0] ?? null;
-  }, [elapsedMs, sortedCues, transcript.timed]);
+    return sortedCues.findLast((cue) => subtitleElapsedMs >= cue.startMs) ?? (subtitleOffsetMs === 0 ? sortedCues[0] : null) ?? null;
+  }, [subtitleElapsedMs, subtitleOffsetMs, sortedCues, transcript.timed]);
   const activeInspectorCueId = inspectorCueId && sortedCues.some((cue) => cue.id === inspectorCueId) ? inspectorCueId : null;
   const studyCueId = activeInspectorCueId ?? activeCue?.id ?? null;
 
@@ -974,8 +977,16 @@ export function VideoWorkspace() {
     }
   }
 
+  function changeSubtitleOffset(value: number) {
+    if (!activeVideo) return;
+    const stored = loadLibrary("video").find(video => video.id === activeVideo.id) ?? activeVideo;
+    try {
+      setVideos(upsertRecord({ ...stored, metadata: { ...stored.metadata, subtitleOffsetMs: normalizeSubtitleOffset(value) }, updatedAt: new Date().toISOString() }));
+    } catch { setMessage("Subtitle timing could not be saved in this browser."); }
+  }
+
   function seek(cue: SubtitleCue) {
-    const targetMs = cue.startMs;
+    const targetMs = subtitlePlaybackTime(cue.startMs, subtitleOffsetMs, durationMs);
     setElapsedMs(targetMs);
     if (resolvedSource?.kind === "youtube") {
       youtubeRef.current?.seekTo(targetMs);
@@ -1172,6 +1183,14 @@ export function VideoWorkspace() {
                 {activeYoutubeTranscriptRequest?.status === "error" ? <p className={styles.transcriptFetchError} role="alert">{activeYoutubeTranscriptRequest.message}</p> : null}
                 {transcriptEditorOpen ? <LyricsTextEditor kind="transcript" initialValue={activeVideo.text || legacySubtitleText} onCancel={() => setTranscriptEditorOpen(false)} onSave={saveCustomTranscript} /> : null}
               </div>
+              {transcript.timed ? <div className={styles.offsetControl} role="group" aria-label="Subtitle timing">
+                <span>Subtitle timing</span>
+                <button type="button" aria-label="Subtitles earlier by 0.1 seconds" disabled={subtitleOffsetMs <= -SUBTITLE_OFFSET_LIMIT_MS} onClick={() => changeSubtitleOffset(subtitleOffsetMs - SUBTITLE_OFFSET_STEP_MS)}>−0.1s</button>
+                <strong aria-live="polite">{formatSubtitleOffset(subtitleOffsetMs)}</strong>
+                <button type="button" aria-label="Subtitles later by 0.1 seconds" disabled={subtitleOffsetMs >= SUBTITLE_OFFSET_LIMIT_MS} onClick={() => changeSubtitleOffset(subtitleOffsetMs + SUBTITLE_OFFSET_STEP_MS)}>+0.1s</button>
+                <button type="button" onClick={() => changeSubtitleOffset(0)} disabled={subtitleOffsetMs === 0}>Reset timing</button>
+                <input type="range" aria-label="Subtitle timing offset" min={-SUBTITLE_OFFSET_LIMIT_MS} max={SUBTITLE_OFFSET_LIMIT_MS} step={SUBTITLE_OFFSET_STEP_MS} value={subtitleOffsetMs} onChange={event => changeSubtitleOffset(Number(event.target.value))} />
+              </div> : null}
               <div ref={transcriptRef} className={styles.lyricsViewport} role="region" aria-label="Video subtitles">
                 {!sortedCues.length ? <div className={styles.lyricsEmpty}><strong>{activeYoutubeTranscriptRequest?.status === "loading" ? "Getting transcript…" : "No transcript yet"}</strong><p>{activeYoutubeTranscriptRequest?.status === "loading" ? "Checking the public captions available for this video." : "Get available YouTube captions, paste text, or import an LRC, SRT, WebVTT, or text file."}</p></div> : null}
                 {sortedCues.map((cue, cueIndex) => {

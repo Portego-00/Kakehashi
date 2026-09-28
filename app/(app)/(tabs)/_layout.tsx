@@ -1,27 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Appearance, DynamicColorIOS, Platform } from "react-native";
 import { TabBarVisibilityProvider, useTabBarHidden } from "../../../src/contexts/TabBarVisibilityContext";
-import { useFeatureFlag } from "../../../src/hooks/useFeatureFlags";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
-import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
-import { isPortegoUsername } from "../../../src/utils/portegoAccess";
+import { useTabNavigation } from "../../../src/hooks/useTabNavigation";
+import { TAB_INFO, type TabId } from "../../../src/utils/tabNavigation";
 import { useTheme } from "../../../src/utils/theme";
-
-type TabId =
-  | "home"
-  | "progress"
-  | "news"
-  | "songs"
-  | "items"
-  | "analytics"
-  | "epubs"
-  | "videos"
-  | "mangas"
-  | "notebooks"
-  | "bunpro";
 
 export default function TabsLayout() {
   return <TabBarVisibilityProvider><TabsContent /></TabBarVisibilityProvider>;
@@ -31,32 +17,21 @@ function TabsContent() {
   const tabBarHidden = useTabBarHidden();
   const { theme, themeMode, isDark } = useTheme();
   const useNativeTabs = supportsNativeTabs();
-  const { userData } = useAuthStore();
-  const { gravatarEmail, customTabOrder } = useSettingsStore();
-  const showSongsTabFlag = useFeatureFlag("show_songs_tab");
-  const normalizedEmail = gravatarEmail?.trim().toLowerCase() ?? "";
-  const isSongsHiddenForEmail = normalizedEmail === "kakehashi.app@gmail.com";
-  const canAccessMangaTab = isPortegoUsername(userData?.username);
-  const showSongsTab =
-    (showSongsTabFlag || normalizedEmail === "portego2000@hotmail.es") &&
-    !isSongsHiddenForEmail;
-  const maxTabs = 5;
-
-  // Determine which tabs should be visible based on customTabOrder
-  const visibleTabs = useMemo(() => {
-    // Filter out songs if feature flag is disabled
-    const filteredOrder = customTabOrder.filter((tab: TabId) => {
-      if (tab === "songs" && !showSongsTab) return false;
-      if (tab === "mangas" && !canAccessMangaTab) return false;
-      if (tab === "bunpro") return false;
-      return true;
-    });
-
-    const cappedOrder = filteredOrder.slice(0, maxTabs);
-    return new Set(cappedOrder);
-  }, [canAccessMangaTab, customTabOrder, maxTabs, showSongsTab]);
-
-  const isTabVisible = (tabId: TabId) => visibleTabs.has(tabId);
+  const { direct, overflow } = useTabNavigation();
+  const routeName = (id: TabId) => id === "home" ? "index" : id;
+  const nativeIcons = {
+    home: { default: "house", selected: "house.fill" },
+    progress: { default: "chart.line.text.clipboard", selected: "chart.line.text.clipboard.fill" },
+    items: { default: "square.stack.3d.up", selected: "square.stack.3d.up.fill" },
+    analytics: { default: "chart.bar", selected: "chart.bar.fill" },
+    news: { default: "newspaper", selected: "newspaper.fill" },
+    epubs: { default: "book.closed", selected: "book.closed.fill" },
+    videos: { default: "play.square", selected: "play.square.fill" },
+    mangas: { default: "books.vertical", selected: "books.vertical.fill" },
+    notebooks: { default: "note.text", selected: "note.text" },
+    songs: { default: "music.pages", selected: "music.pages.fill" },
+  } as const;
+  const isTabVisible = (tabId: TabId) => direct.some(tab => tab.id === tabId);
 
   // Workaround for iOS liquid glass tabs: force appearance to match any
   // non-system app theme (light, dark, midnight, sepia, etc).
@@ -92,106 +67,15 @@ function TabsContent() {
           },
         }}
       >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: "Home",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="progress"
-          options={{
-            title: "Level",
-            href: isTabVisible("progress") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="stats-chart" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="items"
-          options={{
-            title: "Items",
-            href: isTabVisible("items") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="library" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="analytics"
-          options={{
-            title: "Analytics",
-            href: isTabVisible("analytics") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="analytics" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="news"
-          options={{
-            title: "News",
-            href: isTabVisible("news") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="newspaper" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="epubs"
-          options={{
-            title: "Books",
-            href: isTabVisible("epubs") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="book" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="videos"
-          options={{
-            title: "Video",
-            href: isTabVisible("videos") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="videocam" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="mangas"
-          options={{
-            title: "Manga",
-            href: isTabVisible("mangas") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="bookmarks" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="notebooks"
-          options={{
-            title: "Notebooks",
-            href: isTabVisible("notebooks") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="document-text" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="songs"
-          options={{
-            title: "Music",
-            href: isTabVisible("songs") ? undefined : null,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="musical-notes" size={size} color={color} />
-            ),
-          }}
-        />
+        {TAB_INFO.map(tab => <Tabs.Screen key={tab.id} name={routeName(tab.id)} options={{
+          title: tab.label,
+          href: isTabVisible(tab.id) ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name={tab.id === "progress" ? "stats-chart" : tab.icon} size={size} color={color} />,
+        }} />)}
 
+        <Tabs.Screen name="more" options={{ title: "More", href: overflow.length ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal" size={size} color={color} />,
+        }} />
         <Tabs.Screen
           name="search"
           options={{
@@ -225,68 +109,17 @@ function TabsContent() {
       }}
       tintColor={tabTintColor}
     >
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} />
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+      {TAB_INFO.map(tab => <NativeTabs.Trigger key={tab.id} name={routeName(tab.id)} hidden={!isTabVisible(tab.id)}>
+        <NativeTabs.Trigger.Icon sf={nativeIcons[tab.id]} />
+        <NativeTabs.Trigger.Label>{tab.label}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>)}
+      <NativeTabs.Trigger name="more" hidden={!overflow.length}>
+        <NativeTabs.Trigger.Icon sf="ellipsis" />
+        <NativeTabs.Trigger.Label>More</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="progress" hidden={!isTabVisible("progress")}>
-        <NativeTabs.Trigger.Icon
-          sf={{
-            default: "chart.line.text.clipboard",
-            selected: "chart.line.text.clipboard.fill",
-          }}
-        />
-        <NativeTabs.Trigger.Label>Level</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="items" hidden={!isTabVisible("items")}>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: "square.stack.3d.up", selected: "square.stack.3d.up.fill" }}
-        />
-        <NativeTabs.Trigger.Label>Items</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="analytics" hidden={!isTabVisible("analytics")}>
-        <NativeTabs.Trigger.Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
-        <NativeTabs.Trigger.Label>Analytics</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="news" hidden={!isTabVisible("news")}>
-        <NativeTabs.Trigger.Icon sf={{ default: "newspaper", selected: "newspaper.fill" }} />
-        <NativeTabs.Trigger.Label>News</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="epubs" hidden={!isTabVisible("epubs")}>
-        <NativeTabs.Trigger.Icon sf={{ default: "book.closed", selected: "book.closed.fill" }} />
-        <NativeTabs.Trigger.Label>Books</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="videos" hidden={!isTabVisible("videos")}>
-        <NativeTabs.Trigger.Icon sf={{ default: "play.square", selected: "play.square.fill" }} />
-        <NativeTabs.Trigger.Label>Video</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="mangas" hidden={!isTabVisible("mangas")}>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: "books.vertical", selected: "books.vertical.fill" }}
-        />
-        <NativeTabs.Trigger.Label>Manga</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
       <NativeTabs.Trigger name="search" role="search">
         <NativeTabs.Trigger.Icon sf="magnifyingglass" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="notebooks" hidden={!isTabVisible("notebooks")}>
-        <NativeTabs.Trigger.Icon sf={{ default: "note.text", selected: "note.text" }} />
-        <NativeTabs.Trigger.Label>Notebooks</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="songs" hidden={!isTabVisible("songs")}>
-        <NativeTabs.Trigger.Icon sf={{ default: "music.pages", selected: "music.pages.fill" }} />
-        <NativeTabs.Trigger.Label>Songs</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

@@ -98,7 +98,7 @@ const fixtures = vi.hoisted(() => {
       lessonsBatchSize: 5,
       answerOrder: "mixed",
       dailyLessonLimit: 0,
-      lessonOrder: "available",
+      lessonOrder: "ascendingSubjectId",
       reviewOrder: "available",
       reviewBatchSize: 10,
       reviewWrapUpSize: 5,

@@ -31,6 +31,7 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !src/types/bunpro.ts
 !src/utils
 !src/utils/bunproQueue.ts
+!src/utils/japaneseHtmlNormalization.ts
 !src/utils/answerChecker.ts
 !src/utils/audioVocabStudy.ts
 !src/utils/portegoAccess.ts
@@ -50,3 +51,11 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !assets/fonts/ZenKurenaido-Regular.ttf
 !assets/fonts/YujiSyuku-Regular.ttf
 !assets/fonts/ReggaeOne-Regular.ttf
+
+!src/utils/lessonOrdering.ts
+
+!src/utils/lessonSrsThreshold.ts
+
+!shared/subtitleTiming.ts
+
+web/tsconfig.tsbuildinfo

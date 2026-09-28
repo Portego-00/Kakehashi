@@ -1,5 +1,6 @@
 "use client";
 
+import { getLessonSrsThresholdStatus } from "../../../../src/utils/lessonSrsThreshold";
 import { lessonsStartedToday, remainingDailyLessons } from "@/features/core-study/session-planning";
 
 import { BunproHomeButton } from "@/features/bunpro/BunproHomeButton";
@@ -107,7 +108,8 @@ export function Dashboard() {
   const allSubjectRows = allSubjects.data || [];
   const availabilityLoading = assignments.isLoading || availableReviewCount.isLoading || (currentUser.isLoading && !currentVacationStartedAt);
   const startedToday = lessonsStartedToday({ getItem: (key) => typeof window === "undefined" ? null : window.localStorage.getItem(key) }, username, now, assignmentRows);
-  const lessonCount = Math.min(assignmentRows.filter((row) => isLessonAvailable(row, currentVacationStartedAt)).length, remainingDailyLessons(study.dailyLessonLimit, startedToday));
+  const lessonSrsThresholdStatus = getLessonSrsThresholdStatus(assignmentRows, study.apprenticeLessonThreshold, study.guruLessonThreshold);
+  const lessonCount = Math.min(assignmentRows.filter((row) => isLessonAvailable(row, currentVacationStartedAt) && (!study.excludeKanaVocabularyFromLessons || row.data.subject_type !== "kana_vocabulary")).length, remainingDailyLessons(study.dailyLessonLimit, startedToday));
   const fallbackReviewCount = assignmentRows.filter((row) => isReviewAvailable(row, now, currentVacationStartedAt)).length;
   const reviewCount = currentVacationStartedAt ? 0 : (availableReviewCount.data ?? fallbackReviewCount);
   const srsSpread = srsStageSpread(assignmentRows);
@@ -125,7 +127,7 @@ export function Dashboard() {
   const formatShortDate = (value?: string) => value ? new Date(value).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
   const sections: Record<string, React.ReactNode> = {
-    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"} /><div className={styles.queue}><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="lesson" count={lessonCount} loading={availabilityLoading} /><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}<BunproHomeButton wanikaniCount={availabilityLoading || (availableReviewCount.error && !assignments.data) ? undefined : reviewCount} /></section>,
+    "daily-study": <section className={`${styles.section} ${styles.queueSection}`} aria-label="Daily study">{currentVacationStartedAt ? <VacationNotice startedAt={currentVacationStartedAt} refresh={currentUser.refetch} /> : <><SectionHeader title="Today" detail={isDemo ? "Your demo study queues" : "Your live WaniKani queues"} /><div className={styles.queue}><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="lesson" count={lessonCount} loading={availabilityLoading} lessonSrsThresholdStatus={lessonSrsThresholdStatus} /><StudyQueueCard available={canAccessCoreStudy(username)} demo={isDemo} type="review" count={reviewCount} loading={availabilityLoading} /></div></>}<BunproHomeButton wanikaniCount={availabilityLoading || (availableReviewCount.error && !assignments.data) ? undefined : reviewCount} /></section>,
     "custom-vocabulary": <CustomVocabularyWidget scope={userId || "anonymous"} username={username} />,
     srs: assignments.isLoading ? <section className={styles.section}><SectionHeader title="Active Item Spread" detail="Radicals, kanji, and vocabulary across SRS stages" /><Skeleton height="15rem" /></section> : <SrsSpreadWidget rows={srsSpread} />,
     level: currentSubjects.isLoading ? <section className={styles.section}><SectionHeader title={`Level ${currentLevel} Progress`} detail="Your current level, from lesson to Guru" /><Skeleton height="18rem" /></section> : <DashboardLevelWidget currentLevel={currentLevel} progress={progress} subjects={levelSubjects} />,

@@ -3,6 +3,10 @@ import { NextRequest } from "next/server";
 import { clearRateLimitsForTests } from "@/lib/server/rate-limit";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/features/community/server", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/community/server")>(),
+  communityConfigured: () => true,
+}));
 
 describe("community GET rate limit", () => {
   beforeEach(() => clearRateLimitsForTests());

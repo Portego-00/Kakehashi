@@ -1,8 +1,15 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render as renderBase, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Assignment } from "@/types/wanikani";
 import { AnalyticsOverview, LevelTimingChart } from "../components/AnalyticsOverview";
 import type { LevelTiming } from "../calculations";
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false, gcTime: 0 } } });
+  return renderBase(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+}
 
 const { progressData } = vi.hoisted(() => ({
   progressData: {

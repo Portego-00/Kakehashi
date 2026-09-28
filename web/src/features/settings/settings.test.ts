@@ -7,6 +7,39 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("supports mobile lesson batch sizes and migrates larger web batches", () => {
+    for (let size = 2; size <= 10; size += 1) expect(loadWebSettings(storage({ study: { lessonsBatchSize: size } }), "tester").study.lessonsBatchSize).toBe(size);
+    for (const size of [15, 20]) expect(loadWebSettings(storage({ study: { lessonsBatchSize: size } }), "tester").study.lessonsBatchSize).toBe(10);
+    for (const size of [1, 2.5, "4", 999]) expect(loadWebSettings(storage({ study: { lessonsBatchSize: size } }), "tester").study.lessonsBatchSize).toBe(5);
+  });
+
+  it("defaults lesson order to random and migrates existing choices", () => {
+    expect(loadWebSettings(storage({}), "tester").study.lessonOrder).toBe("random");
+    for (const [saved, expected] of [["available", "oldestUnlockedFirst"], ["level", "lowestLevelFirst"], ["subject-type", "subject-type"], ["random", "random"], ["currentLevelFirst", "currentLevelFirst"], ["newestUnlockedFirst", "newestUnlockedFirst"], ["ascendingSubjectId", "ascendingSubjectId"], ["descendingSubjectId", "descendingSubjectId"]]) {
+      expect(loadWebSettings(storage({ study: { lessonOrder: saved } }), "tester").study.lessonOrder).toBe(expected);
+    }
+  });
+
+  it("persists kana exclusion and normalizes workload thresholds like mobile", () => {
+    const settings = loadWebSettings(storage({ study: { excludeKanaVocabularyFromLessons: true, apprenticeLessonThreshold: 100.9, guruLessonThreshold: 12000 } }), "tester");
+    expect(settings.study).toMatchObject({ excludeKanaVocabularyFromLessons: true, apprenticeLessonThreshold: 100, guruLessonThreshold: 9999 });
+    let saved = "";
+    saveWebSettings({ setItem: (_key, value) => { saved = value; } }, "tester", settings);
+    expect(loadWebSettings({ getItem: () => saved }, "tester").study).toEqual(settings.study);
+    expect(loadWebSettings(storage({ study: { apprenticeLessonThreshold: "100", guruLessonThreshold: -1 } }), "tester").study).toMatchObject({ excludeKanaVocabularyFromLessons: false, apprenticeLessonThreshold: 0, guruLessonThreshold: 0 });
+  });
+
+  it("persists lesson batch minimums and defaults old settings to disabled", () => {
+    for (const value of [true, false]) {
+      const loaded = loadWebSettings(storage({ study: { minimumRadicalKanjiPerBatchEnabled: value } }), "tester");
+      expect(loaded.study.minimumRadicalKanjiPerBatchEnabled).toBe(value);
+      let saved = "";
+      saveWebSettings({ setItem: (_key, data) => { saved = data; } }, "tester", loaded);
+      expect(loadWebSettings({ getItem: () => saved }, "tester").study.minimumRadicalKanjiPerBatchEnabled).toBe(value);
+    }
+    for (const value of [undefined, "true", 1, null]) expect(loadWebSettings(storage({ study: { minimumRadicalKanjiPerBatchEnabled: value } }), "tester").study.minimumRadicalKanjiPerBatchEnabled).toBe(false);
+  });
+
   it("persists study keys and restores the hidden-answer preference", () => {
     const studyShortcuts = { ...DEFAULT_WEB_SETTINGS.study.studyShortcuts, progress: " ", replayAudio: "p" };
     const loaded = loadWebSettings(storage({ study: { studyShortcuts, ankiHideAnswerCompletely: true } }), "tester");

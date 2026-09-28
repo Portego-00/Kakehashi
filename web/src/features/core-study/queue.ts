@@ -94,5 +94,5 @@ export function moveCoreQuestionPairToEnd(questions: CoreQuestion[]) {
   return [...remainingQuestions, current, ...counterpartQuestions];
 }
 
-export function lessonAssignments(assignments: Assignment[]) { return assignments.filter(({ data }) => data.unlocked_at && !data.started_at && !data.hidden && data.srs_stage === 0); }
+export function lessonAssignments(assignments: Assignment[], excludeKanaVocabulary = false) { return assignments.filter(({ data }) => data.unlocked_at && !data.started_at && !data.hidden && data.srs_stage === 0 && (!excludeKanaVocabulary || data.subject_type !== "kana_vocabulary")); }
 export function reviewAssignments(assignments: Assignment[], now = new Date()) { return assignments.filter(({ data }) => data.started_at && !data.hidden && data.srs_stage > 0 && data.srs_stage < 9 && data.available_at && new Date(data.available_at) <= now); }
