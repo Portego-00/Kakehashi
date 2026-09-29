@@ -1,10 +1,8 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import * as StoreReview from "expo-store-review";
 import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -30,6 +28,7 @@ import { useBackgroundTasks } from "../../../src/contexts/BackgroundTasksContext
 import { useDashboardData } from "../../../src/hooks/useDashboardData";
 import { useUsageStreak } from "../../../src/hooks/useUsageStreak";
 import { rateAppService } from "../../../src/services/rateAppService";
+import { requestStreakReview } from "../../../src/services/streakReviewPromptService";
 import {
   clearInMemoryCache,
   isAssignmentInReviewQueueState,
@@ -82,13 +81,7 @@ import {
 
 import { buildCriticalWidgetSnapshot } from "../../../src/widgets/criticalWidgetData";
 
-const STREAK_REVIEW_PROMPT_THRESHOLD = 5;
-const STREAK_REVIEW_PROMPTED_CACHE_KEY_PREFIX = "rate_app_streak_prompted";
 const STREAK_DAY_KEY_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>();
-
-function getStreakReviewPromptCacheKey(userId: string) {
-  return `${STREAK_REVIEW_PROMPTED_CACHE_KEY_PREFIX}_${userId}`;
-}
 
 function toLocalDayKey(date: Date): string {
   const year = date.getFullYear();
@@ -534,7 +527,7 @@ export default function StudyTab() {
       return;
     }
 
-    if (currentStreak < STREAK_REVIEW_PROMPT_THRESHOLD) {
+    if (currentStreak < 5) {
       return;
     }
 
@@ -544,26 +537,10 @@ export default function StudyTab() {
       }
 
       streakReviewPromptInFlightRef.current = true;
-      const cacheKey = getStreakReviewPromptCacheKey(userData.id);
-
       try {
-        const hasBeenPrompted = await AsyncStorage.getItem(cacheKey);
-        if (hasBeenPrompted === "true") {
+        const didRequestReview = await requestStreakReview(userData.id, currentStreak);
+        if (!didRequestReview) {
           return;
-        }
-
-        const canRequestReview = await StoreReview.isAvailableAsync();
-        if (!canRequestReview) {
-          return;
-        }
-
-        await AsyncStorage.setItem(cacheKey, "true");
-
-        try {
-          await StoreReview.requestReview();
-        } catch (error) {
-          await AsyncStorage.removeItem(cacheKey).catch(() => {});
-          throw error;
         }
 
         if (apiToken) {

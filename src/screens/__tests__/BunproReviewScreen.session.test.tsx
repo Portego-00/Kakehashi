@@ -1,4 +1,6 @@
 import React from "react";
+import { Audio } from "../../utils/expoAvCompat";
+import { StyleSheet } from "react-native";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import BunproReviewScreen from "../BunproReviewScreen";
 import { getBunproReviewQuizIndex, updateBunproReview } from "../../utils/bunproApi";
@@ -6,13 +8,22 @@ import type { BunproReviewQueueItem } from "../../types/bunpro";
 import { createBunproReviewSavePolicy } from "../../utils/bunproReviewSavePolicy";
 import type { MixedReviewBridge } from "../../types/mixedReviews";
 
+const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false };
+
+
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
+});
+jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error" } }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }), useLocalSearchParams: () => ({}) }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("../../utils/navigation-focus", () => ({ useOptionalScreenIsFocused: () => true }));
 jest.mock("../../utils/store", () => ({
   useAuthStore: () => ({ userData: { username: "Portego" } }),
-  useSettingsStore: (selector: (state: object) => unknown) => selector({ autoSwitchKeyboard: false }),
+  useSettingsStore: (selector: (state: object) => unknown) => selector(mockReviewSettings),
 }));
 jest.mock("../../utils/theme", () => ({ useTheme: () => ({ theme: { textColor: "#000", textSecondary: "#666", backgroundColor: "#fff", border: "#ccc", error: "#a00" }, isDark: false }) }));
 jest.mock("../../utils/bunproApi", () => ({
@@ -52,7 +63,7 @@ function bridge(active = true): MixedReviewBridge {
   return { active, report: jest.fn(), reportError: jest.fn(), reportProgress: jest.fn(), reportAccuracy: jest.fn(), onAnswer: jest.fn(), previous: null, progress: { completed: 0, total: 2 }, accuracy: { correct: 0, answered: 0 }, onExit: jest.fn(), onWrapUp: jest.fn() };
 }
 
-beforeEach(() => { jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
+beforeEach(() => { mockReviewSettings.autoplayVocabularyAudio = false; mockReviewSettings.allowSkippingReviews = false; mockReviewSettings.vocabularyAudioVoice = "female"; mockReviewSettings.disableAutoProgressOnCorrect = true; mockReviewSettings.disableAutoProgressOnWrong = true; jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
 
 it("serializes saves, ignores repeated Next taps, and clears feedback and input for the next question", async () => {
   const saving = deferred<Record<string, unknown>>();
@@ -193,7 +204,7 @@ it("renders and grades a vocabulary study-question resource using its relationsh
   vocabularyItem.included![0].type = "vocab_study_question";
   const view = render(<BunproReviewScreen initialQueue={[vocabularyItem]} initialReviewSessionId={42} />);
   expect(view.getByText("Question 1 ")).toBeTruthy();
-  expect(view.getByText("Translation 1")).toBeTruthy();
+  expect(view.queryByText("Translation 1")).toBeNull();
   expect(view.getByTestId("meaning-input")).toBeTruthy();
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "a cat");
   fireEvent.press(view.getByLabelText("Check answer"));
@@ -357,4 +368,223 @@ it("resets local save failures when a new external lesson batch starts", async (
   fireEvent.press(view.getByLabelText("Next question"));
   await waitFor(() => expect(view.getByLabelText("Continue without saving")).toBeTruthy());
   expect(view.queryByText(/3 consecutive save failures/)).toBeNull();
+});
+
+
+it("keeps the answer input mounted and editable throughout a successful save", async () => {
+  const saving = deferred<Record<string, unknown>>();
+  jest.mocked(updateBunproReview).mockReturnValue(saving.promise);
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  const input = view.getByLabelText("Bunpro answer");
+  fireEvent.changeText(input, "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Next question"));
+  expect(view.getByLabelText("Bunpro answer")).toBe(input);
+  expect(input.props.editable).toBe(true);
+  fireEvent.changeText(input, "いぬ");
+  expect(input.props.value).toBe("ねこ");
+  await act(async () => saving.resolve({}));
+  expect(view.getByLabelText("Bunpro answer")).toBe(input);
+});
+
+it("advances on a correct answer when the pause setting is off", async () => {
+  mockReviewSettings.disableAutoProgressOnCorrect = false;
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+});
+
+it("uses the web semantic success color for a correct answer", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(StyleSheet.flatten(view.getByTestId("bunpro-answer-row").props.style)).toMatchObject({ borderColor: "#017b37", backgroundColor: "#dcf2df" });
+  expect(StyleSheet.flatten(view.getByLabelText("Bunpro answer").props.style).color).toBe("#000");
+});
+
+
+it("preserves the next draft while retrying a failed background save", async () => {
+  mockReviewSettings.disableAutoProgressOnCorrect = false;
+  const saving = deferred<Record<string, unknown>>();
+  jest.mocked(updateBunproReview).mockReturnValueOnce(saving.promise);
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "い");
+  await act(async () => saving.reject(new Error("Offline")));
+  expect(view.getByLabelText("Retry previous save")).toBeTruthy();
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("い");
+  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+  fireEvent.press(view.getByLabelText("Retry previous save"));
+  await waitFor(() => expect(view.queryByLabelText("Retry previous save")).toBeNull());
+  expect(updateBunproReview).toHaveBeenLastCalledWith(expect.objectContaining({ reviewId: "1" }));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("い");
+});
+
+
+it("advances a wrong answer when its pause setting is off and retains it for retry", async () => {
+  mockReviewSettings.disableAutoProgressOnWrong = false;
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  expect(updateBunproReview).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ correct: false }) }));
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByText("Question 1 ")).toBeTruthy());
+});
+
+it("shows and accepts the next answer before a slow Bunpro save finishes", async () => {
+  mockReviewSettings.disableAutoProgressOnCorrect = false;
+  const saving = deferred<Record<string, unknown>>();
+  jest.mocked(updateBunproReview).mockReturnValueOnce(saving.promise);
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2"), item("3")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(view.getByText("Question 3 ")).toBeTruthy());
+  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+  await act(async () => saving.resolve({}));
+  await waitFor(() => expect(updateBunproReview).toHaveBeenCalledTimes(2));
+});
+
+it("retains the native Bunpro input while handing focus to another mixed provider", () => {
+  const queue = [item("1"), item("2")];
+  const mixed = bridge();
+  const view = render(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={mixed} />);
+  const input = view.getByLabelText("Bunpro answer");
+  view.rerender(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={{ ...mixed, active: false }} />);
+  expect(view.getByLabelText("Bunpro answer", { includeHiddenElements: true })).toBe(input);
+  expect(input.props.editable).toBe(true);
+});
+
+it("waits for earlier background saves before saving the last answer and showing results", async () => {
+  mockReviewSettings.disableAutoProgressOnCorrect = false;
+  const saving = deferred<Record<string, unknown>>();
+  jest.mocked(updateBunproReview).mockReturnValueOnce(saving.promise);
+  const mixed = { ...bridge(), reportSaving: jest.fn(), onSaveSettled: jest.fn() };
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} mixed={mixed} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(mixed.onAnswer).toHaveBeenCalledWith(expect.objectContaining({ saveStatus: "pending" })));
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+  expect(mixed.report).not.toHaveBeenLastCalledWith(null);
+  expect(mixed.reportSaving).toHaveBeenLastCalledWith(true);
+  await act(async () => saving.resolve({}));
+  await waitFor(() => expect(updateBunproReview).toHaveBeenCalledTimes(2));
+  expect(mixed.onSaveSettled).toHaveBeenCalledWith(expect.objectContaining({ saveStatus: "saved" }));
+  expect(mixed.report).toHaveBeenLastCalledWith(null);
+  expect(mixed.reportSaving).toHaveBeenLastCalledWith(false);
+});
+
+
+it("hands the last Bunpro turn to another provider while its save is still pending", async () => {
+  mockReviewSettings.disableAutoProgressOnCorrect = false;
+  const saving = deferred<Record<string, unknown>>();
+  jest.mocked(updateBunproReview).mockReturnValueOnce(saving.promise);
+  const mixed = bridge();
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} mixed={mixed} />);
+  const input = view.getByLabelText("Bunpro answer");
+  fireEvent.changeText(input, "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  await waitFor(() => expect(mixed.onAnswer).toHaveBeenCalledWith(expect.objectContaining({ saveStatus: "pending" })));
+  expect(mixed.report).toHaveBeenLastCalledWith({ id: expect.stringMatching(/^saving:/) });
+  expect(view.getByLabelText("Bunpro answer")).toBe(input);
+  await act(async () => saving.resolve({}));
+  expect(mixed.report).toHaveBeenLastCalledWith(null);
+});
+
+
+it.each([false, true])("keeps a visible verdict for 350ms before advancing (mixed=%s)", async (isMixed) => {
+  jest.useFakeTimers();
+  try {
+    mockReviewSettings.disableAutoProgressOnCorrect = false;
+    const mixed = isMixed ? bridge() : undefined;
+    const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} mixed={mixed} />);
+    fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+    fireEvent.press(view.getByLabelText("Check answer"));
+    expect(view.getByText("Correct")).toBeTruthy();
+    expect(view.getByText("Question 1 ")).toBeTruthy();
+    act(() => jest.advanceTimersByTime(349));
+    expect(updateBunproReview).not.toHaveBeenCalled();
+    await act(async () => jest.advanceTimersByTime(1));
+    expect(view.getByText("Question 2 ")).toBeTruthy();
+    if (mixed) expect(mixed.onAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true }));
+    else expect(view.getByLabelText("Previous Bunpro answer: Subject 1, correct")).toBeTruthy();
+    view.unmount();
+  } finally { jest.useRealTimers(); }
+});
+
+it("cycles the web grammar hint levels and resets them for the next question", async () => {
+  const first = item("1", "ねこ", "GrammarPoint");
+  Object.assign(first.included![0].attributes, { tense: "Past tense", word_prompt: "Verb prompt", extra_info: "Extra note" });
+  Object.assign(first.included![1].attributes, { nuance: "日本語の説明", nuance_translation: "English nuance" });
+  const view = render(<BunproReviewScreen initialQueue={[first, item("2", "ねこ", "GrammarPoint")]} initialReviewSessionId={42} />);
+  expect(view.getByText("Past tense")).toBeTruthy();
+  expect(view.getByText("Translation 1")).toBeTruthy();
+  expect(view.queryByText("English nuance")).toBeNull();
+  fireEvent.press(view.getByLabelText("Hint level 2 of 4"));
+  expect(view.getByText("English nuance")).toBeTruthy();
+  expect(view.getByText("Extra note")).toBeTruthy();
+  expect(view.queryByText("日本語の説明")).toBeNull();
+  fireEvent.press(view.getByLabelText("Hint level 3 of 4"));
+  expect(view.getByText("日本語の説明")).toBeTruthy();
+  fireEvent.press(view.getByLabelText("Hint level 4 of 4"));
+  expect(view.queryByText("Past tense")).toBeNull();
+  expect(view.queryByText("Translation 1")).toBeNull();
+  fireEvent.press(view.getByLabelText("Hint level 0 of 4"));
+  expect(view.getByText("Translation 1")).toBeTruthy();
+  expect(view.queryByText("Past tense")).toBeNull();
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByText("Past tense")).toBeTruthy();
+  fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  expect(view.getByLabelText("Hint level 2 of 4")).toBeTruthy();
+});
+
+it("supports correcting a missed answer and skipping without saving", async () => {
+  mockReviewSettings.allowSkippingReviews = true;
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  fireEvent.press(view.getByLabelText("Skip Bunpro question"));
+  expect(view.getByText("Question 2 ")).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "wrong");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByText("Incorrect")).toBeTruthy();
+  fireEvent.press(view.getByLabelText("Mark correct"));
+  await waitFor(() => expect(view.getByText("Question 1 ")).toBeTruthy());
+  expect(updateBunproReview).toHaveBeenCalledWith(expect.objectContaining({ reviewId: "2", payload: expect.objectContaining({ correct: true }) }));
+});
+
+it("autoplays the selected voice and waits for playback before the verdict dwell", async () => {
+  jest.useFakeTimers();
+  try {
+    mockReviewSettings.autoplayVocabularyAudio = true;
+    mockReviewSettings.vocabularyAudioVoice = "male";
+    mockReviewSettings.disableAutoProgressOnCorrect = false;
+    const clip = { unloadAsync: jest.fn(async () => {}), playAsync: jest.fn(async () => {}), setOnPlaybackStatusUpdate: jest.fn() };
+    jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: clip } as any);
+    const first = item("1");
+    Object.assign(first.included![0].attributes, { female_audio_url: "https://example.com/female.mp3", male_audio_url: "https://example.com/male.mp3" });
+    const view = render(<BunproReviewScreen initialQueue={[first, item("2")]} initialReviewSessionId={42} />);
+    fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+    await act(async () => fireEvent.press(view.getByLabelText("Check answer")));
+    expect(Audio.Sound.createAsync).toHaveBeenCalledWith({ uri: "https://example.com/male.mp3" }, { shouldPlay: false });
+    act(() => jest.advanceTimersByTime(1000));
+    expect(view.getByText("Question 1 ")).toBeTruthy();
+    await act(async () => clip.setOnPlaybackStatusUpdate.mock.calls[0][0]({ isLoaded: true, didJustFinish: true }));
+    await act(async () => jest.advanceTimersByTime(350));
+    expect(view.getByText("Question 2 ")).toBeTruthy();
+    view.unmount();
+  } finally { jest.useRealTimers(); }
 });

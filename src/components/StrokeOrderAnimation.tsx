@@ -1,8 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import {
-  HanziWriter,
-  useHanziWriter,
-} from "@jamsch/react-native-hanzi-writer";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,9 +10,11 @@ import {
   View,
 } from "react-native";
 import Svg, { Line } from "react-native-svg";
-import { loadKanjiWriterData } from "../utils/kanjiWriterDataLoader";
+import { type CharacterData, loadKanjiWriterData } from "../utils/kanjiWriterDataLoader";
 import { useSubjectColors, withAlpha } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
+import { useStrokePlayback } from "../hooks/useStrokePlayback";
+import KanjiStrokeCanvas from "./KanjiStrokeCanvas";
 
 interface StrokeOrderAnimationProps {
   character: string;
@@ -82,41 +80,25 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
   const svgSize = Math.min(screenWidth - 64, 320);
 
   const [speedIndex, setSpeedIndex] = useState(1); // Default to 1x speed
-  const [totalStrokes, setTotalStrokes] = useState(0);
+  const [data, setData] = useState<CharacterData | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const { frame, isPlaying, play, stop: handleStop } = useStrokePlayback(data?.strokes.length ?? 0);
 
-  const writer = useHanziWriter({
-    character,
-    loader: loadKanjiWriterData,
-  });
-
-  const animatorStore = writer.animator.store;
-  useEffect(() => () => animatorStore.setState({ state: "stopped", animationKey: null }), [animatorStore]);
-
-  // Track animation state from the writer
-  const animatorState = writer.animator.useStore((s) => s.state);
-  const isPlaying = animatorState === "playing";
-
-  // Get total strokes when character loads
   useEffect(() => {
-    if (writer.characterState.status === "resolved") {
-      const charData = writer.characterState.data;
-      setTotalStrokes(charData.strokes.length);
-    }
-  }, [writer.characterState.status, writer.characterState]);
+    let active = true;
+    setLoadError(false);
+    loadKanjiWriterData(character).then(
+      (result) => { if (active) setData(result); },
+      () => { if (active) setLoadError(true); },
+    );
+    return () => { active = false; };
+  }, [character, attempt]);
 
-  const handlePlay = useCallback(() => {
-    if (writer.characterState.status !== "resolved") return;
-
+  const handlePlay = () => {
     const speed = SPEED_OPTIONS[speedIndex];
-    writer.animator.animateCharacter({
-      strokeDuration: speed.strokeDuration,
-      delayBetweenStrokes: speed.delayBetweenStrokes,
-    });
-  }, [writer.characterState.status, writer.animator, speedIndex]);
-
-  const handleStop = useCallback(() => {
-    writer.animator.cancelAnimation();
-  }, [writer.animator]);
+    play(speed.strokeDuration, speed.delayBetweenStrokes);
+  };
 
   const cycleSpeed = useCallback(() => {
     setSpeedIndex((prev) => (prev + 1) % SPEED_OPTIONS.length);
@@ -127,7 +109,7 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
     : "rgba(0,0,0,0.1)";
 
   // Loading state
-  if (writer.characterState.status === "idle" || writer.characterState.status === "pending") {
+  if (!data && !loadError) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -139,14 +121,14 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
   }
 
   // Error state
-  if (writer.characterState.status === "rejected") {
+  if (!data) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle" size={48} color={theme.textSecondary} />
         <Text style={[styles.errorText, { color: theme.textSecondary }]}>
           Stroke order data not available for this kanji
         </Text>
-        <TouchableOpacity accessibilityRole="button" onPress={writer.refetch} style={{ padding: 12 }}>
+        <TouchableOpacity accessibilityRole="button" onPress={() => setAttempt((value) => value + 1)} style={{ padding: 12 }}>
           <Text style={{ color: theme.primary }}>Try again</Text>
         </TouchableOpacity>
       </View>
@@ -157,10 +139,6 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
   const outlineColor = theme.isDark
     ? "rgba(255,255,255,0.2)"
     : "rgba(0,0,0,0.1)";
-
-  // The library uses a fixed 300x300 canvas, so we scale it to fit our container
-  const librarySize = 300;
-  const scale = svgSize / librarySize;
 
   return (
     <View style={styles.container}>
@@ -186,37 +164,13 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
           {/* Custom grid overlay */}
           <GridOverlay size={svgSize} color={gridColor} />
 
-          {/* Scale the fixed 300x300 HanziWriter to fit our container */}
-          <View
-            style={{
-              width: librarySize,
-              height: librarySize,
-              transform: [{ scale }],
-              transformOrigin: "top left",
-              overflow: "hidden",
-              marginTop: -5,
-            }}
-          >
-            <HanziWriter
-              writer={writer}
-              style={styles.writer}
-              loading={
-                <View style={styles.loadingInner}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                </View>
-              }
-              error={
-                <View style={styles.errorInner}>
-                  <Ionicons name="alert-circle" size={32} color={theme.error} />
-                </View>
-              }
-            >
-              <HanziWriter.Svg>
-                <HanziWriter.Outline color={outlineColor} />
-                <HanziWriter.Character color={strokeColor} />
-              </HanziWriter.Svg>
-            </HanziWriter>
-          </View>
+          <KanjiStrokeCanvas
+            data={data}
+            frame={frame}
+            size={svgSize}
+            strokeColor={strokeColor}
+            outlineColor={outlineColor}
+          />
         </View>
 
         {/* Stroke counter badge */}
@@ -227,7 +181,7 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
           ]}
         >
           <Text style={[styles.strokeBadgeText, { color: theme.textColor }]}>
-            {totalStrokes}
+            {data.strokes.length}
             <Text style={{ color: theme.textSecondary }}> strokes</Text>
           </Text>
         </View>
@@ -245,6 +199,8 @@ function StrokeOrderPlayer({ character, onPractice }: StrokeOrderAnimationProps)
                 borderColor: theme.isDark ? "#444" : "#ddd",
               },
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Animation speed ${SPEED_OPTIONS[speedIndex].label}`}
             onPress={cycleSpeed}
             activeOpacity={0.7}
           >
@@ -347,19 +303,6 @@ const styles = StyleSheet.create({
       ios: { elevation: 8 },
       android: { borderWidth: 1, borderColor: "rgba(0,0,0,0.1)" },
     }),
-  },
-  writer: {
-    flex: 1,
-  },
-  loadingInner: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorInner: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
   },
   strokeBadge: {
     position: "absolute",

@@ -40,90 +40,78 @@ function getKanjiDataUrls(character: string): string[] {
   ];
 }
 
-async function fetchKanjiJsonWithTimeout(
-  url: string,
-  timeoutMs: number
-): Promise<Response> {
-  if (typeof AbortController === "undefined") {
-    return fetch(url);
-  }
+function isCharacterData(value: unknown): value is CharacterData {
+  if (!value || typeof value !== "object") return false;
+  const { strokes, medians, radStrokes } = value as Partial<CharacterData>;
+  return Array.isArray(strokes) && strokes.length > 0
+    && strokes.every((path) => typeof path === "string" && path.trim().startsWith("M"))
+    && Array.isArray(medians) && medians.length === strokes.length
+    && medians.every((points) => Array.isArray(points) && points.length >= 2
+      && points.every((point) => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+      && points.some((point) => point[0] !== points[0][0] || point[1] !== points[0][1]))
+    && (radStrokes === undefined || (Array.isArray(radStrokes) && radStrokes.every(Number.isInteger)));
+}
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
+async function readCachedData(character: string): Promise<CharacterData | null> {
   try {
-    return await fetch(url, { signal: controller.signal });
+    const cached = await AsyncStorage.getItem(getCacheKey(character));
+    const data: unknown = cached ? JSON.parse(cached) : null;
+    if (isCharacterData(data)) return data;
+  } catch {
+    // A damaged cache or unavailable storage must not prevent a network retry.
+  }
+  return null;
+}
+
+async function fetchKanjiData(url: string): Promise<CharacterData> {
+  const controller = typeof AbortController === "undefined" ? undefined : new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Cover the body as well as headers, including fetch implementations that
+    // don't reject promptly when aborted.
+    return await Promise.race([
+      (async () => {
+        const response = await fetch(url, { signal: controller?.signal });
+        if (!response.ok) throw new Error(`Stroke data HTTP ${response.status}`);
+        const data: unknown = await response.json();
+        if (!isCharacterData(data)) throw new Error("Invalid stroke data");
+        return data;
+      })(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error("Stroke data request timed out"));
+          controller?.abort();
+        }, KANJI_FETCH_TIMEOUT_MS);
+      }),
+    ]);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(timeout);
   }
 }
 
-/**
- * Load kanji stroke data for HanziWriter
- * Caches data locally for faster subsequent loads
- */
-export async function loadKanjiWriterData(
-  character: string
-): Promise<CharacterData> {
+/** Load validated Japanese-first stroke data, sharing requests and caching successes. */
+export async function loadKanjiWriterData(character: string): Promise<CharacterData> {
   const existingRequest = inFlightLoads.get(character);
-  if (existingRequest) {
-    return existingRequest;
-  }
+  if (existingRequest) return existingRequest;
 
   const loadPromise = (async () => {
-  const cacheKey = getCacheKey(character);
+    const cached = await readCachedData(character);
+    if (cached) return cached;
 
-  // Check cache first
-  try {
-    const cached = await AsyncStorage.getItem(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (error) {
-    console.warn("Error reading kanji writer cache:", error);
-  }
-
-  // Fetch from CDN - try Japanese first, then Chinese fallback
-  const urls = getKanjiDataUrls(character);
-
-  for (const url of urls) {
-    try {
-      const response = await fetchKanjiJsonWithTimeout(
-        url,
-        KANJI_FETCH_TIMEOUT_MS
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-
-        // Cache the result
+    for (const url of getKanjiDataUrls(character)) {
+      try {
+        const data = await fetchKanjiData(url);
         try {
-          await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
-        } catch (cacheError) {
-          console.warn("Error caching kanji writer data:", cacheError);
+          await AsyncStorage.setItem(getCacheKey(character), JSON.stringify(data));
+        } catch {
+          // Playback can still work when storage is full.
         }
-
         return data;
+      } catch {
+        // Try the fallback. Never persist a network failure as unavailable.
       }
-    } catch {
-      // Try next URL
-      continue;
     }
-  }
-
-  // Mark as unavailable in cache to avoid repeated failed requests
-  try {
-    await AsyncStorage.setItem(
-      `${KANJI_UNAVAILABLE_PREFIX}${character}`,
-      "true"
-    );
-  } catch {
-    // Ignore cache errors
-  }
-
-  throw new Error(`Kanji stroke data not available for: ${character}`);
+    throw new Error(`Kanji stroke data not available for: ${character}`);
   })();
 
   inFlightLoads.set(character, loadPromise);
@@ -162,69 +150,17 @@ export async function preloadKanjiWriterData(
  * Check if kanji stroke data is available in cache
  */
 export async function isKanjiDataCached(character: string): Promise<boolean> {
-  const cacheKey = getCacheKey(character);
+  return (await readCachedData(character)) !== null;
+}
+
+/** A previous offline failure must never permanently hide the stroke player. */
+export async function isKanjiStrokeDataAvailable(character: string): Promise<boolean> {
   try {
-    const cached = await AsyncStorage.getItem(cacheKey);
-    return cached !== null;
+    await loadKanjiWriterData(character);
+    return true;
   } catch {
     return false;
   }
-}
-
-/**
- * Check if kanji stroke data is available (tries to load if not cached)
- * Returns true if data is available, false if not
- */
-export async function isKanjiStrokeDataAvailable(
-  character: string
-): Promise<boolean> {
-  // Check if already marked as unavailable
-  try {
-    const unavailable = await AsyncStorage.getItem(
-      `${KANJI_UNAVAILABLE_PREFIX}${character}`
-    );
-    if (unavailable) {
-      return false;
-    }
-  } catch {
-    // Ignore
-  }
-
-  // Check if already cached successfully
-  const cacheKey = getCacheKey(character);
-  try {
-    const cached = await AsyncStorage.getItem(cacheKey);
-    if (cached) {
-      return true;
-    }
-  } catch {
-    // Ignore
-  }
-
-  // Try to fetch from CDN
-  const urls = getKanjiDataUrls(character);
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, { method: "HEAD" });
-      if (response.ok) {
-        return true;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  // Mark as unavailable
-  try {
-    await AsyncStorage.setItem(
-      `${KANJI_UNAVAILABLE_PREFIX}${character}`,
-      "true"
-    );
-  } catch {
-    // Ignore
-  }
-
-  return false;
 }
 
 /**
@@ -234,7 +170,7 @@ export async function clearKanjiWriterCache(): Promise<void> {
   try {
     const allKeys = await AsyncStorage.getAllKeys();
     const kanjiWriterKeys = allKeys.filter((key) =>
-      key.startsWith(KANJI_DATA_CACHE_PREFIX)
+      key.startsWith(KANJI_DATA_CACHE_PREFIX) || key.startsWith(KANJI_UNAVAILABLE_PREFIX)
     );
     await AsyncStorage.multiRemove(kanjiWriterKeys);
   } catch (error) {

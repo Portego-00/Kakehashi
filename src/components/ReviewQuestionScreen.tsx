@@ -220,6 +220,8 @@ interface ReviewQuestionProps {
   onAskAgain?: (item: ReviewItem, questionType: QuestionType) => void;
   onSkip?: (item: ReviewItem, questionType: QuestionType) => void;
   onExit?: () => void;
+  reviewActive?: boolean;
+  hidePreviousAnswer?: boolean;
   mixedPrevious?: { title: string; correct: boolean; source: "wanikani" | "bunpro" } | null;
   // Custom subjects open their own detail route, not a WaniKani subject ID.
   onViewSubjectDetails?: (subjectId: number) => void;
@@ -992,6 +994,8 @@ export default function ReviewQuestionScreen({
   onSkip,
   onExit,
   mixedPrevious,
+  reviewActive,
+  hidePreviousAnswer = false,
   onViewSubjectDetails,
   showHeader = true,
   showBackgroundColor = true,
@@ -1204,7 +1208,16 @@ export default function ReviewQuestionScreen({
     useRef<FormattedNoteEditorHandle>(null);
   const originalNoteSignatureRef = useRef("");
   const checkingNoteChangesRef = useRef(false);
-  const isScreenFocused = useOptionalScreenIsFocused();
+  const screenFocused = useOptionalScreenIsFocused();
+  const isScreenFocused = screenFocused && reviewActive !== false;
+  const reviewActiveRef = useRef(isScreenFocused);
+  reviewActiveRef.current = reviewActive === undefined || isScreenFocused;
+  const focusAnswerInput = useCallback(() => {
+    if (reviewActiveRef.current) kanaInputRef.current?.focus?.();
+  }, []);
+  useLayoutEffect(() => {
+    if (reviewActive !== undefined && isScreenFocused && !effectiveAnkiCardMode && !usesMultipleChoice) focusAnswerInput();
+  }, [isScreenFocused, reviewActive, effectiveAnkiCardMode, usesMultipleChoice, focusAnswerInput]);
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
@@ -2284,7 +2297,7 @@ export default function ReviewQuestionScreen({
     if (!mountedRef.current) return;
     cancelVoiceRecognition();
     setIsVoiceRecognizing(false);
-    if (effectiveAnkiCardMode || usesMultipleChoice) {
+    if (reviewActiveRef.current && (effectiveAnkiCardMode || usesMultipleChoice)) {
       // Dismiss the keyboard before switching to tap-based answers so the first
       // answer tap is not consumed by blur.
       pausedShortcutInputRef.current?.blur();
@@ -2332,13 +2345,13 @@ export default function ReviewQuestionScreen({
       if (focusDelay > 0) {
         setTimeout(() => {
           if (mountedRef.current) {
-            kanaInputRef.current?.focus?.();
+            focusAnswerInput();
           }
         }, focusDelay);
       } else {
         requestAnimationFrame(() => {
           if (mountedRef.current) {
-            kanaInputRef.current?.focus?.();
+            focusAnswerInput();
           }
         });
       }
@@ -2352,6 +2365,7 @@ export default function ReviewQuestionScreen({
     shakeAnimation,
     feedbackOpacity,
     ankiContainerHeight,
+    focusAnswerInput,
   ]);
 
   // Keep the user's hands-free choice across questions, but never carry a native
@@ -2414,6 +2428,7 @@ export default function ReviewQuestionScreen({
   // Restore the useFocusEffect to reset state when returning to the screen
   useFocusEffect(
     React.useCallback(() => {
+      if (reviewActive === false) return;
       // Always reset navigatingToDetail when screen is focused
       if (mountedRef.current) {
         setNavigatingToDetail(false);
@@ -2425,7 +2440,7 @@ export default function ReviewQuestionScreen({
         // when returning with a programmatic back action.
         const focusInput = () => {
           if (kanaInputRef.current?.focus && mountedRef.current) {
-            kanaInputRef.current.focus();
+            focusAnswerInput();
           }
         };
 
@@ -2458,7 +2473,7 @@ export default function ReviewQuestionScreen({
           interactionTask.cancel();
         };
       }
-    }, [isIpadOrMacFormFactor]),
+    }, [isIpadOrMacFormFactor, reviewActive, focusAnswerInput]),
   );
 
   useEffect(() => {
@@ -2613,7 +2628,14 @@ export default function ReviewQuestionScreen({
     boxScale.value = withTiming(targetScale, { duration: 600 });
   };
 
+  useEffect(() => {
+    if (mixedPrevious) animateAnsweredItemBox();
+    // Mixed answers arrive independently of this provider's own submissions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mixedPrevious, reviewAnimatePreviousQuestion]);
+
   const handleAnswerChange = (text: string) => {
+    if (!reviewActiveRef.current) return;
     if (mountedRef.current) {
       if (isPausedOnWrong || isPausedOnCloseAnswer || isPausedOnCorrect) {
         return;
@@ -2890,7 +2912,7 @@ export default function ReviewQuestionScreen({
       | { source: "keyboard" | "voice"; answer: string }
       | { source: "choice"; answer: string; choice: ReviewAnswerChoice },
   ) => {
-    if (answered || !mountedRef.current) return;
+    if (answered || !mountedRef.current || !reviewActiveRef.current) return;
     if (
       !tryStartQuestionSubmission(
         reviewSubmissionGuardRef.current,
@@ -3164,7 +3186,7 @@ export default function ReviewQuestionScreen({
       // If not navigating away, keep the keyboard focused
       setTimeout(() => {
         if (kanaInputRef.current?.focus && mountedRef.current) {
-          kanaInputRef.current.focus();
+          focusAnswerInput();
         }
       }, 100);
     }
@@ -3379,7 +3401,7 @@ export default function ReviewQuestionScreen({
     // Ensure focus is maintained after animation
     setTimeout(() => {
       if (kanaInputRef.current?.focus) {
-        kanaInputRef.current.focus();
+        focusAnswerInput();
       }
     }, 350);
   };
@@ -3428,7 +3450,7 @@ export default function ReviewQuestionScreen({
 
     // Re-focus input for next question
     setTimeout(() => {
-      kanaInputRef.current?.focus?.();
+      focusAnswerInput();
     }, 100);
   };
 
@@ -3478,7 +3500,7 @@ export default function ReviewQuestionScreen({
 
     // Re-focus input for next question
     setTimeout(() => {
-      kanaInputRef.current?.focus?.();
+      focusAnswerInput();
     }, 100);
   };
 
@@ -3521,7 +3543,7 @@ export default function ReviewQuestionScreen({
 
     // Re-focus input for next question
     setTimeout(() => {
-      kanaInputRef.current?.focus?.();
+      focusAnswerInput();
     }, 100);
   };
 
@@ -4248,11 +4270,12 @@ export default function ReviewQuestionScreen({
 
     // Re-focus input for next question
     setTimeout(() => {
-      kanaInputRef.current?.focus?.();
+      focusAnswerInput();
     }, 100);
   };
 
   const handleSubmitOrAdvance = (submittedText?: string) => {
+    if (!reviewActiveRef.current) return;
     if (Date.now() < suppressSubmitUntilRef.current) {
       return;
     }
@@ -4504,6 +4527,7 @@ export default function ReviewQuestionScreen({
   };
 
   const handleInputSubmitEditing = (event?: TextInputSubmitEditingEvent) => {
+    if (!reviewActiveRef.current) return;
     if (Date.now() < suppressSubmitUntilRef.current) {
       return;
     }
@@ -5835,15 +5859,15 @@ export default function ReviewQuestionScreen({
       )}
 
       {/* Previous Answered Item Box */}
-      {mixedPrevious ? (
-        <View style={styles.answeredItemBox} accessibilityLabel={`Previous ${mixedPrevious.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${mixedPrevious.title}, ${mixedPrevious.correct ? "correct" : "incorrect"}`}>
+      {!hidePreviousAnswer && (mixedPrevious ? (
+        <Animated.View style={[styles.answeredItemBox, answeredItemBoxStyle]} accessibilityLabel={`Previous ${mixedPrevious.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${mixedPrevious.title}, ${mixedPrevious.correct ? "correct" : "incorrect"}`}>
           <View style={[styles.answeredItemBoxTouchable, { backgroundColor: mixedPrevious.source === "bunpro" ? "#cc5b5d" : theme.primary }]}>
             <Text numberOfLines={2} style={{ color: "white", fontSize: 18, textAlign: "center" }}>{mixedPrevious.title}</Text>
             <View style={[styles.answeredItemStatusIndicator, { backgroundColor: mixedPrevious.correct ? "#4caf50" : "#f44336" }]}>
               <Ionicons name={mixedPrevious.correct ? "checkmark" : "close"} size={20} color="white" />
             </View>
           </View>
-        </View>
+        </Animated.View>
       ) : previousAnswerItem && (
         <Animated.View style={[styles.answeredItemBox, answeredItemBoxStyle]}>
           <TouchableOpacity
@@ -5878,7 +5902,7 @@ export default function ReviewQuestionScreen({
             </View>
           </TouchableOpacity>
         </Animated.View>
-      )}
+      ))}
 
       <KeyboardAvoidingView
         style={styles.questionContainer}
@@ -7046,6 +7070,7 @@ export default function ReviewQuestionScreen({
                     onSubmitEditing={handleInputSubmitEditing}
                     enableKanaConversion={questionType === "reading"}
                     useJapaneseKeyboard={autoSwitchKeyboard && questionType === "reading"}
+                    preserveKeyboardOnHandoff={reviewActive !== undefined}
                     resetSignal={`${currentQuestionKey}-${retryCount}-${inputResetNonce}`}
                     submitBehavior="submit"
                   />

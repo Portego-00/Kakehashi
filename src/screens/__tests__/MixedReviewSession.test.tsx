@@ -1,3 +1,4 @@
+
 import React from "react";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import type { MixedReviewBridge } from "../../types/mixedReviews";
@@ -5,11 +6,17 @@ import type { BunproReviewSavePolicy } from "../../utils/bunproReviewSavePolicy"
 import { MixedReviewSession } from "../../../app/(app)/mixed-reviews";
 import { Alert } from "react-native";
 import { router } from "expo-router";
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
+});
 
+const mockRenders: Record<string, number> = {};
 const mockMounts: Record<string, number> = {};
 const mockBridges: Record<string, MixedReviewBridge> = {};
 const mockSavePolicies: Record<string, BunproReviewSavePolicy> = {};
-jest.mock("expo-router", () => ({ router: { dismissAll: jest.fn(), replace: jest.fn(), back: jest.fn() }, useFocusEffect: jest.fn(), useLocalSearchParams: () => ({}) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), router: { dismissAll: jest.fn(), replace: jest.fn(), back: jest.fn() }, useFocusEffect: jest.fn(), useLocalSearchParams: () => ({}) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
 jest.mock("../../hooks/useActivityTracking", () => ({ useActivityTracking: jest.fn() }));
 jest.mock("../../utils/theme", () => ({ useTheme: () => ({ theme: { backgroundColor: "white", textColor: "black", textSecondary: "gray", primary: "blue", border: "gray" } }) }));
@@ -22,6 +29,7 @@ function MockProvider({ lane, bridge }: { lane: string; bridge: MixedReviewBridg
   const bridgeRef = React.useRef(bridge);
   bridgeRef.current = bridge;
   mockBridges[lane] = bridge;
+  mockRenders[lane] = (mockRenders[lane] ?? 0) + 1;
   React.useEffect(() => { mockMounts[lane] = (mockMounts[lane] ?? 0) + 1; }, [lane]);
   React.useEffect(() => {
     bridgeRef.current.reportProgress({ completed: index, total: 2 });
@@ -128,4 +136,27 @@ describe("mounted mixed review providers", () => {
     expect(screen.getByText("Ghost review")).toBeTruthy();
     expect(screen.queryByText("Normal review")).toBeNull();
   });
+});
+
+it("keeps one previous-answer card and does not rerender an inactive lane for save/progress updates", async () => {
+  jest.spyOn(Math, "random").mockReturnValue(0);
+  try {
+    const view = render(<MixedReviewSession mode="grammar" />);
+    await waitFor(() => expect(mockBridges.wanikani.active).toBe(true));
+    const initialGrammarRenders = mockRenders.grammar;
+    act(() => mockBridges.wanikani.reportSaving?.(true));
+    act(() => mockBridges.wanikani.reportSaving?.(false));
+    expect(mockRenders.grammar).toBe(initialGrammarRenders);
+    fireEvent.press(view.getByTestId("answer-wanikani"));
+    await waitFor(() => expect(mockBridges.grammar.active).toBe(true));
+    const card = view.getByTestId("previous-answer-card");
+    const inactiveWaniKaniRenders = mockRenders.wanikani;
+    act(() => mockBridges.grammar.reportSaving?.(true));
+    act(() => mockBridges.grammar.reportSaving?.(false));
+    expect(mockRenders.wanikani).toBe(inactiveWaniKaniRenders);
+    expect(view.getByTestId("previous-answer-card")).toBe(card);
+    fireEvent.press(view.getByTestId("answer-grammar"));
+    await waitFor(() => expect(mockBridges.wanikani.active).toBe(true));
+    expect(view.getByTestId("previous-answer-card")).toBe(card);
+  } finally { jest.restoreAllMocks(); }
 });

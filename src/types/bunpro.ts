@@ -231,6 +231,7 @@ export interface BunproReviewablesSearchResponse {
 export type BunproReviewableKind = "vocab" | "grammar";
 
 export interface BunproStudyQuestionAttributes extends Record<string, unknown> {
+  extra_info?: string | null;
   id: number;
   content: string;
   answer?: string | null;

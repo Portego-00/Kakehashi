@@ -107,6 +107,7 @@ const REVIEW_PERMISSION_WARNING_MESSAGE =
   "Your API token does not have review write permission (reviews:create). Open WaniKani Personal Access Tokens, enable review write access, then log in again with the updated token.";
 
 export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = {}) {
+  const retainedMixedQuestionRef = useRef<React.ReactElement<{ reviewActive?: boolean }> | null>(null);
   const mixedRef = useRef(mixed);
   mixedRef.current = mixed;
   const [mixedLoadError, setMixedLoadError] = useState<string | null>(null);
@@ -2162,6 +2163,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
         source: "wanikani",
         title: item.subject.data.characters || item.subject.data.slug || "WaniKani",
         subjectId: item.subject.id,
+        subjectType: item.subject.object,
         correct: isCorrect && (!isGroupedAnswer || (updatedItems[itemIndex].meaningIncorrect === 0 && updatedItems[itemIndex].readingIncorrect === 0)),
       });
     }
@@ -2729,7 +2731,8 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
 
     return (
       <ReviewQuestionScreen
-        mixedPrevious={mixed?.previous}
+        hidePreviousAnswer={Boolean(mixed)}
+        reviewActive={mixed?.active}
         item={{
           id: item.id,
           subject: item.subject as any,
@@ -2832,9 +2835,8 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     );
   };
 
-  // The provider queue remains mounted, while its interactive question is
-  // unmounted between turns so hidden inputs, timers and audio cannot fire.
-  if (mixed && !mixed.active) return null;
+  // Keep the native answer field mounted until the next provider takes focus.
+  // The mixed session hides inactive lanes; reviewActive gates input and focus.
 
   if (mixedLoadError && mixed) {
     return <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundColor }]}>
@@ -2848,14 +2850,12 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     </View>;
   }
 
-  if (mixed && isFinished) return null;
-
   if (isLoading) {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.backgroundColor }]}
       >
-        <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
+        {mixed?.active !== false ? <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} /> : null}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.secondary} />
           <Text style={[styles.loadingText, { color: theme.textColor }]}>
@@ -2867,14 +2867,21 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     );
   }
 
+  const renderedQuestion = !isFinished ? renderCurrentQuestion() : null;
+  if (mixed && renderedQuestion?.type === ReviewQuestionScreen) {
+    retainedMixedQuestionRef.current = renderedQuestion;
+  }
+  const questionContent = renderedQuestion ?? (mixed && retainedMixedQuestionRef.current
+    ? React.cloneElement(retainedMixedQuestionRef.current, { reviewActive: false }) : null);
+
   return (
     <View
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
-      <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
+      {mixed?.active !== false ? <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} /> : null}
 
-      {!isFinished ? (
-        <View style={styles.reviewContainer}>{renderCurrentQuestion()}</View>
+      {!isFinished || mixed ? (
+        <View style={styles.reviewContainer}>{questionContent}</View>
       ) : (
         <ReviewResultsScreen
           reviewItems={reviewItems as any}

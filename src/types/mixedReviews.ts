@@ -1,3 +1,5 @@
+import type { SubjectType } from "../utils/subjectColors";
+
 export type MixedReviewLane = "wanikani" | "grammar" | "vocab";
 
 export type MixedReviewHead = {
@@ -14,9 +16,10 @@ export type MixedReviewAnswer = {
   source: "wanikani" | "bunpro";
   title: string;
   correct: boolean;
-  saveStatus?: "saved" | "unconfirmed";
+  saveStatus?: "pending" | "saved" | "unconfirmed";
   saveError?: string;
   subjectId?: number;
+  subjectType?: SubjectType;
   bunproSubject?: { kind: "grammar" | "vocab"; slug: string };
 };
 
@@ -30,6 +33,8 @@ export type MixedReviewBridge = {
   reportPending?: (count: number) => void;
   reportSaving?: (saving: boolean) => void;
   onAnswer: (answer: MixedReviewAnswer) => void;
+  /** Updates persistence without replaying the previous-answer transition. */
+  onSaveSettled?: (answer: MixedReviewAnswer) => void;
   previous: MixedReviewAnswer | null;
   progress: MixedReviewProgress;
   accuracy: MixedReviewAccuracy;

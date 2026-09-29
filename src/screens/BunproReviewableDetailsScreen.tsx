@@ -1664,11 +1664,11 @@ export default function BunproReviewableDetailsScreen() {
           </ScrollView>
         </View>
 
-        {isVocab ? <View key="context" style={styles.pageContainer}>
+        {isVocab ? [<View key="context" style={styles.pageContainer}>
           <ScrollView style={styles.pageScroll} contentContainerStyle={[styles.pageScrollContent, { paddingBottom: insets.bottom + 28 }]}>
             {activeTabIndex === 2 ? <BunproContext key={slugParam} query={title} /> : null}
           </ScrollView>
-        </View> : null}
+        </View>] : /* PagerView clones each child and cannot accept null pages. */ []}
         <View key="resources" style={styles.pageContainer}>
           <ScrollView
             style={styles.pageScroll}

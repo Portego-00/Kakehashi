@@ -1,8 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, BackHandler, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, BackHandler, Keyboard, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ReviewScreen from "./reviews";
+import { ReviewPreviousAnswerCard } from "../../src/components/ReviewPreviousAnswerCard";
 import BunproReviewScreen from "../../src/screens/BunproReviewScreen";
 import type { MixedReviewAccuracy, MixedReviewAnswer, MixedReviewBridge, MixedReviewLane, MixedReviewProgress } from "../../src/types/mixedReviews";
 import { createMixedReviewState, mixedWrapUpLimits, reportMixedReviewError, reportMixedReviewHead } from "../../src/utils/mixedReviews";
@@ -11,6 +12,13 @@ import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { createBunproReviewSavePolicy } from "../../src/utils/bunproReviewSavePolicy";
+
+const MixedWaniKaniScreen = React.memo(ReviewScreen, (before, after) =>
+  before?.mixed?.active === false && after?.mixed?.active === false &&
+  before.mixed?.wrapUpRequest?.id === after.mixed?.wrapUpRequest?.id);
+const MixedBunproScreen = React.memo(BunproReviewScreen, (before, after) =>
+  before?.mixed?.active === false && after?.mixed?.active === false &&
+  before.mixed?.wrapUpRequest?.id === after.mixed?.wrapUpRequest?.id && before.savePolicy === after.savePolicy);
 
 const LANE_NAMES = { wanikani: "WaniKani", grammar: "Bunpro grammar", vocab: "Bunpro vocabulary" };
 
@@ -32,6 +40,7 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
   const { theme } = useTheme();
   const wrapUpSize = useSettingsStore((state) => state.reviewWrapUpTargetSubjects);
   const [state, setState] = useState(() => createMixedReviewState(mode));
+  useEffect(() => { if (state.complete) Keyboard.dismiss(); }, [state.complete]);
   const [bunproSavePolicy] = useState(createBunproReviewSavePolicy);
   const [laneProgress, setLaneProgress] = useState<Partial<Record<MixedReviewLane, MixedReviewProgress>>>({});
   const [laneAccuracy, setLaneAccuracy] = useState<Partial<Record<MixedReviewLane, MixedReviewAccuracy>>>({});
@@ -71,12 +80,15 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
     reportAccuracy: (value: MixedReviewAccuracy) => setLaneAccuracy((current) => current[lane]?.correct === value.correct && current[lane]?.answered === value.answered ? current : { ...current, [lane]: value }),
     reportPending: (count: number) => setPending((current) => current[lane] === count ? current : { ...current, [lane]: count }),
     reportSaving: (value: boolean) => setSaving((current) => current[lane] === value ? current : { ...current, [lane]: value }),
+    onSaveSettled: (answer: MixedReviewAnswer) => {
+      setAnswers((current) => ({ ...current, [answer.id]: { ...answer, correct: (current[answer.id]?.correct ?? true) && answer.correct } }));
+    },
     onAnswer: (answer: MixedReviewAnswer) => {
       setPrevious(answer);
       // Preserve an earlier miss when the same item is later mastered.
       setAnswers((current) => ({ ...current, [answer.id]: { ...answer, correct: (current[answer.id]?.correct ?? true) && answer.correct } }));
     },
-  }])) as Record<MixedReviewLane, Pick<MixedReviewBridge, "report" | "reportError" | "reportProgress" | "reportAccuracy" | "reportPending" | "reportSaving" | "onAnswer">>, [state.lanes]);
+  }])) as Record<MixedReviewLane, Pick<MixedReviewBridge, "report" | "reportError" | "reportProgress" | "reportAccuracy" | "reportPending" | "reportSaving" | "onAnswer" | "onSaveSettled">>, [state.lanes]);
   const onWrapUp = () => {
     if (isSaving) { Alert.alert("Saving answer", "Please wait until this answer has been saved before wrapping up."); return; }
     if (wrapUp) return;
@@ -130,8 +142,18 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
         <TouchableOpacity accessibilityRole="button" style={[styles.done, { backgroundColor: theme.primary }]} onPress={leave}><Text style={styles.doneLabel}>Back to home</Text></TouchableOpacity>
       </ScrollView>
     </SafeAreaView> : null}
-    <ReviewScreen mixed={bridge("wanikani")} />
-    {state.lanes.filter((lane): lane is "grammar" | "vocab" => lane !== "wanikani").map((lane) => <BunproReviewScreen key={lane} initialMode={lane} mixed={bridge(lane)} savePolicy={bunproSavePolicy} />)}
+    {state.lanes.map((lane) => {
+      const laneBridge = bridge(lane);
+      return <View key={lane}
+        pointerEvents={laneBridge.active ? "auto" : "none"}
+        accessibilityElementsHidden={!laneBridge.active}
+        importantForAccessibility={laneBridge.active ? "auto" : "no-hide-descendants"}
+        style={[StyleSheet.absoluteFillObject, { opacity: laneBridge.active ? 1 : 0, zIndex: laneBridge.active ? 1 : -1 }]}
+      >
+        {lane === "wanikani" ? <MixedWaniKaniScreen mixed={laneBridge} /> : <MixedBunproScreen initialMode={lane} mixed={laneBridge} savePolicy={bunproSavePolicy} />}
+      </View>;
+    })}
+    {!state.complete && previous ? <ReviewPreviousAnswerCard answer={previous} /> : null}
   </View>;
 }
 
