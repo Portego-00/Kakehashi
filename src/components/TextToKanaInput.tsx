@@ -17,6 +17,9 @@ import KeyboardManager from "../modules/KeyboardManager";
 import { inferKanaInputEditEnd, type KanaInputSelection } from "../utils/kanaInputSelection";
 import { useTheme } from "../utils/theme";
 
+// Only the field that last took focus may reset the app-wide keyboard override.
+let keyboardOwner: symbol | null = null;
+
 interface KanaInputProps
   extends Omit<TextInputProps, "onChangeText" | "value"> {
   /**
@@ -24,6 +27,7 @@ interface KanaInputProps
    */
   onKanaChange?: (kana: string) => void;
   initialValue?: string;
+  preserveKeyboardOnHandoff?: boolean;
   /**
    * Whether to convert input to kana
    */
@@ -65,6 +69,7 @@ const KanaInput = forwardRef<
   (
     {
       onKanaChange,
+      preserveKeyboardOnHandoff = false,
       initialValue = "",
       enableKanaConversion = true,
       useJapaneseKeyboard = false,
@@ -80,6 +85,7 @@ const KanaInput = forwardRef<
   ) => {
     const [text, setText] = useState(initialValue);
     const inputRef = useRef<TextInput>(null);
+    const keyboardOwnerId = useRef(Symbol("kana-input"));
     const textRef = useRef(initialValue);
     const previousRawTextRef = useRef(initialValue);
     const selectionRef = useRef({ start: initialValue.length, end: initialValue.length });
@@ -172,29 +178,36 @@ const KanaInput = forwardRef<
 
     const applyNativeKeyboardPreference = useCallback((force = false) => {
       if (KeyboardManager) {
-        if (Platform.OS === "android" && !force && !isInputFocused()) {
+        if ((preserveKeyboardOnHandoff || Platform.OS === "android") && !force && !isInputFocused()) {
           return;
         }
 
+        keyboardOwner = keyboardOwnerId.current;
         KeyboardManager.setUseJapaneseKeyboard(
           shouldUseNativeJapaneseKeyboard
         ).catch(() => {});
       }
-    }, [isInputFocused, shouldUseNativeJapaneseKeyboard]);
+    }, [isInputFocused, shouldUseNativeJapaneseKeyboard, preserveKeyboardOnHandoff]);
 
-    // Tell the native KeyboardManager to switch keyboard language.
+    // Hidden mixed-review inputs must not change the focused field's keyboard.
     useEffect(() => {
       applyNativeKeyboardPreference();
       return () => {
-        // Reset to default keyboard when unmounting or when prop changes
-        if (
-          KeyboardManager &&
-          (Platform.OS !== "android" || isInputFocused())
-        ) {
+        if (!preserveKeyboardOnHandoff && KeyboardManager && (Platform.OS !== "android" || isInputFocused())) {
           KeyboardManager.setUseJapaneseKeyboard(false).catch(() => {});
         }
       };
-    }, [applyNativeKeyboardPreference, isInputFocused]);
+    }, [applyNativeKeyboardPreference, preserveKeyboardOnHandoff, isInputFocused]);
+
+    useEffect(() => {
+      const ownerId = keyboardOwnerId.current;
+      return () => {
+        if (preserveKeyboardOnHandoff && keyboardOwner === ownerId) {
+          keyboardOwner = null;
+          KeyboardManager?.setUseJapaneseKeyboard(false).catch(() => {});
+        }
+      };
+    }, [preserveKeyboardOnHandoff]);
 
     const handleFocus = useCallback(
       (event: Parameters<NonNullable<TextInputProps["onFocus"]>>[0]) => {

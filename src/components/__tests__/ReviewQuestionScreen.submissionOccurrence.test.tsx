@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/react-
 import { router } from "expo-router";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { Alert, AppState, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Alert, AppState, Dimensions, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import ReviewPromptCharacters from "../ReviewPromptCharacters";
@@ -2556,3 +2556,29 @@ describe("ReviewQuestionScreen question occurrences", () => {
 });
 
 afterAll(() => mockAlert.mockRestore());
+
+
+it("moves the mixed Bunpro previous-answer card from the center into the corner", () => {
+  const previous = { title: "Bunpro grammar", correct: true, source: "bunpro" as const };
+  const screen = render(<ReviewQuestionScreen item={radicalItem} questionType="meaning" onAnswer={jest.fn()} mixedPrevious={previous} />);
+  // The animation mock resolves shared values immediately; rerender to read them.
+  screen.rerender(<ReviewQuestionScreen item={radicalItem} questionType="meaning" onAnswer={jest.fn()} mixedPrevious={previous} />);
+  const card = screen.getByLabelText("Previous Bunpro answer: Bunpro grammar, correct");
+  expect(StyleSheet.flatten(card.props.style).transform).toEqual([
+    { translateX: -Dimensions.get("window").width / 2 },
+    { translateY: -Dimensions.get("window").height / 2 + 130 },
+    { scale: 0.6 },
+  ]);
+});
+
+it("keeps the WaniKani answer field mounted but ignores answers while its mixed lane is inactive", async () => {
+  const onAnswer = jest.fn();
+  const view = render(<ReviewQuestionScreen item={radicalItem} questionType="meaning" onAnswer={onAnswer} reviewActive={false} />);
+  const input = view.getByTestId("answer-input");
+  fireEvent(input, "submitEditing", { nativeEvent: { text: "ground" } });
+  expect(onAnswer).not.toHaveBeenCalled();
+  view.rerender(<ReviewQuestionScreen item={radicalItem} questionType="meaning" onAnswer={onAnswer} reviewActive />);
+  expect(view.getByTestId("answer-input")).toBe(input);
+  fireEvent(input, "submitEditing", { nativeEvent: { text: "ground" } });
+  await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+});

@@ -85,6 +85,56 @@ it("submits a normal review and a ghost with the same ID independently", async (
   expect(reportBunproProgression).toHaveBeenCalledTimes(1);
 });
 function setup(ui = <BunproReviews />) { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>); }
+it.each([1, 2, 4, 6])("clears Bunpro's pending wrapup after a mixed review miss and correct retry at stage %s", async (streak) => {
+  let pendingWrapup = false;
+  let finished = false;
+  const review = { ...item, data: { ...item.data, attributes: { ...item.data.attributes, streak } } };
+  const reportResults = vi.fn();
+  vi.mocked(bunpro).mockImplementation(async (query, options) => {
+    if (query === "action=connection") return { connected: true };
+    if (options?.method === "POST") {
+      const payload = JSON.parse(String(options.body));
+      pendingWrapup = !payload.correct;
+      finished = payload.correct;
+      return {};
+    }
+    return { review_session_id: 1, pending_attempt: !pendingWrapup && !finished ? [review] : [], pending_wrapup: pendingWrapup ? [review] : [] };
+  });
+  setup(<BunproReviews initialMode="grammar" mixed={{ active: true, report: vi.fn(), reportResults }} />);
+  await screen.findByLabelText("Your answer");
+  for (const answer of ["ちがう", "ちがう", "です"]) {
+    fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: answer } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); });
+  }
+  await screen.findByText("Bunpro reviews complete");
+  expect(pendingWrapup).toBe(false);
+  expect(reportResults.mock.calls.at(-1)?.[0].items).toHaveLength(1);
+  expect(reportResults.mock.calls.at(-1)?.[0].items[0].correct).toBe(false);
+  cleanup();
+  setup(<BunproReviews initialMode="grammar" />);
+  await screen.findByText("No Bunpro reviews waiting");
+  expect(screen.queryByLabelText("Your answer")).not.toBeInTheDocument();
+});
+it.each(["Retry save", "Continue without saving"])("handles a failed correct wrapup with %s while preserving the miss", async (choice) => {
+  await start();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Next" })); });
+  vi.mocked(bunpro).mockRejectedValueOnce(new Error("Bunpro request failed (500)."));
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Bunpro request failed (500).");
+  expect(screen.getByLabelText("Your answer")).toHaveValue("です");
+  expect(screen.queryByText("Bunpro reviews complete")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: choice }));
+  await screen.findByText("Bunpro reviews complete");
+  expect(screen.getByLabelText("0 correct and 1 missed")).toBeVisible();
+  const grades = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST").map(([, options]) => JSON.parse(String(options?.body)).correct);
+  expect(grades).toEqual(choice === "Retry save" ? [false, true, true] : [false, true]);
+  expect(screen.queryByText("Save not confirmed") !== null).toBe(choice === "Continue without saving");
+});
 beforeEach(() => { vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, showAnswerStopSubjectDetails: false } }); vi.mocked(playAnswerFeedback).mockClear(); session.user.data.username = "Learner"; session.isDemo = false; vi.mocked(bunpro).mockReset().mockImplementation(async (query) => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [item], pending_wrapup: [] } : {}); });
 afterEach(cleanup);
 async function start() { setup(); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); }
@@ -125,7 +175,7 @@ it.each([
 it.each([["Grammar", "grammar"], ["Vocabulary", "vocab"], ["Grammar & vocabulary", "all"]])("loads %s reviews", async (label, mode) => { setup(); fireEvent.click(screen.getByLabelText(label)); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); expect(bunpro).toHaveBeenCalledWith(`action=queue&mode=${mode}`); });
 it("accepts alternate answers, converts kana, and saves only on Continue", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "da" } }); expect(screen.getByLabelText("Your answer")).toHaveValue("だ"); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Correct")).toBeVisible(); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); const call = vi.mocked(bunpro).mock.calls.find(([, options]) => options?.method === "POST"); expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ correct: true, sessionId: 1, reviewId: "10" }); });
 it("gives an alternate-answer hint without marking incorrect", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "でした" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); expect(screen.getByText("Use the present tense.")).toBeVisible(); expect(screen.getByLabelText("Your answer").parentElement).toHaveAttribute("data-result", "warning"); expect(screen.getByText("Close — try another answer")).toBeVisible(); expect(screen.queryByText("Incorrect")).not.toBeInTheDocument(); });
-it("repeats a missed item without submitting it twice", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findAllByText("Retrying missed item"); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1); });
+it("submits the miss and correct wrapup exactly once each", async () => { await start(); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findAllByText("Retrying missed item"); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByText("Bunpro reviews complete"); expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(2); });
 it("keeps the current answer when the API key is rejected", async () => { await start(); vi.mocked(bunpro).mockRejectedValueOnce(Object.assign(new Error("Unauthorized"), { status: 401 })); fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } }); fireEvent.click(screen.getByRole("button", { name: "Check" })); fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ })); await screen.findByRole("alert"); expect(screen.getByRole("button", { name: "Retry save" })).toBeEnabled(); expect(screen.queryByRole("button", { name: "Continue without saving" })).not.toBeInTheDocument(); expect(screen.queryAllByText("Retrying missed item")).toHaveLength(0); });
 it.each(["Learner", "demo-level-21"])("hides settings and the home button in demo mode for %s", (username) => { session.user.data.username = username; session.isDemo = true; setup(<><BunproSettings /><BunproHomeButton /></>); expect(screen.queryByText("Bunpro API key")).not.toBeInTheDocument(); expect(screen.queryByText("Bunpro reviews")).not.toBeInTheDocument(); expect(bunpro).not.toHaveBeenCalled(); });
 it("validates and clears the API-key field after saving", async () => { setup(<BunproSettings />); fireEvent.change(screen.getByLabelText("Bunpro API key"), { target: { value: "private-key" } }); vi.mocked(bunpro).mockResolvedValueOnce({ connected: true }); fireEvent.click(screen.getByRole("button", { name: "Save" })); await waitFor(() => expect(screen.getByLabelText("Bunpro API key")).toHaveValue("")); expect(bunpro).toHaveBeenCalledWith("", expect.objectContaining({ body: JSON.stringify({ action: "connect", token: "private-key" }) })); });
@@ -172,7 +222,7 @@ it.each([
   { type: "review", streak: null, saveCorrect: false },
   { type: "review", streak: undefined, saveCorrect: false },
   { type: "ghost_review", streak: 0, saveCorrect: false },
-])("saves a correct retry only for regular Beginner 0 reviews: $type/$streak", async ({ type, streak, saveCorrect }) => {
+])("defers Beginner 0 grading and completes other missed reviews: $type/$streak", async ({ type, streak, saveCorrect }) => {
   const review = { ...item, data: { ...item.data, type, attributes: { ...item.data.attributes, streak } } };
   vi.mocked(bunpro).mockImplementation(async (query, options) => {
     if (query === "action=connection") return { connected: true };
@@ -191,14 +241,14 @@ it.each([
   }
   await screen.findByText("Bunpro reviews complete");
   const posts = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST");
-  expect(posts).toHaveLength(1);
+  expect(posts.map(([, options]) => JSON.parse(String(options?.body)).correct)).toEqual(saveCorrect ? [true] : [false, true]);
   const payload = JSON.parse(String(posts[0][1]?.body));
   expect(payload).toMatchObject({ reviewId: "10", reviewType: type, correct: saveCorrect });
   expect(payload.context).toBeUndefined();
   if (saveCorrect) expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toHaveTextContent("Beginner 1");
 });
 
-it("waits for the correct retry before showing the saved stage without resubmitting the review", async () => {
+it("waits for the correct wrapup before showing the saved stage", async () => {
   vi.mocked(bunpro).mockImplementation(async (query, options) => {
     if (query === "action=connection") return { connected: true };
     if (query.startsWith("action=queue")) return { review_session_id: 1, pending_attempt: [{ ...item, data: { ...item.data, attributes: { ...item.data.attributes, streak: 7 } } }], pending_wrapup: [] };
@@ -223,7 +273,8 @@ it("waits for the correct retry before showing the saved stage without resubmitt
   expect(notice).toHaveTextContent("Adept 3");
   expect(notice).toHaveTextContent("SRS down");
   const posts = vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST");
-  expect(posts).toHaveLength(1);
+  expect(posts).toHaveLength(2);
+  expect(JSON.parse(String(posts[1][1]?.body))).toMatchObject({ reviewId: "10", correct: true });
   expect(JSON.parse(String(posts[0][1]?.body))).toMatchObject({ reviewId: "10", reviewableId: 20, correct: false });
 });
 it("finishes a saved answer without inventing a stage or showing the generic saved popup", async () => {
@@ -610,7 +661,7 @@ it("counts a missed review only after its retry is answered correctly", async ()
   fireEvent.click(screen.getByRole("button", { name: "Check" }));
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("Bunpro reviews complete");
-  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(2);
 });
 
 it("starts closing details while saving instead of waiting for Bunpro", async () => {

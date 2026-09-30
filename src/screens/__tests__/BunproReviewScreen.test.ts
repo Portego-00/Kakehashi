@@ -1,3 +1,4 @@
+jest.mock("../../components/ReviewPreviousAnswerCard", () => ({ ReviewPreviousAnswerCard: () => null }));
 jest.mock("../../utils/expoAvCompat", () => ({
   Audio: {
     Sound: {

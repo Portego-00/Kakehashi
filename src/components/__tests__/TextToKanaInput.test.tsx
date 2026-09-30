@@ -341,3 +341,26 @@ describe("KanaInput event ordering", () => {
     expect(UNSAFE_getByType(TextInput).instance.focus).toHaveBeenCalled();
   });
 });
+
+it("does not let an unfocused mounted input change or reset the active keyboard", () => {
+  jest.mocked(KeyboardManager!.setUseJapaneseKeyboard).mockClear();
+  const first = renderInput({ useJapaneseKeyboard: true, preserveKeyboardOnHandoff: true });
+  fireEvent(first.input(), "focus", { nativeEvent: {} });
+  jest.mocked(KeyboardManager!.setUseJapaneseKeyboard).mockClear();
+  const hidden = render(<KanaInput preserveKeyboardOnHandoff useJapaneseKeyboard={false} />);
+  hidden.rerender(<KanaInput preserveKeyboardOnHandoff useJapaneseKeyboard />);
+  hidden.unmount();
+  expect(KeyboardManager!.setUseJapaneseKeyboard).not.toHaveBeenCalled();
+  first.unmount();
+  expect(KeyboardManager!.setUseJapaneseKeyboard).toHaveBeenCalledWith(false);
+});
+
+it("does not reset the new input's keyboard when the outgoing input unmounts", () => {
+  const first = renderInput({ useJapaneseKeyboard: true, preserveKeyboardOnHandoff: true });
+  fireEvent(first.input(), "focus", { nativeEvent: {} });
+  const next = renderInput({ useJapaneseKeyboard: true, preserveKeyboardOnHandoff: true });
+  fireEvent(next.input(), "focus", { nativeEvent: {} });
+  jest.mocked(KeyboardManager!.setUseJapaneseKeyboard).mockClear();
+  first.unmount();
+  expect(KeyboardManager!.setUseJapaneseKeyboard).not.toHaveBeenCalled();
+});

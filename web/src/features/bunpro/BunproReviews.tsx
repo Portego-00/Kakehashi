@@ -85,8 +85,10 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const [sessionStartedAt, setSessionStartedAt] = useState(() => Date.now());
   const [durationMs, setDurationMs] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
-  // Includes answers whose save failed, so paging and missed-answer practice do not submit them twice.
+  // Tracks first attempts, including unconfirmed saves, to prevent duplicate grading and paging.
   const [handledIds, setHandledIds] = useState(new Set<string>());
+  // A saved miss still needs a correct update to leave Bunpro's pending_wrapup queue.
+  const pendingWrapupIds = useRef(new Set<string>());
   const locked = useRef(false);
   const composing = useRef(false);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
@@ -101,6 +103,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     locked.current = true;
     audio.stop(); setProgression(null);
     savedProgressions.current.clear();
+    pendingWrapupIds.current.clear();
     setPhase("loading"); setError(""); setSaveFailure(null);
     try {
       const data = await bunpro<BunproReviewQuizIndexResponse>(`action=queue&mode=${mode}`);
@@ -259,7 +262,8 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
       let expectedTotal = reviewTotal;
       // Lessons and regular Beginner 0 items need a correct submission to start their SRS interval.
       const needsFirstCorrect = Boolean(lessonSession) || (currentReviewType === "review" && current.data.attributes.streak === 0);
-      if (!isRepeat && (!needsFirstCorrect || result.correct)) {
+      const completingWrapup = isRepeat && result.correct && pendingWrapupIds.current.has(currentKey);
+      if ((!isRepeat && (!needsFirstCorrect || result.correct)) || completingWrapup) {
         let response: (Partial<BunproReviewQuizIndexResponse> & Record<string, unknown>) | null = null;
         const saveFailed = continueWithoutSaving;
         if (!continueWithoutSaving) try {
@@ -271,6 +275,8 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           const message = cause instanceof Error ? cause.message : "Bunpro review could not be saved.";
           throw new Error(failure.pause ? `${message} ${failure.message}` : message);
         }
+        if (!saveFailed && !result.correct) pendingWrapupIds.current.add(currentKey);
+        else pendingWrapupIds.current.delete(currentKey);
         const change = saveFailed || currentReviewType !== "review" ? undefined : bunproProgression(currentKey, sanitizeText(content.attributes.title) || answer, current.data.attributes, response);
         if (change) savedProgressions.current.set(currentKey, change);
         void queryClient.invalidateQueries({ queryKey: ["bunpro", "due"] });
@@ -292,7 +298,9 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           translation: typeof question.translation === "string" ? question.translation : undefined,
           audioUrls: bunproAudioUrls(question, "female"), previousStage: change?.from ?? (stageLabel || specialReviewLabel), stage: change?.to, saveFailed,
         };
-        setResults((previous) => [...previous, sessionResult]);
+        setResults((previous) => completingWrapup
+          ? previous.map(item => item.id === sessionResult.id ? { ...item, stage: sessionResult.stage ?? item.stage, saveFailed } : item)
+          : [...previous, sessionResult]);
       }
       if (!result.correct) {
         if (preferences.backToBackQuestions && preferences.backToBackImmediateRetryIncorrect) next.unshift(current);
