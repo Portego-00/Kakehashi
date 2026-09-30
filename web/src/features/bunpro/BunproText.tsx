@@ -8,7 +8,7 @@ export function RubyText({ text }: { text: string }) {
 export function BunproSentence({ parts, children }: { parts: string[]; children: ReactNode }) {
   return <>{parts.map((part, index) => <Fragment key={index}>{index > 0 ? children : null}<RubyText text={part} /></Fragment>)}</>;
 }
-const allowed = new Set(["p", "div", "span", "strong", "b", "em", "i", "u", "br", "ul", "ol", "li", "ruby", "rt", "rp", "h3", "h4", "blockquote", "table", "tbody", "tr", "td", "th"]);
+const allowed = new Set(["p", "div", "span", "strong", "b", "em", "i", "u", "del", "s", "strike", "br", "ul", "ol", "li", "ruby", "rt", "rp", "h3", "h4", "blockquote", "table", "tbody", "tr", "td", "th"]);
 function renderNode(node: Node, key: number, ruby = false): ReactNode {
   if (node.nodeType === 3) return ruby ? node.textContent : <RubyText key={key} text={node.textContent ?? ""} />;
   if (!(node instanceof Element)) return null;

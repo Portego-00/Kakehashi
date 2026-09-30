@@ -107,7 +107,7 @@ it("shows a missed Bunpro item's saved stage only after its correct retry, acros
   expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toHaveTextContent("Beginner 2");
   expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toHaveTextContent("SRS down");
   expect(screen.getByRole("status", { name: "Bunpro SRS progression" })).toBeVisible();
-  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST").map(([, options]) => JSON.parse(String(options?.body)).correct)).toEqual([false, true]);
   await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
   expect(screen.queryByRole("status", { name: "Bunpro SRS progression" })).not.toBeInTheDocument();
 });
