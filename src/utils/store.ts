@@ -169,7 +169,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 21;
+const SETTINGS_STORE_SCHEMA_VERSION = 22;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -1013,7 +1013,7 @@ export const useSettingsStore = create<SettingsState>()(
       disableAutoProgressOnWrong: true, // Default to true - pause on wrong answer
       disableAutoProgressOnCloseAnswer: false, // Default to false - auto-accept close meaning answers
       disableAutoProgressOnCorrect: false, // Default to false - auto-progress on correct answer
-      acceptUserSynonymsAsAnswers: false, // Default to false - accept user synonyms as correct answers
+      acceptUserSynonymsAsAnswers: true,
       showAddSynonymButton: true, // Default to true - preserve the existing paused-wrong synonym action
       acceptAnyKanjiOnyomiReading: false, // Default to false - require primary reading for kanji unless enabled
       showOnyomiInKatakana: false, // Default to false - show on'yomi readings in katakana (Katakana Madness)
@@ -1644,6 +1644,13 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (typeof migratedRecord.noteLinkIncludeCharacters !== "boolean") {
           migratedRecord.noteLinkIncludeCharacters = false;
+        }
+        // Enable synonyms once for existing installs; preserve later opt-outs.
+        if (
+          version < 22 ||
+          typeof migratedRecord.acceptUserSynonymsAsAnswers !== "boolean"
+        ) {
+          migratedRecord.acceptUserSynonymsAsAnswers = true;
         }
 
         return migrated;
