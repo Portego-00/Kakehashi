@@ -517,3 +517,8 @@
 }
 
 .timingBarButton:focus-visible .timingColumn { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+.goalLayout { display: grid; align-items: start; gap: var(--space-md); }
+@media (min-width: 64rem) { .goalLayout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr); } }
+
+.goalPassthrough { display: contents; }

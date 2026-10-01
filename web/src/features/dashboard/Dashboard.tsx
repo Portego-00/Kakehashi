@@ -3,13 +3,15 @@
 import { getLessonSrsThresholdStatus } from "../../../../src/utils/lessonSrsThreshold";
 import { lessonsStartedToday, remainingDailyLessons } from "@/features/core-study/session-planning";
 
+import { LevelGoalHomeWidget } from "@/features/level-goals/LevelGoalPanel";
+
 import { BunproHomeButton } from "@/features/bunpro/BunproHomeButton";
 
 import { canAccessCoreStudy } from "@/features/core-study/access";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Umbrella } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ReviewActivityHeatmap } from "@/components/ReviewActivityHeatmap";
 import { ButtonLink } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/States";
@@ -150,12 +152,13 @@ export function Dashboard() {
   return <main className="page">
     {(assignments.error || currentUser.error || (needsDailyStudy && availableReviewCount.error) || (needsSubjectCatalog && allSubjects.error) || (needsLevelTiming && levelProgressions.error)) && <div className={styles.error} role="alert">Some live data could not be loaded. Cached sections remain available; refresh when your connection returns.</div>}
     <div className={styles.grid}>
+      {!visibleSections.includes("daily-study") ? <LevelGoalHomeWidget currentLevel={currentLevel} paused={!!currentVacationStartedAt} /> : null}
       {visibleSections.map((id) => {
         const sectionId = id as DashboardSectionId;
         const section = sections[sectionId];
         if (section == null) return null;
         const width = dashboardSectionWidth(sectionId, workspace.dashboardWidths?.[sectionId]);
-        return <div data-section={sectionId} data-layout-width={width} data-layout-row-start={workspace.dashboardRowStarts?.includes(sectionId) || undefined} style={{ "--dashboard-section-span": width } as React.CSSProperties} key={sectionId}>{section}</div>;
+        return <Fragment key={sectionId}><div data-section={sectionId} data-layout-width={width} data-layout-row-start={workspace.dashboardRowStarts?.includes(sectionId) || undefined} style={{ "--dashboard-section-span": width } as React.CSSProperties} >{section}</div>{sectionId === "daily-study" ? <LevelGoalHomeWidget currentLevel={currentLevel} paused={!!currentVacationStartedAt} /> : null}</Fragment>;
       })}
       {!visibleSections.length ? <section className={`${styles.section} ${styles.sectionWide}`}><h2>Your dashboard is clear</h2><p className={styles.emptyCopy}>Turn sections back on in Settings whenever you need them.</p><ButtonLink href="/settings" tone="primary">Customize dashboard</ButtonLink></section> : null}
     </div>

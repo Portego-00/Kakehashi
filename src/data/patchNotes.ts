@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.20",
+    date: "2026-09-30",
+    changes: [
+      {
+        type: "feature",
+        title: "Transfer Selected Subjects",
+        description:
+          "Select subjects in the In List tab to copy or move them to another list.",
+      },
+    ],
+  },
+  {
     version: "1.4.19",
     date: "2026-09-27",
     changes: [

@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import type { KanaInputHandle } from "../components/TextToKanaInput";
 import KanaInput from "../components/TextToKanaInput";
 import type {
@@ -102,6 +102,7 @@ type BunproReviewResultItem = {
   stageLabel: string;
   saveStatus: "pending" | "saved" | "unconfirmed";
   saveError?: string;
+  audioSources?: { female_audio_url?: unknown; male_audio_url?: unknown };
 };
 
 type FuriganaRun =
@@ -829,8 +830,14 @@ function BunproResultCard({
   panelBorder,
   accent,
   onOpenReviewable,
+  onReplay,
+  audioLoading,
+  audioPlaying,
 }: {
   result: BunproReviewResultItem;
+  onReplay: () => void;
+  audioLoading: boolean;
+  audioPlaying: boolean;
   index: number;
   theme: any;
   mutedColor: string;
@@ -903,6 +910,17 @@ function BunproResultCard({
           },
         ]}
       >
+        {result.audioSources && bunproAudioUrls(result.audioSources).length > 0 ? (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`${audioPlaying || audioLoading ? "Stop" : "Replay"} audio for ${result.reviewableTitle || kindLabel}`}
+            onPress={onReplay}
+            style={styles.resultAudioButton}
+          >
+            {audioLoading ? <ActivityIndicator size="small" color={theme.textColor} /> : <Ionicons name={audioPlaying ? "stop" : "volume-medium-outline"} size={20} color={theme.textColor} />}
+            <Text style={{ color: theme.textColor }}>{audioLoading ? "Loading audio…" : audioPlaying ? "Stop audio" : "Replay audio"}</Text>
+          </TouchableOpacity>
+        ) : null}
         {result.tenseHint ? (
           <Text style={[styles.resultTenseText, { color: mutedColor }]}>
             {result.tenseHint}
@@ -994,6 +1012,12 @@ function BunproResultsScreen({
   onDone: () => void;
   onOpenReviewable: (kind: "grammar" | "vocab", slug: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const audio = useBunproAudio();
+  const audioVoice = useSettingsStore((state) => state.vocabularyAudioVoice);
+  const focused = useOptionalScreenIsFocused();
+  const { stop } = audio;
+  useEffect(() => { if (!focused) void stop(); }, [focused, stop]);
   const scoredTotal = Math.max(1, correctCount + incorrectCount);
   const accuracyPercent = Math.round((correctCount / scoredTotal) * 100);
   const scoreColor = getAccuracyColor(accuracyPercent, theme.error);
@@ -1009,7 +1033,7 @@ function BunproResultsScreen({
         : "No scored review details were captured.";
 
   return (
-    <SafeAreaView style={[styles.resultsContainer, { backgroundColor }]}>
+    <SafeAreaView edges={["top", "left", "right"]} style={[styles.resultsContainer, { backgroundColor }]}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <View style={[styles.resultsHeader, { borderBottomColor: panelBorder }]}>
         <TouchableOpacity onPress={onBack} style={styles.resultsHeaderButton}>
@@ -1023,7 +1047,8 @@ function BunproResultsScreen({
 
       <ScrollView
         style={styles.resultsScroll}
-        contentContainerStyle={styles.resultsScrollContent}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[styles.resultsScrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -1037,7 +1062,7 @@ function BunproResultsScreen({
         >
           <View style={styles.resultsScoreColumn}>
             <View style={[styles.resultsScoreRing, { borderColor: scoreColor }]}>
-              <Text style={[styles.resultsScoreText, { color: scoreColor }]}>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={[styles.resultsScoreText, { color: scoreColor }]}>
                 {accuracyPercent}%
               </Text>
             </View>
@@ -1092,6 +1117,7 @@ function BunproResultsScreen({
           </Text>
         </View>
 
+        {audio.error ? <Text accessibilityRole="alert" style={[styles.inlineError, { color: theme.error }]}>{audio.error}</Text> : null}
         {displayedResults.length > 0 ? (
           displayedResults.map((result, index) => (
             <BunproResultCard
@@ -1102,7 +1128,10 @@ function BunproResultsScreen({
               mutedColor={mutedColor}
               panelBorder={panelBorder}
               accent={accent}
-              onOpenReviewable={onOpenReviewable}
+              onOpenReviewable={(kind, slug) => { void audio.stop(); onOpenReviewable(kind, slug); }}
+              audioLoading={audio.loadingKey === `result:${index}`}
+              audioPlaying={audio.playingKey === `result:${index}`}
+              onReplay={() => { void audio.play(`result:${index}`, bunproAudioUrls(result.audioSources ?? {}, audioVoice), audioVoice === "both"); }}
             />
           ))
         ) : (
@@ -1629,7 +1658,7 @@ export default function BunproReviewScreen({
       setCorrectCount((count) => count + 1);
       const result: BunproReviewResultItem = {
         reviewId: currentReviewIdString, reviewableKind, reviewableSlug, reviewableTitle,
-        reviewableMeaning, reviewableLevel, question: questionSentence, translation: translationText,
+        reviewableMeaning, reviewableLevel, audioSources: { female_audio_url: studyQuestionAttributes.female_audio_url, male_audio_url: studyQuestionAttributes.male_audio_url }, question: questionSentence, translation: translationText,
         tenseHint, enteredAnswer: outcome.enteredText, correctAnswer: canonicalAnswer,
         wasCorrect: true, stageLabel: "", saveStatus: "pending",
       };
@@ -1706,7 +1735,7 @@ export default function BunproReviewScreen({
         else setIncorrectCount((count) => count + 1);
         setReviewResults((results) => [...results, {
           reviewId: currentReviewIdString, reviewableKind, reviewableSlug, reviewableTitle,
-          reviewableMeaning, reviewableLevel, question: questionSentence,
+          reviewableMeaning, reviewableLevel, audioSources: { female_audio_url: studyQuestionAttributes.female_audio_url, male_audio_url: studyQuestionAttributes.male_audio_url }, question: questionSentence,
           translation: translationText, tenseHint, enteredAnswer: outcome.enteredText,
           correctAnswer: canonicalAnswer, wasCorrect: outcome.correct,
           stageLabel: continueWithoutSaving ? "" : extractStageLabelFromSubmission(response, null, currentReviewType),
@@ -2681,6 +2710,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   resultsScoreText: {
+    width: "100%",
+    textAlign: "center",
     fontSize: 24,
     fontWeight: "900",
     fontVariant: ["tabular-nums"],
@@ -2783,6 +2814,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "500",
+  },
+  resultAudioButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    alignSelf: "center",
   },
   resultPromptBox: {
     borderRadius: 14,
