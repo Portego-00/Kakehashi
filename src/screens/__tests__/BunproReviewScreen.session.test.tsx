@@ -10,6 +10,7 @@ import type { MixedReviewBridge } from "../../types/mixedReviews";
 
 const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false };
 
+jest.mock("react-native-safe-area-context", () => jest.requireActual("react-native-safe-area-context/jest/mock").default);
 
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -587,4 +588,24 @@ it("autoplays the selected voice and waits for playback before the verdict dwell
     expect(view.getByText("Question 2 ")).toBeTruthy();
     view.unmount();
   } finally { jest.useRealTimers(); }
+});
+
+it("replays the saved result's preferred voice and stops on demand", async () => {
+  mockReviewSettings.vocabularyAudioVoice = "male";
+  const clip = { unloadAsync: jest.fn(async () => {}), playAsync: jest.fn(async () => {}), setOnPlaybackStatusUpdate: jest.fn() };
+  jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: clip } as any);
+  const question = item("1");
+  Object.assign(question.included![0].attributes, { female_audio_url: "https://example.com/female.mp3", male_audio_url: "https://example.com/male.mp3" });
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByText("Bunpro Results")).toBeTruthy());
+  await act(async () => fireEvent.press(view.getByLabelText(/^Replay audio for/)));
+  expect(Audio.Sound.createAsync).toHaveBeenCalledWith({ uri: "https://example.com/male.mp3" }, { shouldPlay: false });
+  expect(clip.playAsync).toHaveBeenCalledTimes(1);
+  await act(async () => fireEvent.press(view.getByLabelText(/^Stop audio for/)));
+  expect(clip.unloadAsync).toHaveBeenCalledTimes(1);
+  expect(view.getByLabelText(/^Replay audio for/)).toBeTruthy();
+  view.unmount();
 });

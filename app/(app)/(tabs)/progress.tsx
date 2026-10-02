@@ -23,6 +23,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { GlassButton } from "../../../src/components/GlassButton";
 import IncompleteLevelsProgress from "../../../src/components/IncompleteLevelsProgress";
+import { LevelGoalPanel } from "../../../src/features/level-goals/level-goal-panel";
 import LevelProgress from "../../../src/components/LevelProgress";
 import LevelTimingChart from "../../../src/components/LevelTimingChart";
 import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
@@ -497,6 +498,8 @@ export default function ProgressTab() {
                 items={dashboardData.levelItems}
                 onItemPress={handleItemPress}
               />
+
+              {isPortegoUsername(userData?.username) ? <LevelGoalPanel currentLevel={userData?.level ?? dashboardData.currentLevel} progressions={dashboardData.levelProgressions} paused={!!userData?.current_vacation_started_at} /> : null}
 
               {dashboardData.subjects && dashboardData.assignments && (
                 <IncompleteLevelsProgress

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import type { MixedReviewAnswer } from "../types/mixedReviews";
 import { useSettingsStore } from "../utils/store";
@@ -44,16 +44,16 @@ export function ReviewPreviousAnswerCard({ answer }: { answer: MixedReviewAnswer
         else if (answer.bunproSubject) router.push({ pathname: "/bunpro-reviewable/[kind]/[slug]", params: { kind: answer.bunproSubject.kind, slug: encodeURIComponent(answer.bunproSubject.slug) } });
       }}
     >
-      <Text numberOfLines={2} style={[styles.title, { color }]}>{answer.title}</Text>
-      <Text style={[styles.verdict, { color }]}>
-        <Ionicons name={answer.correct ? "checkmark" : "close"} size={18} /> {answer.correct ? "Correct" : "Incorrect"}
-      </Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.title, { color }]}>{answer.title}</Text>
+      <View style={[styles.statusIndicator, { backgroundColor: answer.correct ? "#4caf50" : "#f44336" }]}>
+        <Ionicons name={answer.correct ? "checkmark" : "close"} size={20} color="white" />
+      </View>
     </TouchableOpacity>
   </Animated.View>;
 }
 const styles = StyleSheet.create({
   position: { position: "absolute", top: 110, left: -20, width: 180, zIndex: 30 },
-  card: { padding: 12, minHeight: 65, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 24, fontWeight: "600", textAlign: "center" },
-  verdict: { fontSize: 16, fontWeight: "700", marginTop: 4 },
+  card: { paddingHorizontal: 12, height: 65, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 24, fontWeight: "600", textAlign: "center", flexShrink: 1 },
+  statusIndicator: { position: "absolute", top: -10, right: -10, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
 });

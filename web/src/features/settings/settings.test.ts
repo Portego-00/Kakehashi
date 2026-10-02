@@ -7,6 +7,30 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("accepts user synonyms by default for new users", () => {
+    expect(loadWebSettings({ getItem: () => null }, "new-user").study.acceptUserSynonymsAsAnswers).toBe(true);
+  });
+
+  it.each([undefined, false, true])("enables synonyms for legacy settings with preference %s", (enabled) => {
+    const loaded = loadWebSettings(storage({ study: { acceptUserSynonymsAsAnswers: enabled, lessonsBatchSize: 10 } }), "tester");
+    expect(loaded.study.acceptUserSynonymsAsAnswers).toBe(true);
+    expect(loaded.study.lessonsBatchSize).toBe(10);
+
+    let saved = "";
+    const target = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    saveWebSettings(target, "tester", loaded);
+    expect(loadWebSettings(target, "tester").study.acceptUserSynonymsAsAnswers).toBe(true);
+    saveWebSettings(target, "tester", { ...loaded, study: { ...loaded.study, acceptUserSynonymsAsAnswers: false } });
+    expect(loadWebSettings(target, "tester").study.acceptUserSynonymsAsAnswers).toBe(false);
+  });
+
+  it.each([true, false])("restores synonym preference %s saved by the updated web app", (enabled) => {
+    let saved = "";
+    const target = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    saveWebSettings(target, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, acceptUserSynonymsAsAnswers: enabled } });
+    expect(loadWebSettings(target, "tester").study.acceptUserSynonymsAsAnswers).toBe(enabled);
+  });
+
   it("supports mobile lesson batch sizes and migrates larger web batches", () => {
     for (let size = 2; size <= 10; size += 1) expect(loadWebSettings(storage({ study: { lessonsBatchSize: size } }), "tester").study.lessonsBatchSize).toBe(size);
     for (const size of [15, 20]) expect(loadWebSettings(storage({ study: { lessonsBatchSize: size } }), "tester").study.lessonsBatchSize).toBe(10);
@@ -285,7 +309,7 @@ describe("web settings persistence", () => {
       pauseOnClose: false,
       pauseOnCorrect: true,
       srsProgressionCardDisplayMode: "normal",
-      acceptUserSynonymsAsAnswers: false,
+      acceptUserSynonymsAsAnswers: true,
       vocabularyAudioVoice: "female",
       ankiGroupQuestions: false,
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,

@@ -1,6 +1,10 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { userQuery } from "@/lib/wanikani/queries";
 import Link from "next/link";
+import { LevelGoalPanel } from "@/features/level-goals/LevelGoalPanel";
+import { canAccessLevelGoals } from "../../../../../src/features/level-goals/model";
 import { ArrowRight, Clock3, Flame, Grid3X3, LockKeyhole, Play } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -43,6 +47,7 @@ export function LevelProgress() {
     <main className={`page ${styles.page}`} data-compact-workspace {...firstReveal}>
       <ProgressTabs active="level" action={<Link href="/progress/kanji" className={styles.textLink}><Grid3X3 size={15} /> Kanji grid</Link>} />
 
+      <div className={canAccessLevelGoals(user?.data.username) ? styles.goalLayout : styles.goalPassthrough}>
       <section className={styles.levelOverview} aria-labelledby="current-level-title">
         <div className={styles.levelOverviewHead}><div><h2 id="current-level-title">Level {currentLevel} progress</h2><p>{passedSubjects} of {totalSubjects} subjects have reached their passing stage.</p></div></div>
 
@@ -57,6 +62,9 @@ export function LevelProgress() {
         <LevelSubjectGrid title="Kanji" subjects={kanji} assignments={assignmentBySubject} />
       </section>
 
+      {canAccessLevelGoals(user?.data.username) ? <PilotLevelGoal progressions={progressions} /> : null}
+      </div>
+
       <section className={styles.levelSummarySection}><h2>Current level</h2><LevelSummaryRow level={currentLevel} rows={current} current /></section>
 
       {previous.length > 0 ? <section className={styles.levelHistory}><h2>Previous levels</h2><div>{previousLevels.map((entry) => <LevelSummaryRow key={entry.level} level={entry.level} rows={entry.rows} />)}</div></section> : null}
@@ -68,6 +76,12 @@ export function LevelProgress() {
       </nav>
     </main>
   );
+}
+
+function PilotLevelGoal({ progressions }: { progressions: Parameters<typeof LevelGoalPanel>[0]['progressions'] }) {
+  const { user } = useSession();
+  const liveUser = useQuery(userQuery()).data ?? user;
+  return <LevelGoalPanel currentLevel={liveUser?.data.level ?? 1} progressions={progressions} paused={!!liveUser?.data.current_vacation_started_at} />;
 }
 
 function formatDays(value: number) {

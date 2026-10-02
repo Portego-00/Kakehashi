@@ -24,7 +24,7 @@ it("uses Bunpro's color, keeps the verdict, and animates once per answer rather 
   const view = render(<ReviewPreviousAnswerCard answer={answer} />);
   const card = view.getByTestId("previous-answer-card");
   expect(StyleSheet.flatten(card.props.style).backgroundColor).toBe("#cc5b5d");
-  expect(view.getByText(/Incorrect/)).toBeTruthy();
+  expect(view.getByLabelText("Previous Bunpro answer: つもり, incorrect")).toBeTruthy();
   view.rerender(<ReviewPreviousAnswerCard answer={answer} />);
   expect(view.getByTestId("previous-answer-card")).toBe(card);
   expect(withTiming).toHaveBeenCalledTimes(1);

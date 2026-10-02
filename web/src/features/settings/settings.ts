@@ -6,6 +6,7 @@ import type { ListStorage } from "@/features/subjects/lists";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
 
 export const LESSON_BATCH_SIZE_VALUES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+const WEB_SETTINGS_SCHEMA_VERSION = 1;
 
 function normalizeLessonOrder(value: unknown): WebStudyPreferences["lessonOrder"] {
   if (value === "available") return "oldestUnlockedFirst";
@@ -333,7 +334,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     pauseOnClose: false,
     pauseOnCorrect: true,
     srsProgressionCardDisplayMode: "normal",
-    acceptUserSynonymsAsAnswers: false,
+    acceptUserSynonymsAsAnswers: true,
     showAddSynonymButton: true,
     keyboardShortcuts: true,
     shuffleSubjects: false,
@@ -486,7 +487,9 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
   try {
     const raw = storage.getItem(settingsStorageKey(username));
     if (!raw) return DEFAULT_WEB_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<WebSettings>;
+    const parsed = JSON.parse(raw) as Partial<WebSettings> & { schemaVersion?: number };
+    // Legacy settings predate the enabled default. New saves preserve opt-outs.
+    const hasSynonymDefaultMigration = typeof parsed.schemaVersion === "number" && parsed.schemaVersion >= WEB_SETTINGS_SCHEMA_VERSION;
     const persistedStudy = parsed.study && typeof parsed.study === "object" ? parsed.study as unknown as Record<string, unknown> : undefined;
     const legacyReviewTypeGrouping = persistedStudy?.reviewOrder === "subject-type";
     const hasSavedReviewBatchSize = Boolean(persistedStudy && Object.prototype.hasOwnProperty.call(persistedStudy, "reviewBatchSize"));
@@ -554,7 +557,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
         pauseOnCorrect: typeof parsed.study?.pauseOnCorrect === "boolean" ? parsed.study.pauseOnCorrect : legacyAnswerStopBehavior ? legacyAnswerStopBehavior === "always" : DEFAULT_WEB_SETTINGS.study.pauseOnCorrect,
         srsProgressionCardDisplayMode: ["normal", "compact", "hidden"].includes(parsed.study?.srsProgressionCardDisplayMode ?? "") ? parsed.study!.srsProgressionCardDisplayMode : DEFAULT_WEB_SETTINGS.study.srsProgressionCardDisplayMode,
-        acceptUserSynonymsAsAnswers: typeof parsed.study?.acceptUserSynonymsAsAnswers === "boolean" ? parsed.study.acceptUserSynonymsAsAnswers : DEFAULT_WEB_SETTINGS.study.acceptUserSynonymsAsAnswers,
+        acceptUserSynonymsAsAnswers: hasSynonymDefaultMigration && typeof parsed.study?.acceptUserSynonymsAsAnswers === "boolean" ? parsed.study.acceptUserSynonymsAsAnswers : DEFAULT_WEB_SETTINGS.study.acceptUserSynonymsAsAnswers,
         showAddSynonymButton: typeof parsed.study?.showAddSynonymButton === "boolean" ? parsed.study.showAddSynonymButton : DEFAULT_WEB_SETTINGS.study.showAddSynonymButton,
         keyboardShortcuts: typeof parsed.study?.keyboardShortcuts === "boolean" ? parsed.study.keyboardShortcuts : DEFAULT_WEB_SETTINGS.study.keyboardShortcuts,
         shuffleSubjects: typeof parsed.study?.shuffleSubjects === "boolean" ? parsed.study.shuffleSubjects : DEFAULT_WEB_SETTINGS.study.shuffleSubjects,
@@ -636,6 +639,7 @@ export function reorderDashboardSections(order: string[], source: string, target
 export function saveWebSettings(storage: Pick<ListStorage, "setItem">, username: string, settings: WebSettings) {
   const serializable = {
     ...settings,
+    schemaVersion: WEB_SETTINGS_SCHEMA_VERSION,
     study: {
       ...settings.study,
       jitaiCustomFonts: settings.study.jitaiCustomFonts.map(({ id, name }) => ({ id, name })),

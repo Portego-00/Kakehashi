@@ -113,6 +113,8 @@ export default function SubjectListEditorScreen() {
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<number>>(
     new Set()
   );
+  const [actionSubjectIds, setActionSubjectIds] = useState<Set<number>>(new Set());
+  const [transferSubjectIds, setTransferSubjectIds] = useState<number[]>([]);
   const [initialName, setInitialName] = useState("");
   const [initialSubjectIds, setInitialSubjectIds] = useState<Set<number>>(
     new Set()
@@ -198,6 +200,7 @@ export default function SubjectListEditorScreen() {
       const subjectIdSet = new Set(found.subjectIds);
       setSelectedSubjectIds(subjectIdSet);
       setInitialSubjectIds(subjectIdSet);
+      setActionSubjectIds(new Set());
     } catch (error) {
       console.error("Failed to load subject list:", error);
       Alert.alert("Error", "Failed to load this list.", [
@@ -368,6 +371,36 @@ export default function SubjectListEditorScreen() {
     setSelectedSubjectIds(new Set());
   };
 
+  // Action selection must never change list membership until Remove is pressed.
+  const selectedActionSubjectIds = useMemo(
+    () => Array.from(selectedSubjectIds).filter((subjectId) => actionSubjectIds.has(subjectId)),
+    [selectedSubjectIds, actionSubjectIds],
+  );
+
+  useEffect(() => {
+    setActionSubjectIds((previous) => {
+      const next = new Set(Array.from(previous).filter((subjectId) => selectedSubjectIds.has(subjectId)));
+      return setsEqual(previous, next) ? previous : next;
+    });
+  }, [selectedSubjectIds]);
+
+  const toggleActionSubject = (subjectId: number) => {
+    Keyboard.dismiss();
+    setActionSubjectIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(subjectId)) next.delete(subjectId);
+      else next.add(subjectId);
+      return next;
+    });
+  };
+
+  const removeSelectedSubjects = () => {
+    setSelectedSubjectIds((previous) => new Set(
+      Array.from(previous).filter((subjectId) => !actionSubjectIds.has(subjectId)),
+    ));
+    setActionSubjectIds(new Set());
+  };
+
   const switchTab = useCallback(
     (nextTab: SubjectListEditorTab) => {
       if (nextTab === activeTab) {
@@ -397,7 +430,7 @@ export default function SubjectListEditorScreen() {
     [filters.vocabularyTypes],
   );
 
-  const selectedSubjects = useMemo(() => {
+  const matchingListSubjects = useMemo(() => {
     if (!allSubjects) {
       return [];
     }
@@ -419,10 +452,6 @@ export default function SubjectListEditorScreen() {
       subjectSrsStageMap
     );
 
-    if (ranked.length > 250) {
-      return ranked.slice(0, 250);
-    }
-
     return ranked;
   }, [
     allSubjects,
@@ -433,6 +462,22 @@ export default function SubjectListEditorScreen() {
     filters.vocabularyTypes,
     subjectSrsStageMap,
   ]);
+
+  const selectedSubjects = useMemo(() => matchingListSubjects.slice(0, 250), [matchingListSubjects]);
+  const allMatchingActionSelected = matchingListSubjects.length > 0 &&
+    matchingListSubjects.every((subject) => actionSubjectIds.has(subject.id));
+  const hasListFilters = searchQuery.trim().length > 0 || filters.vocabularyTypes.length > 0;
+
+  const toggleSelectAllListSubjects = () => {
+    setActionSubjectIds((previous) => {
+      const next = new Set(previous);
+      matchingListSubjects.forEach((subject) => {
+        if (allMatchingActionSelected) next.delete(subject.id);
+        else next.add(subject.id);
+      });
+      return next;
+    });
+  };
 
   const selectedKanjiIds = useMemo(
     () =>
@@ -604,8 +649,9 @@ export default function SubjectListEditorScreen() {
     return handleSave();
   };
 
-  const handleOpenTransfer = async () => {
-    if (!list || selectedSubjectIds.size === 0) {
+  const handleOpenTransfer = async (subjectIds: number[]) => {
+    const targets = subjectIds.filter((subjectId) => selectedSubjectIds.has(subjectId));
+    if (!list || targets.length === 0) {
       return;
     }
 
@@ -613,6 +659,7 @@ export default function SubjectListEditorScreen() {
       return;
     }
 
+    setTransferSubjectIds(targets);
     setIsTransferModalVisible(true);
   };
 
@@ -625,6 +672,7 @@ export default function SubjectListEditorScreen() {
     setInitialName(nextSource.name);
     setSelectedSubjectIds(new Set(nextSource.subjectIds));
     setInitialSubjectIds(new Set(nextSource.subjectIds));
+    setActionSubjectIds(new Set());
 
     if (transferredCount === 0) {
       Alert.alert(
@@ -921,16 +969,23 @@ export default function SubjectListEditorScreen() {
   };
 
   const renderSelectedSubjectItem = ({ item }: { item: Subject }) => {
+    const isActionSelected = actionSubjectIds.has(item.id);
     const typeColor = getItemTypeColor(item.object);
     const srsStage = subjectSrsStageMap.get(item.id) ?? 0;
     const jlptLevel = getJLPTLevelForSubject(item);
     return (
-      <View
+      <TouchableOpacity
+        accessibilityRole="checkbox"
+        accessibilityLabel={`Select ${item.data.meanings[0].meaning} for list actions`}
+        accessibilityState={{ checked: isActionSelected, disabled: isSaving }}
+        disabled={isSaving}
+        onPress={() => toggleActionSubject(item.id)}
+        activeOpacity={0.8}
         style={[
           styles.selectedItemContainer,
           {
-            backgroundColor: theme.cardBackground,
-            borderColor: `${typeColor}55`,
+            backgroundColor: isActionSelected ? `${theme.primary}10` : theme.cardBackground,
+            borderColor: isActionSelected ? theme.primary : `${typeColor}55`,
           },
         ]}
       >
@@ -977,23 +1032,12 @@ export default function SubjectListEditorScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={[
-            styles.removeButton,
-            {
-              borderColor: `${theme.error}66`,
-              backgroundColor: `${theme.error}14`,
-            },
-          ]}
-          onPress={() => toggleSubjectSelection(item)}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="remove-circle-outline" size={16} color={theme.error} />
-          <Text style={[styles.removeButtonText, { color: theme.error }]}>
-            Remove
-          </Text>
-        </TouchableOpacity>
-      </View>
+        <Ionicons
+          name={isActionSelected ? "checkbox" : "square-outline"}
+          size={24}
+          color={isActionSelected ? theme.primary : theme.textSecondary}
+        />
+      </TouchableOpacity>
     );
   };
 
@@ -1164,7 +1208,7 @@ export default function SubjectListEditorScreen() {
               placeholder={
                 activeTab === "browse"
                   ? "Search subjects..."
-                  : "Search selected subjects..."
+                  : "Search subjects in this list..."
               }
               placeholderTextColor={theme.textSecondary}
               style={[styles.searchInput, { color: theme.textColor }]}
@@ -1238,7 +1282,7 @@ export default function SubjectListEditorScreen() {
                   styles.bulkActionButtonDisabled,
               ]}
               disabled={selectedSubjectIds.size === 0 || isSaving}
-              onPress={() => void handleOpenTransfer()}
+              onPress={() => void handleOpenTransfer(Array.from(selectedSubjectIds))}
             >
               <Ionicons
                 name="swap-horizontal-outline"
@@ -1251,7 +1295,60 @@ export default function SubjectListEditorScreen() {
             </TouchableOpacity>
 
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.listActions}>
+            <View style={styles.selectionSummary}>
+              <Text style={[styles.selectionCount, { color: theme.textSecondary }]}>
+                {selectedActionSubjectIds.length} selected
+              </Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ disabled: matchingListSubjects.length === 0 || isSaving }}
+                disabled={matchingListSubjects.length === 0 || isSaving}
+                onPress={toggleSelectAllListSubjects}
+                style={styles.selectAllButton}
+              >
+                <Text style={[styles.selectionCount, { color: theme.primary }]}>
+                  {allMatchingActionSelected
+                    ? hasListFilters ? "Deselect Filtered" : "Deselect All"
+                    : hasListFilters ? "Select Filtered" : "Select All"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.selectedActionsRow}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Remove selected subjects from this list"
+                accessibilityState={{ disabled: selectedActionSubjectIds.length === 0 || isSaving }}
+                disabled={selectedActionSubjectIds.length === 0 || isSaving}
+                onPress={removeSelectedSubjects}
+                style={[
+                  styles.bulkActionButton,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                  (selectedActionSubjectIds.length === 0 || isSaving) && styles.bulkActionButtonDisabled,
+                ]}
+              >
+                <Ionicons name="remove-circle-outline" size={18} color={theme.error} />
+                <Text style={[styles.bulkActionText, { color: theme.error }]}>Remove Selected</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Transfer selected subjects to another list"
+                accessibilityState={{ disabled: selectedActionSubjectIds.length === 0 || isSaving }}
+                disabled={selectedActionSubjectIds.length === 0 || isSaving}
+                onPress={() => void handleOpenTransfer(selectedActionSubjectIds)}
+                style={[
+                  styles.bulkActionButton,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                  (selectedActionSubjectIds.length === 0 || isSaving) && styles.bulkActionButtonDisabled,
+                ]}
+              >
+                <Ionicons name="swap-horizontal-outline" size={18} color={theme.primary} />
+                <Text style={[styles.bulkActionText, { color: theme.primary }]}>Transfer Selected</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {isLoadingSubjects ? (
           <View style={styles.centerState}>
@@ -1310,7 +1407,7 @@ export default function SubjectListEditorScreen() {
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
                   {activeTab === "browse"
                     ? "No subjects match your current search and filters."
-                    : "No selected subjects match your search."}
+                    : "No subjects in this list match your search."}
                 </Text>
               </View>
             }
@@ -1328,6 +1425,9 @@ export default function SubjectListEditorScreen() {
           ]}
         >
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Save list changes"
+            accessibilityState={{ disabled: !hasUnsavedChanges || isSaving }}
             style={[
               styles.saveButton,
               {
@@ -1353,7 +1453,7 @@ export default function SubjectListEditorScreen() {
           visible={isTransferModalVisible}
           sourceListId={list.id}
           sourceListName={listName}
-          subjectIds={Array.from(selectedSubjectIds.values())}
+          subjectIds={transferSubjectIds}
           onClose={() => setIsTransferModalVisible(false)}
           onTransferred={handleTransferred}
         />
@@ -1560,6 +1660,7 @@ const styles = StyleSheet.create({
   },
   bulkActionButton: {
     flex: 1,
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 10,
@@ -1612,18 +1713,27 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 10,
   },
-  removeButton: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  listActions: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  selectionSummary: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "space-between",
   },
-  removeButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
+  selectionCount: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  selectAllButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  selectedActionsRow: {
+    flexDirection: "row",
+    gap: 8,
   },
   itemMeaning: {
     fontSize: 15,
