@@ -33,6 +33,7 @@ import { nextCustomSrsStage } from "./scheduler";
 import { customAssignmentToWaniKani, customWordToSubject, customWordUsesKanji } from "./subject-adapter";
 import type { CustomSrsStage, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
 import { useCustomSrs } from "./use-custom-srs";
+import { ReviewDetailsReveal } from "@/features/study/components/ReviewDetailsReveal";
 import sessionStyles from "./custom-srs-session.module.css";
 import reviewResultsStyles from "./custom-srs-review-results.module.css";
 
@@ -484,7 +485,7 @@ function ReadyCustomSrsSession({
   const currentSubject = useMemo(() => currentWord ? customWordToSubject(currentWord) : null, [currentWord]);
   const currentAssignment = currentWord ? state.assignments[currentWord.id] : undefined;
   const canShowDetails = Boolean(feedback && feedback.status !== "blocked");
-  const detailsOpen = canShowDetails && (detailsOverride ?? studySettings.showAnswerStopSubjectDetails);
+  const detailsOpen = canShowDetails && (detailsOverride ?? (studySettings.showAnswerStopSubjectDetails || (feedback?.status === "incorrect" && studySettings.showDetailsOnWrongAnswer)));
   const syncStatus = <CustomSrsSyncStatus pendingCount={pendingCount} error={syncError} onRetry={retrySync} />;
   const total = sessionWords.length;
   const displayedCurrent = Math.min(total, completedCount + 1);
@@ -834,14 +835,14 @@ function ReadyCustomSrsSession({
         </div>
       </div>
 
-      {detailsOpen ? <CustomReviewDetails
+      <ReviewDetailsReveal open={detailsOpen} revealInViewport={studySettings.showDetailsOnWrongAnswer} revealToStart={studySettings.showDetailsOnWrongAnswer}>{detailsOpen ? <CustomReviewDetails
         key={`${currentWord.id}:${currentKind}`}
         word={currentWord}
         assignment={currentAssignment}
         settings={detailSettings}
         immersionSources={studySettings.immersionKitAnimeSources}
         initialTab={currentKind ?? "meaning"}
-      /> : null}
+      /> : null}</ReviewDetailsReveal>
       {syncStatus}
       {studySettings.keyboardShortcuts ? <p className={studyStyles.keyboardHint}>Press <kbd>Enter</kbd> to {feedback?.status === "blocked" ? "try again" : feedback ? "continue" : "check"}</p> : null}
     </div>

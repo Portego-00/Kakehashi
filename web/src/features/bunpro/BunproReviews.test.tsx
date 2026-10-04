@@ -1033,3 +1033,27 @@ it.each(["ちあん", "です"])("shows finalized kana after checking a Bunpro a
   expect(input).toHaveValue("ちあん");
   expect(screen.getByText(expected === "ちあん" ? "Correct" : "Incorrect", { exact: true })).toBeVisible();
 });
+
+it("automatically opens Bunpro details on wrong answers even when pause-on-wrong is off", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnWrong: false, showDetailsOnWrongAnswer: true } });
+  await start();
+  vi.mocked(bunpro).mockResolvedValueOnce({ data: { id: "20", attributes: { title: "です", meaning: "To be" } }, included: [] });
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Hide Info/ }));
+  expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+});
+
+it("waits with Bunpro details after an Anki answer is marked wrong when enabled", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "both", pauseOnWrong: false, showDetailsOnWrongAnswer: true } });
+  setup();
+  fireEvent.click(await screen.findByRole("button", { name: "Start reviews" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+  vi.mocked(bunpro).mockResolvedValueOnce({ data: { id: "20", attributes: { title: "です", meaning: "To be" } }, included: [] });
+  fireEvent.click(screen.getByRole("button", { name: "Wrong" }));
+  expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+});

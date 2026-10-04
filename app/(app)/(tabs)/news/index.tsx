@@ -1,3 +1,4 @@
+import { setNewsSaved, useSavedNews } from "../../../../src/hooks/useSavedNews";
 import {
   newsReadKey,
   setNewsRead,
@@ -16,7 +17,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  SectionList,
   Platform,
   Pressable,
   RefreshControl,
@@ -69,6 +70,14 @@ const SOURCE_OPTIONS: readonly {
 export default function NewsScreen() {
   useActivityTracking("news", { mode: "focus" });
   const readIds = useNewsReadHistory();
+  const savedArticles = useSavedNews();
+  const savedIds = useMemo(() => new Set(savedArticles.map(newsReadKey)), [savedArticles]);
+  const [savedOnly, setSavedOnly] = useState(false);
+  const toggleSaved = (item: NewsItem) => {
+    void setNewsSaved(item, !savedIds.has(newsReadKey(item))).catch(() =>
+      Alert.alert("Could not save article", "Storage may be full or unavailable. Please try again."),
+    );
+  };
   const [unreadOnly, setUnreadOnly] = useState(false);
   const toggleRead = (item: NewsItem) => {
     void setNewsRead(item, !readIds.has(newsReadKey(item))).catch(() =>
@@ -254,18 +263,19 @@ export default function NewsScreen() {
   };
 
   const ref = useRef<ICarouselInstance>(null);
+  const collection = news;
   const visibleNews = useMemo(
     () =>
       unreadOnly
-        ? news.filter((item) => !readIds.has(newsReadKey(item)))
-        : news,
-    [news, unreadOnly, readIds],
+        ? collection.filter((item) => !readIds.has(newsReadKey(item)))
+        : collection,
+    [collection, unreadOnly, readIds],
   );
-  const breakingNews = visibleNews.slice(0, 5);
+  const breakingNews = savedOnly ? [] : visibleNews.slice(0, 5);
   const knownKanjiPercentageById = useMemo(() => {
     const percentageMap = new Map<string, number>();
 
-    news.forEach((item) => {
+    [...news, ...savedArticles].forEach((item) => {
       const cleanContent = item.contentHtml.replace(/<[^>]*>/g, "");
       const text = item.title + cleanContent;
 
@@ -276,13 +286,13 @@ export default function NewsScreen() {
     });
 
     return percentageMap;
-  }, [news, passedKanjiSet]);
+  }, [news, savedArticles, passedKanjiSet]);
 
   const getPercentage = (item: NewsItem) =>
     knownKanjiPercentageById.get(item.id) ?? 0;
 
   const sortedRecommendationNews = useMemo(() => {
-    const otherNews = visibleNews.slice(5);
+    const otherNews = savedOnly ? [] : visibleNews.slice(5);
 
     if (otherNewsSortMode === "knownKanji") {
       return otherNews.sort((a, b) => {
@@ -308,7 +318,18 @@ export default function NewsScreen() {
         (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate)
       );
     });
-  }, [visibleNews, otherNewsSortMode, knownKanjiPercentageById]);
+  }, [visibleNews, otherNewsSortMode, knownKanjiPercentageById, savedOnly]);
+
+  const visibleSavedNews = useMemo(
+    () => savedArticles
+      .filter((item) => !unreadOnly || !readIds.has(newsReadKey(item)))
+      .sort((a, b) => (Date.parse(b.pubDate) || 0) - (Date.parse(a.pubDate) || 0)),
+    [savedArticles, unreadOnly, readIds],
+  );
+  const sections = [
+    { key: "other", title: "Other News", data: sortedRecommendationNews },
+    { key: "saved", title: "Saved articles", data: visibleSavedNews },
+  ].filter((section) => section.data.length > 0);
 
   const sortButtonText =
     otherNewsSortMode === "date" ? "Date" : "Known Kanji %";
@@ -336,7 +357,11 @@ export default function NewsScreen() {
         text: unreadOnly ? "Show all stories" : "Unread only",
         onPress: () => setUnreadOnly((value) => !value),
       },
-      ...SOURCE_OPTIONS.map((option) => ({
+      {
+        text: savedOnly ? "Show all news" : "Saved only",
+        onPress: () => setSavedOnly((value) => !value),
+      },
+      ...(savedOnly ? [] : SOURCE_OPTIONS).map((option) => ({
         text: `${newsSourcePreference === option.value ? "✓ " : ""}${option.label}`,
         onPress: () => setNewsSourcePreference(option.value),
       })),
@@ -378,6 +403,40 @@ export default function NewsScreen() {
   const isTablet = width > 768;
   const carouselWidth = isTablet ? 500 : width;
 
+  const renderSortControl = () => Platform.OS === "ios" && SwiftUI ? (
+    <SwiftUI.Host matchContents style={styles.sortMenuHost}>
+      <SwiftUI.Menu label={
+        <SwiftUI.RNHostView matchContents>
+          <GlassButton iconName="swap-vertical" iconSize={18} iconColor={theme.textColor}
+            style={styles.sortMenuButton} variant={theme.isDark ? "colored" : "light"} />
+        </SwiftUI.RNHostView>
+      }>
+        <SwiftUI.Button label="Date (Newest first)"
+          systemImage={otherNewsSortMode === "date" ? "checkmark.circle.fill" : "circle"}
+          onPress={() => setOtherNewsSortMode("date")} />
+        <SwiftUI.Button label="Known Kanji % (Highest first)"
+          systemImage={otherNewsSortMode === "knownKanji" ? "checkmark.circle.fill" : "circle"}
+          onPress={() => setOtherNewsSortMode("knownKanji")} />
+      </SwiftUI.Menu>
+    </SwiftUI.Host>
+  ) : (
+    <Pressable style={[styles.sortControlButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+      onPress={openSortFallbackMenu}>
+      <Ionicons name="swap-vertical" size={14} color={theme.textSecondary} />
+      <Text style={[styles.sortControlButtonText, { color: theme.textColor }]}>{sortButtonText}</Text>
+    </Pressable>
+  );
+
+  const renderSectionHeader = ({ section }: { section: { key: string; title: string } }) => {
+    if (savedOnly) return null;
+    return (
+      <View style={[styles.sectionHeader, { marginTop: 24, marginBottom: 12 }]}>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>{section.title}</Text>
+        {section.key === "other" ? renderSortControl() : null}
+      </View>
+    );
+  };
+
   const renderHeader = () => (
     <View>
       <View style={styles.sectionHeader}>
@@ -387,7 +446,7 @@ export default function NewsScreen() {
             { color: theme.textColor, fontSize: 30 },
           ]}
         >
-          {unreadOnly ? "Unread News" : "Recent News"}
+          {savedOnly ? "Saved articles" : unreadOnly ? "Unread News" : "Recent News"}
         </Text>
         {Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host matchContents style={styles.sortMenuHost}>
@@ -397,7 +456,7 @@ export default function NewsScreen() {
                   <GlassButton
                     iconName="filter-outline"
                     iconSize={18}
-                    iconColor={unreadOnly ? theme.primary : theme.textColor}
+                    iconColor={unreadOnly || savedOnly ? theme.primary : theme.textColor}
                     style={styles.sortMenuButton}
                     variant={theme.isDark ? "colored" : "light"}
                   />
@@ -409,7 +468,12 @@ export default function NewsScreen() {
                 systemImage={unreadOnly ? "checkmark.circle.fill" : "circle"}
                 onPress={() => setUnreadOnly((value) => !value)}
               />
-              {SOURCE_OPTIONS.map((option) => (
+              <SwiftUI.Button
+                label="Saved only"
+                systemImage={savedOnly ? "checkmark.circle.fill" : "bookmark"}
+                onPress={() => setSavedOnly((value) => !value)}
+              />
+              {(savedOnly ? [] : SOURCE_OPTIONS).map((option) => (
                 <SwiftUI.Button
                   key={option.value}
                   label={option.label}
@@ -424,18 +488,20 @@ export default function NewsScreen() {
             </SwiftUI.Menu>
           </SwiftUI.Host>
         ) : (
-          <GlassButton
-            iconName="filter-outline"
-            iconSize={18}
-            iconColor={unreadOnly ? theme.primary : theme.textColor}
-            onPress={openSourceFallbackMenu}
-            style={[styles.sortMenuButton, styles.sourceMenuFallbackButton]}
-            variant={theme.isDark ? "colored" : "light"}
-          />
+          <Pressable accessibilityRole="button" accessibilityLabel="Filter news"
+            accessibilityState={{ selected: unreadOnly || savedOnly }} onPress={openSourceFallbackMenu}>
+            <GlassButton
+              iconName="filter-outline"
+              iconSize={18}
+              iconColor={unreadOnly || savedOnly ? theme.primary : theme.textColor}
+              style={[styles.sortMenuButton, styles.sourceMenuFallbackButton]}
+              variant={theme.isDark ? "colored" : "light"}
+            />
+          </Pressable>
         )}
       </View>
 
-      {loadError ? (
+      {!savedOnly && loadError ? (
         <View style={styles.loadErrorRow}>
           <Ionicons
             name="cloud-offline-outline"
@@ -496,6 +562,8 @@ export default function NewsScreen() {
                   }}
                 >
                   <NewsCard
+                    isSaved={savedIds.has(newsReadKey(item))}
+                    onToggleSaved={toggleSaved}
                     isRead={readIds.has(newsReadKey(item))}
                     onToggleRead={toggleRead}
                     item={item}
@@ -525,82 +593,8 @@ export default function NewsScreen() {
               onPress={onPressPagination}
             />
           ) : null}
-
-          {sortedRecommendationNews.length > 0 ? (
-            <View
-              style={[
-                styles.sectionHeader,
-                { marginTop: 24, marginBottom: 12 },
-              ]}
-            >
-              <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-                Other News
-              </Text>
-              {Platform.OS === "ios" && SwiftUI ? (
-                <SwiftUI.Host matchContents style={styles.sortMenuHost}>
-                  <SwiftUI.Menu
-                    label={
-                      <SwiftUI.RNHostView matchContents>
-                        <GlassButton
-                          iconName="swap-vertical"
-                          iconSize={18}
-                          iconColor={theme.textColor}
-                          style={styles.sortMenuButton}
-                          variant={theme.isDark ? "colored" : "light"}
-                        />
-                      </SwiftUI.RNHostView>
-                    }
-                  >
-                    <SwiftUI.Button
-                      label="Date (Newest first)"
-                      systemImage={
-                        otherNewsSortMode === "date"
-                          ? "checkmark.circle.fill"
-                          : "circle"
-                      }
-                      onPress={() => setOtherNewsSortMode("date")}
-                    />
-                    <SwiftUI.Button
-                      label="Known Kanji % (Highest first)"
-                      systemImage={
-                        otherNewsSortMode === "knownKanji"
-                          ? "checkmark.circle.fill"
-                          : "circle"
-                      }
-                      onPress={() => setOtherNewsSortMode("knownKanji")}
-                    />
-                  </SwiftUI.Menu>
-                </SwiftUI.Host>
-              ) : (
-                <Pressable
-                  style={[
-                    styles.sortControlButton,
-                    {
-                      backgroundColor: theme.cardBackground,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  onPress={openSortFallbackMenu}
-                >
-                  <Ionicons
-                    name="swap-vertical"
-                    size={14}
-                    color={theme.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.sortControlButtonText,
-                      { color: theme.textColor },
-                    ]}
-                  >
-                    {sortButtonText}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          ) : null}
         </>
-      ) : loading ? (
+      ) : savedOnly && visibleSavedNews.length > 0 ? null : loading && !savedOnly ? (
         <View style={styles.headerLoadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
@@ -612,7 +606,9 @@ export default function NewsScreen() {
             color={theme.textLight}
           />
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-            {unreadOnly && news.length > 0
+            {savedOnly
+              ? unreadOnly && savedArticles.length > 0 ? "No unread saved articles. Turn off Unread only to see all saved stories." : "Tap the bookmark on a story to keep it here for later. Saved articles stay on this device."
+              : unreadOnly && news.length > 0
               ? "You’re all caught up. Turn off Unread only in the filter menu to see all stories."
               : "No articles are available for this source right now."}
           </Text>
@@ -625,18 +621,22 @@ export default function NewsScreen() {
     <View
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
-      <FlatList
-        data={sortedRecommendationNews}
-        renderItem={({ item }) => (
+      <SectionList
+        sections={sections}
+        renderSectionHeader={renderSectionHeader}
+        stickySectionHeadersEnabled={false}
+        renderItem={({ item, section }) => (
           <View style={{ paddingHorizontal: 16 }}>
             <NewsCard
+              isSaved={savedIds.has(newsReadKey(item))}
+              onToggleSaved={toggleSaved}
               isRead={readIds.has(newsReadKey(item))}
               onToggleRead={toggleRead}
               item={item}
               onPress={handlePress}
               variant="standard"
               knownKanjiPercentage={getPercentage(item)}
-              showSourceBadge={newsSourcePreference === "both"}
+              showSourceBadge={section.key === "saved" || newsSourcePreference === "both"}
             />
           </View>
         )}
@@ -652,14 +652,14 @@ export default function NewsScreen() {
         ]}
         refreshControl={
           <RefreshControl
-            refreshing={loading && news.length > 0}
+            refreshing={!savedOnly && loading && news.length > 0}
             onRefresh={handleRefresh}
             tintColor={theme.primary}
           />
         }
         showsVerticalScrollIndicator={false}
       />
-      {loading && news.length > 0 ? (
+      {!savedOnly && loading && news.length > 0 ? (
         <View
           pointerEvents="none"
           style={[styles.loadingOverlay, { top: insets.top + 12 }]}

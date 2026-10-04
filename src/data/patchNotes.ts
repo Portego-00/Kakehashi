@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.21",
+    date: "2026-10-02",
+    changes: [
+      {
+        type: "feature",
+        title: "Save News Articles",
+        description:
+          "Save stories for later, even after they leave the feed. Find them in Saved articles or use the Saved only filter.",
+      },
+    ],
+  },
+  {
     version: "1.4.20",
     date: "2026-09-30",
     changes: [

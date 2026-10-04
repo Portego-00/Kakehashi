@@ -321,6 +321,19 @@ describe("review question preferences", () => {
     expect(screen.queryByText(/Self-assessment cards/i)).not.toBeInTheDocument();
   });
 
+  it("keeps wrong-answer details opt-in and saves the choice from Reviews settings", async () => {
+    render(<SettingsWorkspace />);
+    const toggle = await screen.findByRole("checkbox", { name: /^Show details on wrong answer/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
+    expect(study.showDetailsOnWrongAnswer).toBe(true);
+    expect(study.showAnswerStopSubjectDetails).toBe(false);
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study.showDetailsOnWrongAnswer).toBe(false);
+  });
+
   it("groups the mobile-parity review controls and persists their choices", async () => {
     render(<SettingsWorkspace />);
 
@@ -345,7 +358,7 @@ describe("review question preferences", () => {
       showVocabContextSentencesInReviews: true,
       answerFeedbackSoundEnabled: false,
       allowSkippingReviews: true,
-      acceptUserSynonymsAsAnswers: true,
+      acceptUserSynonymsAsAnswers: !DEFAULT_WEB_SETTINGS.study.acceptUserSynonymsAsAnswers,
       srsProgressionCardDisplayMode: "compact",
       ankiMode: "both",
       ankiGroupQuestions: true,

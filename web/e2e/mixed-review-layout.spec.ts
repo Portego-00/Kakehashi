@@ -570,3 +570,45 @@ test(`review subject stays visible while scrolling details and disappears when c
   await expect(sticky).toHaveCount(0);
 });
 }
+
+for (const viewport of [
+  { width: 1024, height: 768, reducedMotion: "no-preference" },
+  { width: 390, height: 844, reducedMotion: "reduce" },
+] as const) {
+  for (const source of ["wanikani", "bunpro"] as const) {
+    test(`${source} wrong-answer details open and scroll automatically at ${viewport.width}`, async ({ page }, testInfo) => {
+      await page.setViewportSize(viewport);
+      await page.emulateMedia({ reducedMotion: viewport.reducedMotion });
+      await openMixedReviews(page, { pauseOnWrong: false });
+      if (source === "bunpro") {
+        await answer(page, "river"); await next(page);
+        await answer(page, "かわ"); await next(page);
+        await expect(page.locator('[aria-label="Bunpro review"]:visible')).toBeVisible();
+      }
+      await page.getByRole("button", { name: "Review settings", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Review settings" });
+      const toggle = dialog.getByLabel("Show details on wrong answer", { exact: true });
+      await expect(toggle).not.toBeChecked();
+      await toggle.check();
+      await dialog.getByRole("button", { name: "Done", exact: true }).click();
+      const details = source === "wanikani" ? page.locator("#study-item-details") : page.locator('[aria-label="Bunpro item details"]');
+      await expect(details).not.toBeVisible();
+      await answer(page, source === "bunpro" ? "ちがう" : "mountain");
+      await expect(details).toBeVisible();
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+      await expect.poll(async () => (await details.boundingBox())!.y).toBeLessThan(160);
+      await expect(page.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
+      await page.screenshot({ path: testInfo.outputPath(`${source}-automatic-wrong-details.png`), animations: "disabled" });
+      // Manual dismissal must remain possible and must not trigger auto-advance.
+      const info = source === "wanikani" ? page.getByRole("button", { name: /Hide subject details/ }) : page.getByRole("button", { name: /Hide Info/ });
+      await info.click();
+      const closedInfo = source === "wanikani" ? page.getByRole("button", { name: /Show subject details/ }) : page.getByRole("button", { name: /^Info/ });
+      await expect(closedInfo).toHaveAttribute("aria-expanded", "false");
+      await expect(session(page).locator("[data-review-details-reveal]").filter({ has: details })).toHaveAttribute("data-open", "false");
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+      await expect(page.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
+      await next(page);
+      await expect(details).not.toBeVisible();
+    });
+  }
+}

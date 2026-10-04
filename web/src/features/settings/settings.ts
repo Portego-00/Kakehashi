@@ -94,6 +94,7 @@ export interface WebStudyPreferences {
   reviewAnimatePreviousQuestion: boolean;
   answerStopBehavior: AnswerStopBehavior;
   showAnswerStopSubjectDetails: boolean;
+  showDetailsOnWrongAnswer: boolean;
   showListeningTranslation: boolean;
   vocabularyAudioVoice: VocabularyAudioVoice;
   ankiMode: AnkiMode;
@@ -362,6 +363,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     reviewAnimatePreviousQuestion: true,
     answerStopBehavior: "always",
     showAnswerStopSubjectDetails: false,
+    showDetailsOnWrongAnswer: false,
     showListeningTranslation: true,
     vocabularyAudioVoice: "female",
     ankiMode: "off",
@@ -585,6 +587,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         reviewAnimatePreviousQuestion: typeof parsed.study?.reviewAnimatePreviousQuestion === "boolean" ? parsed.study.reviewAnimatePreviousQuestion : DEFAULT_WEB_SETTINGS.study.reviewAnimatePreviousQuestion,
         answerStopBehavior: legacyAnswerStopBehavior ?? DEFAULT_WEB_SETTINGS.study.answerStopBehavior,
         showAnswerStopSubjectDetails: typeof parsed.study?.showAnswerStopSubjectDetails === "boolean" ? parsed.study.showAnswerStopSubjectDetails : DEFAULT_WEB_SETTINGS.study.showAnswerStopSubjectDetails,
+        showDetailsOnWrongAnswer: typeof parsed.study?.showDetailsOnWrongAnswer === "boolean" ? parsed.study.showDetailsOnWrongAnswer : DEFAULT_WEB_SETTINGS.study.showDetailsOnWrongAnswer,
         showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
         vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,

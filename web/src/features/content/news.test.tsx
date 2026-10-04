@@ -20,6 +20,7 @@ vi.mock("./useFirstContentReveal", () => ({
 }));
 
 import { NewsArticleView, NewsIndex } from "./news";
+import { setNewsSaved } from "./saved-news";
 import { readLocal, writeLocal } from "./storage";
 import type { NewsArticle } from "./types";
 
@@ -88,6 +89,78 @@ describe("NHK News web source parity", () => {
     vi.unstubAllGlobals();
   });
 
+
+  it("saves a story and reopens its full snapshot after feed and cache rotation", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    const index = render(<NewsIndex />);
+    fireEvent.click(await screen.findByRole("button", { name: `Save article: ${easyArticle.title}` }));
+    expect(screen.getByRole("heading", { name: "Saved articles" })).toBeInTheDocument();
+    index.unmount();
+    writeLocal("news-cache-easy", feed([{ ...easyArticle, id: "easy:new", title: "New story" }]));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([{ ...easyArticle, id: "easy:new", title: "New story" }]))));
+    const library = render(<NewsIndex />);
+    fireEvent.click(screen.getByRole("button", { name: "Filter news" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Saved only" }));
+    expect(screen.getByRole("heading", { name: "Saved articles" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /やさしいニュース/ })).toBeInTheDocument();
+    library.unmount();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => { throw new Error("offline"); }));
+    render(<NewsArticleView articleId={easyArticle.id} />);
+    expect(await screen.findByTestId("japanese-reader")).toHaveTextContent(easyArticle.body!);
+    fireEvent.click(screen.getByRole("button", { name: `Remove saved article: ${easyArticle.title}` }));
+    expect(screen.getByTestId("japanese-reader")).toHaveTextContent(easyArticle.body!);
+    expect(readLocal("news-saved-articles", [])).toEqual([]);
+  });
+
+  it("lists both sources in Saved and keeps search and unread filters working", async () => {
+    setNewsSaved(easyArticle, true);
+    setNewsSaved(standardArticle, true);
+    writeLocal("news-read-history", [easyArticle.id]);
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    render(<NewsIndex />);
+    fireEvent.click(screen.getByRole("button", { name: "Filter news" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Saved only" }));
+    expect(screen.getAllByRole("link", { name: /ニュース/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Unread (1)" }));
+    expect(screen.getByRole("link", { name: /通常のニュース/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /やさしいニュース/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "missing" } });
+    expect(screen.getByText("No saved articles match")).toBeInTheDocument();
+  });
+
+  it("adds Saved below Other news while preserving the feed, and filters from the top button", async () => {
+    setNewsSaved(standardArticle, true);
+    const current = Array.from({ length: 6 }, (_, index) => ({ ...easyArticle, id: `easy:${index}`, title: `Story ${index}` }));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed(current))));
+    render(<NewsIndex />);
+    expect(await screen.findByRole("heading", { name: "Other news" })).toBeInTheDocument();
+    const sections = screen.getAllByRole("region");
+    expect(sections.map((section) => section.getAttribute("aria-labelledby"))).toEqual([
+      "recent-news-heading", "other-news-heading", "saved-news-heading",
+    ]);
+    expect(screen.queryByRole("button", { name: "Latest news" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Filter news" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Saved only" }));
+    expect(screen.queryByRole("heading", { name: "Recent news" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Other news" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /通常のニュース/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Saved only" }));
+    expect(screen.getByRole("heading", { name: "Recent news" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Filter news" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "Filter news" })).toHaveFocus();
+  });
+
+  it("reports storage errors without claiming that the story was saved", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => response(feed([easyArticle]))));
+    render(<NewsIndex />);
+    const save = await screen.findByRole("button", { name: `Save article: ${easyArticle.title}` });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
+    fireEvent.click(save);
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not save articles");
+    expect(screen.queryByRole("heading", { name: "Saved articles" })).not.toBeInTheDocument();
+    expect(save).toHaveAttribute("aria-pressed", "false");
+  });
 
   it("restores known percentages immediately on reopening while study data is still loading", async () => {
     const article = { ...easyArticle, title: "日本", body: "日本" };
@@ -209,7 +282,7 @@ describe("NHK News web source parity", () => {
     expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toBeInTheDocument();
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Storage full"); });
     fireEvent.click(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` }));
-    expect(screen.getByRole("status")).toHaveTextContent("Could not save read status");
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not save read status");
     expect(screen.getByRole("button", { name: `Mark unread: ${easyArticle.title}` })).toHaveAttribute("aria-pressed", "true");
   });
 

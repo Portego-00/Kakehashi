@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Check, Circle, ChevronDown, ExternalLink, RefreshCw, Search } from "lucide-react";
+import { Bookmark, Check, Circle, ChevronDown, ExternalLink, ListFilter, RefreshCw, Search } from "lucide-react";
 import { useCachedNewsKanji } from "./use-cached-news-kanji";
 import { useStudyDataset } from "@/features/study/use-study-dataset";
 import { JapaneseReader } from "./JapaneseReader";
@@ -12,13 +12,13 @@ import {
   passedKanjiCharacters,
 } from "./annotation";
 import { ContentHeader, ContentPage, EmptyState, Panel } from "./ui";
-import { normalizeNewsAudioUrl } from "./news-audio";
+import { normalizeCachedArticle, normalizedArticleId, sourceFromArticleId } from "./news-cache";
 import { proxyNewsImageUrl } from "./news-images";
 import { NewsAudioPlayer } from "./NewsAudioPlayer";
+import { readSavedNews, setNewsSaved, useSavedNews } from "./saved-news";
 import { setNewsRead, useNewsReadHistory } from "./news-read-history";
 import { readLocal, writeLocal } from "./storage";
 import type {
-  FuriganaRange,
   NewsArticle,
   NewsSource,
   NewsSourcePreference,
@@ -75,120 +75,6 @@ function readFuriganaPreference() {
 
 function requestedSources(preference: NewsSourcePreference): NewsSource[] {
   return preference === "both" ? [...NEWS_SOURCES] : [preference];
-}
-
-function sourceFromArticleId(articleId: string): NewsSource {
-  let decoded = articleId;
-  try {
-    decoded = decodeURIComponent(articleId);
-  } catch {
-    // A malformed route segment can only fall back to the beginner feed.
-  }
-  return decoded.startsWith("regular:") ? "regular" : "easy";
-}
-
-function normalizedArticleId(id: string, source: NewsSource) {
-  let decoded = id;
-  try {
-    decoded = decodeURIComponent(id);
-  } catch {
-    // Preserve opaque IDs when percent-decoding fails.
-  }
-  return decoded.startsWith(`${source}:`) ? decoded : `${source}:${decoded}`;
-}
-
-function normalizeFurigana(value: unknown, text: string): FuriganaRange[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const ranges = value.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const candidate = item as Partial<FuriganaRange>;
-    const start = candidate.start;
-    const end = candidate.end;
-    const reading = typeof candidate.reading === "string" ? candidate.reading.trim() : "";
-    if (
-      typeof start !== "number" ||
-      typeof end !== "number" ||
-      !Number.isInteger(start) ||
-      !Number.isInteger(end) ||
-      start < 0 ||
-      end <= start ||
-      end > text.length ||
-      !reading ||
-      reading.length > 128 ||
-      /[\u0000-\u001f\u007f]/u.test(reading)
-    ) return [];
-    return [{ start, end, reading }];
-  }).sort((left, right) => left.start - right.start || left.end - right.end);
-  const nonOverlapping: FuriganaRange[] = [];
-  for (const range of ranges) {
-    if (range.start < (nonOverlapping.at(-1)?.end ?? 0)) continue;
-    if (text.slice(range.start, range.end) === range.reading) continue;
-    nonOverlapping.push(range);
-  }
-  return nonOverlapping.length ? nonOverlapping : undefined;
-}
-
-function normalizeCachedArticle(
-  value: unknown,
-  fallbackSource: NewsSource,
-): NewsArticle | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const candidate = value as Partial<NewsArticle>;
-  if (
-    typeof candidate.id !== "string" ||
-    typeof candidate.title !== "string" ||
-    typeof candidate.publishedAt !== "string" ||
-    typeof candidate.url !== "string"
-  ) {
-    return null;
-  }
-
-  const source = isNewsSource(candidate.source)
-    ? candidate.source
-    : sourceFromArticleId(candidate.id) === "regular"
-      ? "regular"
-      : fallbackSource;
-  const audioUrl = source === "easy"
-    ? normalizeNewsAudioUrl(candidate.audioUrl, candidate.url)
-    : undefined;
-  let content: NewsContentBlock[] | undefined;
-  if (Array.isArray(candidate.content)) {
-    content = [];
-    for (const block of candidate.content) {
-      if (!block || typeof block !== "object") continue;
-      if (block.type === "text" && typeof block.text === "string") {
-        const furigana = normalizeFurigana(block.furigana, block.text);
-        content.push({ type: "text", text: block.text, ...(furigana ? { furigana } : {}) });
-      } else if (block.type === "image" && typeof block.url === "string") {
-        content.push({
-          type: "image",
-          url: block.url,
-          ...(typeof block.alt === "string" ? { alt: block.alt } : {}),
-        });
-      }
-    }
-  }
-
-  return {
-    id: normalizedArticleId(candidate.id, source),
-    source,
-    title: candidate.title,
-    publishedAt: candidate.publishedAt,
-    url: candidate.url,
-    isFullArticle:
-      typeof candidate.isFullArticle === "boolean"
-        ? candidate.isFullArticle
-        : source === "easy",
-    ...(typeof candidate.imageUrl === "string"
-      ? { imageUrl: candidate.imageUrl }
-      : {}),
-    ...(audioUrl ? { audioUrl } : {}),
-    ...(typeof candidate.summary === "string"
-      ? { summary: candidate.summary }
-      : {}),
-    ...(typeof candidate.body === "string" ? { body: candidate.body } : {}),
-    ...(content ? { content } : {}),
-  };
 }
 
 function normalizeFeedPayload(
@@ -474,7 +360,65 @@ function ReadButton({
   );
 }
 
+function SaveButton({ article, isSaved, onChange }: { article: NewsArticle; isSaved: boolean; onChange: () => void }) {
+  return (
+    <button type="button" className={styles.newsSaveButton}
+      aria-label={`${isSaved ? "Remove saved article" : "Save article"}: ${article.title}`}
+      aria-pressed={isSaved} title={isSaved ? "Remove from saved articles" : "Save article"} onClick={onChange}>
+      <Bookmark size={16} aria-hidden="true" fill={isSaved ? "currentColor" : "none"} />
+      {isSaved ? "Saved" : "Save"}
+    </button>
+  );
+}
+
+function NewsFilters({ savedOnly, unreadOnly, onSavedChange, onUnreadChange }: {
+  savedOnly: boolean;
+  unreadOnly: boolean;
+  onSavedChange: (value: boolean) => void;
+  onUnreadChange: (value: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+  return (
+    <div ref={containerRef} className={styles.newsFilterControl}>
+      <button ref={buttonRef} type="button" className={styles.secondaryButton}
+        aria-label="Filter news" aria-expanded={open} aria-controls="news-filter-options"
+        data-active={savedOnly || unreadOnly} onClick={() => setOpen((value) => !value)}>
+        <ListFilter size={18} aria-hidden="true" />
+      </button>
+      {open ? (
+        <div id="news-filter-options" className={styles.newsFilterOptions} role="group" aria-label="Article filters">
+          <label><input type="checkbox" checked={unreadOnly} onChange={(event) => onUnreadChange(event.target.checked)} />Unread only</label>
+          <label><input type="checkbox" checked={savedOnly} onChange={(event) => onSavedChange(event.target.checked)} />Saved only</label>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function NewsIndex() {
+  const savedArticles = useSavedNews();
+  const savedIds = useMemo(() => new Set(savedArticles.map((article) => article.id)), [savedArticles]);
+  const [savedOnly, setSavedOnly] = useState(false);
   const readIds = useNewsReadHistory();
   const [unreadOnly, setUnreadOnly] = useState(false);
   const { dataset, user, status } = useStudyDataset();
@@ -494,13 +438,14 @@ export function NewsIndex() {
   );
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<NewsSort>("date");
   const requestIdRef = useRef(0);
   const toggleRead = (article: NewsArticle) => {
-    if (!setNewsRead(article.id, !readIds.has(article.id))) {
-      setMessage("Could not save read status in this browser. Please try again.");
-    }
+    setSaveError(setNewsRead(article.id, !readIds.has(article.id))
+      ? ""
+      : "Could not save read status in this browser. Please try again.");
   };
 
   const refresh = useCallback(async (preference: NewsSourcePreference) => {
@@ -572,18 +517,22 @@ export function NewsIndex() {
     setSourcePreference(next);
   };
 
-  const filtered = useMemo(() => {
+  const articles = useMemo(() => feed?.articles ?? [], [feed?.articles]);
+  const toggleSaved = (article: NewsArticle) => {
+    const saving = !savedIds.has(article.id);
+    setSaveError(setNewsSaved(article, saving)
+      ? ""
+      : "Could not save articles in this browser. Storage may be full or unavailable.");
+  };
+  const filterArticles = useCallback((items: readonly NewsArticle[]) => {
     const needle = query.trim().toLocaleLowerCase("ja");
-    return (
-      feed?.articles.filter(
-        (article) =>
-          (!unreadOnly || !readIds.has(article.id)) &&
-          (!needle || `${article.title} ${article.body ?? ""}`
-            .toLocaleLowerCase("ja")
-            .includes(needle)),
-      ) ?? []
+    return items.filter((article) =>
+      (!unreadOnly || !readIds.has(article.id)) &&
+      (!needle || `${article.title} ${article.body ?? ""}`.toLocaleLowerCase("ja").includes(needle)),
     );
-  }, [feed, query, unreadOnly, readIds]);
+  }, [query, unreadOnly, readIds]);
+  const filtered = useMemo(() => filterArticles(articles), [articles, filterArticles]);
+  const filteredSaved = useMemo(() => dateSortedArticles(filterArticles(savedArticles)), [savedArticles, filterArticles]);
   const subjects = dataset?.subjects;
   const assignments = dataset?.assignments;
   const freshPassedKanji = useMemo(
@@ -597,7 +546,7 @@ export function NewsIndex() {
   const knownByArticle = useMemo(
     () =>
       new Map(
-        (feed?.articles ?? []).map((article) => [
+        [...articles, ...savedArticles].map((article) => [
           article.id,
           passedKanji
             ? calculateKnownKanjiPercentage(
@@ -607,7 +556,7 @@ export function NewsIndex() {
             : null,
         ]),
       ),
-    [feed?.articles, passedKanji],
+    [articles, savedArticles, passedKanji],
   );
   const otherArticles = useMemo(() => {
     const articles = filtered.slice(5);
@@ -621,8 +570,33 @@ export function NewsIndex() {
     }
     return articles;
   }, [filtered, knownByArticle, sort]);
-  const showSourceBadges = sourcePreference === "both";
+  const showSourceBadges = savedOnly || sourcePreference === "both";
   const sourceLabel = SOURCE_LABELS[sourcePreference];
+
+  const renderStoryRow = (article: NewsArticle, savedSection = false) => (
+    <article className={styles.newsListEntry} data-read={readIds.has(article.id)} key={article.id}>
+      <Link className={styles.articleRow} href={`/news/${encodeURIComponent(article.id)}`}>
+        <NewsImage article={article} />
+        <time dateTime={article.publishedAt}>
+          {new Date(article.publishedAt).toLocaleDateString()}
+        </time>
+        <h2 lang="ja">{article.title}</h2>
+        <span className={styles.articleBadges}>
+          {savedSection || showSourceBadges ? (
+            <SourceBadge source={article.source} />
+          ) : null}
+          <KnownScore
+            value={knownByArticle.get(article.id) ?? null}
+          />
+        </span>
+        <span aria-hidden="true">→</span>
+      </Link>
+      <div className={styles.newsCardActions}>
+        <ReadButton article={article} isRead={readIds.has(article.id)} onChange={() => toggleRead(article)} />
+        <SaveButton article={article} isSaved={savedIds.has(article.id)} onChange={() => toggleSaved(article)} />
+      </div>
+    </article>
+  );
 
   return (
     <ContentPage variant="library">
@@ -650,7 +624,8 @@ export function NewsIndex() {
           <select
             id="news-source"
             className={styles.newsSourceSelect}
-            value={sourcePreference}
+            value={savedOnly ? "both" : sourcePreference}
+            disabled={savedOnly}
             onChange={(event) => selectSource(event.target.value)}
           >
             <option value="easy">Easy</option>
@@ -668,24 +643,26 @@ export function NewsIndex() {
           <RefreshCw size={16} aria-hidden="true" />
           {loading ? "Refreshing…" : "Refresh"}
         </button>
+        <NewsFilters savedOnly={savedOnly} unreadOnly={unreadOnly} onSavedChange={setSavedOnly} onUnreadChange={setUnreadOnly} />
       </div>
       <div className={styles.newsReadFilters} role="group" aria-label="Reading status">
         <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>All stories</button>
         <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>
-          Unread ({feed?.articles.filter((article) => !readIds.has(article.id)).length ?? 0})
+          Unread ({(savedOnly ? savedArticles : articles).filter((article) => !readIds.has(article.id)).length})
         </button>
       </div>
-      {message ? (
+      {saveError ? <div className={styles.notice} role="alert">{saveError}</div> : null}
+      {!savedOnly && message ? (
         <div className={styles.notice} role="status">
           {message}
-          {feed && feed.source === "browser-cache"
+          {!savedOnly && feed && feed.source === "browser-cache"
             ? " Showing the last browser copy."
             : ""}
         </div>
       ) : null}
-      {filtered.length ? (
+      {(!savedOnly && filtered.length) || filteredSaved.length ? (
         <div className={styles.newsSections} {...firstNewsReveal}>
-          <section
+          {!savedOnly && filtered.length > 0 ? <section
             className={styles.newsSection}
             aria-labelledby="recent-news-heading"
           >
@@ -717,12 +694,15 @@ export function NewsIndex() {
                       <strong lang="ja">{article.title}</strong>
                     </span>
                   </Link>
-                  <ReadButton article={article} isRead={readIds.has(article.id)} onChange={() => toggleRead(article)} />
+                  <div className={styles.newsCardActions}>
+                    <ReadButton article={article} isRead={readIds.has(article.id)} onChange={() => toggleRead(article)} />
+                    <SaveButton article={article} isSaved={savedIds.has(article.id)} onChange={() => toggleSaved(article)} />
+                  </div>
                 </article>
               ))}
             </div>
-          </section>
-          {filtered.length > 5 ? (
+          </section> : null}
+          {!savedOnly && filtered.length > 5 ? (
             <section
               className={styles.newsSection}
               aria-labelledby="other-news-heading"
@@ -754,39 +734,29 @@ export function NewsIndex() {
                 </label>
               </div>
               <div className={styles.articleList}>
-                {otherArticles.map((article) => (
-                  <article className={styles.newsListEntry} data-read={readIds.has(article.id)} key={article.id}>
-                    <Link className={styles.articleRow} href={`/news/${encodeURIComponent(article.id)}`}>
-                      <NewsImage article={article} />
-                      <time dateTime={article.publishedAt}>
-                        {new Date(article.publishedAt).toLocaleDateString()}
-                      </time>
-                      <h2 lang="ja">{article.title}</h2>
-                      <span className={styles.articleBadges}>
-                        {showSourceBadges ? (
-                          <SourceBadge source={article.source} />
-                        ) : null}
-                        <KnownScore
-                          value={knownByArticle.get(article.id) ?? null}
-                        />
-                      </span>
-                      <span aria-hidden="true">→</span>
-                    </Link>
-                    <ReadButton article={article} isRead={readIds.has(article.id)} onChange={() => toggleRead(article)} />
-                  </article>
-                ))}
+                {otherArticles.map((article) => renderStoryRow(article))}
+              </div>
+            </section>
+          ) : null}
+          {filteredSaved.length > 0 ? (
+            <section className={styles.newsSection} aria-labelledby="saved-news-heading">
+              <div className={styles.sectionHead}>
+                <h2 id="saved-news-heading">Saved articles</h2>
+              </div>
+              <div className={styles.articleList}>
+                {filteredSaved.map((article) => renderStoryRow(article, true))}
               </div>
             </section>
           ) : null}
         </div>
-      ) : loading ? (
+      ) : loading && !savedOnly ? (
         <Panel className={styles.loading}>{loadingLabel(sourcePreference)}</Panel>
       ) : (
-        <EmptyState title={unreadOnly && !query && feed?.articles.length ? "You’re all caught up" : "No articles found"}>
-          {unreadOnly ? "Switch to All stories to see articles you’ve already read, or try another search or source." : "Try a different search or source. If the feed is offline, return when a connection is available."}
+        <EmptyState title={savedOnly ? query || unreadOnly ? "No saved articles match" : "No saved articles yet" : unreadOnly && !query && feed?.articles.length ? "You’re all caught up" : "No articles found"}>
+          {savedOnly ? "Use the bookmark button on a story to keep it here for later. Saved articles stay in this browser." : unreadOnly ? "Switch to All stories to see articles you’ve already read, or try another search or source." : "Try a different search or source. If the feed is offline, return when a connection is available."}
         </EmptyState>
       )}
-      {feed ? (
+      {!savedOnly && feed ? (
         <p className={styles.hint}>
           Updated {new Date(feed.updatedAt).toLocaleString()} · {sourceLabel}
           {feed.source === "live"
@@ -904,6 +874,7 @@ function StandardNewsSummary({ article }: { article: NewsArticle }) {
 }
 
 export function NewsArticleView({ articleId }: { articleId: string }) {
+  const savedArticles = useSavedNews();
   const readIds = useNewsReadHistory();
   const [readError, setReadError] = useState("");
   const normalizedId = normalizedArticleId(
@@ -911,9 +882,16 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
     sourceFromArticleId(articleId),
   );
   const articleSource = sourceFromArticleId(normalizedId);
-  const [feed, setFeed] = useState<FeedPayload | null>(() =>
-    readSourceCache(articleSource),
-  );
+  const [feed, setFeed] = useState<FeedPayload | null>(() => {
+    const cached = readSourceCache(articleSource);
+    const saved = readSavedNews().find((item) => item.id === normalizedId);
+    if (!saved) return cached;
+    return {
+      updatedAt: cached?.updatedAt ?? new Date(0).toISOString(),
+      source: cached?.source ?? "browser-cache",
+      articles: [saved, ...(cached?.articles.filter((item) => item.id !== normalizedId) ?? [])],
+    };
+  });
   const [loading, setLoading] = useState(true);
   const showFurigana = useSyncExternalStore(subscribeToFuriganaPreference, readFuriganaPreference, () => true);
 
@@ -923,7 +901,7 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const cachedArticle = readSourceCache(articleSource)?.articles.find(
+    const cachedArticle = readSavedNews().find((article) => article.id === normalizedId) ?? readSourceCache(articleSource)?.articles.find(
       (article) => article.id === normalizedId,
     );
     void fetch(`/news/feed?source=${articleSource}`, {
@@ -959,7 +937,7 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
     return () => controller.abort();
   }, [articleSource, normalizedId]);
 
-  const article = feed?.articles.find((item) => item.id === normalizedId);
+  const article = savedArticles.find((item) => item.id === normalizedId) ?? feed?.articles.find((item) => item.id === normalizedId);
   const resolvedArticleId = article?.id;
   useEffect(() => {
     if (!resolvedArticleId) return;
@@ -978,13 +956,14 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
         />
         <EmptyState title={loading ? "Loading article…" : "Article unavailable"}>
           {loading
-            ? `Checking the current ${sourceLabel} feed and your browser cache.`
+            ? `Checking your saved articles and the current ${sourceLabel} feed.`
             : "This story is no longer in the recent feed and was not saved in this browser."}
         </EmptyState>
       </ContentPage>
     );
   }
 
+  const isSaved = savedArticles.some((item) => item.id === normalizedId);
   const isStandardSummary =
     article.source === "regular" && !article.isFullArticle;
   return (
@@ -997,6 +976,9 @@ export function NewsArticleView({ articleId }: { articleId: string }) {
         description={`${SOURCE_LABELS[article.source]} · ${new Date(article.publishedAt).toLocaleString()}`}
         actions={
           <>
+            <SaveButton article={article} isSaved={isSaved} onChange={() => {
+              setReadError(setNewsSaved(article, !isSaved) ? "" : "Could not save articles in this browser. Storage may be full or unavailable.");
+            }} />
             <button className={styles.secondaryButton} type="button" onClick={() => {
               setReadError(setNewsRead(article.id, !readIds.has(article.id)) ? "" : "Could not save read status in this browser. Please try again.");
             }}>

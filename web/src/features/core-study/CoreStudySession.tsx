@@ -588,7 +588,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status) || Boolean(currentUsesSelfAssessment && ankiRevealed);
   const answerStopped = Boolean(feedback && feedback.status !== "blocked" && shouldPauseAfterResult(feedback.status, preferences));
   const unresolvedCloseAnswer = feedback?.status === "close" && (preferences.pauseOnCorrect || preferences.pauseOnClose);
-  const studyDetailsOpenByDefault = Boolean(answerStopped && preferences.showAnswerStopSubjectDetails && !currentUsesSelfAssessment);
+  const studyDetailsOpenByDefault = Boolean((feedback?.status === "incorrect" && preferences.showDetailsOnWrongAnswer)
+    || (answerStopped && preferences.showAnswerStopSubjectDetails && !currentUsesSelfAssessment));
   const studyDetailsOverrideForCurrent = current && studyDetailsOverride?.questionId === current.id ? studyDetailsOverride.open : undefined;
   const studyDetailsOpen = Boolean(current && revealStudyDetails && (studyDetailsOverrideForCurrent ?? studyDetailsOpenByDefault));
   const studyDetailsShouldOpen = studyDetailsOpen && !advancingQuestion;
@@ -697,7 +698,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     setLastCorrect(correct);
     if (!correct) setErrors((previous) => ({ ...previous, [current.assignment.id]: { meaning: previous[current.assignment.id]?.meaning || 0, reading: previous[current.assignment.id]?.reading || 0, [current.kind]: (previous[current.assignment.id]?.[current.kind] || 0) + 1 } }));
     if (preferences.answerFeedbackSoundEnabled && !(result.status === "close" && (preferences.pauseOnCorrect || preferences.pauseOnClose))) playAnswerFeedback(correct);
-    if ((correct || (result.status === "incorrect" && preferences.pauseOnWrong)) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
+    if ((correct || (result.status === "incorrect" && shouldPauseAfterResult(result.status, preferences))) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
   }
 
   function preservePhoneInputFocus(event: MouseEvent<HTMLButtonElement>) {
@@ -707,6 +708,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   function gradeSelf(correct: boolean) {
     if (!current || feedback) return;
+    if (!correct && preferences.showDetailsOnWrongAnswer) setStudyDetailsOverride(null);
     const gradedKinds = selfAssessmentKinds.length ? selfAssessmentKinds : [current.kind];
     const canonical = gradedKinds.map((kind) => canonicalAnswer(current.subject, kind)).join(" · ");
     setFeedback({ status: correct ? "correct" : "incorrect", message: correct ? "Marked correct in Anki mode." : `Marked incorrect. The answer is ${canonical}.`, canonical });
@@ -718,7 +720,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       return { ...previous, [current.assignment.id]: row };
     });
     if (preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correct);
-    advance(correct, undefined, gradedKinds);
+    if (correct || !preferences.showDetailsOnWrongAnswer) advance(correct, undefined, gradedKinds);
   }
 
   function resolveCloseAnswer(correct: boolean) {
@@ -1266,7 +1268,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
         </div>
 
-        <ReviewDetailsReveal open={studyDetailsExpanded} revealInViewport>
+        <ReviewDetailsReveal open={studyDetailsExpanded} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer}>
           {revealStudyDetails ? <section id="study-item-details" className={quiz.itemDetails} aria-labelledby="study-details-title" style={{ "--subject-color": subjectColor(current.subject) } as React.CSSProperties}>
             <header className={quiz.itemDetailsHeader}>
               <div className={quiz.itemDetailsIdentity}>

@@ -176,7 +176,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const jitaiFamily = resolveJitaiFontFamily(preferences, `bunpro:${currentKey}`);
   const displayAnswers = bunproDisplayAnswers(question);
   const paused = Boolean(outcome && shouldPauseAfterResult(outcome.correct ? "correct" : "incorrect", preferences));
-  const details = Boolean(revealed && (detailsOverride ?? (paused && preferences.showAnswerStopSubjectDetails)));
+  const details = Boolean(revealed && (detailsOverride ?? ((outcome && !outcome.correct && preferences.showDetailsOnWrongAnswer) || (paused && preferences.showAnswerStopSubjectDetails))));
   if (details && current && visitedDetails !== currentKey) setVisitedDetails(currentKey);
   const accepted = displayAnswers;
   const alternativeFeedback = [...buildAnswerFeedbackMap(question.alternate_answers)];
@@ -203,10 +203,11 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   }
   function gradeSelf(correct: boolean) {
     if (!ankiRevealed || outcome || saving) return;
+    if (!correct && preferences.showDetailsOnWrongAnswer) setDetailsOverride(null);
     const graded = { correct, entered: answer };
     setOutcome(graded);
     if (preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correct);
-    void advance(undefined, graded);
+    if (correct || !preferences.showDetailsOnWrongAnswer) void advance(undefined, graded);
   }
   function check() {
     if (!current || !content || outcome || saving || composing.current || !input.trim()) return;
@@ -218,7 +219,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     setHint(correct ? "" : buildAnswerFeedbackMap(question.wrong_answers).get(normalizeAnswer(submitted)) ?? "");
     setOutcome({ correct, entered: submitted });
     if (preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correct);
-    if (preferences.autoplayAudio && (correct || preferences.pauseOnWrong)) void audio.play(bunproAudioUrls(question, "female"));
+    if (preferences.autoplayAudio && (correct || shouldPauseAfterResult("incorrect", preferences))) void audio.play(bunproAudioUrls(question, "female"));
   }
   const latestAnswer = useRef<{ id?: string; input: string; active: boolean }>({ input: "", active: true });
   useEffect(() => { latestAnswer.current = { id: currentKey, input, active: mixed?.active !== false }; }, [currentKey, input, mixed?.active]);
@@ -487,6 +488,6 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
         {!mixed ? <BunproSaveWarning count={unsavedCount} /> : null}
         {outcome ? <div role="status" className={quiz.answerStatus}><strong className={quiz.answerVerdict} data-correct={outcome.correct}>{outcome.correct ? "Correct" : "Incorrect"}</strong><p>{outcome.correct ? "Your answer is correct." : <>The answer is <span lang="ja">{answer}</span>.</>}</p>{paused && preferences.showAnswerStopSubjectDetails ? <div className={core.answerStopDetails}><span>Expected answer</span><strong lang="ja">{answer}</strong></div> : null}{error && !saveFailure ? <p className={core.error} role="alert">{error} Your current answer is kept on screen.</p> : null}</div> : null}
       </div>
-      <ReviewDetailsReveal open={details} revealInViewport>{revealed && (details || visitedDetails === currentKey) && content.slug ? <div id={detailsId} className={styles.reviewDetails}><BunproDetails key={`${content.kind}:${content.slug}`} kind={content.kind} slug={content.slug} review={currentReviewType === "review" ? current.data.attributes : undefined} /></div> : null}</ReviewDetailsReveal>
+      <ReviewDetailsReveal open={details} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer}>{revealed && (details || visitedDetails === currentKey) && content.slug ? <div id={detailsId} className={styles.reviewDetails}><BunproDetails key={`${content.kind}:${content.slug}`} kind={content.kind} slug={content.slug} review={currentReviewType === "review" ? current.data.attributes : undefined} /></div> : null}</ReviewDetailsReveal>
   </main>;
 }

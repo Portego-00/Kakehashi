@@ -87,6 +87,7 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
         </fieldset>
         <fieldset><legend>Answers and audio</legend>
           {toggle("pauseOnWrong", "Pause on wrong answer")}{toggle("pauseOnClose", "Pause on close answer", study.pauseOnCorrect)}{toggle("pauseOnCorrect", "Pause on correct answer")}
+          {toggle("showDetailsOnWrongAnswer", "Show details on wrong answer")}
           {toggle("showAnswerStopSubjectDetails", "Show details on answer pause")}{toggle("answerFeedbackSoundEnabled", "Answer feedback sounds")}
           {toggle("keyboardShortcuts", "Keyboard shortcuts")}{toggle("allowSkippingReviews", "Allow skipping reviews")}
           {toggle("acceptUserSynonymsAsAnswers", "Accept user synonyms")}{toggle("acceptAnyKanjiOnyomiReading", "Accept any kanji on’yomi reading")}

@@ -7,7 +7,7 @@ export const REVIEW_DETAILS_DURATION_MS = 520;
 const reviewScrollOrigins = new WeakMap<Element, number>();
 
 /** Animate real layout height, including sections that finish loading while open. */
-export function ReviewDetailsReveal({ open, children, revealInViewport = false }: { open: boolean; children: ReactNode; revealInViewport?: boolean }) {
+export function ReviewDetailsReveal({ open, children, revealInViewport = false, revealToStart = false }: { open: boolean; children: ReactNode; revealInViewport?: boolean; revealToStart?: boolean }) {
   const content = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const previousScroll = useRef<number | null>(null);
@@ -25,9 +25,9 @@ export function ReviewDetailsReveal({ open, children, revealInViewport = false }
   }, [children]);
 
   useEffect(() => {
-    // Wait for both the prompt and disclosure to settle, then expose just the
-    // start of the panel so the answer controls remain nearby.
-    if (!revealInViewport || !window.matchMedia?.("(min-width: 48rem)").matches) return;
+    // Wait for layout to settle. Automatic wrong-answer details sit near the
+    // top so their contents are readable; manual disclosures peek into view.
+    if (!revealInViewport || (!revealToStart && !window.matchMedia?.("(min-width: 48rem)").matches)) return;
     const session = container.current?.closest('[data-study-session="active"]');
     if (!open) {
       const top = previousScroll.current;
@@ -45,15 +45,15 @@ export function ReviewDetailsReveal({ open, children, revealInViewport = false }
     const scrollToStart = () => {
       const element = container.current;
       if (!element || !element.getBoundingClientRect().height) return;
-      const visibleStart = Math.min(240, window.innerHeight * 0.3);
-      const distance = element.getBoundingClientRect().top - (window.innerHeight - visibleStart);
+      const targetTop = revealToStart ? 96 : window.innerHeight - Math.min(240, window.innerHeight * 0.3);
+      const distance = element.getBoundingClientRect().top - targetTop;
       if (distance > 0) window.scrollBy({ top: distance, behavior: reducedMotion ? "instant" : "smooth" });
     };
     const timer = window.setTimeout(() => {
       frame = requestAnimationFrame(() => { frame = requestAnimationFrame(scrollToStart); });
     }, reducedMotion ? 0 : REVIEW_DETAILS_DURATION_MS);
     return () => { window.clearTimeout(timer); cancelAnimationFrame(frame); };
-  }, [open, revealInViewport, reducedMotion]);
+  }, [open, revealInViewport, revealToStart, reducedMotion]);
 
   return <div ref={container} data-review-details-reveal data-open={open} data-reveal-in-viewport={revealInViewport} aria-hidden={!open} inert={!open ? true : undefined}
     style={{ height: open ? height : 0, opacity: open ? 1 : 0, overflow: "hidden", minWidth: 0, overflowAnchor: "none",

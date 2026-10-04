@@ -12,6 +12,7 @@ export function usesSelfAssessment(kind: QuestionKind, preferences: WebStudyPref
 
 export function shouldPauseAfterResult(status: "correct" | "close" | "incorrect" | "blocked", preferences: WebStudyPreferences) {
   if (status === "blocked") return false;
+  if (status === "incorrect" && preferences.showDetailsOnWrongAnswer) return true;
   const configured = status === "incorrect" ? preferences.pauseOnWrong : status === "close" ? preferences.pauseOnCorrect || preferences.pauseOnClose : preferences.pauseOnCorrect;
   if (typeof configured === "boolean") return configured;
   return preferences.answerStopBehavior === "always" || (preferences.answerStopBehavior === "incorrect" && status === "incorrect");

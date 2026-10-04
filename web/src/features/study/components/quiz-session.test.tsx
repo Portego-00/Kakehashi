@@ -1220,6 +1220,33 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByRole("button", { name: /Show subject details/ })).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("automatically opens extra-study wrong-answer details with pause-on-wrong off", async () => {
+    renderQuiz({
+      scope: "test", initialSession: { ...makeSession(makeQuestion()), mode: "custom-review" },
+      subjects: [makeSubject()], subjectDetailSettings: testSubjectDetailSettings,
+      reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, showDetailsOnWrongAnswer: true },
+      pauseOnWrong: false, showDetailsAtAnswerStops: false, answerFeedbackSoundEnabled: false, onExit: vi.fn(),
+    });
+    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "neko" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Hide subject details/ })).toHaveAttribute("aria-expanded", "true"));
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  });
+
+  it("waits with extra-study details after marking an Anki answer wrong when enabled", async () => {
+    renderQuiz({
+      scope: "test", initialSession: { ...makeSession(makeQuestion()), mode: "custom-review" },
+      subjects: [makeSubject()], subjectDetailSettings: testSubjectDetailSettings,
+      reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "both", showDetailsOnWrongAnswer: true },
+      pauseOnWrong: false, answerFeedbackSoundEnabled: false, onExit: vi.fn(),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wrong" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Hide subject details/ })).toHaveAttribute("aria-expanded", "true"));
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    expect(loadStudySession("test", "custom-review")?.answers[0].correct).toBe(false);
+  });
+
   it("opens wrong-answer details with D while the answer field remains focused", async () => {
     renderQuiz({
       scope: "test",

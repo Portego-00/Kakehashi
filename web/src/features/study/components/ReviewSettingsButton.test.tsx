@@ -44,3 +44,14 @@ it("closes on Escape cancellation and reports failed saves without changing the 
   act(() => dialog.dispatchEvent(new Event("cancel", { bubbles: true, cancelable: true })));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
+
+it("saves the opt-in wrong-answer details setting and shows it when reopened", () => {
+  render(<ReviewSettingsButton />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Show details on wrong answer")).not.toBeChecked();
+  fireEvent.click(screen.getByLabelText("Show details on wrong answer"));
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  expect(loadWebSettings(localStorage, "settings-test").study.showDetailsOnWrongAnswer).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Show details on wrong answer")).toBeChecked();
+});

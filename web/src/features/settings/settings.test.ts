@@ -743,3 +743,14 @@ describe("web settings persistence", () => {
     expect(reorderDashboardSections(["daily-study", "srs", "level"], "daily-study", "level")).toEqual(["srs", "daily-study", "level"]);
   });
 });
+
+it("keeps automatic wrong-answer details opt-in and persists the preference", () => {
+  expect(DEFAULT_WEB_SETTINGS.study.showDetailsOnWrongAnswer).toBe(false);
+  for (const value of [undefined, "true", 1, null, false]) {
+    expect(loadWebSettings(storage({ study: { showDetailsOnWrongAnswer: value } }), "tester").study.showDetailsOnWrongAnswer).toBe(false);
+  }
+  const saved = new Map<string, string>();
+  const memory = { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => { saved.set(key, value); } };
+  saveWebSettings(memory, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, showDetailsOnWrongAnswer: true } });
+  expect(loadWebSettings(memory, "tester").study.showDetailsOnWrongAnswer).toBe(true);
+});

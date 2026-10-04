@@ -35,3 +35,9 @@ describe("core study preferences", () => {
 it("pauses close answers whenever correct answers pause", () => {
   expect(shouldPauseAfterResult("close", { ...preferences, pauseOnCorrect: true, pauseOnClose: false })).toBe(true);
 });
+
+it("always pauses wrong answers when automatic details are enabled", () => {
+  const configured = { ...preferences, showDetailsOnWrongAnswer: true, pauseOnWrong: false, pauseOnCorrect: false, pauseOnClose: false };
+  expect(shouldPauseAfterResult("incorrect", configured)).toBe(true);
+  for (const status of ["correct", "close", "blocked"] as const) expect(shouldPauseAfterResult(status, configured)).toBe(false);
+});
