@@ -8,7 +8,7 @@ import type { BunproReviewQueueItem } from "../../types/bunpro";
 import { createBunproReviewSavePolicy } from "../../utils/bunproReviewSavePolicy";
 import type { MixedReviewBridge } from "../../types/mixedReviews";
 
-const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false };
+const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false, ankiCardMode: false, ankiCardModeScope: "both", ankiHideAnswerCompletely: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, ankiShowReplayAudioButton: false, ankiButtonlessMode: false, ankiGroupQuestions: false, reviewSearchButtonEnabled: false };
 
 jest.mock("react-native-safe-area-context", () => jest.requireActual("react-native-safe-area-context/jest/mock").default);
 
@@ -64,7 +64,7 @@ function bridge(active = true): MixedReviewBridge {
   return { active, report: jest.fn(), reportError: jest.fn(), reportProgress: jest.fn(), reportAccuracy: jest.fn(), onAnswer: jest.fn(), previous: null, progress: { completed: 0, total: 2 }, accuracy: { correct: 0, answered: 0 }, onExit: jest.fn(), onWrapUp: jest.fn() };
 }
 
-beforeEach(() => { mockReviewSettings.autoplayVocabularyAudio = false; mockReviewSettings.allowSkippingReviews = false; mockReviewSettings.vocabularyAudioVoice = "female"; mockReviewSettings.disableAutoProgressOnCorrect = true; mockReviewSettings.disableAutoProgressOnWrong = true; jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
+beforeEach(() => { mockReviewSettings.ankiCardMode = false; mockReviewSettings.ankiCardModeScope = "both"; mockReviewSettings.ankiButtonlessMode = false;  mockReviewSettings.autoplayVocabularyAudio = false; mockReviewSettings.allowSkippingReviews = false; mockReviewSettings.vocabularyAudioVoice = "female"; mockReviewSettings.disableAutoProgressOnCorrect = true; mockReviewSettings.disableAutoProgressOnWrong = true; jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
 
 it("serializes saves, ignores repeated Next taps, and clears feedback and input for the next question", async () => {
   const saving = deferred<Record<string, unknown>>();
@@ -108,7 +108,7 @@ it("repeats a missed question with fresh state and saves its result only once", 
   await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy());
   expect(view.getByLabelText("Bunpro answer").props.value).toBe("");
   expect(view.getByText(/Retry/)).toBeTruthy();
-  expect(mixed.report).toHaveBeenLastCalledWith({ id: "1:1:q1" });
+  expect(mixed.report).toHaveBeenLastCalledWith({ id: "1:1:q1", remaining: 1 });
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
   fireEvent.press(view.getByLabelText("Check answer"));
   fireEvent.press(view.getByLabelText("Next question"));
@@ -180,7 +180,7 @@ it("applies a mixed wrap-up once and does not drop retained questions on later a
     fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
     fireEvent.press(view.getByLabelText("Check answer"));
     fireEvent.press(view.getByLabelText("Next question"));
-    await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(id === "1" ? { id: "1:2:q2" } : null));
+    await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(id === "1" ? { id: "1:2:q2", remaining: 1 } : null));
   }
   await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(null));
   expect(mixed.reportProgress).toHaveBeenLastCalledWith({ completed: 2, total: 2 });
@@ -498,7 +498,7 @@ it("hands the last Bunpro turn to another provider while its save is still pendi
   fireEvent.changeText(input, "ねこ");
   fireEvent.press(view.getByLabelText("Check answer"));
   await waitFor(() => expect(mixed.onAnswer).toHaveBeenCalledWith(expect.objectContaining({ saveStatus: "pending" })));
-  expect(mixed.report).toHaveBeenLastCalledWith({ id: expect.stringMatching(/^saving:/) });
+  expect(mixed.report).toHaveBeenLastCalledWith({ id: expect.stringMatching(/^saving:/), ready: false });
   expect(view.getByLabelText("Bunpro answer")).toBe(input);
   await act(async () => saving.resolve({}));
   expect(mixed.report).toHaveBeenLastCalledWith(null);
@@ -608,4 +608,39 @@ it("replays the saved result's preferred voice and stops on demand", async () =>
   expect(clip.unloadAsync).toHaveBeenCalledTimes(1);
   expect(view.getByLabelText(/^Replay audio for/)).toBeTruthy();
   view.unmount();
+});
+
+
+it("reveals and self-grades Bunpro in Anki mode, resetting the next card", async () => {
+  mockReviewSettings.ankiCardMode = true;
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  expect(view.queryByLabelText("Bunpro answer")).toBeNull();
+  expect(view.queryByLabelText("Mark Bunpro correct")).toBeNull();
+  fireEvent.press(view.getByLabelText("Reveal Bunpro answer"));
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.press(view.getByLabelText("Mark Bunpro correct"));
+  await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+  expect(updateBunproReview).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ correct: true }) }));
+  expect(view.getByLabelText("Reveal Bunpro answer")).toBeTruthy();
+  expect(view.queryByLabelText("Mark Bunpro correct")).toBeNull();
+});
+
+it("keeps typed reading questions when Anki is restricted to meanings", () => {
+  mockReviewSettings.ankiCardMode = true;
+  mockReviewSettings.ankiCardModeScope = "meaning";
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  expect(view.getByLabelText("Bunpro answer")).toBeTruthy();
+  expect(view.queryByLabelText("Reveal Bunpro answer")).toBeNull();
+});
+
+it("keeps a failed Anki grade available for retry without losing the verdict", async () => {
+  mockReviewSettings.ankiCardMode = true;
+  jest.mocked(updateBunproReview).mockRejectedValueOnce(new Error("Save failed"));
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  fireEvent.press(view.getByLabelText("Reveal Bunpro answer"));
+  fireEvent.press(view.getByLabelText("Mark Bunpro incorrect"));
+  await waitFor(() => expect(view.getByLabelText("Retry save")).toBeTruthy());
+  fireEvent.press(view.getByLabelText("Retry save"));
+  await waitFor(() => expect(updateBunproReview).toHaveBeenCalledTimes(2));
+  expect(jest.mocked(updateBunproReview).mock.calls[1][0].payload.correct).toBe(false);
 });

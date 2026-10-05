@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "motion/react";
 import {
@@ -16,7 +25,6 @@ import {
 } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { levelProgressionsQuery } from "@/lib/wanikani/queries";
-import { AnalyticsDialog } from "@/features/progress/components/AnalyticsPrimitives";
 import { Button } from "@/components/ui/Button";
 import {
   canAccessLevelGoals,
@@ -26,6 +34,7 @@ import {
   goalTrackFraction,
   goalOutcome,
   goalPace,
+  goalDaysUntil,
   goalStatusLabel,
   localDateKey,
   parseGoalDate,
@@ -37,6 +46,7 @@ import {
   type GoalProgression,
   type LevelGoal,
 } from "../../../../src/features/level-goals/model";
+import { levelGoalDialTicks } from "../../../../src/features/level-goals/dial";
 import { useLevelGoals } from "./use-level-goals";
 import styles from "./level-goals.module.css";
 
@@ -47,8 +57,8 @@ export function LevelGoalHomeWidget({
   currentLevel: number;
   paused: boolean;
 }) {
-  const { user, isDemo } = useSession();
-  if (isDemo || !canAccessLevelGoals(user?.data.username)) return null;
+  const { user } = useSession();
+  if (!canAccessLevelGoals(user?.data.username)) return null;
   return <HomeGoal currentLevel={currentLevel} paused={paused} />;
 }
 function HomeGoal({
@@ -88,6 +98,7 @@ export function LevelGoalPanel({
   const goals = useLevelGoals(currentLevel, progressions);
   const update = goals.update;
   const [editor, setEditor] = useState<"new" | "edit" | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const reduced = useReducedMotion();
   const goal = goals.state.active;
   const outcome = goal ? goalOutcome(goal, goals.now) : "active";
@@ -136,7 +147,6 @@ export function LevelGoalPanel({
       id={compact ? undefined : "level-goal"}
       className={`${styles.panel} ${compact ? styles.widget : ""}`}
       aria-label={compact ? "Level goal widget" : "Level goal"}
-      layout={!reduced}
       initial={false}
       data-outcome={outcome}
     >
@@ -145,7 +155,7 @@ export function LevelGoalPanel({
           <Flag size={17} aria-hidden />
           Level goal
         </h2>
-        {compact ? (
+        {compact && !goal ? (
           <button
             className={styles.iconButton}
             aria-label="Hide goal widget"
@@ -154,7 +164,7 @@ export function LevelGoalPanel({
           >
             <X size={17} />
           </button>
-        ) : (
+        ) : !compact && (!goal || goals.state.widgetHidden) ? (
           <button
             className={styles.textButton}
             onClick={() =>
@@ -163,7 +173,7 @@ export function LevelGoalPanel({
           >
             {goals.state.widgetHidden ? "Show on Home" : "Hide from Home"}
           </button>
-        )}
+        ) : null}
       </header>
       <motion.div
         key={goal ? `${goal.id}:${outcome}` : "empty"}
@@ -192,7 +202,13 @@ export function LevelGoalPanel({
               </p>
             </div>
             {currentLevel < 60 ? (
-              <Button tone="primary" onClick={() => setEditor("new")}>
+              <Button
+                tone="primary"
+                onClick={(event) => {
+                  opener.current = event.currentTarget;
+                  setEditor("new");
+                }}
+              >
                 Set a goal <ArrowRight size={16} />
               </Button>
             ) : null}
@@ -302,7 +318,10 @@ export function LevelGoalPanel({
                 tone="primary"
                 size="small"
                 disabled={reached && currentLevel >= 60}
-                onClick={() => setEditor(reached ? "new" : "edit")}
+                onClick={(event) => {
+                  opener.current = event.currentTarget;
+                  setEditor(reached ? "new" : "edit");
+                }}
               >
                 {reached
                   ? "Next goal"
@@ -322,6 +341,18 @@ export function LevelGoalPanel({
                     : "Learning your pace"}
                 </span>
               )}
+              {reached ? (
+                <Button
+                  tone="ghost"
+                  size="small"
+                  onClick={(event) => {
+                    opener.current = event.currentTarget;
+                    setEditor("edit");
+                  }}
+                >
+                  Edit goal
+                </Button>
+              ) : null}
             </div>
             {!compact ? (
               <details className={styles.details}>
@@ -407,44 +438,11 @@ export function LevelGoalPanel({
                     .
                   </p>
                 ) : null}
-                <button
-                  className={styles.textButton}
-                  onClick={() =>
-                    goals.update((s) => replaceGoal(s, null, goals.now))
-                  }
-                >
-                  End this goal
-                </button>
               </details>
             ) : null}
           </>
         )}
       </motion.div>
-      {!compact && goals.state.history.length ? (
-        <details className={styles.details}>
-          <summary>
-            <History size={15} />
-            Past goals <span>{goals.state.history.length}</span>
-          </summary>
-          <ol className={styles.history}>
-            {goals.state.history.map((entry, i) => (
-              <li key={`${entry.goal.id}:${i}`}>
-                <strong>Level {entry.goal.targetLevel}</strong>
-                <span>
-                  {entry.outcome === "changed"
-                    ? "Updated"
-                    : entry.outcome === "ended"
-                      ? "Ended"
-                      : goalStatusLabel(entry.outcome)}
-                </span>
-                <small>
-                  {shortGoalDate(entry.goal.reachedAt ?? entry.archivedAt)}
-                </small>
-              </li>
-            ))}
-          </ol>
-        </details>
-      ) : null}
       {goals.error ? (
         <p role="alert" className={styles.error}>
           {goals.error}
@@ -453,13 +451,23 @@ export function LevelGoalPanel({
       {editor ? (
         <GoalEditor
           key={editor}
+          returnFocus={opener}
           currentLevel={currentLevel}
           progressions={progressions}
           existing={editor === "edit" ? goal : null}
           now={goals.now}
           onClose={() => setEditor(null)}
+          onRemove={() =>
+            goals.update((s) => ({
+              ...replaceGoal(s, null, goals.now),
+              widgetHidden: true,
+            }))
+          }
           onSave={(next) =>
-            goals.update((s) => replaceGoal(s, next, goals.now))
+            goals.update((s) => ({
+              ...replaceGoal(s, next, goals.now),
+              widgetHidden: false,
+            }))
           }
         />
       ) : null}
@@ -474,13 +482,17 @@ function GoalEditor({
   now,
   onClose,
   onSave,
+  onRemove,
+  returnFocus,
 }: {
   currentLevel: number;
   progressions: readonly GoalProgression[];
   existing: LevelGoal | null;
   now: Date;
   onClose: () => void;
+  returnFocus: RefObject<HTMLElement | null>;
   onSave: (goal: LevelGoal) => boolean;
+  onRemove: () => boolean;
 }) {
   const pace = goalPace(progressions, currentLevel);
   const [step, setStep] = useState(0);
@@ -506,6 +518,7 @@ function GoalEditor({
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const reduced = useReducedMotion();
   const effectiveDeadline =
     mode === "level"
@@ -557,8 +570,43 @@ function GoalEditor({
       setError(cause instanceof Error ? cause.message : "Check your goal.");
     }
   };
+  const dial = (
+    <div className={styles.dial}>
+      <label className={styles.dialLabel} htmlFor="goal-target-level">
+        TARGET LEVEL
+      </label>
+      <div className={styles.dialFace}>
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          {levelGoalDialTicks(currentLevel, target).map(
+            ({ level, active, ...points }) => (
+              <line key={level} {...points} data-active={active} />
+            ),
+          )}
+        </svg>
+        <div className={styles.dialValue}>
+          <motion.input
+            key={step}
+            id="goal-target-level"
+            aria-label="Target level"
+            type="number"
+            min={currentLevel + 1}
+            max={60}
+            value={target}
+            readOnly={step !== 1}
+            onChange={(event) => setTarget(Number(event.target.value))}
+          />
+        </div>
+        <small className={styles.dialMin}>{currentLevel + 1}</small>
+        <small className={styles.dialMax}>60</small>
+      </div>
+      <span className={styles.dialDelta}>
+        +{target - currentLevel}{" "}
+        {target - currentLevel === 1 ? "level" : "levels"} from here
+      </span>
+    </div>
+  );
   return (
-    <AnalyticsDialog
+    <GoalDialog
       title={
         saved
           ? "Goal set"
@@ -567,233 +615,307 @@ function GoalEditor({
             : "Your next milestone"
       }
       onClose={onClose}
-      className={styles.dialog}
-      bodyClassName={styles.editor}
+      returnFocus={returnFocus}
     >
-      {!saved ? (
-        <div className={styles.steps} aria-label={`Step ${step + 1} of 3`}>
-          {[0, 1, 2].map((i) => (
-            <i key={i} data-active={i <= step} />
-          ))}
-        </div>
-      ) : null}
-      <motion.div
-        key={saved ? "saved" : step}
-        initial={reduced ? false : { opacity: 0, x: 16 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: reduced ? 0 : 0.2 }}
-        onAnimationComplete={() => heading.current?.focus()}
-      >
-        {saved ? (
-          <div className={styles.saved}>
-            <motion.div
-              initial={reduced ? false : { scale: 0.7 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 18 }}
-            >
-              <Check size={34} />
-            </motion.div>
-            <h3 ref={heading} tabIndex={-1}>
-              Level {target}. Let’s get there.
-            </h3>
-            <p>
-              {effectiveDeadline
-                ? `Your target: ${shortGoalDate(effectiveDeadline)}.`
-                : "One level at a time."}
-            </p>
-            <Button tone="primary" onClick={onClose}>
-              Keep going <ArrowRight size={16} />
-            </Button>
-          </div>
-        ) : step === 0 ? (
-          <>
-            <h3 ref={heading} tabIndex={-1}>
-              What are you aiming for?
-            </h3>
-            <div className={styles.choices}>
-              {(
-                [
-                  {
-                    id: "level",
-                    title: "A level",
-                    detail: "Choose your next milestone",
-                    icon: Target,
-                  },
-                  {
-                    id: "duration",
-                    title: "A timeframe",
-                    detail: "The next few weeks or months",
-                    icon: History,
-                  },
-                  {
-                    id: "date",
-                    title: "A date",
-                    detail: "Give your goal a finish line",
-                    icon: Flag,
-                  },
-                ] as const
-              ).map((choice) => (
-                <button
-                  type="button"
-                  key={choice.id}
-                  aria-pressed={mode === choice.id}
-                  onClick={() => {
-                    setMode(choice.id);
-                    if (choice.id !== "level")
-                      chooseTiming(
-                        choice.id === "date"
-                          ? deadline
-                          : dateAfterDays(duration, now),
-                      );
-                  }}
-                >
-                  <choice.icon size={22} />
-                  <span>
-                    <strong>{choice.title}</strong>
-                    <small>{choice.detail}</small>
-                  </span>
-                  {mode === choice.id ? (
-                    <Check size={18} />
-                  ) : (
-                    <ArrowRight size={18} />
-                  )}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : step === 1 ? (
-          <>
-            <h3 ref={heading} tabIndex={-1}>
-              {mode === "level"
-                ? "Choose your level"
-                : mode === "duration"
-                  ? "How much time?"
-                  : "Pick your target date"}
-            </h3>
-            {mode === "duration" ? (
+      <div className={styles.editor}>
+        {!saved ? (
+          <div className={styles.steps} aria-label={`Step ${step + 1} of 3`}>
+            {["Direction", "Target", "Commit"].map((label, i) => (
               <div
-                className={styles.duration}
-                role="group"
-                aria-label="Goal timeframe"
+                key={label}
+                data-active={i <= step}
+                data-current={i === step}
               >
-                {[14, 30, 90].map((days) => (
-                  <button
-                    key={days}
-                    aria-pressed={duration === days}
+                <i />
+                <span>
+                  0{i + 1} {label}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <motion.div
+          className={styles.stage}
+          key={saved ? "saved" : step}
+          initial={reduced ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: reduced ? 0 : 0.24,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          onAnimationComplete={() => heading.current?.focus()}
+        >
+          <h3 ref={heading} tabIndex={-1}>
+            {saved ? (
+              `Level ${target}. Let’s get there.`
+            ) : step === 0 ? (
+              <>
+                Make your next
+                <br />
+                level count.
+              </>
+            ) : step === 1 ? (
+              "Find your finish line."
+            ) : (
+              "This is your plan."
+            )}
+          </h3>
+          {saved ? (
+            <div className={styles.saved}>
+              <motion.div
+                initial={reduced ? false : { scale: 0.65, rotate: -12 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 17 }}
+              >
+                <Check size={60} strokeWidth={2.5} />
+              </motion.div>
+              <p>
+                {effectiveDeadline
+                  ? `Your target: ${shortGoalDate(effectiveDeadline)}.`
+                  : "One level at a time."}
+              </p>
+              <Button tone="primary" onClick={onClose}>
+                Keep going <ArrowRight size={16} />
+              </Button>
+            </div>
+          ) : step === 0 ? (
+            <>
+              <div className={styles.startHero}>
+                <div>
+                  <span>YOU ARE HERE</span>
+                  <strong>Level {currentLevel}</strong>
+                </div>
+                <div className={styles.heroPath}>
+                  <i />
+                  <Flag size={30} />
+                </div>
+              </div>
+              <div className={styles.choices}>
+                {(
+                  [
+                    {
+                      id: "level",
+                      title: "A level",
+                      detail: "Go further",
+                      icon: Target,
+                    },
+                    {
+                      id: "duration",
+                      title: "A timeframe",
+                      detail: "Build momentum",
+                      icon: History,
+                    },
+                    {
+                      id: "date",
+                      title: "A date",
+                      detail: "Aim for a day",
+                      icon: Flag,
+                    },
+                  ] as const
+                ).map((choice) => (
+                  <motion.button
+                    type="button"
+                    key={choice.id}
+                    aria-pressed={mode === choice.id}
+                    whileTap={reduced ? undefined : { scale: 0.98 }}
                     onClick={() => {
-                      setDuration(days);
-                      chooseTiming(dateAfterDays(days, now));
+                      setMode(choice.id);
+                      if (choice.id !== "level")
+                        chooseTiming(
+                          choice.id === "date"
+                            ? deadline
+                            : dateAfterDays(duration, now),
+                        );
                     }}
                   >
-                    {days === 14
-                      ? "2 weeks"
-                      : days === 30
-                        ? "1 month"
-                        : "3 months"}
+                    <span className={styles.choiceIcon}>
+                      <choice.icon size={23} />
+                    </span>
+                    <span>
+                      <strong>{choice.title}</strong>
+                      <small>{choice.detail}</small>
+                    </span>
+                    <span
+                      className={styles.choiceCheck}
+                      data-selected={mode === choice.id}
+                    >
+                      {mode === choice.id ? <Check size={14} /> : null}
+                    </span>
+                  </motion.button>
+                ))}
+              </div>
+            </>
+          ) : step === 1 ? (
+            <>
+              {mode === "duration" ? (
+                <div
+                  className={styles.duration}
+                  role="group"
+                  aria-label="Goal timeframe"
+                >
+                  {[14, 30, 90].map((days) => (
+                    <button
+                      key={days}
+                      aria-pressed={duration === days}
+                      onClick={() => {
+                        setDuration(days);
+                        chooseTiming(dateAfterDays(days, now));
+                      }}
+                    >
+                      {days === 14
+                        ? "2 weeks"
+                        : days === 30
+                          ? "1 month"
+                          : "3 months"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {mode !== "level" ? (
+                <label className={styles.field}>
+                  Target date
+                  <input
+                    type="date"
+                    min={dateAfterDays(1, now)}
+                    max={
+                      mode === "duration" ? dateAfterDays(3650, now) : undefined
+                    }
+                    value={effectiveDeadline ?? ""}
+                    onChange={(event) => {
+                      setDeadline(event.target.value);
+                      if (mode === "duration")
+                        setDuration(
+                          goalDaysUntil(event.target.value, now) ?? 0,
+                        );
+                      chooseTiming(event.target.value);
+                    }}
+                  />
+                </label>
+              ) : null}
+              <div className={styles.levelPicker}>
+                <button
+                  aria-label="Lower target level"
+                  disabled={target <= currentLevel + 1}
+                  onClick={() => setTarget((t) => t - 1)}
+                >
+                  <Minus size={22} />
+                </button>
+                {dial}
+                <button
+                  aria-label="Raise target level"
+                  disabled={target >= 60}
+                  onClick={() => setTarget((t) => t + 1)}
+                >
+                  <Plus size={22} />
+                </button>
+              </div>
+              <input
+                className={styles.slider}
+                aria-label="Choose target level"
+                type="range"
+                min={currentLevel + 1}
+                max={60}
+                value={target}
+                onChange={(event) => setTarget(Number(event.target.value))}
+              />
+              <div className={styles.pickerPresets}>
+                {[
+                  ...new Set([
+                    currentLevel + 1,
+                    suggestedGoalLevel(
+                      currentLevel,
+                      effectiveDeadline,
+                      pace?.typical ?? null,
+                      progressions,
+                      now,
+                    ),
+                    Math.min(60, currentLevel + 10),
+                  ]),
+                ].map((level) => (
+                  <button
+                    key={level}
+                    aria-pressed={level === target}
+                    onClick={() => setTarget(level)}
+                  >
+                    Level {level}
                   </button>
                 ))}
               </div>
-            ) : null}
-            {mode === "date" ? (
-              <label className={styles.field}>
-                Target date
-                <input
-                  type="date"
-                  min={dateAfterDays(1, now)}
-                  value={deadline}
-                  onChange={(event) => {
-                    setDeadline(event.target.value);
-                    chooseTiming(event.target.value);
-                  }}
-                />
-              </label>
-            ) : null}
-            <div className={styles.levelPicker}>
-              <button
-                aria-label="Lower target level"
-                disabled={target <= currentLevel + 1}
-                onClick={() => setTarget((t) => t - 1)}
-              >
-                <Minus size={21} />
-              </button>
-              <label>
-                Target level
-                <input
-                  aria-label="Target level"
-                  type="number"
-                  min={currentLevel + 1}
-                  max={60}
-                  value={target}
-                  onChange={(event) => setTarget(Number(event.target.value))}
-                />
-              </label>
-              <button
-                aria-label="Raise target level"
-                disabled={target >= 60}
-                onClick={() => setTarget((t) => t + 1)}
-              >
-                <Plus size={21} />
-              </button>
-            </div>
-            <input
-              className={styles.slider}
-              aria-label="Choose target level"
-              type="range"
-              min={currentLevel + 1}
-              max={60}
-              value={target}
-              onChange={(event) => setTarget(Number(event.target.value))}
-            />
-            <p className={styles.preview}>
-              {arrival ? (
+              <p className={styles.preview}>
+                <span>At your recent pace</span>
+                <strong>
+                  {arrival ? shortGoalDate(arrival) : "Estimate coming soon"}
+                </strong>
+              </p>
+            </>
+          ) : (
+            <>
+              {dial}
+              <div className={styles.planTicket}>
+                <div>
+                  <span>Level {currentLevel}</span>
+                  <ArrowRight size={23} />
+                  <strong>Level {target}</strong>
+                </div>
+                <div>
+                  <span>{effectiveDeadline ? "TARGET DATE" : "YOUR PACE"}</span>
+                  <strong>
+                    {effectiveDeadline
+                      ? shortGoalDate(effectiveDeadline)
+                      : "No deadline"}
+                  </strong>
+                </div>
+              </div>
+              {effectiveDeadline &&
+              arrival &&
+              localDateKey(new Date(arrival)) > effectiveDeadline ? (
+                <p className={styles.feedback}>
+                  An ambitious stretch at your current pace. You can adjust it
+                  anytime.
+                </p>
+              ) : null}
+            </>
+          )}
+          {existing && !saved && step === 0 ? (
+            <div className={styles.removeGoal}>
+              {confirmRemove ? (
                 <>
-                  Your pace puts you here around{" "}
-                  <strong>{shortGoalDate(arrival)}</strong>.
+                  <p>Remove this goal and its card?</p>
+                  <div>
+                    <Button
+                      tone="ghost"
+                      onClick={() => setConfirmRemove(false)}
+                    >
+                      Keep goal
+                    </Button>
+                    <Button
+                      tone="ghost"
+                      onClick={() => {
+                        if (onRemove()) onClose();
+                        else
+                          setError(
+                            "Your goal could not be removed. Please try again.",
+                          );
+                      }}
+                    >
+                      Remove goal
+                    </Button>
+                  </div>
                 </>
               ) : (
-                "Your estimate will grow with your level history."
+                <Button tone="ghost" onClick={() => setConfirmRemove(true)}>
+                  Remove goal
+                </Button>
               )}
-            </p>
-          </>
-        ) : (
-          <>
-            <div className={styles.review}>
-              <Flag size={30} />
-              <span>Your next milestone</span>
-              <h3 ref={heading} tabIndex={-1}>
-                Level {target}
-              </h3>
-              <div>
-                <span>From level {currentLevel}</span>
-                <ArrowRight size={20} />
-                <span>
-                  {effectiveDeadline
-                    ? `By ${shortGoalDate(effectiveDeadline)}`
-                    : "At your own pace"}
-                </span>
-              </div>
             </div>
-            {effectiveDeadline &&
-            arrival &&
-            localDateKey(new Date(arrival)) > effectiveDeadline ? (
-              <p className={styles.feedback}>
-                This is ahead of your recent pace. You can adjust the date
-                whenever you need.
-              </p>
-            ) : null}
-            <p className={styles.preview}>
-              {arrival
-                ? `Estimated arrival · ${shortGoalDate(arrival)}`
-                : "We’ll build your estimate as you study."}
-            </p>
-          </>
-        )}
-      </motion.div>
-      {error ? (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      ) : null}
+          ) : null}
+        </motion.div>
+        {error ? (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
       {!saved ? (
         <footer className={styles.editorFooter}>
           <Button
@@ -816,6 +938,70 @@ function GoalEditor({
           </Button>
         </footer>
       ) : null}
-    </AnalyticsDialog>
+    </GoalDialog>
+  );
+}
+
+function GoalDialog({
+  title,
+  onClose,
+  children,
+  returnFocus,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  returnFocus: RefObject<HTMLElement | null>;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const dialog = ref.current;
+    const previous = returnFocus.current ?? document.activeElement;
+    const overflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = overflow;
+      if (previous instanceof HTMLElement)
+        previous.focus({ preventScroll: true });
+    };
+  }, [returnFocus]);
+  return createPortal(
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom
+        )
+          onClose();
+      }}
+    >
+      <header className={styles.dialogHeader}>
+        <h2 id={titleId}>{title}</h2>
+        <button
+          type="button"
+          aria-label="Close goal setup"
+          onClick={onClose}
+          autoFocus
+        >
+          <X size={22} />
+        </button>
+      </header>
+      {children}
+    </dialog>,
+    document.body,
   );
 }

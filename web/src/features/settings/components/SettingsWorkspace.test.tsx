@@ -639,3 +639,21 @@ it("saves custom daily lesson limits and the restored hide-answer setting", () =
   expect(saved.study.dailyLessonLimit).toBe(7);
   expect(saved.study.ankiHideAnswerCompletely).toBe(true);
 });
+
+describe("pace planner Home customization", () => {
+  beforeEach(() => window.localStorage.clear());
+  it("offers Portego an off-by-default toggle and saves both choices", () => {
+    sessionMock.user.data.username = "Portego";
+    render(<SettingsWorkspace />);
+    const toggle = screen.getByRole("checkbox", { name: /Plan your pace/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Portego"))!).workspace.studyPacePlannerEnabled).toBe(true);
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Portego"))!).workspace.studyPacePlannerEnabled).toBe(false);
+  });
+  it("offers the off-by-default toggle to other accounts", () => {
+    render(<SettingsWorkspace />);
+    expect(screen.getByRole("checkbox", { name: /Plan your pace/ })).not.toBeChecked();
+  });
+});

@@ -23,22 +23,27 @@ export function chooseMixedReviewLane(
   random = Math.random(),
 ): MixedReviewLane {
   if (keepPrevious && available.find(({ lane }) => lane === previous)?.head.keepTurn) return previous;
-  const others = keepPrevious ? available.filter(({ lane }) => lane !== previous) : available;
-  const candidates = others.length ? others : available;
-  return candidates[Math.min(candidates.length - 1, Math.floor(Math.max(0, random) * candidates.length))].lane;
+  const weights = available.map(({ head }) => Math.max(1, head.remaining ?? 1));
+  let draw = Math.max(0, random) * weights.reduce((sum, weight) => sum + weight, 0);
+  for (let index = 0; index < available.length; index += 1) {
+    draw -= weights[index];
+    if (draw < 0) return available[index].lane;
+  }
+  return available[available.length - 1].lane;
 }
 
 export function reportMixedReviewHead(state: MixedReviewState, lane: MixedReviewLane, head: MixedReviewHead | null, random = Math.random()): MixedReviewState {
   const previous = state.heads[lane];
-  if (previous !== undefined && previous?.id === head?.id && previous?.keepTurn === head?.keepTurn) return state;
+  if (previous !== undefined && previous?.id === head?.id && previous?.keepTurn === head?.keepTurn && previous?.remaining === head?.remaining && previous?.ready === head?.ready) return state;
   const next = { ...state, heads: { ...state.heads, [lane]: head } };
   const failed = state.lanes.find((source) => state.errors[source]);
   if (failed) return { ...next, active: failed, complete: false };
   if (state.lanes.some((source) => next.heads[source] === undefined)) return next;
-  if (state.started && lane !== state.active) return next;
+  if (state.started && next.heads[state.active]?.ready !== false && (lane !== state.active || previous?.id === head?.id)) return next;
   const available = state.lanes.flatMap((source) => next.heads[source] ? [{ lane: source, head: next.heads[source]! }] : []);
   if (!available.length) return { ...next, started: true, complete: true };
-  return { ...next, started: true, complete: false, active: chooseMixedReviewLane(available, state.active, state.started && lane === state.active, random) };
+  const ready = available.filter(({ head }) => head.ready !== false);
+  return { ...next, started: true, complete: false, active: chooseMixedReviewLane(ready.length ? ready : available, state.active, state.started && lane === state.active, random) };
 }
 
 export function reportMixedReviewError(state: MixedReviewState, lane: MixedReviewLane, message: string | null): MixedReviewState {

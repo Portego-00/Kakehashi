@@ -22,10 +22,11 @@ export function useLevelGoals(
   progressions: readonly GoalProgression[] = [],
 ) {
   const { user, isDemo } = useSession();
-  const account =
-    !isDemo && canAccessLevelGoals(user?.data.username)
-      ? waniKaniUserId(user) || user!.data.username
-      : null;
+  const account = canAccessLevelGoals(user?.data.username)
+    ? isDemo
+      ? `demo:${user!.data.username}`
+      : waniKaniUserId(user) || user!.data.username
+    : null;
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {

@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Line } from "react-native-svg";
 import Animated, {
   FadeInDown,
+  ZoomIn,
   useReducedMotion,
 } from "react-native-reanimated";
 import { useTheme } from "../../utils/theme";
@@ -11,6 +13,7 @@ import {
   createLevelGoal,
   dateAfterDays,
   goalPace,
+  goalDaysUntil,
   localDateKey,
   projectedArrival,
   shortGoalDate,
@@ -19,6 +22,7 @@ import {
   type GoalProgression,
   type LevelGoal,
 } from "./model";
+import { levelGoalDialTicks } from "./dial";
 
 export function LevelGoalEditor({
   currentLevel,
@@ -27,6 +31,7 @@ export function LevelGoalEditor({
   now,
   onSave,
   onClose,
+  onRemove,
 }: {
   currentLevel: number;
   progressions: readonly GoalProgression[];
@@ -34,6 +39,7 @@ export function LevelGoalEditor({
   now: Date;
   onSave: (goal: LevelGoal) => boolean;
   onClose: () => void;
+  onRemove?: () => boolean;
 }) {
   const { theme } = useTheme();
   const reduced = useReducedMotion();
@@ -62,6 +68,15 @@ export function LevelGoalEditor({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [calendar, setCalendar] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const ruler = useRef<ScrollView>(null);
+  const [rulerWidth, setRulerWidth] = useState(0);
+  useEffect(() => {
+    ruler.current?.scrollTo({
+      x: Math.max(0, (target - currentLevel - 1) * 46 + 27 - rulerWidth / 2),
+      animated: !reduced,
+    });
+  }, [target, currentLevel, rulerWidth, reduced, step]);
   const effectiveDeadline =
     mode === "level"
       ? null
@@ -129,9 +144,10 @@ export function LevelGoalEditor({
         minHeight: 48,
         paddingHorizontal: 12,
         paddingVertical: 14,
-        borderRadius: 8,
+        borderRadius: 16,
         backgroundColor: primary ? color : theme.cardBackground,
-        opacity: disabled ? 0.4 : pressed ? 0.6 : 1,
+        opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
+        transform: [{ scale: pressed ? 0.97 : 1 }],
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -152,350 +168,626 @@ export function LevelGoalEditor({
       ) : null}
     </Pressable>
   );
-  return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: 24, gap: 24, paddingBottom: 50 }}
+  const title = saved
+    ? `Level ${target}. Let’s get there.`
+    : step === 0
+      ? "Make your next\nlevel count."
+      : step === 1
+        ? "Find your finish line."
+        : "This is your plan.";
+  const targetDial = (
+    <View
+      style={{
+        alignSelf: "center",
+        width: 216,
+        gap: 8,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
     >
-      {!saved ? (
-        <View
-          accessibilityLabel={`Step ${step + 1} of 3`}
-          style={{ flexDirection: "row", gap: 6 }}
-        >
-          {[0, 1, 2].map((i) => (
-            <View
-              key={i}
-              style={{
-                flex: 1,
-                height: 3,
-                borderRadius: 2,
-                backgroundColor: i <= step ? color : theme.border,
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
-      <Animated.View
-        key={saved ? "saved" : step}
-        entering={reduced ? undefined : FadeInDown.duration(220)}
-        style={{ gap: 22 }}
+      <Text
+        style={{
+          color: muted,
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1.5,
+        }}
       >
+        TARGET LEVEL
+      </Text>
+      <View
+        style={{
+          width: 200,
+          height: 200,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Svg
+          width={200}
+          height={200}
+          viewBox="0 0 240 240"
+          style={{ position: "absolute" }}
+          accessible={false}
+        >
+          {levelGoalDialTicks(currentLevel, target).map(
+            ({ level, active, ...points }) => (
+              <Line
+                key={level}
+                {...points}
+                stroke={active ? color : theme.border}
+                strokeWidth={2.5}
+                strokeLinecap="round"
+              />
+            ),
+          )}
+        </Svg>
+
+        <Animated.View
+          key={target}
+          entering={reduced ? undefined : ZoomIn.duration(140)}
+        >
+          <Text
+            accessibilityLabel={`Target level ${target}`}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            numberOfLines={1}
+            style={{
+              color: theme.textColor,
+              fontSize: 84,
+              lineHeight: 97,
+              letterSpacing: 0,
+              width: 140,
+              paddingHorizontal: 8,
+              textAlign: "center",
+              fontWeight: "800",
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {target}
+          </Text>
+        </Animated.View>
+
         <Text
-          accessibilityRole="header"
           style={{
-            color: theme.textColor,
-            fontSize: 28,
-            fontWeight: "700",
-            letterSpacing: -0.5,
+            position: "absolute",
+            bottom: 7,
+            left: 30,
+            color: muted,
+            fontSize: 11,
           }}
         >
-          {saved
-            ? `Level ${target}. Let’s get there.`
-            : step === 0
-              ? "What are you aiming for?"
-              : step === 1
-                ? mode === "level"
-                  ? "Choose your level"
-                  : mode === "duration"
-                    ? "How much time?"
-                    : "Pick your target date"
-                : "Your next milestone"}
+          {currentLevel + 1}
         </Text>
-        {saved ? (
-          <View style={{ alignItems: "center", gap: 24, paddingVertical: 30 }}>
-            <Ionicons name="checkmark-circle" color={color} size={80} />
-            <Text style={{ color: muted, fontSize: 16 }}>
-              {effectiveDeadline
-                ? `Your target: ${shortGoalDate(effectiveDeadline)}.`
-                : "One level at a time."}
-            </Text>
-            {button("Keep going", onClose, true)}
-          </View>
-        ) : step === 0 ? (
-          <View style={{ gap: 12 }}>
-            {(
-              [
-                {
-                  id: "level",
-                  title: "A level",
-                  detail: "Choose your next milestone",
-                  icon: "locate-outline",
-                },
-                {
-                  id: "duration",
-                  title: "A timeframe",
-                  detail: "The next few weeks or months",
-                  icon: "time-outline",
-                },
-                {
-                  id: "date",
-                  title: "A date",
-                  detail: "Give your goal a finish line",
-                  icon: "flag-outline",
-                },
-              ] as const
-            ).map((choice) => (
-              <Pressable
-                key={choice.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: mode === choice.id }}
-                onPress={() => {
-                  setMode(choice.id);
-                  if (choice.id !== "level")
-                    chooseTiming(
-                      choice.id === "date"
-                        ? deadline
-                        : dateAfterDays(duration, now),
-                    );
-                  Haptics.selectionAsync().catch(() => {});
-                }}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: 18,
-                  minHeight: 82,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: mode === choice.id ? color : theme.border,
-                  backgroundColor: theme.cardBackground,
-                  opacity: pressed ? 0.6 : 1,
-                })}
-              >
-                <Ionicons name={choice.icon} size={24} color={color} />
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text
-                    style={{
-                      color: theme.textColor,
-                      fontSize: 17,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {choice.title}
-                  </Text>
-                  <Text style={{ color: muted, fontSize: 12 }}>
-                    {choice.detail}
-                  </Text>
-                </View>
-                <Ionicons
-                  name={mode === choice.id ? "checkmark" : "arrow-forward"}
-                  size={18}
-                  color={color}
-                />
-              </Pressable>
-            ))}
-          </View>
-        ) : step === 1 ? (
-          <>
-            {mode === "duration" ? (
-              <View
-                accessibilityLabel="Goal timeframe"
-                style={{ flexDirection: "row", gap: 8 }}
-              >
-                {[14, 30, 90].map((days) => (
-                  <View key={days} style={{ flex: 1 }}>
-                    {button(
-                      days === 14
-                        ? "2 weeks"
-                        : days === 30
-                          ? "1 month"
-                          : "3 months",
-                      () => {
-                        setDuration(days);
-                        chooseTiming(dateAfterDays(days, now));
-                      },
-                      duration === days,
-                    )}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {mode === "date" ? (
-              <View>
-                {button(`Target date · ${shortGoalDate(deadline)}`, () =>
-                  setCalendar(!calendar),
-                )}
-                {calendar ? (
-                  <GoalCalendar
-                    value={deadline}
-                    now={now}
-                    onChange={(date) => {
-                      setDeadline(date);
-                      chooseTiming(date);
-                      setCalendar(false);
-                    }}
-                  />
-                ) : null}
-              </View>
-            ) : null}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 16,
-              }}
-            >
-              <View>
-                {button(
-                  "−",
-                  () => setTarget((t) => t - 1),
-                  false,
-                  target <= currentLevel + 1,
-                  "Lower target level",
-                )}
-              </View>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: muted, fontSize: 12 }}>Target level</Text>
-                <Text
-                  selectable
+        <Text
+          style={{
+            position: "absolute",
+            bottom: 7,
+            right: 26,
+            color: muted,
+            fontSize: 11,
+          }}
+        >
+          60
+        </Text>
+      </View>
+      <Text style={{ color, fontWeight: "600", fontSize: 13 }}>
+        +{target - currentLevel}{" "}
+        {target - currentLevel === 1 ? "level" : "levels"} from here
+      </Text>
+    </View>
+  );
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: 24,
+          paddingBottom: 16,
+          gap: 16,
+        }}
+      >
+        {!saved ? (
+          <View
+            accessibilityLabel={`Step ${step + 1} of 3`}
+            style={{ flexDirection: "row", gap: 8 }}
+          >
+            {["Direction", "Target", "Commit"].map((label, i) => (
+              <View key={label} style={{ flex: 1, gap: 7 }}>
+                <View
                   style={{
-                    color: theme.textColor,
-                    fontSize: 82,
-                    fontWeight: "800",
-                    letterSpacing: -3,
-                    fontVariant: ["tabular-nums"],
+                    height: 3,
+                    backgroundColor: i <= step ? color : theme.border,
+                    borderRadius: 2,
+                  }}
+                />
+                <Text
+                  style={{
+                    color: i === step ? color : muted,
+                    fontSize: 10,
+                    fontWeight: "600",
                   }}
                 >
-                  {target}
+                  {`0${i + 1}`} {label}
                 </Text>
               </View>
-              <View>
-                {button(
-                  "+",
-                  () => setTarget((t) => t + 1),
-                  false,
-                  target >= 60,
-                  "Raise target level",
-                )}
-              </View>
-            </View>
+            ))}
+          </View>
+        ) : null}
+        <Animated.View
+          key={saved ? "saved" : step}
+          entering={reduced ? undefined : FadeInDown.duration(240)}
+          style={{ gap: 16 }}
+        >
+          <Text
+            accessibilityRole="header"
+            style={{
+              color: theme.textColor,
+              fontSize: 30,
+              lineHeight: 34,
+              fontWeight: "800",
+              letterSpacing: -1.2,
+            }}
+          >
+            {title}
+          </Text>
+          {saved ? (
             <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                gap: 8,
-              }}
+              style={{ alignItems: "center", gap: 24, paddingVertical: 24 }}
             >
-              {[
-                ...new Set([
-                  currentLevel + 1,
-                  suggestedGoalLevel(
-                    currentLevel,
-                    effectiveDeadline,
-                    pace?.typical ?? null,
-                    progressions,
-                    now,
-                  ),
-                  Math.min(60, currentLevel + 10),
-                ]),
-              ]
-                .filter((level) => level <= 60)
-                .map((level) => (
-                  <View key={level}>
-                    {button(
-                      `Level ${level}`,
-                      () => setTarget(level),
-                      target === level,
-                    )}
-                  </View>
-                ))}
-            </View>
-            <Text style={{ color: muted, textAlign: "center", fontSize: 14 }}>
-              {arrival
-                ? `Your pace puts you here around ${shortGoalDate(arrival)}.`
-                : "Your estimate will grow with your level history."}
-            </Text>
-          </>
-        ) : (
-          <View style={{ alignItems: "center", gap: 22, paddingVertical: 20 }}>
-            <Ionicons name="flag" size={36} color={color} />
-            <Text
-              selectable
-              style={{
-                color: theme.textColor,
-                fontSize: 64,
-                fontWeight: "800",
-                letterSpacing: -2,
-              }}
-            >
-              Level {target}
-            </Text>
-            <Text selectable style={{ color: muted, fontSize: 15 }}>
-              From level {currentLevel} →{" "}
-              {effectiveDeadline
-                ? `By ${shortGoalDate(effectiveDeadline)}`
-                : "At your own pace"}
-            </Text>
-            <Text style={{ color: muted, fontSize: 13 }}>
-              {arrival
-                ? `Estimated arrival · ${shortGoalDate(arrival)}`
-                : "We’ll build your estimate as you study."}
-            </Text>
-            {effectiveDeadline &&
-            arrival &&
-            localDateKey(new Date(arrival)) > effectiveDeadline ? (
-              <Text
+              <Animated.View
+                entering={reduced ? undefined : ZoomIn.springify().damping(15)}
                 style={{
-                  color: muted,
-                  fontSize: 13,
-                  lineHeight: 19,
-                  textAlign: "center",
+                  width: 150,
+                  height: 150,
+                  borderRadius: 75,
+                  backgroundColor: color + "18",
+                  borderWidth: 2,
+                  borderColor: color,
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
               >
-                This is ahead of your recent pace. You can adjust the date
-                whenever you need.
+                <Ionicons name="checkmark" color={color} size={66} />
+              </Animated.View>
+              <Text style={{ color: muted, fontSize: 16 }}>
+                {effectiveDeadline
+                  ? `Your target: ${shortGoalDate(effectiveDeadline)}.`
+                  : "One level at a time."}
               </Text>
-            ) : null}
-          </View>
-        )}
-      </Animated.View>
-      {error ? (
-        <Text
-          accessibilityRole="alert"
-          style={{ color: theme.error, fontSize: 14 }}
-        >
-          {error}
-        </Text>
-      ) : null}
+              {button("Keep going", onClose, true)}
+            </View>
+          ) : step === 0 ? (
+            <>
+              <View
+                style={{
+                  backgroundColor: "#14243A",
+                  borderRadius: 22,
+                  padding: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#A6BEDB",
+                      fontSize: 10,
+                      lineHeight: 14,
+                      width: 52,
+                    }}
+                  >
+                    YOU ARE HERE
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 28,
+                      fontWeight: "800",
+                      letterSpacing: -1,
+                    }}
+                  >
+                    Level {currentLevel}
+                  </Text>
+                </View>
+                <View
+                  style={{ flexDirection: "row", gap: 7, alignItems: "center" }}
+                >
+                  <View
+                    style={{ width: 24, height: 2, backgroundColor: "#7191B8" }}
+                  />
+                  <Ionicons name="flag" size={30} color="#A3C8FF" />
+                </View>
+              </View>
+              <View style={{ gap: 10 }}>
+                {(
+                  [
+                    {
+                      id: "level",
+                      title: "A level",
+                      detail: "Go further",
+                      icon: "locate-outline",
+                    },
+                    {
+                      id: "duration",
+                      title: "A timeframe",
+                      detail: "Build momentum",
+                      icon: "time-outline",
+                    },
+                    {
+                      id: "date",
+                      title: "A date",
+                      detail: "Aim for a day",
+                      icon: "flag-outline",
+                    },
+                  ] as const
+                ).map((choice) => (
+                  <Pressable
+                    key={choice.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: mode === choice.id }}
+                    onPress={() => {
+                      setMode(choice.id);
+                      if (choice.id !== "level")
+                        chooseTiming(
+                          choice.id === "date"
+                            ? deadline
+                            : dateAfterDays(duration, now),
+                        );
+                      Haptics.selectionAsync().catch(() => {});
+                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 14,
+                      padding: 12,
+                      minHeight: 64,
+                      borderRadius: 18,
+                      borderWidth: 1.5,
+                      borderColor: mode === choice.id ? color : theme.border,
+                      backgroundColor:
+                        mode === choice.id
+                          ? color + "0C"
+                          : theme.cardBackground,
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                    })}
+                  >
+                    <View
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 12,
+                        backgroundColor: color + "15",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Ionicons name={choice.icon} size={23} color={color} />
+                    </View>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text
+                        style={{
+                          color: theme.textColor,
+                          fontSize: 17,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {choice.title}
+                      </Text>
+                      <Text style={{ color: muted, fontSize: 12 }}>
+                        {choice.detail}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={
+                        mode === choice.id
+                          ? "checkmark-circle"
+                          : "ellipse-outline"
+                      }
+                      size={23}
+                      color={mode === choice.id ? color : theme.border}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : step === 1 ? (
+            <>
+              {mode === "duration" ? (
+                <View
+                  accessibilityLabel="Goal timeframe"
+                  style={{ flexDirection: "row", gap: 8 }}
+                >
+                  {[14, 30, 90].map((days) => (
+                    <View key={days} style={{ flex: 1 }}>
+                      {button(
+                        days === 14
+                          ? "2 weeks"
+                          : days === 30
+                            ? "1 month"
+                            : "3 months",
+                        () => {
+                          setDuration(days);
+                          chooseTiming(dateAfterDays(days, now));
+                        },
+                        duration === days,
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {mode !== "level" ? (
+                <View>
+                  {button(
+                    `${mode === "duration" ? "Pick a date" : "Target date"} · ${shortGoalDate(effectiveDeadline!)}`,
+                    () => setCalendar(!calendar),
+                  )}
+                  {calendar ? (
+                    <GoalCalendar
+                      value={effectiveDeadline!}
+                      maxDate={
+                        mode === "duration"
+                          ? dateAfterDays(3650, now)
+                          : undefined
+                      }
+                      now={now}
+                      onChange={(date) => {
+                        setDeadline(date);
+                        if (mode === "duration") {
+                          const days = goalDaysUntil(date, now);
+                          if (days) setDuration(days);
+                        }
+                        chooseTiming(date);
+                        setCalendar(false);
+                      }}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+              <View style={{ position: "relative" }}>
+                {targetDial}
+                <View style={{ position: "absolute", left: 0, top: 90 }}>
+                  {button(
+                    "−",
+                    () => setTarget((t) => t - 1),
+                    false,
+                    target <= currentLevel + 1,
+                    "Lower target level",
+                  )}
+                </View>
+                <View style={{ position: "absolute", right: 0, top: 90 }}>
+                  {button(
+                    "+",
+                    () => setTarget((t) => t + 1),
+                    false,
+                    target >= 60,
+                    "Raise target level",
+                  )}
+                </View>
+              </View>
+              <ScrollView
+                ref={ruler}
+                onLayout={(event) =>
+                  setRulerWidth(event.nativeEvent.layout.width)
+                }
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 4, paddingHorizontal: 6 }}
+                accessibilityLabel="Choose target level"
+              >
+                {Array.from(
+                  { length: 60 - currentLevel },
+                  (_, i) => currentLevel + i + 1,
+                ).map((level) => (
+                  <Pressable
+                    key={level}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Level ${level}`}
+                    accessibilityState={{ selected: target === level }}
+                    onPress={() => {
+                      setTarget(level);
+                      Haptics.selectionAsync().catch(() => {});
+                    }}
+                    style={{
+                      width: 42,
+                      height: 62,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      borderRadius: 10,
+                      backgroundColor:
+                        level === target ? color + "15" : "transparent",
+                    }}
+                  >
+                    <View
+                      style={{
+                        height:
+                          level === target ? 22 : level % 5 === 0 ? 17 : 10,
+                        width: 2,
+                        backgroundColor:
+                          level === target ? color : theme.border,
+                      }}
+                    />
+                    <Text
+                      style={{
+                        color: level === target ? color : muted,
+                        fontSize: 12,
+                        fontWeight: level === target ? "800" : "500",
+                      }}
+                    >
+                      {level}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingTop: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.border,
+                }}
+              >
+                <Text style={{ color: muted, fontSize: 12 }}>
+                  At your recent pace
+                </Text>
+                <Text
+                  style={{
+                    color: theme.textColor,
+                    fontWeight: "700",
+                    fontSize: 13,
+                  }}
+                >
+                  {arrival ? shortGoalDate(arrival) : "Estimate coming soon"}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              {targetDial}
+              <View
+                style={{
+                  backgroundColor: "#14243A",
+                  borderRadius: 22,
+                  padding: 22,
+                  gap: 22,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: "#A6BEDB", fontSize: 14 }}>
+                    Level {currentLevel}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={22} color="#A3C8FF" />
+                  <Text
+                    style={{ color: "#fff", fontSize: 22, fontWeight: "800" }}
+                  >
+                    Level {target}
+                  </Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: "#34445B" }} />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: "#A6BEDB", fontSize: 12 }}>
+                    {effectiveDeadline ? "TARGET DATE" : "YOUR PACE"}
+                  </Text>
+                  <Text
+                    style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}
+                  >
+                    {effectiveDeadline
+                      ? shortGoalDate(effectiveDeadline)
+                      : "No deadline"}
+                  </Text>
+                </View>
+              </View>
+              {effectiveDeadline &&
+              arrival &&
+              localDateKey(new Date(arrival)) > effectiveDeadline ? (
+                <Text style={{ color: muted, fontSize: 12, lineHeight: 18 }}>
+                  An ambitious stretch at your current pace. You can adjust it
+                  anytime.
+                </Text>
+              ) : null}
+            </>
+          )}
+          {existing && onRemove && !saved && step === 0 ? (
+            <View style={{ gap: 8, marginTop: 16 }}>
+              {confirmRemove ? (
+                <>
+                  <Text style={{ color: muted, fontSize: 13 }}>
+                    Remove this goal and its card?
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 16 }}>
+                    {button("Keep goal", () => setConfirmRemove(false))}
+                    {button("Remove goal", () => {
+                      if (onRemove()) onClose();
+                      else
+                        setError(
+                          "Your goal could not be removed. Please try again.",
+                        );
+                    })}
+                  </View>
+                </>
+              ) : (
+                button("Remove goal", () => setConfirmRemove(true))
+              )}
+            </View>
+          ) : null}
+        </Animated.View>
+        {error ? (
+          <Text
+            accessibilityRole="alert"
+            style={{ color: theme.error, fontSize: 14 }}
+          >
+            {error}
+          </Text>
+        ) : null}
+      </ScrollView>
       {!saved ? (
         <View
           style={{
             flexDirection: "row",
-            justifyContent: "space-between",
-            gap: 12,
+            alignItems: "center",
+            gap: 16,
+            paddingHorizontal: 24,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: theme.border,
+            backgroundColor: theme.backgroundColor,
           }}
         >
           {button(step ? "Back" : "Cancel", () =>
             step ? setStep((s) => s - 1) : onClose(),
           )}
-          {button(
-            step === 2
-              ? existing
-                ? "Update goal"
-                : "Create goal"
-              : "Continue",
-            () => (step < 2 ? setStep((s) => s + 1) : save()),
-            true,
-            target <= currentLevel ||
-              target > 60 ||
-              (mode !== "level" &&
-                (!effectiveDeadline || effectiveDeadline <= localDateKey(now))),
-          )}
+          <View style={{ flex: 1 }}>
+            {button(
+              step === 2
+                ? existing
+                  ? "Update goal"
+                  : "Create goal"
+                : "Continue",
+              () => (step < 2 ? setStep((s) => s + 1) : save()),
+              true,
+              target <= currentLevel ||
+                target > 60 ||
+                (mode !== "level" &&
+                  (!effectiveDeadline ||
+                    effectiveDeadline <= localDateKey(now))),
+            )}
+          </View>
         </View>
       ) : null}
-    </ScrollView>
+    </View>
   );
 }
 
 function GoalCalendar({
   value,
   now,
+  maxDate,
   onChange,
 }: {
   value: string;
   now: Date;
+  maxDate?: string;
   onChange: (value: string) => void;
 }) {
   const { theme } = useTheme();
@@ -519,9 +811,12 @@ function GoalCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous month"
-          onPress={() =>
-            setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1, 12))
-          }
+          onPress={() => {
+            setMonth(
+              new Date(month.getFullYear(), month.getMonth() - 1, 1, 12),
+            );
+            Haptics.selectionAsync().catch(() => {});
+          }}
           style={{
             width: 44,
             height: 44,
@@ -540,9 +835,12 @@ function GoalCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next month"
-          onPress={() =>
-            setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1, 12))
-          }
+          onPress={() => {
+            setMonth(
+              new Date(month.getFullYear(), month.getMonth() + 1, 1, 12),
+            );
+            Haptics.selectionAsync().catch(() => {});
+          }}
           style={{
             width: 44,
             height: 44,
@@ -582,7 +880,8 @@ function GoalCalendar({
               12,
             ),
           );
-          const disabled = date <= localDateKey(now);
+          const disabled =
+            date <= localDateKey(now) || (!!maxDate && date > maxDate);
           return (
             <Pressable
               key={index}
@@ -596,7 +895,10 @@ function GoalCalendar({
               })}
               accessibilityState={{ selected: date === value, disabled }}
               disabled={disabled}
-              onPress={() => onChange(date)}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                onChange(date);
+              }}
               style={{
                 width: "14.285%",
                 minHeight: 44,

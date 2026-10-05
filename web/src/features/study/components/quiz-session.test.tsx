@@ -1499,6 +1499,14 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByTestId("anki-answer-content")).toHaveTextContent("ふせぐ");
     expect(screen.getByRole("group", { name: "Buttonless Anki controls" })).toBeInTheDocument();
 
+    const scrollableDetails = document.querySelector('[data-available-on-scroll="true"]');
+    expect(scrollableDetails).toHaveAttribute("aria-hidden", "false");
+    expect(scrollableDetails).toHaveAttribute("data-open", "false");
+    fireEvent.keyDown(document.body, { key: studyShortcuts.details });
+    await waitFor(() => expect(scrollableDetails).toHaveAttribute("data-open", "true"));
+    fireEvent.keyDown(document.body, { key: studyShortcuts.details });
+    await waitFor(() => expect(scrollableDetails).toHaveAttribute("data-open", "false"));
+
     fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
 

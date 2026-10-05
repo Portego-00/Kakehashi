@@ -592,7 +592,7 @@ for (const viewport of [
       await toggle.check();
       await dialog.getByRole("button", { name: "Done", exact: true }).click();
       const details = source === "wanikani" ? page.locator("#study-item-details") : page.locator('[aria-label="Bunpro item details"]');
-      await expect(details).not.toBeVisible();
+      await expect(details).not.toBeInViewport();
       await answer(page, source === "bunpro" ? "ちがう" : "mountain");
       await expect(details).toBeVisible();
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
@@ -608,7 +608,49 @@ for (const viewport of [
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
       await expect(page.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
       await next(page);
-      await expect(details).not.toBeVisible();
+      await expect(details).not.toBeInViewport();
+    });
+  }
+}
+
+for (const viewport of [{ width: 1024, height: 768 }, { width: 390, height: 844 }]) {
+  for (const source of ["wanikani", "bunpro"] as const) {
+    test(`${source} Anki details are scrollable without disclosure at ${viewport.width}`, async ({ page }, testInfo) => {
+      await page.setViewportSize(viewport);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openMixedReviews(page, { ankiMode: "both", ankiGroupQuestions: false, showDetailsOnWrongAnswer: false });
+      if (source === "bunpro") {
+        for (let index = 0; index < 2; index++) {
+          await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
+          await page.getByRole("button", { name: "Correct", exact: true }).click();
+        }
+        await expect(page.locator('[aria-label="Bunpro review"]:visible')).toBeVisible();
+      }
+      const activeSession = session(page);
+      await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
+      const disclosure = activeSession.locator('[data-available-on-scroll="true"]');
+      await expect(disclosure).toHaveAttribute("aria-hidden", "false");
+      await expect(disclosure).toHaveAttribute("data-open", "false");
+      await expect(activeSession).not.toHaveAttribute("data-details-open", "true");
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+      const details = source === "wanikani" ? page.locator("#study-item-details") : page.locator('[aria-label="Bunpro item details"]');
+      await expect(details).not.toBeInViewport();
+      // D provides a direct jump, with a second press returning to the answer.
+      await page.keyboard.press("d");
+      await expect(disclosure).toHaveAttribute("data-open", "true");
+      await expect.poll(async () => (await details.boundingBox())!.y).toBeLessThan(160);
+      await page.keyboard.press("d");
+      await expect(disclosure).toHaveAttribute("data-open", "false");
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+      await expect(details).not.toBeInViewport();
+      await page.mouse.wheel(0, viewport.height);
+      await expect(details).toBeVisible();
+      await expect.poll(async () => (await details.boundingBox())!.y).toBeLessThan(viewport.height);
+      await expect(disclosure).toHaveAttribute("data-open", "false");
+      await page.screenshot({ path: testInfo.outputPath(`${source}-anki-scroll-details.png`), animations: "disabled" });
+      await page.getByRole("button", { name: "Correct", exact: true }).click();
+      await expect(activeSession.locator('[data-available-on-scroll="true"]')).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Reveal answer", exact: true })).toBeVisible();
     });
   }
 }

@@ -7,6 +7,12 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("keeps the pace planner off for new and legacy settings and restores explicit opt-in", () => {
+    expect(DEFAULT_WEB_SETTINGS.workspace.studyPacePlannerEnabled).toBe(false);
+    expect(loadWebSettings(storage({ workspace: {} }), "Portego").workspace.studyPacePlannerEnabled).toBe(false);
+    expect(loadWebSettings(storage({ workspace: { studyPacePlannerEnabled: "true" } }), "Portego").workspace.studyPacePlannerEnabled).toBe(false);
+    expect(loadWebSettings(storage({ workspace: { studyPacePlannerEnabled: true } }), "Portego").workspace.studyPacePlannerEnabled).toBe(true);
+  });
   it("accepts user synonyms by default for new users", () => {
     expect(loadWebSettings({ getItem: () => null }, "new-user").study.acceptUserSynonymsAsAnswers).toBe(true);
   });

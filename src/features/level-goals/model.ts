@@ -1,6 +1,6 @@
-import { isPortegoUsername } from "../../utils/portegoAccess";
-
-export const canAccessLevelGoals = isPortegoUsername;
+import { isStudyPlan, type StudyPlan } from "./planner";
+export const canAccessLevelGoals = (username?: string | null) =>
+  typeof username === "string" && username.trim().length > 0;
 export const DAY_MS = 86_400_000;
 export type GoalMode = "level" | "duration" | "date";
 export type GoalOutcome = "active" | "missed" | "reached" | "late";
@@ -35,6 +35,7 @@ export type LevelGoalState = {
   active: LevelGoal | null;
   history: GoalHistory[];
   widgetHidden: boolean;
+  studyPlan?: StudyPlan;
 };
 export const EMPTY_GOAL_STATE: LevelGoalState = {
   version: 1,
@@ -58,6 +59,17 @@ export const dateAfterDays = (days: number, now = new Date()) => {
   date.setDate(date.getDate() + days);
   return localDateKey(date);
 };
+/** Calendar-day distance, independent of daylight-saving clock changes. */
+export function goalDaysUntil(value: string, now = new Date()): number | null {
+  const date = parseGoalDate(value);
+  if (!date || !Number.isFinite(now.getTime())) return null;
+  const days = Math.round(
+    (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) -
+      Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) /
+      DAY_MS,
+  );
+  return days > 0 && days <= 3650 ? days : null;
+}
 const isLevel = (value: unknown): value is number =>
   typeof value === "number" &&
   Number.isInteger(value) &&
@@ -96,6 +108,7 @@ export function parseGoalState(raw: string | null | undefined): LevelGoalState {
     if (state.version !== 1) return EMPTY_GOAL_STATE;
     return {
       version: 1,
+      ...(isStudyPlan(state.studyPlan) ? { studyPlan: state.studyPlan } : {}),
       active: validGoal(state.active) ? state.active : null,
       widgetHidden: state.widgetHidden === true,
       history: Array.isArray(state.history)

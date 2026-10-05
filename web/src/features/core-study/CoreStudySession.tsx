@@ -593,6 +593,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const studyDetailsOverrideForCurrent = current && studyDetailsOverride?.questionId === current.id ? studyDetailsOverride.open : undefined;
   const studyDetailsOpen = Boolean(current && revealStudyDetails && (studyDetailsOverrideForCurrent ?? studyDetailsOpenByDefault));
   const studyDetailsShouldOpen = studyDetailsOpen && !advancingQuestion;
+  const scrollableAnkiDetails = Boolean(currentUsesSelfAssessment && ankiRevealed && !advancingQuestion);
+  const [viewedDetailQuestion, setViewedDetailQuestion] = useState<string | null>(null);
+  const loadStudyDetails = studyDetailsOpen || Boolean(current && viewedDetailQuestion === current.id);
   const detailSettings = webSettings.subjectDetails ?? DEFAULT_WEB_SETTINGS.subjectDetails;
   const detailSubject = current?.subject;
   const detailRelationIds = useMemo(() => {
@@ -602,13 +605,13 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const detailRelations = useQuery({
     queryKey: ["wanikani", "subjects", `relations:${detailRelationIds.join(",")}`],
     queryFn: () => wkCollection<Subject>(`subjects?ids=${detailRelationIds.join(",")}`),
-    enabled: studyDetailsOpen && detailRelationIds.length > 0,
+    enabled: loadStudyDetails && detailRelationIds.length > 0,
     staleTime: 24 * 60 * 60_000,
   });
   const detailStatistic = useQuery({
     queryKey: ["wanikani", "review-statistics", `subject:${detailSubject?.id ?? 0}`],
     queryFn: () => wkCollection<ReviewStatistic>(`review_statistics?subject_ids=${detailSubject!.id}`),
-    enabled: studyDetailsOpen && Boolean(detailSubject),
+    enabled: loadStudyDetails && Boolean(detailSubject),
     staleTime: 15 * 60_000,
   });
   const detailCharacters = detailSubject?.data.characters;
@@ -618,7 +621,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const detailEnrichments = useQuery({
     queryKey: ["subject-enrichments", detailSubject?.id ?? 0, detailCharacters, detailReadings.join(",")],
     queryFn: ({ signal }) => fetchSubjectEnrichments({ id: detailSubject!.id, level: detailSubject!.data.level, characters: detailCharacters!, readings: detailReadings }, signal),
-    enabled: Boolean(detailSubject && detailCharacters && (ankiNeedsPitchAccent || (studyDetailsOpen && ((detailSettings.showPitchAccent && detailSubject.object !== "radical") || (detailSettings.showPatternsOfUse && detailIsVocabulary))))),
+    enabled: Boolean(detailSubject && detailCharacters && (ankiNeedsPitchAccent || (loadStudyDetails && ((detailSettings.showPitchAccent && detailSubject.object !== "radical") || (detailSettings.showPatternsOfUse && detailIsVocabulary))))),
     staleTime: 24 * 60 * 60_000,
     retry: 1,
   });
@@ -626,7 +629,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const detailImmersion = useQuery({
     queryKey: ["immersion", "subject-detail", detailCharacters, immersionSources.join(",")],
     queryFn: ({ signal }) => fetchImmersionExamples(detailCharacters!, immersionSources, signal),
-    enabled: Boolean(studyDetailsOpen && detailSettings.showImmersionExamples && detailCharacters && detailIsVocabulary),
+    enabled: Boolean(loadStudyDetails && detailSettings.showImmersionExamples && detailCharacters && detailIsVocabulary),
     staleTime: 60 * 60_000,
     retry: 1,
   });
@@ -1268,7 +1271,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
         </div>
 
-        <ReviewDetailsReveal open={studyDetailsExpanded} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer}>
+        <ReviewDetailsReveal key={current.id} open={studyDetailsExpanded} availableOnScroll={scrollableAnkiDetails} onVisible={() => setViewedDetailQuestion(current.id)} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer || currentUsesSelfAssessment}>
           {revealStudyDetails ? <section id="study-item-details" className={quiz.itemDetails} aria-labelledby="study-details-title" style={{ "--subject-color": subjectColor(current.subject) } as React.CSSProperties}>
             <header className={quiz.itemDetailsHeader}>
               <div className={quiz.itemDetailsIdentity}>

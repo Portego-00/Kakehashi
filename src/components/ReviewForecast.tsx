@@ -29,6 +29,7 @@ type ReviewForecastProps = {
   currentLevel?: number;
   subjects?: any[];
   assignments?: any[];
+  children?: React.ReactNode;
 };
 
 type ViewMode = "list" | "chart";
@@ -69,6 +70,7 @@ export default function ReviewForecast({
   currentLevel,
   subjects,
   assignments,
+  children,
 }: ReviewForecastProps) {
   const debugLog = (message: string, payload?: unknown) => {
     if (!__DEV__) return;
@@ -1777,6 +1779,7 @@ export default function ReviewForecast({
         {renderBreakdownLegend()}
 
         {viewMode === "chart" ? renderChartView() : renderListView()}
+        {children}
       </Animated.View>
     </>
   );

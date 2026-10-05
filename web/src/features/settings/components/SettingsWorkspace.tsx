@@ -19,6 +19,7 @@ import type { AnimeListProvider } from "@/features/anime/types";
 import { CustomSrsSettingsSection } from "@/features/custom-srs/CustomSrsSettings";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
+import { canAccessLevelGoals } from "../../../../../src/features/level-goals/model";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -456,7 +457,7 @@ export function SettingsWorkspace() {
           <div className={styles.subsectionHead}><h3>More menu</h3><p>Choose which optional destinations appear in More and in standalone header shortcuts.</p></div>
           {OPTIONAL_NAV_ITEMS.map((id) => <ToggleRow key={id} label={WORKSPACE_LABELS[id]} description={`Show ${WORKSPACE_LABELS[id].toLocaleLowerCase()} in More and related shortcuts.`} checked={settings.workspace.visibleNav.includes(id)} onChange={() => toggleNav(id)} />)}
         </Card>
-        <DashboardLayoutEditor settings={settings} onChange={update} customSrsAccessible={!isDemo && canAccessCustomSrs(username)} />
+        <DashboardLayoutEditor settings={settings} onChange={update} customSrsAccessible={!isDemo && canAccessCustomSrs(username)} studyPacePlannerAccessible={canAccessLevelGoals(user?.data.username)} />
       </div>
     </section>
 
@@ -482,7 +483,7 @@ export function SettingsWorkspace() {
   </main>;
 }
 
-function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { settings: WebSettings; onChange: (settings: WebSettings) => void; customSrsAccessible: boolean }) {
+function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyPacePlannerAccessible }: { settings: WebSettings; onChange: (settings: WebSettings) => void; customSrsAccessible: boolean; studyPacePlannerAccessible: boolean }) {
   const [draggedId, setDraggedId] = useState<DashboardSectionId | null>(null);
   const draggedIdRef = useRef<DashboardSectionId | null>(null);
   const [dropTargetId, setDropTargetId] = useState<DashboardSectionId | "available" | "end" | null>(null);
@@ -533,7 +534,7 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { se
     setAnnouncement(`${DASHBOARD_DEFINITION_BY_ID.get(id)?.label} set to ${DASHBOARD_WIDTH_NAMES[width]}.`);
   };
   const restoreDashboard = () => {
-    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [] } });
+    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], studyPacePlannerEnabled: false } });
     setAnnouncement("Dashboard layout restored to its default sections and sizes.");
   };
   const startDrag = (event: DragEvent<HTMLElement>, id: DashboardSectionId) => {
@@ -619,6 +620,7 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { se
                 </span>
               </div>
               <DashboardWidgetPreview id={id} />
+              {id === "forecast" && studyPacePlannerAccessible ? <ToggleRow label="Plan your pace" description="Show the pace planner inside Review forecast." checked={settings.workspace.studyPacePlannerEnabled} onChange={(value) => onChange({ ...settings, workspace: { ...settings.workspace, studyPacePlannerEnabled: value } })} /> : null}
             </li>;
           })}
           {draggedId && canvasDropTarget ? <li className={styles.dashboardDropIndicator} data-drop-kind={canvasDropTarget.kind} aria-hidden style={{ left: canvasDropTarget.indicator.left, top: canvasDropTarget.indicator.top, width: canvasDropTarget.indicator.width, height: canvasDropTarget.indicator.height }} /> : null}

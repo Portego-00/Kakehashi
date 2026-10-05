@@ -60,15 +60,19 @@ describe("mounted mixed review providers", () => {
   it("switches questions without remounting a provider or losing progress, then combines results", async () => {
     const screen = render(<MixedReviewSession mode="grammar" />);
     await waitFor(() => expect(screen.getByText("wanikani question 1")).toBeTruthy());
+    jest.spyOn(Math, "random").mockReturnValue(0.9);
     fireEvent.press(screen.getByTestId("answer-wanikani"));
     await waitFor(() => expect(screen.getByText("grammar question 1")).toBeTruthy());
     expect(screen.queryByText("wanikani question 2")).toBeNull();
     expect(mockBridges.grammar.previous?.title).toBe("wanikani 0");
+    jest.spyOn(Math, "random").mockReturnValue(0);
     fireEvent.press(screen.getByTestId("answer-grammar"));
     await waitFor(() => expect(screen.getByText("wanikani question 2")).toBeTruthy());
     expect(mockBridges.wanikani.progress).toEqual({ completed: 2, total: 4 });
+    jest.spyOn(Math, "random").mockReturnValue(0.9);
     fireEvent.press(screen.getByTestId("answer-wanikani"));
     await waitFor(() => expect(screen.getByText("grammar question 2")).toBeTruthy());
+    jest.spyOn(Math, "random").mockReturnValue(0);
     fireEvent.press(screen.getByTestId("answer-grammar"));
     await waitFor(() => expect(screen.getByText("Mixed reviews complete")).toBeTruthy());
     expect(screen.getByText("4 completed · 100% accuracy")).toBeTruthy();
@@ -147,6 +151,7 @@ it("keeps one previous-answer card and does not rerender an inactive lane for sa
     act(() => mockBridges.wanikani.reportSaving?.(true));
     act(() => mockBridges.wanikani.reportSaving?.(false));
     expect(mockRenders.grammar).toBe(initialGrammarRenders);
+    jest.spyOn(Math, "random").mockReturnValue(0.9);
     fireEvent.press(view.getByTestId("answer-wanikani"));
     await waitFor(() => expect(mockBridges.grammar.active).toBe(true));
     const card = view.getByTestId("previous-answer-card");
@@ -155,6 +160,7 @@ it("keeps one previous-answer card and does not rerender an inactive lane for sa
     act(() => mockBridges.grammar.reportSaving?.(false));
     expect(mockRenders.wanikani).toBe(inactiveWaniKaniRenders);
     expect(view.getByTestId("previous-answer-card")).toBe(card);
+    jest.spyOn(Math, "random").mockReturnValue(0);
     fireEvent.press(view.getByTestId("answer-grammar"));
     await waitFor(() => expect(mockBridges.wanikani.active).toBe(true));
     expect(view.getByTestId("previous-answer-card")).toBe(card);

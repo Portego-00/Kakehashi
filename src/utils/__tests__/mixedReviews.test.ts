@@ -1,13 +1,13 @@
 import { chooseMixedReviewLane, createMixedReviewState, mixedWrapUpLimits, reportMixedReviewError, reportMixedReviewHead, trimMixedWaniKaniQueue } from "../mixedReviews";
 
 describe("mixed review scheduling", () => {
-  it("waits for every provider, alternates ready providers, and completes only when all drain", () => {
+  it("waits for every provider, randomly chooses ready providers, and completes only when all drain", () => {
     let state = createMixedReviewState("grammar");
     state = reportMixedReviewHead(state, "wanikani", { id: "wk:1" }, 0);
     expect(state.started).toBe(false);
     state = reportMixedReviewHead(state, "grammar", { id: "bp:1" }, 0);
     expect(state.active).toBe("wanikani");
-    state = reportMixedReviewHead(state, "wanikani", { id: "wk:2" }, 0);
+    state = reportMixedReviewHead(state, "wanikani", { id: "wk:2" }, 0.9);
     expect(state.active).toBe("grammar");
     state = reportMixedReviewHead(state, "grammar", null, 0);
     expect(state.active).toBe("wanikani");
@@ -23,14 +23,14 @@ describe("mixed review scheduling", () => {
     expect(reportMixedReviewHead(state, "wanikani", { id: "wk:1" }, 0)).toBe(state);
     state = reportMixedReviewHead(state, "grammar", { id: "bp:2" }, 0);
     expect(state.active).toBe("wanikani");
-    state = reportMixedReviewHead(state, "wanikani", { id: "wk:1:retry" }, 0);
+    state = reportMixedReviewHead(state, "wanikani", { id: "wk:1:retry" }, 0.9);
     expect(state.active).toBe("grammar");
   });
 
-  it("keeps paired WK questions together while alternating the provider's ordered queues", () => {
+  it("keeps paired WK questions together while shuffling the provider's ordered queues", () => {
     const available = [{ lane: "wanikani" as const, head: { id: "wk:reading", keepTurn: true } }, { lane: "grammar" as const, head: { id: "bp:1" } }];
     expect(chooseMixedReviewLane(available, "wanikani", true, 0.9)).toBe("wanikani");
-    expect(chooseMixedReviewLane([{ ...available[0], head: { id: "wk:2" } }, available[1]], "wanikani", true, 0)).toBe("grammar");
+    expect(chooseMixedReviewLane([{ ...available[0], head: { id: "wk:2" } }, available[1]], "wanikani", true, 0)).toBe("wanikani");
   });
 
   it("surfaces provider errors and cannot turn failure into a completed session", () => {
@@ -91,4 +91,20 @@ describe("mixed review scheduling", () => {
     expect(trimMixedWaniKaniQueue(questions, 0, [2])).toEqual([questions[1]]);
     expect(trimMixedWaniKaniQueue(questions, 0, [])).toEqual([]);
   });
+});
+
+it("draws proportionally to remaining reviews and permits consecutive questions from one provider", () => {
+  const available = [{ lane: "wanikani" as const, head: { id: "wk", remaining: 9 } }, { lane: "grammar" as const, head: { id: "bp", remaining: 1 } }];
+  expect(chooseMixedReviewLane(available, "wanikani", true, 0.8)).toBe("wanikani");
+  expect(chooseMixedReviewLane(available, "wanikani", true, 0.95)).toBe("grammar");
+});
+
+it("hands off a saving-only lane even when the random draw would keep it", () => {
+  let state = createMixedReviewState("grammar");
+  state = reportMixedReviewHead(state, "wanikani", { id: "wk" }, 0.9);
+  state = reportMixedReviewHead(state, "grammar", { id: "bp" }, 0.9);
+  expect(state.active).toBe("grammar");
+  state = reportMixedReviewHead(state, "grammar", { id: "saving:bp", ready: false }, 0.9);
+  expect(state.active).toBe("wanikani");
+  expect(state.complete).toBe(false);
 });

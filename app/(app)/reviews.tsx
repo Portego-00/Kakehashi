@@ -2621,8 +2621,9 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     mixedRef.current.report(isFinished || !currentQuestion ? null : {
       id: `${currentQuestion.itemId}:${currentQuestion.type}:${questionOccurrence}`,
       keepTurn: backToBackQuestions && currentQuestion.itemId === lastAdvancedItemIdRef.current,
+      remaining: Math.max(1, progress.totalItems - progress.completedItems),
     });
-  }, [isLoading, isFinished, currentQuestion, questionOccurrence, mixedLoadError, backToBackQuestions]);
+  }, [isLoading, isFinished, currentQuestion, questionOccurrence, mixedLoadError, backToBackQuestions, progress.totalItems, progress.completedItems]);
 
   useEffect(() => {
     mixedRef.current?.reportProgress({ completed: progress.completedItems, total: progress.totalItems });

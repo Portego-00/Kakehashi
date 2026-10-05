@@ -1,6 +1,28 @@
 import { PATCH_NOTES, getCurrentPatchNotesVersion } from "../patchNotes";
 
 describe("patch notes", () => {
+  it("announces level goals and the optional pace planner on October 5", () => {
+    expect(PATCH_NOTES[0]).toMatchObject({
+      version: "1.4.22",
+      date: "2026-10-05",
+      changes: expect.arrayContaining([
+        expect.objectContaining({
+          type: "feature",
+          title: "Level Goals",
+          link: { route: "/(app)/(tabs)/progress", label: "Set a Level Goal" },
+        }),
+        expect.objectContaining({
+          type: "feature",
+          title: "Plan Your Pace",
+          description: expect.stringContaining("off by default"),
+          link: {
+            route: "/home-customization-settings",
+            label: "Enable Plan Your Pace",
+          },
+        }),
+      ]),
+    });
+  });
   it("keeps the newest release first and reports its version", () => {
     const versions = PATCH_NOTES.map((note) => note.version);
     const newestFirst = [...versions].sort((a, b) =>
@@ -26,30 +48,36 @@ describe("patch notes", () => {
   });
 
   it("preserves both announcements in the September 12 release", () => {
-    expect(PATCH_NOTES.find((note) => note.version === "1.4.13")).toMatchObject({
-      version: "1.4.13",
-      date: "2026-09-12",
-      changes: expect.arrayContaining([
-        expect.objectContaining({
-          type: "feature",
-          title: "Fully Hidden Translations",
-        }),
-        expect.objectContaining({
-          type: "fix",
-          title: "Multiple Choice Answers",
-        }),
-      ]),
-    });
+    expect(PATCH_NOTES.find((note) => note.version === "1.4.13")).toMatchObject(
+      {
+        version: "1.4.13",
+        date: "2026-09-12",
+        changes: expect.arrayContaining([
+          expect.objectContaining({
+            type: "feature",
+            title: "Fully Hidden Translations",
+          }),
+          expect.objectContaining({
+            type: "fix",
+            title: "Multiple Choice Answers",
+          }),
+        ]),
+      },
+    );
   });
 
   it("preserves the Word Search announcement in its original release", () => {
-    const wordSearchRelease = PATCH_NOTES.find((note) => note.version === "1.4.7");
+    const wordSearchRelease = PATCH_NOTES.find(
+      (note) => note.version === "1.4.7",
+    );
     expect(wordSearchRelease).toMatchObject({
       version: "1.4.7",
       date: "2026-08-30",
     });
     expect(
-      wordSearchRelease?.changes.find((change) => change.title === "Word Search"),
+      wordSearchRelease?.changes.find(
+        (change) => change.title === "Word Search",
+      ),
     ).toMatchObject({
       type: "feature",
       link: {

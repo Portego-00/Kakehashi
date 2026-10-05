@@ -56,6 +56,29 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.22",
+    date: "2026-10-05",
+    changes: [
+      {
+        type: "feature",
+        title: "Level Goals",
+        description:
+          "Set a target level, timeframe, or calendar date with a guided setup, then track your progress on the Level screen. Update or remove your goal through Edit goal.",
+        link: { route: "/(app)/(tabs)/progress", label: "Set a Level Goal" },
+      },
+      {
+        type: "feature",
+        title: "Plan Your Pace",
+        description:
+          "Link your level pace and daily lessons, preview estimated reviews, and choose a review session size in Review forecast. Apply your daily plan or use its target date for your goal. Enable Plan your pace under Review forecast in Home Customization; off by default.",
+        link: {
+          route: "/home-customization-settings",
+          label: "Enable Plan Your Pace",
+        },
+      },
+    ],
+  },
+  {
     version: "1.4.21",
     date: "2026-10-02",
     changes: [

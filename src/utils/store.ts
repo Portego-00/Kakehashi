@@ -686,6 +686,7 @@ type SettingsState = {
 
   // Home screen customization
   homeWidgetOrder: HomeWidgetId[];
+  homeStudyPacePlannerEnabled: boolean;
   homeExtraStudyModeOrder: ExtraStudyModeId[];
   homeExtraStudyHiddenModeIds: ExtraStudyModeId[];
   homeRecentLessonsWindow: RecentLessonsWindow;
@@ -867,6 +868,7 @@ type SettingsState = {
   setBunproSurveyCompleted: (completed: boolean) => void;
   setCustomTabOrder: (tabs: CustomTabId[]) => void;
   setHomeWidgetOrder: (widgets: HomeWidgetId[]) => void;
+  setHomeStudyPacePlannerEnabled: (enabled: boolean) => void;
   addHomeWidget: (widget: HomeWidgetId) => void;
   removeHomeWidget: (widget: HomeWidgetId) => void;
   resetHomeWidgetOrder: () => void;
@@ -1044,6 +1046,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       customTabOrder: [...DEFAULT_CUSTOM_TAB_ORDER], // Default tab order
       homeWidgetOrder: [...DEFAULT_HOME_WIDGET_ORDER],
+      homeStudyPacePlannerEnabled: false,
       homeExtraStudyModeOrder: [...DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER],
       homeExtraStudyHiddenModeIds: [],
       homeRecentLessonsWindow: "apprentice",
@@ -1337,6 +1340,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({ customTabOrder: normalizeCustomTabOrder(tabs) }),
       setHomeWidgetOrder: (widgets) =>
         set({ homeWidgetOrder: normalizeHomeWidgetOrder(widgets) }),
+      setHomeStudyPacePlannerEnabled: (enabled) => set({ homeStudyPacePlannerEnabled: enabled }),
       addHomeWidget: (widget) =>
         set((state) => {
           if (state.homeWidgetOrder.includes(widget)) {

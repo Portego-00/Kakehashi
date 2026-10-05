@@ -144,6 +144,7 @@ export interface WebSettings {
     forecastViewMode: "chart" | "list";
     forecastChartMode: "hourly" | "daily";
     forecastBreakdown: "off" | "subject" | "srs";
+    studyPacePlannerEnabled: boolean;
   };
 }
 
@@ -385,7 +386,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     epubDailyGoalMinutes: 5,
     songsLyricsLineTranslationsEnabled: false,
   },
-  workspace: { navbarTabs: [...DEFAULT_NAVBAR_TABS], visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], forecastViewMode: "chart", forecastChartMode: "hourly", forecastBreakdown: "off" },
+  workspace: { navbarTabs: [...DEFAULT_NAVBAR_TABS], visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], forecastViewMode: "chart", forecastChartMode: "hourly", forecastBreakdown: "off", studyPacePlannerEnabled: false },
 };
 
 export const SUBJECT_COLOR_PRESETS = {
@@ -621,6 +622,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         forecastViewMode: parsed.workspace?.forecastViewMode === "list" ? "list" : "chart",
         forecastChartMode: parsed.workspace?.forecastChartMode === "daily" ? "daily" : "hourly",
         forecastBreakdown: parsed.workspace?.forecastBreakdown === "subject" || parsed.workspace?.forecastBreakdown === "srs" ? parsed.workspace.forecastBreakdown : "off",
+        studyPacePlannerEnabled: parsed.workspace?.studyPacePlannerEnabled === true,
       },
     };
   } catch {

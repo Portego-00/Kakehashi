@@ -8,6 +8,7 @@ import {
   goalMilestones,
   goalOutcome,
   goalPace,
+  goalDaysUntil,
   localDateKey,
   observeGoal,
   parseGoalDate,
@@ -19,6 +20,15 @@ import {
 } from "../../../../src/features/level-goals/model";
 import { createGoalStore } from "../../../../src/features/level-goals/storage";
 const now = new Date("2026-09-30T12:00:00");
+it("counts custom timeframe calendar days across daylight-saving changes", () => {
+  const before = new Date(2026, 9, 24, 12);
+  expect(goalDaysUntil("2026-10-26", before)).toBe(2);
+  expect(dateAfterDays(goalDaysUntil("2026-10-26", before)!, before)).toBe(
+    "2026-10-26",
+  );
+  expect(goalDaysUntil("2026-10-24", before)).toBeNull();
+  expect(goalDaysUntil("2026-02-30", before)).toBeNull();
+});
 const goal = (deadline: string | null = null) =>
   createLevelGoal(
     {
@@ -44,10 +54,13 @@ const progression = (
   },
 });
 describe("level goals", () => {
-  it("limits access to Portego", () => {
+  it("allows every signed-in account", () => {
     expect(canAccessLevelGoals(" Portego ")).toBe(true);
     expect(canAccessLevelGoals("portego")).toBe(true);
-    expect(canAccessLevelGoals("Portego2")).toBe(false);
+    expect(canAccessLevelGoals("Portego2")).toBe(true);
+    expect(canAccessLevelGoals("AnotherUser")).toBe(true);
+    expect(canAccessLevelGoals("demo-level-21")).toBe(true);
+    expect(canAccessLevelGoals(" ")).toBe(false);
     expect(canAccessLevelGoals(null)).toBe(false);
   });
   it("validates levels and real future calendar dates", () => {

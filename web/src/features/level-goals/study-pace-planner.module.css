@@ -1,0 +1,251 @@
+.planner {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-rule-2);
+}
+.toggle {
+  display: flex;
+  width: 100%;
+  gap: 9px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 8px 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.toggle > svg:first-child {
+  color: var(--color-accent);
+}
+.toggle > svg:last-child {
+  margin-left: auto;
+  transition: transform 160ms;
+}
+.toggle > svg[data-open="true"] {
+  transform: rotate(180deg);
+}
+.body {
+  padding-top: 20px;
+  max-width: 760px;
+  margin-inline: auto;
+}
+.heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.heading > div {
+  display: grid;
+  gap: 4px;
+}
+.heading span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.heading strong {
+  font-size: 34px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.heading strong small {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--color-muted);
+}
+.heading .destination {
+  text-align: right;
+}
+.destination strong {
+  font-size: 22px;
+  color: var(--color-accent);
+}
+.presets {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.presets button {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--color-rule-2);
+  border-radius: 8px;
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.presets button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.control {
+  display: block;
+  margin-top: 16px;
+}
+.control > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.control strong {
+  color: var(--color-accent);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.control input {
+  display: block;
+  width: 100%;
+  accent-color: var(--color-accent);
+  min-height: 36px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+.body button:disabled,
+.control input:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.note {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 10px;
+}
+.workload {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+.workload strong {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.workload small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-muted);
+  letter-spacing: 0;
+}
+.workload > span {
+  font-size: 11px;
+  color: var(--color-muted);
+  text-align: right;
+}
+.chart {
+  display: flex;
+  gap: 5px;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+.chart li {
+  flex: 1;
+  min-width: 0;
+}
+.chart li > div {
+  height: 80px;
+  display: flex;
+  flex-direction: column-reverse;
+  background: var(--color-paper-2);
+  overflow: hidden;
+  border-radius: 3px 3px 0 0;
+}
+.chart i {
+  display: block;
+  flex-shrink: 0;
+  width: 100%;
+}
+.chart .existing {
+  background: var(--color-rule);
+}
+.chart .newLessons {
+  background: var(--color-accent);
+}
+.chart li > span {
+  display: block;
+  min-height: 18px;
+  margin-top: 6px;
+  font-size: 9px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.chart li:last-child > span {
+  text-align: right;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--color-muted);
+  margin-top: 10px;
+}
+.legend > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--color-rule);
+}
+.legend > span:nth-child(2) i {
+  background: var(--color-accent);
+}
+.legend > small {
+  margin-left: auto;
+  font-size: 10px;
+}
+.method {
+  margin-top: 18px;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.method summary {
+  cursor: pointer;
+}
+.method p {
+  margin-top: 8px;
+  line-height: 1.7;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.dateAction {
+  background: none;
+  border: 0;
+  padding: 10px 0;
+  color: var(--color-accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.error {
+  color: var(--color-danger);
+  font-size: 12px;
+  margin-top: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toggle svg {
+    transition: none;
+  }
+}

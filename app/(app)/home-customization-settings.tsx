@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useShallow } from "zustand/react/shallow";
 import { GlassButton } from "../../src/components/GlassButton";
 import HomeDashboardWidget from "../../src/components/HomeDashboardWidget";
+import { StudyPacePlannerSetting } from "../../src/features/level-goals/study-pace-planner";
 import { useDashboardData } from "../../src/hooks/useDashboardData";
 import { useUsageStreak } from "../../src/hooks/useUsageStreak";
 import {
@@ -247,6 +248,7 @@ export default function HomeCustomizationSettings() {
   const listRef = useRef<FlatList<HomeWidgetId>>(null);
   const { dashboardData } = useDashboardData();
   const { userData } = useAuthStore();
+  const setHomeStudyPacePlannerEnabled = useSettingsStore((state) => state.setHomeStudyPacePlannerEnabled);
   const {
     dailyLessonLimit,
     apprenticeLessonThreshold,
@@ -805,6 +807,7 @@ export default function HomeCustomizationSettings() {
             resetHomeExtraStudyModeOrder();
             setHomeRecentLessonsWindow("apprentice");
             setHomeSrsBreakdownDisplayMode("combined");
+            setHomeStudyPacePlannerEnabled(false);
             setIsExtraStudyExpanded(false);
           },
         },
@@ -1275,6 +1278,7 @@ export default function HomeCustomizationSettings() {
                 )}
               </View>
 
+              {item === "reviewForecast" ? <StudyPacePlannerSetting /> : null}
               {item === "extraStudy" && (
                 <View style={styles.widgetSettingBlock}>
                   <TouchableOpacity
