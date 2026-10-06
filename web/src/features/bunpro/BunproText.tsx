@@ -1,9 +1,10 @@
 "use client";
 import { createElement, Fragment, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { parseFuriganaRuns, sanitizeText } from "./model";
+import { BunproRuby } from "./BunproFurigana";
 const subscribe = () => () => {};
 export function RubyText({ text }: { text: string }) {
-  return <>{parseFuriganaRuns(text).map((run, i) => run.kind === "ruby" ? <ruby key={i}>{run.base}<rp>(</rp><rt>{run.reading}</rt><rp>)</rp></ruby> : run.text)}</>;
+  return <>{parseFuriganaRuns(text).map((run, i) => run.kind === "ruby" ? <BunproRuby key={i} base={run.base}>{run.base}<rp>(</rp><rt>{run.reading}</rt><rp>)</rp></BunproRuby> : run.text)}</>;
 }
 export function BunproSentence({ parts, children }: { parts: string[]; children: ReactNode }) {
   return <>{parts.map((part, index) => <Fragment key={index}>{index > 0 ? children : null}<RubyText text={part} /></Fragment>)}</>;
@@ -27,6 +28,11 @@ function renderNode(node: Node, key: number, grammarId?: string, ruby = false): 
   const cautionSection = node.classList.contains("caution");
   const hiddenReading = tag === "rt" && node.classList.contains("bp-js-hide-furi");
   const props = { key, ...(accent ? { "data-bunpro-accent": true } : {}), ...(caution ? { "data-bunpro-caution": true } : {}), ...(cautionSection ? { "data-bunpro-caution-section": true } : {}), ...(hiddenReading ? { "data-bunpro-furigana": "hover" } : {}) };
+  if (tag === "ruby") {
+    const base = Array.from(node.childNodes).filter(child => !(child instanceof Element) || !["rt", "rp"].includes(child.tagName.toLowerCase())).map(child => child.textContent).join("");
+    const { key: rubyKey, ...rubyProps } = props;
+    return <BunproRuby key={rubyKey} {...rubyProps} base={base}>{children}</BunproRuby>;
+  }
   return allowed.has(tag) ? createElement(tag, props, tag === "br" ? undefined : children) : <span {...props}>{children}</span>;
 }
 /** Render a small HTML allowlist; never transfer provider attributes or executable markup. */

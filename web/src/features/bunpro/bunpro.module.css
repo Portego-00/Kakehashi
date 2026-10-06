@@ -104,6 +104,7 @@
 .goalBars { display: flex; gap: 5px; height: 9px; }
 .goalBars > span { flex: 1; background: #ffffff4d; border-radius: 2px; }
 .goalBars > span[data-done="true"] { background: #e7a2a2; }
+.goalBars > span[data-extra="true"] { background: var(--color-extra-study-accent); }
 .queueSettings { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ffffff33; }
 .homeReviewBreakdown > p { padding: 20px; }
 /* The same reading surface is used during lessons and after a review answer. */
@@ -128,6 +129,12 @@
 .structure :is(del, s, strike)::after { content: ""; position: absolute; left: 0; right: 0; top: 46%; height: .36em; border-block: 1.5px solid var(--bp-strike); pointer-events: none; }
 .structure rt, .details rt[data-bunpro-furigana="hover"] { opacity: 0; transition: opacity 120ms ease; }
 .structure ruby:hover rt, .details ruby:hover rt[data-bunpro-furigana="hover"] { opacity: 1; }
+.reviewShell ruby[data-bunpro-review-furigana] { cursor: pointer; }
+.reviewShell ruby[data-bunpro-review-furigana] > rt { opacity: 0; visibility: hidden; transition: opacity 120ms ease; }
+.reviewShell ruby[data-bunpro-review-furigana]:hover > rt,
+.reviewShell ruby[data-bunpro-review-furigana]:focus-visible > rt,
+.reviewShell ruby[data-bunpro-review-furigana][data-pinned="true"] > rt { opacity: 1; visibility: visible; }
+.reviewShell ruby[data-bunpro-review-furigana]:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .structureToggle { display: flex; padding: 4px; background: var(--bp-header); border-radius: 9px; }
 .structureToggle button { border: 0; border-radius: 7px; color: #777; background: transparent; padding: 3px 12px; font: inherit; cursor: pointer; }
 .structureToggle button[aria-pressed="true"] { background: var(--bp-accent); color: white; }

@@ -106,6 +106,35 @@ export function answerCustomSessionQuestion(
   };
 }
 
+/** Anki emits meaning then reading; consume the pair as one question occurrence. */
+export function answerCustomSessionGroupedQuestion(
+  quiz: CustomSessionQuiz,
+  question: CustomSessionQuestion,
+  occurrence: number,
+  isCorrect: boolean,
+): { quiz: CustomSessionQuiz; completedWordId: string | null } {
+  const current = quiz.questions[0];
+  const item = quiz.items.find((entry) => entry.word.id === question.wordId);
+  if (!current || current.wordId !== question.wordId || current.type !== question.type || quiz.occurrence !== occurrence
+    || !item || item.saved || !customWordHasReadingQuestion(item.word)) return { quiz, completedWordId: null };
+  const remaining = quiz.questions.filter((entry) => entry.wordId !== question.wordId);
+  return {
+    quiz: {
+      ...quiz,
+      items: quiz.items.map((entry) => entry !== item ? entry : {
+        ...entry, meaningDone: isCorrect, readingDone: isCorrect,
+        meaningIncorrect: entry.meaningIncorrect + (isCorrect ? 0 : 1),
+        readingIncorrect: entry.readingIncorrect + (isCorrect ? 0 : 1),
+      }),
+      questions: isCorrect ? remaining : [...remaining, { wordId: question.wordId, type: "meaning" }, { wordId: question.wordId, type: "reading" }],
+      answeredCount: quiz.answeredCount + 2,
+      correctAnswersCount: quiz.correctAnswersCount + (isCorrect ? 2 : 0),
+      occurrence: quiz.occurrence + 1,
+    },
+    completedWordId: isCorrect ? question.wordId : null,
+  };
+}
+
 export function confirmCustomSessionWord(quiz: CustomSessionQuiz, wordId: string): CustomSessionQuiz {
   return { ...quiz, items: quiz.items.map((item) => item.word.id === wordId ? { ...item, saved: true } : item) };
 }
@@ -135,4 +164,19 @@ export function customNextReviewLabel(availableAt: string | null, stage: number,
   if (hours < 24) return `Next review in ${hours} ${hours === 1 ? "hour" : "hours"}`;
   const days = Math.round(hours / 24);
   return `Next review in ${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/** Matches the standard mobile review card's interval text. */
+export function customReviewInterval(availableAt: string | null, stage: number, now = Date.now()) {
+  if (stage >= 9) return "Burned!";
+  if (!availableAt) return "Scheduled";
+  const diff = Date.parse(availableAt) - now;
+  if (!Number.isFinite(diff)) return "Scheduled";
+  if (diff <= 5 * 60_000) return "Now";
+  const hours = diff / 3_600_000;
+  if (hours < 1) return `${Math.ceil(diff / 60_000)}m`;
+  if (hours < 24) return `${Math.round(hours)}h`;
+  if (hours < 168) return `${Math.round(hours / 24)} ${Math.round(hours / 24) === 1 ? "day" : "days"}`;
+  if (hours < 720) return `${Math.round(hours / 168)} ${Math.round(hours / 168) === 1 ? "week" : "weeks"}`;
+  return `${Math.round(hours / 720)} ${Math.round(hours / 720) === 1 ? "month" : "months"}`;
 }

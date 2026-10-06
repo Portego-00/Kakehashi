@@ -3,10 +3,13 @@ import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
 import { Buffer } from "buffer";
 import formatStyleSheet from "./epub/format-style-sheet";
+import { epubAnnotations } from "./epub/annotations";
+import { getReaderAnnotationsScript } from "./epub/reader-annotations-script";
 
 const EPUB_LIBRARY_DIR_NAME = "epub-library";
 const EPUB_INDEX_FILE_NAME = "index.json";
-const EPUB_SCHEMA_VERSION = 11;
+const EPUB_SCHEMA_VERSION = 12;
+let progressWrites = Promise.resolve();
 const COVERAGE_SAMPLE_TEXT_LIMIT = 32000;
 
 const CONTROL_CHARACTERS_REGEX = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/gim;
@@ -568,7 +571,7 @@ function rewriteChapterAssets(
 
 function getReaderRuntimeScript(): string {
   return `      (function () {
-        // wk-horizontal-pagination-v14
+        // wk-horizontal-pagination-v15
         const scrollEl = document.getElementById("wk-scroll");
         const contentEl = document.getElementById("wk-content");
         const chip = document.getElementById("wk-page-chip");
@@ -582,6 +585,7 @@ function getReaderRuntimeScript(): string {
         let rtlScrollType = "default";
         let isChromeVisible = true;
         let lastLookupTap = null;
+        let isInitialized = false;
         const LOOKUP_HIGHLIGHT_ATTR = "data-wk-lookup-active";
         const LOOKUP_OVERLAY_ROOT_ID = "wk-lookup-overlay-root";
 
@@ -772,6 +776,7 @@ function getReaderRuntimeScript(): string {
 
         function emitPageUpdate() {
           updateChip();
+          if (!isInitialized) return;
           postMessage("page", {
             page: currentPage + 1,
             totalPages,
@@ -843,6 +848,9 @@ function getReaderRuntimeScript(): string {
           }
           if (typeof theme.lookupHighlightText === "string") {
             root.style.setProperty("--reader-lookup-highlight-fg", theme.lookupHighlightText);
+          }
+          if (typeof theme.savedHighlightBackground === "string") {
+            root.style.setProperty("--reader-saved-highlight", theme.savedHighlightBackground);
           }
         }
 
@@ -1605,6 +1613,7 @@ function getReaderRuntimeScript(): string {
             jumpToPage(normalizedPageNumber - 1, shouldSmooth);
           },
           recalc: function () {
+            if (!isInitialized) return;
             applyHorizontalPaginationStyles();
             const ratio = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
             recalculatePageMetrics();
@@ -1626,7 +1635,11 @@ function getReaderRuntimeScript(): string {
           clearLookupSelection,
         };
 
+${getReaderAnnotationsScript()}
+
         document.addEventListener("click", function (event) {
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed) return;
           const target = event.target;
           const anchor = target && target.closest ? target.closest("a[href]") : null;
 
@@ -1667,6 +1680,7 @@ function getReaderRuntimeScript(): string {
         }
 
         window.addEventListener("resize", function () {
+          if (!isInitialized) return;
           log("resize");
           applyHorizontalPaginationStyles();
           const ratio = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
@@ -1677,6 +1691,7 @@ function getReaderRuntimeScript(): string {
 
         function scheduleRecalculate(reason) {
           requestAnimationFrame(function () {
+            if (!isInitialized) return;
             applyHorizontalPaginationStyles();
             recalculatePageMetrics();
             emitPageUpdate();
@@ -1684,7 +1699,7 @@ function getReaderRuntimeScript(): string {
           });
         }
 
-        function initialize() {
+        async function initialize() {
           if (!scrollEl || !contentEl) {
             postMessage("error", { message: "EPUB container not available" });
             return;
@@ -1730,6 +1745,19 @@ function getReaderRuntimeScript(): string {
             });
           }
 
+          // Restore only after the initial layout settles, never persisting a temporary page 1.
+          const layoutReady = [];
+          if (document.fonts) layoutReady.push(document.fonts.ready);
+          images.forEach(function (img) {
+            if (!img.complete) layoutReady.push(new Promise(function (resolve) {
+              img.addEventListener("load", resolve, { once: true });
+              img.addEventListener("error", resolve, { once: true });
+            }));
+          });
+          await Promise.race([
+            Promise.all(layoutReady),
+            new Promise(function (resolve) { setTimeout(resolve, 1500); }),
+          ]);
           recalculatePageMetrics();
           const requestedInitialPage = Number(window.__WK_EPUB_INITIAL_PAGE__);
           const safeInitialPage = Number.isFinite(requestedInitialPage)
@@ -1738,6 +1766,7 @@ function getReaderRuntimeScript(): string {
 
           currentPage = safeInitialPage - 1;
           jumpToPage(currentPage, false);
+          isInitialized = true;
           updateChromeVisibility();
 
           postMessage("ready", {
@@ -1959,7 +1988,7 @@ function migrateReaderHtml(html: string): string {
     "return clamp(Math.round(offset / pageSize), 0, totalPages - 1);"
   );
 
-  if (!migratedHtml.includes("wk-horizontal-pagination-v14")) {
+  if (!migratedHtml.includes("wk-horizontal-pagination-v15")) {
     const runtimeScriptTag = `<script>\n${getReaderRuntimeScript()}\n    </script>`;
 
     const replacedRuntimeScript = migratedHtml.replace(
@@ -2355,6 +2384,7 @@ export const epubLibraryService = {
   },
 
   async importFromFile(file: File): Promise<EpubLibraryItem> {
+    await progressWrites;
     await ensureLibraryReady();
 
     const bytes = await file.bytes();
@@ -2393,6 +2423,7 @@ export const epubLibraryService = {
   },
 
   async listBooks(): Promise<EpubLibraryItem[]> {
+    await progressWrites;
     return readIndex();
   },
 
@@ -2467,6 +2498,8 @@ export const epubLibraryService = {
   },
 
   async deleteBook(bookId: string): Promise<void> {
+    await progressWrites;
+    await epubAnnotations.removeBook(bookId);
     await ensureLibraryReady();
     const currentIndex = await readIndex();
     const targetEntry = currentIndex.find((entry) => entry.id === bookId);
@@ -2492,37 +2525,45 @@ export const epubLibraryService = {
     await writeIndex(currentIndex.filter((entry) => entry.id !== bookId));
   },
 
-  async updateReadingProgress(
+  flushReadingProgress(): Promise<void> {
+    return progressWrites;
+  },
+
+  updateReadingProgress(
     bookId: string,
     page: number,
     totalPages: number
   ): Promise<void> {
-    const normalizedPage = Math.max(1, Math.floor(page || 1));
-    const normalizedTotal = Math.max(1, Math.floor(totalPages || 1));
+    const operation = progressWrites.then(async () => {
+      const normalizedPage = Math.max(1, Math.floor(page || 1));
+      const normalizedTotal = Math.max(1, Math.floor(totalPages || 1));
 
-    const stored = await this.getBook(bookId);
-    if (!stored) {
-      return;
-    }
+      const stored = await this.getBook(bookId);
+      if (!stored) {
+        return;
+      }
 
-    const updatedMetadata: EpubLibraryItem = {
-      ...stored.metadata,
-      lastReadPage: normalizedPage,
-      estimatedPages: normalizedTotal,
-      updatedAt: Date.now(),
-    };
+      const updatedMetadata: EpubLibraryItem = {
+        ...stored.metadata,
+        lastReadPage: normalizedPage,
+        estimatedPages: normalizedTotal,
+        updatedAt: Date.now(),
+      };
 
-    await saveStoredBook({
-      ...stored,
-      metadata: updatedMetadata,
+      await saveStoredBook({
+        ...stored,
+        metadata: updatedMetadata,
+      });
+
+      const index = await readIndex();
+      const updatedIndex = index
+        .map((entry) => (entry.id === bookId ? updatedMetadata : entry))
+        .sort((left, right) => right.updatedAt - left.updatedAt);
+
+      await writeIndex(updatedIndex);
     });
-
-    const index = await readIndex();
-    const updatedIndex = index
-      .map((entry) => (entry.id === bookId ? updatedMetadata : entry))
-      .sort((left, right) => right.updatedAt - left.updatedAt);
-
-    await writeIndex(updatedIndex);
+    progressWrites = operation.catch(() => {});
+    return operation;
   },
 };
 

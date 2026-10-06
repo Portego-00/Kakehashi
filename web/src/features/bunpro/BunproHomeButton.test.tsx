@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { BunproHomeButton } from "./BunproHomeButton";
 import { bunpro } from "./client";
@@ -16,6 +16,30 @@ beforeEach(() => {
     if (query === "action=lesson-queue") return {};
     return { connected: true };
   });
+});
+
+it("counts extra grammar and vocabulary lessons while retaining other decks' unmet goals", async () => {
+  vi.mocked(bunpro).mockImplementation(async query => {
+    if (query === "action=connection") return { connected: true };
+    if (query === "action=due") return { total_due_grammar: 3, total_due_vocab: 4 };
+    return {
+      data: [
+        { id: "1", attributes: { deck_id: 5, daily_goal: 4, batch_size: 2, daily_goal_count_grammar: 4, daily_goal_count_vocab: 2 } },
+        { id: "2", attributes: { deck_id: 6, daily_goal: 4, batch_size: 2 } },
+      ],
+      included: [
+        { id: "5", attributes: { title: "N5 Grammar", grammar_count: 100 } },
+        { id: "6", attributes: { title: "N4 Grammar", grammar_count: 100 } },
+      ],
+    };
+  });
+  setup();
+  const learn = await screen.findByRole("link", { name: /^Learn/ });
+  expect(await within(learn).findByLabelText("6 of 10 learned; next batch: 2")).toBeInTheDocument();
+  expect(learn).toHaveAttribute("href", "/bunpro-lessons?deck=6");
+  fireEvent.click(screen.getByRole("button", { name: "Choose Bunpro lesson deck" }));
+  expect(within(screen.getByRole("link", { name: /^N5 Grammar/ })).getByLabelText("6 of 6 learned; next batch: 2")).toBeInTheDocument();
+  expect(within(screen.getByRole("link", { name: /^N4 Grammar/ })).getByLabelText("0 of 4 learned; next batch: 2")).toBeInTheDocument();
 });
 afterEach(cleanup);
 function setup() {
@@ -130,4 +154,26 @@ it("stops automatic retries for a persistent rejection and reports the affected 
   expect(screen.getByRole("status")).toHaveTextContent("Bunpro lessons could not be refreshed.");
   expect(screen.getByRole("status")).not.toHaveTextContent("Bunpro review counts");
   expect(screen.getByLabelText("7 reviews due")).toBeVisible();
+});
+
+it.each([4, 6])("shows all %i completed lessons and offers the configured extra batch", async (learned) => {
+  vi.mocked(bunpro).mockImplementation(async query => {
+    if (query === "action=connection") return { connected: true };
+    if (query === "action=due") return { total_due_grammar: 3, total_due_vocab: 4 };
+    return { data: [{ id: "1", attributes: { deck_id: 5, daily_goal: 4, batch_size: 3, daily_goal_count_grammar: learned, complete_grammar_count: learned } }], included: [{ id: "5", attributes: { title: "N5 Grammar", grammar_count: 100 } }] };
+  });
+  setup();
+  const learn = await screen.findByRole("link", { name: /^Learn/ });
+  expect(await within(learn).findByLabelText(`${learned} of ${learned} learned; next batch: 3`)).toBeInTheDocument();
+  expect(learn).toHaveAttribute("href", "/bunpro-lessons?deck=5");
+  fireEvent.click(screen.getByRole("button", { name: "Choose Bunpro lesson deck" }));
+  const deck = screen.getByRole("link", { name: /^N5 Grammar/ });
+  expect(deck).toHaveAttribute("href", "/bunpro-lessons?deck=5");
+  expect(within(deck).getByLabelText(`${learned} of ${learned} learned; next batch: 3`)).toBeInTheDocument();
+  for (const progress of screen.getAllByRole("progressbar")) {
+    expect(progress).toHaveAttribute("aria-valuenow", String(learned));
+    expect(progress).toHaveAttribute("aria-valuemax", String(learned));
+    expect(progress.querySelectorAll('[data-done="true"]')).toHaveLength(learned);
+    expect(progress.querySelectorAll('[data-extra="true"]')).toHaveLength(Math.max(0, learned - 4));
+  }
 });

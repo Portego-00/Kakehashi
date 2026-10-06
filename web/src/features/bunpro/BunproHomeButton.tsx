@@ -9,6 +9,7 @@ import type { BunproQueueResponse } from "../../../../src/types/bunpro";
 import { canAccessBunpro } from "./access";
 import { bunpro } from "./client";
 import { BunproConnectCard } from "./BunproConnectCard";
+import { getBunproLessonBatchSize, selectBunproLessonDeck } from "./lesson-queue";
 import styles from "./bunpro.module.css";
 // Read-only counts can briefly fail just after a key is connected. Keep retries
 // bounded, including an intermittent 401; a persistent rejection stays visible.
@@ -22,9 +23,9 @@ export function BunproHomeButton({ wanikaniCount }: HomeProps) {
   const { user, isDemo } = useSession();
   return !isDemo && canAccessBunpro(user?.data.username) ? <BunproStudyCards key={user!.data.username} username={user!.data.username} wanikaniCount={wanikaniCount} /> : null;
 }
-function Goal({ done, goal, batch }: { done: number; goal: number; batch: number }) {
+function Goal({ done, goal, batch, extra = 0 }: { done: number; goal: number; batch: number; extra?: number }) {
   const segments = Math.min(Math.max(goal, 1), 20);
-  return <span className={styles.goalBars} role="progressbar" aria-label="Daily lesson goal" aria-valuenow={done} aria-valuemin={0} aria-valuemax={Math.max(goal, 1)}>{Array.from({ length: segments }, (_, i) => <span key={i} data-done={i < done / Math.max(goal, 1) * segments} data-next={goal > 0 && i * goal / segments >= done && i * goal / segments < done + batch} />)}</span>;
+  return <span className={styles.goalBars} role="progressbar" aria-label="Daily lesson goal" aria-valuenow={done} aria-valuemin={0} aria-valuemax={Math.max(goal, 1)}>{Array.from({ length: segments }, (_, i) => <span key={i} data-done={i < done / Math.max(goal, 1) * segments} data-extra={extra > 0 && i < done / Math.max(goal, 1) * segments && i >= (done - extra) / Math.max(goal, 1) * segments} data-next={goal > 0 && i * goal / segments >= done && i * goal / segments < done + batch} />)}</span>;
 }
 function GoalCount({ done, goal, batch }: { done: number; goal: number; batch: number }) {
   return <span className={styles.goalCount} aria-label={`${done} of ${goal} learned; next batch: ${batch}`}><span className={styles.goalCountIdle} aria-hidden="true">{done} / {goal}</span><span className={styles.goalCountHover} aria-hidden="true">+{batch}</span></span>;
@@ -38,6 +39,8 @@ function BunproStudyCards({ wanikaniCount, username }: HomeProps & { username: s
   const queue = useQuery({ queryKey: ["bunpro", "lesson-queue"], queryFn: ({ signal }) => bunpro<BunproQueueResponse>("action=lesson-queue", { signal }), enabled, staleTime: 30_000, retry: retryCounts, retryDelay: countRetryDelay });
   if (!enabled) return connection.isSuccess && connection.data.connected === false ? <BunproConnectCard username={username} /> : null;
   const summary = summarizeBunproQueue(queue.data);
+  const nextDeck = selectBunproLessonDeck(summary);
+  const nextBatch = getBunproLessonBatchSize(nextDeck);
   const grammar = due.data?.total_due_grammar;
   const vocab = due.data?.total_due_vocab;
   const total = grammar === undefined || vocab === undefined ? undefined : grammar + vocab;
@@ -46,10 +49,10 @@ function BunproStudyCards({ wanikaniCount, username }: HomeProps & { username: s
     <div className={styles.homeCards} onKeyDown={(event) => { if (event.key === "Escape") setExpanded(null); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setExpanded(null); }}>
       <div className={`${styles.homeReviewPanel} ${styles.homeLearnPanel}`}>
         <div className={styles.homeReviewTop}>
-          <Link className={`${styles.homeReviewAction} ${styles.homeLearnAction}`} href={summary.next?.deckId ? `/bunpro-lessons?deck=${summary.next.deckId}` : "/bunpro-lessons"}><span><strong>Learn</strong><span>{queue.data ? <GoalCount done={summary.overall.done} goal={summary.overall.dailyGoal} batch={summary.overall.nextBatch} /> : "—"}</span></span><Goal done={summary.overall.done} goal={summary.overall.dailyGoal} batch={summary.overall.nextBatch} /></Link>
+          <Link className={`${styles.homeReviewAction} ${styles.homeLearnAction}`} href={nextDeck?.deckId ? `/bunpro-lessons?deck=${nextDeck.deckId}` : "/bunpro-lessons"}><span><strong>Learn</strong><span>{queue.data ? <GoalCount done={summary.overall.learnedTodayCount} goal={summary.overall.dailyGoal + summary.overall.overflowed} batch={nextBatch} /> : "—"}</span></span><Goal extra={summary.overall.overflowed} done={summary.overall.learnedTodayCount} goal={summary.overall.dailyGoal + summary.overall.overflowed} batch={nextBatch} /></Link>
           <button type="button" className={styles.homeReviewExpand} aria-label="Choose Bunpro lesson deck" aria-expanded={expanded === "learn"} aria-controls="bunpro-lesson-decks" onClick={() => setExpanded(expanded === "learn" ? null : "learn")}><ChevronDown size={20} /></button>
         </div>
-        <div id="bunpro-lesson-decks" className={styles.homeReviewBreakdown} data-open={expanded === "learn"} aria-hidden={expanded !== "learn"} inert={expanded !== "learn"}><div className={styles.dropdownClip}><div>{summary.queue.map((deck) => <Link key={deck.key} href={`/bunpro-lessons?deck=${deck.deckId}`} className={`${styles.homeReviewAction} ${styles.homeLearnAction}`}><span><span>{deck.deckTitle}</span><span><GoalCount done={deck.done} goal={deck.dailyGoal} batch={Math.min(deck.remaining, deck.batchSize || deck.remaining)} /></span></span><Goal done={deck.done} goal={deck.dailyGoal} batch={Math.min(deck.remaining, deck.batchSize || deck.remaining)} /></Link>)}{queue.data && !summary.queue.length ? <p>No decks in your learn queue.</p> : null}<a className={styles.queueSettings} href="https://bunpro.jp/dashboard" target="_blank" rel="noreferrer">Learn Queue Settings on Bunpro <Settings size={18} /></a></div></div></div>
+        <div id="bunpro-lesson-decks" className={styles.homeReviewBreakdown} data-open={expanded === "learn"} aria-hidden={expanded !== "learn"} inert={expanded !== "learn"}><div className={styles.dropdownClip}><div>{summary.queue.map((deck) => <Link key={deck.key} href={`/bunpro-lessons?deck=${deck.deckId}`} className={`${styles.homeReviewAction} ${styles.homeLearnAction}`}><span><span>{deck.deckTitle}</span><span><GoalCount done={deck.learnedTodayCount} goal={deck.dailyGoal + deck.overflowed} batch={getBunproLessonBatchSize(deck)} /></span></span><Goal extra={deck.overflowed} done={deck.learnedTodayCount} goal={deck.dailyGoal + deck.overflowed} batch={getBunproLessonBatchSize(deck)} /></Link>)}{queue.data && !summary.queue.length ? <p>No decks in your learn queue.</p> : null}<a className={styles.queueSettings} href="https://bunpro.jp/dashboard" target="_blank" rel="noreferrer">Learn Queue Settings on Bunpro <Settings size={18} /></a></div></div></div>
       </div>
       <div className={styles.homeReviewPanel}>
         <div className={styles.homeReviewTop}>

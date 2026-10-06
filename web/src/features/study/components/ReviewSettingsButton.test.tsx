@@ -55,3 +55,14 @@ it("saves the opt-in wrong-answer details setting and shows it when reopened", (
   fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
   expect(screen.getByLabelText("Show details on wrong answer")).toBeChecked();
 });
+
+it("saves the Bunpro furigana toggle and shows it again when reopened", () => {
+  render(<ReviewSettingsButton bunproSupported />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Hide Bunpro furigana")).not.toBeChecked();
+  fireEvent.click(screen.getByLabelText("Hide Bunpro furigana"));
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  expect(loadWebSettings(localStorage, "settings-test").study.bunproHideFurigana).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Hide Bunpro furigana")).toBeChecked();
+});

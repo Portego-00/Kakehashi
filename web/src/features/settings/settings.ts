@@ -61,6 +61,7 @@ export interface WebStudyPreferences {
   showVocabContextSentencesInReviews: boolean;
   allowSkippingReviews: boolean;
   reviewSearchButtonEnabled: boolean;
+  bunproHideFurigana: boolean;
   reviewCharacterFontScale: number;
   pauseOnWrong: boolean;
   pauseOnClose: boolean;
@@ -331,6 +332,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     showVocabContextSentencesInReviews: false,
     allowSkippingReviews: false,
     reviewSearchButtonEnabled: false,
+    bunproHideFurigana: false,
     reviewCharacterFontScale: 1,
     pauseOnWrong: true,
     pauseOnClose: false,
@@ -555,6 +557,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
         allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
         reviewSearchButtonEnabled: typeof parsed.study?.reviewSearchButtonEnabled === "boolean" ? parsed.study.reviewSearchButtonEnabled : DEFAULT_WEB_SETTINGS.study.reviewSearchButtonEnabled,
+        bunproHideFurigana: typeof parsed.study?.bunproHideFurigana === "boolean" ? parsed.study.bunproHideFurigana : DEFAULT_WEB_SETTINGS.study.bunproHideFurigana,
         reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
         pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
         pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,

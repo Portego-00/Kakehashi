@@ -9,6 +9,7 @@ import { ReviewSettingsDialog } from "./ReviewSettingsDialog";
 export interface ReviewSettingsButtonProps {
   order?: "reviewOrder" | "customReviewOrder" | "lessonQuestionOrder";
   ankiSupported?: boolean;
+  bunproSupported?: boolean;
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
   onStudyChange?: (next: WebStudyPreferences, previous: WebStudyPreferences) => void;

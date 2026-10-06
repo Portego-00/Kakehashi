@@ -33,6 +33,84 @@ const grammar = {
   ],
 };
 
+test("Bunpro review furigana hides, reveals on hover, and pins until the question changes", async ({ page, isMobile }, testInfo) => {
+  await page.context().addCookies([
+    { name: "kakehashi_wk_session", value: seal("mixed-layout-test-token"), url: "http://127.0.0.1:3101" },
+    { name: "kakehashi_bunpro", value: seal(JSON.stringify({ owner: "1", token: "bunpro-layout-test-token" })), url: "http://127.0.0.1:3101" },
+  ]);
+  await page.route("**/api/session/wanikani", route => route.fulfill({ json: { user: { id: 1, object: "user", data: { username: "Portego", level: 2, preferences: {}, subscription: { active: true, max_level_granted: 60 } } } } }));
+  let grades = 0;
+  const reviews = [10, 11].map(id => ({
+    data: { id: String(id), type: "review", attributes: { id, ghost_count: 0, reviewable_id: 20, reviewable_type: "GrammarPoint" }, relationships: { study_question: { data: { id: "30", type: "study_question" } }, reviewable: { data: { id: "20", type: "grammar_point" } } } },
+    included: [{ id: "30", type: "study_question", attributes: { content: "私（わたし）は学生（がくせい）____。", answer: "です", translation: "I am a student." } }, { id: "20", type: "grammar_point", attributes: { title: "です", slug: "desu", meaning: "To be" } }],
+  }));
+  await page.route(/\/api\/bunpro(?:\?.*)?$/, route => {
+    const action = new URL(route.request().url()).searchParams.get("action");
+    if (route.request().method() === "POST") { grades++; return route.fulfill({ json: {} }); }
+    return route.fulfill({ json: action === "queue" ? { review_session_id: 1, pending_attempt: reviews, pending_wrapup: [], total_pending_attempt_count: 2 } : { connected: true } });
+  });
+  await page.goto("/bunpro-reviews?mode=grammar");
+  const input = page.getByLabel("Your answer");
+  await input.fill("です");
+  const prompt = page.locator('header[aria-label="Bunpro review"]');
+  await expect(prompt.locator("ruby rt").first()).toHaveCSS("opacity", "1");
+  await page.getByRole("button", { name: "Review settings", exact: true }).click();
+  const toggle = page.getByLabel("Hide Bunpro furigana", { exact: true });
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  const word = page.getByRole("button", { name: "Furigana for 私", exact: true });
+  await expect(word.locator("rt")).toHaveCSS("opacity", "0");
+  await expect(input).toHaveValue("です");
+  if (!isMobile) {
+    await word.hover();
+    await expect(word.locator("rt")).toHaveCSS("opacity", "1");
+    await input.click();
+    await expect(word.locator("rt")).toHaveCSS("opacity", "0");
+    await word.focus();
+    await word.press("Enter");
+  } else { await word.tap(); }
+  await input.click();
+  await expect(word).toHaveAttribute("aria-pressed", "true");
+  await expect(word.locator("rt")).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("button", { name: "Furigana for 学生", exact: true }).locator("rt")).toHaveCSS("opacity", "0");
+  expect(grades).toBe(0);
+  await page.screenshot({ path: testInfo.outputPath("pinned-furigana.png") });
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("progressbar", { name: "Review progress", exact: true })).toHaveAttribute("aria-valuenow", "1");
+  await expect(word).toHaveAttribute("aria-pressed", "false");
+  await expect(word.locator("rt")).toHaveCSS("opacity", "0");
+  await page.reload();
+  await expect(word).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Review settings", exact: true }).click();
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(prompt.locator("ruby rt").first()).toHaveCSS("opacity", "1");
+});
+
+test("starts another configured lesson batch after the daily goal is complete", async ({ page }) => {
+  await page.context().addCookies([
+    { name: "kakehashi_wk_session", value: seal("mixed-layout-test-token"), url: "http://127.0.0.1:3101" },
+    { name: "kakehashi_bunpro", value: seal(JSON.stringify({ owner: "1", token: "bunpro-layout-test-token" })), url: "http://127.0.0.1:3101" },
+  ]);
+  await page.route("**/api/session/wanikani", route => route.fulfill({ json: { user: { id: 1, object: "user", data: { username: "Portego", level: 2, preferences: {}, subscription: { active: true, max_level_granted: 60 } } } } }));
+  await page.route(/\/api\/bunpro(?:\?.*)?$/, route => {
+    const action = new URL(route.request().url()).searchParams.get("action");
+    const json = action === "lesson-queue" ? { data: [{ id: "1", attributes: { deck_id: 1, daily_goal: 4, daily_goal_count_grammar: 4, complete_grammar_count: 4, batch_size: 2 } }], included: [{ id: "1", attributes: { title: "N5 Grammar", grammar_count: 100 } }] }
+      : action === "learn" ? { content: [grammar, ...[100, 101].map(id => ({ data: { id: String(id), type: "vocab", attributes: { id, title: id === 100 ? "猫" : "犬", slug: id === 100 ? "cat" : "dog", meaning: id === 100 ? "Cat" : "Dog" } }, included: [] }))] } : { connected: true };
+    return route.fulfill({ json });
+  });
+  await page.goto("/bunpro-lessons");
+  await expect(page.getByRole("heading", { name: "Verb + て", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Lesson batch" }).getByRole("button")).toHaveCount(2);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "猫", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start Quiz", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next", exact: true })).toHaveCount(0);
+});
+
 test("matches Bunpro structure formatting, retains example notes, and links supported conjugation practice", async ({ page }, testInfo) => {
   await page.context().addCookies([
     { name: "kakehashi_wk_session", value: seal("mixed-layout-test-token"), url: "http://127.0.0.1:3101" },

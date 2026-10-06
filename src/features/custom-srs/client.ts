@@ -114,7 +114,15 @@ export function createCustomSrsClient(dependencies: Dependencies) {
     const pending = await pendingStore.read(current.id);
     for (const action of pending) {
       requireCurrent(expected);
-      const result = await dependencies.request(current.token, action, { state: snapshot.state, revision: snapshot.revision });
+      let result: CloudResult;
+      try {
+        result = await dependencies.request(current.token, action, { state: snapshot.state, revision: snapshot.revision });
+      } catch (error) {
+        // A rejected occurrence cannot be retried against the same timestamp.
+        // Remove only that action so refresh can reconcile the server's schedule.
+        if (error instanceof CustomSrsConflictError) await pendingStore.remove(current.id, action.eventId);
+        throw error;
+      }
       await accept(result, expected);
       // If this write fails, replay with the same event ID after restart.
       await pendingStore.remove(current.id, action.eventId);
@@ -168,7 +176,7 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       }).catch(() => undefined);
     },
     refresh,
-    mutate(action: CustomSrsMutation): Promise<CustomSrsState> {
+    mutate(action: CustomSrsMutation, onQueued?: () => void): Promise<CustomSrsState> {
       if (!account) return Promise.reject(new Error("Custom vocabulary is not available for this account."));
       const expected = generation;
       const current = account;
@@ -178,9 +186,19 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       } : action;
       pendingMutations += 1;
       emit({ syncing: true, error: null });
-      const request = mutationTail.catch(() => undefined).then(async () => {
+      // Device persistence is independent of network delivery: the next answer
+      // can be queued while an earlier request is still in flight.
+      const queued = Promise.resolve().then(async () => {
         requireCurrent(expected);
         await pendingStore.add(current.id, guarded);
+        requireCurrent(expected);
+        onQueued?.();
+      });
+      // Delivery may still be waiting for an earlier request when disk fails.
+      void queued.catch(() => undefined);
+      const request = mutationTail.catch(() => undefined).then(async () => {
+        await queued;
+        requireCurrent(expected);
         await drainPending(current, expected);
         requireCurrent(expected);
         return snapshot.state;

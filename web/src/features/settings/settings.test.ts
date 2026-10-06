@@ -7,6 +7,11 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("keeps Bunpro furigana hiding opt-in and restores valid saved preferences", () => {
+    expect(loadWebSettings(storage({ study: {} }), "tester").study.bunproHideFurigana).toBe(false);
+    expect(loadWebSettings(storage({ study: { bunproHideFurigana: "true" } }), "tester").study.bunproHideFurigana).toBe(false);
+    expect(loadWebSettings(storage({ study: { bunproHideFurigana: true } }), "tester").study.bunproHideFurigana).toBe(true);
+  });
   it("keeps the pace planner off for new and legacy settings and restores explicit opt-in", () => {
     expect(DEFAULT_WEB_SETTINGS.workspace.studyPacePlannerEnabled).toBe(false);
     expect(loadWebSettings(storage({ workspace: {} }), "Portego").workspace.studyPacePlannerEnabled).toBe(false);

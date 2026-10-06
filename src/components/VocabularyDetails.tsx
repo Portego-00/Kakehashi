@@ -2227,7 +2227,7 @@ export default function VocabularyDetails({
                         disabled={loadingAudioId === audioId}
                       >
                         {loadingAudioId === audioId ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name={playingAudioId === audioId ? "stop" : "play"} size={20} color="white" />}
-                        <Text style={styles.audioButtonText}>{audio.metadata?.voice_actor_name || "Audio"}{vocabulary.id < 0 ? " · AI-generated" : audio.metadata?.gender ? ` (${audio.metadata.gender})` : ""}</Text>
+                        <Text style={styles.audioButtonText}>{audio.metadata?.voice_actor_name || "Audio"}{vocabulary.id < 0 ? "" : audio.metadata?.gender ? ` (${audio.metadata.gender})` : ""}</Text>
                       </TouchableOpacity>;
                     })}
                   </View>
@@ -2376,7 +2376,7 @@ export default function VocabularyDetails({
                             )}
                             <Text style={styles.audioButtonText}>
                               {audio.metadata?.voice_actor_name || "Audio"}
-                              {vocabulary.id < 0 ? " · AI-generated" : audio.metadata?.gender
+                              {vocabulary.id < 0 ? "" : audio.metadata?.gender
                                 ? ` (${audio.metadata.gender})`
                                 : ""}
                             </Text>

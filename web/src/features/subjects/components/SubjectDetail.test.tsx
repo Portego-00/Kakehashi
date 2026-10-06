@@ -271,6 +271,31 @@ describe("subject detail media buttons", () => {
     expect(screen.getByRole("button", { name: "Play Kyoko pronunciation" })).toBeInTheDocument();
   });
 
+  it.each(["", "My kana meaning note"])("allows editing kana meaning notes in detail and lesson panels: %j", (meaningNote) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={kanaVocabularySubject}
+      material={{ ...material, data: { ...material.data, subject_id: kanaVocabularySubject.id, subject_type: "kana_vocabulary", meaning_note: meaningNote } }}
+      materialLoading={false}
+      materialsKey={["study-material", kanaVocabularySubject.id]}
+      relatedSubjects={[]}
+      pitchAccents={[]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: true, showImmersionExamples: false, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/lessons"
+    /></QueryClientProvider>);
+
+    const meaning = within(screen.getByRole("tabpanel", { name: "Meaning" }));
+    expect(meaning.getByRole("heading", { name: "Meaning note" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Reading note" })).not.toBeInTheDocument();
+    if (meaningNote) expect(meaning.getByText(meaningNote)).toBeInTheDocument();
+    fireEvent.click(meaning.getByRole("button", { name: "Edit meaning note" }));
+    expect(meaning.getByRole("textbox", { name: "Meaning note" })).toHaveValue(meaningNote);
+  });
+
   it("renders WaniKani mnemonic tags and numeric entities on ordinary subject pages", () => {
     const taggedSubject = {
       ...audioSubject,
