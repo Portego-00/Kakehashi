@@ -1,4 +1,4 @@
-import { answerCustomSessionQuestion, confirmCustomSessionWord, createCustomSessionQuiz, customLessonBatch, customLessonBatchSize, customNextReviewLabel, customSessionStats, customWordHasReadingQuestion } from "../session";
+import { answerCustomSessionGroupedQuestion, answerCustomSessionQuestion, confirmCustomSessionWord, createCustomSessionQuiz, customLessonBatch, customLessonBatchSize, customNextReviewLabel, customSessionStats, customWordHasReadingQuestion } from "../session";
 import type { CustomVocabularyWord } from "../types";
 
 const word = (id: string, characters = "どうぞ"): CustomVocabularyWord => ({
@@ -57,6 +57,17 @@ describe("custom vocabulary lesson and review queues", () => {
     const duplicate = answerCustomSessionQuestion(wrong.quiz, quiz.questions[0], 0, false);
     expect(duplicate.quiz).toBe(wrong.quiz);
     expect(duplicate.quiz.items[0].meaningIncorrect).toBe(1);
+  });
+
+  it.each([true, false])("handles grouped Anki answers in reading-first queues (correct: %s)", (correct) => {
+    const quiz = createCustomSessionQuiz([word("kanji", "日記"), word("kana")], { ordered: true, meaningFirst: false, random: () => 0.999 });
+    const answer = answerCustomSessionGroupedQuestion(quiz, quiz.questions[0], quiz.occurrence, correct);
+    expect(answer.quiz.questions[0].wordId).toBe("kana");
+    expect(answer.quiz.answeredCount).toBe(2);
+    expect(answer.completedWordId).toBe(correct ? "kanji" : null);
+    expect(answer.quiz.items[0]).toMatchObject({ meaningDone: correct, readingDone: correct, meaningIncorrect: correct ? 0 : 1, readingIncorrect: correct ? 0 : 1 });
+    expect(answer.quiz.questions.filter((question) => question.wordId === "kanji")).toHaveLength(correct ? 0 : 2);
+    expect(answerCustomSessionGroupedQuestion(answer.quiz, quiz.questions[0], quiz.occurrence, correct).quiz).toBe(answer.quiz);
   });
 
   it("starts a new batch with fresh statistics", () => {

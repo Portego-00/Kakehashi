@@ -396,6 +396,73 @@ function renderNoteLesson(openNote = true) {
   return screen;
 }
 
+describe("LessonDetailScreen kana vocabulary notes", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFlushedNoteText = undefined;
+  });
+
+  afterEach(() => {
+    mockSinglePageLessonView = false;
+    mockRenderMeaningTab = false;
+    jest.mocked(getStudyMaterials).mockResolvedValue({ data: [] });
+  });
+
+  it.each([
+    [false, ""],
+    [true, ""],
+    [false, "My kana note"],
+    [true, "My kana note"],
+  ] as const)("allows saving a meaning note (single page: %s, existing note: %j)", async (singlePage, note) => {
+    mockSinglePageLessonView = singlePage;
+    mockRenderMeaningTab = true;
+    const subject = {
+      id: 9232,
+      object: "kana_vocabulary",
+      data: {
+        characters: "ドキドキ",
+        meanings: [{ meaning: "Pounding Heart", primary: true }],
+        readings: [],
+      },
+    };
+    const material = { id: 42, data: { subject_id: subject.id, meaning_note: note } };
+    jest.mocked(getStudyMaterials).mockResolvedValue({ data: note ? [material] : [] });
+    const savedNote = "Remember the pounding heart sound";
+    const savedMaterial = { ...material, data: { ...material.data, meaning_note: savedNote } };
+    jest.mocked(createStudyMaterial).mockResolvedValue(savedMaterial);
+    jest.mocked(updateStudyMaterial).mockResolvedValue(savedMaterial);
+    const screen = render(
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />,
+    );
+
+    await act(async () => {});
+    await waitFor(() => expect(screen.getByLabelText(note ? "Edit meaning note" : "Add meaning note")).toBeTruthy());
+    expect(screen.queryByText("Reading Note")).toBeNull();
+    fireEvent.press(screen.getByLabelText(note ? "Edit meaning note" : "Add meaning note"), { stopPropagation: jest.fn() });
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe(note);
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), savedNote);
+    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+    if (note) {
+      expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", material.id, { meaning_note: savedNote });
+    } else {
+      expect(createStudyMaterial).toHaveBeenCalledWith("test-token", { subject_id: subject.id, meaning_note: savedNote });
+    }
+    fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
+    expect(screen.getByLabelText("Meaning note text").props.value).toBe(savedNote);
+  });
+});
+
 describe("LessonDetailScreen large-text summary", () => {
   beforeEach(() => {
     mockAlert.mockClear();

@@ -220,14 +220,12 @@
 .details summary > :last-child {
   margin-left: auto;
 }
-.journey,
-.history {
+.journey {
   margin: 14px 0 0;
   padding: 0;
   list-style: none;
 }
-.journey li,
-.history li {
+.journey li {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -241,26 +239,22 @@
 .journey li > span[data-done="true"] {
   color: var(--color-success);
 }
-.journey li > small,
-.history li > small {
+.journey li > small {
   margin-left: auto;
   color: var(--color-muted);
   font-size: 11px;
 }
-.history li > span {
-  color: var(--color-muted);
-  font-size: 12px;
-}
+
 .note {
   font-size: 11px;
   line-height: 1.6;
   color: var(--color-muted);
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .error {
   color: var(--color-danger);
   font-size: 13px;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .panel[data-outcome="reached"] .destination > span svg,
 .panel[data-outcome="late"] .destination > span svg {
@@ -309,28 +303,134 @@
   }
 }
 .dialog {
-  width: min(520px, calc(100vw - 32px));
+  width: min(500px, calc(100vw - 40px));
+  height: min(740px, 90dvh);
+  max-height: 90dvh;
+  max-width: none;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--color-rule-2);
+  border-radius: 28px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  overflow: hidden;
+  box-shadow: 0 24px 80px #08122035;
+}
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  animation: goal-sheet-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dialog::backdrop {
+  background: rgb(8 18 32 / 42%);
+  animation: goal-backdrop-in 180ms ease-out;
+}
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 24px;
+  flex-shrink: 0;
+}
+.dialogHeader h2 {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.dialogHeader button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--color-ink);
+  background: var(--color-paper-2);
+  cursor: pointer;
+}
+.dialog button:focus-visible,
+.dialog input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
 }
 .editor {
-  padding: 24px !important;
+  padding: 0 28px 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
-.editor h3 {
-  font-size: 25px;
-  margin-bottom: 22px;
+.stage h3 {
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 780;
+  letter-spacing: -0.045em;
+  margin: 0 0 16px;
+  outline: none;
 }
 .steps {
   display: flex;
-  gap: 6px;
-  margin-bottom: 28px;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.steps > div {
+  flex: 1;
+  color: var(--color-muted);
 }
 .steps i {
-  flex: 1;
+  display: block;
   height: 3px;
   background: var(--color-rule-2);
   border-radius: 2px;
+  margin-bottom: 5px;
 }
-.steps i[data-active="true"] {
+.steps span {
+  font-size: 10px;
+  font-weight: 600;
+}
+.steps > div[data-active="true"] i {
   background: var(--color-accent);
+}
+.steps > div[data-current="true"] {
+  color: var(--color-accent);
+}
+.startHero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border-radius: 22px;
+  background: #14243a;
+  color: #fff;
+}
+.startHero span {
+  display: block;
+  color: #a6bedb;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.startHero strong {
+  font-size: 30px;
+  font-weight: 780;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+.heroPath {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #a3c8ff;
+}
+.heroPath i {
+  width: 32px;
+  height: 2px;
+  background: #7191b8;
 }
 .choices {
   display: grid;
@@ -340,179 +440,357 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px;
+  padding: 11px 14px;
+  min-height: 64px;
   text-align: left;
-  border: 1px solid var(--color-rule-2);
-  border-radius: 10px;
+  border: 1.5px solid var(--color-rule-2);
+  border-radius: 18px;
   background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
+  transition:
+    border-color 140ms,
+    background-color 140ms;
 }
 .choices > button[aria-pressed="true"] {
   border-color: var(--color-accent);
-  background: var(--color-paper-2);
+  background: color-mix(in oklch, var(--color-accent) 5%, var(--color-surface));
 }
-.choices > button > span {
+.choices > button > span:nth-child(2) {
   flex: 1;
 }
 .choices strong {
   display: block;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .choices small {
   display: block;
   color: var(--color-muted);
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: 3px;
 }
-.choices svg {
+.choiceIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: color-mix(
+    in oklch,
+    var(--color-accent) 10%,
+    var(--color-surface)
+  );
   color: var(--color-accent);
+}
+.choiceCheck {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--color-rule);
+  border-radius: 50%;
+}
+.choiceCheck[data-selected="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 .editorFooter {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 26px;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 28px 16px;
+  border-top: 1px solid var(--color-rule-2);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+.removeGoal {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-rule-2);
+}
+.removeGoal p {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+}
+.removeGoal > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.editorFooter > button:last-child {
+  flex: 1;
+  justify-content: center;
+}
+.editorFooter button,
+.saved > button {
+  min-height: 50px;
+  border-radius: 16px;
+  font-size: 14px;
 }
 .duration {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
-.duration button {
+.duration button,
+.pickerPresets button {
   flex: 1;
   min-height: 44px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-rule);
-  border-radius: 8px;
+  background: var(--color-paper-2);
+  border: 1px solid transparent;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--color-ink);
 }
 .duration button[aria-pressed="true"] {
   background: var(--color-accent);
   color: var(--color-accent-ink);
-  border-color: var(--color-accent);
 }
 .field {
   display: grid;
   gap: 7px;
-  font-size: 13px;
-  margin-bottom: 20px;
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-bottom: 16px;
 }
 .field input {
   width: 100%;
   min-height: 48px;
   padding: 10px 14px;
   border: 1px solid var(--color-rule);
-  border-radius: 8px;
-  background: var(--color-surface);
+  border-radius: 12px;
+  background: var(--color-paper-2);
   color: var(--color-ink);
+  font-size: 16px;
 }
 .levelPicker {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 0;
 }
-.levelPicker button {
+.levelPicker > button {
   display: grid;
   place-items: center;
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--color-rule);
-  border-radius: 8px;
-  background: var(--color-surface);
-  cursor: pointer;
-}
-.levelPicker button:disabled {
-  opacity: 0.4;
-}
-.levelPicker label {
-  display: grid;
-  text-align: center;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-.levelPicker input {
-  width: 130px;
-  font: inherit;
-  font-size: 70px;
-  font-weight: 750;
-  letter-spacing: -0.04em;
+  border: 1px solid var(--color-rule-2);
+  border-radius: 50%;
+  background: var(--color-paper-2);
   color: var(--color-ink);
+  cursor: pointer;
+  transition: transform 120ms;
+}
+.levelPicker > button:active {
+  transform: scale(0.93);
+}
+.levelPicker > button:disabled {
+  opacity: 0.35;
+}
+.dial {
+  width: 216px;
+  max-width: 100%;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+}
+.dialFace {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+}
+.dial svg {
+  width: 100%;
+  height: 100%;
+}
+.dial line {
+  stroke: var(--color-rule-2);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke 140ms;
+}
+.dial line[data-active="true"] {
+  stroke: var(--color-accent);
+}
+.dialValue {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.dialLabel {
+  line-height: 14px;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+}
+.dialValue input {
+  width: 132px;
+  padding: 0 8px;
   border: 0;
+  font: inherit;
+  font-size: 80px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0;
   background: transparent;
+  color: var(--color-ink);
   text-align: center;
   appearance: textfield;
+  font-variant-numeric: tabular-nums;
 }
-.levelPicker input::-webkit-inner-spin-button {
+.dialValue input::-webkit-inner-spin-button {
   appearance: none;
 }
+.dialValue input[readonly] {
+  pointer-events: none;
+}
+.dialDelta {
+  line-height: 16px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.dialMin,
+.dialMax {
+  position: absolute;
+  bottom: 9px;
+  color: var(--color-muted);
+  font-size: 10px;
+}
+.dialMin {
+  left: 30px;
+}
+.dialMax {
+  right: 28px;
+}
 .slider {
+  display: block;
   width: 100%;
-  margin-top: 16px;
   accent-color: var(--color-accent);
   min-height: 32px;
+  margin: 0;
+  cursor: pointer;
+}
+.pickerPresets {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pickerPresets button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 .preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   color: var(--color-muted);
-  font-size: 13px;
-  text-align: center;
-  margin-top: 20px;
+  font-size: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-rule-2);
 }
 .preview strong {
   color: var(--color-ink);
-  font-weight: 550;
-}
-.review {
-  text-align: center;
-  padding: 20px 0;
-}
-.review > svg {
-  margin: 0 auto 18px;
-  color: var(--color-accent);
-}
-.review > span {
-  color: var(--color-muted);
   font-size: 13px;
+  font-weight: 650;
 }
-.review h3 {
-  font-size: 58px;
-  margin-top: 6px;
-  margin-bottom: 20px;
+.planTicket {
+  background: #14243a;
+  color: #fff;
+  border-radius: 22px;
+  padding: 18px 20px;
+  margin-top: 12px;
 }
-.review > div {
+.planTicket > div {
   display: flex;
-  justify-content: center;
-  gap: 16px;
   align-items: center;
-  font-size: 13px;
+  justify-content: space-between;
+  gap: 12px;
 }
-.review > div svg {
-  color: var(--color-accent);
+.planTicket > div:first-child {
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #34445b;
+}
+.planTicket > div:first-child span {
+  font-size: 14px;
+  color: #a6bedb;
+}
+.planTicket > div:first-child strong {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+.planTicket svg {
+  color: #a3c8ff;
+}
+.planTicket > div:last-child span {
+  font-size: 10px;
+  color: #a6bedb;
+  letter-spacing: 0.1em;
+}
+.planTicket > div:last-child strong {
+  font-size: 14px;
+  font-weight: 600;
 }
 .saved {
   display: grid;
   justify-items: center;
-  gap: 20px;
+  gap: 28px;
   text-align: center;
-  padding: 20px 0;
+  padding: 36px 0 24px;
 }
 .saved > div {
   display: grid;
   place-items: center;
-  width: 70px;
-  height: 70px;
+  width: 104px;
+  height: 150px;
   border-radius: 50%;
-  background: var(--color-success-soft);
-  color: var(--color-success);
-}
-.saved h3 {
-  margin: 0;
+  background: color-mix(in oklch, var(--color-accent) 8%, var(--color-surface));
+  border: 2px solid var(--color-accent);
+  color: var(--color-accent);
 }
 .saved p {
   color: var(--color-muted);
-  font-size: 14px;
+  font-size: 15px;
+}
+.saved > button {
+  width: 100%;
+  justify-content: center;
+}
+@keyframes goal-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes goal-backdrop-in {
+  from {
+    background: rgb(8 18 32 / 0%);
+  }
+  to {
+    background: rgb(8 18 32 / 42%);
+  }
 }
 @media (min-width: 760px) {
   .widget .summary {
@@ -540,11 +818,21 @@
     gap: 12px;
   }
   .editor {
-    padding: 20px !important;
+    padding: 0 24px 16px;
   }
   .dialog {
-    width: calc(100vw - 16px);
-    max-height: 92dvh;
+    width: 100%;
+    height: 88dvh;
+    max-height: 88dvh;
+    margin: auto 0 0;
+    border-bottom: 0;
+    border-radius: 28px 28px 0 0;
+  }
+  .dialogHeader {
+    padding: 8px 24px;
+  }
+  .editorFooter {
+    padding: 12px 24px max(20px, env(safe-area-inset-bottom));
   }
   .emptyTrack {
     width: 85px;
@@ -552,11 +840,83 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .dialog[open],
+  .dialog::backdrop {
+    animation: none;
+  }
+  .dialog *,
+  .dialog *::before,
+  .dialog *::after {
+    transition: none !important;
+  }
   .destination[data-celebrating="true"] > strong,
   .sparkles i {
     animation: none;
   }
   .sparkles {
     display: none;
+  }
+}
+
+.dialValue input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+  border-radius: 16px;
+}
+@media (max-height: 640px) {
+  .dialog {
+    height: 94dvh;
+    max-height: 94dvh;
+  }
+  .steps {
+    margin-bottom: 12px;
+  }
+  .stage h3 {
+    font-size: 27px;
+    margin-bottom: 12px;
+  }
+  .startHero {
+    padding: 12px 18px;
+    margin-bottom: 12px;
+  }
+  .choices > button {
+    min-height: 60px;
+    padding: 9px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .startHero > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .startHero span {
+    margin: 0;
+    font-size: 9px;
+    max-width: 50px;
+  }
+  .startHero strong {
+    font-size: 28px;
+  }
+  .startHero {
+    padding: 12px 18px;
+  }
+  .heroPath svg {
+    width: 24px;
+    height: 24px;
+  }
+  .heroPath i {
+    width: 20px;
+  }
+  .dialFace {
+    width: 184px;
+    height: 184px;
+  }
+  .dialValue input {
+    font-size: 76px;
+    width: 128px;
   }
 }

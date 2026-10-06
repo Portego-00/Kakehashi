@@ -338,8 +338,10 @@ export function QuizSession(props: QuizSessionProps) {
   return <QuizSessionContent {...props} studyMaterials={props.studyMaterials ?? materialsQuery.data ?? []} />;
 }
 
-function QuizSessionContent({ scope, initialSession, subjects = [], assignments = [], studyMaterials = [], reviewPreferences, subjectDetailSettings, immersionSources = [], showDetailsAtAnswerStops = false, pauseOnWrong = true, pauseOnClose: configuredPauseOnClose = false, pauseOnCorrect = false, acceptUserSynonymsAsAnswers = false, acceptAnyKanjiOnyomiReading = false, autoplayVocabularyAudio = false, vocabularyAudioVoice = "female", answerFeedbackSoundEnabled = true, showListeningTranslation = true, keyboardShortcuts = true, loadingMore = false, expectedSubjectCount, onExit }: QuizSessionProps) {
+function QuizSessionContent({ scope, initialSession, subjects = [], assignments = [], studyMaterials = [], reviewPreferences, subjectDetailSettings, immersionSources = [], showDetailsAtAnswerStops = false, pauseOnWrong: configuredPauseOnWrong = true, pauseOnClose: configuredPauseOnClose = false, pauseOnCorrect = false, acceptUserSynonymsAsAnswers = false, acceptAnyKanjiOnyomiReading = false, autoplayVocabularyAudio = false, vocabularyAudioVoice = "female", answerFeedbackSoundEnabled = true, showListeningTranslation = true, keyboardShortcuts = true, loadingMore = false, expectedSubjectCount, onExit }: QuizSessionProps) {
   const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
+  const showDetailsOnWrongAnswer = reviewPreferences?.showDetailsOnWrongAnswer ?? false;
+  const pauseOnWrong = configuredPauseOnWrong || showDetailsOnWrongAnswer;
   const pauseOnClose = pauseOnCorrect || configuredPauseOnClose;
   const [localSession, setSession] = useState(initialSession);
   const [savedStudyMaterials, setSavedStudyMaterials] = useState<StudyMaterial[]>([]);
@@ -461,7 +463,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   ));
   const answerOutcomePaused = Boolean(answer && pauseForCurrentAnswer);
   const detailsAvailable = Boolean(currentSubject && (answerPaused || (ankiEnabled && ankiRevealed)));
-  const detailsOpenByDefault = showDetailsAtAnswerStops && answerOutcomePaused;
+  const detailsOpenByDefault = (showDetailsOnWrongAnswer && currentAnswerStatus === "incorrect")
+    || (showDetailsAtAnswerStops && answerOutcomePaused);
   const detailsVisible = detailsAvailable && (detailsOverride ?? detailsOpenByDefault);
   const detailsShouldOpen = detailsVisible && !advancingQuestion;
   const detailsOpen = detailsShouldOpen && detailsExpanded;
@@ -548,6 +551,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
 
   function gradeAnkiAnswer(correct: boolean) {
     if (!question || !ankiEnabled || !ankiRevealed || answer) return;
+    if (!correct && showDetailsOnWrongAnswer) setDetailsOverride(null);
     const answeredAt = new Date().toISOString();
     const gradedQuestions = ankiQuestions.length ? ankiQuestions : [question];
     const gradedAnswers: StudyAnswer[] = gradedQuestions.map((candidate) => ({
@@ -559,7 +563,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
     }));
     const nextSession = { ...session, answers: [...session.answers, ...gradedAnswers], updatedAt: answeredAt };
     if (answerFeedbackSoundEnabled) playAnswerFeedback(correct);
-    next(nextSession);
+    if (!correct && showDetailsOnWrongAnswer) {
+      setSession(nextSession);
+      saveStudySession(scope, nextSession);
+    } else next(nextSession);
   }
 
   function skipQuestion() {
@@ -875,7 +882,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
               <div className={styles.itemDetailsDisclosure} hidden={ankiEnabled && !answer && !customReviewPreferences?.ankiButtonlessMode}>
                 <button id="study-item-details-toggle" type="button" className={styles.itemDetailsButton} aria-expanded={detailsOpen} aria-controls="study-item-details" disabled={advancingQuestion} onClick={toggleDetails}><BookOpen size={17} aria-hidden /><span>{detailsOpen ? "Hide subject details" : "Show subject details"}</span>{keyboardShortcuts ? <kbd>{shortcutLabel(studyKeys.details)}</kbd> : null}{detailsOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}</button>
               </div>
-              <ReviewDetailsReveal open={detailsOpen}><StudySubjectDetails key={`${question.id}:${question.kind}`} record={currentSubject} subjects={subjects} assignment={currentAssignment} settings={subjectDetailSettings} immersionSources={immersionSources} initialTab={detailsTab} idPrefix={`study-${question.id}`} returnTo={`/study/${session.mode}`} /></ReviewDetailsReveal>
+              <ReviewDetailsReveal key={question.id} open={detailsOpen} availableOnScroll={ankiEnabled && ankiRevealed && !advancingQuestion} revealInViewport={showDetailsOnWrongAnswer || ankiEnabled} revealToStart={showDetailsOnWrongAnswer || ankiEnabled}><StudySubjectDetails key={`${question.id}:${question.kind}`} record={currentSubject} subjects={subjects} assignment={currentAssignment} settings={subjectDetailSettings} immersionSources={immersionSources} initialTab={detailsTab} idPrefix={`study-${question.id}`} returnTo={`/study/${session.mode}`} /></ReviewDetailsReveal>
             </div> : null}
 
             {sentenceBreakdownAvailable ? <div className={styles.sentenceBreakdown}><div lang="ja">{question.sentence?.tokens?.map((token, index) => token.type === "plain" ? <span key={index}>{token.text}</span> : <button type="button" key={index} data-token-type={token.type} data-active={selectedToken === index} onClick={() => setSelectedToken(index)}>{token.text}</button>)}</div>{selectedToken !== null && question.sentence?.tokens?.[selectedToken] ? <p><strong>{question.sentence.tokens[selectedToken].text}</strong> · {question.sentence.tokens[selectedToken].type}{question.sentence.tokens[selectedToken].reading ? ` · ${question.sentence.tokens[selectedToken].reading}` : ""}{question.sentence.tokens[selectedToken].meaning ? ` · ${question.sentence.tokens[selectedToken].meaning}` : ""}</p> : <p>Select an underlined grammar or vocabulary token for details.</p>}</div> : null}

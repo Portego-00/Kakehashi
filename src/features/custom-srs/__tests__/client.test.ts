@@ -63,6 +63,46 @@ describe("custom vocabulary cloud state", () => {
     expect(disk.setItem).toHaveBeenCalledTimes(writesBefore);
   });
 
+  it("durably queues another answer while the previous cloud request is stalled", async () => {
+    const delivery = deferred<{ state: typeof learned; revision: number }>();
+    const writes = new Map<string, string>();
+    const request = jest.fn((_token: string, _action: unknown) => delivery.promise);
+    const client = createCustomSrsClient({ request, cache: {
+      getItem: async (key) => writes.get(key) ?? null,
+      setItem: async (key, value) => { writes.set(key, value); },
+    } });
+    client.setAccount({ id: "account-one", token: "token-one" });
+    const firstQueued = jest.fn();
+    const secondQueued = jest.fn();
+    const first = client.mutate(action, firstQueued);
+    for (let tick = 0; tick < 40; tick += 1) await Promise.resolve();
+    expect(firstQueued).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
+    const secondAction = { ...action, wordId: pack.words[1].id, eventId: "ee0b0dd3-9a7e-4f36-9017-f0f852aa584f" };
+    const second = client.mutate(secondAction, secondQueued);
+    for (let tick = 0; tick < 40; tick += 1) await Promise.resolve();
+    expect(secondQueued).toHaveBeenCalledTimes(1);
+    const queue = [...writes.entries()].find(([key]) => key.includes(":pending:"))!;
+    expect(JSON.parse(queue[1]).pending).toEqual([action, secondAction]);
+    expect(request).toHaveBeenCalledTimes(1);
+    delivery.resolve({ state: learned, revision: 4 });
+    await Promise.all([first, second]);
+    expect(request.mock.calls.map((args) => args[1])).toEqual([action, secondAction]);
+  });
+
+  it("does not release the question before durable storage succeeds", async () => {
+    const request = jest.fn();
+    const onQueued = jest.fn();
+    const client = createCustomSrsClient({ request, cache: {
+      getItem: async () => null,
+      setItem: async () => { throw new Error("Disk full"); },
+    } });
+    client.setAccount({ id: "account-one", token: "token-one" });
+    await expect(client.mutate(action, onQueued)).rejects.toThrow("Disk full");
+    expect(onQueued).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("returns server-confirmed state and preserves caller event IDs through retries", async () => {
     const request = jest.fn().mockRejectedValueOnce(new Error("Timeout")).mockResolvedValue({ state: learned, revision: 4 });
     const client = createCustomSrsClient({ request, cache: cache().disk });
@@ -237,7 +277,7 @@ describe("custom vocabulary cloud state", () => {
     await first;
     expect(client.getSnapshot().syncing).toBe(false);
     await Promise.all([client.mutate(action), client.mutate(action)]);
-    expect(request).toHaveBeenCalledTimes(3);
+    expect(request).toHaveBeenCalledTimes(2);
     expect(client.getSnapshot().syncing).toBe(false);
   });
 

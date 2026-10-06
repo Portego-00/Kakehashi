@@ -17,6 +17,8 @@ import type { NewsItem } from "../../services/NhkNewsService";
 import { useTheme } from "../../utils/theme";
 
 interface NewsCardProps {
+  isSaved?: boolean;
+  onToggleSaved?: (item: NewsItem) => void;
   isRead?: boolean;
   onToggleRead?: (item: NewsItem) => void;
   item: NewsItem;
@@ -32,6 +34,8 @@ const MAX_TAP_MOVEMENT_PX = 8;
 
 export const NewsCard: React.FC<NewsCardProps> = ({
   item,
+  isSaved = false,
+  onToggleSaved,
   isRead = false,
   onToggleRead,
   onPress,
@@ -183,6 +187,20 @@ export const NewsCard: React.FC<NewsCardProps> = ({
     </Pressable>
   );
 
+  const saveControl = (onImage = false) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${isSaved ? "Remove saved article" : "Save article"}: ${item.title}`}
+      accessibilityState={{ selected: isSaved }}
+      disabled={onImage && disablePress}
+      onPress={() => onToggleSaved?.(item)}
+      style={[styles.readControl, onImage && styles.readControlOnImage, { right: onImage ? 56 : 44 }]}
+    >
+      <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={20}
+        color={onImage ? "#fff" : isSaved ? theme.primary : theme.textSecondary} />
+    </Pressable>
+  );
+
   if (variant === "breaking") {
     return (
       <View style={{ width: "100%" }}>
@@ -238,6 +256,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           </View>
         </Pressable>
         {onToggleRead ? readControl(true) : null}
+        {onToggleSaved ? saveControl(true) : null}
       </View>
     );
   }
@@ -299,7 +318,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                   styles.date,
                   {
                     color: theme.textSecondary,
-                    paddingRight: onToggleRead ? 32 : 0,
+                    paddingRight: (onToggleRead ? 32 : 0) + (onToggleSaved ? 44 : 0),
                   },
                 ]}
               >
@@ -310,6 +329,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
         </View>
       </Pressable>
       {onToggleRead ? readControl() : null}
+      {onToggleSaved ? saveControl() : null}
     </View>
   );
 };

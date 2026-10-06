@@ -588,10 +588,14 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status) || Boolean(currentUsesSelfAssessment && ankiRevealed);
   const answerStopped = Boolean(feedback && feedback.status !== "blocked" && shouldPauseAfterResult(feedback.status, preferences));
   const unresolvedCloseAnswer = feedback?.status === "close" && (preferences.pauseOnCorrect || preferences.pauseOnClose);
-  const studyDetailsOpenByDefault = Boolean(answerStopped && preferences.showAnswerStopSubjectDetails && !currentUsesSelfAssessment);
+  const studyDetailsOpenByDefault = Boolean((feedback?.status === "incorrect" && preferences.showDetailsOnWrongAnswer)
+    || (answerStopped && preferences.showAnswerStopSubjectDetails && !currentUsesSelfAssessment));
   const studyDetailsOverrideForCurrent = current && studyDetailsOverride?.questionId === current.id ? studyDetailsOverride.open : undefined;
   const studyDetailsOpen = Boolean(current && revealStudyDetails && (studyDetailsOverrideForCurrent ?? studyDetailsOpenByDefault));
   const studyDetailsShouldOpen = studyDetailsOpen && !advancingQuestion;
+  const scrollableAnkiDetails = Boolean(currentUsesSelfAssessment && ankiRevealed && !advancingQuestion);
+  const [viewedDetailQuestion, setViewedDetailQuestion] = useState<string | null>(null);
+  const loadStudyDetails = studyDetailsOpen || Boolean(current && viewedDetailQuestion === current.id);
   const detailSettings = webSettings.subjectDetails ?? DEFAULT_WEB_SETTINGS.subjectDetails;
   const detailSubject = current?.subject;
   const detailRelationIds = useMemo(() => {
@@ -601,13 +605,13 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const detailRelations = useQuery({
     queryKey: ["wanikani", "subjects", `relations:${detailRelationIds.join(",")}`],
     queryFn: () => wkCollection<Subject>(`subjects?ids=${detailRelationIds.join(",")}`),
-    enabled: studyDetailsOpen && detailRelationIds.length > 0,
+    enabled: loadStudyDetails && detailRelationIds.length > 0,
     staleTime: 24 * 60 * 60_000,
   });
   const detailStatistic = useQuery({
     queryKey: ["wanikani", "review-statistics", `subject:${detailSubject?.id ?? 0}`],
     queryFn: () => wkCollection<ReviewStatistic>(`review_statistics?subject_ids=${detailSubject!.id}`),
-    enabled: studyDetailsOpen && Boolean(detailSubject),
+    enabled: loadStudyDetails && Boolean(detailSubject),
     staleTime: 15 * 60_000,
   });
   const detailCharacters = detailSubject?.data.characters;
@@ -617,7 +621,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const detailEnrichments = useQuery({
     queryKey: ["subject-enrichments", detailSubject?.id ?? 0, detailCharacters, detailReadings.join(",")],
     queryFn: ({ signal }) => fetchSubjectEnrichments({ id: detailSubject!.id, level: detailSubject!.data.level, characters: detailCharacters!, readings: detailReadings }, signal),
-    enabled: Boolean(detailSubject && detailCharacters && (ankiNeedsPitchAccent || (studyDetailsOpen && ((detailSettings.showPitchAccent && detailSubject.object !== "radical") || (detailSettings.showPatternsOfUse && detailIsVocabulary))))),
+    enabled: Boolean(detailSubject && detailCharacters && (ankiNeedsPitchAccent || (loadStudyDetails && ((detailSettings.showPitchAccent && detailSubject.object !== "radical") || (detailSettings.showPatternsOfUse && detailIsVocabulary))))),
     staleTime: 24 * 60 * 60_000,
     retry: 1,
   });
@@ -625,7 +629,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const detailImmersion = useQuery({
     queryKey: ["immersion", "subject-detail", detailCharacters, immersionSources.join(",")],
     queryFn: ({ signal }) => fetchImmersionExamples(detailCharacters!, immersionSources, signal),
-    enabled: Boolean(studyDetailsOpen && detailSettings.showImmersionExamples && detailCharacters && detailIsVocabulary),
+    enabled: Boolean(loadStudyDetails && detailSettings.showImmersionExamples && detailCharacters && detailIsVocabulary),
     staleTime: 60 * 60_000,
     retry: 1,
   });
@@ -697,7 +701,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
     setLastCorrect(correct);
     if (!correct) setErrors((previous) => ({ ...previous, [current.assignment.id]: { meaning: previous[current.assignment.id]?.meaning || 0, reading: previous[current.assignment.id]?.reading || 0, [current.kind]: (previous[current.assignment.id]?.[current.kind] || 0) + 1 } }));
     if (preferences.answerFeedbackSoundEnabled && !(result.status === "close" && (preferences.pauseOnCorrect || preferences.pauseOnClose))) playAnswerFeedback(correct);
-    if ((correct || (result.status === "incorrect" && preferences.pauseOnWrong)) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
+    if ((correct || (result.status === "incorrect" && shouldPauseAfterResult(result.status, preferences))) && current.kind === "reading" && (current.subject.object === "vocabulary" || current.subject.object === "kana_vocabulary") && preferences.autoplayAudio && audioFor(current.subject, preferences.vocabularyAudioVoice)) void playAudio(current.subject);
   }
 
   function preservePhoneInputFocus(event: MouseEvent<HTMLButtonElement>) {
@@ -707,6 +711,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
   function gradeSelf(correct: boolean) {
     if (!current || feedback) return;
+    if (!correct && preferences.showDetailsOnWrongAnswer) setStudyDetailsOverride(null);
     const gradedKinds = selfAssessmentKinds.length ? selfAssessmentKinds : [current.kind];
     const canonical = gradedKinds.map((kind) => canonicalAnswer(current.subject, kind)).join(" · ");
     setFeedback({ status: correct ? "correct" : "incorrect", message: correct ? "Marked correct in Anki mode." : `Marked incorrect. The answer is ${canonical}.`, canonical });
@@ -718,7 +723,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
       return { ...previous, [current.assignment.id]: row };
     });
     if (preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correct);
-    advance(correct, undefined, gradedKinds);
+    if (correct || !preferences.showDetailsOnWrongAnswer) advance(correct, undefined, gradedKinds);
   }
 
   function resolveCloseAnswer(correct: boolean) {
@@ -1266,7 +1271,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
 
         </div>
 
-        <ReviewDetailsReveal open={studyDetailsExpanded} revealInViewport>
+        <ReviewDetailsReveal key={current.id} open={studyDetailsExpanded} availableOnScroll={scrollableAnkiDetails} onVisible={() => setViewedDetailQuestion(current.id)} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer || currentUsesSelfAssessment}>
           {revealStudyDetails ? <section id="study-item-details" className={quiz.itemDetails} aria-labelledby="study-details-title" style={{ "--subject-color": subjectColor(current.subject) } as React.CSSProperties}>
             <header className={quiz.itemDetailsHeader}>
               <div className={quiz.itemDetailsIdentity}>

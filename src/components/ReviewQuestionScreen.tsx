@@ -4683,6 +4683,11 @@ export default function ReviewQuestionScreen({
     setNavigatingToDetail(true);
     Keyboard.dismiss();
     setTimeout(() => {
+      if (onViewSubjectDetails) {
+        onViewSubjectDetails(item.subject.id);
+        return;
+      }
+      if (item.subject.id <= 0) return;
       router.push({
         pathname: "/subject/[id]",
         params: {

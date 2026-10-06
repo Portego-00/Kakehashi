@@ -321,6 +321,19 @@ describe("review question preferences", () => {
     expect(screen.queryByText(/Self-assessment cards/i)).not.toBeInTheDocument();
   });
 
+  it("keeps wrong-answer details opt-in and saves the choice from Reviews settings", async () => {
+    render(<SettingsWorkspace />);
+    const toggle = await screen.findByRole("checkbox", { name: /^Show details on wrong answer/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
+    expect(study.showDetailsOnWrongAnswer).toBe(true);
+    expect(study.showAnswerStopSubjectDetails).toBe(false);
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study.showDetailsOnWrongAnswer).toBe(false);
+  });
+
   it("groups the mobile-parity review controls and persists their choices", async () => {
     render(<SettingsWorkspace />);
 
@@ -345,7 +358,7 @@ describe("review question preferences", () => {
       showVocabContextSentencesInReviews: true,
       answerFeedbackSoundEnabled: false,
       allowSkippingReviews: true,
-      acceptUserSynonymsAsAnswers: true,
+      acceptUserSynonymsAsAnswers: !DEFAULT_WEB_SETTINGS.study.acceptUserSynonymsAsAnswers,
       srsProgressionCardDisplayMode: "compact",
       ankiMode: "both",
       ankiGroupQuestions: true,
@@ -625,4 +638,22 @@ it("saves custom daily lesson limits and the restored hide-answer setting", () =
   const saved = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester"))!);
   expect(saved.study.dailyLessonLimit).toBe(7);
   expect(saved.study.ankiHideAnswerCompletely).toBe(true);
+});
+
+describe("pace planner Home customization", () => {
+  beforeEach(() => window.localStorage.clear());
+  it("offers Portego an off-by-default toggle and saves both choices", () => {
+    sessionMock.user.data.username = "Portego";
+    render(<SettingsWorkspace />);
+    const toggle = screen.getByRole("checkbox", { name: /Plan your pace/ });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Portego"))!).workspace.studyPacePlannerEnabled).toBe(true);
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Portego"))!).workspace.studyPacePlannerEnabled).toBe(false);
+  });
+  it("offers the off-by-default toggle to other accounts", () => {
+    render(<SettingsWorkspace />);
+    expect(screen.getByRole("checkbox", { name: /Plan your pace/ })).not.toBeChecked();
+  });
 });

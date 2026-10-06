@@ -146,6 +146,7 @@ const fixtures = vi.hoisted(() => {
       reviewAnimatePreviousQuestion: true,
       answerStopBehavior: "always",
       showAnswerStopSubjectDetails: false,
+      showDetailsOnWrongAnswer: false,
       showListeningTranslation: true,
       vocabularyAudioVoice: "female",
       ankiMode: "off",
@@ -430,6 +431,7 @@ describe("core study prompt layout", () => {
       showAddSynonymButton: true,
       keyboardShortcuts: true,
       showAnswerStopSubjectDetails: false,
+      showDetailsOnWrongAnswer: false,
       shuffleSubjects: false,
       lessonOrder: "ascendingSubjectId",
       excludeKanaVocabularyFromLessons: false,
@@ -578,6 +580,40 @@ describe("core study prompt layout", () => {
     fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
     expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  });
+
+  it.each(["off", "both"] as const)("opens wrong-answer details and waits for Next with Anki mode %s", async (ankiMode) => {
+    fixtures.settings.study.showDetailsOnWrongAnswer = true;
+    fixtures.settings.study.pauseOnWrong = false;
+    fixtures.settings.study.ankiMode = ankiMode;
+    renderSession("reviews");
+    if (ankiMode === "both") {
+      fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+      expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
+      const info = screen.getByRole("button", { name: /subject details/i });
+      fireEvent.click(info);
+      expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+      fireEvent.click(info);
+      await waitFor(() => expect(info).toHaveAttribute("aria-expanded", "false"));
+      fireEvent.click(screen.getByRole("button", { name: "Wrong" }));
+    } else await submitAnswer("mountain", "meaning");
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    const info = screen.getByRole("button", { name: /subject details/i });
+    fireEvent.click(info);
+    await waitFor(() => expect(info).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: /^(Next|Next Question)$/ }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^(Next|Next Question)$/ })).not.toBeInTheDocument());
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
+  });
+
+  it.each(["River", "Rivr", ""])('keeps automatic wrong-answer details closed for "%s"', async (answer) => {
+    fixtures.settings.study.showDetailsOnWrongAnswer = true;
+    fixtures.settings.study.pauseOnCorrect = true;
+    fixtures.settings.study.pauseOnClose = true;
+    renderSession("reviews");
+    await submitAnswer(answer, "meaning");
+    expect(screen.queryByRole("heading", { name: "Subject details" })).not.toBeInTheDocument();
   });
 
   it("immediately requeues wrong Anki answers despite pause-on-wrong", async () => {

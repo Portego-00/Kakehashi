@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
@@ -1200,6 +1202,17 @@ export default function BunproReviewScreen({
   const reviewBatchSize = useSettingsStore((state) => state.reviewBatchSize);
   const reviewPreferencesRef = useRef({ reviewOrder, reviewBatchSizeEnabled, reviewBatchSize });
   reviewPreferencesRef.current = { reviewOrder, reviewBatchSizeEnabled, reviewBatchSize };
+  const ankiEnabled = useSettingsStore((state) => state.ankiCardMode);
+  const ankiScope = useSettingsStore((state) => state.ankiCardModeScope);
+  const hideAnkiAnswer = useSettingsStore((state) => state.ankiHideAnswerCompletely);
+  const showAnkiAlternatives = useSettingsStore((state) => state.ankiShowOtherAcceptedAnswersAndUserSynonyms);
+  const showAnkiReplay = useSettingsStore((state) => state.ankiShowReplayAudioButton);
+  const ankiButtonless = useSettingsStore((state) => state.ankiButtonlessMode);
+  const ankiGroup = useSettingsStore((state) => state.ankiGroupQuestions);
+  const searchEnabled = useSettingsStore((state) => state.reviewSearchButtonEnabled);
+  const inputScale = useSettingsStore((state) => state.reviewInputFontScale) ?? 1;
+  const characterScale = useSettingsStore((state) => state.reviewCharacterFontScale) ?? 1;
+  const [ankiRevealed, setAnkiRevealed] = useState(false);
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string }>();
   const inputRef = useRef<KanaInputHandle>(null);
@@ -1341,6 +1354,7 @@ export default function BunproReviewScreen({
       setPreviousAnswer(null);
       clearReviewInput();
       setHintLevel(2);
+      setAnkiRevealed(false);
     } catch (error) {
       if (generation !== sessionGenerationRef.current) return;
       setErrorMessage(formatBunproError(error));
@@ -1481,6 +1495,8 @@ export default function BunproReviewScreen({
   const reviewableRelation = currentItem?.data?.relationships?.reviewable?.data;
   const reviewableKind = reviewableRelation?.type === "grammar_point" || reviewableType === "GrammarPoint" ? "grammar" : "vocab";
   const questionKind = reviewableKind === "vocab" && canonicalAnswer && !/[\u3040-\u30ff\u3400-\u9fff]/u.test(canonicalAnswer) ? "meaning" : "reading";
+  const selfAssessment = Boolean(ankiEnabled && (!ankiScope || ankiScope === "both" || ankiScope === questionKind));
+  const answerRevealed = Boolean(pendingOutcome || (selfAssessment && ankiRevealed));
   const normalizeCurrentAnswer = (value: string) => questionKind === "meaning"
     ? value.trim().toLocaleLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ")
     : normalizeAnswer(value);
@@ -1526,13 +1542,15 @@ export default function BunproReviewScreen({
     void stopActiveSound();
     promptScrollRef.current?.scrollTo({ y: 0, animated: false });
     setHintLevel(2);
+    setAnkiRevealed(false);
   }, [clearReviewInput, occurrenceId, stopActiveSound]);
 
   useLayoutEffect(() => {
     if (!isActive) { void stopActiveSound(); return; }
+    if (selfAssessment) { Keyboard.dismiss(); return; }
     inputRef.current?.setInputText?.(inputValueRef.current);
     inputRef.current?.focus();
-  }, [isActive, occurrenceId, stopActiveSound]);
+  }, [isActive, occurrenceId, stopActiveSound, selfAssessment]);
 
   const playCurrentAudio = useCallback(async () => {
     if (!activeRef.current) return;
@@ -1548,9 +1566,9 @@ export default function BunproReviewScreen({
   useEffect(() => {
     if (isLoading || (errorMessage && !queue.length)) return;
     mixedRef.current?.report(currentItem
-      ? { id: occurrenceId, ...(isMasteryRepeat && immediateRetry ? { keepTurn: true } : {}) }
-      : outboxState.pending > 0 ? { id: `saving:${occurrenceId}` } : null);
-  }, [isLoading, occurrenceId, currentItem, isMasteryRepeat, immediateRetry, errorMessage, queue.length, outboxState.pending]);
+      ? { id: occurrenceId, remaining: Math.max(queue.length - currentIndex, loadedReviewTotal - correctCount - incorrectCount), ...(isMasteryRepeat && immediateRetry ? { keepTurn: true } : {}) }
+      : outboxState.pending > 0 ? { id: `saving:${occurrenceId}`, ready: false } : null);
+  }, [isLoading, occurrenceId, currentItem, isMasteryRepeat, immediateRetry, errorMessage, queue.length, currentIndex, loadedReviewTotal, correctCount, incorrectCount, outboxState.pending]);
   useEffect(() => {
     const completed = correctCount + incorrectCount - masteryRepeatReviewIds.length;
     mixedRef.current?.reportProgress({ completed, total: loadedReviewTotal });
@@ -1807,12 +1825,12 @@ export default function BunproReviewScreen({
   const advanceRef = useRef(submitCurrentAnswer);
   advanceRef.current = submitCurrentAnswer;
   useEffect(() => {
-    if (!pendingOutcome || !isActive || isSubmitting || saveFailure || outboxState.failure || errorMessage ||
+    if (selfAssessment || !pendingOutcome || !isActive || isSubmitting || saveFailure || outboxState.failure || errorMessage ||
         (pendingOutcome.correct ? pauseOnCorrect : pauseOnWrong) || isPlayingAudio || audio.error || showAlternatives) return;
     // Match the web app: show the verdict briefly, independently of save latency.
     const timer = setTimeout(() => { void advanceRef.current(); }, 350);
     return () => clearTimeout(timer);
-  }, [pendingOutcome, isActive, isSubmitting, saveFailure, outboxState.failure, errorMessage,
+  }, [selfAssessment, pendingOutcome, isActive, isSubmitting, saveFailure, outboxState.failure, errorMessage,
       pauseOnCorrect, pauseOnWrong, isPlayingAudio, audio.error, showAlternatives]);
 
   const skipCurrentQuestion = () => {
@@ -1822,7 +1840,7 @@ export default function BunproReviewScreen({
     void stopActiveSound();
   };
 
-  const translatedPrompt = pendingOutcome
+  const translatedPrompt = selfAssessment && ankiRevealed ? canonicalAnswer : pendingOutcome
     ? pendingOutcome.correct || !showAnswer
       ? pendingOutcome.enteredText
       : canonicalAnswer || pendingOutcome.enteredText
@@ -1987,7 +2005,7 @@ export default function BunproReviewScreen({
           >
             <Ionicons name="arrow-back-outline" size={24} color={theme.textColor} />
           </TouchableOpacity>
-          <TouchableOpacity
+          {searchEnabled ? <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Search Bunpro"
             style={styles.iconButton}
@@ -1996,7 +2014,7 @@ export default function BunproReviewScreen({
             }}
           >
             <Ionicons name="search" size={23} color={theme.textColor} />
-          </TouchableOpacity>
+          </TouchableOpacity> : null}
         </View>
 
         <View style={styles.headerRightGroup}>
@@ -2041,13 +2059,13 @@ export default function BunproReviewScreen({
             {reviewableKind === "grammar" ? "Bunpro grammar" : "Bunpro vocabulary"} · {questionKind === "meaning" ? "Meaning" : "Reading"}{currentReviewType === "ghost_review" ? " · Ghost review" : currentReviewType === "self_study_review" ? " · Self-study review" : ""}{isMasteryRepeat ? " · Retry" : ""}
           </Text>
           {tenseHint ? (
-            <Text accessibilityElementsHidden={hintLevel < 2 && !pendingOutcome} importantForAccessibility={hintLevel < 2 && !pendingOutcome ? "no-hide-descendants" : "auto"} style={[styles.tenseLabel, { color: mutedColor, opacity: hintLevel >= 2 || pendingOutcome ? 1 : 0 }]}>{tenseHint}</Text>
+            <Text accessibilityElementsHidden={hintLevel < 2 && !answerRevealed} importantForAccessibility={hintLevel < 2 && !answerRevealed ? "no-hide-descendants" : "auto"} style={[styles.tenseLabel, { color: mutedColor, opacity: hintLevel >= 2 || answerRevealed ? 1 : 0 }]}>{tenseHint}</Text>
           ) : null}
 
           <View style={styles.rubyLine}>
             <RubyText
               runs={beforeRuns}
-              baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor }]}
+              baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale }]}
               readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]}
             />
             {parsedQuestion.hasBlank ? (
@@ -2055,6 +2073,8 @@ export default function BunproReviewScreen({
                 style={[
                   styles.answerInline,
                   {
+                    fontSize: 34 * characterScale,
+                    lineHeight: 46 * characterScale,
                     borderBottomColor: statusColor,
                     color: statusColor,
                   },
@@ -2065,13 +2085,13 @@ export default function BunproReviewScreen({
             ) : null}
             <RubyText
               runs={afterRuns}
-              baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor }]}
+              baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale }]}
               readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]}
             />
           </View>
 
           {wordPrompt ? (
-            <View accessibilityElementsHidden={hintLevel < 2 && !pendingOutcome} importantForAccessibility={hintLevel < 2 && !pendingOutcome ? "no-hide-descendants" : "auto"} style={[styles.rubyLine, styles.wordPromptLine, { opacity: hintLevel >= 2 || pendingOutcome ? 1 : 0 }]}>
+            <View accessibilityElementsHidden={hintLevel < 2 && !answerRevealed} importantForAccessibility={hintLevel < 2 && !answerRevealed ? "no-hide-descendants" : "auto"} style={[styles.rubyLine, styles.wordPromptLine, { opacity: hintLevel >= 2 || answerRevealed ? 1 : 0 }]}>
               <Text style={[styles.wordPromptParen, { color: mutedColor }]}>(</Text>
               <RubyText
                 runs={wordPromptRuns}
@@ -2083,7 +2103,7 @@ export default function BunproReviewScreen({
           ) : null}
 
           {translationRuns.length > 0 ? (
-            <Text accessibilityElementsHidden={!pendingOutcome && (questionKind === "meaning" || hintLevel < 1)} importantForAccessibility={!pendingOutcome && (questionKind === "meaning" || hintLevel < 1) ? "no-hide-descendants" : "auto"} style={[styles.translationText, { color: theme.textColor, opacity: pendingOutcome || (questionKind !== "meaning" && hintLevel >= 1) ? 1 : 0 }]}>
+            <Text accessibilityElementsHidden={!answerRevealed && (questionKind === "meaning" || hintLevel < 1)} importantForAccessibility={!answerRevealed && (questionKind === "meaning" || hintLevel < 1) ? "no-hide-descendants" : "auto"} style={[styles.translationText, { color: theme.textColor, opacity: answerRevealed || (questionKind !== "meaning" && hintLevel >= 1) ? 1 : 0 }]}>
               {translationRuns.map((run, index) => (
                 <Text
                   key={`${index}-${run.strong ? "strong" : "plain"}`}
@@ -2254,6 +2274,27 @@ export default function BunproReviewScreen({
             </View>
           ) : null}
 
+          {selfAssessment ? <View style={{ gap: 12 }}>
+            {!ankiRevealed ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Reveal Bunpro answer" disabled={!isActive || Boolean(questionError)} style={[styles.resultsDoneButton, { flexDirection: "column", paddingVertical: 12, backgroundColor: theme.cardBackground }]} onPress={() => { setAnkiRevealed(true); if (autoplayAudio) void playCurrentAudio(); }}>
+              {!hideAnkiAnswer ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ overflow: "hidden", padding: 12 }}>
+                <Text style={[styles.resultAnswerValue, { color: theme.textColor }]}>{canonicalAnswer}</Text>
+                {Platform.OS === "ios" ? <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.cardBackground ?? backgroundColor }]} />}
+              </View> : null}
+              <Text style={{ color: theme.textColor }}>Show answer</Text>
+            </TouchableOpacity> : <>
+              <Text selectable style={[styles.resultAnswerValue, { color: theme.textColor, textAlign: "center" }]}>{canonicalAnswer}</Text>
+              {ankiGroup && ankiScope === "both" && reviewableMeaning ? <Text style={{ color: mutedColor, textAlign: "center" }}>{reviewableMeaning}</Text> : null}
+              {showAnkiAlternatives && alternativeAnswers.length > 0 ? <Text style={{ color: mutedColor, textAlign: "center" }}>{alternativeAnswers.join(" · ")}</Text> : null}
+              {showAnkiReplay && hasAudio ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Replay Bunpro answer" onPress={() => { void playCurrentAudio(); }} style={styles.resultAudioButton}><Ionicons name={isPlayingAudio ? "stop" : "volume-medium-outline"} size={22} color={theme.textColor} /></TouchableOpacity> : null}
+              {pendingOutcome ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Next question" disabled={isSubmitting || Boolean(saveFailure)} onPress={() => { void submitCurrentAnswer(); }} style={styles.resultsDoneButton}><Text style={{ color: theme.textColor }}>Next</Text></TouchableOpacity> :
+              <View style={styles.resultActionsRow}>
+                {[false, true].map((correct) => <TouchableOpacity key={String(correct)} accessibilityRole="button" accessibilityLabel={correct ? "Mark Bunpro correct" : "Mark Bunpro incorrect"} disabled={!isActive || isSubmitting || Boolean(saveFailure) || Boolean(outboxState.failure)} style={[styles.resultActionSlot, styles.resultActionButton, { minHeight: ankiButtonless ? 100 : 50, borderColor: correct ? BUNPRO_SUCCESS_COLOR : theme.error }]} onPress={() => { const outcome = { correct, enteredText: canonicalAnswer, stageLabel: "" }; setPendingOutcome(outcome); void Haptics.notificationAsync(correct ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error); void submitCurrentAnswer(false, outcome); }}>
+                  <Ionicons name={correct ? "checkmark" : "close"} size={24} color={correct ? BUNPRO_SUCCESS_COLOR : theme.error} />
+                  {!ankiButtonless ? <Text style={{ color: theme.textColor }}>{correct ? "Correct" : "Incorrect"}</Text> : null}
+                </TouchableOpacity>)}
+              </View>}
+            </>}
+          </View> : (
           <View testID="bunpro-answer-row" style={[styles.inputRow, {
             borderColor: isFrozenOnResult ? statusColor : inputBorder,
             backgroundColor: pendingOutcome?.correct ? BUNPRO_SUCCESS_SOFT[isDark ? "dark" : "light"] : undefined,
@@ -2307,7 +2348,7 @@ export default function BunproReviewScreen({
               accessibilityLabel="Bunpro answer"
               placeholder={questionKind === "meaning" ? "Type the meaning..." : "Type your answer..."}
               placeholderTextColor={mutedColor}
-              style={[styles.answerInput, { color: pendingOutcome?.correct ? theme.textColor : isFrozenOnResult ? statusColor : theme.textColor }]}
+              style={[styles.answerInput, { fontSize: 22 * inputScale, lineHeight: 28 * inputScale, color: pendingOutcome?.correct ? theme.textColor : isFrozenOnResult ? statusColor : theme.textColor }]}
               returnKeyType="send"
               onSubmitEditing={() => {
                 void submitCurrentAnswer();
@@ -2336,7 +2377,7 @@ export default function BunproReviewScreen({
                 />
               )}
             </TouchableOpacity>
-          </View>
+          </View>)}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

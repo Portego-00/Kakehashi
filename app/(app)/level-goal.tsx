@@ -44,13 +44,22 @@ function GoalRoute() {
           existing={params.fresh === "1" ? null : goals.state.active}
           now={goals.now}
           onClose={() => router.back()}
+          onRemove={() =>
+            goals.update((s) => ({
+              ...replaceGoal(s, null, goals.now),
+              widgetHidden: true,
+            }))
+          }
           onSave={(goal) =>
-            goals.update((s) => replaceGoal(s, goal, goals.now))
+            goals.update((s) => ({
+              ...replaceGoal(s, goal, goals.now),
+              widgetHidden: false,
+            }))
           }
         />
       ) : (
         <Text style={{ color: theme.textColor, padding: 24 }}>
-          You reached level 60. Your goal history is on the Level screen.
+          You reached level 60. Your current goal is on the Level screen.
         </Text>
       )}
     </View>

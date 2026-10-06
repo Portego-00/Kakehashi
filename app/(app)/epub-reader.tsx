@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -10,6 +10,7 @@ import {
   type AppStateStatus,
   type LayoutChangeEvent,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -34,9 +35,12 @@ import {
   VocabularyMatch,
 } from "../../src/utils/textHighlighting";
 import { useTheme } from "../../src/utils/theme";
+import { EpubSavedPassagesSheet } from "../../src/components/epub-saved-passages-sheet";
+import { epubAnnotations, type EpubAnnotation, type EpubPassage, type EpubSelection } from "../../src/services/epub/annotations";
+import { createReadingProgressSaver } from "../../src/services/epub/reading-progress";
 
 type ReaderBridgeMessage = {
-  type?: "ready" | "page" | "error" | "toggleChrome" | "wordTap";
+  type?: "ready" | "page" | "error" | "toggleChrome" | "wordTap" | "bookmark" | "selection";
   payload?: {
     page?: number;
     totalPages?: number;
@@ -44,6 +48,7 @@ type ReaderBridgeMessage = {
     text?: string;
     index?: number;
     character?: string;
+    passage?: EpubPassage;
   };
 };
 
@@ -123,10 +128,21 @@ export default function EpubReaderScreen() {
     null
   );
   const [isLookupModalVisible, setIsLookupModalVisible] = useState(false);
+  const [annotations, setAnnotations] = useState<EpubAnnotation[]>([]);
+  const [selection, setSelection] = useState<EpubSelection | null>(null);
+  const [isSavedPassagesVisible, setIsSavedPassagesVisible] = useState(false);
+  const [isSavingAnnotation, setIsSavingAnnotation] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const annotationSaveInFlightRef = useRef(false);
+  const annotationsLoadedRef = useRef(false);
+  const readerReadyRef = useRef(false);
+  const restoringPageRef = useRef<number | null>(null);
 
-  const progressSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [progressSaver] = useState(() => createReadingProgressSaver(
+    ({ bookId: id, page, totalPages: pages }) => epubLibraryService.updateReadingProgress(id, page, pages),
+    (error) => console.error("Failed to update EPUB reading progress:", error),
+  ));
   const chromeHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialPageRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealReaderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readingFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartedAtRef = useRef<number | null>(null);
@@ -134,8 +150,6 @@ export default function EpubReaderScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lookupRequestIdRef = useRef(0);
   const webViewRef = useRef<WebView>(null);
-  const hasAppliedInitialPageRef = useRef(false);
-  const pendingInitialPageRef = useRef<number | null>(null);
   const lookupSheetTranslateY = useRef(new Animated.Value(56)).current;
   const lookupSheetOpacity = useRef(new Animated.Value(0)).current;
   const isClosingLookupSheetRef = useRef(false);
@@ -150,6 +164,7 @@ export default function EpubReaderScreen() {
       lookupHighlightBackground: withAlpha(theme.primary, theme.isDark ? 0.34 : 0.24),
       lookupHighlightBorder: withAlpha(theme.primary, theme.isDark ? 0.7 : 0.5),
       lookupHighlightText: theme.textColor,
+      savedHighlightBackground: theme.isDark ? "rgba(230,178,50,0.28)" : "rgba(230,178,50,0.32)",
     }),
     [theme]
   );
@@ -171,22 +186,68 @@ export default function EpubReaderScreen() {
         return;
       }
 
-      if (progressSaveTimerRef.current) {
-        clearTimeout(progressSaveTimerRef.current);
-      }
-
-      progressSaveTimerRef.current = setTimeout(() => {
-        epubLibraryService
-          .updateReadingProgress(bookId, page, pages)
-          .catch((error) => console.error("Failed to update EPUB reading progress:", error));
-      }, 450);
+      progressSaver.queue({ bookId, page, totalPages: pages });
     },
-    [bookId]
+    [bookId, progressSaver]
   );
 
   const runReaderCommand = useCallback((command: string) => {
     webViewRef.current?.injectJavaScript(`${command}; true;`);
   }, []);
+
+  const commitAnnotations = useCallback(async (next: EpubAnnotation[]) => {
+    if (!annotationsLoadedRef.current) return false;
+    setIsSavingAnnotation(true);
+    annotationSaveInFlightRef.current = true;
+    setAnnotationError(null);
+    try {
+      await epubAnnotations.save(bookId, next);
+      setAnnotations(next);
+      return true;
+    } catch (error) {
+      console.error("Failed to save EPUB annotation:", error);
+      setAnnotationError("Could not save this change. Please try again.");
+      return false;
+    } finally {
+      annotationSaveInFlightRef.current = false;
+      setIsSavingAnnotation(false);
+    }
+  }, [bookId]);
+
+  const handleBookmark = useCallback(async (payload: ReaderBridgeMessage["payload"]) => {
+    if (!payload?.page) {
+      annotationSaveInFlightRef.current = false;
+      setIsSavingAnnotation(false);
+      return;
+    }
+    const existing = annotations.find((item) => item.kind === "bookmark" && item.page === payload.page);
+    const next = existing ? annotations.filter((item) => item.id !== existing.id) : [...annotations, {
+      id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: "bookmark" as const,
+      page: payload.page,
+      text: payload.text || "",
+      passage: payload.passage,
+      createdAt: Date.now(),
+    }];
+    await commitAnnotations(next);
+  }, [annotations, commitAnnotations]);
+
+  const saveHighlight = useCallback(async () => {
+    if (!selection || annotationSaveInFlightRef.current) return;
+    const duplicate = annotations.some((item) => item.kind === "highlight" && JSON.stringify(item.passage) === JSON.stringify(selection.passage));
+    const didSave = duplicate || await commitAnnotations([...annotations, {
+      ...selection,
+      id: `highlight-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: "highlight",
+      createdAt: Date.now(),
+    }]);
+    if (didSave) {
+      setSelection(null);
+      runReaderCommand("window.__WK_EPUB__?.clearSelection?.()");
+    }
+  }, [annotations, commitAnnotations, runReaderCommand, selection]);
+
+  useFocusEffect(useCallback(() => () => { void progressSaver.flush(); }, [progressSaver]));
 
   const stopReadingClock = useCallback(() => {
     const startedAt = sessionStartedAtRef.current;
@@ -446,75 +507,52 @@ export default function EpubReaderScreen() {
         return;
       }
 
-      if (parsedMessage.type === "ready") {
-        const readyPages = Math.max(1, Math.floor(parsedMessage.payload?.totalPages || 1));
-        const readyPage = Math.max(1, Math.floor(parsedMessage.payload?.page || 1));
-        setCurrentPage(readyPage);
-        setTotalPages(readyPages);
-        const lastReadPage = Math.max(1, book?.metadata.lastReadPage ?? 1);
-
-        if (!hasAppliedInitialPageRef.current && lastReadPage > 1 && lastReadPage !== readyPage) {
-          hasAppliedInitialPageRef.current = true;
-          pendingInitialPageRef.current = lastReadPage;
-          runReaderCommand(`window.__WK_EPUB__?.goTo?.(${lastReadPage}, false)`);
-
-          if (initialPageRetryTimerRef.current) {
-            clearTimeout(initialPageRetryTimerRef.current);
-          }
-          initialPageRetryTimerRef.current = setTimeout(() => {
-            runReaderCommand(`window.__WK_EPUB__?.goTo?.(${lastReadPage}, false)`);
-            initialPageRetryTimerRef.current = null;
-          }, 950);
-
-          if (revealReaderTimerRef.current) {
-            clearTimeout(revealReaderTimerRef.current);
-          }
-          revealReaderTimerRef.current = setTimeout(() => {
-            setIsReaderPositioning(false);
-            pendingInitialPageRef.current = null;
-            if (initialPageRetryTimerRef.current) {
-              clearTimeout(initialPageRetryTimerRef.current);
-              initialPageRetryTimerRef.current = null;
-            }
-            revealReaderTimerRef.current = null;
-          }, 1800);
-        } else {
-          if (initialPageRetryTimerRef.current) {
-            clearTimeout(initialPageRetryTimerRef.current);
-            initialPageRetryTimerRef.current = null;
-          }
-          pendingInitialPageRef.current = null;
-          scheduleReaderReveal(420);
-        }
-
-        queueProgressSave(readyPage, readyPages);
-        scheduleChromeAutoHide();
+      if (parsedMessage.type === "selection") {
+        const payload = parsedMessage.payload;
+        setSelection(payload?.text && payload.passage && payload.page
+          ? { text: payload.text, passage: payload.passage, page: payload.page }
+          : null);
+        if (annotationsLoadedRef.current) setAnnotationError(null);
         return;
       }
 
-      if (parsedMessage.type === "page") {
+      if (parsedMessage.type === "bookmark") {
+        if (annotationSaveInFlightRef.current) void handleBookmark(parsedMessage.payload);
+        return;
+      }
+
+      if (parsedMessage.type === "ready") {
+        readerReadyRef.current = true;
+        applyThemeToReader();
+        runReaderCommand(`window.__WK_EPUB__?.setAnnotations?.(${JSON.stringify(annotations)})`);
+        const pages = Math.max(1, Math.floor(parsedMessage.payload?.totalPages || 1));
+        const targetPage = Math.min(pages, Math.max(1, book?.metadata.lastReadPage ?? 1));
+        if (parsedMessage.payload?.page !== targetPage) {
+          // Android may deliver the before-load injection too late. Restore over the
+          // ready bridge as well, without saving the temporary opening page.
+          restoringPageRef.current = targetPage;
+          runReaderCommand(`window.__WK_EPUB__?.goTo?.(${targetPage}, false)`);
+          return;
+        }
+      }
+
+      if (parsedMessage.type === "ready" || (parsedMessage.type === "page" && readerReadyRef.current)) {
         const page = Math.max(1, Math.floor(parsedMessage.payload?.page || 1));
         const pages = Math.max(1, Math.floor(parsedMessage.payload?.totalPages || 1));
-
+        if (restoringPageRef.current !== null && page !== restoringPageRef.current) return;
+        restoringPageRef.current = null;
         setCurrentPage(page);
         setTotalPages(pages);
         queueProgressSave(page, pages);
-        const pendingInitialPage = pendingInitialPageRef.current;
-        if (pendingInitialPage !== null && Math.abs(page - pendingInitialPage) <= 1) {
-          pendingInitialPageRef.current = null;
-          if (initialPageRetryTimerRef.current) {
-            clearTimeout(initialPageRetryTimerRef.current);
-            initialPageRetryTimerRef.current = null;
-          }
-          scheduleReaderReveal(220);
-        } else if (pendingInitialPage === null) {
-          scheduleReaderReveal(220);
-        }
+        scheduleReaderReveal(220);
         scheduleChromeAutoHide();
       }
     },
     [
+      annotations,
       book?.metadata.lastReadPage,
+      applyThemeToReader,
+      handleBookmark,
       clearChromeHideTimer,
       handleWordTap,
       queueProgressSave,
@@ -537,19 +575,29 @@ export default function EpubReaderScreen() {
     setIsReaderPositioning(true);
     setSelectedLookupItem(null);
     setSelectedLookupSurfaceText(null);
-    hasAppliedInitialPageRef.current = false;
-    pendingInitialPageRef.current = null;
-    if (initialPageRetryTimerRef.current) {
-      clearTimeout(initialPageRetryTimerRef.current);
-      initialPageRetryTimerRef.current = null;
-    }
+    readerReadyRef.current = false;
+    restoringPageRef.current = null;
+    annotationsLoadedRef.current = false;
+    setAnnotations([]);
+    setSelection(null);
+    setAnnotationError(null);
+    setIsSavedPassagesVisible(false);
     if (revealReaderTimerRef.current) {
       clearTimeout(revealReaderTimerRef.current);
       revealReaderTimerRef.current = null;
     }
 
     try {
+      await progressSaver.flush();
+      await epubLibraryService.flushReadingProgress();
       const storedBook = await epubLibraryService.getBook(bookId);
+      try {
+        setAnnotations(await epubAnnotations.load(bookId));
+        annotationsLoadedRef.current = true;
+      } catch (error) {
+        console.error("Failed to load EPUB annotations:", error);
+        setAnnotationError("Could not load saved passages. Reopen the book to try again.");
+      }
 
       if (!storedBook) {
         setLoadError("This EPUB is no longer available in your library.");
@@ -566,7 +614,7 @@ export default function EpubReaderScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [bookId]);
+  }, [bookId, progressSaver]);
 
   useEffect(() => {
     reloadBook();
@@ -596,6 +644,12 @@ export default function EpubReaderScreen() {
   useEffect(() => {
     applyThemeToReader();
   }, [applyThemeToReader]);
+
+  useEffect(() => {
+    if (readerReadyRef.current) {
+      runReaderCommand(`window.__WK_EPUB__?.setAnnotations?.(${JSON.stringify(annotations)})`);
+    }
+  }, [annotations, runReaderCommand]);
 
   useEffect(() => {
     if (
@@ -673,6 +727,7 @@ export default function EpubReaderScreen() {
       appStateRef.current = nextState;
 
       if (wasActive && !isActive) {
+        void progressSaver.flush();
         stopReadingClock();
         void flushReadingClock();
         return;
@@ -697,6 +752,7 @@ export default function EpubReaderScreen() {
     flushReadingClock,
     isLoading,
     isReaderPositioning,
+    progressSaver,
     startReadingClock,
     stopReadingClock,
   ]);
@@ -722,12 +778,7 @@ export default function EpubReaderScreen() {
     return () => {
       stopReadingClock();
       void flushReadingClock();
-      if (progressSaveTimerRef.current) {
-        clearTimeout(progressSaveTimerRef.current);
-      }
-      if (initialPageRetryTimerRef.current) {
-        clearTimeout(initialPageRetryTimerRef.current);
-      }
+      void progressSaver.flush();
       if (revealReaderTimerRef.current) {
         clearTimeout(revealReaderTimerRef.current);
       }
@@ -736,7 +787,7 @@ export default function EpubReaderScreen() {
       }
       clearChromeHideTimer();
     };
-  }, [clearChromeHideTimer, flushReadingClock, stopReadingClock]);
+  }, [clearChromeHideTimer, flushReadingClock, progressSaver, stopReadingClock]);
 
   if (isLoading) {
     return (
@@ -771,6 +822,7 @@ export default function EpubReaderScreen() {
   }
 
   const initialPageForWebView = Math.max(1, Math.floor(book.metadata.lastReadPage || 1));
+  const isCurrentPageBookmarked = annotations.some((item) => item.kind === "bookmark" && item.page === currentPage);
   const readerTopInset = Math.max(topBarHeight, insets.top + 6);
   const readerBottomInset = Math.max(insets.bottom, 10);
   const topEdgeRevealHeight = Math.max(readerTopInset, insets.top + 20);
@@ -903,8 +955,74 @@ export default function EpubReaderScreen() {
               Page {currentPage} / {totalPages}
             </Text>
           </View>
+          <Pressable
+            style={[styles.annotationButton, { opacity: isSavingAnnotation || isReaderPositioning || !annotationsLoadedRef.current ? 0.45 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel={isCurrentPageBookmarked ? "Remove bookmark from this page" : "Bookmark this page"}
+            accessibilityState={{ selected: isCurrentPageBookmarked, disabled: isSavingAnnotation || isReaderPositioning || !annotationsLoadedRef.current }}
+            disabled={isSavingAnnotation || isReaderPositioning || !annotationsLoadedRef.current}
+            onPress={() => {
+              if (annotationSaveInFlightRef.current) return;
+              annotationSaveInFlightRef.current = true;
+              setIsSavingAnnotation(true);
+              runReaderCommand("window.__WK_EPUB__?.captureBookmark?.()");
+            }}
+          >
+            <Ionicons name={isCurrentPageBookmarked ? "bookmark" : "bookmark-outline"} size={20} color={isCurrentPageBookmarked ? theme.primary : theme.textSecondary} />
+          </Pressable>
+          <Pressable
+            style={styles.annotationButton}
+            accessibilityRole="button"
+            accessibilityLabel="Open bookmarks and highlights"
+            onPress={() => {
+              clearChromeHideTimer();
+              setIsSavedPassagesVisible(true);
+            }}
+          >
+            <Ionicons name="list-outline" size={22} color={theme.textSecondary} />
+          </Pressable>
         </View>
       ) : null}
+
+      {selection && !isLookupModalVisible && !isSavedPassagesVisible ? (
+        <View style={[styles.selectionActions, { bottom: readerBottomInset + 12, backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+          {annotationError ? <Text style={{ color: theme.error, flexShrink: 1 }}>{annotationError}</Text> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Highlight selected passage" disabled={isSavingAnnotation || !annotationsLoadedRef.current} onPress={saveHighlight} style={styles.highlightAction}>
+            <Ionicons name="pencil-outline" size={18} color={theme.primary} />
+            <Text style={{ color: theme.primary, fontSize: 15, fontWeight: "600" }}>{isSavingAnnotation ? "Saving…" : "Highlight"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cancel text selection" style={styles.annotationButton} onPress={() => {
+            setSelection(null);
+            runReaderCommand("window.__WK_EPUB__?.clearSelection?.()");
+          }}>
+            <Ionicons name="close" size={20} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      {annotationError && !selection && !isSavedPassagesVisible && isTopBarVisible ? (
+        <Pressable onPress={() => setIsSavedPassagesVisible(true)} style={[styles.annotationError, { top: readerTopInset, backgroundColor: theme.cardBackground }]}>
+          <Text style={{ color: theme.error, fontSize: 13 }}>{annotationError}</Text>
+        </Pressable>
+      ) : null}
+
+      <EpubSavedPassagesSheet
+        visible={isSavedPassagesVisible}
+        annotations={annotations}
+        isSaving={isSavingAnnotation}
+        error={annotationError}
+        onClose={() => { setIsSavedPassagesVisible(false); scheduleChromeAutoHide(2400); }}
+        onOpen={(annotation) => {
+          setIsSavedPassagesVisible(false);
+          setSelection(null);
+          runReaderCommand("window.__WK_EPUB__?.clearSelection?.()");
+          runReaderCommand(`window.__WK_EPUB__?.goToAnnotation?.(${JSON.stringify(annotation)})`);
+          scheduleChromeAutoHide(2400);
+        }}
+        onDelete={(annotation) => {
+          if (!annotationSaveInFlightRef.current) void commitAnnotations(annotations.filter((item) => item.id !== annotation.id));
+        }}
+      />
 
       <Modal
         visible={isLookupModalVisible}
@@ -1107,6 +1225,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  annotationButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  selectionActions: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 8, paddingLeft: 12, maxWidth: "90%" },
+  highlightAction: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingRight: 8 },
+  annotationError: { position: "absolute", left: 0, right: 0, padding: 12 },
   centerState: {
     flex: 1,
     alignItems: "center",

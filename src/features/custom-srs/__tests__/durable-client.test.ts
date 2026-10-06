@@ -1,4 +1,4 @@
-import { createCustomSrsClient } from "../client";
+import { createCustomSrsClient, CustomSrsConflictError } from "../client";
 import { customSrsPendingKey } from "../pending";
 import { customVocabularyPacks } from "../catalog";
 import { createCustomSrsState, enrollCustomVocabularyPack, completeCustomLesson } from "../../../../web/src/features/custom-srs/model";
@@ -63,4 +63,16 @@ it("keeps a review's original occurrence across retries", async () => {
   await client.refresh();
   await expect(client.mutate({ ...action, action: "submit_review", incorrectAnswers: 0 })).rejects.toThrow("Offline");
   expect(JSON.parse(disk.values.get(customSrsPendingKey("one"))!).pending[0].expectedAssignmentUpdatedAt).toBe(learned.assignments[action.wordId].updatedAt);
+});
+
+it("allows refreshing after the server rejects an outdated review occurrence", async () => {
+  const disk = storage();
+  const review = { ...action, action: "submit_review", incorrectAnswers: 0, expectedAssignmentUpdatedAt: learned.assignments[action.wordId].updatedAt } as const;
+  const request = jest.fn().mockRejectedValueOnce(new CustomSrsConflictError()).mockResolvedValue({ state: learned, revision: 2 });
+  const client = createCustomSrsClient({ request, cache: disk });
+  client.setAccount({ id: "one", token: "token" });
+  await expect(client.mutate(review)).rejects.toBeInstanceOf(CustomSrsConflictError);
+  await expect(client.refresh()).resolves.toEqual(learned);
+  expect(request.mock.calls[1][1]).toEqual({ action: "read" });
+  expect(JSON.parse(disk.values.get(customSrsPendingKey("one"))!).pending).toEqual([]);
 });

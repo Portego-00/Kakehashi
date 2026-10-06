@@ -287,6 +287,21 @@ describe("custom vocabulary lesson and review sessions", () => {
     }
   });
 
+  it("automatically opens custom vocabulary details only after a wrong answer", async () => {
+    window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({
+      ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, showDetailsOnWrongAnswer: true },
+    }));
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    renderSession("reviews", [pack]);
+    expect(screen.getByRole("button", { name: "Info" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "wrong answer" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByRole("region", { name: "Item details" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Info" })).toHaveAttribute("aria-expanded", "true");
+    expect(hook.submitReview).not.toHaveBeenCalled();
+  });
+
   it("keeps studying available while completed answers sync in the background", async () => {
     const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Everyday Hiragana", description: "Common words", script: "hiragana", words: [cat, dog] };
     const initial = stateFor(pack, Object.fromEntries(pack.words.map((word) => [word.id, { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" }])));

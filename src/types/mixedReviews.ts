@@ -7,6 +7,8 @@ export type MixedReviewHead = {
   id: string;
   /** Keep paired WaniKani questions together when back-to-back is enabled. */
   keepTurn?: boolean;
+  remaining?: number;
+  ready?: boolean;
 };
 
 export type MixedReviewProgress = { completed: number; total: number };

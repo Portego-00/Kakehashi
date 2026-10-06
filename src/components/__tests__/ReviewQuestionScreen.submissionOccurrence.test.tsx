@@ -1819,6 +1819,17 @@ describe("ReviewQuestionScreen question occurrences", () => {
       },
     );
 
+    it("opens custom vocabulary details from the Anki answer controls", async () => {
+      mockSettings.ankiCardMode = true;
+      const customItem = { ...audioItem, id: -123, subject: { ...audioItem.subject, id: -123 } };
+      const onViewSubjectDetails = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={customItem} questionType="reading" onAnswer={jest.fn()} onViewSubjectDetails={onViewSubjectDetails} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      fireEvent.press(screen.getByText("Details"));
+      await waitFor(() => expect(onViewSubjectDetails).toHaveBeenCalledWith(-123));
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
     it("still reveals from the answer card with pitch accent enabled", () => {
       mockSettings.ankiCardMode = true;
       mockSettings.ankiShowPitchAccentGraph = true;

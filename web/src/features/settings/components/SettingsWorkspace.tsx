@@ -19,6 +19,7 @@ import type { AnimeListProvider } from "@/features/anime/types";
 import { CustomSrsSettingsSection } from "@/features/custom-srs/CustomSrsSettings";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
+import { canAccessLevelGoals } from "../../../../../src/features/level-goals/model";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
 import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
@@ -360,6 +361,7 @@ export function SettingsWorkspace() {
         <ToggleRow label="Show item level & SRS stage" description="Display the subject level and current SRS stage together during reviews." checked={settings.study.showReviewItemLevelAndSrsStage} onChange={(value) => updateStudy("showReviewItemLevelAndSrsStage", value)} />
         <ToggleRow label="Show vocabulary frequency" description="Look up and display the word’s Jiten frequency rank on vocabulary prompts, subject details, and reader word details." checked={settings.study.showVocabularyFrequency} onChange={(value) => updateStudy("showVocabularyFrequency", value)} />
         <ToggleRow label="Vocabulary context sentence hints" description="Offer Japanese context during vocabulary reviews; translations remain hidden until revealed." checked={settings.study.showVocabContextSentencesInReviews} onChange={(value) => updateStudy("showVocabContextSentencesInReviews", value)} />
+        <ToggleRow label="Hide Bunpro furigana" description="In Bunpro reviews, hover or focus a word to show its reading. Click or tap to keep it visible for the question; click again to hide it." checked={settings.study.bunproHideFurigana} onChange={(value) => updateStudy("bunproHideFurigana", value)} />
         <ToggleRow label="Review search button" description="Open this subject in Search without closing the review tab." checked={settings.study.reviewSearchButtonEnabled} onChange={(value) => updateStudy("reviewSearchButtonEnabled", value)} />
         <label data-settings-search="" className={styles.selectRow}><span><strong>Review character size</strong><small>Scale the large Japanese prompt independently of the rest of the app.</small></span><select aria-label="Review character size" value={settings.study.reviewCharacterFontScale} onChange={(event) => updateStudy("reviewCharacterFontScale", Number(event.target.value))}>{REVIEW_CHARACTER_FONT_SCALES.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
         <div className={styles.jitaiRow}><div><strong>Jitai font randomization</strong><small>Randomize the Japanese prompt font per question from your selected pool. Hover over the prompt to reveal the standard font.</small></div><ToggleRow label="Enable Jitai" keywords="font fonts randomization custom upload ttf otf woff" description="" checked={settings.study.jitaiEnabled} onChange={(value) => updateStudy("jitaiEnabled", value)} /><div className={styles.fontGrid}>{BUILT_IN_JITAI_FONTS.map((font) => <label key={font.id} style={{ fontFamily: font.family }}><input type="checkbox" checked={settings.study.jitaiSelectedFontIds.includes(font.id)} onChange={() => toggleJitaiFont(font.id)} />{font.name} 日本語</label>)}{settings.study.jitaiCustomFonts.map((font) => <div key={font.id}><label style={{ fontFamily: `KakehashiJitai_${font.id.replace(/[^a-z0-9_]/gi, "_")}` }}><input type="checkbox" checked={settings.study.jitaiSelectedFontIds.includes(font.id)} onChange={() => toggleJitaiFont(font.id)} />{font.name} 日本語</label><button type="button" onClick={() => removeFont(font.id)} aria-label={`Remove ${font.name}`}><Trash2 size={15} aria-hidden /></button></div>)}</div><label className={styles.fontUpload}><FileUp size={16} aria-hidden />Upload font<input type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" onChange={(event) => { void importFont(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>{fontError ? <p className={styles.inlineError} role="alert">{fontError}</p> : null}</div>
@@ -371,6 +373,7 @@ export function SettingsWorkspace() {
         <ToggleRow label="Pause on correct answer" description="Wait after precise answers instead of progressing automatically." checked={settings.study.pauseOnCorrect} onChange={(value) => updateStudy("pauseOnCorrect", value)} />
         <ToggleRow label="Answer feedback sounds" description="Enable or mute the feedback sound after submitting a correct or incorrect answer." checked={settings.study.answerFeedbackSoundEnabled} onChange={(value) => updateStudy("answerFeedbackSoundEnabled", value)} />
         <label data-settings-search="" className={styles.selectRow}><span><strong>SRS progression</strong><small>Show the new SRS stage after a review subject is submitted.</small></span><select aria-label="SRS progression" value={settings.study.srsProgressionCardDisplayMode} onChange={(event) => updateStudy("srsProgressionCardDisplayMode", event.target.value as WebSettings["study"]["srsProgressionCardDisplayMode"])}><option value="normal">Normal</option><option value="compact">Compact</option><option value="hidden">Hidden</option></select></label>
+        <ToggleRow label="Show details on wrong answer" description="Automatically open and scroll to the item details after a wrong answer. Waits for you to continue, even if Pause on wrong answer is off." checked={settings.study.showDetailsOnWrongAnswer} onChange={(value) => updateStudy("showDetailsOnWrongAnswer", value)} />
         <ToggleRow label="Show details on answer pause" description="Open the full subject details when the selected answer outcome pauses." checked={settings.study.showAnswerStopSubjectDetails} onChange={(value) => updateStudy("showAnswerStopSubjectDetails", value)} />
         <ToggleRow label="Allow skipping reviews" description="Move the current question to the end without recording an incorrect answer." checked={settings.study.allowSkippingReviews} onChange={(value) => updateStudy("allowSkippingReviews", value)} />
         <ToggleRow label="Accept user synonyms" description="Treat your WaniKani meaning synonyms as correct review answers." checked={settings.study.acceptUserSynonymsAsAnswers} onChange={(value) => updateStudy("acceptUserSynonymsAsAnswers", value)} />
@@ -455,7 +458,7 @@ export function SettingsWorkspace() {
           <div className={styles.subsectionHead}><h3>More menu</h3><p>Choose which optional destinations appear in More and in standalone header shortcuts.</p></div>
           {OPTIONAL_NAV_ITEMS.map((id) => <ToggleRow key={id} label={WORKSPACE_LABELS[id]} description={`Show ${WORKSPACE_LABELS[id].toLocaleLowerCase()} in More and related shortcuts.`} checked={settings.workspace.visibleNav.includes(id)} onChange={() => toggleNav(id)} />)}
         </Card>
-        <DashboardLayoutEditor settings={settings} onChange={update} customSrsAccessible={!isDemo && canAccessCustomSrs(username)} />
+        <DashboardLayoutEditor settings={settings} onChange={update} customSrsAccessible={!isDemo && canAccessCustomSrs(username)} studyPacePlannerAccessible={canAccessLevelGoals(user?.data.username)} />
       </div>
     </section>
 
@@ -481,7 +484,7 @@ export function SettingsWorkspace() {
   </main>;
 }
 
-function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { settings: WebSettings; onChange: (settings: WebSettings) => void; customSrsAccessible: boolean }) {
+function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyPacePlannerAccessible }: { settings: WebSettings; onChange: (settings: WebSettings) => void; customSrsAccessible: boolean; studyPacePlannerAccessible: boolean }) {
   const [draggedId, setDraggedId] = useState<DashboardSectionId | null>(null);
   const draggedIdRef = useRef<DashboardSectionId | null>(null);
   const [dropTargetId, setDropTargetId] = useState<DashboardSectionId | "available" | "end" | null>(null);
@@ -532,7 +535,7 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { se
     setAnnouncement(`${DASHBOARD_DEFINITION_BY_ID.get(id)?.label} set to ${DASHBOARD_WIDTH_NAMES[width]}.`);
   };
   const restoreDashboard = () => {
-    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [] } });
+    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], studyPacePlannerEnabled: false } });
     setAnnouncement("Dashboard layout restored to its default sections and sizes.");
   };
   const startDrag = (event: DragEvent<HTMLElement>, id: DashboardSectionId) => {
@@ -618,6 +621,7 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible }: { se
                 </span>
               </div>
               <DashboardWidgetPreview id={id} />
+              {id === "forecast" && studyPacePlannerAccessible ? <ToggleRow label="Plan your pace" description="Show the pace planner inside Review forecast." checked={settings.workspace.studyPacePlannerEnabled} onChange={(value) => onChange({ ...settings, workspace: { ...settings.workspace, studyPacePlannerEnabled: value } })} /> : null}
             </li>;
           })}
           {draggedId && canvasDropTarget ? <li className={styles.dashboardDropIndicator} data-drop-kind={canvasDropTarget.kind} aria-hidden style={{ left: canvasDropTarget.indicator.left, top: canvasDropTarget.indicator.top, width: canvasDropTarget.indicator.width, height: canvasDropTarget.indicator.height }} /> : null}

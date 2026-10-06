@@ -62,8 +62,10 @@ jest.mock("../../utils/theme", () => ({ useTheme: () => ({ theme: { backgroundCo
 jest.mock("../../utils/subjectColors", () => ({ useSubjectColors: () => ({ radical: "#3c9bff", kanji: "#fa1f62", vocabulary: "#9c38d9" }), withAlpha: (color: string) => color }));
 jest.mock("../../services/immersionKitService", () => ({ searchImmersionKit: jest.fn(), getCategoryColor: () => "#9c38d9", getCategoryDisplayName: () => "Anime" }));
 jest.mock("../CopyTooltip", () => ({ CopyTooltip: () => null, useCopyTooltip: () => ({ containerRef: { current: null }, tooltipVisible: false, tooltipPosition: { x: 0, y: 0 }, tooltipOpacity: { value: 0 }, tooltipTranslateY: { value: 0 }, copyText: jest.fn() }) }));
-jest.mock("../formatted-note", () => ({ FormattedNoteText: () => null }));
-jest.mock("../note-field-container", () => ({ NoteFieldContainer: () => null }));
+jest.mock("../formatted-note", () => {
+  const { Text } = jest.requireActual<typeof import("react-native")>("react-native");
+  return { FormattedNoteText: ({ text }: { text: string }) => <Text>{text}</Text> };
+});
 jest.mock("../CustomContextSentencesSection", () => ({ CustomContextSentencesSection: jest.fn(() => null) }));
 jest.mock("../PitchAccentVisualization", () => () => null);
 jest.mock("../SrsLevelIcon", () => () => null);
@@ -97,6 +99,29 @@ beforeEach(() => {
   mockSettings.showPatternsOfUse = false;
   jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
+});
+
+it.each([
+  [false, ""],
+  [true, ""],
+  [false, "My kana meaning note"],
+  [true, "My kana meaning note"],
+] as const)("shows editable WaniKani kana notes (embedded: %s, note: %j)", async (embedded, meaningNote) => {
+  const onEditNote = jest.fn();
+  const screen = render(<VocabularyDetails
+    embedded={embedded}
+    vocabulary={{ ...vocabulary, id: 9232, meaningNote, onEditNote }}
+    progressionStatus="success"
+  />);
+
+  expect(screen.getByText("Notes")).toBeTruthy();
+  expect(screen.getByText("Meaning Note")).toBeTruthy();
+  expect(screen.queryByText("Reading Note")).toBeNull();
+  if (meaningNote) expect(screen.getByText(meaningNote)).toBeTruthy();
+  fireEvent.press(screen.getByLabelText(meaningNote ? "Edit meaning note" : "Add meaning note"), { stopPropagation: jest.fn() });
+  expect(onEditNote).toHaveBeenCalledWith("meaning");
+
+  await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
 it.each([false, true])("renders ドキドキ with working kana tabs (embedded: %s)", async (embedded) => {
@@ -236,7 +261,8 @@ it("offers Shizuka audio on Meaning for custom kana and plays the cached clip", 
   jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: { setOnPlaybackStatusUpdate: jest.fn(), stopAsync: jest.fn(), unloadAsync: jest.fn() } } as never);
   const screen = render(<VocabularyDetails vocabulary={{ ...vocabulary, audioFiles: [audio] }} progressionStatus="success" />);
   expect(screen.getByText("Pronunciation")).toBeTruthy();
-  expect(screen.getByText("Shizuka · AI-generated")).toBeTruthy();
+  expect(screen.getByText("Shizuka")).toBeTruthy();
+  expect(screen.queryByText(/AI-generated/)).toBeNull();
   expect(screen.queryByText("Reading")).toBeNull();
   fireEvent.press(screen.getByLabelText("Play Shizuka pronunciation"));
   await waitFor(() => expect(resolveCustomVocabularyAudioForPlayback).toHaveBeenCalledWith(vocabulary.id, audio));

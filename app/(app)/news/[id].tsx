@@ -1,4 +1,5 @@
-import { setNewsRead } from "../../../src/hooks/useNewsReadHistory";
+import { loadSavedNews, setNewsSaved, useSavedNews } from "../../../src/hooks/useSavedNews";
+import { newsReadKey, setNewsRead } from "../../../src/hooks/useNewsReadHistory";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
@@ -196,6 +197,7 @@ export default function NewsDetailScreen() {
     id: string;
     source?: NewsSource;
   }>();
+  const savedArticles = useSavedNews();
   const [item, setItem] = useState<NewsItem | undefined>(undefined);
   const [isResolvingItem, setIsResolvingItem] = useState(true);
   const { theme } = useTheme();
@@ -331,31 +333,28 @@ export default function NewsDetailScreen() {
       };
     }
 
-    const inMemoryItem = NhkNewsService.getItemById(id, source);
-    if (inMemoryItem) {
-      setItem(inMemoryItem);
-      void setNewsRead(inMemoryItem, true).catch((error) => console.warn("Could not save read status", error));
-      setIsResolvingItem(false);
-      return () => {
-        isActive = false;
-      };
-    }
-
     void (async () => {
       try {
-        const cachedItems = await readCachedNews(source ?? "both");
+        const saved = await loadSavedNews().catch(() => []);
         if (!isActive) return;
-
-        NhkNewsService.setCachedItems(cachedItems);
-        const restored = NhkNewsService.getItemById(id, source);
+        let decodedId = id;
+        try { decodedId = decodeURIComponent(id); } catch { /* Preserve opaque IDs. */ }
+        const key = source ? newsReadKey({ id: decodedId, source }) : decodedId;
+        let restored = saved.find((article) =>
+          article.id === key || (!source && !key.includes(":") && article.id.endsWith(`:${key}`)),
+        ) ?? NhkNewsService.getItemById(id, source);
+        if (!restored) {
+          const cachedItems = await readCachedNews(source ?? "both");
+          if (!isActive) return;
+          NhkNewsService.setCachedItems(cachedItems);
+          restored = NhkNewsService.getItemById(id, source);
+        }
         setItem(restored);
         if (restored) void setNewsRead(restored, true).catch((error) => console.warn("Could not save read status", error));
       } catch (error) {
-        console.warn("Error restoring cached NHK article:", error);
+        console.warn("Error restoring NHK article:", error);
       } finally {
-        if (isActive) {
-          setIsResolvingItem(false);
-        }
+        if (isActive) setIsResolvingItem(false);
       }
     })();
 
@@ -1970,6 +1969,7 @@ export default function NewsDetailScreen() {
     </html>
   `;
 
+  const isSaved = savedArticles.some((article) => newsReadKey(article) === newsReadKey(item));
   const headerIconColor = theme.isDark ? theme.headerText : "#000000";
 
   return (
@@ -1998,6 +1998,13 @@ export default function NewsDetailScreen() {
 
         <View style={{ flex: 1 }} />
 
+        <Pressable accessibilityRole="button"
+          accessibilityLabel={isSaved ? "Remove saved article" : "Save article"}
+          accessibilityState={{ selected: isSaved }}
+          style={[styles.headerButtonBase, styles.actionButton, { alignItems: "center", justifyContent: "center" }]}
+          onPress={() => void setNewsSaved(item, !isSaved).catch(() => Alert.alert("Could not save article", "Storage may be full or unavailable. Please try again."))}>
+          <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color={isSaved ? theme.primary : headerIconColor} />
+        </Pressable>
         {isRegularItem ? (
           <GlassButton
             iconName="open-outline"

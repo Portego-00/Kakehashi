@@ -49,6 +49,8 @@ Demo upstream usage is limited to 120 calls per client per minute, 300 calls acr
 
 Camera capture, Bunpro, and direct Spotify/Apple Music account playback are intentionally excluded from the web app. Manga OCR runs locally in a browser worker; the pinned Baberu model is about 121 MB and is downloaded on first use. Translation can use a configured LibreTranslate-compatible endpoint or the disclosed MyMemory server fallback.
 
+News cards and the article reader include a bookmark button. **Saved articles**, below **Other news**, keeps Easy and Standard article snapshots independently of feed refreshes, with search and unread filtering. The top filter button includes **Saved only**. Available text remains readable after an article leaves the feed; summary-only stories retain their summary and source link. Saves use this browser's local storage (separate for the demo), do not sync to other devices, and are removed when browser data is cleared. Images and audio use their existing network/cache behavior.
+
 ## Quality checks
 
 ```sh

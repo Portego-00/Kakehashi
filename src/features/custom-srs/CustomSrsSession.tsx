@@ -15,7 +15,8 @@ import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
 import { prefetchCustomVocabularyAudio } from "./audio-cache";
 import { CustomSrsConflictError } from "./client";
 import { customLessonWords, customReviewWords, useCustomSrs } from "./data";
-import { answerCustomSessionQuestion, confirmCustomSessionWord, createCustomSessionQuiz, customLessonBatch, customLessonBatchSize, customNextReviewLabel, customSessionStats, customSrsStageName, type CustomSessionQuiz } from "./session";
+import { completeCustomLesson, recordCustomReview } from "../../../web/src/features/custom-srs/model";
+import { answerCustomSessionGroupedQuestion, answerCustomSessionQuestion, confirmCustomSessionWord, createCustomSessionQuiz, customLessonBatch, customLessonBatchSize, customReviewInterval, customSessionStats, customSrsStageName, type CustomSessionQuiz } from "./session";
 import { customSubjectIdToWord, customWordToSubject, customWordUsesKanji } from "./subject";
 import { goBackFromCustomVocabulary } from "./navigation";
 import type { CustomSrsAssignment, CustomSrsState, CustomVocabularyWord } from "./types";
@@ -27,6 +28,8 @@ interface PendingSave {
   quiz: CustomSessionQuiz;
   incorrectAnswers: number;
   expectedAssignmentUpdatedAt?: string;
+  startingStage: number;
+  queued?: boolean;
 }
 
 /** Custom progress is committed only through our own cloud service, never WK queues. */
@@ -60,7 +63,8 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   const [saveConflict, setSaveConflict] = useState(false);
   const [nextBatchError, setNextBatchError] = useState<string | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
-  const [toast, setToast] = useState<{ characters: string; assignment: CustomSrsAssignment } | null>(null);
+  const [srsProgression, setSrsProgression] = useState<React.ComponentProps<typeof ReviewQuestionScreen>["srsProgression"]>();
+  const [syncingCount, setSyncingCount] = useState(0);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -68,9 +72,15 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   const quizRef = useRef<CustomSessionQuiz | null>(null);
   const pendingSaveRef = useRef<PendingSave | null>(null);
   const savingRef = useRef(false);
+  const savingEventRef = useRef<string | null>(null);
   const studyDurationRef = useRef(0);
   const activeSinceRef = useRef<number | null>(null);
   const completedWordIdsRef = useRef(new Set<string>());
+  const lastCompletedWordRef = useRef<string | null>(null);
+  const sessionStateRef = useRef(cloud.state);
+  const syncingEventsRef = useRef(new Set<string>());
+  const failedSavesRef = useRef(new Map<string, { pending: PendingSave; error: unknown }>());
+  const dismissSrsProgression = useCallback(() => setSrsProgression(undefined), []);
 
   useActivityTracking(mode === "lessons" ? "lessons" : "reviews", { enabled: phase === "teaching" || phase === "quiz" });
 
@@ -105,8 +115,10 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     Alert.alert(
       mode === "lessons" ? "Exit lessons?" : "Exit reviews?",
       pendingSaveRef.current
-        ? "The last word has not been confirmed saved. Retry before leaving to make sure it counts. Earlier completed words are already synced."
-        : "Completed words are already synced. Unfinished words will remain available for your next session.",
+        ? "An answer has not been confirmed saved. Retry before leaving to make sure it counts."
+        : syncingEventsRef.current.size
+          ? "Your answers are saved on this device and will continue syncing. Unfinished words will remain available for your next session."
+          : "Completed words are already synced. Unfinished words will remain available for your next session.",
       [{ text: "Keep studying", style: "cancel" }, { text: "Exit", style: "destructive", onPress: goBack }],
     );
   }, [mode, goBack, phase]);
@@ -131,13 +143,14 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
 
   const startBatch = useCallback((words: CustomVocabularyWord[], lessonCount: number, number: number, state: CustomSrsState) => {
     const nextBatch = mode === "lessons" ? customLessonBatch(words, batchSize) : words;
+    sessionStateRef.current = state;
     reviewOccurrencesRef.current = Object.fromEntries(nextBatch.map((word) => [word.id, state.assignments[word.id]?.updatedAt]));
     setBatch(nextBatch);
     setTeachingIndex(0);
     setBatchNumber(number);
     setBatchTotal(number - 1 + Math.max(1, Math.ceil(lessonCount / batchSize)));
     setNextBatchError(null);
-    setToast(null);
+    setSrsProgression(undefined);
     setElapsedMinutes(0);
     studyDurationRef.current = 0;
     activeSinceRef.current = AppState.currentState === "active" ? Date.now() : null;
@@ -175,49 +188,96 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     return () => clearTimeout(timer);
   }, [saving]);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3500);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const showSaveFailure = useCallback(() => {
+    const failed = failedSavesRef.current.values().next().value;
+    pendingSaveRef.current = failed?.pending ?? null;
+    setPendingSave(failed?.pending ?? null);
+    setSaveConflict(failed?.error instanceof CustomSrsConflictError);
+    setSaveError(failed ? failed.error instanceof CustomSrsConflictError
+      ? "This word was updated elsewhere. Reload the remaining items to use the latest schedule. The batch summary will restart; earlier completed words stay saved."
+      : failed.error instanceof Error ? failed.error.message : "Could not save your progress. Please try again." : null);
+  }, []);
+
+  const showProgression = useCallback((pending: PendingSave, assignment: CustomSrsAssignment | undefined) => {
+    if (!assignment || lastCompletedWordRef.current !== pending.wordId) return;
+    setSrsProgression({
+      newLevel: customSrsStageName(assignment.stage),
+      newStage: assignment.stage,
+      isCorrect: assignment.stage > pending.startingStage,
+      show: true,
+      nextReviewInterval: customReviewInterval(assignment.availableAt, assignment.stage),
+    });
+  }, []);
 
   const saveCompletedWord = useCallback(async (pending: PendingSave) => {
     if (savingRef.current) return;
     savingRef.current = true;
+    savingEventRef.current = pending.eventId;
     setSaving(true);
     setSaveError(null);
     setSaveConflict(false);
+    syncingEventsRef.current.add(pending.eventId);
+    setSyncingCount(syncingEventsRef.current.size);
+    const onQueued = () => {
+      if (!mountedRef.current) return;
+      // The durable answer may be retried; advance its question only once.
+      if (!pending.queued) {
+        pending.queued = true;
+        const next = confirmCustomSessionWord(pending.quiz, pending.wordId);
+        completedWordIdsRef.current.add(pending.wordId);
+        lastCompletedWordRef.current = pending.wordId;
+        updateQuiz(next);
+        try {
+          const preview = mode === "lessons"
+            ? completeCustomLesson(sessionStateRef.current, pending.wordId)
+            : recordCustomReview(sessionStateRef.current, pending.wordId, pending.incorrectAnswers, new Date(), pending.eventId);
+          showProgression(pending, preview.assignments[pending.wordId]);
+        } catch {
+          // A background card update may invalidate the preview. Cloud delivery
+          // will either supply the current schedule or report a conflict.
+        }
+        if (!next.questions.length) {
+          const activeTime = activeSinceRef.current === null ? 0 : Date.now() - activeSinceRef.current;
+          setElapsedMinutes(Math.max(1, Math.round((studyDurationRef.current + activeTime) / 60_000)));
+          setPhase("results");
+        }
+      }
+      failedSavesRef.current.delete(pending.eventId);
+      if (pendingSaveRef.current?.eventId === pending.eventId) showSaveFailure();
+      if (savingEventRef.current === pending.eventId) {
+        savingEventRef.current = null;
+        savingRef.current = false;
+        setSaving(false);
+      }
+    };
     try {
       const state = mode === "lessons"
-        ? await completeLesson(pending.wordId, pending.eventId)
-        : await submitReview(pending.wordId, pending.incorrectAnswers, pending.eventId, pending.expectedAssignmentUpdatedAt);
+        ? await completeLesson(pending.wordId, pending.eventId, onQueued)
+        : await submitReview(pending.wordId, pending.incorrectAnswers, pending.eventId, pending.expectedAssignmentUpdatedAt, onQueued);
       if (!mountedRef.current) return;
-      const confirmedQuiz = confirmCustomSessionWord(pending.quiz, pending.wordId);
-      completedWordIdsRef.current.add(pending.wordId);
-      pendingSaveRef.current = null;
-      setPendingSave(null);
+      if (!pending.queued) onQueued();
+      failedSavesRef.current.delete(pending.eventId);
+      if (pendingSaveRef.current?.eventId === pending.eventId) showSaveFailure();
       updateRemaining(state);
-      updateQuiz(confirmedQuiz);
-      const completedItem = confirmedQuiz.items.find((item) => item.word.id === pending.wordId);
-      const assignment = state.assignments[pending.wordId];
-      if (completedItem && assignment) setToast({ characters: completedItem.word.characters, assignment });
-      if (!confirmedQuiz.questions.length) {
-        const activeTime = activeSinceRef.current === null ? 0 : Date.now() - activeSinceRef.current;
-        setElapsedMinutes(Math.max(1, Math.round((studyDurationRef.current + activeTime) / 60_000)));
-        setPhase("results");
-      }
+      showProgression(pending, state.assignments[pending.wordId]);
     } catch (error) {
       if (mountedRef.current) {
-        setSaveConflict(error instanceof CustomSrsConflictError);
-        setSaveError(error instanceof CustomSrsConflictError
-          ? "This word was updated elsewhere. Reload the remaining items to use the latest schedule. The batch summary will restart; earlier completed words stay saved."
-          : error instanceof Error ? error.message : "Could not save your progress. Please try again.");
+        failedSavesRef.current.set(pending.eventId, { pending, error });
+        showSaveFailure();
       }
     } finally {
-      savingRef.current = false;
-      if (mountedRef.current) setSaving(false);
+      syncingEventsRef.current.delete(pending.eventId);
+      if (mountedRef.current) {
+        setSyncingCount(syncingEventsRef.current.size);
+        // An older cloud response must not release a newer device save guard.
+        if (savingEventRef.current === pending.eventId) {
+          savingEventRef.current = null;
+          savingRef.current = false;
+          setSaving(false);
+        }
+      }
     }
-  }, [completeLesson, submitReview, mode, updateQuiz, updateRemaining]);
+  }, [completeLesson, submitReview, mode, showProgression, showSaveFailure, updateQuiz, updateRemaining]);
 
   const reloadAfterConflict = useCallback(async () => {
     if (savingRef.current) return;
@@ -226,6 +286,10 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     try {
       const state = await refresh();
       if (!mountedRef.current) return;
+      for (const { pending, error } of failedSavesRef.current.values()) {
+        if (error instanceof CustomSrsConflictError) completedWordIdsRef.current.delete(pending.wordId);
+      }
+      failedSavesRef.current.clear();
       const lessons = customLessonWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id));
       const words = mode === "lessons" ? lessons : customReviewWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id));
       pendingSaveRef.current = null;
@@ -276,12 +340,15 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     return () => controller.abort();
   }, [audioWindow, offlineAudioEnabled]);
 
-  const handleAnswer = useCallback((answeredItem: { id: number }, type: "meaning" | "reading", isCorrect: boolean) => {
+  const handleAnswer = useCallback((answeredItem: { id: number }, type: "meaning" | "reading", isCorrect: boolean, _wasIncorrect?: boolean, isGroupedAnswer = false) => {
     // Native `wasIncorrect` also includes harmless wrong-script/reading warnings.
     // Only an actual incorrect emission is an SRS miss, not a successful retry.
     const currentQuiz = quizRef.current;
-    if (!currentQuiz || !question || !currentSubject || pendingSaveRef.current || answeredItem.id !== currentSubject.id || type !== question.type) return;
-    const answered = answerCustomSessionQuestion(currentQuiz, question, quiz?.occurrence ?? -1, isCorrect);
+    if (!currentQuiz || !question || !currentSubject || pendingSaveRef.current || savingRef.current || answeredItem.id !== currentSubject.id || (!isGroupedAnswer && type !== question.type)) return;
+    if (isGroupedAnswer && type === "meaning") return;
+    const answered = isGroupedAnswer
+      ? answerCustomSessionGroupedQuestion(currentQuiz, question, quiz?.occurrence ?? -1, isCorrect)
+      : answerCustomSessionQuestion(currentQuiz, question, quiz?.occurrence ?? -1, isCorrect);
     if (answered.quiz === currentQuiz) return;
     if (!answered.completedWordId) {
       updateQuiz(answered.quiz);
@@ -294,11 +361,19 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       quiz: answered.quiz,
       incorrectAnswers: Math.min(100, item.meaningIncorrect + item.readingIncorrect),
       expectedAssignmentUpdatedAt: reviewOccurrencesRef.current[answered.completedWordId],
+      startingStage: sessionStateRef.current.assignments[answered.completedWordId]?.stage ?? 0,
     };
     pendingSaveRef.current = pending;
     setPendingSave(pending);
     void saveCompletedWord(pending);
   }, [currentSubject, question, quiz?.occurrence, saveCompletedWord, updateQuiz]);
+
+  const skipQuestion = useCallback((item: { id: number }, type: "meaning" | "reading") => {
+    const current = quizRef.current;
+    if (!current || !question || !currentSubject || pendingSaveRef.current || savingRef.current
+      || current.occurrence !== quiz?.occurrence || item.id !== currentSubject.id || type !== question.type) return;
+    updateQuiz({ ...current, questions: [...current.questions.slice(1), current.questions[0]], occurrence: current.occurrence + 1 });
+  }, [currentSubject, question, quiz?.occurrence, updateQuiz]);
 
   const nextBatch = useCallback(async () => {
     if (loadingNext) return;
@@ -367,6 +442,8 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
           item={{ id: currentReviewSubject.id, subject: currentReviewSubject, srsStage: cloud.state.assignments[currentItem.word.id]?.stage }}
           questionType={question.type}
           onAnswer={handleAnswer}
+          onAskAgain={skipQuestion}
+          onSkip={skipQuestion}
           onExit={exitSession}
           onViewSubjectDetails={(subjectId) => {
             const word = customSubjectIdToWord(subjectId);
@@ -375,14 +452,16 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
           showHeader
           showBackgroundColor
           isLessonFlow={mode === "lessons"}
-          forceDisableAnkiGrouping
+          srsProgression={srsProgression}
+          onSRSCardDismiss={dismissSrsProgression}
+          acceptCharactersAsCorrectForReading
           totalItems={quiz?.items.length ?? 0}
           currentItem={quiz?.answeredCount ?? 0}
           correctAnswersCount={quiz?.correctAnswersCount ?? 0}
           completedCount={stats.completed}
           contextSentencesHint={showContextHints ? currentItem.word.contextSentences : undefined}
           contextHintMaxItems={3}
-          contextHintDisplayMode="toggle"
+          contextHintDisplayMode="visible"
           contextHintTranslationMode="toggle"
         />
       ) : null}
@@ -395,7 +474,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
           <View style={styles.resultHeading}>
             <Ionicons name={isEmpty ? "checkmark-circle-outline" : "checkmark-circle"} size={42} color={colors.vocabulary} />
             <Text selectable style={[styles.title, { color: theme.textColor }]}>{isEmpty ? mode === "lessons" ? "No lessons available" : "All caught up" : mode === "lessons" ? lessonTitle : "Reviews complete"}</Text>
-            <Text selectable style={[styles.description, { color: theme.textSecondary }]}>{isEmpty ? mode === "lessons" ? "Explore a pack to add more vocabulary to your lessons." : "Your next reviews will appear here when they’re due." : mode === "lessons" ? `${stats.completed} ${stats.completed === 1 ? "word is" : "words are"} now ready for spaced repetition.` : "Your review progress is synced across mobile and web."}</Text>
+            <Text selectable style={[styles.description, { color: theme.textSecondary }]}>{isEmpty ? mode === "lessons" ? "Explore a pack to add more vocabulary to your lessons." : "Your next reviews will appear here when they’re due." : mode === "lessons" ? `${stats.completed} ${stats.completed === 1 ? "word is" : "words are"} now ready for spaced repetition.` : syncingCount ? "Your answers are saved on this device and syncing across mobile and web." : saveError ? "Some answers still need to sync. Retry saving to confirm your progress." : "Your review progress is synced across mobile and web."}</Text>
           </View>
           {!isEmpty ? <>
             <View style={[styles.stats, { borderColor: theme.border }]}>
@@ -429,15 +508,6 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
           </View>
         </ScrollView>
       ) : null}
-
-      {toast ? <View testID="custom-srs-progression-popup" accessibilityLiveRegion="polite" style={[styles.toast, { top: insets.top + 72, backgroundColor: theme.cardBackground, borderColor: colors.vocabulary }]}>
-        <Ionicons name="checkmark-circle-outline" size={24} color={colors.vocabulary} />
-        <View style={styles.toastText}>
-          <Text style={[styles.toastTitle, { color: theme.textColor }]}>{toast.characters} · {customSrsStageName(toast.assignment.stage)}</Text>
-          <Text style={[styles.toastDetail, { color: theme.textSecondary }]}>{customNextReviewLabel(toast.assignment.availableAt, toast.assignment.stage)}</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss SRS update" onPress={() => setToast(null)} style={styles.dismissButton}><Ionicons name="close" size={20} color={theme.textSecondary} /></Pressable>
-      </View> : null}
 
       {saving ? <View style={styles.savingBlocker} pointerEvents="auto">
         {showSavingIndicator ? <View accessibilityLiveRegion="polite" style={[styles.savingIndicator, { top: insets.top + 72, backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
@@ -487,11 +557,6 @@ const styles = StyleSheet.create({
   secondaryButton: { minHeight: 50, borderRadius: 10, borderWidth: 1, paddingHorizontal: 20, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
   textButton: { minHeight: 44, padding: 12, alignItems: "center", justifyContent: "center" },
   textButtonText: { fontSize: 16, fontWeight: "600" },
-  toast: { position: "absolute", alignSelf: "center", width: "92%", maxWidth: 460, flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 16, paddingVertical: 8, paddingRight: 4, borderWidth: 1, borderRadius: 10, zIndex: 20 },
-  toastText: { flex: 1, gap: 3 },
-  toastTitle: { fontWeight: "600", fontSize: 15 },
-  toastDetail: { fontSize: 13 },
-  dismissButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   savingBlocker: { ...StyleSheet.absoluteFillObject, zIndex: 30 },
   savingIndicator: { position: "absolute", alignSelf: "center", paddingHorizontal: 16, paddingVertical: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, flexDirection: "row", gap: 10, alignItems: "center" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", padding: 24, justifyContent: "center", alignItems: "center" },

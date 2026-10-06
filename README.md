@@ -23,6 +23,15 @@ On iOS, widget refresh uses Expo's processing task. Keep `processing` in
 `BGTaskSchedulerPermittedIdentifiers` in both `app.json` and the checked-in
 native `Info.plist` when regenerating the iOS project.
 
+## Saved news
+
+Tap the bookmark on a news card or in the article reader, then find it in **Saved
+articles** below **Other News**, or turn on **Saved only** in the top filter menu. Easy and Standard stories keep their available article
+text separately from the rotating news cache. Bookmarks stay on the current
+device or browser and do not sync between the mobile and web apps. Images and
+audio still need a connection unless already cached; clearing app or browser
+data removes saved articles.
+
 <p>
   <a href="https://apps.apple.com/app/kakehashi-wanikani-companion/id6757765444">
     <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="48" />

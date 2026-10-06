@@ -61,6 +61,7 @@ export interface WebStudyPreferences {
   showVocabContextSentencesInReviews: boolean;
   allowSkippingReviews: boolean;
   reviewSearchButtonEnabled: boolean;
+  bunproHideFurigana: boolean;
   reviewCharacterFontScale: number;
   pauseOnWrong: boolean;
   pauseOnClose: boolean;
@@ -94,6 +95,7 @@ export interface WebStudyPreferences {
   reviewAnimatePreviousQuestion: boolean;
   answerStopBehavior: AnswerStopBehavior;
   showAnswerStopSubjectDetails: boolean;
+  showDetailsOnWrongAnswer: boolean;
   showListeningTranslation: boolean;
   vocabularyAudioVoice: VocabularyAudioVoice;
   ankiMode: AnkiMode;
@@ -143,6 +145,7 @@ export interface WebSettings {
     forecastViewMode: "chart" | "list";
     forecastChartMode: "hourly" | "daily";
     forecastBreakdown: "off" | "subject" | "srs";
+    studyPacePlannerEnabled: boolean;
   };
 }
 
@@ -329,6 +332,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     showVocabContextSentencesInReviews: false,
     allowSkippingReviews: false,
     reviewSearchButtonEnabled: false,
+    bunproHideFurigana: false,
     reviewCharacterFontScale: 1,
     pauseOnWrong: true,
     pauseOnClose: false,
@@ -362,6 +366,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     reviewAnimatePreviousQuestion: true,
     answerStopBehavior: "always",
     showAnswerStopSubjectDetails: false,
+    showDetailsOnWrongAnswer: false,
     showListeningTranslation: true,
     vocabularyAudioVoice: "female",
     ankiMode: "off",
@@ -383,7 +388,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     epubDailyGoalMinutes: 5,
     songsLyricsLineTranslationsEnabled: false,
   },
-  workspace: { navbarTabs: [...DEFAULT_NAVBAR_TABS], visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], forecastViewMode: "chart", forecastChartMode: "hourly", forecastBreakdown: "off" },
+  workspace: { navbarTabs: [...DEFAULT_NAVBAR_TABS], visibleNav: [...OPTIONAL_NAV_ITEMS], dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], forecastViewMode: "chart", forecastChartMode: "hourly", forecastBreakdown: "off", studyPacePlannerEnabled: false },
 };
 
 export const SUBJECT_COLOR_PRESETS = {
@@ -552,6 +557,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
         allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
         reviewSearchButtonEnabled: typeof parsed.study?.reviewSearchButtonEnabled === "boolean" ? parsed.study.reviewSearchButtonEnabled : DEFAULT_WEB_SETTINGS.study.reviewSearchButtonEnabled,
+        bunproHideFurigana: typeof parsed.study?.bunproHideFurigana === "boolean" ? parsed.study.bunproHideFurigana : DEFAULT_WEB_SETTINGS.study.bunproHideFurigana,
         reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
         pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
         pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
@@ -585,6 +591,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         reviewAnimatePreviousQuestion: typeof parsed.study?.reviewAnimatePreviousQuestion === "boolean" ? parsed.study.reviewAnimatePreviousQuestion : DEFAULT_WEB_SETTINGS.study.reviewAnimatePreviousQuestion,
         answerStopBehavior: legacyAnswerStopBehavior ?? DEFAULT_WEB_SETTINGS.study.answerStopBehavior,
         showAnswerStopSubjectDetails: typeof parsed.study?.showAnswerStopSubjectDetails === "boolean" ? parsed.study.showAnswerStopSubjectDetails : DEFAULT_WEB_SETTINGS.study.showAnswerStopSubjectDetails,
+        showDetailsOnWrongAnswer: typeof parsed.study?.showDetailsOnWrongAnswer === "boolean" ? parsed.study.showDetailsOnWrongAnswer : DEFAULT_WEB_SETTINGS.study.showDetailsOnWrongAnswer,
         showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
         vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
@@ -618,6 +625,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         forecastViewMode: parsed.workspace?.forecastViewMode === "list" ? "list" : "chart",
         forecastChartMode: parsed.workspace?.forecastChartMode === "daily" ? "daily" : "hourly",
         forecastBreakdown: parsed.workspace?.forecastBreakdown === "subject" || parsed.workspace?.forecastBreakdown === "srs" ? parsed.workspace.forecastBreakdown : "off",
+        studyPacePlannerEnabled: parsed.workspace?.studyPacePlannerEnabled === true,
       },
     };
   } catch {

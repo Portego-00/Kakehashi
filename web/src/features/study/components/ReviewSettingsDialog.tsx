@@ -22,7 +22,7 @@ function Field({ label, children }: { label: string; children: ReactElement<{ "a
 
 type BooleanPreference = { [K in keyof WebStudyPreferences]: WebStudyPreferences[K] extends boolean ? K : never }[keyof WebStudyPreferences];
 
-export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = true, onStudyChange, onClose }: ReviewSettingsButtonProps & { onClose: () => void }) {
+export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = true, bunproSupported = false, onStudyChange, onClose }: ReviewSettingsButtonProps & { onClose: () => void }) {
   const { user } = useSession();
   const username = user?.data.username ?? "anonymous";
   const { theme, setTheme } = useTheme();
@@ -67,6 +67,7 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
           {toggle("showReviewItemLevelAndSrsStage", "Show level and SRS stage")}
           {toggle("showVocabularyFrequency", "Show vocabulary frequency")}
           {toggle("showVocabContextSentencesInReviews", "Show context sentences")}
+          {bunproSupported ? <>{toggle("bunproHideFurigana", "Hide Bunpro furigana")}<p className={styles.hint}>Hover or focus a word to show its reading. Click or tap to keep it visible; click again to hide it.</p></> : null}
           {toggle("jitaiEnabled", "Jitai font randomization")}
         </fieldset>
         {ankiSupported ? <fieldset><legend>Anki mode</legend>
@@ -87,6 +88,7 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
         </fieldset>
         <fieldset><legend>Answers and audio</legend>
           {toggle("pauseOnWrong", "Pause on wrong answer")}{toggle("pauseOnClose", "Pause on close answer", study.pauseOnCorrect)}{toggle("pauseOnCorrect", "Pause on correct answer")}
+          {toggle("showDetailsOnWrongAnswer", "Show details on wrong answer")}
           {toggle("showAnswerStopSubjectDetails", "Show details on answer pause")}{toggle("answerFeedbackSoundEnabled", "Answer feedback sounds")}
           {toggle("keyboardShortcuts", "Keyboard shortcuts")}{toggle("allowSkippingReviews", "Allow skipping reviews")}
           {toggle("acceptUserSynonymsAsAnswers", "Accept user synonyms")}{toggle("acceptAnyKanjiOnyomiReading", "Accept any kanji on’yomi reading")}

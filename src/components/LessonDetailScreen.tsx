@@ -3204,6 +3204,8 @@ const SubjectContent = ({
 
               {renderUserSynonyms()}
 
+              {renderNoteCard("meaning")}
+
               {/* Context Section */}
               {renderUsagePatternSection()}
               {renderContextSentences()}
@@ -4243,6 +4245,7 @@ const SubjectContent = ({
                       </TouchableOpacity>
                     </View>
                   </View>
+                  {renderNoteCard("meaning")}
                 </View>
               ) : (
                 // Context tab

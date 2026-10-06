@@ -65,8 +65,8 @@ function eventId() {
 const actions = {
   refresh: client.refresh,
   enrollPack: (packId: string) => client.mutate({ action: "enroll_pack", packId, eventId: eventId() }),
-  completeLesson: (wordId: string, id = eventId()) => client.mutate({ action: "complete_lesson", wordId, eventId: id }),
-  submitReview: (wordId: string, incorrectAnswers: number, id = eventId(), expectedAssignmentUpdatedAt?: string) => client.mutate({ action: "submit_review", wordId, incorrectAnswers, eventId: id, expectedAssignmentUpdatedAt }),
+  completeLesson: (wordId: string, id = eventId(), onQueued?: () => void) => client.mutate({ action: "complete_lesson", wordId, eventId: id }, onQueued),
+  submitReview: (wordId: string, incorrectAnswers: number, id = eventId(), expectedAssignmentUpdatedAt?: string, onQueued?: () => void) => client.mutate({ action: "submit_review", wordId, incorrectAnswers, eventId: id, expectedAssignmentUpdatedAt }, onQueued),
 };
 
 export function useCustomSrs() {

@@ -8,7 +8,7 @@ The web and native app share strict state validation, the scheduler, and the del
 
 Native mutations are written to an account-scoped AsyncStorage command queue before their first network attempt. Refresh, foregrounding, and the existing active-screen timer replay saved commands with their original event IDs. Reviews also retain the assignment timestamp they were answered against. A crash after the server commits but before the local queue is cleared is safe to retry. Storage failures prevent sending a new answer. Corrupt queues remain untouched and surface an error. Authentication tokens are not stored in the queue.
 
-Native still waits for server confirmation before marking a word complete. This avoids presenting a locally queued word as already synced. Browser answers keep their existing durable outbox and cross-tab locks. Deleting browser/app data or uninstalling before pending answers sync can still lose those local answers.
+Native advances once the answer is durably saved on the device, while network delivery continues in the background. The session uses the normal review screen’s SRS card and distinguishes pending sync from confirmed progress on the results screen. A failed device write keeps the question in place; cloud retries retain the original event ID and never advance another question. A server-rejected occurrence is removed from the outbox so refreshing can reconcile the latest schedule. Browser answers keep their existing durable outbox and cross-tab locks. Deleting browser/app data or uninstalling before pending answers sync can still lose those local answers.
 
 ## Database and traffic
 

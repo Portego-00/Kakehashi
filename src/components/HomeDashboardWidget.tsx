@@ -18,6 +18,7 @@ import LevelProgress from "./LevelProgress";
 import LevelTimingChart from "./LevelTimingChart";
 import RecentMistakesCard from "./RecentMistakesCard";
 import ReviewForecast from "./ReviewForecast";
+import { StudyPacePlanner } from "../features/level-goals/study-pace-planner";
 import ReviewHeatmap from "./ReviewHeatmap";
 import ReviewStatsTable from "./ReviewStatsTable";
 import SrsBreakdown, {
@@ -530,7 +531,22 @@ export default function HomeDashboardWidget({
           currentLevel={dashboardData.currentLevel}
           subjects={dashboardData.subjects}
           assignments={dashboardData.assignments}
-        />
+        >
+          {!previewMode ? (
+            <StudyPacePlanner
+              currentLevel={dashboardData.currentLevel}
+              subjects={dashboardData.subjects ?? []}
+              assignments={dashboardData.assignments ?? []}
+              paused={isOnVacation}
+              loading={
+                dashboardData.dataLoadingState
+                  ? !dashboardData.dataLoadingState.assignments ||
+                    !dashboardData.dataLoadingState.subjects
+                  : false
+              }
+            />
+          ) : null}
+        </ReviewForecast>
       );
     case "levelProgress":
       return (

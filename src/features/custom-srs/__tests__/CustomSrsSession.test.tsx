@@ -39,11 +39,11 @@ jest.mock("../data", () => ({
   customReviewWords: (state: typeof mockState) => mockWords.filter((word) => state.assignments[word.id]?.stage > 0 && Boolean(state.assignments[word.id]?.availableAt) && Date.parse(state.assignments[word.id].availableAt!) <= Date.now()),
 }));
 jest.mock("../subject", () => ({
-  customWordUsesKanji: () => false,
+  customWordUsesKanji: (word: typeof mockWords[number]) => /\p{Script=Han}/u.test(word.characters),
   customSubjectIdToWord: (id: number) => mockWords[-id - 1],
   customWordToSubject: (word: typeof mockWords[number]) => ({
     id: -Number(word.id.split("-")[1]), object: "kana_vocabulary",
-    data: { characters: word.characters, meanings: word.meanings.map((meaning) => ({ meaning, primary: true })), readings: [], meaning_mnemonic: word.meaningMnemonic, context_sentences: word.contextSentences },
+    data: { characters: word.characters, meanings: word.meanings.map((meaning) => ({ meaning, primary: true })), readings: /\p{Script=Han}/u.test(word.characters) ? [{ reading: word.reading, primary: true }] : [], meaning_mnemonic: word.meaningMnemonic, context_sentences: word.contextSentences },
   }),
 }));
 jest.mock("../../../components/LessonDetailScreen", () => {
@@ -61,9 +61,13 @@ jest.mock("../../../components/ReviewQuestionScreen", () => {
   const { View, Text, Pressable } = jest.requireActual("react-native");
   return function ReviewQuestion(props: any) {
     return <View>
+      <Text testID="srs-progression">{JSON.stringify(props.srsProgression ?? null)}</Text>
       <Text testID="review-word">{props.item.subject.data.characters}</Text>
       <Text testID="question-type">{props.questionType}</Text>
+      <Text testID="grouping-disabled">{String(Boolean(props.forceDisableAnkiGrouping))}</Text>
       <Text testID="review-context">{props.contextSentencesHint?.length ?? 0}</Text>
+      <Pressable testID="answer-grouped" onPress={() => { props.onAnswer(props.item, "meaning", true, false, true); props.onAnswer(props.item, "reading", true, false, true); }}><Text>Grouped correct</Text></Pressable>
+      <Pressable testID="skip-question" onPress={() => props.onSkip(props.item, props.questionType)}><Text>Skip</Text></Pressable>
       <Pressable testID="answer-correct" onPress={() => props.onAnswer(props.item, props.questionType, true, false)}><Text>Correct</Text></Pressable>
       <Pressable testID="answer-warning-retry" onPress={() => props.onAnswer(props.item, props.questionType, true, true)}><Text>Correct after warning</Text></Pressable>
       <Pressable testID="answer-incorrect" onPress={() => props.onAnswer(props.item, props.questionType, false, true)}><Text>Incorrect</Text></Pressable>
@@ -81,6 +85,7 @@ const confirmLesson = async (wordId: string) => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockUuid = 0;
+  mockWords.forEach((word, index) => { word.characters = `かな${index + 1}`; });
   mockState = { enrolledPackIds: ["test-pack"], assignments: mockAssignments() };
   mockCloud.state = mockState;
   mockCloud.refresh.mockImplementation(async () => mockState);
@@ -144,24 +149,102 @@ describe("native custom SRS sessions", () => {
     expect(view.getByTestId("review-word").props.children).toBe("かな1");
     expect(view.queryByTestId("custom-srs-next-batch")).toBeNull();
     await act(async () => fireEvent.press(view.getByTestId("custom-srs-retry-save")));
-    expect(mockCloud.completeLesson.mock.calls).toEqual([["word-1", "event-1"], ["word-1", "event-1"]]);
+    expect(mockCloud.completeLesson.mock.calls.map((args) => args.slice(0, 2))).toEqual([["word-1", "event-1"], ["word-1", "event-1"]]);
     expect(view.getByTestId("review-word").props.children).toBe("かな2");
     expect(view.queryByText("Progress not confirmed saved")).toBeNull();
   });
 
-  it("does not advance or open a blocking modal while a normal save is pending", async () => {
+  it("advances after the answer is saved on device while cloud delivery is pending", async () => {
     let resolveSave!: (state: typeof mockState) => void;
-    mockCloud.completeLesson.mockImplementationOnce(() => new Promise((resolve) => { resolveSave = resolve; }));
+    mockCloud.completeLesson.mockImplementationOnce((_wordId, _eventId, onQueued) => {
+      onQueued?.();
+      return new Promise((resolve) => { resolveSave = resolve; });
+    });
     const view = render(<CustomSrsSession mode="lessons" packId="test-pack" />);
     await finishTeaching(view, 5);
-    fireEvent.press(view.getByTestId("answer-correct"));
-    expect(view.getByTestId("review-word").props.children).toBe("かな1");
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな2");
     expect(view.queryByText("Progress not confirmed saved")).toBeNull();
-    fireEvent.press(view.getByTestId("answer-correct"));
     expect(mockCloud.completeLesson).toHaveBeenCalledTimes(1);
     await act(async () => resolveSave(await confirmLesson("word-1")));
     expect(view.getByTestId("review-word").props.children).toBe("かな2");
-    expect(view.getByTestId("custom-srs-progression-popup").props.style).toEqual(expect.arrayContaining([expect.objectContaining({ position: "absolute" })]));
+    expect(JSON.parse(view.getByTestId("srs-progression").props.children)).toMatchObject({ newLevel: "Apprentice I", newStage: 1, show: true });
+    expect(view.queryByTestId("custom-srs-progression-popup")).toBeNull();
+  });
+
+  it("keeps moving through answers while earlier cloud responses are pending", async () => {
+    let resolveFirst!: (state: typeof mockState) => void;
+    let resolveSecond!: (state: typeof mockState) => void;
+    mockCloud.completeLesson
+      .mockImplementationOnce((_wordId, _eventId, onQueued) => { onQueued(); return new Promise((resolve) => { resolveFirst = resolve; }); })
+      .mockImplementationOnce((_wordId, _eventId, onQueued) => { onQueued(); return new Promise((resolve) => { resolveSecond = resolve; }); });
+    const view = render(<CustomSrsSession mode="lessons" packId="test-pack" />);
+    await finishTeaching(view, 5);
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな3");
+    const progression = view.getByTestId("srs-progression").props.children;
+    await act(async () => resolveFirst(await confirmLesson("word-1")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな3");
+    expect(view.getByTestId("srs-progression").props.children).toBe(progression);
+    await act(async () => resolveSecond(await confirmLesson("word-2")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな3");
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな4");
+  });
+
+  it("retries a queued answer after a cloud failure without advancing the next question twice", async () => {
+    mockCloud.completeLesson.mockImplementationOnce(async (_wordId, _eventId, onQueued) => {
+      onQueued();
+      throw new Error("No connection");
+    });
+    const view = render(<CustomSrsSession mode="lessons" packId="test-pack" />);
+    await finishTeaching(view, 5);
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな2");
+    expect(view.getByText("Progress not confirmed saved")).toBeTruthy();
+    await act(async () => fireEvent.press(view.getByTestId("custom-srs-retry-save")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな2");
+    expect(mockCloud.completeLesson.mock.calls.map((args) => args.slice(0, 2))).toEqual([["word-1", "event-1"], ["word-1", "event-1"]]);
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(view.getByTestId("review-word").props.children).toBe("かな3");
+  });
+
+  it("shows the results immediately after the final durable answer while it syncs", async () => {
+    mockCloud.submitReview.mockImplementationOnce((_wordId, _incorrect, _eventId, _occurrence, onQueued) => {
+      onQueued();
+      return new Promise(() => {});
+    });
+    mockState.assignments["word-1"].stage = 1;
+    mockState.assignments["word-1"].availableAt = "2020-01-01T00:00:00Z";
+    const view = render(<CustomSrsSession mode="reviews" packId="test-pack" />);
+    await waitFor(() => expect(view.getByTestId("answer-correct")).toBeTruthy());
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(view.getByText("Reviews complete")).toBeTruthy();
+    expect(view.getByText("Your answers are saved on this device and syncing across mobile and web.")).toBeTruthy();
+    expect(view.queryByTestId("review-word")).toBeNull();
+  });
+
+  it("uses the normal grouped Anki behavior for kanji reviews", async () => {
+    mockWords[0].characters = "日記";
+    mockState.assignments["word-1"].stage = 1;
+    mockState.assignments["word-1"].availableAt = "2020-01-01T00:00:00Z";
+    const view = render(<CustomSrsSession mode="reviews" packId="test-pack" />);
+    await waitFor(() => expect(view.getByTestId("answer-grouped")).toBeTruthy());
+    expect(view.getByTestId("grouping-disabled").props.children).toBe("false");
+    await act(async () => fireEvent.press(view.getByTestId("answer-grouped")));
+    expect(mockCloud.submitReview).toHaveBeenCalledTimes(1);
+    expect(view.getByText("Reviews complete")).toBeTruthy();
+  });
+
+  it("allows skipping a question without recording a mistake or saving it", async () => {
+    const view = render(<CustomSrsSession mode="lessons" packId="test-pack" />);
+    await finishTeaching(view, 5);
+    fireEvent.press(view.getByTestId("skip-question"));
+    expect(view.getByTestId("review-word").props.children).toBe("かな2");
+    expect(mockCloud.completeLesson).not.toHaveBeenCalled();
+    await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
+    expect(mockCloud.completeLesson.mock.calls[0][0]).toBe("word-2");
   });
 
   it("does not penalize harmless warning retries, but does count an incorrect answer before success", async () => {
@@ -171,7 +254,7 @@ describe("native custom SRS sessions", () => {
     const view = render(<CustomSrsSession mode="reviews" packId="test-pack" />);
     await waitFor(() => expect(view.getByTestId("answer-warning-retry")).toBeTruthy());
     await act(async () => fireEvent.press(view.getByTestId("answer-warning-retry")));
-    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1", "2026-09-07T00:00:00Z");
+    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1", "2026-09-07T00:00:00Z", expect.any(Function));
     view.unmount();
     mockCloud.submitReview.mockClear();
     mockState.assignments["word-1"].availableAt = "2020-01-01T00:00:00Z";
@@ -179,7 +262,7 @@ describe("native custom SRS sessions", () => {
     await waitFor(() => expect(next.getByTestId("answer-incorrect")).toBeTruthy());
     fireEvent.press(next.getByTestId("answer-incorrect"));
     await act(async () => fireEvent.press(next.getByTestId("answer-correct")));
-    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 1, "event-2", "2026-09-07T00:00:00Z");
+    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 1, "event-2", "2026-09-07T00:00:00Z", expect.any(Function));
   });
 
   it("keeps the original review occurrence when background sync updates the card mid-question", async () => {
@@ -191,7 +274,7 @@ describe("native custom SRS sessions", () => {
     mockCloud.state = mockState;
     view.rerender(<CustomSrsSession mode="reviews" packId="test-pack" />);
     await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
-    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1", "2026-09-07T00:00:00Z");
+    expect(mockCloud.submitReview).toHaveBeenCalledWith("word-1", 0, "event-1", "2026-09-07T00:00:00Z", expect.any(Function));
   });
 
   it("uses fresh server state, native context sentences and the correct previous-word details route", async () => {
@@ -228,7 +311,7 @@ describe("native custom SRS sessions", () => {
     expect(view.getByTestId("review-word").props.children).toBe("かな2");
     expect(mockCloud.submitReview).toHaveBeenCalledTimes(1);
     await act(async () => fireEvent.press(view.getByTestId("answer-correct")));
-    expect(mockCloud.submitReview.mock.calls).toEqual([["word-1", 0, "event-1", "2026-09-07T00:00:00Z"], ["word-2", 0, "event-2", "2026-09-07T00:00:00Z"]]);
+    expect(mockCloud.submitReview.mock.calls.map((args) => args.slice(0, 4))).toEqual([["word-1", 0, "event-1", "2026-09-07T00:00:00Z"], ["word-2", 0, "event-2", "2026-09-07T00:00:00Z"]]);
     expect(view.getByText("Reviews complete")).toBeTruthy();
   });
 });

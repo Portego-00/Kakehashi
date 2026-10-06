@@ -11,6 +11,7 @@ import { buildReviewQueue, sanitizeText } from "./model";
 import { BunproLoading } from "./BunproLoading";
 import { BunproDetails } from "./BunproDetails";
 import { BunproReviews } from "./BunproReviews";
+import { getBunproLessonBatchSize, selectBunproLessonDeck } from "./lesson-queue";
 import styles from "./bunpro.module.css";
 
 export function lessonTuple(item: BunproLearnContentItem): BunproLearnReviewableTuple {
@@ -25,10 +26,10 @@ export function BunproLessons({ initialDeck }: { initialDeck?: number }) {
   const lock = useRef(false);
   const lesson = useQuery({ queryKey: ["bunpro", "lesson-batch", initialDeck, batch], retry: false, staleTime: Infinity, gcTime: 0, queryFn: async ({ signal }) => {
     const summary = summarizeBunproQueue(await bunpro<BunproQueueResponse>("action=lesson-queue", { signal }));
-    const selected = summary.queue.find((deck) => deck.deckId === initialDeck && deck.remaining > 0 && !deck.isFinished) ?? summary.next;
+    const selected = selectBunproLessonDeck(summary, initialDeck);
     if (!selected?.deckId) return null;
     const response = await bunpro<BunproLearnIndexResponse>(`action=learn&deck=${selected.deckId}`, { signal });
-    const size = Math.min(selected.remaining, selected.batchSize || selected.remaining);
+    const size = getBunproLessonBatchSize(selected);
     const items = response.content.filter((item) => ["grammar_point", "vocab"].includes(item.data.type) && Number.isInteger(lessonTuple(item)[1]) && lessonTuple(item)[1] > 0).slice(0, size);
     return { deck: selected, items };
   } });
@@ -47,11 +48,11 @@ export function BunproLessons({ initialDeck }: { initialDeck?: number }) {
   if (lesson.isPending) return <BunproLoading kind="lessons" />;
   if (lesson.error) return <main className={styles.chooser}><h1>Bunpro lessons</h1><p role="alert">{lesson.error.message}</p><Button onClick={() => lesson.refetch()}>Retry lessons</Button><ButtonLink href="/dashboard">Back to home</ButtonLink></main>;
   const current = lesson.data?.items[index];
-  if (!current || !lesson.data) return <main className={styles.chooser}><h1>Lessons complete</h1><p>No more lessons are queued for your daily goal.</p><ButtonLink href="/dashboard">Back to home</ButtonLink></main>;
+  if (!current || !lesson.data) return <main className={styles.chooser}><h1>Lessons complete</h1><p>No more lessons are available in your learn queue.</p><ButtonLink href="/dashboard">Back to home</ButtonLink></main>;
   const { items, deck } = lesson.data;
   const attributes = current.data.attributes;
   const kind = current.data.type === "vocab" ? "vocab" : "grammar";
-  return <main className={styles.lessonPage}>
+  return <main className={styles.lessonPage} data-study-session="active">
     <header className={styles.lessonHeader}><Link href="/dashboard" aria-label="Return to dashboard"><LogOut size={24} /></Link><div><p>{sanitizeText(attributes.level || attributes.jlpt_level)} {attributes.lesson_id ? `Lesson ${attributes.lesson_id}` : ""} · {index + 1}/{items.length}</p><span>{deck.deckTitle}</span></div></header>
     <BunproDetails key={`${current.data.type}:${current.data.id}`} kind={kind} slug={sanitizeText(attributes.slug)} content={current} deckId={lesson.data.deck.deckId ?? undefined} />
     <footer className={styles.lessonFooter}><button type="button" disabled={index === 0 || busy} onClick={() => navigate(index - 1)}><ArrowLeft size={20} /> Previous</button><nav aria-label="Lesson batch">{items.map((item, i) => <button type="button" key={item.data.id} disabled={busy} aria-label={`Lesson ${i + 1}: ${sanitizeText(item.data.attributes.title)}`} aria-current={i === index ? "step" : undefined} onClick={() => navigate(i)} />)}</nav><button type="button" className={styles.lessonNext} disabled={busy} onClick={() => index + 1 < items.length ? navigate(index + 1) : void startQuiz()}><ArrowRight size={20} />{busy ? "Preparing quiz…" : index + 1 < items.length ? "Next" : "Start Quiz"}</button>{error ? <p role="alert">{error}</p> : null}</footer>

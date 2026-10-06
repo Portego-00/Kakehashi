@@ -138,6 +138,24 @@ it.each(["Retry save", "Continue without saving"])("handles a failed correct wra
 beforeEach(() => { vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, showAnswerStopSubjectDetails: false } }); vi.mocked(playAnswerFeedback).mockClear(); session.user.data.username = "Learner"; session.isDemo = false; vi.mocked(bunpro).mockReset().mockImplementation(async (query) => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [item], pending_wrapup: [] } : {}); });
 afterEach(cleanup);
 async function start() { setup(); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); }
+it("pins review furigana without submitting an answer and resets the pin for the next question", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, bunproHideFurigana: true } });
+  const next = { ...item, data: { ...item.data, id: "11", attributes: { ...item.data.attributes, id: 11 } } };
+  vi.mocked(bunpro).mockImplementation(async (query, options) => query === "action=connection" ? { connected: true } : options?.method === "POST" ? {} : { review_session_id: 1, pending_attempt: [item, next], pending_wrapup: [] });
+  setup(<BunproReviews initialMode="grammar" />);
+  const input = await screen.findByLabelText("Your answer");
+  const word = await screen.findByRole("button", { name: "Furigana for 私" });
+  fireEvent.change(input, { target: { value: "です" } });
+  fireEvent.keyDown(word, { key: "Enter" });
+  expect(word).toHaveAttribute("aria-pressed", "true");
+  expect(input).toHaveValue("です");
+  expect(screen.getByRole("button", { name: "Check" })).toBeVisible();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Next" })); });
+  await waitFor(() => expect(screen.getByRole("progressbar", { name: "Review progress" })).toHaveAttribute("aria-valuenow", "1"));
+  expect(screen.getByRole("button", { name: "Furigana for 私" })).toHaveAttribute("aria-pressed", "false");
+});
 it.each([
   ["____犬(いぬ)は、____人(ひと)のです。", 2],
   ["＿＿犬(いぬ)は、＿＿人(ひと)のです。", 2],
@@ -1032,4 +1050,28 @@ it.each(["ちあん", "です"])("shows finalized kana after checking a Bunpro a
   fireEvent.click(screen.getByRole("button", { name: "Check" }));
   expect(input).toHaveValue("ちあん");
   expect(screen.getByText(expected === "ちあん" ? "Correct" : "Incorrect", { exact: true })).toBeVisible();
+});
+
+it("automatically opens Bunpro details on wrong answers even when pause-on-wrong is off", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnWrong: false, showDetailsOnWrongAnswer: true } });
+  await start();
+  vi.mocked(bunpro).mockResolvedValueOnce({ data: { id: "20", attributes: { title: "です", meaning: "To be" } }, included: [] });
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "ちがう" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Hide Info/ }));
+  expect(screen.getByRole("button", { name: /^(Next|Next Question)$/ })).toBeEnabled();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+});
+
+it("waits with Bunpro details after an Anki answer is marked wrong when enabled", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "both", pauseOnWrong: false, showDetailsOnWrongAnswer: true } });
+  setup();
+  fireEvent.click(await screen.findByRole("button", { name: "Start reviews" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+  vi.mocked(bunpro).mockResolvedValueOnce({ data: { id: "20", attributes: { title: "です", meaning: "To be" } }, included: [] });
+  fireEvent.click(screen.getByRole("button", { name: "Wrong" }));
+  expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
 });

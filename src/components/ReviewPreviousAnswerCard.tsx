@@ -52,8 +52,8 @@ export function ReviewPreviousAnswerCard({ answer }: { answer: MixedReviewAnswer
   </Animated.View>;
 }
 const styles = StyleSheet.create({
-  position: { position: "absolute", top: 110, left: -20, width: 180, zIndex: 30 },
-  card: { paddingHorizontal: 12, height: 65, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  position: { position: "absolute", top: 110, left: 0, alignItems: "flex-start", zIndex: 30 },
+  card: { minWidth: 80, maxWidth: 200, paddingHorizontal: 12, height: 65, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   title: { fontSize: 24, fontWeight: "600", textAlign: "center", flexShrink: 1 },
   statusIndicator: { position: "absolute", top: -10, right: -10, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
 });
