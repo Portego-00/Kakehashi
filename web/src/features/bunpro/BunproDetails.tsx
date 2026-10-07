@@ -2,7 +2,7 @@
 import { stripFuriganaAndTags } from "../../../../src/utils/japaneseHtmlNormalization";
 import type { BunproLearnContentItem } from "../../../../src/types/bunpro";
 import dynamic from "next/dynamic";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { bunpro } from "./client";
@@ -11,6 +11,7 @@ import { sanitizeText, type BunproReviewableDetailsResponse } from "./model";
 import { BunproExample, ExampleAudioProvider } from "./BunproExample";
 import { DictionaryDefinition, VocabPronunciation, ReviewProgress } from "./BunproDetailPanels";
 import { BunproCoverage } from "./BunproCoverage";
+import { BunproDetailNavigation } from "./BunproDetailNavigation";
 import { BunproLoading } from "./BunproLoading";
 import { KaijugationPractice } from "./KaijugationPractice";
 import styles from "./bunpro.module.css";
@@ -21,6 +22,7 @@ const BunproContext = dynamic(() => import("./BunproContext").then((module) => m
 
 export function BunproDetails({ kind, slug, content, review, deckId }: { kind: "grammar" | "vocab"; slug: string; content?: BunproLearnContentItem; review?: Record<string, unknown>; deckId?: number }) {
   const id = useId();
+  const heroRef = useRef<HTMLElement>(null);
   const [tab, setTab] = useState("Details");
   const [polite, setPolite] = useState(false);
   const [showSentence, setShowSentence] = useState(true);
@@ -40,8 +42,10 @@ export function BunproDetails({ kind, slug, content, review, deckId }: { kind: "
   const tabs = kind === "vocab" ? ["Details", "Examples", "Context"] : ["Details", "Examples"];
   const Heading = content ? "h1" : "h2";
   return <section className={styles.details} aria-label="Bunpro item details">
-    <header className={styles.detailHeader}><div><Heading lang="ja"><BunproText value={attributes.title} /></Heading><p lang="ja"><BunproText value={attributes.furigana || attributes.kana} /></p><div><BunproText value={attributes.meaning} /></div></div><span>{kind === "grammar" ? "Grammar" : "Vocabulary"} · {sanitizeText(attributes.level || attributes.jlpt_level)}</span></header>
+    <header ref={heroRef} className={styles.detailHeader}><div><Heading lang="ja"><BunproText value={attributes.title} /></Heading><p lang="ja"><BunproText value={attributes.furigana || attributes.kana} /></p><div><BunproText value={attributes.meaning} /></div></div><span>{kind === "grammar" ? "Grammar" : "Vocabulary"} · {sanitizeText(attributes.level || attributes.jlpt_level)}</span></header>
+    <BunproDetailNavigation heroRef={heroRef} title={stripFuriganaAndTags(typeof attributes.title === "string" ? attributes.title : "")} meaning={sanitizeText(attributes.meaning)}>
     <div className={styles.tabs} role="tablist" aria-label="Bunpro details">{tabs.map((label) => <button key={label} id={`${id}-tab-${label}`} type="button" role="tab" aria-selected={tab === label} aria-controls={`${id}-panel`} tabIndex={tab === label ? 0 : -1} onClick={() => setTab(label)} onKeyDown={(event) => { if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); const next = tabs[(tabs.indexOf(tab) + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length]; setTab(next); document.getElementById(`${id}-tab-${next}`)?.focus(); } }}>{label}</button>)}</div>
+    </BunproDetailNavigation>
     <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${tab}`} className={styles.detailContent} data-details-tab={tab === "Details"}><ExampleAudioProvider key={tab}>
       {tab === "Details" ? <>
         <ReviewProgress review={progress} kind={kind} />
@@ -55,7 +59,7 @@ export function BunproDetails({ kind, slug, content, review, deckId }: { kind: "
         {vocabulary.length ? <BunproCoverage key={`${kind}:${slug}`} vocabulary={vocabulary} deckId={deckId} /> : null}
         {attributes.rare_kanji_warning ? <p><BunproText value={attributes.rare_kanji_warning} /></p> : null}
       </> : null}
-      {tab === "Examples" ? <><div className={styles.exampleControls}><button type="button" aria-pressed={showSentence} onClick={() => setShowSentence(!showSentence)}>Sentence</button><button type="button" aria-pressed={showTranslation} onClick={() => setShowTranslation(!showTranslation)}>Translation</button></div>{examples.length ? examples.map((item) => <BunproExample key={item.id} attributes={item.attributes} title={title} grammarId={grammarId} showSentence={showSentence} showTranslation={showTranslation} />) : <p>No example sentences available.</p>}</> : null}
+      {tab === "Examples" ? <><div className={styles.exampleControls}><button type="button" aria-pressed={showSentence} onClick={() => setShowSentence(!showSentence)}>Sentence</button><button type="button" aria-pressed={showTranslation} onClick={() => setShowTranslation(!showTranslation)}>Translation</button></div>{examples.length ? <div className={styles.exampleList}>{examples.map((item) => <BunproExample key={item.id} attributes={item.attributes} title={title} grammarId={grammarId} showSentence={showSentence} showTranslation={showTranslation} />)}</div> : <p>No example sentences available.</p>}</> : null}
 
       {tab === "Context" && kind === "vocab" ? <BunproContext key={slug} query={stripFuriganaAndTags(typeof attributes.title === "string" ? attributes.title : "")} /> : null}
     </ExampleAudioProvider></div>
@@ -67,6 +71,6 @@ function Writeup({ value, examples, title, grammarId }: { value: unknown; exampl
   return <>{blocks.map((block, index) => {
     if (!/writeup-examples--holder/.test(block)) return <BunproText key={index} value={block} grammarId={grammarId} />;
     const ids = [...block.matchAll(/data-study-question=['"](\d+)['"]/gi)].map((match) => match[1]);
-    return <div key={index}>{ids.flatMap((id) => { const example = examples.find((item) => item.id === id); return example ? [<BunproExample key={id} attributes={example.attributes} title={title} grammarId={grammarId} />] : []; })}</div>;
+    return <div className={styles.exampleList} key={index}>{ids.flatMap((id) => { const example = examples.find((item) => item.id === id); return example ? [<BunproExample key={id} attributes={example.attributes} title={title} grammarId={grammarId} />] : []; })}</div>;
   })}</>;
 }

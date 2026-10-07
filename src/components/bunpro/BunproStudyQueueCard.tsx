@@ -11,6 +11,7 @@ type BunproStudyQueueCardProps = {
   softText: string;
   learnGoal: number;
   learnedTodayCount: number;
+  extraLearnedCount?: number;
   nextLessonBatchCount: number;
   remainingLessons: number;
   availableReviews: number;
@@ -28,11 +29,13 @@ function LessonProgressSegments({
   current,
   activeColor,
   inactiveColor,
+  extra = 0,
 }: {
   total: number;
   current: number;
   activeColor: string;
   inactiveColor: string;
+  extra?: number;
 }) {
   if (total <= 0) {
     return null;
@@ -46,9 +49,10 @@ function LessonProgressSegments({
       {Array.from({ length: segmentCount }).map((_, index) => (
         <View
           key={`lesson-progress-${index}`}
+          testID={index < filledSegments && index >= (current - extra) / Math.max(1, total) * segmentCount ? "bunpro-extra-lesson-segment" : undefined}
           style={[
             styles.lessonProgressSegment,
-            { backgroundColor: index < filledSegments ? activeColor : inactiveColor },
+            { backgroundColor: index < filledSegments ? extra > 0 && index >= (current - extra) / Math.max(1, total) * segmentCount ? "#ff9e00" : activeColor : inactiveColor },
           ]}
         />
       ))}
@@ -64,6 +68,7 @@ export default function BunproStudyQueueCard({
   softText,
   learnGoal,
   learnedTodayCount,
+  extraLearnedCount = 0,
   nextLessonBatchCount,
   remainingLessons,
   availableReviews,
@@ -79,9 +84,9 @@ export default function BunproStudyQueueCard({
 
   const learnProgressLabel =
     learnGoal > 0 ? `${learnedTodayCount}/${learnGoal}` : learnedTodayCount.toLocaleString();
-  const canStartLessons = Boolean(onPressLearn) && remainingLessons > 0;
+  const canStartLessons = Boolean(onPressLearn) && (nextLessonBatchCount > 0 || remainingLessons > 0);
   const learnSubtitle =
-    remainingLessons > 0
+    nextLessonBatchCount > 0
       ? `Next batch: ${nextLessonBatchCount.toLocaleString()}`
       : learnGoal > 0
         ? "Daily Goal Complete"
@@ -123,6 +128,7 @@ export default function BunproStudyQueueCard({
             <LessonProgressSegments
               total={learnGoal}
               current={learnedTodayCount}
+              extra={extraLearnedCount}
               activeColor={learnTextColor}
               inactiveColor={learnProgressInactiveColor}
             />

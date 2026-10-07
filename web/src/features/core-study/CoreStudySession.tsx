@@ -584,6 +584,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
   const reportMixedProgress = useEffectEvent(() => mixed?.reportProgress?.({ completed: completedItems, total: totalItems }));
   useEffect(() => { reportMixedProgress(); }, [completedItems, totalItems]);
   const currentUsesSelfAssessment = Boolean(current && usesSelfAssessment(current.kind, preferences));
+  const initialDetailsTab = currentUsesSelfAssessment && groupedSelfAssessment ? preferences.ankiCombinedDetailsTab : current?.kind ?? "meaning";
   const reviewViewportRef = useMobileReviewViewport<HTMLDivElement>(mixed?.active !== false && phase === "quiz" && !currentUsesSelfAssessment);
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status) || Boolean(currentUsesSelfAssessment && ankiRevealed);
   const answerStopped = Boolean(feedback && feedback.status !== "blocked" && shouldPauseAfterResult(feedback.status, preferences));
@@ -1163,7 +1164,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
           {mixed ? (mixed.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} claimAnimation={mixed.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null) : previousAnswerItem ? <Link key={`${previousAnswerItem.subject.id}:${previousAnswerItem.kind}`} className={quiz.previousSubjectLink} target="_blank" rel="noopener noreferrer" data-type={previousAnswerItem.subject.object} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={quiz.previousSubjectCharacter} imageSize="1em" /><span className={quiz.previousSubjectStatus} data-correct={previousAnswerItem.isCorrect} aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
       <header className={quiz.questionCard} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
         {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}
-          <h2 style={{ fontSize: reviewCharacterSize }}><SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} data-jitai-font={jitaiFamily && current.subject.data.characters ? true : undefined} style={{ fontSize: "inherit", fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties} eager /></h2>
+          <h2 style={{ fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize } as React.CSSProperties}><SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} data-jitai-font={jitaiFamily && current.subject.data.characters ? true : undefined} style={{ fontSize: "inherit", fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties} eager /></h2>
           <VocabularyFrequencyBadge subject={current.subject} enabled={preferences.showVocabularyFrequency} />
           {showContextHint ? <div className={quiz.reviewContextHint}>
             <div className={styles.contextHintContent}>{contextSentences.map((sentence, index) => <div className={styles.contextHintSentenceGroup} key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <p>• {sentence.en}</p> : null}</div>)}</div>
@@ -1281,7 +1282,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
               <Link className={quiz.itemDetailsLink} href={`/subjects/${current.subject.id}`} target="_blank" rel="noopener noreferrer">Open full subject<ExternalLink size={15} aria-hidden /></Link>
             </header>
             <SubjectDetailPanels
-              key={`${current.id}:${current.kind}`}
+              key={`${current.id}:${current.kind}:${initialDetailsTab}`}
               record={current.subject}
               assignment={current.assignment}
               reviewStatistic={detailStatistic.data?.[0]}
@@ -1296,7 +1297,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed }: { mode: M
               immersionFailed={detailImmersion.isError}
               settings={detailSettings}
               returnTo={mode === "reviews" ? "/reviews" : "/lessons"}
-              initialTab={current.kind}
+              initialTab={initialDetailsTab}
               idPrefix="study-subject"
               embedded
             />

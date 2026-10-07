@@ -161,7 +161,7 @@ const REVIEW_WRAP_UP_TARGET_SUBJECTS_MIN = 5;
 const REVIEW_WRAP_UP_TARGET_SUBJECTS_MAX = 20;
 const REVIEW_WRAP_UP_TARGET_SUBJECTS_STEP = 5;
 export const DEFAULT_REVIEW_CHARACTER_FONT_SCALE = 1;
-export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.7;
+export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.3;
 export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 export const DEFAULT_REVIEW_INPUT_FONT_SCALE = 1;
@@ -169,7 +169,7 @@ export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 22;
+const SETTINGS_STORE_SCHEMA_VERSION = 23;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -546,6 +546,7 @@ type SettingsState = {
   reviewBatchSize: number; // Number of items per review session when enabled (5-100, step 5)
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
+  bunproHideFurigana: boolean;
   reviewCharacterFontScale: number; // Scale for the large Japanese prompt during reviews
   reviewInputFontScale: number; // Scale for answer text entered during reviews
   backToBackImmediateRetryIncorrect: boolean; // In back-to-back mode, immediately re-ask incorrect questions (legacy behavior)
@@ -742,6 +743,7 @@ type SettingsState = {
   setReviewBatchSize: (size: number) => void;
   setReviewWrapUpTargetSubjects: (target: number) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
+  setBunproHideFurigana: (hidden: boolean) => void;
   setReviewCharacterFontScale: (scale: number) => void;
   setReviewInputFontScale: (scale: number) => void;
   setBackToBackImmediateRetryIncorrect: (enabled: boolean) => void;
@@ -918,6 +920,7 @@ export const useSettingsStore = create<SettingsState>()(
       reviewBatchSize: 50, // Default batch size when enabled
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
+      bunproHideFurigana: false,
       reviewCharacterFontScale: DEFAULT_REVIEW_CHARACTER_FONT_SCALE, // Default to the current prompt size
       reviewInputFontScale: DEFAULT_REVIEW_INPUT_FONT_SCALE, // Default to the current answer input size
       backToBackImmediateRetryIncorrect: false, // Default to disabled - keep delayed boundary-safe requeue
@@ -1136,6 +1139,7 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       setReviewSearchButtonEnabled: (enabled) =>
         set({ reviewSearchButtonEnabled: enabled }),
+      setBunproHideFurigana: (hidden) => set({ bunproHideFurigana: hidden }),
       setReviewCharacterFontScale: (scale) =>
         set({
           reviewCharacterFontScale: normalizeReviewCharacterFontScale(scale),
@@ -1577,6 +1581,9 @@ export const useSettingsStore = create<SettingsState>()(
           normalizeReviewCharacterFontScale(
             migratedRecord.reviewCharacterFontScale
           );
+        if (typeof migratedRecord.bunproHideFurigana !== "boolean") {
+          migratedRecord.bunproHideFurigana = false;
+        }
         migratedRecord.reviewInputFontScale = normalizeReviewInputFontScale(
           migratedRecord.reviewInputFontScale
         );

@@ -156,3 +156,74 @@ test("matches Bunpro structure formatting, retains example notes, and links supp
   await expect(page.getByRole("heading", { name: "猫", exact: true })).toBeVisible();
   await expect(practice).toHaveCount(0);
 });
+
+
+for (const screen of ["details", "reviews", "lessons"] as const) {
+  test(`compact Bunpro examples and sticky identity/tabs in ${screen}`, async ({ page }, testInfo) => {
+    await page.context().addCookies([
+      { name: "kakehashi_wk_session", value: seal("mixed-layout-test-token"), url: "http://127.0.0.1:3101" },
+      { name: "kakehashi_bunpro", value: seal(JSON.stringify({ owner: "1", token: "bunpro-layout-test-token" })), url: "http://127.0.0.1:3101" },
+    ]);
+    const longGrammar = { ...grammar, included: [
+      ...grammar.included.filter(item => item.type !== "study_question"),
+      ...Array.from({ length: 18 }, (_, i) => ({ ...grammar.included[1 + i % 3], id: String(183777 + i) })),
+    ] };
+    await page.route("**/api/session/wanikani", route => route.fulfill({ json: { user: { id: 1, object: "user", data: { username: "Portego", level: 2, preferences: {}, subscription: { active: true, max_level_granted: 60 } } } } }));
+    await page.route("**/api/wanikani/**", route => route.fulfill({ json: { object: "collection", pages: { next_url: null }, data: [] } }));
+    await page.route(/\/api\/bunpro(?:\?.*)?$/, route => {
+      const action = new URL(route.request().url()).searchParams.get("action");
+      const json = action === "details" ? longGrammar
+        : action === "lesson-queue" ? { data: [{ id: "1", attributes: { deck_id: 1, daily_goal: 2, batch_size: 2 } }], included: [{ id: "1", attributes: { title: "N5 Grammar", grammar_count: 100 } }] }
+        : action === "learn" ? { content: [longGrammar] }
+        : action === "queue" ? { review_session_id: 1, pending_wrapup: [], total_pending_attempt_count: 1, pending_attempt: [{
+          data: { id: "10", type: "review", attributes: { id: 10, ghost_count: 0, reviewable_id: 416, reviewable_type: "GrammarPoint" }, relationships: { study_question: { data: { id: "30", type: "study_question" } }, reviewable: { data: { id: "416", type: "grammar_point" } } } },
+          included: [{ id: "30", type: "study_question", attributes: { content: "食（た）べ____寝（ね）る。", answer: "て", translation: "Eat, then sleep." } }, longGrammar.data],
+        }] } : { connected: true };
+      return route.fulfill({ json });
+    });
+    await page.goto(screen === "details" ? "/bunpro/grammar/verb-て" : screen === "lessons" ? "/bunpro-lessons?deck=1" : "/bunpro-reviews?mode=grammar");
+    if (screen === "reviews") {
+      await page.getByLabel("Your answer").fill("て");
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await page.getByRole("button", { name: /^Info/ }).click();
+    }
+    const details = page.getByRole("region", { name: "Bunpro item details" });
+    await expect(details.getByRole("heading", { name: "Verb + て", exact: true })).toBeVisible();
+    const tabs = details.getByRole("tablist", { name: "Bunpro details" });
+    await tabs.getByRole("tab", { name: "Examples", exact: true }).click();
+    const examples = details.locator("article");
+    await expect(examples).toHaveCount(18);
+    const spacing = await examples.evaluateAll(items => {
+      const first = items[0].getBoundingClientRect();
+      const second = items[1].getBoundingClientRect();
+      return { gap: second.top - first.bottom, padding: parseFloat(getComputedStyle(items[0]).paddingTop) };
+    });
+    expect(spacing.gap).toBeGreaterThanOrEqual(0);
+    expect(spacing.gap).toBeLessThanOrEqual(12);
+    expect(spacing.padding).toBeLessThanOrEqual(16);
+    if (screen === "reviews") {
+      // Tab changes can resize the animated disclosure. Scroll after it settles.
+      await expect.poll(() => details.evaluate(element => {
+        const disclosure = element.closest<HTMLElement>("[data-review-details-reveal]")!;
+        return Math.abs(disclosure.getBoundingClientRect().height - disclosure.firstElementChild!.getBoundingClientRect().height);
+      })).toBeLessThan(1);
+    }
+    // Scroll well past the hero; the identity must sit above the pinned tabs.
+    await examples.nth(6).scrollIntoViewIfNeeded();
+    const identity = details.getByRole("button", { name: "Back to Verb + て", exact: true });
+    await expect(identity).toBeVisible();
+    const before = (await tabs.boundingBox())!;
+    const subject = (await identity.boundingBox())!;
+    const appHeaderBottom = await page.locator("[data-app-header]").evaluateAll(items => items[0]?.getBoundingClientRect().bottom ?? 0);
+    expect(subject.y).toBeGreaterThanOrEqual(Math.max(0, appHeaderBottom) - 1);
+    expect(Math.abs(subject.y + subject.height - before.y)).toBeLessThanOrEqual(1);
+    await page.evaluate(() => window.scrollBy(0, 150));
+    await expect.poll(async () => (await tabs.boundingBox())!.y).toBeCloseTo(before.y, 0);
+    await expect(identity).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`sticky-${screen}.png`) });
+    await tabs.getByRole("tab", { name: "Details", exact: true }).click();
+    await expect(tabs.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(details.getByRole("tabpanel")).toHaveAttribute("data-details-tab", "true");
+  });
+}

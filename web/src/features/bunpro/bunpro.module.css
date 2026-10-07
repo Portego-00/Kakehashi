@@ -25,7 +25,7 @@
 .detailHeader { align-items: start; padding-bottom: var(--space-lg); }
 .detailHeader :is(h1, h2) { font-size: var(--text-2xl); }
 .detailHeader > span { color: var(--color-muted); }
-.tabs { display: flex; position: sticky; top: 0; background: var(--color-paper); border-bottom: 1px solid var(--color-rule); z-index: 2; }
+.tabs { display: flex; background: var(--color-paper); border-bottom: 1px solid var(--color-rule); z-index: 2; }
 .tabs button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; flex: 1; min-height: 3rem; border-bottom: 2px solid transparent; }
 .tabs button[aria-selected="true"] { border-bottom-color: var(--color-ink); font-weight: 650; }
 .detailContent { display: grid; gap: var(--space-lg); padding-block: var(--space-lg); line-height: 1.8; overflow-wrap: anywhere; }
@@ -113,7 +113,7 @@
 .detailHeader :is(h1, h2) { color: var(--bp-accent); font-size: clamp(2.2rem, 4.6vw, 4.5rem); line-height: 1.2; font-weight: 700; margin-bottom: 8px; }
 .detailHeader > div > div { font-size: clamp(1.2rem, 2vw, 1.7rem); }
 .detailHeader > span { display: block; font-size: 13px; margin-top: 14px; }
-.tabs { position: sticky; top: 0; background: var(--bp-header); padding-inline: 15%; border-bottom: 1px solid var(--bp-rule); }
+.tabs { background: var(--bp-header); padding-inline: 15%; border-bottom: 1px solid var(--bp-rule); }
 .tabs button { color: #777; min-height: 48px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; }
 .tabs button[aria-selected="true"] { color: var(--bp-ink); background: var(--bp-background); border-color: var(--bp-rule); margin-bottom: -1px; }
 .detailContent { max-width: 1200px; margin: auto; padding: 32px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; line-height: 1.65; }
@@ -138,7 +138,7 @@
 .structureToggle { display: flex; padding: 4px; background: var(--bp-header); border-radius: 9px; }
 .structureToggle button { border: 0; border-radius: 7px; color: #777; background: transparent; padding: 3px 12px; font: inherit; cursor: pointer; }
 .structureToggle button[aria-pressed="true"] { background: var(--bp-accent); color: white; }
-.example { background: var(--bp-header); border: 0; border-radius: 8px; padding: 24px; text-align: center; margin-block: 16px; }
+.example { background: var(--bp-header); border: 0; border-radius: 8px; padding: 16px; text-align: center; margin: 0; }
 .lessonPage { min-height: 100vh; background: #f0f0f0; padding-bottom: 110px; }
 .lessonHeader { max-width: 1200px; margin: auto; padding: 30px 32px 0; display: flex; gap: 20px; align-items: center; color: #454545; }
 .lessonHeader p { font-size: 14px; color: #888; }
@@ -178,7 +178,7 @@
 .exampleControls button[aria-pressed="false"] { opacity: .6; }
 .example [hidden] { display: none; }
 
-.example { display: grid; grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 18px; padding: 24px 26px; margin-block: 18px; border: 0; background: var(--bp-header); text-align: center; }
+.example { display: grid; grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 18px; padding: 16px 20px; margin: 0; border: 0; background: var(--bp-header); text-align: center; }
 .exampleText { min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 16px; line-height: 1.6; }
 .exampleText > [lang="ja"] { font-size: 23px; line-height: 1.8; }
 .exampleText > :not([lang="ja"]) :is(strong, b) { color: var(--bp-accent); font-weight: inherit; }
@@ -223,7 +223,7 @@
 .loadingInput .skeleton:first-child { height: 24px; width: 65%; margin: auto; }
 @keyframes bunpro-loading { to { transform: translateX(100%); } }
 @media (max-width: 700px) {
-  .example { grid-template-columns: 26px minmax(0, 1fr) 24px; gap: 10px; padding: 18px 12px; }
+  .example { grid-template-columns: 26px minmax(0, 1fr) 24px; gap: 10px; padding: 12px; }
   .exampleText { font-size: 14px; }
   .exampleText > [lang="ja"] { font-size: 19px; }
   .loadingPanels { grid-template-columns: 1fr; padding: 18px; }
@@ -338,3 +338,18 @@
 .closeFeedback { display: grid; gap: 6px; color: var(--color-ink); }
 .closeFeedback > strong { display: flex; align-items: center; gap: 8px; font-size: var(--text-base); font-weight: 600; }
 .closeFeedback > p { margin: 0; color: var(--color-muted); }
+
+/* The identity sits above the sticky tabs without changing the page height. */
+.detailNavigation { --bunpro-identity-height: 3.5rem; position: sticky; top: calc(var(--bunpro-sticky-top, 0px) + var(--bunpro-identity-height)); z-index: 10; background: var(--bp-header); }
+.detailIdentity { position: absolute; inset-inline: 0; bottom: 100%; height: var(--bunpro-identity-height); background: var(--bp-header); border-bottom: 1px solid var(--bp-rule); visibility: hidden; }
+.detailNavigation[data-stuck="true"] .detailIdentity { visibility: visible; }
+.detailIdentity button { width: min(100%, 1200px); height: 100%; margin-inline: auto; display: flex; align-items: center; gap: 16px; padding: 8px 32px; border: 0; background: transparent; color: var(--bp-ink); font: inherit; text-align: left; cursor: pointer; }
+.detailIdentity strong { flex: 0 1 auto; min-width: 0; color: var(--bp-accent); font-size: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detailIdentity span { min-width: 0; color: var(--bp-ink); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detailIdentity button:focus-visible { outline: 2px solid var(--bp-accent); outline-offset: -3px; }
+.exampleList { display: grid; gap: 8px; }
+@media (max-width: 700px) {
+  .detailIdentity button { padding-inline: 18px; gap: 10px; }
+  .detailIdentity strong { font-size: 18px; }
+  .detailIdentity span { font-size: 12px; }
+}

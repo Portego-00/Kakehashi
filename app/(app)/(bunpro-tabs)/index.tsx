@@ -34,7 +34,7 @@ import {
   saveBunproApiToken,
   validateBunproApiToken,
 } from "../../../src/utils/bunproApi";
-import { summarizeBunproQueue } from "../../../src/utils/bunproQueue";
+import { getBunproLessonBatchSize, getBunproQueueProgress, selectBunproLessonDeck, summarizeBunproQueue } from "../../../src/utils/bunproQueue";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import { isPortegoUsername } from "../../../src/utils/portegoAccess";
 import { useAuthStore } from "../../../src/utils/store";
@@ -777,6 +777,9 @@ export default function BunproTab() {
   const queueSummary = useMemo(() => {
     return summarizeBunproQueue(dashboardData?.queue);
   }, [dashboardData?.queue]);
+  const nextLessonDeck = selectBunproLessonDeck(queueSummary);
+  const nextLessonBatchCount = getBunproLessonBatchSize(nextLessonDeck);
+  const lessonProgress = getBunproQueueProgress(queueSummary);
 
   const availableReviews = useMemo(() => {
     const dueTotal =
@@ -819,9 +822,9 @@ export default function BunproTab() {
   const openBunproLessons = useCallback(() => {
     router.push({
       pathname: "/bunpro-lessons",
-      params: queueSummary.next?.deckId ? { deckId: String(queueSummary.next.deckId) } : {},
+      params: nextLessonDeck?.deckId ? { deckId: String(nextLessonDeck.deckId) } : {},
     });
-  }, [queueSummary.next?.deckId]);
+  }, [nextLessonDeck?.deckId]);
   const headerIconColor = theme.isDark ? theme.headerText : "#000000";
 
   if (!isPortegoUser) {
@@ -949,9 +952,10 @@ export default function BunproTab() {
               accent={accent}
               accentSoft={accentSoft}
               softText={softText}
-              learnGoal={queueSummary.overall.dailyGoal}
-              learnedTodayCount={queueSummary.overall.done}
-              nextLessonBatchCount={queueSummary.overall.nextBatch}
+              learnGoal={lessonProgress.goal}
+              learnedTodayCount={lessonProgress.done}
+              extraLearnedCount={lessonProgress.extra}
+              nextLessonBatchCount={nextLessonBatchCount}
               remainingLessons={queueSummary.overall.remaining}
               availableReviews={availableReviews}
               dueTomorrow={dueTomorrow}

@@ -34,7 +34,7 @@ export type ReviewOrderSetting =
 export type ReviewTypeOrderSetting = "radical" | "kanji" | "vocabulary";
 export type ReaderDetailsInteraction = "click" | "hover";
 export type ReaderRecognitionMode = "wk" | "wk-jpdb";
-export const REVIEW_CHARACTER_FONT_SCALES: readonly number[] = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.4];
+export const REVIEW_CHARACTER_FONT_SCALES: readonly number[] = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.4];
 export const REVIEW_ORDER_VALUES = [
   "random",
   "ascendingSrsStage",
@@ -101,6 +101,7 @@ export interface WebStudyPreferences {
   ankiMode: AnkiMode;
   ankiHideAnswerCompletely: boolean;
   ankiGroupQuestions: boolean;
+  ankiCombinedDetailsTab: "meaning" | "reading" | "stroke";
   studyShortcuts: StudyShortcuts;
   ankiShowOtherAcceptedAnswersAndUserSynonyms: boolean;
   ankiShowWaniKaniGrammarTags: boolean;
@@ -372,6 +373,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     ankiMode: "off",
     ankiHideAnswerCompletely: false,
     ankiGroupQuestions: false,
+    ankiCombinedDetailsTab: "meaning",
     studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
     ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
     ankiShowWaniKaniGrammarTags: false,
@@ -597,6 +599,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
         ankiHideAnswerCompletely: typeof parsed.study?.ankiHideAnswerCompletely === "boolean" ? parsed.study.ankiHideAnswerCompletely : DEFAULT_WEB_SETTINGS.study.ankiHideAnswerCompletely,
         ankiGroupQuestions: typeof parsed.study?.ankiGroupQuestions === "boolean" ? parsed.study.ankiGroupQuestions : DEFAULT_WEB_SETTINGS.study.ankiGroupQuestions,
+        ankiCombinedDetailsTab: ["meaning", "reading", "stroke"].includes(parsed.study?.ankiCombinedDetailsTab ?? "") ? parsed.study!.ankiCombinedDetailsTab : DEFAULT_WEB_SETTINGS.study.ankiCombinedDetailsTab,
         studyShortcuts: normalizeStudyShortcuts(parsed.study?.studyShortcuts),
         ankiShowOtherAcceptedAnswersAndUserSynonyms: typeof parsed.study?.ankiShowOtherAcceptedAnswersAndUserSynonyms === "boolean" ? parsed.study.ankiShowOtherAcceptedAnswersAndUserSynonyms : DEFAULT_WEB_SETTINGS.study.ankiShowOtherAcceptedAnswersAndUserSynonyms,
         ankiShowWaniKaniGrammarTags: typeof parsed.study?.ankiShowWaniKaniGrammarTags === "boolean" ? parsed.study.ankiShowWaniKaniGrammarTags : DEFAULT_WEB_SETTINGS.study.ankiShowWaniKaniGrammarTags,

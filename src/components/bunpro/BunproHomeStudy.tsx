@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useBunproDashboard } from "../../hooks/useBunproDashboard";
-import { summarizeBunproQueue } from "../../utils/bunproQueue";
+import { getBunproLessonBatchSize, getBunproLessonProgress, getBunproQueueProgress, selectBunproLessonDeck, summarizeBunproQueue } from "../../utils/bunproQueue";
 import { useTheme } from "../../utils/theme";
 
 type Props = { wanikaniCount?: number; refreshKey?: number };
@@ -46,14 +46,14 @@ function DisclosureChevron({ expanded, color, size = 20 }: { expanded: boolean; 
   </Animated.View>;
 }
 
-function Goal({ done, goal, batch }: { done: number; goal: number; batch: number }) {
+function Goal({ done, goal, batch, extra = 0 }: { done: number; goal: number; batch: number; extra?: number }) {
   const segments = Math.min(Math.max(goal, 1), 20);
   return (
     <View accessibilityRole="progressbar" accessibilityLabel="Daily Bunpro lesson goal"
       accessibilityValue={{ min: 0, max: Math.max(goal, 1), now: Math.min(done, goal), text: `${done} of ${goal} learned; next batch ${batch}` }} style={styles.goal}>
       {Array.from({ length: segments }, (_, index) => {
         const position = index * Math.max(goal, 1) / segments;
-        return <View key={index} style={[styles.segment, position < done && styles.segmentDone]} />;
+        return <View key={index} testID={position < done && position >= done - extra ? "bunpro-extra-lesson-segment" : undefined} style={[styles.segment, position < done && styles.segmentDone, extra > 0 && position < done && position >= done - extra && { backgroundColor: "#ff9e00" }]} />;
       })}
     </View>
   );
@@ -70,6 +70,9 @@ export default function BunproHomeStudy({ wanikaniCount, refreshKey }: Props) {
   const [expanded, setExpanded] = useState<"learn" | "review" | null>(null);
   const [mixedOpen, setMixedOpen] = useState(false);
   const summary = useMemo(() => summarizeBunproQueue(queue), [queue]);
+  const nextDeck = selectBunproLessonDeck(summary);
+  const nextBatch = getBunproLessonBatchSize(nextDeck);
+  const progress = getBunproQueueProgress(summary);
   const accent = cardColors.review;
   const learnText = cardColors.text;
   const reviewText = cardColors.text;
@@ -99,12 +102,12 @@ export default function BunproHomeStudy({ wanikaniCount, refreshKey }: Props) {
         <>
           <View style={[styles.panel, { backgroundColor: cardColors.learn }]}>
             <View style={styles.topRow}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Start Bunpro lessons" onPress={() => startLessons(summary.next?.deckId)} style={[styles.mainAction, styles.learnAction]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Start Bunpro lessons" onPress={() => startLessons(nextDeck?.deckId)} style={[styles.mainAction, styles.learnAction]}>
                 <View style={styles.learnHeading}>
                   <Text style={[styles.actionTitle, { color: learnText }]}>Learn</Text>
-                  <Text style={styles.goalCount}>{queue ? `${summary.overall.done} / ${summary.overall.dailyGoal}` : "—"}</Text>
+                  <Text style={styles.goalCount}>{queue ? `${progress.done} / ${progress.goal}` : "—"}</Text>
                 </View>
-                <Goal done={summary.overall.done} goal={summary.overall.dailyGoal} batch={summary.overall.nextBatch} />
+                <Goal {...progress} batch={nextBatch} />
                 {!queue || summary.noDecksInQueue ? <Text style={[styles.subtitle, { color: learnText }]}>{queue ? "No decks queued" : "Loading lesson queue…"}</Text> : null}
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Choose Bunpro lesson deck" accessibilityState={{ expanded: expanded === "learn" }} onPress={() => setExpanded(current => current === "learn" ? null : "learn")} style={[styles.expand, expanded === "learn" && styles.expandOpen]}>
@@ -117,9 +120,9 @@ export default function BunproHomeStudy({ wanikaniCount, refreshKey }: Props) {
                   <Pressable key={deck.key} accessibilityRole="button" accessibilityLabel={`Learn ${deck.deckTitle}`} onPress={() => startLessons(deck.deckId)} style={styles.deck}>
                     <View style={styles.row}>
                       <Text style={[styles.deckTitle, { color: learnText }]}>{deck.deckTitle}</Text>
-                      <Text style={[styles.smallCount, { color: learnText }]}>{deck.done} / {deck.dailyGoal}</Text>
+                      <Text style={[styles.smallCount, { color: learnText }]}>{getBunproLessonProgress(deck).done} / {getBunproLessonProgress(deck).goal}</Text>
                     </View>
-                    <Goal done={deck.done} goal={deck.dailyGoal} batch={Math.min(deck.remaining, deck.batchSize || deck.remaining)} />
+                    <Goal {...getBunproLessonProgress(deck)} batch={getBunproLessonBatchSize(deck)} />
                   </Pressable>
                 ))}
                 {queue && summary.noDecksInQueue ? <Text style={[styles.empty, { color: learnText }]}>No decks in your learn queue.</Text> : null}

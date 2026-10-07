@@ -8,7 +8,7 @@ import type { BunproReviewQueueItem } from "../../types/bunpro";
 import { createBunproReviewSavePolicy } from "../../utils/bunproReviewSavePolicy";
 import type { MixedReviewBridge } from "../../types/mixedReviews";
 
-const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false, ankiCardMode: false, ankiCardModeScope: "both", ankiHideAnswerCompletely: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, ankiShowReplayAudioButton: false, ankiButtonlessMode: false, ankiGroupQuestions: false, reviewSearchButtonEnabled: false };
+const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false, ankiCardMode: false, ankiCardModeScope: "both", ankiHideAnswerCompletely: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, ankiShowReplayAudioButton: false, ankiButtonlessMode: false, ankiGroupQuestions: false, reviewSearchButtonEnabled: false, bunproHideFurigana: false, setBunproHideFurigana: jest.fn() };
 
 jest.mock("react-native-safe-area-context", () => jest.requireActual("react-native-safe-area-context/jest/mock").default);
 
@@ -64,7 +64,7 @@ function bridge(active = true): MixedReviewBridge {
   return { active, report: jest.fn(), reportError: jest.fn(), reportProgress: jest.fn(), reportAccuracy: jest.fn(), onAnswer: jest.fn(), previous: null, progress: { completed: 0, total: 2 }, accuracy: { correct: 0, answered: 0 }, onExit: jest.fn(), onWrapUp: jest.fn() };
 }
 
-beforeEach(() => { mockReviewSettings.ankiCardMode = false; mockReviewSettings.ankiCardModeScope = "both"; mockReviewSettings.ankiButtonlessMode = false;  mockReviewSettings.autoplayVocabularyAudio = false; mockReviewSettings.allowSkippingReviews = false; mockReviewSettings.vocabularyAudioVoice = "female"; mockReviewSettings.disableAutoProgressOnCorrect = true; mockReviewSettings.disableAutoProgressOnWrong = true; jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
+beforeEach(() => { mockReviewSettings.bunproHideFurigana = false; mockReviewSettings.setBunproHideFurigana.mockImplementation((hidden: boolean) => { mockReviewSettings.bunproHideFurigana = hidden; }); mockReviewSettings.ankiCardMode = false; mockReviewSettings.ankiCardModeScope = "both"; mockReviewSettings.ankiButtonlessMode = false;  mockReviewSettings.autoplayVocabularyAudio = false; mockReviewSettings.allowSkippingReviews = false; mockReviewSettings.vocabularyAudioVoice = "female"; mockReviewSettings.disableAutoProgressOnCorrect = true; mockReviewSettings.disableAutoProgressOnWrong = true; jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
 
 it("serializes saves, ignores repeated Next taps, and clears feedback and input for the next question", async () => {
   const saving = deferred<Record<string, unknown>>();
@@ -643,4 +643,32 @@ it("keeps a failed Anki grade available for retry without losing the verdict", a
   fireEvent.press(view.getByLabelText("Retry save"));
   await waitFor(() => expect(updateBunproReview).toHaveBeenCalledTimes(2));
   expect(jest.mocked(updateBunproReview).mock.calls[1][0].payload.correct).toBe(false);
+});
+
+
+it("changes the furigana setting during a review, pins individual words and resets them for the next question", async () => {
+  const queue = [item("1", "です", "GrammarPoint"), item("2", "です", "GrammarPoint")];
+  for (const review of queue) review.included![0].attributes.content = "私(わたし)は学生(がくせい)____。";
+  const view = render(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "です");
+  fireEvent.press(view.getByLabelText("Bunpro review settings"));
+  fireEvent(view.getByLabelText("Hide Bunpro furigana"), "valueChange", true);
+  expect(mockReviewSettings.setBunproHideFurigana).toHaveBeenCalledWith(true);
+  fireEvent.press(view.getByLabelText("Done with Bunpro review settings"));
+  const word = view.getByLabelText("Furigana for 私");
+  expect(StyleSheet.flatten(view.getByText("わたし", { includeHiddenElements: true }).props.style).opacity).toBe(0);
+  fireEvent(word, "hoverIn");
+  expect(StyleSheet.flatten(view.getByText("わたし", { includeHiddenElements: true }).props.style).opacity ?? 1).toBe(1);
+  fireEvent.press(word);
+  fireEvent(word, "hoverOut");
+  expect(view.getByLabelText("Furigana for 私").props.accessibilityState.selected).toBe(true);
+  expect(StyleSheet.flatten(view.getByText("わたし", { includeHiddenElements: true }).props.style).opacity ?? 1).toBe(1);
+  expect(StyleSheet.flatten(view.getByText("がくせい", { includeHiddenElements: true }).props.style).opacity).toBe(0);
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("です");
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByLabelText("Bunpro review progress").props.children).toBe("2/2"));
+  expect(view.getByLabelText("Furigana for 私").props.accessibilityState.selected).toBe(false);
+  expect(StyleSheet.flatten(view.getByText("わたし", { includeHiddenElements: true }).props.style).opacity).toBe(0);
 });

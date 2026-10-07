@@ -1953,3 +1953,28 @@ describe("in-session review settings", () => {
     expect(loadStudySession("test", "listening")?.currentIndex).toBe(1);
   });
 });
+
+it.each([
+  { grouped: true, preferred: "meaning", subjectType: "kanji", kind: "meaning", selected: "Meaning" },
+  { grouped: true, preferred: "reading", subjectType: "kanji", kind: "meaning", selected: "Reading" },
+  { grouped: true, preferred: "stroke", subjectType: "kanji", kind: "meaning", selected: "Stroke" },
+  { grouped: true, preferred: "stroke", subjectType: "vocabulary", kind: "meaning", selected: "Meaning" },
+  { grouped: false, preferred: "reading", subjectType: "kanji", kind: "meaning", selected: "Meaning" },
+  { grouped: false, preferred: "meaning", subjectType: "kanji", kind: "reading", selected: "Reading" },
+] as const)("chooses $selected details for grouped=$grouped $kind with $preferred preference", async ({ grouped, preferred, subjectType, kind, selected }) => {
+  const meaning = makeQuestion({ id: "1:meaning", subjectType, kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" });
+  const reading = makeQuestion({ id: "1:reading", subjectType, kind: "reading" });
+  const subject: Subject = { ...makeSubject(), object: subjectType };
+  renderQuiz({
+    scope: "anki-details-tab",
+    initialSession: { ...makeSession(kind === "reading" ? reading : meaning), mode: "custom-review", questions: kind === "reading" ? [reading, meaning] : [meaning, reading] },
+    subjects: [subject],
+    reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "both", ankiGroupQuestions: grouped, ankiCombinedDetailsTab: preferred },
+    subjectDetailSettings: testSubjectDetailSettings,
+    answerFeedbackSoundEnabled: false,
+    onExit: vi.fn(),
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+  fireEvent.keyDown(document.body, { key: "d" });
+  expect(await screen.findByRole("tab", { name: selected, selected: true })).toBeVisible();
+});

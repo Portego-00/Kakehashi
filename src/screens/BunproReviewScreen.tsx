@@ -36,6 +36,8 @@ import { useAuthStore, useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
 import * as Haptics from "../utils/haptics";
 import { ReviewPreviousAnswerCard } from "../components/ReviewPreviousAnswerCard";
+import { BunproRubyWord } from "../components/bunpro/bunpro-ruby-word";
+import { BunproReviewSettingsSheet } from "../components/bunpro/bunpro-review-settings-sheet";
 import * as wanakana from "wanakana";
 
 // sRGB equivalent of web/tokens.css --color-success (oklch(51% 0.14 150)).
@@ -754,9 +756,11 @@ type RubyTextProps = {
   runs: FuriganaRun[];
   baseTextStyle: any;
   readingTextStyle: any;
+  hideFurigana?: boolean;
+  questionKey?: string;
 };
 
-function RubyText({ runs, baseTextStyle, readingTextStyle }: RubyTextProps) {
+function RubyText({ runs, baseTextStyle, readingTextStyle, hideFurigana = false, questionKey = "" }: RubyTextProps) {
   if (runs.length === 0) {
     return null;
   }
@@ -764,13 +768,10 @@ function RubyText({ runs, baseTextStyle, readingTextStyle }: RubyTextProps) {
   return (
     <>
       {runs.map((run, index) => {
-        const key = `${run.kind}-${index}`;
+        const key = `${questionKey}-${hideFurigana}-${run.kind}-${index}`;
         if (run.kind === "ruby") {
           return (
-            <View key={key} style={styles.rubyContainer}>
-              <Text style={[styles.rubyReading, readingTextStyle]}>{run.reading}</Text>
-              <Text style={[styles.rubyBase, baseTextStyle]}>{run.base}</Text>
-            </View>
+            <BunproRubyWord key={key} base={run.base} reading={run.reading} hidden={hideFurigana} containerStyle={styles.rubyContainer} readingStyle={[styles.rubyReading, readingTextStyle]} baseStyle={[styles.rubyBase, baseTextStyle]} />
           );
         }
 
@@ -1212,6 +1213,8 @@ export default function BunproReviewScreen({
   const searchEnabled = useSettingsStore((state) => state.reviewSearchButtonEnabled);
   const inputScale = useSettingsStore((state) => state.reviewInputFontScale) ?? 1;
   const characterScale = useSettingsStore((state) => state.reviewCharacterFontScale) ?? 1;
+  const hideFurigana = useSettingsStore(state => state.bunproHideFurigana) ?? false;
+  const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
   const [ankiRevealed, setAnkiRevealed] = useState(false);
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string }>();
@@ -1825,12 +1828,12 @@ export default function BunproReviewScreen({
   const advanceRef = useRef(submitCurrentAnswer);
   advanceRef.current = submitCurrentAnswer;
   useEffect(() => {
-    if (selfAssessment || !pendingOutcome || !isActive || isSubmitting || saveFailure || outboxState.failure || errorMessage ||
+    if (reviewSettingsOpen || selfAssessment || !pendingOutcome || !isActive || isSubmitting || saveFailure || outboxState.failure || errorMessage ||
         (pendingOutcome.correct ? pauseOnCorrect : pauseOnWrong) || isPlayingAudio || audio.error || showAlternatives) return;
     // Match the web app: show the verdict briefly, independently of save latency.
     const timer = setTimeout(() => { void advanceRef.current(); }, 350);
     return () => clearTimeout(timer);
-  }, [selfAssessment, pendingOutcome, isActive, isSubmitting, saveFailure, outboxState.failure, errorMessage,
+  }, [reviewSettingsOpen, selfAssessment, pendingOutcome, isActive, isSubmitting, saveFailure, outboxState.failure, errorMessage,
       pauseOnCorrect, pauseOnWrong, isPlayingAudio, audio.error, showAlternatives]);
 
   const skipCurrentQuestion = () => {
@@ -2018,6 +2021,9 @@ export default function BunproReviewScreen({
         </View>
 
         <View style={styles.headerRightGroup}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Bunpro review settings" disabled={isSubmitting} style={styles.iconButton} onPress={() => { Keyboard.dismiss(); setReviewSettingsOpen(true); }}>
+            <Ionicons name="settings-outline" size={23} color={theme.textColor} />
+          </TouchableOpacity>
           {!mixed && pendingOutcome?.stageLabel && !saveFailure ? (
             <View style={styles.stageRow}>
               <Ionicons
@@ -2045,6 +2051,7 @@ export default function BunproReviewScreen({
       </View>
 
       {!mixed ? <ReviewPreviousAnswerCard answer={previousAnswer} /> : null}
+      <BunproReviewSettingsSheet visible={reviewSettingsOpen} onClose={() => setReviewSettingsOpen(false)} />
       <KeyboardAvoidingView
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -2065,6 +2072,8 @@ export default function BunproReviewScreen({
           <View style={styles.rubyLine}>
             <RubyText
               runs={beforeRuns}
+              hideFurigana={hideFurigana}
+              questionKey={occurrenceId}
               baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale }]}
               readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]}
             />
@@ -2085,6 +2094,8 @@ export default function BunproReviewScreen({
             ) : null}
             <RubyText
               runs={afterRuns}
+              hideFurigana={hideFurigana}
+              questionKey={occurrenceId}
               baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale }]}
               readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]}
             />
@@ -2095,6 +2106,8 @@ export default function BunproReviewScreen({
               <Text style={[styles.wordPromptParen, { color: mutedColor }]}>(</Text>
               <RubyText
                 runs={wordPromptRuns}
+                hideFurigana={hideFurigana}
+                questionKey={occurrenceId}
                 baseTextStyle={[styles.wordPromptBase, { color: mutedColor }]}
                 readingTextStyle={[styles.wordPromptReading, { color: mutedColor }]}
               />

@@ -69,7 +69,7 @@ function mnemonicParagraphs(value?: string): React.ReactNode[] {
 
 export type SubjectDetailTab = "meaning" | "reading" | "stroke" | "context";
 
-export type SubjectDetailInitialTab = Exclude<SubjectDetailTab, "stroke">;
+export type SubjectDetailInitialTab = SubjectDetailTab;
 
 export function SubjectDetail({ id, returnTo = "/search", presentation = "page" }: { id: number; returnTo?: string; presentation?: "page" | "panel" }) {
   const returnLabel = subjectReturnLabel(returnTo);

@@ -12,6 +12,8 @@ import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 
 export function ReviewSettingsSection() {
+  const bunproHideFurigana = useSettingsStore(state => state.bunproHideFurigana);
+  const setBunproHideFurigana = useSettingsStore(state => state.setBunproHideFurigana);
   const multipleChoiceEnabled = useSettingsStore((state) => state.reviewMultipleChoiceEnabled);
   const setMultipleChoiceEnabled = useSettingsStore((state) => state.setReviewMultipleChoiceEnabled);
   const jitaiCycleAllFonts = useSettingsStore((state) => state.jitaiCycleAllFonts);
@@ -121,6 +123,15 @@ export function ReviewSettingsSection() {
           Review Settings
         </Text>
 
+        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+          <Ionicons name="eye-off-outline" size={24} color={theme.primary} style={styles.settingIcon} />
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: theme.textColor }]}>Hide Bunpro furigana</Text>
+            <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Tap a word in Bunpro reviews to keep its reading visible. Tap again to hide it.</Text>
+          </View>
+          <Switch accessibilityLabel="Hide Bunpro furigana" value={bunproHideFurigana} onValueChange={setBunproHideFurigana} trackColor={{ false: "#767577", true: theme.primary }} thumbColor="#f4f3f4" />
+        </View>
+
         <AdvancedSettingsGroup>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
@@ -136,7 +147,7 @@ export function ReviewSettingsSection() {
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
-              Scale the Japanese font size in reviews
+              Make review characters smaller or larger without changing other text
             </Text>
           </View>
           <View style={styles.batchSizeSelector}>

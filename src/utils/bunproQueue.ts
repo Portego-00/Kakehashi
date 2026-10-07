@@ -50,6 +50,36 @@ function readNonNegativeNumber(value: unknown): number {
   return value;
 }
 
+export function selectBunproLessonDeck(summary: BunproQueueSummary, preferredDeckId?: number | null, skippedDeckIds: number[] = []) {
+  const skipped = new Set(skippedDeckIds);
+  const available = summary.queue.filter(deck => deck.deckId !== null && !deck.isFinished && !skipped.has(deck.deckId));
+  return available.find(deck => deck.deckId === preferredDeckId)
+    ?? available.find(deck => deck.remaining > 0)
+    ?? available[0]
+    ?? null;
+}
+
+export function getBunproLessonBatchSize(deck: BunproQueueDeckSummary | null) {
+  if (!deck || deck.isFinished) return 0;
+  const remaining = deck.remaining || deck.remainingItemsInDeck || deck.batchSize;
+  return Math.min(remaining, deck.batchSize || remaining, deck.remainingItemsInDeck || remaining);
+}
+
+export function getBunproLessonProgress(deck: BunproQueueDeckSummary) {
+  return {
+    done: deck.learnedTodayCount,
+    goal: Math.max(deck.dailyGoal, deck.learnedTodayCount),
+    extra: Math.max(0, deck.learnedTodayCount - readNonNegativeNumber(deck.deckSetting.attributes.daily_goal)),
+  };
+}
+
+export function getBunproQueueProgress(summary: BunproQueueSummary) {
+  return summary.queue.reduce((total, deck) => {
+    const progress = getBunproLessonProgress(deck);
+    return { done: total.done + progress.done, goal: total.goal + progress.goal, extra: total.extra + progress.extra };
+  }, { done: 0, goal: 0, extra: 0 });
+}
+
 function findDeckForSetting(
   included: BunproQueueResponse["included"],
   deckId: number

@@ -89,3 +89,31 @@ it.each(["study_question", "vocab_study_question"])("renders %s examples without
   expect(view.getByText("行かなかった")).toBeTruthy();
   expect(view.queryByText(/hidden annotation|\[\[/)).toBeNull();
 });
+
+
+it("loads a configured extra batch after the daily goal has already been reached", async () => {
+  const base = await jest.mocked(getBunproQueue).getMockImplementation()!();
+  jest.mocked(getBunproQueue).mockResolvedValue({ ...base, data: [{ ...base.data[0], attributes: { ...base.data[0].attributes, daily_goal: 4, daily_goal_count_grammar: 4, batch_size: 2 } }] });
+  jest.mocked(getBunproLearnQuiz).mockResolvedValue({ review_session_id: 42, pending_attempt: [{ data: { id: "1" } }], pending_wrapup: [] } as any);
+  const view = render(<BunproLessonScreen />);
+  await waitFor(() => expect(view.getByText("Next")).toBeTruthy());
+  fireEvent.press(view.getByText("Next"));
+  fireEvent.press(view.getByText("Start Review"));
+  await waitFor(() => expect(view.getByText("Complete quiz")).toBeTruthy());
+  expect(getBunproLearnQuiz).toHaveBeenCalledWith({ deckId: 1, reviewables: [["GrammarPoint", 1], ["GrammarPoint", 2]] });
+});
+
+it("continues on the same unfinished deck after the final daily batch", async () => {
+  const base = await jest.mocked(getBunproQueue).getMockImplementation()!();
+  jest.mocked(getBunproQueue).mockResolvedValueOnce({ ...base, data: [{ ...base.data[0], attributes: { ...base.data[0].attributes, daily_goal: 1 } }] });
+  jest.mocked(getBunproLearnQuiz).mockResolvedValue({ review_session_id: 42, pending_attempt: [{ data: { id: "1" } }], pending_wrapup: [] } as any);
+  const view = render(<BunproLessonScreen />);
+  await waitFor(() => expect(view.getByText("Start Review")).toBeTruthy());
+  fireEvent.press(view.getByText("Start Review"));
+  await waitFor(() => expect(view.getByText("Complete quiz")).toBeTruthy());
+  jest.mocked(getBunproQueue).mockResolvedValueOnce({ ...base, data: [{ ...base.data[0], attributes: { ...base.data[0].attributes, daily_goal: 1, daily_goal_count_grammar: 1, batch_size: 2 } }] });
+  jest.mocked(getBunproLearnIndex).mockResolvedValueOnce({ content: [{ data: { id: "3", type: "grammar_point", attributes: { title: "Extra lesson", meaning: "Extra", level: "N5" } } }] } as any);
+  fireEvent.press(view.getByText("Complete quiz"));
+  await waitFor(() => expect(view.getAllByText("Extra lesson").length).toBeGreaterThan(0));
+  expect(getBunproLearnIndex).toHaveBeenLastCalledWith({ deckId: 1 });
+});

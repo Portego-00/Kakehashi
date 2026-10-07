@@ -654,3 +654,40 @@ for (const viewport of [{ width: 1024, height: 768 }, { width: 390, height: 844 
     });
   }
 }
+
+for (const width of [390, 1024]) {
+  for (const preferred of ["meaning", "reading", "stroke"] as const) {
+    test(`combined Anki defaults details to ${preferred} at ${width}`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openMixedReviews(page, { ankiMode: "both", ankiGroupQuestions: true, reviewQuestionOrder: "reading-first", showDetailsOnWrongAnswer: true, pauseOnWrong: false }, false, true);
+      await page.getByRole("button", { name: "Review settings", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Review settings" });
+      const selector = dialog.getByLabel("Combined Anki details tab", { exact: true });
+      await expect(selector).toHaveValue("meaning");
+      await selector.selectOption(preferred);
+      await dialog.getByRole("button", { name: "Done", exact: true }).click();
+      await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
+      await page.getByRole("button", { name: "Wrong", exact: true }).click();
+      const details = page.locator("#study-item-details");
+      await expect(details).toBeVisible();
+      const label = preferred[0].toUpperCase() + preferred.slice(1);
+      await expect(details.getByRole("tab", { name: label, exact: true })).toHaveAttribute("aria-selected", "true");
+      // Short tabs can reach the document's scroll limit before the 96px target.
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+      await expect.poll(async () => (await details.boundingBox())!.y).toBeLessThan(300);
+      await page.screenshot({ path: testInfo.outputPath(`combined-anki-${preferred}.png`), animations: "disabled" });
+    });
+  }
+}
+
+for (const kind of ["meaning", "reading"] as const) {
+  test(`separate Anki details follow the ${kind} question despite a combined-tab preference`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openMixedReviews(page, { ankiMode: "both", ankiGroupQuestions: false, reviewQuestionOrder: kind === "reading" ? "reading-first" : "meaning-first", ankiCombinedDetailsTab: kind === "reading" ? "meaning" : "reading" });
+    await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
+    await page.keyboard.press("d");
+    const tab = page.locator("#study-item-details").getByRole("tab", { name: kind === "reading" ? "Reading" : "Meaning", exact: true });
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+}

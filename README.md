@@ -95,6 +95,15 @@ The option is off by default and works with grouped, meaning, and reading Anki
 cards. Components appear in word order, using the saved subject catalog for
 offline review; unavailable components are omitted.
 
+## Review character size
+
+Use **Settings → Review Settings → Review Character Size** on mobile, or
+**Settings → Reviews → Review character size** on the web, to shrink review
+prompts down to 30% in 10% steps. The default is 100%; answer fields and other
+app text keep their own sizes. On the web, you can also change **Question text
+size** from the review session's settings button, including on a phone with the
+keyboard open.
+
 ## Connecting Spotify
 
 The mobile app includes a personal Spotify setup guide in **Settings → Music

@@ -50,9 +50,20 @@ jest.mock("../../useSettingsController", () => ({
 jest.mock("../../SettingsControllerContext", () => ({
   useSettingsControllerContext: () => {
     const { Platform } = jest.requireActual("react-native");
-    const { useSettingsStore } = jest.requireActual<typeof import("../../../../utils/store")>("../../../../utils/store");
+    const {
+      useSettingsStore,
+      REVIEW_CHARACTER_FONT_SCALE_MIN,
+      REVIEW_CHARACTER_FONT_SCALE_MAX,
+      REVIEW_CHARACTER_FONT_SCALE_STEP,
+    } = jest.requireActual<typeof import("../../../../utils/store")>("../../../../utils/store");
+    const settings = useSettingsStore();
     return {
-      ...useSettingsStore(),
+      ...settings,
+      REVIEW_CHARACTER_FONT_SCALE_STEP,
+      canDecreaseReviewCharacterFontScale:
+        settings.reviewCharacterFontScale > REVIEW_CHARACTER_FONT_SCALE_MIN,
+      canIncreaseReviewCharacterFontScale:
+        settings.reviewCharacterFontScale < REVIEW_CHARACTER_FONT_SCALE_MAX,
       Platform,
       theme: {
         cardBackground: "#ffffff",
@@ -61,7 +72,7 @@ jest.mock("../../SettingsControllerContext", () => ({
         primary: "#326ac0",
         border: "#dddddd",
       },
-      formatReviewFontScale: (scale: number) => `${scale * 100}%`,
+      formatReviewFontScale: (scale: number) => `${Math.round(scale * 100)}%`,
       getReviewOrderLabel: (order: string) => order,
       getSrsProgressionCardModeLabel: (mode: string) => mode,
       updateSectionOffset: jest.fn(),
@@ -152,3 +163,32 @@ it.each([20, useSettingsStore.persist.getOptions().version])(
     });
   },
 );
+
+it("shrinks review characters to 30% from the basic settings without changing other text", () => {
+  useSettingsStore.setState({ appTextSizeScale: 1.15, reviewInputFontScale: 1.1 });
+  const screen = render(<ReviewSettingsSection />);
+  const decrease = () => screen.getByLabelText("Decrease review character size");
+  expect(screen.getByText("100%")).toBeTruthy();
+  for (const percentage of [90, 80, 70, 60, 50, 40, 30]) {
+    fireEvent.press(decrease());
+    expect(screen.getByText(`${percentage}%`)).toBeTruthy();
+  }
+  expect(decrease().props.accessibilityState.disabled).toBe(true);
+  expect(useSettingsStore.getState()).toMatchObject({
+    reviewCharacterFontScale: 0.3,
+    appTextSizeScale: 1.15,
+    reviewInputFontScale: 1.1,
+  });
+  fireEvent.press(screen.getByLabelText("Increase review character size"));
+  expect(screen.getByText("40%")).toBeTruthy();
+  expect(decrease().props.accessibilityState.disabled).toBe(false);
+});
+
+
+it("saves the Bunpro furigana toggle in mobile Reviews settings", () => {
+  const screen = render(<ReviewSettingsSection />);
+  expect(screen.getByLabelText("Hide Bunpro furigana").props.value).toBe(false);
+  fireEvent(screen.getByLabelText("Hide Bunpro furigana"), "valueChange", true);
+  expect(useSettingsStore.getState().bunproHideFurigana).toBe(true);
+  expect(JSON.parse(permanentStorage.getString("wanikani-settings")!).state.bunproHideFurigana).toBe(true);
+});

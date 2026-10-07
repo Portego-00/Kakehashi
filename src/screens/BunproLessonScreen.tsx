@@ -34,7 +34,7 @@ import {
   getBunproLearnQuiz,
   getBunproQueue,
 } from "../utils/bunproApi";
-import { summarizeBunproQueue } from "../utils/bunproQueue";
+import { getBunproLessonBatchSize, selectBunproLessonDeck, summarizeBunproQueue } from "../utils/bunproQueue";
 import { Audio } from "../utils/expoAvCompat";
 import { useBunproAudio } from "../hooks/useBunproAudio";
 import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
@@ -962,54 +962,33 @@ export default function BunproLessonScreen() {
           ...completedDeckIdsRef.current,
           ...skippedDeckIds,
         ]);
-        const nextDeck = preferredDeckId
-          ? queueSummary.queue.find((entry) => entry.deckId === preferredDeckId) ?? queueSummary.next
-          : queueSummary.queue.find(
-              (entry) =>
-                entry.remaining > 0 &&
-                !entry.isFinished &&
-                (!entry.deckId || !deckIdsToSkip.has(entry.deckId))
-            ) ?? null;
-        const nextDeckId = nextDeck?.deckId ?? null;
-
-        if (!nextDeckId || !nextDeck || nextDeck.remaining <= 0) {
-          setLessonPool([]);
-          setLessonCursor(0);
-          setLessonBatchSize(0);
-          setBatchItems([]);
-          setDeckId(nextDeckId);
-          setDeckTitle(nextDeck?.deckTitle ?? "Bunpro Lessons");
-          setPhase("done");
-          return;
+        let nextDeck = selectBunproLessonDeck(queueSummary, preferredDeckId, [...deckIdsToSkip]);
+        while (nextDeck?.deckId) {
+          const nextDeckId = nextDeck.deckId;
+          const nextBatchSize = getBunproLessonBatchSize(nextDeck);
+          const learnResponse = await getBunproLearnIndex({ deckId: nextDeckId });
+          if (generation !== requestGenerationRef.current) return;
+          const content = learnResponse.content ?? [];
+          const lessonItems = buildLessonItems(content, nextDeck.remaining || nextDeck.remainingItemsInDeck || content.length);
+          if (lessonItems.length) {
+            setDeckId(nextDeckId);
+            setDeckTitle(nextDeck.deckTitle);
+            setLessonPool(lessonItems);
+            setLessonBatchSize(nextBatchSize);
+            presentLessonBatch(lessonItems, 0, nextBatchSize);
+            return;
+          }
+          deckIdsToSkip.add(nextDeckId);
+          completedDeckIdsRef.current = [...deckIdsToSkip];
+          nextDeck = selectBunproLessonDeck(queueSummary, undefined, [...deckIdsToSkip]);
         }
-
-        const nextBatchSize = Math.min(
-          nextDeck.remaining,
-          nextDeck.batchSize > 0 ? nextDeck.batchSize : nextDeck.remaining
-        );
-        const learnResponse = await getBunproLearnIndex({ deckId: nextDeckId });
-        if (generation !== requestGenerationRef.current) return;
-        const lessonItems = buildLessonItems(
-          learnResponse.content ?? [],
-          nextDeck.remaining
-        );
-
-        if (lessonItems.length === 0) {
-          setLessonPool([]);
-          setLessonCursor(0);
-          setLessonBatchSize(0);
-          setBatchItems([]);
-          setDeckId(nextDeckId);
-          setDeckTitle(nextDeck.deckTitle);
-          setPhase("done");
-          return;
-        }
-
-        setDeckId(nextDeckId);
-        setDeckTitle(nextDeck.deckTitle);
-        setLessonPool(lessonItems);
-        setLessonBatchSize(nextBatchSize);
-        presentLessonBatch(lessonItems, 0, nextBatchSize);
+        setLessonPool([]);
+        setLessonCursor(0);
+        setLessonBatchSize(0);
+        setBatchItems([]);
+        setDeckId(null);
+        setDeckTitle("Bunpro Lessons");
+        setPhase("done");
       } catch (error) {
         if (generation !== requestGenerationRef.current) return;
         setErrorMessage(formatBunproError(error));
@@ -1102,14 +1081,9 @@ export default function BunproLessonScreen() {
       return;
     }
 
-    const completedDeckId = deckId;
-    if (completedDeckId) {
-      completedDeckIdsRef.current = completedDeckIdsRef.current.includes(completedDeckId)
-        ? completedDeckIdsRef.current
-        : [...completedDeckIdsRef.current, completedDeckId];
-    }
-
-    void loadNextBatch(null, completedDeckId ? [completedDeckId] : []);
+    // Reaching the daily goal finishes a batch, not the deck. Refresh its queue
+    // so Continue can offer the next configured batch, including extra lessons.
+    void loadNextBatch(deckId);
   }, [
     batchItems.length,
     deckId,
@@ -1288,7 +1262,7 @@ export default function BunproLessonScreen() {
         <Text style={[styles.centerSubtitle, { color: mutedColor }]}>
           {completedBatchCount > 0
             ? "Nice work. You finished the available Bunpro lesson batches."
-            : "No Bunpro lessons are currently queued for your daily goal."}
+            : "No more lessons are available in your Bunpro learn queue."}
         </Text>
         <TouchableOpacity
           style={[styles.primaryButton, { backgroundColor: accent }]}

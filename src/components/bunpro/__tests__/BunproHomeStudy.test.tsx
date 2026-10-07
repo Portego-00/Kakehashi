@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { StyleSheet } from "react-native";
 import BunproHomeStudy from "../BunproHomeStudy";
 import { useBunproDashboard } from "../../../hooks/useBunproDashboard";
 
@@ -123,4 +124,21 @@ it("updates an open lesson queue and keeps review disclosure mutually exclusive"
   expect(screen.queryByLabelText("Bunpro Grammar only reviews")).toBeNull();
   fireEvent.press(screen.getByLabelText("Learn N4 Grammar"));
   expect(router.push).toHaveBeenLastCalledWith({ pathname: "/bunpro-lessons", params: { deckId: "6" } });
+});
+
+it("starts extra batches after the daily goal and displays six completed lessons with two yellow extras", () => {
+  const updated = snapshot();
+  updated.queue.data[0].attributes.daily_goal = 4;
+  updated.queue.data[0].attributes.daily_goal_count_grammar = 6;
+  jest.mocked(useBunproDashboard).mockReturnValue(updated);
+  const screen = render(<BunproHomeStudy />);
+  expect(screen.getByText("6 / 6")).toBeTruthy();
+  fireEvent.press(screen.getByLabelText("Start Bunpro lessons"));
+  expect(router.push).toHaveBeenLastCalledWith({ pathname: "/bunpro-lessons", params: { deckId: "5" } });
+  expect(screen.getByLabelText("Daily Bunpro lesson goal").props.accessibilityValue).toMatchObject({ now: 6, max: 6, text: "6 of 6 learned; next batch 3" });
+  fireEvent.press(screen.getByLabelText("Choose Bunpro lesson deck"));
+  expect(screen.getAllByText("6 / 6")).toHaveLength(2);
+  const extras = screen.getAllByTestId("bunpro-extra-lesson-segment");
+  expect(extras).toHaveLength(4);
+  for (const segment of extras) expect(StyleSheet.flatten(segment.props.style).backgroundColor).toBe("#ff9e00");
 });

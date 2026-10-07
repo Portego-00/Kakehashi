@@ -152,6 +152,7 @@ const fixtures = vi.hoisted(() => {
       ankiMode: "off",
       studyShortcuts: undefined as typeof DEFAULT_STUDY_SHORTCUTS | undefined,
       ankiGroupQuestions: false,
+      ankiCombinedDetailsTab: "meaning",
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,
@@ -439,6 +440,7 @@ describe("core study prompt layout", () => {
       ankiMode: "off",
       studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
       ankiGroupQuestions: false,
+      ankiCombinedDetailsTab: "meaning",
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,
@@ -580,6 +582,20 @@ describe("core study prompt layout", () => {
     fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
     expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { preferred: "meaning", selected: "Meaning" },
+    { preferred: "reading", selected: "Reading" },
+    { preferred: "stroke", selected: "Meaning" },
+  ])("opens combined Anki details in $selected for preference $preferred", async ({ preferred, selected }) => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.settings.study.ankiCombinedDetailsTab = preferred;
+    renderSession("reviews");
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+    fireEvent.keyDown(document.body, { key: "d" });
+    expect(await screen.findByRole("tab", { name: selected, selected: true })).toBeVisible();
   });
 
   it.each(["off", "both"] as const)("opens wrong-answer details and waits for Next with Anki mode %s", async (ankiMode) => {

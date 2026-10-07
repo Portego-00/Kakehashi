@@ -753,7 +753,7 @@ function ReadyCustomSrsSession({
         data-question-kind={currentKind}
         data-character-scale={reviewCharacterScale}
         lang="ja"
-        style={{ fontSize: reviewCharacterSize }}
+        style={{ fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize } as CSSProperties}
       >{currentWord.characters}</h2>
     </div>
 
