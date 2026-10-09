@@ -68,6 +68,16 @@ it("includes JPDB tools in the demo without showing a personal credential field"
   expect(screen.getByRole("checkbox", { name: /English lyric translations/ })).toBeEnabled();
 });
 
+it("saves the Multiple Choice setting from Reviews with its Anki explanation", async () => {
+  localStorage.clear();
+  render(<SettingsWorkspace />);
+  const toggle = await screen.findByRole("checkbox", { name: /^Multiple Choice/ });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  await waitFor(() => expect(JSON.parse(localStorage.getItem(settingsStorageKey("Tester"))!).study.reviewMultipleChoiceEnabled).toBe(true));
+  expect(screen.getByText(/Choose from similar readings and related meanings/)).toHaveTextContent("Anki questions keep their current behavior");
+});
+
 function dataTransfer() {
   const values = new Map<string, string>();
   return {
@@ -348,7 +358,8 @@ describe("review question preferences", () => {
     fireEvent.change(screen.getByRole("combobox", { name: /SRS progression/i }), { target: { value: "compact" } });
     fireEvent.change(screen.getByRole("combobox", { name: /Anki mode/i }), { target: { value: "both" } });
     fireEvent.click(screen.getByRole("checkbox", { name: /Group meaning and reading/i }));
-    fireEvent.change(screen.getByRole("combobox", { name: /Review character size/i }), { target: { value: "1.4" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Combined Anki details tab" }), { target: { value: "reading" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /Review character size/i }), { target: { value: "0.3" } });
     expect(screen.queryByRole("combobox", { name: /Review answer size/i })).not.toBeInTheDocument();
 
     const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
@@ -362,7 +373,8 @@ describe("review question preferences", () => {
       srsProgressionCardDisplayMode: "compact",
       ankiMode: "both",
       ankiGroupQuestions: true,
-      reviewCharacterFontScale: 1.4,
+      ankiCombinedDetailsTab: "reading",
+      reviewCharacterFontScale: 0.3,
     });
   }, 10_000);
 

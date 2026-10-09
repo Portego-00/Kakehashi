@@ -10,15 +10,15 @@ Deploy from a complete repository-shaped source folder, with `web/`, `src/`, `sh
 
 Always include `--local-config web/vercel.json`. The repository's top-level `vercel.json` builds the separate marketing website.
 
-As of September 25, 2026, production includes several separately deployed fixes that are not fully captured by this checkout's Git history. The working folder also contains unrelated uncommitted changes. Deploying that entire folder could overwrite live fixes or publish unfinished work.
+As of October 8, 2026, production includes several separately deployed fixes that are not fully captured by this checkout's Git history. The working folder also contains unrelated uncommitted changes. Deploying that entire folder could overwrite live fixes or publish unfinished work.
 
-For the kanji header release, a complete deploy-ready source snapshot is saved locally at:
+For the Multiple Choice web release, a complete deploy-ready source snapshot is saved locally at:
 
 ```
-/Users/pedroortego/Code/Kakehashi/output/kanji-header-2026-09-25/source
+/Users/pedroortego/Code/Kakehashi/output/multiple-choice-web-2026-10-08/upload
 ```
 
-That snapshot includes the existing production code plus the header fix. It does not automatically receive edits made in the normal development folder. For future releases, use a complete, reconciled source version containing the latest live changes and the changes you intend to publish. This snapshot is a starting point only while it still matches the latest production release.
+That snapshot contains all 1,134 verified production source files, including the Multiple Choice setting, answer generation, and keyboard shortcuts. Existing live fixes were preserved by reconciling the approved changes against the deployed source. The release is `dpl_8EaArdFJ4cegcoD9pc6od5Xiq9fp`; its source manifests, checks, and deployment records are saved beside the snapshot. It does not automatically receive edits made in the normal development folder. For future releases, use a complete, reconciled source version containing the latest live changes and the changes you intend to publish. This snapshot is a starting point only while it still matches the latest production release.
 
 ## First-time sign-in
 
@@ -32,10 +32,10 @@ Follow the browser sign-in. This computer is already signed in and the saved sna
 
 ## Build, check, then publish
 
-1. Open Terminal in the complete source folder. For the saved header release:
+1. Open Terminal in the complete source folder. For the saved Multiple Choice release:
 
    ```sh
-   cd /Users/pedroortego/Code/Kakehashi/output/kanji-header-2026-09-25/source
+   cd /Users/pedroortego/Code/Kakehashi/output/multiple-choice-web-2026-10-08/upload
    ```
 
 2. For edited source, install dependencies and check the app:
@@ -77,10 +77,10 @@ Vercel uploads files from the folder you run the command in, including eligible 
 
 Open the **kakehashi-web** project in the Vercel dashboard, go to **Deployments**, select the previous working production deployment, and use **Instant Rollback**. Then verify the live site. A rollback changes which deployment serves the site; it does not revert your local files.
 
-The production deployment immediately before the header release was:
+The production deployment immediately before the Multiple Choice release was:
 
-- `dpl_7Q3hj3prnsPwvr6EfnamteRY83um`
-- https://kakehashi-e8r7kmazc-portego-00s-projects.vercel.app
+- `dpl_3SKxDFPQyHjotLnhKyErnjYNoNGV`
+- https://kakehashi-9zbrl0b8c-portego-00s-projects.vercel.app
 
 Do not assume that remains the correct rollback target for later releases.
 

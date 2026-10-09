@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import { coreSessionKey, lessonsStartedToday, orderCoreAssignments, recordLessonStarted, selectCoreAssignments } from "./session-planning";
+import { applyReviewPreset, getEnabledReviewPreset } from "../../../../src/utils/review-presets";
 
 function assignment(id: number, type: Assignment["data"]["subject_type"], stage = 1, availableAt = "2026-03-05T08:00:00.000Z"): Assignment {
   return { id, object: "assignment", url: "", data_updated_at: "", data: { subject_id: id, subject_type: type, srs_stage: stage, available_at: availableAt, started_at: "2026-01-01T00:00:00Z", unlocked_at: `2026-01-${String(Math.min(id, 28)).padStart(2, "0")}T00:00:00Z`, passed_at: null, burned_at: null, resurrected_at: null, hidden: false, created_at: "" } };
@@ -15,6 +16,15 @@ function memoryStorage() {
 }
 
 describe("core session planning", () => {
+  it("uses a preset's cap and order while retaining the saved default preferences", () => {
+    const preferences = { ...DEFAULT_WEB_SETTINGS.study, reviewBatchSizeEnabled: true, reviewBatchSize: 50, reviewOrder: "descendingSrsStage" as const, reviewPresetsEnabled: true, reviewPresets: [{ id: "quick", name: "Quick", batchSize: 5, reviewOrder: "ascendingSrsStage" as const }] };
+    const rows = Array.from({ length: 8 }, (_, index) => assignment(index + 1, "kanji", 8 - index));
+    const effective = applyReviewPreset(preferences, getEnabledReviewPreset(preferences, "quick"));
+    const selected = selectCoreAssignments(rows, [], "reviews", effective, effective.reviewBatchSize);
+    expect(selected.map((row) => row.data.srs_stage)).toEqual([1, 2, 3, 4, 5]);
+    expect(preferences.reviewBatchSize).toBe(50);
+    expect(preferences.reviewOrder).toBe("descendingSrsStage");
+  });
   it.each([
     ["random", [2, 3, 1]],
     ["currentLevelFirst", [1, 3, 2]],

@@ -50,14 +50,24 @@ const localFile = resolve(localDirectory, "community.json");
 function emptyStore(): LocalStore { return { issues: [], issue_comments: [], issue_likes: [], comment_likes: [], patreon_supporters: [], mutation_receipts: [] }; }
 function readLocalStore() { try { const value = JSON.parse(readFileSync(localFile, "utf8")) as Partial<LocalStore>; return { ...emptyStore(), ...value }; } catch { return emptyStore(); } }
 function writeLocalStore(store: LocalStore) { mkdirSync(localDirectory, { recursive: true }); const next = `${localFile}.next`; writeFileSync(next, JSON.stringify(store, null, 2), { mode: 0o600 }); renameSync(next, localFile); }
+function localFilterScalar(value: string) {
+  try { const parsed = JSON.parse(value); return typeof parsed === "string" ? parsed : value; }
+  catch { return value; }
+}
 function localRows(table: Exclude<keyof LocalStore, "mutation_receipts">, url: URL, store: LocalStore) {
   let rows = [...store[table]];
-  for (const field of ["id", "issue_id", "comment_id", "user_id", "status", "is_active"] as const) {
+  for (const field of ["id", "issue_id", "comment_id", "user_id", "status", "is_active", "created_at"] as const) {
     const value = url.searchParams.get(field);
-    if (value?.startsWith("eq.")) rows = rows.filter((row) => String(row[field] ?? "") === decodeURIComponent(value.slice(3)));
+    if (value?.startsWith("lt.")) rows = rows.filter((row) => String(row[field] ?? "") < decodeURIComponent(value.slice(3)));
+    if (value?.startsWith("eq.")) rows = rows.filter((row) => String(row[field] ?? "") === localFilterScalar(value.slice(3)));
     if (value?.startsWith("in.(") && value.endsWith(")")) { const ids = new Set(value.slice(4, -1).split(",")); rows = rows.filter((row) => ids.has(String(row[field]))); }
   }
   const broad = url.searchParams.get("or");
+  const ownAuthor = broad?.match(/\(user_id\.eq\.("(?:\\.|[^"])*"),and\(user_id\.is\.null,user_username\.eq\.("(?:\\.|[^"])*")\)\)/);
+  if (ownAuthor) {
+    const id = localFilterScalar(ownAuthor[1]), username = localFilterScalar(ownAuthor[2]);
+    rows = rows.filter((row) => String(row.user_id ?? "") === id || (row.user_id == null && row.user_username === username));
+  }
   if (broad) { const needle = decodeURIComponent(broad).match(/\.ilike\.\*([^*]+)\*/)?.[1]?.toLocaleLowerCase(); if (needle) rows = rows.filter((row) => [row.title, row.content, row.user_username].some((value) => String(value || "").toLocaleLowerCase().includes(needle))); }
   const [orderField, direction] = (url.searchParams.get("order") || "").split(".");
   if (orderField) rows.sort((left, right) => { const a = left[orderField], b = right[orderField]; const value = typeof a === "number" && typeof b === "number" ? a - b : String(a || "").localeCompare(String(b || "")); return direction === "desc" ? -value : value; });
@@ -140,7 +150,7 @@ async function supabaseRpc(name: string, body: JsonRecord) {
   return supabaseRequest(`rpc/${name}`, { method: "POST", body: JSON.stringify(body) });
 }
 
-async function supabaseCount(path: string) {
+export async function supabaseCount(path: string) {
   if (communityMode() === "local-server") {
     const rows = localCommunityRequest(path, { method: "GET" });
     return Array.isArray(rows) ? rows.length : 0;

@@ -1,0 +1,40 @@
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm
+index 20ab840..6e77a3c 100644
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm
+@@ -250,7 +250,9 @@ using namespace facebook::react;
+   NSString *FOCUS = @"focus";
+   if ([commandName isEqual:FOCUS]) {
+     [self focus];
++    return;
+   }
++  [super handleCommand:commandName args:args];
+ }
+ 
+ - (void)updateProps:(Props::Shared const &)props
+@@ -387,6 +389,13 @@ Class<RCTComponentViewProtocol> ExternalKeyboardViewCls(void) {
+   return [_focusDelegate canBecomeFocused];
+ }
+ 
++- (BOOL)canBecomeFirstResponder {
++  if (self.hasOnPressUp || self.hasOnPressDown) {
++    return self.canBeFocused;
++  }
++  return [super canBecomeFirstResponder];
++}
++
+ - (void)focus {
+   UIViewController *viewController = self.reactViewController;
+   [self updateFocus:viewController];
+@@ -400,6 +409,11 @@ Class<RCTComponentViewProtocol> ExternalKeyboardViewCls(void) {
+   UIView *focusingView = self; // [_focusDelegate getFocusingView];
+ 
+   if (self.superview != nil && controller != nil) {
++    // UIKit focus alone does not route hardware keys on iPad or iOS apps on Mac.
++    // Key handlers need a first responder, including when Full Keyboard Access is off.
++    if (self.canBeFocused && (self.hasOnPressUp || self.hasOnPressDown)) {
++      [self becomeFirstResponder];
++    }
+     controller.rncekvCustomFocusView = focusingView;
+     dispatch_async(dispatch_get_main_queue(), ^{
+       [controller setNeedsFocusUpdate];

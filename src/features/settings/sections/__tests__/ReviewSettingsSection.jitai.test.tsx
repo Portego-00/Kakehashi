@@ -1,4 +1,5 @@
 import React from "react";
+import * as SecureStore from "expo-secure-store";
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 
 import { permanentStorage } from "../../../../utils/permanentStorage";
@@ -50,9 +51,20 @@ jest.mock("../../useSettingsController", () => ({
 jest.mock("../../SettingsControllerContext", () => ({
   useSettingsControllerContext: () => {
     const { Platform } = jest.requireActual("react-native");
-    const { useSettingsStore } = jest.requireActual<typeof import("../../../../utils/store")>("../../../../utils/store");
+    const {
+      useSettingsStore,
+      REVIEW_CHARACTER_FONT_SCALE_MIN,
+      REVIEW_CHARACTER_FONT_SCALE_MAX,
+      REVIEW_CHARACTER_FONT_SCALE_STEP,
+    } = jest.requireActual<typeof import("../../../../utils/store")>("../../../../utils/store");
+    const settings = useSettingsStore();
     return {
-      ...useSettingsStore(),
+      ...settings,
+      REVIEW_CHARACTER_FONT_SCALE_STEP,
+      canDecreaseReviewCharacterFontScale:
+        settings.reviewCharacterFontScale > REVIEW_CHARACTER_FONT_SCALE_MIN,
+      canIncreaseReviewCharacterFontScale:
+        settings.reviewCharacterFontScale < REVIEW_CHARACTER_FONT_SCALE_MAX,
       Platform,
       theme: {
         cardBackground: "#ffffff",
@@ -61,7 +73,7 @@ jest.mock("../../SettingsControllerContext", () => ({
         primary: "#326ac0",
         border: "#dddddd",
       },
-      formatReviewFontScale: (scale: number) => `${scale * 100}%`,
+      formatReviewFontScale: (scale: number) => `${Math.round(scale * 100)}%`,
       getReviewOrderLabel: (order: string) => order,
       getSrsProgressionCardModeLabel: (mode: string) => mode,
       updateSectionOffset: jest.fn(),
@@ -73,6 +85,7 @@ const settingLabel = "Cycle through all Jitai fonts";
 const selectedFonts = ["reggae-one", "yuji-syuku", "custom-handwriting"];
 
 beforeEach(() => {
+  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
   useSettingsStore.setState(useSettingsStore.getInitialState(), true);
   useSettingsStore.setState({
     jitaiEnabled: true,
@@ -85,9 +98,10 @@ afterEach(() => {
   useSettingsStore.setState(useSettingsStore.getInitialState(), true);
 });
 
-it("keeps full font cycling off and hidden until advanced settings are expanded", () => {
+it("keeps full font cycling off and hidden until advanced settings are expanded", async () => {
   expect(useSettingsStore.getInitialState().jitaiCycleAllFonts).toBe(false);
   const screen = render(<ReviewSettingsSection />);
+  await act(async () => {});
 
   expect(screen.queryByLabelText(settingLabel)).toBeNull();
   fireEvent.press(screen.getByLabelText("Advanced settings"));
@@ -97,9 +111,10 @@ it("keeps full font cycling off and hidden until advanced settings are expanded"
   expect(screen.queryByLabelText(settingLabel)).toBeNull();
 });
 
-it("only shows the advanced font cycle setting while Jitai is enabled", () => {
+it("only shows the advanced font cycle setting while Jitai is enabled", async () => {
   useSettingsStore.setState({ jitaiEnabled: false });
   const screen = render(<ReviewSettingsSection />);
+  await act(async () => {});
   fireEvent.press(screen.getByLabelText("Advanced settings"));
   expect(screen.queryByLabelText(settingLabel)).toBeNull();
 
@@ -111,6 +126,7 @@ it("only shows the advanced font cycle setting while Jitai is enabled", () => {
 
 it("persists both toggle choices without changing the selected fonts", async () => {
   const screen = render(<ReviewSettingsSection />);
+  await act(async () => {});
   fireEvent.press(screen.getByLabelText("Advanced settings"));
 
   for (const enabled of [true, false]) {
@@ -152,3 +168,47 @@ it.each([20, useSettingsStore.persist.getOptions().version])(
     });
   },
 );
+
+it("shrinks review characters to 30% from the basic settings without changing other text", async () => {
+  useSettingsStore.setState({ appTextSizeScale: 1.15, reviewInputFontScale: 1.1 });
+  const screen = render(<ReviewSettingsSection />);
+  await act(async () => {});
+  const decrease = () => screen.getByLabelText("Decrease review character size");
+  expect(screen.getByText("100%")).toBeTruthy();
+  for (const percentage of [90, 80, 70, 60, 50, 40, 30]) {
+    fireEvent.press(decrease());
+    expect(screen.getByText(`${percentage}%`)).toBeTruthy();
+  }
+  expect(decrease().props.accessibilityState.disabled).toBe(true);
+  expect(useSettingsStore.getState()).toMatchObject({
+    reviewCharacterFontScale: 0.3,
+    appTextSizeScale: 1.15,
+    reviewInputFontScale: 1.1,
+  });
+  fireEvent.press(screen.getByLabelText("Increase review character size"));
+  expect(screen.getByText("40%")).toBeTruthy();
+  expect(decrease().props.accessibilityState.disabled).toBe(false);
+});
+
+
+it("only shows the Bunpro furigana toggle with a saved key and persists its preference", async () => {
+  const screen = render(<ReviewSettingsSection />);
+  await act(async () => {});
+  expect(screen.queryByLabelText("Hide Bunpro furigana")).toBeNull();
+  screen.unmount();
+
+  jest.mocked(SecureStore.getItemAsync).mockResolvedValue("fixture-key");
+  const connectedScreen = render(<ReviewSettingsSection />);
+  const toggle = await connectedScreen.findByLabelText("Hide Bunpro furigana");
+  expect(toggle.props.value).toBe(false);
+  fireEvent(toggle, "valueChange", true);
+  expect(useSettingsStore.getState().bunproHideFurigana).toBe(true);
+  expect(JSON.parse(permanentStorage.getString("wanikani-settings")!).state.bunproHideFurigana).toBe(true);
+  connectedScreen.unmount();
+
+  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
+  const disconnectedScreen = render(<ReviewSettingsSection />);
+  await act(async () => {});
+  expect(disconnectedScreen.queryByLabelText("Hide Bunpro furigana")).toBeNull();
+  expect(useSettingsStore.getState().bunproHideFurigana).toBe(true);
+});

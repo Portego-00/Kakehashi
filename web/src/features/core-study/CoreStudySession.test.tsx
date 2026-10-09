@@ -1,7 +1,7 @@
 import { DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import { playAnswerFeedback } from "@/features/study/feedback-audio";
@@ -150,8 +150,10 @@ const fixtures = vi.hoisted(() => {
       showListeningTranslation: true,
       vocabularyAudioVoice: "female",
       ankiMode: "off",
+      reviewMultipleChoiceEnabled: false,
       studyShortcuts: undefined as typeof DEFAULT_STUDY_SHORTCUTS | undefined,
       ankiGroupQuestions: false,
+      ankiCombinedDetailsTab: "meaning",
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,
@@ -174,10 +176,11 @@ const fixtures = vi.hoisted(() => {
     data_updated_at: "2026-08-17T00:00:00.000Z",
     data: { subject_id: 200, subject_type: "vocabulary", meaning_synonyms: ["watercourse"], meaning_note: null, reading_note: null, hidden: false, created_at: "2026-01-01T00:00:00.000Z" },
   };
-  return { startedAssignmentsResponse: [] as typeof reviewAssignment[], componentKanji, lessonAssignment, lessonAssignmentsResponse: [lessonAssignment], reviewAssignment, reviewAssignmentsResponse: [reviewAssignment], reviewResponse, secondLessonAssignment, secondSubject, settings, studyMaterial, studyMaterialsRequest: null as Promise<typeof studyMaterial[]> | null, subject, user };
+  return { choiceCatalogError: false, choiceCatalogRequest: null as Promise<typeof subject[]> | null, choiceCatalog: [] as typeof subject[], startedAssignmentsResponse: [] as typeof reviewAssignment[], componentKanji, lessonAssignment, lessonAssignmentsResponse: [lessonAssignment], reviewAssignment, reviewAssignmentsResponse: [reviewAssignment], reviewResponse, secondLessonAssignment, secondSubject, settings, studyMaterial, studyMaterialsRequest: null as Promise<typeof studyMaterial[]> | null, subject, user };
 });
 
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
+vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
   useWebSettings: () => fixtures.settings,
@@ -193,6 +196,11 @@ vi.mock("@/lib/wanikani/client", () => ({
   WaniKaniApiError: class extends Error {},
   wkRequest: vi.fn(async (endpoint: string) => endpoint === "user" ? fixtures.user : endpoint === "reviews" ? fixtures.reviewResponse : endpoint.startsWith("study_materials") ? fixtures.studyMaterial : endpoint.startsWith(`assignments/${fixtures.lessonAssignment.id}`) ? fixtures.lessonAssignment : endpoint.startsWith(`assignments/${fixtures.secondLessonAssignment.id}`) ? fixtures.secondLessonAssignment : fixtures.reviewAssignment),
   wkCollection: vi.fn(async (endpoint: string) => {
+    if (endpoint === "subjects") {
+      if (fixtures.choiceCatalogError) throw new Error("Choice catalog unavailable");
+      return fixtures.choiceCatalogRequest ?? fixtures.choiceCatalog;
+    }
+    if (endpoint === "assignments?started=true") return fixtures.choiceCatalog.map((subject) => ({ ...fixtures.reviewAssignment, data: { ...fixtures.reviewAssignment.data, subject_id: subject.id } }));
     if (endpoint.includes("started=true")) return fixtures.startedAssignmentsResponse;
     if (endpoint.includes("immediately_available_for_lessons")) return fixtures.lessonAssignmentsResponse;
     if (endpoint.includes("immediately_available_for_review")) return fixtures.reviewAssignmentsResponse;
@@ -222,6 +230,156 @@ async function submitAnswer(value: string, kind: "meaning" | "reading") {
 }
 
 describe("core study prompt layout", () => {
+  function enableChoices() {
+    fixtures.settings.study.reviewMultipleChoiceEnabled = true;
+    fixtures.settings.study.pauseOnCorrect = true;
+    fixtures.choiceCatalog = [fixtures.subject, ...["Water", "Lake", "Sea", "Forest"].map((meaning, index) => ({
+      ...fixtures.subject, id: 500 + index, data: { ...fixtures.subject.data, characters: `水${index}`, meanings: [{ meaning, primary: true, accepted_answer: true }] },
+    }))];
+  }
+
+  it("keeps ordinary typing and skips the choice catalog when the setting is off", async () => {
+    renderSession("reviews");
+    expect(await screen.findByRole("textbox", { name: "Your answer" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Answer choices" })).not.toBeInTheDocument();
+    expect(vi.mocked(wkCollection).mock.calls.some(([endpoint]) => endpoint === "subjects" || endpoint === "assignments?started=true")).toBe(false);
+  });
+
+  it("selects from a focused choice with number keys before configurable actions", async () => {
+    enableChoices();
+    fixtures.settings.study.studyShortcuts = { ...DEFAULT_STUDY_SHORTCUTS, progress: "1" };
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    const choices = within(group).getAllByRole("button");
+    expect(choices).toHaveLength(4);
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    act(() => choices[2].focus());
+    fireEvent.keyDown(choices[2], { key: "1" });
+    expect(choices[0]).toHaveAttribute("aria-pressed", "true");
+    expect(choices.every((choice) => choice.hasAttribute("disabled"))).toBe(true);
+    expect(within(group).getByRole("button", { name: /River.*Correct answer/ })).toBeInTheDocument();
+  });
+
+  it("counts a wrong choice once, resets the next choices, retries, and saves the SRS result", async () => {
+    enableChoices();
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    const wrong = within(group).getAllByRole("button").find((button) => !button.textContent?.includes("River"))!;
+    act(() => { fireEvent.click(wrong); fireEvent.click(wrong); });
+    expect(screen.getByText("Incorrect", { exact: true })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "4" });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("heading", { name: "reading" });
+    const readingGroup = screen.getByRole("group", { name: "Answer choices" });
+    expect(within(readingGroup).getAllByRole("button").every((button) => button.getAttribute("aria-pressed") === "false")).toBe(true);
+    fireEvent.click(within(readingGroup).getByRole("button", { name: /^\d\. かわ$/ }));
+    fireEvent.keyDown(window, { key: "Enter" });
+    await screen.findByRole("heading", { name: "meaning" });
+    fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. River$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.find(([endpoint]) => endpoint === "reviews")?.[1]).toMatchObject({ body: { review: { assignment_id: 100, incorrect_meaning_answers: 1, incorrect_reading_answers: 0 } } }));
+  });
+
+  it("does not offer user synonyms as incorrect choices", async () => {
+    enableChoices();
+    fixtures.studyMaterialsRequest = Promise.resolve([{ ...fixtures.studyMaterial, data: { ...fixtures.studyMaterial.data, meaning_synonyms: ["Water"] } }]);
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    expect(within(group).queryByRole("button", { name: /Water/ })).not.toBeInTheDocument();
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
+  });
+
+  it("keeps the displayed choices in place when adding the selected answer as a synonym", async () => {
+    enableChoices();
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    const labels = within(group).getAllByRole("button").map((button) => button.textContent);
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. Water$/ }));
+    vi.mocked(wkRequest).mockResolvedValueOnce({ ...fixtures.studyMaterial, data: { ...fixtures.studyMaterial.data, meaning_synonyms: ["Water"] } });
+    fireEvent.click(screen.getByRole("button", { name: "Add as synonym" }));
+    await screen.findByText(/Added.*as a synonym and marked the answer correct/);
+    expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual(labels);
+    expect(within(group).getByRole("button", { name: /Water/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("suspends number keys behind settings and still allows click answers with shortcuts off", async () => {
+    enableChoices();
+    fixtures.settings.study.keyboardShortcuts = false;
+    const view = renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.keyDown(window, { key: "1" });
+    expect(screen.queryByText("Incorrect", { exact: true })).not.toBeInTheDocument();
+    const tree = () => <QueryClientProvider client={view.client}><CoreStudySession mode="reviews" /></QueryClientProvider>;
+    fixtures.settings.study.keyboardShortcuts = true;
+    view.rerender(tree());
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+    fireEvent.keyDown(window, { key: "1" });
+    expect(within(group).getAllByRole("button").every((button) => button.getAttribute("aria-pressed") === "false")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fixtures.settings.study.keyboardShortcuts = false;
+    view.rerender(tree());
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
+    expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
+  });
+
+  it.each(["both", "meaning"])("keeps Anki %s in charge of meaning questions", async (ankiMode) => {
+    enableChoices();
+    fixtures.settings.study.ankiMode = ankiMode;
+    renderSession("reviews");
+    expect(await screen.findByRole("button", { name: "Reveal answer" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Answer choices" })).not.toBeInTheDocument();
+    expect(fixtures.settings.study.reviewMultipleChoiceEnabled).toBe(true);
+  });
+
+  it("uses choices for meanings outside the Anki reading scope", async () => {
+    enableChoices();
+    fixtures.settings.study.ankiMode = "reading";
+    renderSession("reviews");
+    expect(await screen.findByRole("group", { name: "Answer choices" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
+  });
+
+  it("falls back to typing when the catalog has too few distinct answers", async () => {
+    fixtures.settings.study.reviewMultipleChoiceEnabled = true;
+    renderSession("reviews");
+    expect(await screen.findByText(/Not enough distinct choices/)).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeVisible();
+    await submitAnswer("River", "meaning");
+    expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
+  });
+
+  it("loads choices only when a lesson reaches its quiz", async () => {
+    enableChoices();
+    renderSession("lessons");
+    const start = await screen.findByRole("button", { name: "Start lesson review" });
+    expect(vi.mocked(wkCollection).mock.calls.some(([endpoint]) => endpoint === "subjects")).toBe(false);
+    fireEvent.click(start);
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
+    expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
+  });
+
+  it("waits for the choice catalog without accepting keys or exposing a typing field", async () => {
+    enableChoices();
+    let resolveCatalog!: (subjects: typeof fixtures.choiceCatalog) => void;
+    fixtures.choiceCatalogRequest = new Promise((resolve) => { resolveCatalog = resolve; });
+    renderSession("reviews");
+    expect(await screen.findByText("Loading answer choices…")).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "1" });
+    expect(screen.queryByText("Incorrect", { exact: true })).not.toBeInTheDocument();
+    await act(async () => { resolveCatalog(fixtures.choiceCatalog); });
+    expect(await screen.findByRole("group", { name: "Answer choices" })).toBeVisible();
+  });
+
+  it("keeps typing available when the choice catalog cannot be loaded", async () => {
+    fixtures.settings.study.reviewMultipleChoiceEnabled = true;
+    fixtures.choiceCatalogError = true;
+    renderSession("reviews");
+    expect(await screen.findByRole("textbox", { name: "Your answer" }, { timeout: 3000 })).toBeVisible();
+    expect(screen.getByText(/Not enough distinct choices/)).toBeVisible();
+  });
+
   it("keeps an active review available when a background Vacation Mode check fails", async () => {
     const { client } = renderSession("reviews");
     await submitAnswer("River", "meaning");
@@ -389,6 +547,9 @@ describe("core study prompt layout", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    fixtures.choiceCatalog = [];
+    fixtures.choiceCatalogRequest = null;
+    fixtures.choiceCatalogError = false;
     window.sessionStorage.clear();
     vi.clearAllMocks();
     vi.mocked(window.matchMedia).mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaQueryList);
@@ -437,8 +598,10 @@ describe("core study prompt layout", () => {
       excludeKanaVocabularyFromLessons: false,
       vocabularyAudioVoice: "female",
       ankiMode: "off",
+      reviewMultipleChoiceEnabled: false,
       studyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
       ankiGroupQuestions: false,
+      ankiCombinedDetailsTab: "meaning",
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false,
       ankiShowWaniKaniGrammarTags: false,
       ankiShowPitchAccentNumbers: false,
@@ -580,6 +743,20 @@ describe("core study prompt layout", () => {
     fireEvent.keyDown(document.body, { key: studyShortcuts.markCorrect });
     expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { preferred: "meaning", selected: "Meaning" },
+    { preferred: "reading", selected: "Reading" },
+    { preferred: "stroke", selected: "Meaning" },
+  ])("opens combined Anki details in $selected for preference $preferred", async ({ preferred, selected }) => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.settings.study.ankiCombinedDetailsTab = preferred;
+    renderSession("reviews");
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
+    fireEvent.keyDown(document.body, { key: "d" });
+    expect(await screen.findByRole("tab", { name: selected, selected: true })).toBeVisible();
   });
 
   it.each(["off", "both"] as const)("opens wrong-answer details and waits for Next with Anki mode %s", async (ankiMode) => {

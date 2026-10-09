@@ -138,6 +138,25 @@ it.each(["Retry save", "Continue without saving"])("handles a failed correct wra
 beforeEach(() => { vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, showAnswerStopSubjectDetails: false } }); vi.mocked(playAnswerFeedback).mockClear(); session.user.data.username = "Learner"; session.isDemo = false; vi.mocked(bunpro).mockReset().mockImplementation(async (query) => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [item], pending_wrapup: [] } : {}); });
 afterEach(cleanup);
 async function start() { setup(); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); }
+it.each((["grammar", "vocab", "all"] as const).flatMap(mode => [{ mode, correct: true }, { mode, correct: false }]))("shows the previous Bunpro answer in standalone $mode reviews (correct: $correct)", async ({ mode, correct }) => {
+  const vocab = mode === "vocab";
+  const title = vocab ? "猫" : "です";
+  const answer = vocab ? "ねこ" : "です";
+  const review: BunproReviewQueueItem = vocab ? { ...item, data: { ...item.data, attributes: { ...item.data.attributes, reviewable_type: "Vocab" }, relationships: { ...item.data.relationships, reviewable: { data: { id: "20", type: "vocab" } } } }, included: [{ id: "30", type: "study_question", attributes: { content: "これは____。", answer } }, { id: "20", type: "vocab", attributes: { title, slug: "neko", meaning: "Cat" } }] } : item;
+  const next = { ...review, data: { ...review.data, id: "11", attributes: { ...review.data.attributes, id: 11 } } };
+  vi.mocked(bunpro).mockImplementation(async (query, options) => query === "action=connection" ? { connected: true } : options?.method === "POST" ? {} : { review_session_id: 1, pending_attempt: [review, next], pending_wrapup: [] });
+  setup(<BunproReviews initialMode={mode} />);
+  const input = await screen.findByLabelText("Your answer");
+  expect(screen.queryByLabelText(/Previous Bunpro answer/)).not.toBeInTheDocument();
+  fireEvent.change(input, { target: { value: correct ? answer : "ちがう" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Next" })); });
+  const previous = await screen.findByRole("link", { name: `Previous Bunpro answer: ${title}, ${correct ? "correct" : "incorrect"}` });
+  expect(previous).toBeVisible();
+  expect(previous).toHaveAttribute("href", vocab ? "/bunpro/vocab/neko" : "/bunpro/grammar/desu");
+  expect(previous).toHaveAttribute("target", "_blank");
+  expect(screen.getByLabelText("Your answer")).toHaveValue("");
+});
 it("pins review furigana without submitting an answer and resets the pin for the next question", async () => {
   vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, bunproHideFurigana: true } });
   const next = { ...item, data: { ...item.data, id: "11", attributes: { ...item.data.attributes, id: 11 } } };
@@ -719,9 +738,35 @@ it("shows and accepts typing in the next question before the previous save retur
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(screen.getByLabelText("Your answer")).not.toBe(firstInput);
   expect(screen.getByLabelText("Your answer")).toBeEnabled();
+  const previous = screen.getByRole("link", { name: "Previous Bunpro answer: です, correct" });
+  expect(previous).toBeVisible();
   fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "だ" } });
   await act(async () => { finish(null); });
   expect(screen.getByLabelText("Your answer")).toHaveValue("だ");
+  expect(screen.getByRole("link", { name: "Previous Bunpro answer: です, correct" })).toBe(previous);
+});
+it("restores the previous standalone answer card when a background save fails", async () => {
+  let fail!: (error: Error) => void;
+  let attempts = 0;
+  const reviews = [10, 11, 12].map((id, index) => ({ ...item, data: { ...item.data, id: String(id), attributes: { ...item.data.attributes, id, streak: index + 1 } }, included: item.included?.map(resource => resource.type === "grammar_point" ? { ...resource, attributes: { ...resource.attributes, title: ["です", "ます", "でした"][index] } } : resource) }));
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, showAnswerStopSubjectDetails: false, reviewOrder: "ascendingSrsStage" } });
+  vi.mocked(bunpro).mockImplementation(async (query, options) => options?.method === "POST" ? ++attempts === 2 ? new Promise((_, reject) => { fail = reject; }) : {} : query === "action=connection" ? { connected: true } : { review_session_id: 1, pending_attempt: reviews });
+  setup(<BunproReviews initialMode="grammar" />);
+  fireEvent.change(await screen.findByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Next" })); });
+  expect(screen.getByLabelText("Previous Bunpro answer: です, correct")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "です" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getByLabelText("Previous Bunpro answer: ます, correct")).toBeVisible();
+  await act(async () => { fail(new Error("Bunpro request failed (500).")); });
+  expect(screen.getByRole("alert")).toHaveTextContent("Bunpro request failed (500).");
+  expect(screen.getByLabelText("Previous Bunpro answer: です, correct")).toBeVisible();
+  expect(screen.queryByLabelText("Previous Bunpro answer: ます, correct")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Retry save" }));
+  expect(await screen.findByLabelText("Previous Bunpro answer: ます, correct")).toBeVisible();
+  expect(screen.getByLabelText("Your answer")).toBeEnabled();
 });
 it.each(["です", "ちがう"])("reports the next mixed question immediately after %s without replaying the badge on save", async answer => {
   let finish!: (value: unknown) => void;

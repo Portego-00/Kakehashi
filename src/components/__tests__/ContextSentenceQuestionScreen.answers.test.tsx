@@ -111,6 +111,19 @@ it("locks the chosen answer during feedback so quick taps cannot submit two answ
   await act(async () => {});
 });
 
+it("submits a numbered keyboard choice and locks it during feedback", async () => {
+  const screen = renderQuestion({ stopAfterAnswer: false });
+  await act(async () => {});
+  const keyboard = screen.getByTestId("multiple-choice-keyboard");
+  act(() => {
+    fireEvent(keyboard, "keyUpPress", { nativeEvent: { unicodeChar: "2", hasNoModifiers: true } });
+    fireEvent(keyboard, "keyUpPress", { nativeEvent: { unicodeChar: "1", hasNoModifiers: true } });
+  });
+  act(() => jest.advanceTimersByTime(500));
+  expect(screen.onAnswer).toHaveBeenCalledTimes(1);
+  expect(screen.onAnswer).toHaveBeenCalledWith(false, "犬");
+});
+
 it("plays the sentence on a correct answer and offers the same audio for replay", async () => {
   const screen = renderQuestion({ enableSentenceAudio: true });
   expect(azureSpeechService.speak).not.toHaveBeenCalled();

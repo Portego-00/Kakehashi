@@ -932,3 +932,9 @@
 .embeddedSubjectHeader > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); font-weight: 700; }
 .embeddedStickyCharacter { flex-shrink: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 650 2.5rem/1.3 var(--font-japanese); }
 .embeddedSubjectHeader:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+
+/* Secondary review information expands below the unchanged core panels. */
+.reviewMore { margin-block: var(--space-lg); }
+.reviewMore > button { display: inline-flex; align-items: center; gap: var(--space-xs); }
+.reviewMoreContent { display: grid; gap: var(--space-lg); margin-block-start: var(--space-lg); }
+.reviewMoreContent[hidden] { display: none; }

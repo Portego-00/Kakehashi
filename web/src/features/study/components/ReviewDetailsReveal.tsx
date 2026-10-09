@@ -7,7 +7,7 @@ export const REVIEW_DETAILS_DURATION_MS = 520;
 const reviewScrollOrigins = new WeakMap<Element, number>();
 
 /** Animate real layout height, including sections that finish loading while open. */
-export function ReviewDetailsReveal({ open, children, revealInViewport = false, revealToStart = false, availableOnScroll = false, onVisible }: { open: boolean; children: ReactNode; revealInViewport?: boolean; revealToStart?: boolean; availableOnScroll?: boolean; onVisible?: () => void }) {
+export function ReviewDetailsReveal({ open, children, revealInViewport = false, revealToStart = false, availableOnScroll = false, stickyContent = false, onVisible }: { open: boolean; children: ReactNode; revealInViewport?: boolean; revealToStart?: boolean; availableOnScroll?: boolean; stickyContent?: boolean; onVisible?: () => void }) {
   const content = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const previousScroll = useRef<number | null>(null);
@@ -58,6 +58,7 @@ export function ReviewDetailsReveal({ open, children, revealInViewport = false, 
   useEffect(() => {
     // Wait for layout to settle. Automatic wrong-answer details sit near the
     // top so their contents are readable; manual disclosures peek into view.
+    if (container.current?.closest('[data-review-layout="compact"]') && window.matchMedia?.("(min-width: 48rem)").matches) return;
     if (!revealInViewport || (!revealToStart && !window.matchMedia?.("(min-width: 48rem)").matches)) return;
     const session = container.current?.closest('[data-study-session="active"]');
     if (!open) {
@@ -87,7 +88,7 @@ export function ReviewDetailsReveal({ open, children, revealInViewport = false, 
   }, [open, revealInViewport, revealToStart, reducedMotion]);
 
   return <div ref={container} data-review-details-reveal data-open={open} data-available-on-scroll={availableOnScroll || undefined} data-reveal-in-viewport={revealInViewport} aria-hidden={!visible} inert={!visible ? true : undefined}
-    style={{ height: passive ? "auto" : open ? height : 0, opacity: visible ? 1 : 0, overflow: "hidden", minWidth: 0, overflowAnchor: "none",
+    style={{ height: passive ? "auto" : open ? height : 0, opacity: visible ? 1 : 0, overflow: stickyContent ? "clip" : "hidden", minWidth: 0, overflowAnchor: "none",
       transition: reducedMotion || passive ? "none" : `height ${REVIEW_DETAILS_DURATION_MS}ms cubic-bezier(.4, 0, .6, 1), opacity 320ms ease-in-out` }}>
     <div ref={content} style={{ display: "flow-root", minHeight: availableOnScroll ? 1 : undefined }}>{passive && !visited ? null : children}</div>
   </div>;

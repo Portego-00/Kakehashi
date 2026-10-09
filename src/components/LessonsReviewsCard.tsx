@@ -19,6 +19,8 @@ import {
 } from "../utils/widgetCardStyles";
 import { isAssignmentInReviewQueueState } from "../utils/api";
 import { type LessonSrsThresholdStatus } from "../utils/lessonSrsThreshold";
+import { getEnabledReviewPreset, type ReviewPreset } from "../utils/review-presets";
+import { getReviewOrderLabel } from "../utils/reviewOrdering";
 
 const { width: screenWidth } = Dimensions.get("window");
 const isTablet = screenWidth > 768;
@@ -28,7 +30,7 @@ type LessonsReviewsCardProps = {
   count: number;
   pendingSyncCount?: number;
   totalLessonCount?: number; // Total available lessons before daily-cap filtering
-  onPress: () => void;
+  onPress: (preset?: ReviewPreset) => void;
   onLessonPicker?: () => void; // Optional callback for lesson picker
   hasResumableLessonSession?: boolean;
   isDone?: boolean;
@@ -59,6 +61,12 @@ export default function LessonsReviewsCard({
   assignments,
 }: LessonsReviewsCardProps) {
   const { theme, themeMode } = useTheme();
+  const reviewBatchSizeEnabled = useSettingsStore((state) => state.reviewBatchSizeEnabled);
+  const reviewBatchSize = useSettingsStore((state) => state.reviewBatchSize);
+  const reviewPresetsEnabled = useSettingsStore((state) => state.reviewPresetsEnabled);
+  const reviewPresets = useSettingsStore((state) => state.reviewPresets);
+  const reviewOrder = useSettingsStore((state) => state.reviewOrder);
+  const [selectedPresetId, setSelectedPresetId] = React.useState<string | null>(null);
   const widgetLessonCardFollowTheme = useSettingsStore(
     (state) => state.widgetLessonCardFollowTheme
   );
@@ -98,6 +106,9 @@ export default function LessonsReviewsCard({
     !canResumeLessonSession;
   const canStartSession =
     displayCount > 0 || canResumeLessonSession;
+  const showsPresets = !isLessons && canStartSession && reviewBatchSizeEnabled && reviewPresetsEnabled && reviewPresets.length > 0;
+  const selectedPreset = showsPresets ? getEnabledReviewPreset({ reviewBatchSizeEnabled, reviewPresetsEnabled, reviewPresets }, selectedPresetId) : null;
+  const sessionSize = Math.min(displayCount, selectedPreset?.batchSize ?? reviewBatchSize);
   const canShowLessonPicker =
     isLessons &&
     Boolean(onLessonPicker) &&
@@ -302,7 +313,10 @@ export default function LessonsReviewsCard({
         styles.container,
         { shadowColor: theme.isDark ? "#000000" : "#000000" },
       ]}
-      onPress={onPress}
+      onPress={() => onPress(selectedPreset ?? undefined)}
+      accessible={!showsPresets}
+      accessibilityRole="button"
+      accessibilityLabel={showsPresets ? undefined : isLessons ? "Start Lessons" : "Start Reviews"}
       disabled={
         !canStartSession ||
         lessonsBlockedByDailyLimit ||
@@ -349,9 +363,10 @@ export default function LessonsReviewsCard({
           style={[
             styles.contentContainer,
             !isTablet && styles.contentContainerMobile,
+            showsPresets && { paddingRight: 16 },
           ]}
         >
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, showsPresets && { paddingRight: isTablet ? 150 : 104 }]}>
             <View style={styles.titleRow}>
               <Text
                 style={[
@@ -383,6 +398,7 @@ export default function LessonsReviewsCard({
           <Text
             style={[
               styles.subtitle,
+              showsPresets && { marginRight: isTablet ? 150 : 104 },
               isGrayedOut ? { color: theme.isDark ? "#808080" : "#444" } : null,
             ]}
           >
@@ -408,7 +424,29 @@ export default function LessonsReviewsCard({
             </View>
           ) : null}
 
-          <View style={styles.bottomRow}>
+          {showsPresets ? (
+            <View style={styles.presetRow}>
+              {reviewPresets.map((preset) => {
+                const selected = preset.id === selectedPreset?.id;
+                const color = selected ? theme.textColor : "#fff";
+                return <TouchableOpacity
+                  key={preset.id}
+                  onPress={(event) => { event.stopPropagation(); setSelectedPresetId(preset.id); }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  hitSlop={2}
+                  accessibilityLabel={`${preset.name}, ${preset.batchSize} reviews, ${getReviewOrderLabel(preset.reviewOrder)}`}
+                  style={[styles.presetButton, { backgroundColor: selected ? theme.cardBackground : "rgba(255,255,255,0.16)", borderColor: selected ? theme.cardBackground : "rgba(255,255,255,0.5)" }]}
+                >
+                  {selected ? <Ionicons name="checkmark" size={12} color={color} /> : null}
+                  <Text numberOfLines={1} style={[styles.presetName, { color }]}>{preset.name}</Text>
+                  <Text style={[styles.presetSize, { color }]}>· {preset.batchSize}</Text>
+                </TouchableOpacity>;
+              })}
+            </View>
+          ) : null}
+
+          <View style={[styles.bottomRow, showsPresets && { marginTop: 8 }]}>
             {lessonsBlockedBySrsThreshold ? (
               <Text style={styles.nextTimeText}>
                 Complete reviews to unlock lessons.
@@ -429,8 +467,13 @@ export default function LessonsReviewsCard({
                 {formatNextTime(nextReviewTime)}
               </Text>
             ) : (
-              <View style={styles.bottomLeft}>
-                <View
+              <View style={[styles.bottomLeft, showsPresets && { flex: 1, justifyContent: "space-between" }]}>
+                <TouchableOpacity
+                  accessible={showsPresets}
+                  accessibilityRole="button"
+                  accessibilityLabel={showsPresets ? `Start ${sessionSize} Reviews` : undefined}
+                  disabled={!canStartSession || lessonsBlockedByDailyLimit || lessonsBlockedBySrsThreshold}
+                  onPress={(event) => { event.stopPropagation(); onPress(selectedPreset ?? undefined); }}
                   style={[
                     styles.startButton,
                     { backgroundColor: theme.cardBackground },
@@ -443,7 +486,7 @@ export default function LessonsReviewsCard({
                       ? "Resume Lessons"
                       : isLessons
                       ? "Start Lessons"
-                      : "Start Reviews"}
+                      : showsPresets ? `Start ${sessionSize} Reviews` : "Start Reviews"}
                   </Text>
                   <Ionicons
                     name="chevron-forward"
@@ -456,7 +499,11 @@ export default function LessonsReviewsCard({
                         : "#0093dd"
                     }
                   />
-                </View>
+                </TouchableOpacity>
+                {showsPresets ? <View style={styles.presetDetail}>
+                  <Text numberOfLines={1} style={styles.presetDetailText}>{getReviewOrderLabel(selectedPreset?.reviewOrder ?? reviewOrder)}</Text>
+                  {selectedPreset ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Use default review settings" hitSlop={8} onPress={(event) => { event.stopPropagation(); setSelectedPresetId(null); }}><Text style={[styles.presetDetailText, { textDecorationLine: "underline" }]}>Use default</Text></TouchableOpacity> : null}
+                </View> : null}
                 {renderLessonPickerButton()}
               </View>
             )}
@@ -494,7 +541,7 @@ export function LessonsReviewsCardPair({
   pendingLessonSyncCount?: number;
   pendingReviewSyncCount?: number;
   onLessonsPress: () => void;
-  onReviewsPress: () => void;
+  onReviewsPress: (preset?: ReviewPreset) => void;
   onLessonPicker?: () => void;
   hasResumableLessonSession?: boolean;
   isDoneLessons?: boolean;
@@ -542,6 +589,28 @@ export function LessonsReviewsCardPair({
 }
 
 const styles = StyleSheet.create({
+  presetRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 4,
+  },
+  presetButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  presetName: { flexShrink: 1, fontSize: 12, fontWeight: "600" },
+  presetSize: { fontSize: 12 },
+  presetDetail: { flexShrink: 1, alignItems: "flex-end", gap: 2 },
+  presetDetailText: { color: "#fff", fontSize: 11 },
   cardPairContainer: {
     flexDirection: "column",
   },

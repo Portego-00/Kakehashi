@@ -172,6 +172,8 @@ test("review controls match, prompt scaling works, and modal actions stay visibl
   await expect.soft(dialog.getByLabel("Answer text size", { exact: true })).toHaveCount(0);
   await dialog.getByLabel("Question text size", { exact: true }).selectOption("1.4");
   await expect.soft.poll(fontSize).toBeCloseTo(initial * 1.4, 0);
+  await dialog.getByLabel("Question text size", { exact: true }).selectOption("0.3");
+  await expect.soft.poll(fontSize).toBeCloseTo(initial * 0.3, 0);
   const done = dialog.getByRole("button", { name: "Done", exact: true });
   const close = dialog.getByRole("button", { name: "Close review settings", exact: true });
   await expect.soft(done).toBeInViewport();
@@ -179,10 +181,31 @@ test("review controls match, prompt scaling works, and modal actions stay visibl
   await expect.soft(close).toBeInViewport();
   await expect.soft(done).toBeInViewport();
   await done.click();
-  await expect.soft.poll(fontSize).toBeCloseTo(initial * 1.4, 0);
+  await expect.soft.poll(fontSize).toBeCloseTo(initial * 0.3, 0);
   await settings.click();
-  await expect(dialog.getByLabel("Question text size", { exact: true })).toHaveValue("1.4");
+  await expect(dialog.getByLabel("Question text size", { exact: true })).toHaveValue("0.3");
   await dialog.getByLabel("Question text size", { exact: true }).selectOption("0.7");
   await expect.poll(fontSize).toBeCloseTo(initial * 0.7, 0);
   await close.click();
+});
+
+test("small review prompts retain their chosen size above a phone keyboard", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "The compact keyboard layout applies to phones.");
+  await openQuiz(page, { study: { reviewCharacterFontScale: 0.3 } });
+  const prompt = page.locator('[aria-label="Review prompt"] h2');
+  const fontSize = () => prompt.evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+  const smallSize = await fontSize();
+  const answerSize = await page.getByRole("textbox", { name: "Your answer" }).evaluate((node) => getComputedStyle(node).fontSize);
+  await page.getByRole("textbox", { name: "Your answer" }).focus();
+  // Headless browsers cannot open a software keyboard; simulate its VisualViewport resize.
+  await page.evaluate(() => {
+    const viewport = window.visualViewport!;
+    Object.defineProperty(viewport, "height", { configurable: true, get: () => 400 });
+    viewport.dispatchEvent(new Event("resize"));
+  });
+  const session = page.locator('[data-study-session="active"]');
+  await expect(session).toHaveAttribute("data-mobile-review-keyboard", "true");
+  await expect.poll(fontSize).toBeCloseTo(smallSize, 1);
+  await expect(page.getByRole("textbox", { name: "Your answer" })).toHaveCSS("font-size", answerSize);
+  await expect(prompt).toBeInViewport();
 });

@@ -16,7 +16,7 @@ interface ErrorLog {
 }
 
 class ErrorService {
-  private isLogging = false;
+  private loggingOperation: Promise<void> = Promise.resolve();
   private userId: string | null = null;
   private username: string | null = null;
   private email: string | null = null;
@@ -41,31 +41,33 @@ class ErrorService {
       extra?: Record<string, unknown>;
     } = {}
   ): Promise<void> {
-    // Prevent concurrent logging
-    if (this.isLogging) return;
+    // Capture attribution now, before a queued write or an account change.
+    const errorLog: ErrorLog = {
+      message: error.message || 'Unknown error',
+      stack: error.stack,
+      component_stack: options.componentStack,
+      is_fatal: options.isFatal ?? false,
+      app_version: Constants.expoConfig?.version ?? null,
+      platform: Platform.OS,
+      user_id: this.userId ?? undefined,
+      username: this.username ?? undefined,
+      email: this.email ?? undefined,
+      extra: options.extra,
+    };
 
+    const operation = this.loggingOperation.then(() => this.insertError(errorLog));
+    this.loggingOperation = operation.catch(() => {});
+    await operation;
+  }
+
+  private async insertError(errorLog: ErrorLog): Promise<void> {
     try {
-      this.isLogging = true;
-
-      const errorLog: ErrorLog = {
-        message: error.message || 'Unknown error',
-        stack: error.stack,
-        component_stack: options.componentStack,
-        is_fatal: options.isFatal ?? false,
-        app_version: Constants.expoConfig?.version ?? null,
-        platform: Platform.OS,
-        user_id: this.userId ?? undefined,
-        username: this.username ?? undefined,
-        email: this.email ?? undefined,
-        extra: options.extra,
-      };
-
       const { error: dbError } = await supabase.from('error_logs').insert(errorLog);
 
       if (dbError) {
         // Table might not exist yet - log locally and continue
         console.log('❌ Could not log error to Supabase:', dbError.message);
-        console.log('❌ Original error:', error.message);
+        console.log('❌ Original error:', errorLog.message);
         return;
       }
 
@@ -73,8 +75,6 @@ class ErrorService {
     } catch (loggingError) {
       // Don't let error logging errors crash the app
       console.error('Failed to log error:', loggingError);
-    } finally {
-      this.isLogging = false;
     }
   }
 

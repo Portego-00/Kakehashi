@@ -2,7 +2,7 @@ import { PATCH_NOTES, getCurrentPatchNotesVersion } from "../patchNotes";
 
 describe("patch notes", () => {
   it("announces level goals and the optional pace planner on October 5", () => {
-    expect(PATCH_NOTES[0]).toMatchObject({
+    expect(PATCH_NOTES.find((note) => note.version === "1.4.22")).toMatchObject({
       version: "1.4.22",
       date: "2026-10-05",
       changes: expect.arrayContaining([

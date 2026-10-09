@@ -1700,8 +1700,56 @@ describe("ReviewQuestionScreen question occurrences", () => {
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
   });
 
+  it.each(["1", "2", "3", "4"])("submits displayed choice %s using an external keyboard only once", async (key) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} />);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    const choice = screen.getAllByRole("button").find(button => button.props.accessibilityLabel.startsWith(`${key}. `))!;
+    const correct = choice.props.accessibilityLabel.endsWith("ねこ");
+    const keyboard = screen.getByTestId("multiple-choice-keyboard");
+    const event = { nativeEvent: { unicodeChar: key, hasNoModifiers: true } };
+    act(() => {
+      fireEvent(keyboard, "keyUpPress", event);
+      fireEvent(keyboard, "keyUpPress", event);
+      fireEvent.press(choice);
+    });
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", correct, !correct, false);
+  });
+
+  it("keeps keyboard answers inactive during navigation and resumes on return", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const onAnswer = jest.fn();
+    const props = { item: audioItem, questionType: "reading" as const, onAnswer };
+    const screen = render(<ReviewQuestionScreen {...props} />);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    mockScreenFocused = false;
+    screen.rerender(<ReviewQuestionScreen {...props} />);
+    fireEvent(screen.getByTestId("multiple-choice-keyboard"), "keyUpPress", { nativeEvent: { unicodeChar: "1", hasNoModifiers: true } });
+    expect(onAnswer).not.toHaveBeenCalled();
+    mockScreenFocused = true;
+    screen.rerender(<ReviewQuestionScreen {...props} />);
+    fireEvent(screen.getByTestId("multiple-choice-keyboard"), "keyUpPress", { nativeEvent: { unicodeChar: "1", hasNoModifiers: true } });
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+  });
+
+  it("locks number selection after a keyboard answer while preserving correction controls", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    mockSettings.disableAutoProgressOnWrong = true;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} showHeader={false} />);
+    await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    const wrong = screen.getAllByRole("button").find(button => /^\d\. /.test(button.props.accessibilityLabel) && !button.props.accessibilityLabel.endsWith("ねこ"))!;
+    fireEvent(screen.getByTestId("multiple-choice-keyboard"), "keyUpPress", { nativeEvent: { unicodeChar: wrong.props.accessibilityLabel[0], hasNoModifiers: true } });
+    await screen.findByText("Incorrect");
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByText("Mark Incorrect"));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false));
+  });
+
   it.each(["meaning", "reading"] as const)(
-    "answers both back-to-back multiple-choice questions with %s first",
+    "answers back-to-back multiple-choice questions by keyboard with %s first",
     async (firstType) => {
       mockSettings.reviewMultipleChoiceEnabled = true;
       const animals = ["Dog", "Bird", "Horse"].map((meaning, index) => ({
@@ -1733,7 +1781,9 @@ describe("ReviewQuestionScreen question occurrences", () => {
         const answer = await screen.findByRole("button", { name });
         expect(screen.queryByTestId("answer-input")).toBeNull();
         await waitFor(() => expect(answer.props.accessibilityState.disabled).toBe(false));
-        fireEvent.press(answer);
+        fireEvent(screen.getByTestId("multiple-choice-keyboard"), "keyUpPress", {
+          nativeEvent: { unicodeChar: answer.props.accessibilityLabel[0], hasNoModifiers: true },
+        });
         await waitFor(() => expect(onAnswer).toHaveBeenLastCalledWith(item, question.type, true, false, false));
       }
       expect(await screen.findByText("Session complete")).toBeTruthy();

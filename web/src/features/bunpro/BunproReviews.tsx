@@ -25,7 +25,7 @@ import { composeKanaInput, finalizeKanaInput } from "@/lib/kana";
 import { bunpro } from "./client";
 import { createBunproReviewSavePolicy } from "./review-save-policy";
 import { BunproSaveWarning } from "./BunproSaveWarning";
-import { bpHead, orderBunproReviews, type MixedBridge } from "@/features/mixed-reviews/ordering";
+import { bpHead, orderBunproReviews, type MixedBridge, type MixedPreviousAnswer } from "@/features/mixed-reviews/ordering";
 import { BunproLoading } from "./BunproLoading";
 import { BunproDetails } from "./BunproDetails";
 import { BunproSentence, BunproText, RubyText } from "./BunproText";
@@ -56,6 +56,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const phoneInput = usePhoneStudyInput();
   const audio = useBunproAudio();
   const [progression, setProgression] = useState<Progression | null>(null);
+  const [previousAnswer, setPreviousAnswer] = useState<MixedPreviousAnswer | null>(null);
   const savedProgressions = useRef(new Map<string, Progression>());
   const [mode, setMode] = useState<ReviewMode>(initialMode ?? "all");
   const [phase, setPhase] = useState<"choose" | "loading" | "review" | "complete">(lessonSession ? "review" : "choose");
@@ -102,7 +103,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   async function start() {
     if (locked.current) return;
     locked.current = true;
-    audio.stop(); setProgression(null);
+    audio.stop(); setProgression(null); setPreviousAnswer(null);
     savedProgressions.current.clear();
     pendingWrapupIds.current.clear();
     setPhase("loading"); setError(""); setSaveFailure(null);
@@ -243,7 +244,11 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     const retryImmediately = !result.correct && preferences.backToBackQuestions && preferences.backToBackImmediateRetryIncorrect;
     // Keep submissions serialized, but don't make the next loaded question wait on the network.
     const showNextNow = queue.length > 1 && !retryImmediately && !saveFailure;
-    const notifyAnswer = () => mixed?.onAnswer?.({ id: `bunpro:${currentKey}`, source: "bunpro", title: sanitizeText(content.attributes.title) || answer, correct: result.correct, bunproSubject: content.slug ? { kind: content.kind, slug: content.slug } : undefined });
+    const notifyAnswer = () => {
+      const previous: MixedPreviousAnswer = { id: `bunpro:${currentKey}`, source: "bunpro", title: sanitizeText(content.attributes.title) || answer, correct: result.correct, bunproSubject: content.slug ? { kind: content.kind, slug: content.slug } : undefined };
+      if (mixed) mixed.onAnswer?.(previous);
+      else if (!lessonSession) setPreviousAnswer(previous);
+    };
     function showQuestion(next: BunproReviewQueueItem[]) {
       setAnkiRevealed(false); setAlternativesOpen(false); setHintLevel(2); setQueue(next);
       setInput(next[0] ? drafts.current.get(reviewKey(next[0])) ?? "" : "");
@@ -343,6 +348,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
       retrySchedule.current = previousSchedule;
       if (showNextNow) {
         rememberDraft();
+        setPreviousAnswer(previousAnswer);
         setQueue(queue); setInput(result.entered); setOutcome(result); setAnkiRevealed(ankiRevealed); setHint(hint); setDetailsOverride(false);
         requestAnimationFrame(() => focusAnswer());
       }
@@ -429,11 +435,12 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const showTranslation = (questionKind !== "meaning" && hintLevel >= 1) || revealed;
   const displayTotal = mixed?.progress?.total ?? total;
   const displayCompleted = mixed?.progress?.completed ?? completedCount;
+  const displayPreviousAnswer = mixed ? mixed.previous : previousAnswer;
   const saveFailureNotice = outcome && saveFailure ? <div className={quiz.answerStatus}><p className={core.error} role="alert">{error} Your current answer is kept on screen.</p>{saveFailure.canContinue ? <Button type="button" tone="ghost" disabled={saving} onClick={() => void advance(undefined, undefined, true)}>Continue without saving</Button> : null}</div> : null;
   return <BunproFurigana hidden={preferences.bunproHideFurigana} questionKey={currentKey}><main ref={reviewViewportRef} className={`${quiz.quizShell} ${styles.reviewShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-advancing={(saving && !backgroundAdvance) || undefined} style={{ "--jitai-font": jitaiFamily } as CSSProperties}>
       <ReviewExitGuard pendingSubjects={saving ? 1 : 0} />
       <div className={quiz.quizTopbar}><span>{mixed ? "Mixed reviews" : "Bunpro"} · {Math.min(displayCompleted + 1, displayTotal)} / {displayTotal}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={displayCompleted} aria-valuemin={0} aria-valuemax={Math.max(1, displayTotal)}><span style={{ transform: `scaleX(${displayCompleted / Math.max(1, displayTotal)})` }} /></div><div className={quiz.quizTopbarActions}><ReviewAccuracy {...(mixed?.accuracy ?? answerAccuracy)} />{!lessonSession && !mixed?.wrapUpRequest && (mixed?.progress ? mixed.progress.total - mixed.progress.completed : queue.length) > preferences.reviewWrapUpSize ? <Button tone="ghost" size="small" disabled={saving} onClick={() => mixed?.onWrapUp ? mixed.onWrapUp() : wrapUp()}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink className={quiz.iconButton} href={`/search?q=${encodeURIComponent(sanitizeText(content.attributes.title))}`} target="_blank" tone="ghost" aria-label="Search this item"><Search size={18} /></ButtonLink> : null}<ReviewSettingsButton bunproSupported disabled={saving} onOpenChange={(open) => { setReviewSettingsOpen(open); if (open) recognitionRef.current?.stop(); }} /><ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
-      {mixed?.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} claimAnimation={mixed.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null}
+      {!lessonSession && (!mixed || mixed.active) ? <MixedPreviousBadge key={displayPreviousAnswer?.id} answer={displayPreviousAnswer} claimAnimation={mixed?.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null}
       <header className={`${quiz.questionCard} ${styles.sentenceArea}`} aria-label="Bunpro review">
           {specialReviewLabel ? <p>{specialReviewLabel}</p> : null}
           {handledIds.has(currentKey) ? <p>Retrying missed item</p> : null}
@@ -489,6 +496,6 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
         {!mixed ? <BunproSaveWarning count={unsavedCount} /> : null}
         {outcome ? <div role="status" className={quiz.answerStatus}><strong className={quiz.answerVerdict} data-correct={outcome.correct}>{outcome.correct ? "Correct" : "Incorrect"}</strong><p>{outcome.correct ? "Your answer is correct." : <>The answer is <span lang="ja">{answer}</span>.</>}</p>{paused && preferences.showAnswerStopSubjectDetails ? <div className={core.answerStopDetails}><span>Expected answer</span><strong lang="ja">{answer}</strong></div> : null}{error && !saveFailure ? <p className={core.error} role="alert">{error} Your current answer is kept on screen.</p> : null}</div> : null}
       </div>
-      <ReviewDetailsReveal key={currentKey} open={details} availableOnScroll={selfAssessment && ankiRevealed} onVisible={() => setVisitedDetails(currentKey)} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer || selfAssessment}>{revealed && (details || visitedDetails === currentKey) && content.slug ? <div id={detailsId} className={styles.reviewDetails}><BunproDetails key={`${content.kind}:${content.slug}`} kind={content.kind} slug={content.slug} review={currentReviewType === "review" ? current.data.attributes : undefined} /></div> : null}</ReviewDetailsReveal>
+      <ReviewDetailsReveal key={currentKey} stickyContent open={details} availableOnScroll={selfAssessment && ankiRevealed} onVisible={() => setVisitedDetails(currentKey)} revealInViewport revealToStart={preferences.showDetailsOnWrongAnswer || selfAssessment}>{revealed && (details || visitedDetails === currentKey) && content.slug ? <div id={detailsId} className={styles.reviewDetails}><BunproDetails key={`${content.kind}:${content.slug}`} kind={content.kind} slug={content.slug} review={currentReviewType === "review" ? current.data.attributes : undefined} /></div> : null}</ReviewDetailsReveal>
   </main></BunproFurigana>;
 }

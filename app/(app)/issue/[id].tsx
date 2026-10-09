@@ -4,12 +4,11 @@ import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -41,23 +40,23 @@ import { PatreonSupporterBadge } from "../../../src/components/PatreonSupporterB
 import { useSession } from "../../../src/contexts/AuthContext";
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import { useTheme } from "../../../src/utils/theme";
+import { useIssueReadTracking } from "../../../src/hooks/useIssueReadTracking";
 import { UserAvatar } from "../../../src/components/UserAvatar";
 
 type AppTheme = ReturnType<typeof useTheme>["theme"];
 const MAX_MEDIA_SIZE_MB = ISSUE_MEDIA_MAX_BYTES / (1024 * 1024);
 
 export default function IssueDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, comment: targetComment } = useLocalSearchParams<{ id: string; comment?: string }>();
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { apiToken, userData } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
-  const { gravatarEmail } = useSettingsStore();
+  const gravatarEmail = useSettingsStore((state) => state.gravatarEmail);
 
   const [issue, setIssue] = useState<Issue | null>(null);
   const [comments, setComments] = useState<IssueComment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState<IssueComment | null>(null);
   const [isIssueLikePending, setIsIssueLikePending] = useState(false);
   const [pendingCommentLikeIds, setPendingCommentLikeIds] = useState<
@@ -70,15 +69,14 @@ export default function IssueDetailScreen() {
 
   const scrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
+  const readTracking = useIssueReadTracking(userData?.id == null ? userData?.username : String(userData.id), id, targetComment, scrollViewRef);
 
-  const fetchDetails = async () => {
+  const fetchDetails = useCallback(async () => {
     try {
       if (!id || isAuthLoading) return;
       if (!apiToken) {
-        setLoading(false);
         return;
       }
-      setLoading(true);
       const [issueData, commentsData] = await Promise.all([
         issueService.getIssue(id, userData?.id ?? null),
         issueService.getComments(id, userData?.id ?? null),
@@ -88,30 +86,12 @@ export default function IssueDetailScreen() {
     } catch (error) {
       console.error("Failed to load issue", error);
       Alert.alert("Error", "Could not load issue details.");
-    } finally {
-      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchDetails();
   }, [id, apiToken, isAuthLoading, userData?.id]);
 
-  // Auto-scroll when keyboard shows
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      "keyboardDidShow",
-      () => {
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }
-    );
-
-    return () => {
-      keyboardDidShowListener.remove();
-    };
-  }, []);
+    void fetchDetails();
+  }, [fetchDetails]);
 
   const handleSubmitComment = useCallback(
     async (content: string, replyToCommentId: string | null) => {
@@ -284,7 +264,7 @@ export default function IssueDetailScreen() {
     setReplyingTo(null);
   };
 
-  if (loading || !issue) {
+  if (!issue || issue.id !== id) {
     return (
       <View
         style={[
@@ -355,6 +335,11 @@ export default function IssueDetailScreen() {
 
       <ScrollView
         ref={scrollViewRef}
+        onScroll={readTracking.onScroll}
+        onScrollBeginDrag={readTracking.onScrollBeginDrag}
+        onContentSizeChange={readTracking.onContentSizeChange}
+        onLayout={readTracking.onLayout}
+        scrollEventThrottle={100}
         contentContainerStyle={styles.scrollContent}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -492,9 +477,7 @@ export default function IssueDetailScreen() {
             </View>
           </View>
           <View style={styles.commentBody}>
-            <Markdown style={markdownStyles(theme)} rules={markdownRules}>
-              {issue.content}
-            </Markdown>
+            <IssueMarkdown content={issue.content} theme={theme} />
           </View>
         </View>
 
@@ -511,6 +494,7 @@ export default function IssueDetailScreen() {
           return (
             <View
               key={comment.id}
+              onLayout={(event) => readTracking.onCommentLayout(comment.id, comment.created_at, event, comment.user_username?.toLowerCase() === userData?.username?.toLowerCase())}
               style={[
                 styles.commentBlock,
                 {
@@ -658,9 +642,7 @@ export default function IssueDetailScreen() {
                   </View>
                 )}
 
-                <Markdown style={markdownStyles(theme)} rules={markdownRules}>
-                  {comment.content}
-                </Markdown>
+                <IssueMarkdown content={comment.content} theme={theme} />
 
                 {/* Reply button */}
                 <TouchableOpacity
@@ -933,6 +915,11 @@ function CommentComposer({
     </View>
   );
 }
+
+const IssueMarkdown = memo(function IssueMarkdown({ content, theme }: { content: string; theme: AppTheme }) {
+  const markdownStyle = useMemo(() => markdownStyles(theme), [theme]);
+  return <Markdown style={markdownStyle} rules={markdownRules}>{content}</Markdown>;
+});
 
 const MarkdownImage = ({ src, style }: { src: string; style: any }) => {
   const [aspectRatio, setAspectRatio] = useState(16 / 9);

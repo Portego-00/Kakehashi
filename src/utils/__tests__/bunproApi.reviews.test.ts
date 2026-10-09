@@ -1,5 +1,6 @@
+import * as SecureStore from "expo-secure-store";
 import fetchMock from "jest-fetch-mock";
-import { updateBunproReview } from "../bunproApi";
+import { updateBunproReview, getBunproCoverage, saveBunproCoverage } from "../bunproApi";
 import type { BunproReviewUpdateRequest } from "../../types/bunpro";
 
 const payload: BunproReviewUpdateRequest = {
@@ -49,4 +50,17 @@ it.each([401, 403, 500])("reports a ghost submission failure (%s) without retryi
   fetchMock.mockResponseOnce("{}", { status });
   await expect(updateBunproReview({ reviewId: 10, reviewType: "ghost_review", payload, apiToken: "fixture-key" })).rejects.toMatchObject({ status });
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("hydrates coverage and saves knowledge grades through the same endpoints as web", async () => {
+  const token = jest.spyOn(SecureStore, "getItemAsync").mockResolvedValue("fixture-key");
+  fetchMock.mockResponseOnce(JSON.stringify({ data: [] }));
+  await getBunproCoverage([1, 1, 2]);
+  expect(new URL(String(fetchMock.mock.calls[0][0])).pathname).toBe("/api/frontend/reviews/hydrate_reviewables");
+  expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ reviewables: [["Vocab", 1], ["Vocab", 2]] });
+  fetchMock.mockResponseOnce("{}");
+  await saveBunproCoverage([1, 2], 12, 5);
+  expect(fetchMock.mock.calls[1][1]?.method).toBe("PATCH");
+  expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ action_type: "mark_known", deck_id: 5, reviewables: [["Vocab", 1], ["Vocab", 2]] });
+  token.mockRestore();
 });

@@ -59,3 +59,6 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !shared/subtitleTiming.ts
 
 web/tsconfig.tsbuildinfo
+
+!src/utils/review-multiple-choice.ts
+web/src/features/study/components/mobile-multiple-choice-keyboard.test.tsx

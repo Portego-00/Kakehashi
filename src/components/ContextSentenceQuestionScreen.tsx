@@ -39,6 +39,7 @@ import { useSubjectColors, withAlpha } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
 import { VocabularyTooltip } from "./VocabularyTooltip";
 import KanaInput from "./TextToKanaInput";
+import MultipleChoiceKeyboard from "./multiple-choice-keyboard";
 import * as wanakana from "wanakana";
 import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
@@ -1850,7 +1851,13 @@ export default function ContextSentenceQuestionScreen({
             <Text style={[styles.questionPrompt, { color: theme.textColor }]}>
               Which word completes the sentence?
             </Text>
-            <View style={styles.choicesGrid}>
+            <MultipleChoiceKeyboard
+              style={styles.choicesGrid}
+              questionKey={String(question.id)}
+              enabled={pendingAnswer === null && !isAdvancing && !navigatingToDetail && selectedItem === null}
+              onSelectIndex={handleChoiceSelect}
+              testID="multiple-choice-keyboard"
+            >
               {question.kanjiChoices.map((choice, index) => {
                 const selected = selectedChoiceIndex === index;
                 const selectedResultColor =
@@ -1888,7 +1895,7 @@ export default function ContextSentenceQuestionScreen({
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </MultipleChoiceKeyboard>
             {isPendingAnswer && (
               <TouchableOpacity
                 style={[styles.submitButton, { backgroundColor: theme.primary }]}

@@ -49,6 +49,21 @@
 .queueCountBadge { min-width: 2.25rem; height: 2.25rem; display: inline-grid; place-items: center; padding-inline: var(--space-sm); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; font-variant-numeric: tabular-nums; }
 .queueCountLoading { width: 1.25rem; height: .375rem; border-radius: var(--radius-pill); background: var(--color-paper-3); }
 .queueSubtitle { max-width: 25ch; color: inherit; font-size: var(--text-base); line-height: 1.4; }
+.queueContent[data-has-presets="true"] { padding-inline-end: var(--space-md); }
+.queueContent[data-has-presets="true"] > .queueTitleRow,
+.queueContent[data-has-presets="true"] > .queueSubtitle { margin-inline-end: 6.5rem; }
+.reviewPresetChips { display: flex; gap: var(--space-2xs); width: 100%; }
+.reviewPresetChip { flex: 1; min-width: 0; min-height: 2.25rem; display: flex; align-items: center; justify-content: center; gap: var(--space-3xs); padding: var(--space-2xs) var(--space-xs); border: var(--rule-thin) solid color-mix(in oklch, currentColor 50%, transparent); border-radius: var(--radius-pill); background: color-mix(in oklch, currentColor 12%, transparent); color: inherit; font: 600 var(--text-xs) var(--font-body); cursor: pointer; }
+.reviewPresetChip > span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reviewPresetChip > span:last-of-type, .reviewPresetChip svg { flex-shrink: 0; white-space: nowrap; }
+.reviewPresetChip[aria-pressed="true"] { background: var(--color-surface); border-color: var(--color-surface); color: var(--color-ink); }
+.reviewPresetChip:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); }
+.reviewPresetChip:hover { border-color: currentColor; }
+.reviewPresetChip:active { opacity: .8; }
+.queueContent[data-has-presets="true"] > .queueBottom { width: 100%; justify-content: space-between; }
+.reviewPresetDetail { display: grid; justify-items: end; min-width: 0; margin-inline-start: auto; font-size: var(--text-2xs); }
+.reviewPresetDetail button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.reviewPresetDetail button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); }
 .queueBottom { min-height: var(--control-height); display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; }
 .queueAction { min-height: var(--control-height); width: max-content; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2xs); padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid transparent; border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font: 650 var(--text-sm) var(--font-body); line-height: 1; white-space: nowrap; }
 .queueAction > svg { color: var(--queue-action-color); }

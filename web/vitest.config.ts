@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    exclude: ["e2e/**", "node_modules/**", ".next/**", "src/features/notebooks/mobile-handwriting-interactions.test.tsx"],
+    exclude: ["e2e/**", "node_modules/**", ".next/**", "src/features/notebooks/mobile-handwriting-interactions.test.tsx", "src/features/study/components/mobile-multiple-choice-keyboard.test.tsx"],
     setupFiles: ["./src/test/setup.ts"],
     coverage: { reporter: ["text", "json", "html"] },
   },

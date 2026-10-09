@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WEB_SETTINGS, settingsStorageKey } from "@/features/settings/settings";
 import { PHONE_STUDY_MEDIA_QUERY } from "@/features/core-study/use-phone-study-input";
-import type { PronunciationAudio } from "@/types/wanikani";
+import type { PronunciationAudio, Subject } from "@/types/wanikani";
+import { customWordToSubject } from "./subject-adapter";
 import { CUSTOM_SRS_POLICY } from "./scheduler";
 import type { CustomSrsAssignment, CustomSrsState, CustomVocabularyPack, CustomVocabularyWord } from "./types";
 import { createCustomQuestionQueue, CustomSrsSession } from "./CustomSrsSession";
@@ -24,6 +25,12 @@ const hook = vi.hoisted(() => ({
 const fetchImmersionExamplesMock = vi.hoisted(() => vi.fn());
 const scrollIntoViewMock = vi.fn();
 const customAudioMock = vi.hoisted(() => vi.fn<(id: string) => PronunciationAudio[]>(() => []));
+const choiceCatalogMock = vi.hoisted(() => ({ subjects: [] as Subject[] }));
+vi.mock("@/lib/wanikani/client", () => ({
+  wkCollection: vi.fn(async (endpoint: string) => endpoint === "subjects" ? choiceCatalogMock.subjects : []),
+  wkRequest: vi.fn(),
+  WaniKaniApiError: class extends Error {},
+}));
 
 vi.mock("./audio", () => ({ customVocabularyAudio: customAudioMock }));
 
@@ -125,6 +132,26 @@ function renderSession(mode: "lessons" | "reviews", packs: CustomVocabularyPack[
 }
 
 describe("custom vocabulary lesson and review sessions", () => {
+  it("answers custom vocabulary with choices, retries a wrong choice, and saves one mistake", async () => {
+    localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true } }));
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Hiragana", description: "Words", script: "hiragana", words: [cat] };
+    const initial = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    hook.state = initial;
+    hook.submitReview.mockResolvedValue(initial);
+    const subject = customWordToSubject(cat);
+    choiceCatalogMock.subjects = [subject, ...["Dog", "Bird", "Horse"].map((meaning, index) => ({ ...subject, id: 500 + index, data: { ...subject.data, meanings: [{ meaning, primary: true, accepted_answer: true }] } }))];
+    renderSession("reviews", [pack]);
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. Dog$/ }));
+    expect(screen.getByText("Incorrect", { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. Cat$/ })).toBeEnabled());
+    fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. Cat$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(hook.submitReview).toHaveBeenCalledTimes(1));
+    expect(hook.submitReview.mock.calls[0].slice(0, 2)).toEqual([cat.id, 1]);
+  });
   it("shows finalized kana when a custom reading answer is submitted", () => {
     window.localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewQuestionOrder: "reading-first", reviewQuestionOrderEnabled: true, pauseOnWrong: true } }));
     const pack: CustomVocabularyPack = { id: "kanji", title: "Kanji", description: "Common words", script: "kanji", words: [footsteps] };
@@ -145,6 +172,7 @@ describe("custom vocabulary lesson and review sessions", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    choiceCatalogMock.subjects = [];
     customAudioMock.mockReset().mockReturnValue([]);
     hook.completeLesson.mockReset();
     hook.submitReview.mockReset();

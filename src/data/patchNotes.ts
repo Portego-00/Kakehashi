@@ -56,6 +56,35 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.4.24",
+    date: "2026-10-08",
+    changes: [
+      {
+        type: "feature",
+        title: "Review Presets",
+        description:
+          "Save up to 3 presets with custom batch sizes and review orders, then select one from the Home review card. Enable Review Presets under Review Batch Size in advanced Review Settings.",
+        link: {
+          route: "/settings",
+          params: { scrollTo: "reviews" },
+          label: "Open Review Settings",
+        },
+      },
+    ],
+  },
+  {
+    version: "1.4.23",
+    date: "2026-10-07",
+    changes: [
+      {
+        type: "improvement",
+        title: "Multiple Choice Keyboard Shortcuts",
+        description:
+          "Use 1–4 to select multiple choice answers with an external keyboard on mobile and iPad, or in the web app.",
+      },
+    ],
+  },
+  {
     version: "1.4.22",
     date: "2026-10-05",
     changes: [

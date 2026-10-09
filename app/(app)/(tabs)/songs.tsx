@@ -24,6 +24,7 @@ import {
 } from "react-native";
 import { CoachMarks, CoachMarkStep } from "../../../src/components/CoachMarks";
 import { appleMusicService } from "../../../src/services/appleMusicService";
+import { errorService } from "../../../src/services/errorService";
 import {
   spotifyService,
   type MusicPlaylist,
@@ -47,9 +48,35 @@ interface MusicSection {
   subtitle?: string;
   data: SpotifyTrack[];
   loading: boolean;
+  error: string | null;
 }
 
 type MusicSource = "spotify" | "apple";
+type MusicSectionKey = "releases" | "popular" | "anime";
+
+function logMusicError(
+  failure: unknown,
+  provider: MusicSource,
+  operation: "discovery" | "search" | "playlists",
+  section?: MusicSectionKey,
+) {
+  const error = failure instanceof Error
+    ? failure
+    : new Error(typeof failure === "string" ? failure : `Music ${operation} request failed`);
+  const status = error.message.match(/\b(?:error:\s*|request failed\s*\()(\d{3})\b/i);
+  void errorService.logError(error, {
+    extra: {
+      context: "music",
+      provider,
+      operation,
+      ...(section ? { section } : {}),
+      statusCode: status ? Number(status[1]) : null,
+      errorName: error.name,
+    },
+  }).catch(() => {
+    // Reporting must not interfere with discovery, search, or retrying songs.
+  });
+}
 
 export default function SongsTab() {
   useActivityTracking("songs", { mode: "focus" });
@@ -87,6 +114,7 @@ export default function SongsTab() {
     [],
   );
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const sectionRequests = useRef({ releases: 0, popular: 0, anime: 0 });
 
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
@@ -100,18 +128,21 @@ export default function SongsTab() {
     subtitle: "Fresh tracks from Japan",
     data: [],
     loading: true,
+    error: null,
   });
   const [popularSongs, setPopularSongs] = useState<MusicSection>({
     title: "Popular J-Pop",
     subtitle: "Trending Japanese music",
     data: [],
     loading: true,
+    error: null,
   });
   const [animeSongs, setAnimeSongs] = useState<MusicSection>({
     title: "Anime Openings & Endings",
     subtitle: "Your favorite anime soundtracks",
     data: [],
     loading: true,
+    error: null,
   });
 
   // Get cached album art URI if exists
@@ -303,84 +334,57 @@ export default function SongsTab() {
     );
   }, [clearSongHistory]);
 
-  // Load music sections
-  useEffect(() => {
-    const loadMusicSections = async () => {
-      if (
-        selectedMusicSource === "apple" &&
-        appleMusicAuthStatus !== "authorized"
-      ) {
-        setNewReleases((prev) => ({ ...prev, data: [], loading: false }));
-        setPopularSongs((prev) => ({ ...prev, data: [], loading: false }));
-        setAnimeSongs((prev) => ({ ...prev, data: [], loading: false }));
-        return;
-      }
-
-      if (spotifyCatalogUnavailable) {
-        setNewReleases((prev) => ({ ...prev, data: [], loading: false }));
-        setPopularSongs((prev) => ({ ...prev, data: [], loading: false }));
-        setAnimeSongs((prev) => ({ ...prev, data: [], loading: false }));
-        return;
-      }
-
-      const service =
-        selectedMusicSource === "apple" ? appleMusicService : spotifyService;
-      const sectionLimit = selectedMusicSource === "apple" ? 24 : 20;
-
-      setNewReleases((prev) => ({ ...prev, data: [], loading: true }));
-      setPopularSongs((prev) => ({ ...prev, data: [], loading: true }));
-      setAnimeSongs((prev) => ({ ...prev, data: [], loading: true }));
-
-      const [releasesResult, popularResult, animeResult] =
-        await Promise.allSettled([
-          service.getNewJapaneseReleases(sectionLimit),
-          service.getPopularJapaneseSongs(sectionLimit),
-          service.getAnimeSongs(sectionLimit),
-        ]);
-
-      if (releasesResult.status === "fulfilled") {
-        setNewReleases((prev) => ({
-          ...prev,
-          data: releasesResult.value,
-          loading: false,
-        }));
-      } else {
-        console.error("Error loading new releases:", releasesResult.reason);
-        setNewReleases((prev) => ({ ...prev, loading: false }));
-      }
-
-      if (popularResult.status === "fulfilled") {
-        setPopularSongs((prev) => ({
-          ...prev,
-          data: popularResult.value,
-          loading: false,
-        }));
-      } else {
-        console.error("Error loading popular songs:", popularResult.reason);
-        setPopularSongs((prev) => ({ ...prev, loading: false }));
-      }
-
-      if (animeResult.status === "fulfilled") {
-        setAnimeSongs((prev) => ({
-          ...prev,
-          data: animeResult.value,
-          loading: false,
-        }));
-      } else {
-        console.error("Error loading anime songs:", animeResult.reason);
-        setAnimeSongs((prev) => ({ ...prev, loading: false }));
-      }
-    };
-
-    if (!hasSearched) {
-      loadMusicSections();
+  const loadMusicSection = useCallback(async (key: MusicSectionKey) => {
+    const setSection = {
+      releases: setNewReleases,
+      popular: setPopularSongs,
+      anime: setAnimeSongs,
+    }[key];
+    const request = ++sectionRequests.current[key];
+    if (appleMusicNeedsAuthorization || spotifyCatalogUnavailable) {
+      setSection((prev) => ({ ...prev, data: [], loading: false, error: null }));
+      return;
     }
-  }, [
-    hasSearched,
-    selectedMusicSource,
-    appleMusicAuthStatus,
-    spotifyCatalogUnavailable,
-  ]);
+
+    const service = selectedMusicSource === "apple" ? appleMusicService : spotifyService;
+    const sectionLimit = selectedMusicSource === "apple" ? 24 : 20;
+    const loadSongs = {
+      releases: () => service.getNewJapaneseReleases(sectionLimit),
+      popular: () => service.getPopularJapaneseSongs(sectionLimit),
+      anime: () => service.getAnimeSongs(sectionLimit),
+    }[key];
+    setSection((prev) => ({ ...prev, data: [], loading: true, error: null }));
+    try {
+      const songs = await loadSongs();
+      if (sectionRequests.current[key] === request) {
+        setSection((prev) => ({ ...prev, data: songs, loading: false, error: null }));
+      }
+    } catch (loadError) {
+      if (sectionRequests.current[key] === request) {
+        console.error(`Error loading ${musicSourceLabel} ${key}:`, loadError);
+        logMusicError(loadError, selectedMusicSource, "discovery", key);
+        setSection((prev) => ({
+          ...prev, loading: false,
+          error: `Could not load songs from ${musicSourceLabel}. Please try again.`,
+        }));
+      }
+    }
+  }, [appleMusicNeedsAuthorization, musicSourceLabel, selectedMusicSource, spotifyCatalogUnavailable]);
+
+  useEffect(() => {
+    const requests = sectionRequests.current;
+    if (!hasSearched) {
+      void loadMusicSection("releases");
+      void loadMusicSection("popular");
+      void loadMusicSection("anime");
+    }
+    return () => {
+      // Discard responses from a previous provider, search, or unmounted screen.
+      requests.releases += 1;
+      requests.popular += 1;
+      requests.anime += 1;
+    };
+  }, [hasSearched, loadMusicSection]);
 
   useEffect(() => {
     let didCancel = false;
@@ -416,6 +420,7 @@ export default function SongsTab() {
       } catch (playlistError) {
         console.error("Error loading imported playlists:", playlistError);
         if (!didCancel) {
+          logMusicError(playlistError, selectedMusicSource, "playlists");
           setImportedPlaylists([]);
         }
       } finally {
@@ -556,6 +561,7 @@ export default function SongsTab() {
         setSearchResults(results);
       } catch (err) {
         console.error("Error searching songs:", err);
+        logMusicError(err, selectedMusicSource, "search");
         setError(
           `Failed to search ${musicSourceLabel} songs. Please try again.`,
         );
@@ -861,6 +867,34 @@ export default function SongsTab() {
     </View>
   );
 
+  const renderDiscoveryEmptyState = (section: MusicSection, key: MusicSectionKey) => (
+    <View style={styles.offlineContainer}>
+      <Ionicons
+        name={section.error ? "alert-circle-outline" : "musical-notes-outline"}
+        size={48}
+        color={theme.textLight}
+      />
+      <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
+        {appleMusicNeedsAuthorization
+          ? "Authorize Apple Music in Settings to load songs"
+          : spotifyCatalogUnavailable
+            ? "Spotify song search is unavailable in this build"
+            : section.error || "No songs found. Try searching for an artist or song."}
+      </Text>
+      {section.error && !appleMusicNeedsAuthorization && !spotifyCatalogUnavailable && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={`Retry ${section.title}`}
+          onPress={() => void loadMusicSection(key)}
+          style={styles.sectionActionButton}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.sectionActionText, { color: theme.primary }]}>Try again</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   // Render home view with carousels
   const renderHomeView = () => (
     <ScrollView
@@ -1013,20 +1047,7 @@ export default function SongsTab() {
             </View>
           </ScrollView>
         ) : (
-          <View style={styles.offlineContainer}>
-            <Ionicons
-              name="cloud-offline-outline"
-              size={48}
-              color={theme.textLight}
-            />
-            <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
-              {appleMusicNeedsAuthorization
-                ? "Authorize Apple Music in Settings to load songs"
-                : spotifyCatalogUnavailable
-                  ? "Spotify song search is unavailable in this build"
-                  : "Connect to WiFi to discover new music"}
-            </Text>
-          </View>
+          renderDiscoveryEmptyState(newReleases, "releases")
         )}
       </View>
 
@@ -1067,20 +1088,7 @@ export default function SongsTab() {
             </View>
           </ScrollView>
         ) : (
-          <View style={styles.offlineContainer}>
-            <Ionicons
-              name="cloud-offline-outline"
-              size={48}
-              color={theme.textLight}
-            />
-            <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
-              {appleMusicNeedsAuthorization
-                ? "Authorize Apple Music in Settings to load songs"
-                : spotifyCatalogUnavailable
-                  ? "Spotify song search is unavailable in this build"
-                  : "Connect to WiFi to discover new music"}
-            </Text>
-          </View>
+          renderDiscoveryEmptyState(popularSongs, "popular")
         )}
       </View>
 
@@ -1121,20 +1129,7 @@ export default function SongsTab() {
             </View>
           </ScrollView>
         ) : (
-          <View style={styles.offlineContainer}>
-            <Ionicons
-              name="cloud-offline-outline"
-              size={48}
-              color={theme.textLight}
-            />
-            <Text style={[styles.offlineText, { color: theme.textSecondary }]}>
-              {appleMusicNeedsAuthorization
-                ? "Authorize Apple Music in Settings to load songs"
-                : spotifyCatalogUnavailable
-                  ? "Spotify song search is unavailable in this build"
-                  : "Connect to WiFi to discover new music"}
-            </Text>
-          </View>
+          renderDiscoveryEmptyState(animeSongs, "anime")
         )}
       </View>
     </ScrollView>

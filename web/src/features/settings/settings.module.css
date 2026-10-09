@@ -4,6 +4,18 @@
  * contrast: pass (40–41) · nav: N10 · footer: none · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · icons: pass (30) · mobile: pass (34, 49–57)
  */
 .page { display: grid; gap: var(--space-xl); max-width: 76rem; }
+.reviewPresets { padding: var(--space-sm) var(--space-md) var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule-2); }
+.reviewPresetList { display: grid; margin-block-end: var(--space-sm); }
+.reviewPresetEntry { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); padding-block: var(--space-sm); border: 0; border-block-end: var(--rule-thin) solid var(--color-rule-2); background: transparent; color: var(--color-ink); cursor: pointer; text-align: start; }
+.reviewPresetEntry > span { display: grid; min-width: 0; }
+.reviewPresetEntry small, .reviewPresetLimit { color: var(--color-muted); font-size: var(--text-xs); }
+.reviewPresetLimit { margin-block-start: var(--space-xs); }
+.reviewPresetEntry:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); }
+.reviewPresetEditor { display: grid; gap: var(--space-md); padding-block-start: var(--space-md); margin-block-start: var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule-2); }
+.reviewPresetEditor h3 { font-size: var(--text-md); }
+.reviewPresetEditor label { display: grid; gap: var(--space-xs); font-size: var(--text-sm); }
+.reviewPresetEditor select { width: min(100%, 22rem); min-height: 2.75rem; padding: var(--space-xs) var(--space-sm); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); }
+.reviewPresetEditorActions { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
 .headerActions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); }
 .savedStatus { display: flex; justify-content: flex-end; }
 .savedStatus:empty { display: none; }

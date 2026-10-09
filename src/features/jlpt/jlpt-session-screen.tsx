@@ -24,6 +24,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useActivityTracking } from "../../hooks/useActivityTracking";
+import MultipleChoiceKeyboard from "../../components/multiple-choice-keyboard";
 import { azureSpeechService } from "../../utils/azureSpeech";
 import { fontStyles } from "../../utils/fonts";
 import * as Haptics from "../../utils/haptics";
@@ -915,7 +916,15 @@ export function JlptSessionScreen() {
           </View>
         ) : null}
 
-        <View accessibilityRole="radiogroup" style={styles.options}>
+        <MultipleChoiceKeyboard
+          accessibilityRole="radiogroup"
+          style={styles.options}
+          questionKey={question.id}
+          enabled={!storedAnswer}
+          onSelectIndex={(index) => { if (question.options[index]) chooseOption(question.options[index].id); }}
+          onConfirm={submitAnswer}
+          testID="multiple-choice-keyboard"
+        >
           {question.options.map((option, index) => {
             const selected = compositionQuestion
               ? selectedOrder.includes(option.id)
@@ -998,7 +1007,7 @@ export function JlptSessionScreen() {
               </Pressable>
             );
           })}
-        </View>
+        </MultipleChoiceKeyboard>
 
         {storedAnswer && session.mode !== "mock" ? (
           <View

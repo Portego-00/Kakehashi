@@ -132,7 +132,7 @@ async function bunproRequest<TResponse>(
   options?: {
     apiToken?: string | null;
     query?: Record<string, BunproRequestQueryValue>;
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PATCH";
     body?: BunproRequestBody;
     signal?: AbortSignal;
   }
@@ -493,4 +493,25 @@ export async function getBunproDashboard(options?: {
     due,
     queue,
   };
+}
+
+
+export async function getBunproCoverage(ids: number[], signal?: AbortSignal) {
+  const valid = [...new Set(ids)].filter(id => Number.isInteger(id) && id > 0);
+  if (!valid.length || valid.length > 500) throw new BunproApiError("Invalid vocabulary selection.", 400);
+  const response = await bunproRequest<{ data: import("../types/bunpro").BunproJsonApiResource[] }>("/reviews/hydrate_reviewables", {
+    method: "POST", signal, body: { reviewables: valid.map(id => ["Vocab", id]) },
+  });
+  if (!Array.isArray(response.data)) throw new BunproApiError("Vocabulary progress is unavailable.", 502);
+  return response.data;
+}
+
+export async function saveBunproCoverage(ids: number[], streak: number, deckId?: number) {
+  const valid = [...new Set(ids)].filter(id => Number.isInteger(id) && id > 0);
+  if (!valid.length || valid.length > 500 || ![0, 4, 10, 12].includes(streak)) throw new BunproApiError("Invalid knowledge check.", 400);
+  return bunproRequest("/reviews/update_via_action_type", { method: "PATCH", body: {
+    action_type: streak === 12 ? "mark_known" : "set_streak",
+    ...(streak === 12 ? { deck_id: deckId ?? null } : { new_streak: streak }),
+    reviewables: valid.map(id => ["Vocab", id]),
+  } });
 }

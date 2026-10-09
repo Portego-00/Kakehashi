@@ -28,6 +28,7 @@ const SPOTIFY_CLIENT_KEY =
 const SPOTIFY_AUTH_TOKEN_KEY = "kakehashi.spotify.authToken.v1";
 const TOKEN_REFRESH_MARGIN_SECONDS = 90;
 const DEFAULT_MARKET = "JP";
+const SEARCH_PAGE_LIMIT = 10;
 
 export const SPOTIFY_DISCOVERY = {
   authorizationEndpoint: SPOTIFY_AUTHORIZATION_URL,
@@ -136,6 +137,8 @@ interface SpotifyPlaylistItemsPage {
 
 interface SpotifySearchResponse {
   tracks: {
+    next?: string | null;
+    total?: number;
     items: {
       id: string;
       name: string;
@@ -510,52 +513,25 @@ class SpotifyService {
   }
 
   async getNewJapaneseReleases(limit: number = 20): Promise<SpotifyTrack[]> {
-    try {
-      const results = await this.searchTracks(
-        "YOASOBI OR Kenshi Yonezu OR Ado OR Official髭男dism OR あいみょん",
-        limit
-      );
-      return results;
-    } catch (error) {
-      console.error("Error fetching new Japanese releases:", error);
-      return [];
-    }
+    return this.searchTracks(
+      "YOASOBI OR Kenshi Yonezu OR Ado OR Official髭男dism OR あいみょん",
+      limit
+    );
   }
 
   async getPopularJapaneseSongs(limit: number = 20): Promise<SpotifyTrack[]> {
-    try {
-      const results = await this.searchTracks(
-        "米津玄師 OR YOASOBI OR LiSA OR あいみょん",
-        limit
-      );
-      return results;
-    } catch (error) {
-      console.error("Error fetching popular Japanese songs:", error);
-      return [];
-    }
+    return this.searchTracks("米津玄師 OR YOASOBI OR LiSA OR あいみょん", limit);
   }
 
   async getAnimeSongs(limit: number = 20): Promise<SpotifyTrack[]> {
-    try {
-      const results = await this.searchTracks(
-        "LiSA OR Aimer OR RADWIMPS OR ONE OK ROCK OR BUMP OF CHICKEN",
-        limit
-      );
-      return results;
-    } catch (error) {
-      console.error("Error fetching anime songs:", error);
-      return [];
-    }
+    return this.searchTracks(
+      "LiSA OR Aimer OR RADWIMPS OR ONE OK ROCK OR BUMP OF CHICKEN",
+      limit
+    );
   }
 
   async getTrendingJapaneseSongs(limit: number = 20): Promise<SpotifyTrack[]> {
-    try {
-      const results = await this.searchTracks("Ado OR 藤井風 OR back number", limit);
-      return results;
-    } catch (error) {
-      console.error("Error fetching trending Japanese songs:", error);
-      return [];
-    }
+    return this.searchTracks("Ado OR 藤井風 OR back number", limit);
   }
 
   private async searchTracksWithClientCredentials(
@@ -563,28 +539,36 @@ class SpotifyService {
     limit: number
   ): Promise<SpotifyTrack[]> {
     const accessToken = await this.getClientCredentialsAccessToken();
-    const params = new URLSearchParams({
-      q: query,
-      type: "track",
-      market: DEFAULT_MARKET,
-      limit: Math.min(limit, 50).toString(),
-    });
+    const target = Number.isFinite(limit) ? Math.max(1, Math.min(Math.floor(limit), 50)) : 50;
+    const tracks: SpotifyTrack[] = [];
 
-    const response = await fetch(
-      `${SPOTIFY_API_BASE_URL}/search?${params.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+    // Development-mode apps accept at most 10 results per search request.
+    while (tracks.length < target) {
+      const pageLimit = Math.min(SEARCH_PAGE_LIMIT, target - tracks.length);
+      const params = new URLSearchParams({
+        q: query,
+        type: "track",
+        market: DEFAULT_MARKET,
+        limit: String(pageLimit),
+        offset: String(tracks.length),
+      });
+      const response = await fetch(
+        `${SPOTIFY_API_BASE_URL}/search?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Spotify API error: ${response.status}`);
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Spotify API error: ${response.status}`);
+      const data: SpotifySearchResponse = await response.json();
+      const items = data.tracks?.items || [];
+      tracks.push(...items.map((track) => this.mapRawTrack(track)));
+      if (items.length < pageLimit || data.tracks?.next === null ||
+        (typeof data.tracks?.total === "number" && tracks.length >= data.tracks.total)) {
+        break;
+      }
     }
-
-    const data: SpotifySearchResponse = await response.json();
-    return (data.tracks?.items || []).map((track) => this.mapRawTrack(track));
+    return tracks.slice(0, target);
   }
 
   private async getClientCredentialsAccessToken(): Promise<string> {

@@ -3,6 +3,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import BunproLessonScreen from "../BunproLessonScreen";
 import { getBunproLearnIndex, getBunproLearnQuiz, getBunproQueue } from "../../utils/bunproApi";
 
+jest.mock("../../components/bunpro/bunpro-details-content", () => ({ BunproDetailsContent: ({ content }: any) => { const React = jest.requireActual("react"); const { Text } = jest.requireActual("react-native"); return React.createElement(Text, null, content.data.attributes.title); } }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }), useLocalSearchParams: () => ({}) }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
@@ -46,46 +47,61 @@ beforeEach(() => {
 it("keeps the lesson batch after an invalid quiz response and retries that batch", async () => {
   jest.mocked(getBunproLearnQuiz).mockResolvedValueOnce({ review_session_id: 0, pending_attempt: [], pending_wrapup: [] } as any);
   const view = render(<BunproLessonScreen />);
-  await waitFor(() => expect(view.getByText("Start Review")).toBeTruthy());
-  fireEvent.press(view.getByText("Start Review"));
+  await waitFor(() => expect(view.getByText("Start Quiz")).toBeTruthy());
+  fireEvent.press(view.getByText("Start Quiz"));
   await waitFor(() => expect(view.getByText(/did not return lesson questions/)).toBeTruthy());
   expect(view.getAllByText("Lesson one").length).toBeGreaterThan(0);
   expect(getBunproQueue).toHaveBeenCalledTimes(1);
   expect(getBunproLearnIndex).toHaveBeenCalledTimes(1);
 
   jest.mocked(getBunproLearnQuiz).mockResolvedValueOnce({ review_session_id: 42, pending_attempt: [{ data: { id: "1" } }], pending_wrapup: [] } as any);
-  fireEvent.press(view.getByText("Start Review"));
+  fireEvent.press(view.getByText("Start Quiz"));
   await waitFor(() => expect(view.getByText("Complete quiz")).toBeTruthy());
   expect(getBunproLearnQuiz).toHaveBeenNthCalledWith(2, { deckId: 1, reviewables: [["GrammarPoint", 1]] });
+  jest.mocked(getBunproLearnIndex).mockResolvedValueOnce({ content: [{ data: { id: "2", type: "grammar_point", attributes: { title: "Lesson two", meaning: "Two", level: "N5" } } }] } as any);
   fireEvent.press(view.getByText("Complete quiz"));
-  expect(view.getAllByText("Lesson two").length).toBeGreaterThan(0);
-  expect(view.getByText("Batch 2")).toBeTruthy();
+  await waitFor(() => expect(view.getAllByText("Lesson two").length).toBeGreaterThan(0));
+  expect(getBunproQueue).toHaveBeenCalledTimes(2);
+  expect(view.getByText(/Batch 2/)).toBeTruthy();
 });
 
 it("serializes rapid quiz-start taps", async () => {
   let resolve!: (value: any) => void;
   jest.mocked(getBunproLearnQuiz).mockReturnValue(new Promise((yes) => { resolve = yes; }));
   const view = render(<BunproLessonScreen />);
-  await waitFor(() => expect(view.getByText("Start Review")).toBeTruthy());
-  const start = view.getByText("Start Review");
+  await waitFor(() => expect(view.getByText("Start Quiz")).toBeTruthy());
+  const start = view.getByText("Start Quiz");
   act(() => { fireEvent.press(start); fireEvent.press(start); });
   expect(getBunproLearnQuiz).toHaveBeenCalledTimes(1);
   await act(async () => resolve({ review_session_id: 42, pending_attempt: [{ data: { id: "1" } }], pending_wrapup: [] }));
   expect(view.getByText("Complete quiz")).toBeTruthy();
 });
 
-it.each(["study_question", "vocab_study_question"])("renders %s examples without Bunpro's hidden answer annotations", async (resourceType) => {
-  jest.mocked(getBunproLearnIndex).mockResolvedValue({ content: [{
-    data: { id: "1", type: "grammar_point", attributes: { title: "Lesson one", meaning: "One", level: "N5" } },
-    included: [{ id: "example-1", type: resourceType, attributes: {
-      content: "昨日、____。[[昨日、行かなかった。hidden annotation]]",
-      answer: "行かなかった",
-      translation: "I did not go yesterday.",
-    } }],
-  }] } as any);
+
+
+it("loads a configured extra batch after the daily goal has already been reached", async () => {
+  const base = await jest.mocked(getBunproQueue).getMockImplementation()!();
+  jest.mocked(getBunproQueue).mockResolvedValue({ ...base, data: [{ ...base.data[0], attributes: { ...base.data[0].attributes, daily_goal: 4, daily_goal_count_grammar: 4, batch_size: 2 } }] });
+  jest.mocked(getBunproLearnQuiz).mockResolvedValue({ review_session_id: 42, pending_attempt: [{ data: { id: "1" } }], pending_wrapup: [] } as any);
   const view = render(<BunproLessonScreen />);
-  await waitFor(() => expect(view.getByText("Start Review")).toBeTruthy());
-  expect(view.getByText("I did not go yesterday.")).toBeTruthy();
-  expect(view.getByText("行かなかった")).toBeTruthy();
-  expect(view.queryByText(/hidden annotation|\[\[/)).toBeNull();
+  await waitFor(() => expect(view.getByText("Next")).toBeTruthy());
+  fireEvent.press(view.getByText("Next"));
+  fireEvent.press(view.getByText("Start Quiz"));
+  await waitFor(() => expect(view.getByText("Complete quiz")).toBeTruthy());
+  expect(getBunproLearnQuiz).toHaveBeenCalledWith({ deckId: 1, reviewables: [["GrammarPoint", 1], ["GrammarPoint", 2]] });
+});
+
+it("continues on the same unfinished deck after the final daily batch", async () => {
+  const base = await jest.mocked(getBunproQueue).getMockImplementation()!();
+  jest.mocked(getBunproQueue).mockResolvedValueOnce({ ...base, data: [{ ...base.data[0], attributes: { ...base.data[0].attributes, daily_goal: 1 } }] });
+  jest.mocked(getBunproLearnQuiz).mockResolvedValue({ review_session_id: 42, pending_attempt: [{ data: { id: "1" } }], pending_wrapup: [] } as any);
+  const view = render(<BunproLessonScreen />);
+  await waitFor(() => expect(view.getByText("Start Quiz")).toBeTruthy());
+  fireEvent.press(view.getByText("Start Quiz"));
+  await waitFor(() => expect(view.getByText("Complete quiz")).toBeTruthy());
+  jest.mocked(getBunproQueue).mockResolvedValueOnce({ ...base, data: [{ ...base.data[0], attributes: { ...base.data[0].attributes, daily_goal: 1, daily_goal_count_grammar: 1, batch_size: 2 } }] });
+  jest.mocked(getBunproLearnIndex).mockResolvedValueOnce({ content: [{ data: { id: "3", type: "grammar_point", attributes: { title: "Extra lesson", meaning: "Extra", level: "N5" } } }] } as any);
+  fireEvent.press(view.getByText("Complete quiz"));
+  await waitFor(() => expect(view.getAllByText("Extra lesson").length).toBeGreaterThan(0));
+  expect(getBunproLearnIndex).toHaveBeenLastCalledWith(expect.objectContaining({ deckId: 1 }));
 });

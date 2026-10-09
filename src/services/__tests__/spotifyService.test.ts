@@ -137,6 +137,50 @@ describe("Spotify personal client configuration", () => {
     expect(AuthSession.refreshAsync).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "getNewJapaneseReleases", "getPopularJapaneseSongs", "getAnimeSongs", "getTrendingJapaneseSongs",
+  ] as const)("preserves %s failures so discovery can offer a retry", async (method) => {
+    const failure = new TypeError("Network request failed");
+    fetchMock.mockReject(failure);
+    await expect(service[method](20)).rejects.toBe(failure);
+  });
+
+  it.each([401, 403, 429])("preserves catalog HTTP %s failures instead of reporting no songs", async (status) => {
+    fetchMock.mockResponses(
+      JSON.stringify({ access_token: "catalog-access", expires_in: 3600 }),
+      [JSON.stringify({ error: { status } }), { status }]
+    );
+    await expect(service.getPopularJapaneseSongs()).rejects.toThrow(`Spotify API error: ${status}`);
+  });
+
+  it("stops searching when the catalog has no more results", async () => {
+    fetchMock.mockResponses(
+      JSON.stringify({ access_token: "catalog-access", expires_in: 3600 }),
+      JSON.stringify({ tracks: { items: [], next: null, total: 0 } })
+    );
+    expect(await service.searchTracks("Missing song", 20)).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("paginates catalog search within Spotify's 10-result request limit", async () => {
+    const tracks = Array.from({ length: 20 }, (_, index) => ({ ...rawTrack, id: `track-${index}` }));
+    fetchMock.mockResponse(async (request) => {
+      if (request.url.includes("/api/token")) {
+        return JSON.stringify({ access_token: "catalog-access", expires_in: 3600 });
+      }
+      const params = new URL(request.url).searchParams;
+      const limit = Number(params.get("limit"));
+      if (limit > 10) return { status: 400, body: JSON.stringify({ error: { message: "Invalid limit" } }) };
+      const offset = Number(params.get("offset"));
+      return JSON.stringify({ tracks: { items: tracks.slice(offset, offset + limit) } });
+    });
+
+    expect(await service.searchTracks("Song", 20)).toHaveLength(20);
+    const requests = fetchMock.mock.calls.slice(1).map(([url]) => new URL(String(url)));
+    expect(requests.map((url) => url.searchParams.get("limit"))).toEqual(["10", "10"]);
+    expect(requests.map((url) => url.searchParams.get("offset"))).toEqual(["0", "10"]);
+  });
+
   it("validates and trims IDs, preserving an existing connection for invalid input", async () => {
     expect(validate(` ${PERSONAL_ID.toUpperCase()} `)).toBe(true);
     expect(validate("")).toBe(false);

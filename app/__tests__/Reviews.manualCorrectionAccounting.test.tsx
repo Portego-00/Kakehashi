@@ -23,10 +23,14 @@ const mockMarkReviewSubmittedInAssignmentCaches = jest.fn(
   async (..._args: unknown[]) => {},
 );
 const mockRefresh = jest.fn(async () => {});
+let mockReviewOrder = "lowestLevelFirst";
 let mockAnkiCardMode = false;
 let mockAnkiGroupQuestions = false;
 let mockReviewBatchSizeEnabled = false;
 let mockReviewBatchSize = 5;
+let mockReviewPresetId: string | undefined;
+let mockReviewPresetsEnabled = false;
+let mockReviewPresets: import("../../src/utils/review-presets").ReviewPreset[] = [];
 const mockSubject = {
   id: 1,
   object: "vocabulary",
@@ -72,6 +76,7 @@ const mockGetCachedStudyMaterials = jest.fn(async () => []);
 let mockAcceptUserSynonymsAsAnswers = false;
 
 jest.mock("expo-router", () => ({
+  useLocalSearchParams: () => ({ reviewPresetId: mockReviewPresetId }),
   router: { back: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() },
 }));
 jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
@@ -99,7 +104,7 @@ jest.mock("../../src/utils/store", () => ({
     ankiCardMode: mockAnkiCardMode,
     ankiGroupQuestions: mockAnkiGroupQuestions,
     ankiCardModeScope: "both",
-    reviewOrder: "lowestLevelFirst",
+    reviewOrder: mockReviewOrder,
     reviewTypeOrderEnabled: false,
     prioritizeCriticalItems: false,
     acceptUserSynonymsAsAnswers: mockAcceptUserSynonymsAsAnswers,
@@ -110,6 +115,8 @@ jest.mock("../../src/utils/store", () => ({
     backToBackImmediateRetryIncorrect: true,
     reviewBatchSizeEnabled: mockReviewBatchSizeEnabled,
     reviewBatchSize: mockReviewBatchSize,
+    reviewPresetsEnabled: mockReviewPresetsEnabled,
+    reviewPresets: mockReviewPresets,
     reviewWrapUpTargetSubjects: 10,
     autoplayVocabularyAudio: false,
     showAnswerStopSubjectDetails: false,
@@ -231,10 +238,14 @@ describe("review parent manual-correction accounting", () => {
   beforeEach(() => {
     mockDashboard.subjects.splice(1);
     mockDashboard.assignments.splice(1);
+    mockReviewOrder = "lowestLevelFirst";
     mockAnkiCardMode = false;
     mockAnkiGroupQuestions = false;
     mockReviewBatchSizeEnabled = false;
     mockReviewBatchSize = 5;
+    mockReviewPresetId = undefined;
+    mockReviewPresetsEnabled = false;
+    mockReviewPresets = [];
     mockAcceptUserSynonymsAsAnswers = false;
     mockQuestionProps = null;
     mockQueueProgress.mockReset();
@@ -286,6 +297,24 @@ describe("review parent manual-correction accounting", () => {
     await screen.findByTestId("accounting-question", {}, { timeout: 500 });
     expect(currentQuestion().item.id).toBe(10);
     expect(mockGetLiveAvailableReviews).toHaveBeenCalledWith("test-token");
+    screen.unmount();
+  });
+
+  it("loads the chosen preset's size and order without changing the defaults", async () => {
+    addCachedReviews(6);
+    mockDashboard.assignments.forEach((assignment, index) => { assignment.data.srs_stage = index + 1; });
+    mockReviewBatchSizeEnabled = true;
+    mockReviewBatchSize = 50;
+    mockReviewPresetsEnabled = true;
+    mockReviewPresetId = "quick";
+    mockReviewPresets = [{ id: "quick", name: "Quick", batchSize: 5, reviewOrder: "descendingSrsStage" }];
+    const screen = render(<ReviewScreen />);
+    await screen.findByTestId("accounting-question");
+    expect(currentQuestion().totalItems).toBe(5);
+    expect(currentQuestion().item.id).toBe(15);
+    expect(mockReviewBatchSize).toBe(50);
+    expect(mockReviewOrder).toBe("lowestLevelFirst");
+    mockDashboard.assignments[0].data.srs_stage = 3;
     screen.unmount();
   });
 
@@ -1224,4 +1253,19 @@ describe("review parent manual-correction accounting", () => {
     );
     screen.unmount();
   });
+  it("keeps the current question and progress when review ordering changes during the session", async () => {
+    const screen = render(<ReviewScreen />);
+    await waitFor(() => expect(currentQuestion().questionType).toBe("meaning"));
+    await answerCurrent(true);
+    await waitFor(() => expect(currentQuestion().questionType).toBe("reading"));
+    const before = currentQuestion().currentItem;
+    const liveCalls = mockGetLiveAvailableReviews.mock.calls.length;
+    mockReviewOrder = "ascendingSrsStage";
+    screen.rerender(<ReviewScreen />);
+    await act(async () => {});
+    expect(currentQuestion().questionType).toBe("reading");
+    expect(currentQuestion().currentItem).toBe(before);
+    expect(mockGetLiveAvailableReviews).toHaveBeenCalledTimes(liveCalls);
+  });
+
 });
