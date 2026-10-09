@@ -224,19 +224,22 @@ class AppleMusicService {
     });
   }
 
-  private async fetchJson<T>(url: string): Promise<T | null> {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.warn(`Apple Music data request failed (${response.status})`, url);
-        return null;
-      }
-
-      return (await response.json()) as T;
-    } catch (error) {
-      console.error("Apple Music data request failed:", error);
-      return null;
+  private async fetchJson<T>(url: string): Promise<T> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Apple Music data request failed (${response.status})`);
     }
+    return (await response.json()) as T;
+  }
+
+  private async collectDiscoveryTracks(requests: Promise<SpotifyTrack[]>[]): Promise<SpotifyTrack[]> {
+    const results = await Promise.allSettled(requests);
+    const tracks = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+    const failure = results.find((result) => result.status === "rejected");
+    if (tracks.length === 0 && failure?.status === "rejected") {
+      throw failure.reason;
+    }
+    return this.dedupeTracks(tracks);
   }
 
   private async getMostPlayedSongs(limit: number): Promise<SpotifyTrack[]> {
@@ -307,6 +310,7 @@ class AppleMusicService {
     const target = this.normalizeLimit(limit);
     const combined: SpotifyTrack[] = [];
     const seenIds = new Set<string>();
+    const failures: unknown[] = [];
 
     for (const query of queries) {
       if (combined.length >= target) {
@@ -331,6 +335,7 @@ class AppleMusicService {
           }
         }
       } catch (error) {
+        failures.push(error);
         console.warn(
           `Apple Music search fallback failed for query "${query}"`,
           error,
@@ -338,6 +343,9 @@ class AppleMusicService {
       }
     }
 
+    if (combined.length === 0 && failures.length > 0) {
+      throw failures[0];
+    }
     return combined;
   }
 
@@ -440,23 +448,33 @@ class AppleMusicService {
       Math.ceil((safeLimit * 2) / JAPANESE_RELEASE_ARTIST_IDS.length),
     );
 
-    const releaseGroups = await Promise.all(
-      JAPANESE_RELEASE_ARTIST_IDS.map((artistId) =>
-        this.lookupRecentSongsByArtist(artistId, perArtistLimit),
-      ),
-    );
+    let releaseFailure: { error: unknown } | null = null;
+    let releases: SpotifyTrack[] = [];
+    try {
+      releases = await this.collectDiscoveryTracks(
+        JAPANESE_RELEASE_ARTIST_IDS.map((artistId) =>
+          this.lookupRecentSongsByArtist(artistId, perArtistLimit),
+        ),
+      );
+    } catch (error) {
+      releaseFailure = { error };
+    }
 
-    let tracks = this.dedupeTracks(releaseGroups.flat())
+    let tracks = releases
       .filter((track) => !this.isLikelyNonOfficial(track))
       .sort((a, b) => this.compareByReleaseDateDesc(a, b));
 
     if (tracks.length < safeLimit) {
-      const supplemental = await this.searchItunesSongs("J-Pop 新曲", 80);
-      tracks = this.dedupeTracks([...tracks, ...supplemental])
+      tracks = (await this.collectDiscoveryTracks([
+        Promise.resolve(tracks), this.searchItunesSongs("J-Pop 新曲", 80),
+      ]))
         .filter((track) => !this.isLikelyNonOfficial(track))
         .sort((a, b) => this.compareByReleaseDateDesc(a, b));
     }
 
+    if (tracks.length === 0 && releaseFailure) {
+      throw releaseFailure.error;
+    }
     return tracks.slice(0, safeLimit);
   }
 
@@ -467,36 +485,51 @@ class AppleMusicService {
       APPLE_RSS_MAX_LIMIT,
     );
 
-    const mostPlayedTracks = await this.getMostPlayedSongs(feedLimit);
+    let feedFailure: { error: unknown } | null = null;
+    let mostPlayedTracks: SpotifyTrack[] = [];
+    try {
+      mostPlayedTracks = await this.getMostPlayedSongs(feedLimit);
+    } catch (error) {
+      feedFailure = { error };
+    }
     if (mostPlayedTracks.length >= safeLimit) {
       return mostPlayedTracks.slice(0, safeLimit);
     }
 
-    const fallbackTracks = await this.searchAcrossQueries(
-      [
-        "popular j-pop",
-        "japanese top hits",
-        "YOASOBI Kenshi Yonezu Aimer",
-        "Ado Fujii Kaze back number",
-      ],
-      safeLimit,
-    );
+    const tracks = await this.collectDiscoveryTracks([
+      Promise.resolve(mostPlayedTracks),
+      this.searchAcrossQueries(
+        [
+          "popular j-pop",
+          "japanese top hits",
+          "YOASOBI Kenshi Yonezu Aimer",
+          "Ado Fujii Kaze back number",
+        ],
+        safeLimit,
+      ),
+    ]);
 
-    return this.dedupeTracks([...mostPlayedTracks, ...fallbackTracks]).slice(
-      0,
-      safeLimit,
-    );
+    if (tracks.length === 0 && feedFailure) {
+      throw feedFailure.error;
+    }
+    return tracks.slice(0, safeLimit);
   }
 
   async getAnimeSongs(limit: number = 20): Promise<SpotifyTrack[]> {
     const safeLimit = this.normalizeLimit(limit, APPLE_RSS_MAX_LIMIT);
 
-    const [animeSearchPrimary, animeSearchSecondary] = await Promise.all([
-      this.searchItunesSongs("アニメ 主題歌", 80),
-      this.searchItunesSongs("アニメ オープニング エンディング", 80),
-    ]);
+    let searchFailure: { error: unknown } | null = null;
+    let animeSearch: SpotifyTrack[] = [];
+    try {
+      animeSearch = await this.collectDiscoveryTracks([
+        this.searchItunesSongs("アニメ 主題歌", 80),
+        this.searchItunesSongs("アニメ オープニング エンディング", 80),
+      ]);
+    } catch (error) {
+      searchFailure = { error };
+    }
 
-    let tracks = this.dedupeTracks([...animeSearchPrimary, ...animeSearchSecondary])
+    let tracks = animeSearch
       .filter((track) => !this.isLikelyNonOfficial(track))
       .filter(
         (track) =>
@@ -508,18 +541,18 @@ class AppleMusicService {
         5,
         Math.ceil((safeLimit * 2) / ANIME_ARTIST_IDS.length),
       );
-      const animeArtistGroups = await Promise.all(
-        ANIME_ARTIST_IDS.map((artistId) =>
+      tracks = (await this.collectDiscoveryTracks([
+        Promise.resolve(tracks),
+        ...ANIME_ARTIST_IDS.map((artistId) =>
           this.lookupRecentSongsByArtist(artistId, perArtistLimit),
         ),
-      );
-
-      const animeArtistTracks = this.dedupeTracks(animeArtistGroups.flat())
+      ]))
         .filter((track) => !this.isLikelyNonOfficial(track));
-
-      tracks = this.dedupeTracks([...tracks, ...animeArtistTracks]);
     }
 
+    if (tracks.length === 0 && searchFailure) {
+      throw searchFailure.error;
+    }
     tracks.sort((a, b) => {
       const scoreDiff = this.getAnimeScore(b) - this.getAnimeScore(a);
       if (scoreDiff !== 0) {

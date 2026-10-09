@@ -7034,6 +7034,8 @@ export default function ReviewQuestionScreen({
                       </Text>
                     ) : (
                       <ReviewAnswerChoices
+                        questionKey={currentQuestionKey}
+                        keyboardEnabled={isScreenFocused && !studyMaterialNoteModalVisible && !noteSubjectPreviewOpen}
                         choices={answerChoices}
                         selectedAnswer={currentSelectedChoice}
                         disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}

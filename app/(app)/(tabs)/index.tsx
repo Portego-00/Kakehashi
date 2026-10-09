@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { GlassButton } from "../../../src/components/GlassButton";
 import HomeDashboardWidget from "../../../src/components/HomeDashboardWidget";
+import { type ReviewPreset } from "../../../src/utils/review-presets";
 import CustomSrsDashboardCard from "../../../src/features/custom-srs/CustomSrsDashboardCard";
 import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
 import OpenSourceModal from "../../../src/components/OpenSourceModal";
@@ -842,9 +843,9 @@ export default function StudyTab() {
     router.push("/lesson-picker");
   };
 
-  const handleReviewsPress = () => {
+  const handleReviewsPress = (preset?: ReviewPreset) => {
     // Navigate to reviews screen
-    router.push("/reviews");
+    router.push(preset ? { pathname: "/reviews", params: { reviewPresetId: preset.id } } : "/reviews");
   };
 
   const handleUpdateApp = async () => {

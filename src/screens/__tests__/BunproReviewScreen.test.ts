@@ -1,3 +1,4 @@
+jest.mock("../../hooks/use-bunpro-voice-answer", () => ({ useBunproVoiceAnswer: jest.fn() }));
 jest.mock("../../components/ReviewPreviousAnswerCard", () => ({ ReviewPreviousAnswerCard: () => null }));
 jest.mock("../../utils/expoAvCompat", () => ({
   Audio: {

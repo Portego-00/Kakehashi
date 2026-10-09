@@ -8,6 +8,32 @@ vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme }) 
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { data: { username: "settings-test" } } }) }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
+it("saves multiple choice during a review without changing Anki preferences", () => {
+  saveWebSettings(localStorage, "settings-test", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "reading" } });
+  render(<ReviewSettingsButton />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Multiple Choice")).not.toBeChecked();
+  fireEvent.click(screen.getByLabelText("Multiple Choice"));
+  expect(loadWebSettings(localStorage, "settings-test").study).toMatchObject({ reviewMultipleChoiceEnabled: true, ankiMode: "reading" });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Multiple Choice")).toBeChecked();
+});
+
+it("offers choices for custom vocabulary and mixed sessions, while keeping Bunpro-only settings relevant", () => {
+  const view = render(<ReviewSettingsButton ankiSupported={false} bunproSupported />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.queryByLabelText("Multiple Choice")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  view.rerender(<ReviewSettingsButton ankiSupported={false} />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Multiple Choice")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  view.rerender(<ReviewSettingsButton bunproSupported />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Multiple Choice")).toBeInTheDocument();
+});
+
 it("persists smaller question text without changing the app text size", () => {
   saveWebSettings(localStorage, "settings-test", { ...DEFAULT_WEB_SETTINGS, textScale: 1.2 });
   const change = vi.fn();

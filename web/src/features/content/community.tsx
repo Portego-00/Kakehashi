@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, Heart, MessageSquare, Monitor, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
 import { PatreonIcon } from "@/components/icons/BrandIcons";
 import { UserAvatar } from "@/components/profile/UserAvatar";
@@ -14,6 +14,8 @@ import { communityAccountScope, useDraftNavigationGuard, usePersistentCommunityD
 import { CommunityEditor } from "@/features/community/CommunityEditor";
 import { CommunityMarkdown, safeCommunityMediaUrl } from "@/features/community/CommunityMarkdown";
 import { hasWebIssueOrigin } from "@/features/community/issue-origin";
+import { CommunityActivity, useCommunityActivity } from "@/features/community/CommunityActivity";
+import { markCommunityRead } from "@/features/community/activity";
 import { EmptyState } from "./ui";
 import styles from "./community.module.css";
 
@@ -111,6 +113,9 @@ function IssueOriginBadge({ labels }: { labels?: string[] | null }) {
 }
 
 export function CommunityWorkspace() {
+  const { user } = useSession();
+  const [view, setView] = useState<"board" | "activity">("board");
+  const activity = useCommunityActivity(user?.data.username);
   const [issues, setIssues] = useState<SharedIssue[]>([]);
   const [counts, setCounts] = useState<CommunityCounts>({ open: 0, closed: 0 });
   const [configured, setConfigured] = useState(true);
@@ -156,7 +161,8 @@ export function CommunityWorkspace() {
   }, [load]);
 
   function selectStatus(next: "open" | "closed") {
-    if (next === status) return;
+    if (next === status && view === "board") return;
+    setView("board");
     setStatus(next);
     setPage(0);
   }
@@ -189,13 +195,15 @@ export function CommunityWorkspace() {
 
     <section className={styles.board} aria-label="Issue board">
       <div className={styles.boardToolbar}>
-        <div className={styles.statusTabs} role="tablist" aria-label="Issue status">
-          <button type="button" role="tab" aria-selected={status === "open"} onClick={() => selectStatus("open")}>Open <span>{countLabel(counts.open)}</span></button>
-          <button type="button" role="tab" aria-selected={status === "closed"} onClick={() => selectStatus("closed")}>Closed <span>{countLabel(counts.closed)}</span></button>
+        <div className={styles.statusTabs} role="tablist" aria-label="Community views">
+          <button type="button" role="tab" aria-selected={view === "board" && status === "open"} onClick={() => selectStatus("open")}>Open <span>{countLabel(counts.open)}</span></button>
+          <button type="button" role="tab" aria-selected={view === "board" && status === "closed"} onClick={() => selectStatus("closed")}>Closed <span>{countLabel(counts.closed)}</span></button>
+          {user ? <button type="button" role="tab" aria-selected={view === "activity"} onClick={() => setView("activity")}>My activity{activity.unreadCount ? <span className={styles.unreadBadge} aria-label={`${activity.unreadCount} threads with new replies`}>{activity.unreadCount}</span> : null}</button> : null}
         </div>
-        <label className={styles.search}><Search size={17} aria-hidden="true" /><input aria-label="Search community issues" type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search issues" />{searchInput ? <button type="button" aria-label="Clear search" onClick={() => setSearchInput("")}><X size={16} aria-hidden="true" /></button> : null}</label>
+        <label className={styles.search}><Search size={17} aria-hidden="true" /><input aria-label="Search community issues" type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder={view === "activity" ? "Search your posts and comments" : "Search issues"} />{searchInput ? <button type="button" aria-label="Clear search" onClick={() => setSearchInput("")}><X size={16} aria-hidden="true" /></button> : null}</label>
       </div>
 
+      {view === "activity" ? <CommunityActivity activity={activity} query={query} /> : <>
       {error ? <div className={styles.error} role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>Try again</button></div> : null}
       {loading ? <div className={styles.loading} role="status">Loading issues…</div> : issues.length ? <>
         <div className={styles.issueList}>{issues.map((issue) => <article className={styles.issue} key={issue.id}>
@@ -212,6 +220,7 @@ export function CommunityWorkspace() {
         </article>)}</div>
         <nav className={styles.pagination} aria-label="Issue pages"><button type="button" disabled={page === 0 || loading} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</button><span aria-live="polite">Page {page + 1}</span><button type="button" disabled={!hasMore || loading} onClick={() => setPage((value) => value + 1)}>Next</button></nav>
       </> : <EmptyState title={configured ? "No issues found" : "The board needs configuration"}>{configured ? (query ? "Try a different search." : `There are no ${status} issues.`) : "Connect the shared community service to load the issue board."}</EmptyState>}
+    </>}
     </section>
   </main>;
 }
@@ -255,6 +264,8 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   const [canUpdateStatus, setCanUpdateStatus] = useState(false);
   const [writable, setWritable] = useState(true);
   const [commentPage, setCommentPage] = useState(0);
+  const resolvedFocus = useRef(false);
+  const scrolledToComment = useRef(false);
   const [commentsHasMore, setCommentsHasMore] = useState(false);
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(() => new Set());
   const [replyDraft, setReplyDraft, discardReplyDraft] = usePersistentCommunityDraft(communityAccountScope(user), `reply:${id}`, { content: "", requestId: "", replyToCommentId: "" });
@@ -267,7 +278,9 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); setError("");
     try {
-      const payload = await readJson<{ issue: SharedIssue; comments: SharedComment[]; writable?: boolean; canManage?: boolean; canUpdateStatus?: boolean; commentsHasMore?: boolean }>(await fetch(`/community/api?action=issue&id=${encodeURIComponent(id)}&commentPage=${commentPage}`, { cache: "no-store", signal }));
+      const payload = await readJson<{ issue: SharedIssue; comments: SharedComment[]; writable?: boolean; canManage?: boolean; canUpdateStatus?: boolean; commentsHasMore?: boolean; commentPage?: number }>(await fetch(`/community/api?action=issue&id=${encodeURIComponent(id)}&commentPage=${commentPage}${!resolvedFocus.current && typeof window !== "undefined" ? `&comment=${new URLSearchParams(window.location.search).get("comment") || ""}` : ""}`, { cache: "no-store", signal }));
+      resolvedFocus.current = true;
+      if (typeof payload.commentPage === "number" && payload.commentPage !== commentPage) setCommentPage(payload.commentPage);
       setIssue(payload.issue); setComments(payload.comments || []); setWritable(payload.writable !== false); setCanManage(Boolean(payload.canManage)); setCommentsHasMore(Boolean(payload.commentsHasMore));
       setCanUpdateStatus(Boolean(payload.canUpdateStatus ?? payload.canManage));
     } catch (cause) {
@@ -277,6 +290,29 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
   }, [commentPage, id]);
 
   useEffect(() => { const controller = new AbortController(); const timer = window.setTimeout(() => void load(controller.signal), 0); return () => { window.clearTimeout(timer); controller.abort(); }; }, [load]);
+
+  useEffect(() => {
+    const username = user?.data.username;
+    if (!username || loading || !issue || typeof IntersectionObserver === "undefined") return;
+    if (!scrolledToComment.current) {
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (target) { target.scrollIntoView({ block: "start" }); scrolledToComment.current = true; }
+    }
+    const timers = new Map<Element, number>();
+    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      const existing = timers.get(entry.target);
+      if (existing) window.clearTimeout(existing);
+      timers.delete(entry.target);
+      if (!entry.isIntersecting) return;
+      timers.set(entry.target, window.setTimeout(() => {
+        const observedAt = entry.target.getAttribute("data-comment-created-at");
+        if (observedAt) { try { markCommunityRead(window.localStorage, username, id, observedAt); } catch { /* Keep the conversation usable when storage is unavailable. */ } }
+        timers.delete(entry.target);
+      }, 600));
+    }), { threshold: 0.1 });
+    document.querySelectorAll("[data-comment-created-at]").forEach((element) => observer.observe(element));
+    return () => { observer.disconnect(); timers.forEach((timer) => window.clearTimeout(timer)); };
+  }, [comments, id, issue, loading, user?.data.username]);
 
   async function addReply(event: FormEvent) {
     event.preventDefault(); if (uploading || !reply.trim()) return;
@@ -343,7 +379,7 @@ export function IssueDetailWorkspace({ id }: { id: string }) {
     {error ? <p className={styles.error} role="alert">{error}</p> : null}
     <section className={styles.replies}>
       <h2>{countLabel(issue.reply_count)} {issue.reply_count === 1 ? "reply" : "replies"}</h2>
-      {comments.map((comment) => { const parent = comments.find((candidate) => candidate.id === comment.reply_to_comment_id); return <article key={comment.id}><header><div className={styles.commentAuthor}><UserMark name={comment.user_username} hash={comment.user_gravatar_hash} level={comment.user_level} /><div><AuthorName name={comment.user_username} isDeveloper={comment.is_developer} isPatreonSupporter={comment.is_patreon_supporter} /><span className={styles.meta}>{relativeTime(comment.created_at)}</span></div></div>{writable ? <button className={styles.textButton} type="button" disabled={pendingLikes.has(`comment:${comment.id}`)} aria-pressed={Boolean(comment.is_liked)} aria-label={`${comment.is_liked ? "Unlike" : "Like"} reply by ${comment.user_username || "learner"}, ${comment.likes_count || 0} likes`} onClick={() => void toggleLike("comment", comment.id)}><Heart size={15} fill={comment.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(comment.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={15} aria-hidden="true" />{countLabel(comment.likes_count)}</span>}</header>{comment.reply_to_comment_id ? <div className={styles.replyContext}><span>Replying to {parent?.user_username || "an earlier comment"}</span>{parent ? <p>{parent.content}</p> : null}</div> : null}<CommunityMarkdown>{comment.content}</CommunityMarkdown>{writable ? <button className={styles.replyAction} type="button" onClick={() => { setReplyDraft((current) => ({ ...current, replyToCommentId: comment.id, requestId: "" })); document.getElementById("community-reply")?.focus(); }}>Reply</button> : null}</article>; })}
+      {comments.map((comment) => { const parent = comments.find((candidate) => candidate.id === comment.reply_to_comment_id); return <article key={comment.id} id={`comment-${comment.id}`} data-comment-created-at={comment.user_username?.toLowerCase() === user?.data.username.toLowerCase() ? undefined : comment.created_at}><header><div className={styles.commentAuthor}><UserMark name={comment.user_username} hash={comment.user_gravatar_hash} level={comment.user_level} /><div><AuthorName name={comment.user_username} isDeveloper={comment.is_developer} isPatreonSupporter={comment.is_patreon_supporter} /><span className={styles.meta}>{relativeTime(comment.created_at)}</span></div></div>{writable ? <button className={styles.textButton} type="button" disabled={pendingLikes.has(`comment:${comment.id}`)} aria-pressed={Boolean(comment.is_liked)} aria-label={`${comment.is_liked ? "Unlike" : "Like"} reply by ${comment.user_username || "learner"}, ${comment.likes_count || 0} likes`} onClick={() => void toggleLike("comment", comment.id)}><Heart size={15} fill={comment.is_liked ? "currentColor" : "none"} aria-hidden="true" />{countLabel(comment.likes_count)}</button> : <span className={styles.readonlyCount}><Heart size={15} aria-hidden="true" />{countLabel(comment.likes_count)}</span>}</header>{comment.reply_to_comment_id ? <div className={styles.replyContext}><span>Replying to {parent?.user_username || "an earlier comment"}</span>{parent ? <p>{parent.content}</p> : null}</div> : null}<CommunityMarkdown>{comment.content}</CommunityMarkdown>{writable ? <button className={styles.replyAction} type="button" onClick={() => { setReplyDraft((current) => ({ ...current, replyToCommentId: comment.id, requestId: "" })); document.getElementById("community-reply")?.focus(); }}>Reply</button> : null}</article>; })}
       <nav className={styles.pagination} aria-label="Reply pages"><button type="button" disabled={commentPage === 0 || busy} onClick={() => setCommentPage((value) => Math.max(0, value - 1))}>Previous</button><span>Page {commentPage + 1}</span><button type="button" disabled={!commentsHasMore || busy} onClick={() => setCommentPage((value) => value + 1)}>Next</button></nav>
       {writable ? <form className={styles.replyBox} onSubmit={(event) => void addReply(event)}>{replyTarget ? <div className={styles.replyingTo}><span>Replying to {replyTarget.user_username || "Learner"}</span><button type="button" aria-label="Cancel reply to comment" onClick={() => setReplyDraft((current) => ({ ...current, replyToCommentId: "", requestId: "" }))}><X size={16} aria-hidden="true" /></button></div> : null}<CommunityEditor id="community-reply" label={`Reply as ${user?.data.username || "learner"}`} value={reply} onChange={(content) => setReplyDraft((current) => ({ ...current, content, requestId: "" }))} onUploadingChange={setUploading} maxLength={6_000} placeholder="Add a useful reply" disabled={busy} /><div className={styles.actions}><button className={styles.secondary} type="button" disabled={!replyDirty || busy || uploading} onClick={discardReplyDraft}>Discard draft</button><button className={styles.primary} type="submit" disabled={busy || uploading || !reply.trim()}><MessageSquare size={17} aria-hidden="true" />{busy ? "Posting…" : "Reply"}</button></div></form> : <div className={styles.notice}><strong>Read-only community</strong><span>This deployment needs a server-side Supabase secret key before it can post replies or likes.</span></div>}
     </section>

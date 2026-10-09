@@ -63,6 +63,9 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
         <p className={styles.hint}>Changes save automatically. Your current question and answers stay in place; ordering changes apply to the remaining questions.</p>
         <fieldset><legend>Appearance</legend>
           <Field label="Theme"><select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>{["system", "light", "dark", "midnight", "sepia"].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></Field>
+          {toggle("compactReviews", "Compact review layout")}
+          <Field label="Default review panel"><select value={study.reviewDefaultDetailsTab} onChange={(event) => update("reviewDefaultDetailsTab", event.target.value as WebStudyPreferences["reviewDefaultDetailsTab"])}><option value="question">Follow the question</option><option value="meaning">Meaning</option><option value="reading">Reading</option><option value="stroke">Stroke</option></select></Field>
+          <p className={styles.hint}>Compact layout keeps core information below your answer. Show more expands notes, hints, and other extras. Details stay hidden until an answer is revealed. Unavailable panels open on Meaning.</p>
           <Field label="Question text size"><select value={study.reviewCharacterFontScale} onChange={(event) => update("reviewCharacterFontScale", Number(event.target.value))}>{REVIEW_CHARACTER_FONT_SCALES.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></Field>
           {toggle("showReviewItemLevelAndSrsStage", "Show level and SRS stage")}
           {toggle("showVocabularyFrequency", "Show vocabulary frequency")}
@@ -87,6 +90,10 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
           {study.backToBackQuestions ? toggle("backToBackImmediateRetryIncorrect", "Immediate retry on wrong") : null}
         </fieldset>
         <fieldset><legend>Answers and audio</legend>
+          {ankiSupported || !bunproSupported ? <>
+            {toggle("reviewMultipleChoiceEnabled", "Multiple Choice")}
+            <p className={styles.hint}>Choose from similar readings and related meanings instead of typing. Anki questions keep their current behavior.</p>
+          </> : null}
           {toggle("pauseOnWrong", "Pause on wrong answer")}{toggle("pauseOnClose", "Pause on close answer", study.pauseOnCorrect)}{toggle("pauseOnCorrect", "Pause on correct answer")}
           {toggle("showDetailsOnWrongAnswer", "Show details on wrong answer")}
           {toggle("showAnswerStopSubjectDetails", "Show details on answer pause")}{toggle("answerFeedbackSoundEnabled", "Answer feedback sounds")}

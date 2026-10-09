@@ -27,11 +27,58 @@ const grammar = {
   } },
   included: [
     { id: "59", type: "writeup", attributes: { body: '<p>The <span data-gp-id="416">て</span> form connects a <span data-gp-id="12">る-Verb</span> to another action.</p><section class="caution"><h4>Caution</h4><p>There are several irregular verbs when it comes to <span data-gp-id="416">て</span> form conjugation.</p><ul class="writeup-examples--holder"><li data-study-question="183777"></li><li data-study-question="183778"></li><li data-study-question="183779"></li></ul></section>' } },
-    { id: "183777", type: "study_question", attributes: { question_type: "readonly", content: "学校（がっこう）に行（い）って勉強（べんきょう）をする。", translation: 'I <strong>go</strong> to school,<strong> then</strong> study.', extra_info: "行（い）く's conjugation with て" } },
+    { id: "183777", type: "study_question", attributes: { question_type: "readonly", content: "学校（がっこう）に行（い）って勉強（べんきょう）をする。", translation: 'I <strong>go</strong> to school,<strong> then</strong> study.', extra_info: '<ruby>行<rt class="bp-js-hide-furi">い</rt></ruby>く\'s conjugation with て' } },
     { id: "183778", type: "study_question", attributes: { question_type: "readonly", content: "ダイエットをして痩（や）せる。", translation: 'To <strong>go on</strong> a diet,<strong> then</strong> lose weight.', extra_info: "する's conjugation with て" } },
     { id: "183779", type: "study_question", attributes: { question_type: "readonly", content: "公園（こうえん）に来（き）て遊（あそ）ぶ。", translation: 'To <strong>come to</strong> the park,<strong> then</strong> play.', extra_info: "来（く）る's conjugation with て" } },
   ],
 };
+
+for (const mode of ["grammar", "vocab"] as const) {
+  test(`standalone Bunpro ${mode} reviews show the latest correct and incorrect answer card`, async ({ page }, testInfo) => {
+    await page.context().addCookies([
+      { name: "kakehashi_wk_session", value: seal("mixed-layout-test-token"), url: "http://127.0.0.1:3101" },
+      { name: "kakehashi_bunpro", value: seal(JSON.stringify({ owner: "1", token: "bunpro-layout-test-token" })), url: "http://127.0.0.1:3101" },
+    ]);
+    await page.addInitScript(() => localStorage.setItem("kakehashi-web:settings:portego:v1", JSON.stringify({ study: { reviewOrder: "ascendingSrsStage", pauseOnCorrect: true, pauseOnWrong: true, showAnswerStopSubjectDetails: false, answerFeedbackSoundEnabled: false } })));
+    await page.route("**/api/session/wanikani", route => route.fulfill({ json: { user: { id: 1, object: "user", data: { username: "Portego", level: 2, preferences: {}, subscription: { active: true, max_level_granted: 60 } } } } }));
+    const titles = mode === "grammar" ? ["です", "ます", "でした"] : ["猫", "犬", "鳥"];
+    const answers = mode === "grammar" ? titles : ["ねこ", "いぬ", "とり"];
+    const slugs = mode === "grammar" ? ["desu", "masu", "deshita"] : ["neko", "inu", "tori"];
+    const reviews = titles.map((title, index) => ({
+      data: { id: String(index + 10), type: "review", attributes: { id: index + 10, ghost_count: 0, streak: index + 1, reviewable_id: index + 20, reviewable_type: mode === "grammar" ? "GrammarPoint" : "Vocab" }, relationships: { study_question: { data: { id: String(index + 30), type: "study_question" } }, reviewable: { data: { id: String(index + 20), type: mode === "grammar" ? "grammar_point" : "vocab" } } } },
+      included: [{ id: String(index + 30), type: "study_question", attributes: { content: "これは____。", answer: answers[index] } }, { id: String(index + 20), type: mode === "grammar" ? "grammar_point" : "vocab", attributes: { title, slug: slugs[index] } }],
+    }));
+    const grades: boolean[] = [];
+    await page.route(/\/api\/bunpro(?:\?.*)?$/, route => {
+      if (route.request().method() === "POST") { grades.push(route.request().postDataJSON().correct); return route.fulfill({ json: {} }); }
+      return route.fulfill({ json: new URL(route.request().url()).searchParams.get("action") === "queue" ? { review_session_id: 1, pending_attempt: reviews, pending_wrapup: [] } : { connected: true } });
+    });
+    await page.goto(`/bunpro-reviews?mode=${mode}`);
+    const input = page.getByRole("textbox", { name: "Your answer" });
+    await expect(input).toBeVisible();
+    await expect(page.getByRole("link", { name: /Previous Bunpro answer/ })).toHaveCount(0);
+    for (const [index, correct] of [true, false].entries()) {
+      await input.fill(correct ? answers[index] : "ちがう");
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      const previous = page.getByRole("link", { name: `Previous Bunpro answer: ${titles[index]}, ${correct ? "correct" : "incorrect"}`, exact: true });
+      await expect(previous).toBeVisible();
+      await expect(previous).toHaveAttribute("href", `/bunpro/${mode}/${slugs[index]}`);
+      await expect(previous).toHaveAttribute("target", "_blank");
+      await expect(previous).toHaveAttribute("data-correct", String(correct));
+      await expect(page.getByRole("link", { name: /Previous Bunpro answer/ })).toHaveCount(1);
+      await expect(input).toHaveValue("");
+      await expect(page.getByRole("button", { name: "Check", exact: true })).toBeDisabled();
+      await expect.poll(() => grades.length).toBe(index + 1);
+      const card = await previous.boundingBox();
+      expect(card).not.toBeNull();
+      expect(card!.x).toBeGreaterThanOrEqual(0);
+      expect(card!.x + card!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+      await page.screenshot({ path: testInfo.outputPath(`previous-${correct ? "correct" : "incorrect"}.png`) });
+    }
+    expect(grades).toEqual([true, false]);
+  });
+}
 
 test("Bunpro review furigana hides, reveals on hover, and pins until the question changes", async ({ page, isMobile }, testInfo) => {
   await page.context().addCookies([
@@ -135,9 +182,10 @@ test("matches Bunpro structure formatting, retains example notes, and links supp
   expect(await structurePanel.locator("del").first().evaluate(el => {
     const s = getComputedStyle(el, "::after"); return { top: s.borderTopColor, bottom: s.borderBottomColor };
   })).toEqual({ top: "rgb(232, 41, 53)", bottom: "rgb(232, 41, 53)" });
-  await expect(structurePanel.locator("rt").first()).toHaveCSS("opacity", "0");
+  await expect(structurePanel.locator("rt").first()).toHaveCSS("opacity", "1");
   await expect(page.getByRole("heading", { name: "Caution", exact: true })).toHaveCSS("color", "rgb(251, 156, 4)");
   const examples = page.locator("article");
+  await expect(examples.first().locator('[data-bunpro-furigana="hover"]')).toHaveCSS("opacity", "1");
   await expect(examples.first().getByText("く's conjugation with て", { exact: false })).toBeVisible();
   await expect(examples.nth(1).getByText("する's conjugation with て", { exact: false })).toBeVisible();
   await expect(examples.nth(2).getByText("る's conjugation with て", { exact: false })).toBeVisible();

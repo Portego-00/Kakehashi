@@ -1,3 +1,4 @@
+import { communityActivity } from "@/features/community/activity-server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -12,6 +13,7 @@ import {
   deleteCommunityIssue,
   encodeFilter,
   supabaseRequest,
+  supabaseCount,
   syncCommunityAuthorEmail,
   toggleCommunityLike,
 } from "@/features/community/server";
@@ -45,10 +47,15 @@ export async function GET(request: NextRequest) {
   if (!readLimit.allowed) return rateLimited(readLimit);
   const action = request.nextUrl.searchParams.get("action") || "issues";
   if (!communityConfigured()) {
-    if (action === "issues" || action === "supporters") return NextResponse.json({ configured: false, writable: false, items: [], page: 0, hasMore: false });
+    if (action === "issues" || action === "supporters" || action === "activity") return NextResponse.json({ configured: false, writable: false, items: [], page: 0, hasMore: false });
     return jsonError("The shared community service is not configured.", 503);
   }
   try {
+    if (action === "activity") {
+      const auth = await identityOrError();
+      if (auth.response) return auth.response;
+      return NextResponse.json({ configured: true, items: await communityActivity(auth.identity!) });
+    }
     if (action === "issues") {
       const status = request.nextUrl.searchParams.get("status");
       const sort = request.nextUrl.searchParams.get("sort") === "top" ? "likes_count.desc" : "created_at.desc";
@@ -74,7 +81,12 @@ export async function GET(request: NextRequest) {
     if (action === "issue") {
       const id = request.nextUrl.searchParams.get("id") || "";
       if (!z.string().uuid().safeParse(id).success) return jsonError("Invalid issue.", 400);
-      const commentPage = boundedPage(request.nextUrl.searchParams.get("commentPage"));
+      let commentPage = boundedPage(request.nextUrl.searchParams.get("commentPage"));
+      const focusedComment = request.nextUrl.searchParams.get("comment");
+      if (focusedComment && z.string().uuid().safeParse(focusedComment).success) {
+        const rows = await supabaseRequest(`issue_comments?select=created_at&id=eq.${focusedComment}&issue_id=eq.${id}&limit=1`);
+        if (Array.isArray(rows) && rows[0]?.created_at) commentPage = Math.floor(await supabaseCount(`issue_comments?select=id&issue_id=eq.${id}&created_at=lt.${encodeURIComponent(String(rows[0].created_at))}`) / 50);
+      }
       const [identity, issueRows, commentRows, supporterUsernames] = await Promise.all([
         communityIdentityOrNull(),
         supabaseRequest(`issues?select=${COMMUNITY_ISSUE_READ_SELECT}&id=eq.${encodeURIComponent(id)}&limit=1`),

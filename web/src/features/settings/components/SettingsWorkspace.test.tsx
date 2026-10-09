@@ -68,6 +68,16 @@ it("includes JPDB tools in the demo without showing a personal credential field"
   expect(screen.getByRole("checkbox", { name: /English lyric translations/ })).toBeEnabled();
 });
 
+it("saves the Multiple Choice setting from Reviews with its Anki explanation", async () => {
+  localStorage.clear();
+  render(<SettingsWorkspace />);
+  const toggle = await screen.findByRole("checkbox", { name: /^Multiple Choice/ });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  await waitFor(() => expect(JSON.parse(localStorage.getItem(settingsStorageKey("Tester"))!).study.reviewMultipleChoiceEnabled).toBe(true));
+  expect(screen.getByText(/Choose from similar readings and related meanings/)).toHaveTextContent("Anki questions keep their current behavior");
+});
+
 function dataTransfer() {
   const values = new Map<string, string>();
   return {

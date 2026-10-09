@@ -1,16 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, BackHandler, Keyboard, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ReviewScreen from "./reviews";
 import { ReviewPreviousAnswerCard } from "../../src/components/ReviewPreviousAnswerCard";
 import BunproReviewScreen from "../../src/screens/BunproReviewScreen";
 import type { MixedReviewAccuracy, MixedReviewAnswer, MixedReviewBridge, MixedReviewLane, MixedReviewProgress } from "../../src/types/mixedReviews";
-import { createMixedReviewState, mixedWrapUpLimits, reportMixedReviewError, reportMixedReviewHead } from "../../src/utils/mixedReviews";
+import { createMixedReviewState, mixedWrapUpLimits, reportMixedReviewError, reportMixedReviewHead, recordMixedReviewAnswer } from "../../src/utils/mixedReviews";
 import { isPortegoUsername } from "../../src/utils/portegoAccess";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
+import { useBunproAudio, bunproAudioUrls } from "../../src/hooks/useBunproAudio";
+import type { BunproProgression } from "../../src/utils/bunpro-progression";
+import { BunproReviewSettingsSheet } from "../../src/components/bunpro/bunpro-review-settings-sheet";
+import { BunproProgressionCard } from "../../src/components/bunpro/bunpro-progression-card";
 import { createBunproReviewSavePolicy } from "../../src/utils/bunproReviewSavePolicy";
 
 const MixedWaniKaniScreen = React.memo(ReviewScreen, (before, after) =>
@@ -38,9 +42,24 @@ export default function MixedReviewsRoute() {
 
 export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab" }) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const reviewSearchEnabled = useSettingsStore(state => state.reviewSearchButtonEnabled);
+  const jitaiEnabled = useSettingsStore(state => state.jitaiEnabled);
   const wrapUpSize = useSettingsStore((state) => state.reviewWrapUpTargetSubjects);
+  const startedAt = useRef(Date.now());
+  const [duration, setDuration] = useState(0);
   const [state, setState] = useState(() => createMixedReviewState(mode));
-  useEffect(() => { if (state.complete) Keyboard.dismiss(); }, [state.complete]);
+  useEffect(() => { if (state.complete) { Keyboard.dismiss(); setDuration(Date.now() - startedAt.current); } }, [state.complete]);
+  const latestAnswer = useRef<MixedReviewAnswer | null>(null);
+  const reportBunproProgression = useCallback((value: BunproProgression) => { if (latestAnswer.current?.id === `bunpro:${value.id}` && latestAnswer.current.correct) setBunproProgression(value); }, []);
+  const [bunproProgression, setBunproProgression] = useState<BunproProgression | null>(null);
+  const audio = useBunproAudio();
+  const audioVoice = useSettingsStore(state => state.vocabularyAudioVoice) ?? "female";
+  const promotion = state.promotion;
+  const promotionAction = promotion ? state.heads[promotion.lane]?.activate : undefined;
+  useEffect(() => { if (promotion) promotionAction?.(promotion.id); }, [promotion, promotionAction]);
+  useEffect(() => { if (!bunproProgression) return; const timer = setTimeout(() => setBunproProgression(null), 3000); return () => clearTimeout(timer); }, [bunproProgression]);
   const [bunproSavePolicy] = useState(createBunproReviewSavePolicy);
   const [laneProgress, setLaneProgress] = useState<Partial<Record<MixedReviewLane, MixedReviewProgress>>>({});
   const [laneAccuracy, setLaneAccuracy] = useState<Partial<Record<MixedReviewLane, MixedReviewAccuracy>>>({});
@@ -84,7 +103,11 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
       setAnswers((current) => ({ ...current, [answer.id]: { ...answer, correct: (current[answer.id]?.correct ?? true) && answer.correct } }));
     },
     onAnswer: (answer: MixedReviewAnswer) => {
+      latestAnswer.current = answer;
       setPrevious(answer);
+      setState(current => recordMixedReviewAnswer(current, lane, answer.id, answer.correct));
+      if (answer.source === "wanikani") setBunproProgression(null);
+      if (answer.practiceOnly) return;
       // Preserve an earlier miss when the same item is later mastered.
       setAnswers((current) => ({ ...current, [answer.id]: { ...answer, correct: (current[answer.id]?.correct ?? true) && answer.correct } }));
     },
@@ -93,11 +116,12 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
     if (isSaving) { Alert.alert("Saving answer", "Please wait until this answer has been saved before wrapping up."); return; }
     if (wrapUp) return;
     const remaining = Object.fromEntries(state.lanes.map((lane) => [lane, Math.max(0, (laneProgress[lane]?.total ?? 0) - (laneProgress[lane]?.completed ?? 0))]));
-    setWrapUp({ id: 1, limits: mixedWrapUpLimits(state.lanes, remaining, state.active, Math.min(20, Math.max(5, wrapUpSize))) });
+    const open = Object.fromEntries(state.lanes.map(lane => [lane, new Set(state.heads[lane]?.pending?.filter(question => question.open || (lane === state.active && question.id === (state.heads[lane]?.retryKey ?? state.heads[lane]?.id))).map(question => question.subjectId)).size]));
+    setWrapUp({ id: 1, limits: mixedWrapUpLimits(state.lanes, remaining, state.active, Math.min(20, Math.max(5, wrapUpSize)), open) });
   };
   const bridge = (lane: MixedReviewLane): MixedReviewBridge => ({
-    ...callbacks[lane], active: !state.complete && state.active === lane && (state.started || Boolean(state.errors[lane])),
-    previous, progress, accuracy, onExit: exit, onWrapUp,
+    ...callbacks[lane], active: !settingsOpen && !state.complete && state.active === lane && (state.started || Boolean(state.errors[lane])),
+    bunproProgression, reportBunproProgression, previous, progress, accuracy, onExit: exit, onWrapUp,
     wrapUpRequest: wrapUp ? { id: wrapUp.id, limit: wrapUp.limits[lane] } : undefined,
   });
   const allAnswers = Object.values(answers);
@@ -114,8 +138,11 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
     </SafeAreaView> : null}
     {state.complete ? <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.results}>
+        {audio.error ? <Text accessibilityRole="alert" style={{ color: theme.textSecondary }}>{audio.error}</Text> : null}
         <Text style={[styles.title, { color: theme.textColor }]}>Mixed reviews complete</Text>
         <Text style={[styles.summary, { color: theme.textSecondary }]}>{progress.completed} completed · {accuracy.answered ? Math.round(accuracy.correct / accuracy.answered * 100) : 0}% accuracy</Text>
+        <Text style={{ color: theme.textSecondary }}>Session time: {Math.floor(duration / 60000)}m {Math.floor(duration / 1000) % 60}s</Text>
+        <BunproProgressionCard progression={bunproProgression} />
         {state.lanes.map((lane) => <View key={lane} style={[styles.resultRow, { borderBottomColor: theme.border }]}>
           <Text style={{ color: theme.textColor, fontSize: 16 }}>{LANE_NAMES[lane]}</Text>
           <Text style={{ color: theme.textSecondary, fontSize: 16 }}>{laneProgress[lane]?.completed ?? 0} completed</Text>
@@ -129,14 +156,17 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
               <Text style={{ color: resultFilter === filter ? theme.primary : theme.textSecondary, fontWeight: resultFilter === filter ? "600" : "400" }}>{filter === "all" ? "All" : filter === "correct" ? "Correct" : "Missed"} ({allAnswers.filter((answer) => filter === "all" || (filter === "correct" ? answer.correct : !answer.correct)).length})</Text>
             </TouchableOpacity>)}
           </View>
-          {displayedAnswers.map((answer) => <TouchableOpacity key={answer.id} accessibilityRole="button" disabled={!answer.subjectId && !answer.bunproSubject?.slug} onPress={() => openAnswer(answer)} style={[styles.resultRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.itemTitle, { color: theme.textColor }]}>{answer.title}</Text>
-            <View style={{ alignItems: "flex-end", gap: 4 }}>
-              <Text style={{ color: theme.textSecondary }}>{answer.source === "wanikani" ? "WaniKani" : "Bunpro"}</Text>
-              <Text style={{ color: answer.correct ? theme.primary : theme.textSecondary }}>{answer.correct ? "Correct" : "Missed"}</Text>
-              {answer.saveStatus === "unconfirmed" ? <Text style={{ color: theme.textSecondary }}>Save unconfirmed</Text> : null}
-            </View>
-          </TouchableOpacity>)}
+          {displayedAnswers.map(answer => <View key={answer.id} style={{ paddingVertical: 16, gap: 8, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+            <TouchableOpacity accessibilityRole="button" disabled={!answer.subjectId && !answer.bunproSubject?.slug} onPress={() => openAnswer(answer)}><Text style={[styles.itemTitle, { color: theme.textColor }]}>{answer.title}</Text><Text style={{ color: theme.textSecondary }}>{answer.meaning}</Text></TouchableOpacity>
+            <Text style={{ color: answer.correct ? "#017b37" : theme.textSecondary }}>{answer.source === "wanikani" ? "WaniKani" : "Bunpro"} · {answer.correct ? "Correct" : "Missed"}</Text>
+            {answer.question ? <Text selectable style={{ color: theme.textColor }}>{answer.question.replace(/(?:_{2,}|＿{2,})/g, answer.correctAnswer ?? answer.enteredAnswer ?? "____")}</Text> : null}
+            {answer.reading ? <Text selectable style={{ color: theme.textSecondary }}>{answer.reading}</Text> : null}
+            {answer.translation ? <Text selectable style={{ color: theme.textSecondary }}>{answer.translation}</Text> : null}
+            {answer.enteredAnswer ? <Text selectable style={{ color: theme.textColor }}>Your answer: {answer.enteredAnswer}</Text> : null}
+            {answer.stage || answer.previousStage ? <Text style={{ color: theme.textSecondary }}>{answer.previousStage}{answer.stage ? ` → ${answer.stage}` : ""}</Text> : null}
+            {answer.audioSources && bunproAudioUrls(answer.audioSources, audioVoice).length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Replay ${answer.title}`} onPress={() => { void audio.play(answer.id, bunproAudioUrls(answer.audioSources ?? {}, audioVoice), audioVoice === "both"); }} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: theme.textColor }}>{audio.playingKey === answer.id ? "Stop audio" : "Replay audio"}</Text></TouchableOpacity> : null}
+            {answer.saveStatus === "unconfirmed" ? <Text style={{ color: theme.textSecondary }}>Save unconfirmed</Text> : null}
+          </View>)}
           {!displayedAnswers.length ? <Text style={{ color: theme.textSecondary }}>No {resultFilter} items.</Text> : null}
         </> : null}
         <TouchableOpacity accessibilityRole="button" style={[styles.done, { backgroundColor: theme.primary }]} onPress={leave}><Text style={styles.doneLabel}>Back to home</Text></TouchableOpacity>
@@ -153,6 +183,11 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
         {lane === "wanikani" ? <MixedWaniKaniScreen mixed={laneBridge} /> : <MixedBunproScreen initialMode={lane} mixed={laneBridge} savePolicy={bunproSavePolicy} />}
       </View>;
     })}
+    {!state.complete && state.active === "wanikani" && state.started ? <>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mixed review settings" disabled={isSaving} onPress={() => { Keyboard.dismiss(); setSettingsOpen(true); }} style={{ position: "absolute", top: wrapUp || progress.total - progress.completed > wrapUpSize ? 184 : 140, right: 16 + (reviewSearchEnabled ? 48 : 0) + (jitaiEnabled ? 48 : 0), minHeight: 44, minWidth: 36, padding: 8, zIndex: 40 }}><Text style={{ color: theme.textColor }}>⚙</Text></TouchableOpacity>
+      {bunproProgression ? <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 96, left: 24, right: 24 }}><BunproProgressionCard progression={bunproProgression} /></View> : null}
+    </> : null}
+    <BunproReviewSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
     {!state.complete && previous ? <ReviewPreviousAnswerCard answer={previous} /> : null}
   </View>;
 }

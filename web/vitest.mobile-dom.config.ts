@@ -6,12 +6,16 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
-    alias: ["react", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom", "react-dom/client", "@blocknote/core", "@blocknote/core/locales", "@blocknote/core/extensions", "@blocknote/react", "@blocknote/mantine", "@blocknote/mantine/style.css", "lucide-react"].map((name) => ({ find: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), replacement: fileURLToPath(import.meta.resolve(name)) })),
+    alias: [
+      { find: /^react-native$/, replacement: fileURLToPath(new URL("../node_modules/react-native-web/dist/index.js", import.meta.url)) },
+      ...["react", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom", "react-dom/client", "@blocknote/core", "@blocknote/core/locales", "@blocknote/core/extensions", "@blocknote/react", "@blocknote/mantine", "@blocknote/mantine/style.css", "lucide-react"].map((name) => ({ find: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), replacement: fileURLToPath(import.meta.resolve(name)) })),
+    ],
   },
   test: {
+    server: { deps: { inline: [/react-native-web/] } },
     environment: "jsdom",
     globals: true,
-    include: ["src/features/notebooks/mobile-handwriting-interactions.test.tsx"],
+    include: ["src/features/notebooks/mobile-handwriting-interactions.test.tsx", "src/features/study/components/mobile-multiple-choice-keyboard.test.tsx"],
     setupFiles: ["./src/test/setup.ts"],
   },
 });

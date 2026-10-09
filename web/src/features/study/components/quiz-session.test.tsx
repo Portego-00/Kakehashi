@@ -174,6 +174,23 @@ function renderQuiz(props: ComponentProps<typeof QuizSession>, studyMaterials: S
 }
 
 describe("extra-study quiz interaction", () => {
+  it("uses the shared review setting and grades a similar wrong meaning without fuzzy acceptance", async () => {
+    const subject = makeSubject();
+    const subjects = [subject, ...["Prevented", "Protect", "Permit"].map((meaning, index) => ({ ...subject, id: index + 2, data: { ...subject.data, meanings: [{ meaning, primary: true, accepted_answer: true }] } }))];
+    renderQuiz({ scope: "test", initialSession: { ...makeSession(makeQuestion({ kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" })), mode: "custom-review" }, subjects, reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true }, pauseOnWrong: true, onExit: vi.fn() });
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. Prevented$/ }));
+    expect(screen.getByRole("status")).toHaveTextContent("Incorrect");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Accepted with a typo");
+    expect(within(group).getByRole("button", { name: /Prevent\. Correct answer/ })).toBeDisabled();
+  });
+
+  it("keeps scoped Anki behavior when the shared multiple choice setting is on", async () => {
+    renderQuiz({ scope: "test", initialSession: { ...makeSession(makeQuestion({ kind: "meaning" })), mode: "custom-review" }, subjects: [makeSubject()], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true, ankiMode: "meaning" }, onExit: vi.fn() });
+    expect(await screen.findByRole("button", { name: "Reveal answer" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Answer choices" })).not.toBeInTheDocument();
+  });
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
@@ -439,6 +456,50 @@ describe("extra-study quiz interaction", () => {
 
     fireEvent.keyDown(window, { key: "3" });
     expect(screen.getByText(/to continue/)).toHaveTextContent("Press Enter to continue");
+  });
+
+  it.each(["1", "2", "3", "4"])("answers choice %s from a focused choice button", (key) => {
+    const question = makeQuestion({ acceptedAnswers: ["教訓"], displayAnswer: "教訓", choices: ["感染", "苦しむ", "教訓", "眉"] });
+    render(<QuizSession scope="test" initialSession={makeSession(question)} onExit={vi.fn()} pauseOnCorrect />);
+    const buttons = within(screen.getByRole("group", { name: "Answer choices" })).getAllByRole("button");
+    buttons[0].focus();
+    expect(fireEvent.keyDown(buttons[0], { key, code: `Numpad${key}` })).toBe(false);
+    expect(buttons[Number(key) - 1]).toHaveAttribute("data-selected", "true");
+    expect(screen.getByText(/to continue/)).toHaveTextContent("Press Enter to continue");
+  });
+
+  it("reserves number keys for choices when a study action uses the same key", () => {
+    const question = makeQuestion({ acceptedAnswers: ["教訓"], displayAnswer: "教訓", choices: ["感染", "苦しむ", "教訓", "眉"] });
+    render(<QuizSession scope="test" initialSession={makeSession(question)} onExit={vi.fn()} pauseOnCorrect reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, studyShortcuts: { ...DEFAULT_WEB_SETTINGS.study.studyShortcuts, progress: "3" } }} />);
+    fireEvent.keyDown(window, { key: "3" });
+    expect(within(screen.getByRole("group", { name: "Answer choices" })).getAllByRole("button")[2]).toHaveAttribute("data-selected", "true");
+    expect(screen.queryByTestId("session-results")).not.toBeInTheDocument();
+  });
+
+  it("ignores repeated presses, modifiers, text editing, dialogs, and disabled shortcuts for choices", () => {
+    const question = makeQuestion({ choices: ["ふせぐ", "にげる", "はしる", "とまる"] });
+    const { unmount } = render(<QuizSession scope="test" initialSession={makeSession(question)} onExit={vi.fn()} />);
+    for (const modifiers of [{ repeat: true }, { ctrlKey: true }, { metaKey: true }, { altKey: true }, { isComposing: true }]) {
+      fireEvent.keyDown(window, { key: "1", ...modifiers });
+    }
+    const input = document.createElement("input");
+    const editor = document.createElement("div");
+    editor.contentEditable = "true";
+    editor.setAttribute("contenteditable", "true");
+    const dialog = document.createElement("dialog");
+    document.body.append(input, editor);
+    fireEvent.keyDown(input, { key: "1" });
+    fireEvent.keyDown(editor, { key: "1" });
+    dialog.setAttribute("open", "");
+    document.body.append(dialog);
+    fireEvent.keyDown(window, { key: "1" });
+    input.remove(); editor.remove(); dialog.remove();
+    expect(screen.getByText(/to answer/)).toBeInTheDocument();
+    unmount();
+    render(<QuizSession scope="test" initialSession={makeSession(question)} onExit={vi.fn()} keyboardShortcuts={false} />);
+    fireEvent.keyDown(window, { key: "1" });
+    const buttons = within(screen.getByRole("group", { name: "Answer choices" })).getAllByRole("button");
+    expect(buttons.every(button => button.getAttribute("data-selected") === "false")).toBe(true);
   });
 
   it("shows finalized kana when a practice answer is checked", () => {

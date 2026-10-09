@@ -110,6 +110,8 @@ The mobile app includes a personal Spotify setup guide in **Settings → Music
 Playback → Spotify connection**. See the [Spotify setup guide](docs/spotify-personal-setup.md)
 for Premium requirements, developer app settings, and the Client ID setup.
 Song search uses the app’s catalog credentials independently of account linking.
+Music discovery works over Wi-Fi or mobile data. Empty categories show that no
+songs were found; failed requests offer **Try again** for that category.
 
 ## Contributing
 

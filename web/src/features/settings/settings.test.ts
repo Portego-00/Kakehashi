@@ -7,6 +7,33 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("persists optional review presets, caps saved lists to three, and keeps old installs opt-out", () => {
+    let saved = "";
+    const target = { getItem: () => saved || null, setItem: (_key: string, value: string) => { saved = value; } };
+    expect(loadWebSettings(target, "tester").study).toMatchObject({ reviewPresetsEnabled: false, reviewPresets: [] });
+    const presets = Array.from({ length: 4 }, (_, index) => ({ id: `preset-${index}`, name: `Preset ${index}`, batchSize: 5, reviewOrder: "ascendingSrsStage" as const }));
+    saveWebSettings(target, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewBatchSize: 50, reviewPresetsEnabled: true, reviewPresets: presets } });
+    expect(loadWebSettings(target, "tester").study).toMatchObject({ reviewBatchSize: 50, reviewPresetsEnabled: true, reviewPresets: presets.slice(0, 3) });
+  });
+  it("keeps existing review layouts and panel behavior unless explicitly changed", () => {
+    for (const study of [{}, { compactReviews: "true", reviewDefaultDetailsTab: "context" }]) {
+      expect(loadWebSettings(storage({ study }), "tester").study).toMatchObject({ compactReviews: false, reviewDefaultDetailsTab: "question" });
+    }
+    let saved = "";
+    const target = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    saveWebSettings(target, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, compactReviews: true, reviewDefaultDetailsTab: "stroke" } });
+    expect(loadWebSettings(target, "tester").study).toMatchObject({ compactReviews: true, reviewDefaultDetailsTab: "stroke" });
+  });
+
+  it("keeps multiple choice opt-in and saves it without changing Anki mode", () => {
+    for (const value of [undefined, "true", 1, null]) expect(loadWebSettings(storage({ study: { reviewMultipleChoiceEnabled: value } }), "tester").study.reviewMultipleChoiceEnabled).toBe(false);
+    let saved = "";
+    const target = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    for (const enabled of [true, false]) {
+      saveWebSettings(target, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: enabled, ankiMode: "reading" } });
+      expect(loadWebSettings(target, "tester").study).toMatchObject({ reviewMultipleChoiceEnabled: enabled, ankiMode: "reading" });
+    }
+  });
   it.each([undefined, null, "context", "Reading", true])("defaults invalid combined Anki tab %s to Meaning", (value) => {
     expect(loadWebSettings(storage({ study: { ankiCombinedDetailsTab: value } }), "tester").study.ankiCombinedDetailsTab).toBe("meaning");
   });

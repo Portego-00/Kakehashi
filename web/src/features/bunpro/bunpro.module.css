@@ -127,8 +127,7 @@
 .about [data-bunpro-caution-section] h4 { color: var(--bp-caution); font-size: 18px; font-weight: 700; margin: 20px 0 8px; }
 .structure :is(del, s, strike) { position: relative; text-decoration: none; }
 .structure :is(del, s, strike)::after { content: ""; position: absolute; left: 0; right: 0; top: 46%; height: .36em; border-block: 1.5px solid var(--bp-strike); pointer-events: none; }
-.structure rt, .details rt[data-bunpro-furigana="hover"] { opacity: 0; transition: opacity 120ms ease; }
-.structure ruby:hover rt, .details ruby:hover rt[data-bunpro-furigana="hover"] { opacity: 1; }
+.structure rt, .details rt[data-bunpro-furigana="hover"] { opacity: 1; }
 .reviewShell ruby[data-bunpro-review-furigana] { cursor: pointer; }
 .reviewShell ruby[data-bunpro-review-furigana] > rt { opacity: 0; visibility: hidden; transition: opacity 120ms ease; }
 .reviewShell ruby[data-bunpro-review-furigana]:hover > rt,

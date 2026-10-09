@@ -46,6 +46,7 @@ import {
   type RecentLessonsWindow,
 } from "../utils/recentLessonsWindow";
 import { type LessonSrsThresholdStatus } from "../utils/lessonSrsThreshold";
+import { type ReviewPreset } from "../utils/review-presets";
 import { getReadableTextColor, withAlpha } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import { useTheme } from "../utils/theme";
@@ -71,7 +72,7 @@ type HomeDashboardWidgetProps = {
   recentLessonCountForWindow: number;
   onLessonsPress: () => void;
   onLessonPicker: () => void;
-  onReviewsPress: () => void;
+  onReviewsPress: (preset?: ReviewPreset) => void;
   srsBreakdownView?: SrsBreakdownViewMode;
   srsBreakdownGroupStagesScope?: SrsBreakdownGroupStagesScope;
   activeExtraStudySessionModeIds?: readonly ExtraStudyModeId[];

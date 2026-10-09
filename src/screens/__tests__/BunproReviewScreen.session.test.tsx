@@ -18,6 +18,10 @@ jest.mock("react-native-reanimated", () => {
   return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
 });
 jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error" } }));
+jest.mock("../../hooks/use-bunpro-voice-answer", () => ({ useBunproVoiceAnswer: () => ({ listening: false, error: "", start: jest.fn(), stop: jest.fn() }) }));
+jest.mock("../../hooks/use-bunpro-jitai-font", () => ({ useBunproJitaiFont: () => undefined }));
+jest.mock("../../components/bunpro/bunpro-review-shortcuts", () => ({ BunproReviewShortcuts: () => null }));
+jest.mock("../../components/bunpro/bunpro-details-content", () => ({ BunproDetailsContent: () => null }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }), useLocalSearchParams: () => ({}) }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
@@ -29,6 +33,7 @@ jest.mock("../../utils/store", () => ({
 jest.mock("../../utils/theme", () => ({ useTheme: () => ({ theme: { textColor: "#000", textSecondary: "#666", backgroundColor: "#fff", border: "#ccc", error: "#a00" }, isDark: false }) }));
 jest.mock("../../utils/bunproApi", () => ({
   BunproApiError: class extends Error {},
+  getStoredBunproApiToken: jest.fn().mockResolvedValue("fixture-key"),
   getBunproReviewQuizIndex: jest.fn(),
   updateBunproReview: jest.fn(),
 }));
@@ -98,22 +103,23 @@ it("keeps failed answers for explicit retry without retrying POST automatically"
   expect(updateBunproReview).toHaveBeenCalledTimes(2);
 });
 
-it("repeats a missed question with fresh state and saves its result only once", async () => {
+it("repeats a missed question with fresh state and saves the correct wrapup without counting it twice", async () => {
   const mixed = bridge();
   const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} mixed={mixed} />);
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
   fireEvent.press(view.getByLabelText("Check answer"));
-  fireEvent.press(view.getByText("Show Answer"));
+  fireEvent.press(view.getByText("Alternatives"));
   fireEvent.press(view.getByLabelText("Next question"));
   await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy());
   expect(view.getByLabelText("Bunpro answer").props.value).toBe("");
   expect(view.getByText(/Retry/)).toBeTruthy();
-  expect(mixed.report).toHaveBeenLastCalledWith({ id: "1:1:q1", remaining: 1 });
+  expect(mixed.report).toHaveBeenLastCalledWith(expect.objectContaining({ id: "1:1:q1", remaining: 1 }));
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
   fireEvent.press(view.getByLabelText("Check answer"));
   fireEvent.press(view.getByLabelText("Next question"));
   await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(null));
-  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+  expect(updateBunproReview).toHaveBeenCalledTimes(2);
+  expect(updateBunproReview).toHaveBeenLastCalledWith(expect.objectContaining({ payload: expect.objectContaining({ correct: true }) }));
   expect(updateBunproReview).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ correct: false }) }));
   expect(mixed.reportAccuracy).toHaveBeenLastCalledWith({ correct: 0, answered: 1 });
   expect(mixed.reportProgress).toHaveBeenLastCalledWith({ completed: 1, total: 1 });
@@ -180,7 +186,7 @@ it("applies a mixed wrap-up once and does not drop retained questions on later a
     fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
     fireEvent.press(view.getByLabelText("Check answer"));
     fireEvent.press(view.getByLabelText("Next question"));
-    await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(id === "1" ? { id: "1:2:q2", remaining: 1 } : null));
+    await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(id === "1" ? expect.objectContaining({ id: "1:2:q2", remaining: 1 }) : null));
   }
   await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(null));
   expect(mixed.reportProgress).toHaveBeenLastCalledWith({ completed: 2, total: 2 });
@@ -652,7 +658,7 @@ it("changes the furigana setting during a review, pins individual words and rese
   const view = render(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} />);
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "です");
   fireEvent.press(view.getByLabelText("Bunpro review settings"));
-  fireEvent(view.getByLabelText("Hide Bunpro furigana"), "valueChange", true);
+  fireEvent(await view.findByLabelText("Hide Bunpro furigana"), "valueChange", true);
   expect(mockReviewSettings.setBunproHideFurigana).toHaveBeenCalledWith(true);
   fireEvent.press(view.getByLabelText("Done with Bunpro review settings"));
   const word = view.getByLabelText("Furigana for 私");
@@ -671,4 +677,85 @@ it("changes the furigana setting during a review, pins individual words and rese
   await waitFor(() => expect(view.getByLabelText("Bunpro review progress").props.children).toBe("2/2"));
   expect(view.getByLabelText("Furigana for 私").props.accessibilityState.selected).toBe(false);
   expect(StyleSheet.flatten(view.getByText("わたし", { includeHiddenElements: true }).props.style).opacity).toBe(0);
+});
+
+it.each(["learn", "beginner-zero"])("keeps %s misses local until the first correct submission", async context => {
+  const question = item("1", "ねこ", "GrammarPoint");
+  if (context === "beginner-zero") question.data.attributes.streak = 0;
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} submissionContext={context === "learn" ? "learn" : "review"} />);
+  for (const answer of ["いぬ", "いぬ", "ねこ"]) {
+    fireEvent.changeText(view.getByLabelText("Bunpro answer"), answer);
+    fireEvent.press(view.getByLabelText("Check answer"));
+    fireEvent.press(view.getByLabelText("Next question"));
+    if (answer !== "ねこ") { await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy()); expect(updateBunproReview).not.toHaveBeenCalled(); expect(view.getByLabelText("Bunpro review progress").props.children).toBe("1/1"); }
+  }
+  await waitFor(() => expect(updateBunproReview).toHaveBeenCalledTimes(1));
+  expect(updateBunproReview).toHaveBeenLastCalledWith(expect.objectContaining({ payload: expect.objectContaining({ correct: true }) }));
+});
+
+it("holds a failed correct wrapup for retry and preserves the original accuracy", async () => {
+  const mixed = bridge();
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} mixed={mixed} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ"); fireEvent.press(view.getByLabelText("Check answer")); fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy());
+  jest.mocked(updateBunproReview).mockRejectedValueOnce(new Error("Wrapup failed"));
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ"); fireEvent.press(view.getByLabelText("Check answer")); fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByLabelText("Retry save")).toBeTruthy());
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("ねこ");
+  fireEvent.press(view.getByLabelText("Retry save"));
+  await waitFor(() => expect(mixed.report).toHaveBeenLastCalledWith(null));
+  expect(updateBunproReview).toHaveBeenCalledTimes(3);
+  expect(mixed.reportAccuracy).toHaveBeenLastCalledWith({ correct: 0, answered: 1 });
+});
+
+it("wrap-up retains every missed Bunpro item even beyond the requested budget", async () => {
+  const queue = Array.from({ length: 8 }, (_, i) => item(String(i + 1)));
+  const mixed = bridge();
+  const view = render(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={mixed} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ"); fireEvent.press(view.getByLabelText("Check answer")); fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy());
+  view.rerender(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={{ ...mixed, wrapUpRequest: { id: 1, limit: 1 } }} />);
+  const head = jest.mocked(mixed.report).mock.calls.at(-1)?.[0];
+  expect(head?.pending?.some(question => question.id === "1" && question.open)).toBe(true);
+});
+
+it("preserves typed drafts when the mixed scheduler promotes and restores pending questions", () => {
+  const mixed = bridge();
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} mixed={mixed} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ね");
+  act(() => jest.mocked(mixed.report).mock.calls.at(-1)?.[0]?.activate?.("2"));
+  expect(view.getByText("Question 2 ")).toBeTruthy();
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "い");
+  act(() => jest.mocked(mixed.report).mock.calls.at(-1)?.[0]?.activate?.("1"));
+  expect(view.getByText("Question 1 ")).toBeTruthy();
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("ね");
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("fills every Bunpro cloze blank and reveals the expected answer with the verdict", () => {
+  const question = item("1", "です", "GrammarPoint");
+  question.included![0].attributes.content = "First ____ and second ____ end.";
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "違う"); fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getAllByText("です")).toHaveLength(2);
+  expect(view.getByText("The answer is です.")).toBeTruthy();
+  fireEvent.press(view.getByText("Alternatives"));
+  expect(view.getByText("Accepted answers")).toBeTruthy();
+});
+
+it("refuses to grade a question whose accepted answer exists but sentence is missing", () => {
+  const question = item("1"); question.included![0].attributes.content = "";
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ"); fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByText(/did not provide a complete question/)).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("shows Bunpro close-answer feedback for English translation answers without grading them", () => {
+  const question = item("1", "a cat"); question.included![0].attributes.alternate_answers = { cat: "Include the article." };
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "cat"); fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByText("Include the article.")).toBeTruthy();
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(updateBunproReview).not.toHaveBeenCalled();
 });

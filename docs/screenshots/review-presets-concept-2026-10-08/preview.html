@@ -1,0 +1,278 @@
+<!doctype html>
+<!-- Throwaway UI concept: optional review presets in the existing Settings and Home screens.
+     One proposed layout, as requested. State stays in memory. No production app changes.
+     Hallmark · pre-emit critique: P5 H4 E5 S5 R4 V4; component scope, existing Kakehashi tokens. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakehashi · Review presets concept</title>
+  <style>
+    :root {
+      --color-background: #f6f6f6;
+      --color-surface: #ffffff;
+      --color-text: #333333;
+      --color-muted: #666666;
+      --color-light: #999999;
+      --color-primary: #3a86ff;
+      --color-primary-soft: #eef4ff;
+      --color-border: #eeeeee;
+      --color-switch-off: #c4c4c6;
+      --color-review-start: #47acdd;
+      --color-review-end: #0093dd;
+      --color-lesson-start: #fe5bb6;
+      --color-lesson-end: #fa1f62;
+      --color-white: #ffffff;
+      --color-white-soft: rgba(255,255,255,.16);
+      --color-white-border: rgba(255,255,255,.5);
+      --color-shadow: rgba(0,0,0,.10);
+      --color-preview: #eceef1;
+      --color-preview-border: #dfe2e7;
+      --color-danger: #e53935;
+      --font-body: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-icon: 'Ionicons';
+    }
+    @font-face { font-family: 'Ionicons'; src: url('../../../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf') format('truetype'); }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; overflow-x: clip; }
+    body { background: var(--color-preview); font-family: var(--font-body); color: var(--color-text); -webkit-font-smoothing: antialiased; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+    button:disabled { opacity: .4; cursor: default; }
+    button:hover:not(:disabled) { filter: brightness(.98); }
+    button:active:not(:disabled) { opacity: .78; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-style: normal; overflow-wrap: anywhere; }
+    .icon { font-family: var(--font-icon); font-weight: normal; font-style: normal; font-size: 23px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .board { padding: 26px 24px 22px; width: fit-content; max-width: 100%; margin: auto; }
+    .board-header { display: flex; gap: 16px; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+    .board-header h1 { font-size: 23px; font-weight: 700; letter-spacing: -.4px; }
+    .board-header p { color: var(--color-muted); font-size: 13px; }
+    .screens { display: grid; grid-template-columns: repeat(2, minmax(0, 390px)); gap: 24px; align-items: start; }
+    .screen-label { font-size: 14px; font-weight: 600; margin: 0 0 10px 2px; }
+    .screen { background: var(--color-background); min-height: 735px; border: 1px solid var(--color-preview-border); overflow: clip; }
+    .app-header { display: flex; gap: 14px; align-items: center; height: 74px; padding: 16px; background: var(--color-primary); color: var(--color-white); }
+    .app-header h2 { font-size: 24px; font-weight: 700; }
+    .icon-button { border: 0; background: transparent; padding: 5px; display: inline-flex; align-items: center; justify-content: center; color: inherit; }
+    .header-back { margin-left: -2px; padding: 2px; }
+    .section-chips { display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--color-border); overflow: clip; }
+    .section-chip { border: 1px solid var(--color-border); border-radius: 999px; padding: 8px 14px; color: var(--color-muted); background: var(--color-surface); white-space: nowrap; display: flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; }
+    .section-chip .icon { font-size: 14px; }
+    .section-chip.active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-white); }
+    .settings-content { padding: 16px; }
+    .section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; overflow: clip; }
+    .section-title { font-size: 18px; font-weight: 700; padding: 14px 16px; border-bottom: 1px solid var(--color-border); }
+    .row { display: flex; align-items: center; gap: 16px; padding: 14px 16px; width: 100%; background: transparent; border: 0; text-align: left; }
+    .row + .row { border-top: 1px solid var(--color-border); }
+    .row > .icon { width: 24px; color: var(--color-primary); }
+    .row-copy { flex: 1; min-width: 0; }
+    .row-title { font-size: 16px; font-weight: 400; line-height: 21px; }
+    .row-desc { color: var(--color-muted); font-size: 13px; line-height: 18px; margin-top: 3px; }
+    .toggle { flex-shrink: 0; position: relative; width: 47px; height: 28px; border: 0; border-radius: 999px; padding: 0; background: var(--color-primary); }
+    .toggle::after { content: ''; display: block; width: 23px; height: 23px; border-radius: 50%; background: var(--color-white); position: absolute; right: 2.5px; top: 2.5px; box-shadow: 0 1px 3px var(--color-shadow); }
+    .toggle[aria-checked="false"] { background: var(--color-switch-off); }
+    .toggle[aria-checked="false"]::after { right: auto; left: 2.5px; }
+    .batch-row { gap: 12px; }
+    .stepper { display: flex; align-items: center; gap: 10px; }
+    .stepper button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: var(--color-border); display: flex; align-items: center; justify-content: center; }
+    .stepper .icon { font-size: 18px; }
+    .stepper output { width: 18px; font-size: 18px; font-weight: 600; text-align: center; }
+    .subsettings { border-top: 1px solid var(--color-border); }
+    .subsettings .row { gap: 14px; }
+    .subsettings .row > .icon { width: 24px; }
+    .preset-list { margin: 0 16px 14px 56px; }
+    .preset-entry { display: flex; gap: 10px; align-items: center; width: 100%; padding: 12px 0; background: transparent; border: 0; border-top: 1px solid var(--color-border); text-align: left; }
+    .preset-entry .row-title { font-size: 15px; font-weight: 600; }
+    .preset-entry .row-desc { margin-top: 3px; font-size: 13px; }
+    .preset-entry > .icon { font-size: 17px; color: var(--color-light); }
+    .add-preset { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 4px; padding: 11px 12px; background: var(--color-primary-soft); color: var(--color-primary); border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .add-preset .icon { font-size: 18px; }
+    .advanced-row { border-top: 1px solid var(--color-border); gap: 16px; min-height: 53px; }
+    .advanced-row > .icon { color: var(--color-muted); font-size: 21px; }
+    .advanced-row .row-title { font-size: 15px; }
+    .advanced-row .chevron { font-size: 18px; margin-left: auto; }
+    .profile { display: flex; gap: 12px; align-items: center; flex: 1; }
+    .avatar { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--color-white-border); border-radius: 50%; background: var(--color-white-soft); }
+    .profile-name { font-size: 18px; font-weight: 700; }
+    .profile-meta { display: flex; gap: 12px; align-items: center; margin-top: 4px; font-size: 13px; }
+    .profile-meta span { display: flex; gap: 4px; align-items: center; }
+    .profile-meta .icon { font-size: 13px; }
+    .home-content { padding: 16px; }
+    .study-card { position: relative; overflow: clip; border-radius: 12px; padding: 16px; margin: 8px 4px 16px; color: var(--color-white); }
+    .lessons-card { background: linear-gradient(135deg, var(--color-lesson-start), var(--color-lesson-end)); min-height: 174px; }
+    .reviews-card { background: linear-gradient(135deg, var(--color-review-start), var(--color-review-end)); }
+    .study-card .card-title { display: flex; gap: 8px; align-items: center; font-size: 20px; font-weight: 700; }
+    .badge { font-size: 16px; color: var(--color-text); background: var(--color-surface); border-radius: 999px; padding: 8px 12px; line-height: 20px; font-weight: 700; }
+    .card-copy { position: relative; z-index: 1; }
+    .card-desc { font-size: 16px; line-height: 21px; margin-top: 11px; width: calc(100% - 100px); }
+    .mascot { position: absolute; right: 7px; top: 24px; width: 104px; height: 104px; object-fit: contain; }
+    .start-button { background: var(--color-surface); color: var(--color-text); border: 0; border-radius: 20px; padding: 9px 12px; margin-top: 17px; display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .start-button .icon { font-size: 16px; color: var(--color-review-end); }
+    .lessons-card .start-button .icon { color: var(--color-lesson-end); }
+    .preset-area { margin-top: 12px; position: relative; z-index: 2; }
+    .preset-chips { display: flex; gap: 6px; }
+    .preset-chip { min-width: 0; flex: 1; background: var(--color-white-soft); border: 1px solid var(--color-white-border); border-radius: 999px; padding: 7px 9px; color: var(--color-white); text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .preset-chip[aria-pressed="true"] { background: var(--color-surface); border-color: var(--color-surface); color: var(--color-review-end); }
+    .preset-chip .preset-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+    .preset-chip .preset-size { font-size: 12px; line-height: 16px; white-space: nowrap; flex-shrink: 0; }
+    .preset-chip > .icon { font-size: 12px; }
+    .review-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
+    .start-reviews { padding: 9px 12px; margin-top: 0; }
+    .selected-detail { font-size: 11px; line-height: 15px; text-align: right; min-width: 0; }
+    .use-default { display: block; padding: 0; border: 0; background: transparent; color: var(--color-white); font-size: 11px; line-height: 15px; text-decoration: underline; margin-top: 1px; margin-left: auto; }
+    .preset-limit { color: var(--color-muted); text-align: center; font-size: 12px; line-height: 17px; margin-top: 8px; }
+    .extra-study { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; margin: 18px 4px 0; }
+    .extra-study h3 { font-size: 18px; font-weight: 700; }
+    .extra-action { width: 100%; margin-top: 13px; padding: 0; background: none; border: 0; display: flex; align-items: center; gap: 10px; font-size: 14px; text-align: left; }
+    .extra-action > .icon { font-size: 19px; color: var(--color-primary); }
+    .extra-action .trailing { font-size: 16px; margin-left: auto; color: var(--color-light); }
+    .preview-caption { display: flex; justify-content: space-between; gap: 20px; margin: 12px 2px 0; color: var(--color-muted); font-size: 12px; line-height: 17px; }
+    [hidden] { display: none !important; }
+    .editor { padding: 16px; }
+    .editor-help { font-size: 14px; line-height: 20px; color: var(--color-muted); margin: 0 0 20px; }
+    .form-label { display: block; font-size: 14px; font-weight: 600; margin: 18px 0 8px; }
+    .form-input { display: block; width: 100%; border: 1px solid var(--color-preview-border); border-radius: 8px; padding: 13px 12px; font-size: 16px; background: var(--color-surface); color: var(--color-text); }
+    .editor-batch { background: var(--color-surface); border: 1px solid var(--color-preview-border); border-radius: 8px; padding: 15px; display: flex; align-items: center; justify-content: space-between; }
+    .editor-batch .stepper { gap: 18px; }
+    .editor-batch .stepper button { width: 34px; height: 34px; }
+    .editor-batch output { width: 26px; }
+    .save-button { display: block; width: 100%; background: var(--color-primary); color: var(--color-white); border-radius: 8px; border: 0; padding: 14px 12px; font-size: 16px; font-weight: 600; margin-top: 30px; }
+    .delete-button { display: block; width: 100%; border: 0; background: transparent; color: var(--color-danger); padding: 14px; margin-top: 10px; }
+    .error { color: var(--color-danger); font-size: 13px; margin-top: 8px; }
+    .success { color: var(--color-primary); font-size: 13px; margin-top: 14px; }
+    @media (max-width: 850px) { .board { width: 100%; padding: 20px 14px; } .screens { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .screen { min-height: 740px; } }
+    @media (max-width: 700px) { .board { padding: 0; } .board-header, .screen-label, .preview-caption { display: none; } .screens { display: block; } .screen { min-height: 100vh; border: 0; } .home-figure { display: none; } body[data-screen="home"] .settings-figure { display: none; } body[data-screen="home"] .home-figure { display: block; } }
+    @media (min-width: 701px) and (max-width: 800px) { .row { padding: 12px; gap: 10px; } .subsettings .row { gap: 10px; } .stepper { gap: 6px; } .preset-list { margin-left: 46px; } .study-card { margin-left: 0; margin-right: 0; padding: 14px; } .preset-chip small { font-size: 10px; } .preset-chip strong { font-size: 12px; } }
+    @media (max-width: 350px) { .row { padding: 12px; gap: 10px; } .subsettings .row { gap: 10px; } .stepper { gap: 6px; } .preset-list { margin-left: 46px; } .study-card { margin-left: 0; margin-right: 0; padding: 14px; } .preset-chip small { font-size: 10px; } .preset-chip strong { font-size: 12px; } .profile-meta { gap: 8px; } }
+  </style>
+</head>
+<body data-screen="settings">
+  <main class="board">
+    <div class="board-header"><h1>Review presets</h1><p>Concept preview · sample content</p></div>
+    <div class="screens">
+      <div class="settings-figure">
+        <div class="screen-label">1. Enable and customize in Settings</div>
+        <section class="screen settings-screen" aria-label="Settings preview">
+          <header class="app-header" id="settings-header"><button class="icon-button header-back" aria-label="Back"><i aria-hidden="true" class="icon">&#61735;</i></button><h2>Settings</h2></header>
+          <div id="settings-page">
+            <nav class="section-chips" aria-label="Settings categories"><button class="section-chip active"><i aria-hidden="true" class="icon">&#62383;</i>Reviews</button><button class="section-chip"><i aria-hidden="true" class="icon">&#62629;</i>Profile</button><button class="section-chip"><i aria-hidden="true" class="icon">&#62828;</i>Appearance</button></nav>
+            <div class="settings-content">
+              <section class="section">
+                <h3 class="section-title">Review Settings</h3>
+                <div class="row"><i aria-hidden="true" class="icon">&#62383;</i><div class="row-copy"><p class="row-title">Review Batch Size</p><p class="row-desc">Cap the number of reviews loaded into the queue</p></div><button id="batch-toggle" class="toggle" role="switch" aria-label="Review Batch Size" aria-checked="true"></button></div>
+                <div id="batch-settings">
+                  <div class="row batch-row"><i aria-hidden="true" class="icon">&#62602;</i><div class="row-copy"><p class="row-title">Batch Size</p><p class="row-desc">Default session size (5–100)</p></div><div class="stepper"><button id="default-less" disabled aria-label="Decrease default batch size"><i aria-hidden="true" class="icon">−</i></button><output id="default-count">5</output><button id="default-more" aria-label="Increase default batch size"><i aria-hidden="true" class="icon">&#61699;</i></button></div></div>
+                  <div class="subsettings">
+                    <div class="row"><i aria-hidden="true" class="icon">&#62294;</i><div class="row-copy"><p class="row-title">Review Presets</p><p class="row-desc">Choose up to 3 presets from the Home card</p></div><button id="presets-toggle" class="toggle" role="switch" aria-label="Review Presets" aria-checked="true"></button></div>
+                    <div class="preset-list" id="preset-list"></div>
+                  </div>
+                </div>
+                <button class="row advanced-row"><i aria-hidden="true" class="icon">&#62602;</i><span class="row-title">Collapse advanced settings</span><i aria-hidden="true" class="icon chevron">&#62017;</i></button>
+              </section>
+            </div>
+          </div>
+          <form class="editor" id="editor" hidden>
+            <p class="editor-help">Choose the settings for this session preset.</p>
+            <label class="form-label" for="preset-name">Preset name</label><input class="form-input" id="preset-name" maxlength="18" value="Quick" required>
+            <label class="form-label">Batch size</label><div class="editor-batch"><span>Reviews per session</span><div class="stepper"><button type="button" id="edit-less" aria-label="Decrease preset batch size"><i aria-hidden="true" class="icon">−</i></button><output id="edit-count">5</output><button type="button" id="edit-more" aria-label="Increase preset batch size"><i aria-hidden="true" class="icon">&#61699;</i></button></div></div>
+            <label class="form-label" for="preset-order">Review order</label><select class="form-input" id="preset-order"><option value="Lower SRS first">Lower SRS first</option><option value="Higher SRS first">Higher SRS first</option><option value="Random">Random</option><option value="Current level first">Current level first</option><option value="Lowest level first">Lowest level first</option><option value="Newest available first">Newest available first</option><option value="Oldest available first">Oldest available first</option><option value="Most overdue first">Most overdue first</option></select>
+            <p class="error" id="name-error" hidden>Enter a name for this preset.</p><button class="save-button">Save Preset</button><button type="button" id="delete-preset" class="delete-button">Delete Preset</button>
+          </form>
+        </section>
+      </div>
+      <div class="home-figure">
+        <div class="screen-label">2. Pick a preset before starting reviews</div>
+        <section class="screen home-screen" aria-label="Home preview">
+          <header class="app-header"><div class="profile"><div class="avatar"><i aria-hidden="true" class="icon">&#62629;</i></div><div><p class="profile-name">User</p><p class="profile-meta"><span><i aria-hidden="true" class="icon">&#62875;</i>Lvl —</span><span><i aria-hidden="true" class="icon">&#61861;</i>— Kanji</span></p></div></div><button class="icon-button" id="home-settings" aria-label="Open settings"><i aria-hidden="true" class="icon">&#62828;</i></button></header>
+          <div class="home-content">
+            <section class="study-card lessons-card"><img class="mascot" src="../../../assets/images/Lessons.png" alt=""><div class="card-copy"><h3 class="card-title">Lessons <span class="badge">8</span></h3><p class="card-desc">We cooked up these lessons just for you.</p><button class="start-button">Start Lessons<i aria-hidden="true" class="icon">&#62011;</i></button></div></section>
+            <section class="study-card reviews-card"><img class="mascot" src="../../../assets/images/Reviews.png" alt=""><div class="card-copy"><h3 class="card-title">Reviews <span class="badge">24</span></h3><p class="card-desc">Review these items to level them up!</p></div><div class="preset-area" id="preset-area"><div class="preset-chips" id="preset-chips" role="group" aria-label="Review session presets"></div></div><div class="review-actions"><button class="start-button start-reviews" id="start-reviews"><span id="start-label">Start 5 Reviews</span><i aria-hidden="true" class="icon">&#62011;</i></button><div class="selected-detail" id="selected-detail"><span id="selected-order">Lower SRS first</span><button class="use-default" id="use-default">Use default</button></div></div></section>
+            <section class="extra-study"><h3>Extra Study</h3><button class="extra-action"><i aria-hidden="true" class="icon">&#61861;</i><span>Recent Lessons</span><i aria-hidden="true" class="icon trailing">&#62011;</i></button><button class="extra-action"><i aria-hidden="true" class="icon">&#62851;</i><span>Custom Review</span><i aria-hidden="true" class="icon trailing">&#62011;</i></button></section>
+            <p class="success" id="session-status" role="status" hidden></p>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div class="preview-caption"><span>Presets appear only when both options are enabled.</span><span>Selecting a preset applies it to that session.</span></div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const MAX_PRESETS = 3;
+    let defaultCount = 5, selected = 'quick', batchOn = true, presetsOn = true, editId = null, editCount = 5;
+    let presets = [{id:'quick',name:'Quick',count:5,order:'Lower SRS first'},{id:'longer',name:'Longer',count:20,order:'Random'},{id:'focus',name:'Focus',count:10,order:'Most overdue first'}];
+    function render() {
+      $('default-count').textContent = defaultCount;
+      $('default-less').disabled = defaultCount <= 5;
+      $('default-more').disabled = defaultCount >= 100;
+      $('batch-toggle').setAttribute('aria-checked', batchOn);
+      $('presets-toggle').setAttribute('aria-checked', presetsOn);
+      $('batch-settings').hidden = !batchOn;
+      $('preset-list').hidden = !presetsOn;
+      $('preset-area').hidden = !(batchOn && presetsOn);
+      $('preset-list').innerHTML = presets.map(p => `<button class="preset-entry" data-edit="${p.id}"><div class="row-copy"><p class="row-title">${escapeHtml(p.name)}</p><p class="row-desc">${p.count} reviews · ${escapeHtml(p.order)}</p></div><i aria-hidden="true" class="icon">&#62011;</i></button>`).join('') + `<button class="add-preset" id="add-preset" ${presets.length >= MAX_PRESETS ? 'disabled' : ''}><i aria-hidden="true" class="icon">&#61699;</i>Add Preset</button><p class="preset-limit">${presets.length} of ${MAX_PRESETS} presets${presets.length >= MAX_PRESETS ? ' · limit reached' : ''}</p>`;
+      document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openEditor(b.dataset.edit));
+      $('add-preset').onclick = () => openEditor(null);
+      const defaultPreset = {id:'default',name:'Default',count:defaultCount,order:'Random'};
+      const current = batchOn && presetsOn ? presets.find(p => p.id === selected) || defaultPreset : defaultPreset;
+      $('preset-chips').innerHTML = presets.map(p => `<button class="preset-chip" aria-pressed="${p.id === current.id}" aria-label="${escapeHtml(p.name)}, ${p.count} reviews, ${escapeHtml(p.order)}" data-preset="${p.id}">${p.id === current.id ? '<i aria-hidden="true" class="icon">&#61981;</i>' : ''}<span class="preset-name">${escapeHtml(p.name)}</span><span class="preset-size">· ${p.count}</span></button>`).join('');
+      document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { selected = b.dataset.preset; $('session-status').hidden = true; render(); });
+      $('start-label').textContent = batchOn ? `Start ${current.count} Reviews` : 'Start Reviews';
+      $('selected-detail').hidden = !(batchOn && presetsOn);
+      $('selected-order').textContent = current.order;
+      $('use-default').hidden = current.id === 'default';
+      $('start-reviews').onclick = () => { $('session-status').hidden = false; $('session-status').textContent = `Preview session: ${batchOn ? current.count : 24} reviews · ${current.order}.`; };
+    }
+    function openEditor(id) {
+      if (!id && presets.length >= MAX_PRESETS) return;
+      editId = id;
+      const preset = presets.find(p => p.id === id);
+      $('preset-name').value = preset?.name || '';
+      editCount = preset?.count || 5;
+      $('preset-order').value = preset?.order || 'Random';
+      $('delete-preset').hidden = !preset;
+      $('name-error').hidden = true;
+      $('settings-page').hidden = true;
+      $('editor').hidden = false;
+      $('settings-header').querySelector('h2').textContent = preset ? 'Edit Preset' : 'Add Preset';
+      renderEditCount();
+      document.body.dataset.screen = 'settings';
+    }
+    function closeEditor() {
+      $('settings-page').hidden = false;
+      $('editor').hidden = true;
+      $('settings-header').querySelector('h2').textContent = 'Settings';
+      render();
+    }
+    function renderEditCount() {
+      $('edit-count').textContent = editCount;
+      $('edit-less').disabled = editCount <= 5;
+      $('edit-more').disabled = editCount >= 100;
+    }
+    $('settings-header').querySelector('button').onclick = closeEditor;
+    $('batch-toggle').onclick = () => { batchOn = !batchOn; render(); };
+    $('presets-toggle').onclick = () => { presetsOn = !presetsOn; render(); };
+    $('default-less').onclick = () => { defaultCount = Math.max(5, defaultCount - 5); render(); };
+    $('default-more').onclick = () => { defaultCount = Math.min(100, defaultCount + 5); render(); };
+    $('edit-less').onclick = () => { editCount = Math.max(5, editCount - 5); renderEditCount(); };
+    $('edit-more').onclick = () => { editCount = Math.min(100, editCount + 5); renderEditCount(); };
+    $('editor').onsubmit = event => {
+      event.preventDefault();
+      const name = $('preset-name').value.trim();
+      if (!name) { $('name-error').hidden = false; return; }
+      if (!editId && presets.length >= MAX_PRESETS) return;
+      const p = { id:editId || `preset-${Date.now()}`, name, count:editCount, order:$('preset-order').value };
+      presets = editId ? presets.map(existing => existing.id === editId ? p : existing) : [...presets,p];
+      closeEditor();
+    };
+    $('delete-preset').onclick = () => { presets = presets.filter(p => p.id !== editId); if (selected === editId) selected = 'default'; closeEditor(); };
+    $('home-settings').onclick = () => { document.body.dataset.screen = 'settings'; closeEditor(); };
+    $('use-default').onclick = () => { selected = 'default'; render(); };
+    const params = new URLSearchParams(location.search);
+    if (params.get('screen') === 'home') document.body.dataset.screen = 'home';
+    render();
+    if (params.get('screen') === 'editor') openEditor('quick');
+  </script>
+</body>
+</html>

@@ -32,6 +32,7 @@ import useBluetoothAudioKeepAlive from "../hooks/useBluetoothAudioKeepAlive";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import KanaInput from "./TextToKanaInput";
+import MultipleChoiceKeyboard from "./multiple-choice-keyboard";
 
 const { width, height } = Dimensions.get("window");
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
@@ -110,6 +111,7 @@ export default function ListeningQuestionScreen({
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [androidScreenLayoutHeight, setAndroidScreenLayoutHeight] = useState(0);
   const mountedRef = useRef(true);
+  const kanjiSubmissionRef = useRef(false);
   const androidBaselineScreenHeightRef = useRef(0);
   const shouldKeepListeningAudioWarm =
     Boolean(question.example.audio) && isFocused;
@@ -216,6 +218,7 @@ export default function ListeningQuestionScreen({
   // Reset state when question changes
   useEffect(() => {
     setSelectedChoiceIndex(null);
+    kanjiSubmissionRef.current = false;
     setVocabAnswer("");
     setMeaningAnswer("");
     setHasPlayedAudio(false);
@@ -357,6 +360,7 @@ export default function ListeningQuestionScreen({
   };
 
   const handleChoiceSelect = (index: number) => {
+    if (!question.kanjiChoices[index]) return;
     setSelectedChoiceIndex(index);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
@@ -382,6 +386,7 @@ export default function ListeningQuestionScreen({
   };
 
   const handleKanjiSubmit = () => {
+    if (kanjiSubmissionRef.current) return;
     let submittedAnswer = "";
     let isCorrect = false;
 
@@ -410,6 +415,7 @@ export default function ListeningQuestionScreen({
       isCorrect = selectedChoice.isCorrect;
     }
 
+    kanjiSubmissionRef.current = true;
     Haptics.notificationAsync(
       isCorrect
         ? Haptics.NotificationFeedbackType.Success
@@ -879,7 +885,14 @@ export default function ListeningQuestionScreen({
                 </Text>
               </View>
 
-              <View style={styles.choicesGrid}>
+              <MultipleChoiceKeyboard
+                style={styles.choicesGrid}
+                questionKey={`${question.id}:${questionPhase}`}
+                enabled={isFocused && !answerFeedback}
+                onSelectIndex={handleChoiceSelect}
+                onConfirm={handleKanjiSubmit}
+                testID="multiple-choice-keyboard"
+              >
                 {question.kanjiChoices.map((choice, index) => (
                   <TouchableOpacity
                     key={index}
@@ -902,7 +915,7 @@ export default function ListeningQuestionScreen({
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </View>
+              </MultipleChoiceKeyboard>
 
               <TouchableOpacity
                 style={[

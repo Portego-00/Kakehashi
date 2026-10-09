@@ -1,3 +1,4 @@
+import type { BunproProgression } from "../utils/bunpro-progression";
 import type { SubjectType } from "../utils/subjectColors";
 
 export type MixedReviewLane = "wanikani" | "grammar" | "vocab";
@@ -7,6 +8,9 @@ export type MixedReviewHead = {
   id: string;
   /** Keep paired WaniKani questions together when back-to-back is enabled. */
   keepTurn?: boolean;
+  retryKey?: string;
+  pending?: { id: string; subjectId: string; open: boolean }[];
+  activate?: (id: string) => void;
   remaining?: number;
   ready?: boolean;
 };
@@ -18,8 +22,18 @@ export type MixedReviewAnswer = {
   source: "wanikani" | "bunpro";
   title: string;
   correct: boolean;
+  practiceOnly?: boolean;
   saveStatus?: "pending" | "saved" | "unconfirmed";
   saveError?: string;
+  meaning?: string;
+  reading?: string;
+  question?: string;
+  translation?: string;
+  enteredAnswer?: string;
+  correctAnswer?: string;
+  stage?: string;
+  previousStage?: string;
+  audioSources?: { female_audio_url?: unknown; male_audio_url?: unknown };
   subjectId?: number;
   subjectType?: SubjectType;
   bunproSubject?: { kind: "grammar" | "vocab"; slug: string };
@@ -27,6 +41,8 @@ export type MixedReviewAnswer = {
 
 /** Provider queues stay mounted; only the active provider may accept input. */
 export type MixedReviewBridge = {
+  bunproProgression?: BunproProgression | null;
+  reportBunproProgression?: (value: BunproProgression) => void;
   active: boolean;
   report: (head: MixedReviewHead | null) => void;
   reportError: (message: string | null) => void;

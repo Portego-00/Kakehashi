@@ -12,7 +12,7 @@ describe("review character size", () => {
     expect(useSettingsStore.getInitialState().reviewCharacterFontScale).toBe(1);
   });
 
-  it.each([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2])("persists and restores a %s scale independently of other text", async (scale) => {
+  it.each([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.4])("persists and restores a %s scale independently of other text", async (scale) => {
     useSettingsStore.setState({ appTextSizeScale: 1.15, reviewInputFontScale: 1.1 });
     useSettingsStore.getState().setReviewCharacterFontScale(scale);
     const persisted = JSON.parse(permanentStorage.getString("wanikani-settings")!);

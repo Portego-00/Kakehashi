@@ -17,7 +17,8 @@ const mockMounts: Record<string, number> = {};
 const mockBridges: Record<string, MixedReviewBridge> = {};
 const mockSavePolicies: Record<string, BunproReviewSavePolicy> = {};
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), router: { dismissAll: jest.fn(), replace: jest.fn(), back: jest.fn() }, useFocusEffect: jest.fn(), useLocalSearchParams: () => ({}) }));
-jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
+jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View, useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) }));
+jest.mock("../../hooks/useBunproAudio", () => ({ useBunproAudio: () => ({ stop: jest.fn(), play: jest.fn() }), bunproAudioUrls: () => [] }));
 jest.mock("../../hooks/useActivityTracking", () => ({ useActivityTracking: jest.fn() }));
 jest.mock("../../utils/theme", () => ({ useTheme: () => ({ theme: { backgroundColor: "white", textColor: "black", textSecondary: "gray", primary: "blue", border: "gray" } }) }));
 jest.mock("../../utils/store", () => ({ useSettingsStore: (selector: (value: object) => unknown) => selector({ reviewWrapUpTargetSubjects: 10 }), useAuthStore: (selector: (value: object) => unknown) => selector({ userData: { username: "Portego" } }) }));
@@ -165,4 +166,16 @@ it("keeps one previous-answer card and does not rerender an inactive lane for sa
     await waitFor(() => expect(mockBridges.wanikani.active).toBe(true));
     expect(view.getByTestId("previous-answer-card")).toBe(card);
   } finally { jest.restoreAllMocks(); }
+});
+
+it("does not display a late Bunpro progression for an older answer", async () => {
+  const screen = render(<MixedReviewSession mode="grammar" />);
+  await waitFor(() => expect(mockBridges.grammar).toBeTruthy());
+  const change = { id: "1", title: "Older grammar", from: "Beginner 1", to: "Adept 1", direction: "up" as const, nextReview: "in 1d" };
+  act(() => {
+    mockBridges.grammar.onAnswer({ id: "bunpro:1", source: "bunpro", title: "Older grammar", correct: true });
+    mockBridges.wanikani.onAnswer({ id: "wanikani:2", source: "wanikani", title: "Newer item", correct: true });
+    mockBridges.grammar.reportBunproProgression?.(change);
+  });
+  expect(screen.queryByText("Beginner 1 → Adept 1")).toBeNull();
 });

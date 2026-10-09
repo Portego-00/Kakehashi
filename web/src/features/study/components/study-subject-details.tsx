@@ -20,6 +20,7 @@ interface StudySubjectDetailsProps {
   settings?: WebSettings["subjectDetails"];
   immersionSources?: string[];
   initialTab: SubjectDetailInitialTab;
+  compact?: boolean;
   idPrefix: string;
   returnTo: string;
 }
@@ -31,6 +32,7 @@ export function StudySubjectDetails({
   settings = DEFAULT_WEB_SETTINGS.subjectDetails,
   immersionSources = [],
   initialTab,
+  compact = false,
   idPrefix,
   returnTo,
 }: StudySubjectDetailsProps) {
@@ -111,6 +113,7 @@ export function StudySubjectDetails({
         initialTab={initialTab}
         idPrefix={idPrefix}
         embedded
+        compact={compact}
       />
     </section>
   );

@@ -1,6 +1,9 @@
 "use client";
 
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
+import { useReviewChoices } from "@/features/core-study/use-review-choices";
+import { ReviewAnswerChoices } from "@/features/core-study/ReviewAnswerChoices";
+import type { ReviewAnswerChoice } from "../../../../src/utils/review-multiple-choice";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, ExternalLink, Info, RotateCcw, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -459,6 +462,8 @@ function ReadyCustomSrsSession({
   const [phase, setPhase] = useState<SessionPhase>(() => mode === "lessons" && sessionWords.length ? "teaching" : sessionWords.length ? "quiz" : "results");
   const [lessonIndex, setLessonIndex] = useState(0);
   const [answer, setAnswer] = useState("");
+  const [choiceOccurrence, setChoiceOccurrence] = useState(0);
+  const choiceSubmissionRef = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
   const [detailsOverride, setDetailsOverride] = useState<boolean | null>(null);
   const [incorrectByWord, setIncorrectByWord] = useState<Record<string, number>>({});
@@ -483,6 +488,9 @@ function ReadyCustomSrsSession({
   const currentWord = currentQuestion?.word;
   const currentKind = currentQuestion?.kind;
   const currentSubject = useMemo(() => currentWord ? customWordToSubject(currentWord) : null, [currentWord]);
+  const choiceQuestionKey = `${currentWord?.id}:${currentKind}:${choiceOccurrence}`;
+  const reviewChoices = useReviewChoices({ enabled: studySettings.reviewMultipleChoiceEnabled && phase === "quiz", subject: currentSubject, kind: currentKind, questionKey: choiceQuestionKey });
+  const hideTypedAnswer = reviewChoices.available || reviewChoices.loading;
   const currentAssignment = currentWord ? state.assignments[currentWord.id] : undefined;
   const canShowDetails = Boolean(feedback && feedback.status !== "blocked");
   const detailsOpen = canShowDetails && (detailsOverride ?? (studySettings.showAnswerStopSubjectDetails || (feedback?.status === "incorrect" && studySettings.showDetailsOnWrongAnswer)));
@@ -537,8 +545,19 @@ function ReadyCustomSrsSession({
     event.preventDefault();
     if (!currentSubject || !currentKind || feedback || committingRef.current) return;
     const submitted = currentKind === "reading" ? finalizeKanaInput(answer) : answer;
+    submitValue(submitted);
+  }
+
+  function selectChoice(choice: ReviewAnswerChoice) {
+    if (!currentSubject || !currentKind || feedback || committingRef.current || !reviewChoices.available || choiceSubmissionRef.current === choiceQuestionKey) return;
+    choiceSubmissionRef.current = choiceQuestionKey;
+    submitValue(choice.text, choice);
+  }
+
+  function submitValue(submitted: string, choice?: ReviewAnswerChoice) {
+    if (!currentSubject || !currentKind) return;
     setAnswer(submitted);
-    const result = checkAnswer(currentSubject, currentKind, submitted);
+    const result: AnswerResult = choice ? { status: choice.isCorrect ? "correct" : "incorrect", message: choice.isCorrect ? "Correct." : "Incorrect.", canonical: choice.isCorrect ? choice.text : reviewChoices.choices.find((choice) => choice.isCorrect)?.text } : checkAnswer(currentSubject, currentKind, submitted);
     setFeedback(result);
     setCommitError("");
     if (result.status === "incorrect") {
@@ -554,6 +573,7 @@ function ReadyCustomSrsSession({
   }
 
   function resetForNextQuestion() {
+    setChoiceOccurrence((value) => value + 1);
     setAnswer("");
     setFeedback(null);
     setDetailsOverride(null);
@@ -758,7 +778,11 @@ function ReadyCustomSrsSession({
     </div>
 
     <div className={studyStyles.answerArea}>
-      <form
+      {hideTypedAnswer ? <div className={studyStyles.answerForm}>
+        <div className={studyStyles.promptTypeStrip} data-tone={currentKind}><span>Vocabulary</span><strong>{promptLabel}</strong></div>
+        {reviewChoices.loading ? <p role="status">Loading answer choices…</p> : <ReviewAnswerChoices choices={reviewChoices.choices} selectedAnswer={feedback ? answer : undefined} disabled={Boolean(feedback) || committing} isReading={isReadingQuestion} keyboardShortcuts={studySettings.keyboardShortcuts} onSelect={selectChoice} onContinue={feedback && !committing ? () => void advanceQuiz() : undefined} />}
+        {feedback ? <Button id="custom-study-advance" className={studyStyles.primaryButton} tone="primary" disabled={committing} onClick={() => void advanceQuiz()}>{nextButtonLabel}<ArrowRight size={18} aria-hidden /></Button> : null}
+      </div> : <form
         className={studyStyles.answerForm}
         data-result={resultTone}
         onSubmit={(event) => {
@@ -815,7 +839,8 @@ function ReadyCustomSrsSession({
             {feedback ? nextButtonLabel : "Check"}
           </button>
         </div>
-      </form>
+      </form>}
+      {studySettings.reviewMultipleChoiceEnabled && !hideTypedAnswer && !feedback ? <p className={studyStyles.keyboardHint}>Not enough distinct choices for this question. Type your answer.</p> : null}
 
       <div className={coreStyles.studyTools} aria-label="Answer controls">
         <Button className={coreStyles.toolButton} type="button" tone="ghost" disabled={!canShowDetails || committing} aria-controls="custom-study-item-details" aria-expanded={detailsOpen} onClick={() => setDetailsOverride(!detailsOpen)}><Info size={17} aria-hidden /><span>Info</span></Button>
@@ -844,7 +869,7 @@ function ReadyCustomSrsSession({
         initialTab={currentKind ?? "meaning"}
       /> : null}</ReviewDetailsReveal>
       {syncStatus}
-      {studySettings.keyboardShortcuts ? <p className={studyStyles.keyboardHint}>Press <kbd>Enter</kbd> to {feedback?.status === "blocked" ? "try again" : feedback ? "continue" : "check"}</p> : null}
+      {studySettings.keyboardShortcuts && !hideTypedAnswer ? <p className={studyStyles.keyboardHint}>Press <kbd>Enter</kbd> to {feedback?.status === "blocked" ? "try again" : feedback ? "continue" : "check"}</p> : null}
     </div>
   </section>;
   // Only the audio player resets on phones; replacing its ancestor would dismiss the keyboard.

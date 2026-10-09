@@ -63,6 +63,7 @@ jest.mock("../../../utils/store", () => ({
 jest.mock("@react-navigation/native", () => {
   const mockReact = require("react");
   return {
+    ...jest.requireActual("@react-navigation/native"),
     useFocusEffect: (callback: () => void | (() => void)) =>
       mockReact.useEffect(callback, [callback]),
   };
@@ -323,6 +324,20 @@ describe("JLPT mobile UI", () => {
       if (toSorted) Object.defineProperty(Array.prototype, "toSorted", toSorted);
       else Reflect.deleteProperty(Array.prototype, "toSorted");
     }
+  });
+
+  it("selects a JLPT answer with a number key and checks it with Enter", async () => {
+    (loadJlptQuestionBank as jest.Mock).mockResolvedValue([readingQuestion]);
+    mockSearchParams = { level: "N5", mode: "quick" };
+    const screen = render(<JlptSessionScreen />);
+    await screen.findByTestId("jlpt-option-2");
+    const keyboard = screen.getByTestId("multiple-choice-keyboard");
+    fireEvent(keyboard, "keyUpPress", { nativeEvent: { unicodeChar: "2", hasNoModifiers: true } });
+    expect(screen.getByTestId("jlpt-option-2").props.accessibilityState.checked).toBe(true);
+    fireEvent(keyboard, "keyUpPress", { nativeEvent: { unicodeChar: "\r", hasNoModifiers: true } });
+    await screen.findByText("Correct");
+    fireEvent(keyboard, "keyUpPress", { nativeEvent: { unicodeChar: "1", hasNoModifiers: true } });
+    expect(screen.getByTestId("jlpt-option-2").props.accessibilityState.checked).toBe(true);
   });
 
   it("requires all four sentence fragments in mock mode and keeps correctness hidden", async () => {

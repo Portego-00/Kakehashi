@@ -7,7 +7,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -15,89 +14,29 @@ import { useSession } from "../../src/contexts/AuthContext";
 import { usePatreonSupporterUsernames } from "../../src/hooks/usePatreonSupporterUsernames";
 import { Issue, issueService } from "../../src/services/issueService";
 import { rankByFuzzyQuery } from "../../src/utils/fuzzyText";
-import { useAuthStore, useSettingsStore } from "../../src/utils/store";
+import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
+import { useIssueActivity } from "../../src/hooks/useIssueActivity";
+import { IssueActivityList } from "../../src/components/issue/IssueActivityList";
+import { IssueViewMenu } from "../../src/components/issue/issue-view-menu";
 import IssueList from "../../src/components/issue/IssueList";
 
 const SEARCH_FETCH_LIMIT = 200;
 
 type StatusFilter = "open" | "closed";
 
-interface StatusTabProps {
-  label: string;
-  count?: number | null;
-  active: boolean;
-  onPress: () => void;
-  activeBackground: string;
-  inactiveTextColor: string;
-  useLargeTextLayout: boolean;
-}
-
-function formatBadgeCount(value: number): string {
-  if (value > 999) return "999+";
-  return String(value);
-}
-
-function StatusTab({
-  label,
-  count,
-  active,
-  onPress,
-  activeBackground,
-  inactiveTextColor,
-  useLargeTextLayout,
-}: StatusTabProps) {
-  const showBadge = typeof count === "number";
-  const labelColor = active ? "#FFFFFF" : inactiveTextColor;
-  return (
-    <TouchableOpacity
-      activeOpacity={0.75}
-      onPress={onPress}
-      style={[
-        styles.statusTab,
-        useLargeTextLayout && styles.statusTabLargeText,
-        active && { backgroundColor: activeBackground },
-      ]}
-    >
-      <Text style={[styles.statusTabLabel, { color: labelColor }]}>
-        {label}
-      </Text>
-      {showBadge && (
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor: active
-                ? "rgba(255, 255, 255, 0.28)"
-                : `${inactiveTextColor}33`,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusBadgeText,
-              { color: labelColor },
-            ]}
-          >
-            {formatBadgeCount(count!)}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
 export default function CommunityTab() {
   const PAGE_SIZE = 20;
 
   const router = useRouter();
-  const appTextSizeScale = useSettingsStore((state) => state.appTextSizeScale);
-  const { fontScale } = useWindowDimensions();
-  const useLargeTextLayout = appTextSizeScale > 1 || fontScale > 1;
   const { theme } = useTheme();
   const { apiToken, userData } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
+
+  const [view, setView] = useState<"board" | "activity">("board");
+  const activity = useIssueActivity(userData?.id == null ? userData?.username : String(userData.id), userData?.username);
+  const openActivity = useCallback((id: string, comment?: string) => router.push({ pathname: "/issue/[id]", params: { id, ...(comment ? { comment } : {}) } }), [router]);
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +68,7 @@ export default function CommunityTab() {
 
   // Track the latest search query to avoid stale fetches racing.
   const searchRequestId = useRef(0);
+  const fetchingMoreRef = useRef(false);
   const searchPoolRequestId = useRef(0);
 
   // Debounce search input → query.
@@ -177,25 +117,28 @@ export default function CommunityTab() {
       });
   }, [isSearching, apiToken, isAuthLoading, userData?.id]);
 
-  const fetchIssues = async (
+  const fetchIssues = useCallback(async (
     isRefresh = false,
     newFilter = filter,
     newSortBy = sortBy,
-    showRefreshIndicator = true
+    showRefreshIndicator = true,
+    viewerId = userData?.id ?? null
   ) => {
     if (isAuthLoading || !apiToken) {
       return;
     }
 
-    if (isRefresh && isFetchingMore) {
+    if (isRefresh && fetchingMoreRef.current) {
       return;
     }
 
-    if (!isRefresh && (isFetchingMore || loading || refreshing || !hasMore)) {
+    if (!isRefresh && (fetchingMoreRef.current || loading || refreshing || !hasMore)) {
       return;
     }
 
     const requestId = ++searchRequestId.current;
+    if (!isRefresh) fetchingMoreRef.current = true;
+    const keepLoadedPages = isRefresh && !showRefreshIndicator && issues.length > 0;
 
     try {
       const pageToFetch = isRefresh ? 0 : page;
@@ -214,7 +157,7 @@ export default function CommunityTab() {
         PAGE_SIZE,
         newFilter,
         newSortBy,
-        userData?.id ?? null
+        viewerId
       );
 
       // Drop the result if a newer request already started.
@@ -223,8 +166,16 @@ export default function CommunityTab() {
       }
 
       if (isRefresh) {
-        setIssues(newIssues);
-        setPage(1);
+        if (keepLoadedPages) {
+          // A focus refresh updates existing rows without shrinking or reordering
+          // the list underneath the reader. Pull-to-refresh loads the latest page.
+          const updates = new Map(newIssues.map((issue) => [issue.id, issue]));
+          setIssues((previous) => previous.map((issue) => updates.get(issue.id) ?? issue));
+          setPage((previous) => Math.max(1, previous));
+        } else {
+          setIssues(newIssues);
+          setPage(1);
+        }
       } else {
         setIssues((prev) => {
           const existingIds = new Set(prev.map((issue) => issue.id));
@@ -237,7 +188,7 @@ export default function CommunityTab() {
       }
 
       if (typeof count === "number") {
-        const loadedCount = pageToFetch * PAGE_SIZE + newIssues.length;
+        const loadedCount = keepLoadedPages ? issues.length : pageToFetch * PAGE_SIZE + newIssues.length;
         setHasMore(loadedCount < count);
       } else {
         setHasMore(newIssues.length === PAGE_SIZE);
@@ -261,10 +212,14 @@ export default function CommunityTab() {
           setRefreshing(false);
         }
       } else {
+        fetchingMoreRef.current = false;
         setIsFetchingMore(false);
       }
     }
-  };
+  }, [apiToken, isAuthLoading, filter, sortBy, loading, refreshing, hasMore, page, issues.length, userData?.id]);
+
+  const fetchIssuesRef = useRef(fetchIssues);
+  useEffect(() => { fetchIssuesRef.current = fetchIssues; }, [fetchIssues]);
 
   // Refresh paginated issues when screen comes into focus
   useFocusEffect(
@@ -272,13 +227,17 @@ export default function CommunityTab() {
       if (isAuthLoading || !apiToken) {
         return;
       }
-      fetchIssues(true, filter, sortBy, false);
+      fetchIssuesRef.current(true, filter, sortBy, false, userData?.id ?? null);
       fetchCounts();
     }, [apiToken, isAuthLoading, filter, sortBy, userData?.id, fetchCounts])
   );
 
   const handleFilterChange = (newFilter: StatusFilter) => {
+    setView("board");
     if (newFilter === filter) return;
+    searchRequestId.current += 1;
+    fetchingMoreRef.current = false;
+    setIsFetchingMore(false);
     setFilter(newFilter);
     setIssues([]);
     setPage(0);
@@ -410,39 +369,13 @@ export default function CommunityTab() {
             <Ionicons name="arrow-back" size={24} color={theme.headerText} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: theme.headerText }]}>
-            Issues
+            {view === "activity" ? "My activity" : filter === "closed" ? "Closed issues" : "Issues"}
           </Text>
 
-          {/* Status filter (compact, inline with title) */}
-          <View
-            style={[
-              styles.statusFilterTrack,
-              useLargeTextLayout && styles.statusFilterTrackLargeText,
-              { backgroundColor: theme.headerSurface },
-            ]}
-          >
-            <StatusTab
-              label="Open"
-              count={displayCounts?.open ?? null}
-              active={filter === "open"}
-              onPress={() => handleFilterChange("open")}
-              activeBackground={theme.primary}
-              inactiveTextColor={theme.headerText}
-              useLargeTextLayout={useLargeTextLayout}
-            />
-            <StatusTab
-              label="Closed"
-              count={displayCounts?.closed ?? null}
-              active={filter === "closed"}
-              onPress={() => handleFilterChange("closed")}
-              activeBackground={theme.primary}
-              inactiveTextColor={theme.headerText}
-              useLargeTextLayout={useLargeTextLayout}
-            />
-          </View>
         </View>
 
-        {/* Search bar */}
+        {/* Search and community views */}
+        <View style={styles.searchRow}>
         <View
           style={[
             styles.searchBar,
@@ -461,7 +394,7 @@ export default function CommunityTab() {
           <TextInput
             value={searchInput}
             onChangeText={setSearchInput}
-            placeholder="Search issues..."
+            placeholder={view === "activity" ? "Search your posts and comments..." : "Search issues..."}
             placeholderTextColor={`${theme.headerText}99`}
             style={[styles.searchInput, { color: theme.headerText }]}
             autoCapitalize="none"
@@ -485,11 +418,13 @@ export default function CommunityTab() {
             </TouchableOpacity>
           )}
         </View>
+        <IssueViewMenu selected={view === "activity" ? "activity" : filter} counts={{ open: displayCounts?.open ?? null, closed: displayCounts?.closed ?? null, activity: activity.unreadCount }} onSelect={(next) => next === "activity" ? setView("activity") : handleFilterChange(next)} />
+        </View>
       </View>
 
       {/* Main List */}
       <View style={styles.content}>
-        {hasError && issues.length === 0 ? (
+        {view === "activity" ? <IssueActivityList activity={activity} query={searchQuery} onOpen={openActivity} /> : hasError && issues.length === 0 ? (
           <View style={styles.offlineContainer}>
             <Ionicons
               name="cloud-offline-outline"
@@ -574,71 +509,22 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  searchRow: { marginTop: 12, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12 },
   searchBar: {
-    marginTop: 12,
-    marginHorizontal: 16,
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    minHeight: 38,
+    minHeight: 44,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
     paddingVertical: 4,
-  },
-  statusFilterTrack: {
-    flexDirection: "row",
-    minHeight: 30,
-    borderRadius: 8,
-    padding: 2,
-    alignItems: "stretch",
-    maxWidth: "100%",
-    minWidth: 0,
-    flexShrink: 1,
-  },
-  statusFilterTrackLargeText: {
-    width: "100%",
-  },
-  statusTab: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    gap: 5,
-    minWidth: 0,
-    flexShrink: 1,
-  },
-  statusTabLargeText: {
-    flex: 1,
-    flexWrap: "wrap",
-    alignContent: "center",
-    rowGap: 2,
-  },
-  statusTabLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  statusBadge: {
-    minWidth: 18,
-    paddingHorizontal: 5,
-    paddingVertical: 0,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textAlign: "center",
   },
   content: {
     flex: 1,

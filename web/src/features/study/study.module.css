@@ -325,6 +325,11 @@
   .typedReviewShell { --review-controls-height: 7rem; --review-footer-height: 28.5rem; }
 }
 
+@media (min-width: 64rem) {
+  /* Reserve room for the two choice rows and feedback without pushing controls offscreen. */
+  .typedReviewShell[data-multiple-choice="true"] { --review-controls-height: 3.5rem; --review-footer-height: 32rem; }
+}
+
 .promptTypeStrip { position: relative; min-height: 2.625rem; display: flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 0 var(--space-md); background: var(--color-prompt-other); color: var(--color-prompt-other-ink); font-size: var(--text-sm); cursor: text; }
 .promptTypeStrip[data-tone="meaning"] { background: var(--color-prompt-meaning); color: var(--color-prompt-meaning-ink); }
 .promptTypeStrip[data-tone="reading"] { background: var(--color-prompt-reading); color: var(--color-prompt-reading-ink); }
@@ -955,4 +960,32 @@
   .quizTopbar { grid-template-columns: auto minmax(0, 1fr); }
   .quizTopbarActions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
   .quizTopbar .quizTopbarActions > :is(button, a) { min-height: 2.5rem; }
+}
+
+/* Optional compact reviews keep details in the document flow below the answer. */
+@media (min-width: 48rem) {
+  .quizShell[data-review-layout="compact"],
+  .quizShell.typedReviewShell[data-review-layout="compact"][data-details-open="true"] {
+    min-height: 0;
+    grid-template-rows: var(--quiz-topbar-height) 10rem auto;
+    align-content: start;
+    transition: none;
+  }
+  .quizShell[data-review-layout="compact"] > .questionCard {
+    min-height: 0;
+    padding-block: var(--space-sm);
+    gap: var(--space-xs);
+  }
+  .quizShell[data-review-layout="compact"] > .answerArea {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    align-items: start;
+  }
+  .typedReviewShell[data-review-layout="compact"] > .answerArea > * { grid-column: 1; grid-row: auto; }
+  .quizShell[data-review-layout="compact"] .reviewAnswerControls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+  .quizShell[data-review-layout="compact"] :is(.reviewTools, .closeAnswerActions) { display: contents; }
+  .quizShell[data-review-layout="compact"] .reviewKeyboardHint { display: block; }
+  .quizShell[data-review-layout="compact"] .reviewProgressionSlot { display: block; }
+  .quizShell[data-review-layout="compact"] .reviewProgressionSlot:has(> [data-progression-visible="false"]) { display: none; }
 }

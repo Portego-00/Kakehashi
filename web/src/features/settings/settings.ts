@@ -4,6 +4,7 @@ import { DEFAULT_STUDY_SHORTCUTS, normalizeStudyShortcuts, type StudyShortcuts }
 import { ALL_ANIME_SOURCE } from "@/features/anime/types";
 import type { ListStorage } from "@/features/subjects/lists";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
+import { normalizeReviewPresets, type ReviewPreset } from "../../../../src/utils/review-presets";
 
 export const LESSON_BATCH_SIZE_VALUES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 const WEB_SETTINGS_SCHEMA_VERSION = 1;
@@ -63,6 +64,8 @@ export interface WebStudyPreferences {
   reviewSearchButtonEnabled: boolean;
   bunproHideFurigana: boolean;
   reviewCharacterFontScale: number;
+  compactReviews: boolean;
+  reviewDefaultDetailsTab: "question" | "meaning" | "reading" | "stroke";
   pauseOnWrong: boolean;
   pauseOnClose: boolean;
   pauseOnCorrect: boolean;
@@ -86,6 +89,8 @@ export interface WebStudyPreferences {
   prioritizeCriticalItems: boolean;
   reviewBatchSizeEnabled: boolean;
   reviewBatchSize: number;
+  reviewPresetsEnabled: boolean;
+  reviewPresets: ReviewPreset[];
   reviewWrapUpSize: number;
   lessonQuestionOrder: QuestionOrder;
   reviewQuestionOrderEnabled: boolean;
@@ -99,6 +104,7 @@ export interface WebStudyPreferences {
   showListeningTranslation: boolean;
   vocabularyAudioVoice: VocabularyAudioVoice;
   ankiMode: AnkiMode;
+  reviewMultipleChoiceEnabled: boolean;
   ankiHideAnswerCompletely: boolean;
   ankiGroupQuestions: boolean;
   ankiCombinedDetailsTab: "meaning" | "reading" | "stroke";
@@ -335,6 +341,8 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     reviewSearchButtonEnabled: false,
     bunproHideFurigana: false,
     reviewCharacterFontScale: 1,
+    compactReviews: false,
+    reviewDefaultDetailsTab: "question",
     pauseOnWrong: true,
     pauseOnClose: false,
     pauseOnCorrect: true,
@@ -358,6 +366,8 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     prioritizeCriticalItems: false,
     reviewBatchSizeEnabled: false,
     reviewBatchSize: 50,
+    reviewPresetsEnabled: false,
+    reviewPresets: [],
     reviewWrapUpSize: 10,
     lessonQuestionOrder: "mixed",
     reviewQuestionOrderEnabled: false,
@@ -371,6 +381,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     showListeningTranslation: true,
     vocabularyAudioVoice: "female",
     ankiMode: "off",
+    reviewMultipleChoiceEnabled: false,
     ankiHideAnswerCompletely: false,
     ankiGroupQuestions: false,
     ankiCombinedDetailsTab: "meaning",
@@ -560,6 +571,8 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
         reviewSearchButtonEnabled: typeof parsed.study?.reviewSearchButtonEnabled === "boolean" ? parsed.study.reviewSearchButtonEnabled : DEFAULT_WEB_SETTINGS.study.reviewSearchButtonEnabled,
         bunproHideFurigana: typeof parsed.study?.bunproHideFurigana === "boolean" ? parsed.study.bunproHideFurigana : DEFAULT_WEB_SETTINGS.study.bunproHideFurigana,
+        compactReviews: typeof parsed.study?.compactReviews === "boolean" ? parsed.study.compactReviews : DEFAULT_WEB_SETTINGS.study.compactReviews,
+        reviewDefaultDetailsTab: ["question", "meaning", "reading", "stroke"].includes(parsed.study?.reviewDefaultDetailsTab ?? "") ? parsed.study!.reviewDefaultDetailsTab : DEFAULT_WEB_SETTINGS.study.reviewDefaultDetailsTab,
         reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
         pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
         pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
@@ -584,6 +597,8 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         prioritizeCriticalItems: typeof parsed.study?.prioritizeCriticalItems === "boolean" ? parsed.study.prioritizeCriticalItems : DEFAULT_WEB_SETTINGS.study.prioritizeCriticalItems,
         reviewBatchSizeEnabled: typeof parsed.study?.reviewBatchSizeEnabled === "boolean" ? parsed.study.reviewBatchSizeEnabled : hasSavedReviewBatchSize,
         reviewBatchSize: REVIEW_BATCH_SIZE_VALUES.includes(parsed.study?.reviewBatchSize ?? 0) ? parsed.study!.reviewBatchSize : DEFAULT_WEB_SETTINGS.study.reviewBatchSize,
+        reviewPresetsEnabled: parsed.study?.reviewPresetsEnabled === true,
+        reviewPresets: normalizeReviewPresets(parsed.study?.reviewPresets),
         reviewWrapUpSize: [5, 10, 15, 20].includes(parsed.study?.reviewWrapUpSize ?? 0) ? parsed.study!.reviewWrapUpSize : DEFAULT_WEB_SETTINGS.study.reviewWrapUpSize,
         lessonQuestionOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.lessonQuestionOrder ?? "") ? parsed.study!.lessonQuestionOrder : legacyQuestionOrder,
         reviewQuestionOrderEnabled: typeof parsed.study?.reviewQuestionOrderEnabled === "boolean" ? parsed.study.reviewQuestionOrderEnabled : legacyForcedReviewQuestionOrder,
@@ -597,6 +612,7 @@ export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username:
         showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
         vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
         ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
+        reviewMultipleChoiceEnabled: typeof parsed.study?.reviewMultipleChoiceEnabled === "boolean" ? parsed.study.reviewMultipleChoiceEnabled : DEFAULT_WEB_SETTINGS.study.reviewMultipleChoiceEnabled,
         ankiHideAnswerCompletely: typeof parsed.study?.ankiHideAnswerCompletely === "boolean" ? parsed.study.ankiHideAnswerCompletely : DEFAULT_WEB_SETTINGS.study.ankiHideAnswerCompletely,
         ankiGroupQuestions: typeof parsed.study?.ankiGroupQuestions === "boolean" ? parsed.study.ankiGroupQuestions : DEFAULT_WEB_SETTINGS.study.ankiGroupQuestions,
         ankiCombinedDetailsTab: ["meaning", "reading", "stroke"].includes(parsed.study?.ankiCombinedDetailsTab ?? "") ? parsed.study!.ankiCombinedDetailsTab : DEFAULT_WEB_SETTINGS.study.ankiCombinedDetailsTab,

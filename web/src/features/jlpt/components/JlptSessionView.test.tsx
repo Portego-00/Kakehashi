@@ -261,6 +261,31 @@ describe("JLPT testing interface", () => {
     expect(screen.getByText("Correct")).toBeInTheDocument();
   });
 
+  it("keeps number and Enter shortcuts working while an answer choice has focus", () => {
+    const question = N5_QUESTIONS.find(item => item.id === "n5-kanji-mainichi")!;
+    render(<Harness initial={focusedSession(question)} />);
+    const choices = within(screen.getByRole("group", { name: "Answer choices" })).getAllByRole("button");
+    choices[1].focus();
+    fireEvent.keyDown(choices[1], { key: "1", code: "Numpad1" });
+    expect(choices[0]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(choices[1], { key: "Enter" });
+    expect(screen.getByText("Correct")).toBeInTheDocument();
+  });
+
+  it("ignores held number keys, system shortcuts, and editable content", () => {
+    const question = N5_QUESTIONS.find(item => item.id === "n5-kanji-mainichi")!;
+    render(<Harness initial={focusedSession(question)} />);
+    for (const modifiers of [{ repeat: true }, { ctrlKey: true }, { metaKey: true }, { altKey: true }, { isComposing: true }]) {
+      fireEvent.keyDown(window, { key: "1", ...modifiers });
+    }
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    document.body.append(editor);
+    fireEvent.keyDown(editor, { key: "1" });
+    editor.remove();
+    expect(screen.getByRole("button", { name: /1\s*まいあさ/ })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("lets practice users assemble every fragment in a sentence-composition question", () => {
     const question = N5_QUESTIONS.find(
       (item) => item.id === "n5-composition-school",

@@ -3,6 +3,7 @@ import { useSettingsStore } from "../../../utils/store";
 import SrsProgressionSettingIcon from "../../../components/SrsProgressionSettingIcon";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
+import { useBunproApiKeyAdded } from "../../../hooks/use-bunpro-api-key-added";
 
 import {
   AdvancedSetting,
@@ -10,8 +11,11 @@ import {
 } from "../components/AdvancedSettings";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
+import { ReviewPresetsSetting } from "../components/review-presets-setting";
 
 export function ReviewSettingsSection() {
+  const hasBunproApiKey = useBunproApiKeyAdded();
+  const bunproPreferences = useSettingsStore(state => state);
   const bunproHideFurigana = useSettingsStore(state => state.bunproHideFurigana);
   const setBunproHideFurigana = useSettingsStore(state => state.setBunproHideFurigana);
   const multipleChoiceEnabled = useSettingsStore((state) => state.reviewMultipleChoiceEnabled);
@@ -123,15 +127,11 @@ export function ReviewSettingsSection() {
           Review Settings
         </Text>
 
-        <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
-          <Ionicons name="eye-off-outline" size={24} color={theme.primary} style={styles.settingIcon} />
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>Hide Bunpro furigana</Text>
-            <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Tap a word in Bunpro reviews to keep its reading visible. Tap again to hide it.</Text>
-          </View>
-          <Switch accessibilityLabel="Hide Bunpro furigana" value={bunproHideFurigana} onValueChange={setBunproHideFurigana} trackColor={{ false: "#767577", true: theme.primary }} thumbColor="#f4f3f4" />
-        </View>
-
+        {([
+          ["Show details on wrong answer", bunproPreferences.showDetailsOnWrongAnswer, bunproPreferences.setShowDetailsOnWrongAnswer],
+          ["Answer feedback sounds", bunproPreferences.answerFeedbackSoundEnabled, bunproPreferences.setAnswerFeedbackSoundEnabled],
+          ["Bunpro keyboard shortcuts", bunproPreferences.reviewKeyboardShortcutsEnabled, bunproPreferences.setReviewKeyboardShortcutsEnabled],
+        ] as const).map(([label, value, onChange]) => <View key={label} style={[styles.settingItem, { borderBottomColor: theme.border }]}><View style={styles.settingTextContainer}><Text style={[styles.settingText, { color: theme.textColor }]}>{label}</Text></View><Switch accessibilityLabel={label} value={value ?? false} onValueChange={onChange} /></View>)}
         <AdvancedSettingsGroup>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <Ionicons
@@ -1236,8 +1236,19 @@ export function ReviewSettingsSection() {
             </View>
           </View>
         )}
+        {reviewBatchSizeEnabled ? <ReviewPresetsSetting /> : null}
         </AdvancedSetting>
         </AdvancedSettingsGroup>
+        {hasBunproApiKey ? (
+          <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+            <Ionicons name="eye-off-outline" size={24} color={theme.primary} style={styles.settingIcon} />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>Hide Bunpro furigana</Text>
+              <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Tap a word in Bunpro reviews to keep its reading visible. Tap again to hide it.</Text>
+            </View>
+            <Switch accessibilityLabel="Hide Bunpro furigana" value={bunproHideFurigana} onValueChange={setBunproHideFurigana} trackColor={{ false: "#767577", true: theme.primary }} thumbColor="#f4f3f4" />
+          </View>
+        ) : null}
       </View>
     </>
   );

@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -54,7 +54,9 @@ import {
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 import type { MixedReviewBridge } from "../../src/types/mixedReviews";
+import { reorderPendingReviewSession } from "../../src/utils/review-session-ordering";
 import { trimMixedWaniKaniQueue } from "../../src/utils/mixedReviews";
+import { getEnabledReviewPreset } from "../../src/utils/review-presets";
 
 type ReviewSubject = Subject & {
   object: "radical" | "kanji" | "vocabulary" | "kana_vocabulary";
@@ -107,6 +109,7 @@ const REVIEW_PERMISSION_WARNING_MESSAGE =
   "Your API token does not have review write permission (reviews:create). Open WaniKani Personal Access Tokens, enable review write access, then log in again with the updated token.";
 
 export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = {}) {
+  const { reviewPresetId } = useLocalSearchParams<{ reviewPresetId?: string }>();
   const retainedMixedQuestionRef = useRef<React.ReactElement<{ reviewActive?: boolean }> | null>(null);
   const mixedRef = useRef(mixed);
   mixedRef.current = mixed;
@@ -137,7 +140,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     ankiCardMode,
     ankiGroupQuestions,
     ankiCardModeScope,
-    reviewOrder,
+    reviewOrder: defaultReviewOrder,
     reviewTypeOrderEnabled,
     reviewTypeOrder,
     prioritizeCriticalItems,
@@ -147,13 +150,22 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     meaningFirst,
     srsProgressionCardDisplayMode,
     backToBackImmediateRetryIncorrect,
-    reviewBatchSizeEnabled,
-    reviewBatchSize,
+    reviewBatchSizeEnabled: defaultReviewBatchSizeEnabled,
+    reviewBatchSize: defaultReviewBatchSize,
+    reviewPresetsEnabled,
+    reviewPresets,
     reviewWrapUpTargetSubjects,
     autoplayVocabularyAudio,
     showAnswerStopSubjectDetails,
     showVocabContextSentencesInReviews,
   } = useSettingsStore();
+  // Capture the launch preset for this session; defaults remain independently editable.
+  const [sessionPreset] = useState(() => mixed ? null : getEnabledReviewPreset({
+    reviewBatchSizeEnabled: defaultReviewBatchSizeEnabled, reviewPresetsEnabled, reviewPresets,
+  }, reviewPresetId));
+  const reviewOrder = sessionPreset?.reviewOrder ?? defaultReviewOrder;
+  const reviewBatchSize = sessionPreset?.batchSize ?? defaultReviewBatchSize;
+  const reviewBatchSizeEnabled = Boolean(sessionPreset) || defaultReviewBatchSizeEnabled;
   const shouldShowSrsProgression = srsProgressionCardDisplayMode !== "hidden";
   const effectiveAnkiGrouping =
     ankiCardMode && ankiGroupQuestions && ankiCardModeScope === "both";
@@ -1862,15 +1874,54 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     return () => clearInterval(intervalId);
   }, [apiToken, isAuthLoading, refreshPendingReviewCount]);
 
+  const loadReviewsRef = useRef(loadReviews);
+  loadReviewsRef.current = loadReviews;
   useEffect(() => {
-    loadReviews().then(() => {
-      // Ensure the progress state includes correctAnswersCount
-      setProgress((prev) => ({
-        ...prev,
-        correctAnswersCount: 0, // Initialize with 0
-      }));
-    });
-  }, [loadReviews]);
+    if (!apiToken || isAuthLoading) return;
+    // A preference update must never restart a session or clear its progress.
+    void loadReviewsRef.current();
+  }, [apiToken, isAuthLoading]);
+
+  const orderingKey = JSON.stringify({ reviewOrder, reviewTypeOrderEnabled, reviewTypeOrder, prioritizeCriticalItems, backToBackQuestions, reviewQuestionOrderEnabled, preferredQuestionType, effectiveAnkiGrouping });
+  const appliedOrderingKey = useRef(orderingKey);
+  useEffect(() => {
+    if (isLoading || appliedOrderingKey.current === orderingKey) return;
+    appliedOrderingKey.current = orderingKey;
+    const current = currentQuestionRef.current;
+    if (!current || isFinishedRef.current) return;
+    const queue = reorderPendingReviewSession([...activeQueueRef.current, ...masterQueueRef.current], reviewItemsRef.current, current,
+      { reviewOrder, reviewTypeOrderEnabled, reviewTypeOrder, prioritizeCriticalItems, userLevel: dashboardDataRef.current.currentLevel || 1 },
+      { groupQuestions: effectiveAnkiGrouping, backToBack: backToBackQuestions && !effectiveAnkiGrouping, questionTypeOrderEnabled: reviewQuestionOrderEnabled, questionTypeOrder: preferredQuestionType, maxQuestionGap: REVIEW_MAX_QUESTION_GAP });
+    activeQueueRef.current = queue.slice(0, ACTIVE_QUEUE_SIZE);
+    masterQueueRef.current = queue.slice(ACTIVE_QUEUE_SIZE);
+    setActiveQueue(activeQueueRef.current); setMasterQueue(masterQueueRef.current);
+  }, [isLoading, orderingKey, reviewOrder, reviewTypeOrderEnabled, reviewTypeOrder, prioritizeCriticalItems, effectiveAnkiGrouping, backToBackQuestions, reviewQuestionOrderEnabled, preferredQuestionType, REVIEW_MAX_QUESTION_GAP]);
+
+  const materialPreferencesKey = `${acceptUserSynonymsAsAnswers}:${showAnswerStopSubjectDetails}`;
+  const previousMaterialPreferences = useRef(materialPreferencesKey);
+  useEffect(() => {
+    if (isLoading || previousMaterialPreferences.current === materialPreferencesKey) return;
+    previousMaterialPreferences.current = materialPreferencesKey;
+    if (!apiToken || (!acceptUserSynonymsAsAnswers && !showAnswerStopSubjectDetails)) return;
+    const generation = loadGenerationRef.current;
+    const ids = reviewItemsRef.current.filter(item => !item.submitted).map(item => item.subjectId);
+    if (!ids.length) return;
+    let cancelled = false;
+    getStudyMaterials(apiToken, { subject_ids: ids }, acceptUserSynonymsAsAnswers ? { skipCache: true } : undefined).then(response => {
+      if (cancelled || generation !== loadGenerationRef.current) return;
+      setStudyMaterialsMap(current => {
+        const next = new Map(current);
+        for (const id of ids) if (!locallyModifiedStudyMaterialIdsRef.current.has(id)) next.delete(id);
+        for (const material of response.data) {
+          const id = material.data.subject_id;
+          if (!locallyModifiedStudyMaterialIdsRef.current.has(id)) next.set(id, { meaning_synonyms: material.data.meaning_synonyms || [], meaning_note: material.data.meaning_note || "", reading_note: material.data.reading_note || "" });
+        }
+        return next;
+      });
+    }).catch(error => { if (!cancelled) console.warn("[Reviews] Could not refresh study materials after settings changed:", error); });
+    return () => { cancelled = true; };
+  }, [apiToken, isLoading, materialPreferencesKey, acceptUserSynonymsAsAnswers, showAnswerStopSubjectDetails]);
+
 
   // Refresh dashboard counts when leaving the screen (e.g. swipe-back gesture)
   // This ensures the review/lesson counts are up-to-date even if the user
@@ -2161,6 +2212,8 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
       mixedRef.current?.onAnswer({
         id: `wanikani:${item.id}`,
         source: "wanikani",
+        meaning: item.subject.data.meanings?.find((value: { primary: boolean; meaning: string }) => value.primary)?.meaning,
+        reading: item.subject.data.readings?.filter((value: { primary: boolean; reading: string }) => value.primary).map((value: { reading: string }) => value.reading).join("・"),
         title: item.subject.data.characters || item.subject.data.slug || "WaniKani",
         subjectId: item.subject.id,
         subjectType: item.subject.object,
@@ -2620,10 +2673,25 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     if (mixedLoadError) return;
     mixedRef.current.report(isFinished || !currentQuestion ? null : {
       id: `${currentQuestion.itemId}:${currentQuestion.type}:${questionOccurrence}`,
+      retryKey: String(currentQuestion.itemId),
+      pending: [...activeQueueRef.current, ...masterQueueRef.current].map(question => {
+        const item = reviewItemsRef.current.find(item => item.id === question.itemId);
+        return { id: String(question.itemId), subjectId: String(question.itemId), open: Boolean(item && (item.meaningDone || item.readingDone || item.meaningIncorrect > 0 || item.readingIncorrect > 0)) };
+      }),
+      activate: id => {
+        const remaining = [...activeQueueRef.current, ...masterQueueRef.current];
+        const selected = remaining.find(question => String(question.itemId) === id);
+        if (!selected || selected === remaining[0]) return;
+        const next = [selected, ...remaining.filter(question => question !== selected)];
+        activeQueueRef.current = next.slice(0, ACTIVE_QUEUE_SIZE);
+        masterQueueRef.current = next.slice(ACTIVE_QUEUE_SIZE);
+        currentQuestionRef.current = selected;
+        setActiveQueue(activeQueueRef.current); setMasterQueue(masterQueueRef.current); setCurrentQuestion(selected); setQuestionOccurrence(value => value + 1);
+      },
       keepTurn: backToBackQuestions && currentQuestion.itemId === lastAdvancedItemIdRef.current,
       remaining: Math.max(1, progress.totalItems - progress.completedItems),
     });
-  }, [isLoading, isFinished, currentQuestion, questionOccurrence, mixedLoadError, backToBackQuestions, progress.totalItems, progress.completedItems]);
+  }, [isLoading, isFinished, currentQuestion, questionOccurrence, mixedLoadError, backToBackQuestions, progress.totalItems, progress.completedItems, activeQueue, masterQueue]);
 
   useEffect(() => {
     mixedRef.current?.reportProgress({ completed: progress.completedItems, total: progress.totalItems });

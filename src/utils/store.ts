@@ -1,3 +1,4 @@
+import { DEFAULT_STUDY_SHORTCUTS, normalizeStudyShortcuts, type StudyShortcuts } from "./bunpro-study-shortcuts";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
@@ -70,6 +71,7 @@ import {
   normalizeAppTextSizeScale,
 } from "./appTextSize";
 import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
+import { normalizeReviewPresets, type ReviewPreset } from "./review-presets";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
 import {
@@ -162,14 +164,14 @@ const REVIEW_WRAP_UP_TARGET_SUBJECTS_MAX = 20;
 const REVIEW_WRAP_UP_TARGET_SUBJECTS_STEP = 5;
 export const DEFAULT_REVIEW_CHARACTER_FONT_SCALE = 1;
 export const REVIEW_CHARACTER_FONT_SCALE_MIN = 0.3;
-export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.2;
+export const REVIEW_CHARACTER_FONT_SCALE_MAX = 1.4;
 export const REVIEW_CHARACTER_FONT_SCALE_STEP = 0.1;
 export const DEFAULT_REVIEW_INPUT_FONT_SCALE = 1;
 export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
 const AUTH_STORE_SCHEMA_VERSION = 1;
-const SETTINGS_STORE_SCHEMA_VERSION = 23;
+const SETTINGS_STORE_SCHEMA_VERSION = 24;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
   "recent-lessons",
   "random-test",
@@ -544,9 +546,15 @@ type SettingsState = {
   // Review settings
   reviewBatchSizeEnabled: boolean; // Toggle to cap the review queue size
   reviewBatchSize: number; // Number of items per review session when enabled (5-100, step 5)
+  reviewPresetsEnabled: boolean;
+  reviewPresets: ReviewPreset[];
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
   bunproHideFurigana: boolean;
+  showDetailsOnWrongAnswer: boolean;
+  answerFeedbackSoundEnabled: boolean;
+  reviewKeyboardShortcutsEnabled: boolean;
+  bunproStudyShortcuts: StudyShortcuts;
   reviewCharacterFontScale: number; // Scale for the large Japanese prompt during reviews
   reviewInputFontScale: number; // Scale for answer text entered during reviews
   backToBackImmediateRetryIncorrect: boolean; // In back-to-back mode, immediately re-ask incorrect questions (legacy behavior)
@@ -741,9 +749,15 @@ type SettingsState = {
   setExcludeKanaVocabularyFromLessons: (enabled: boolean) => void;
   setReviewBatchSizeEnabled: (enabled: boolean) => void;
   setReviewBatchSize: (size: number) => void;
+  setReviewPresetsEnabled: (enabled: boolean) => void;
+  setReviewPresets: (presets: ReviewPreset[]) => void;
   setReviewWrapUpTargetSubjects: (target: number) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
   setBunproHideFurigana: (hidden: boolean) => void;
+  setShowDetailsOnWrongAnswer: (enabled: boolean) => void;
+  setAnswerFeedbackSoundEnabled: (enabled: boolean) => void;
+  setReviewKeyboardShortcutsEnabled: (enabled: boolean) => void;
+  setBunproStudyShortcuts: (shortcuts: StudyShortcuts) => void;
   setReviewCharacterFontScale: (scale: number) => void;
   setReviewInputFontScale: (scale: number) => void;
   setBackToBackImmediateRetryIncorrect: (enabled: boolean) => void;
@@ -918,9 +932,15 @@ export const useSettingsStore = create<SettingsState>()(
       excludeKanaVocabularyFromLessons: false, // Default to disabled so kana vocabulary stays in lessons
       reviewBatchSizeEnabled: false, // Disabled by default - all reviews loaded
       reviewBatchSize: 50, // Default batch size when enabled
+      reviewPresetsEnabled: false,
+      reviewPresets: [],
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
       bunproHideFurigana: false,
+      showDetailsOnWrongAnswer: false,
+      answerFeedbackSoundEnabled: false,
+      reviewKeyboardShortcutsEnabled: true,
+      bunproStudyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
       reviewCharacterFontScale: DEFAULT_REVIEW_CHARACTER_FONT_SCALE, // Default to the current prompt size
       reviewInputFontScale: DEFAULT_REVIEW_INPUT_FONT_SCALE, // Default to the current answer input size
       backToBackImmediateRetryIncorrect: false, // Default to disabled - keep delayed boundary-safe requeue
@@ -1132,6 +1152,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ excludeKanaVocabularyFromLessons: enabled }),
       setReviewBatchSizeEnabled: (enabled) => set({ reviewBatchSizeEnabled: enabled }),
       setReviewBatchSize: (size) => set({ reviewBatchSize: size }),
+      setReviewPresetsEnabled: (enabled) => set({ reviewPresetsEnabled: enabled }),
+      setReviewPresets: (presets) => set({ reviewPresets: normalizeReviewPresets(presets) }),
       setReviewWrapUpTargetSubjects: (target) =>
         set({
           reviewWrapUpTargetSubjects:
@@ -1140,6 +1162,10 @@ export const useSettingsStore = create<SettingsState>()(
       setReviewSearchButtonEnabled: (enabled) =>
         set({ reviewSearchButtonEnabled: enabled }),
       setBunproHideFurigana: (hidden) => set({ bunproHideFurigana: hidden }),
+      setShowDetailsOnWrongAnswer: (enabled) => set({ showDetailsOnWrongAnswer: enabled }),
+      setAnswerFeedbackSoundEnabled: (enabled) => set({ answerFeedbackSoundEnabled: enabled }),
+      setReviewKeyboardShortcutsEnabled: (enabled) => set({ reviewKeyboardShortcutsEnabled: enabled }),
+      setBunproStudyShortcuts: (shortcuts) => set({ bunproStudyShortcuts: normalizeStudyShortcuts(shortcuts) }),
       setReviewCharacterFontScale: (scale) =>
         set({
           reviewCharacterFontScale: normalizeReviewCharacterFontScale(scale),
@@ -1459,6 +1485,16 @@ export const useSettingsStore = create<SettingsState>()(
       name: "wanikani-settings",
       storage: createJSONStorage(() => createDurableSettingsStorage()),
       version: SETTINGS_STORE_SCHEMA_VERSION,
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState && typeof persistedState === "object"
+          ? persistedState as Partial<SettingsState> : {};
+        return {
+          ...currentState,
+          ...persisted,
+          reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,
+          reviewPresets: normalizeReviewPresets(persisted.reviewPresets),
+        };
+      },
       migrate: (persistedState, version) => {
         const migrated = migratePersistedObject<SettingsState>(persistedState);
         const migratedRecord = migrated as SettingsState & {
@@ -1581,6 +1617,10 @@ export const useSettingsStore = create<SettingsState>()(
           normalizeReviewCharacterFontScale(
             migratedRecord.reviewCharacterFontScale
           );
+        migratedRecord.bunproStudyShortcuts = normalizeStudyShortcuts(migratedRecord.bunproStudyShortcuts);
+        for (const [key, fallback] of (Object.entries({ showDetailsOnWrongAnswer: false, answerFeedbackSoundEnabled: false, reviewKeyboardShortcutsEnabled: true }) as ["showDetailsOnWrongAnswer" | "answerFeedbackSoundEnabled" | "reviewKeyboardShortcutsEnabled", boolean][])) {
+          if (typeof migratedRecord[key] !== "boolean") migratedRecord[key] = fallback;
+        }
         if (typeof migratedRecord.bunproHideFurigana !== "boolean") {
           migratedRecord.bunproHideFurigana = false;
         }

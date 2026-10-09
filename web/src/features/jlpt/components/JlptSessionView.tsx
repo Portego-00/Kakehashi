@@ -58,7 +58,8 @@ function isTypingTarget(target: EventTarget | null) {
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
     target instanceof HTMLButtonElement ||
-    target instanceof HTMLAnchorElement
+    target instanceof HTMLAnchorElement ||
+    (target instanceof Element && Boolean(target.closest('[contenteditable]:not([contenteditable="false"])')))
   );
 }
 
@@ -312,9 +313,11 @@ export function JlptSessionView({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const fromChoice = event.target instanceof Element && Boolean(event.target.closest('[data-jlpt-choice]'));
       if (
         exitOpen ||
-        isTypingTarget(event.target) ||
+        event.defaultPrevented || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey ||
+        (!fromChoice && isTypingTarget(event.target)) ||
         session.status !== "active"
       )
         return;
@@ -715,6 +718,7 @@ export function JlptSessionView({
               return (
                 <button
                   type="button"
+                  data-jlpt-choice
                   className={styles.option}
                   data-selected={selected || undefined}
                   data-correct={correct || undefined}

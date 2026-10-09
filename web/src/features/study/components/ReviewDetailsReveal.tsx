@@ -58,6 +58,7 @@ export function ReviewDetailsReveal({ open, children, revealInViewport = false, 
   useEffect(() => {
     // Wait for layout to settle. Automatic wrong-answer details sit near the
     // top so their contents are readable; manual disclosures peek into view.
+    if (container.current?.closest('[data-review-layout="compact"]') && window.matchMedia?.("(min-width: 48rem)").matches) return;
     if (!revealInViewport || (!revealToStart && !window.matchMedia?.("(min-width: 48rem)").matches)) return;
     const session = container.current?.closest('[data-study-session="active"]');
     if (!open) {
