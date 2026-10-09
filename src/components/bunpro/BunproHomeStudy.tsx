@@ -89,12 +89,12 @@ export default function BunproHomeStudy({ wanikaniCount, refreshKey }: Props) {
       <View style={styles.heading}>
         <Text style={[styles.title, { color: theme.textSecondary }]}>Bunpro</Text>
         {refreshing ? <ActivityIndicator size="small" color={accent} accessibilityLabel="Refreshing Bunpro" /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel="Bunpro connection and settings" onPress={() => router.push("/(app)/(bunpro-tabs)")} style={styles.settings}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Bunpro connection and settings" onPress={() => router.push({ pathname: "/settings", params: { scrollTo: "bunproReviews" } })} style={styles.settings}>
           <Ionicons name="settings-outline" size={19} color={theme.textSecondary} />
         </Pressable>
       </View>
       {status === "unconfigured" ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push("/(app)/(bunpro-tabs)")} style={[styles.connect, { borderColor: theme.border }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/settings", params: { scrollTo: "bunproReviews" } })} style={[styles.connect, { borderColor: theme.border }]}>
           <Text style={[styles.actionTitle, { color: theme.textColor }]}>Connect Bunpro</Text>
           <Text style={{ color: theme.textSecondary }}>Add your API key to study grammar and vocabulary here.</Text>
         </Pressable>

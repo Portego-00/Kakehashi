@@ -79,7 +79,7 @@ it("offers connection setup without starting a queue when disconnected", () => {
   jest.mocked(useBunproDashboard).mockReturnValue({ ...snapshot(), status: "unconfigured", token: null, due: null, queue: null });
   const screen = render(<BunproHomeStudy />);
   fireEvent.press(screen.getByText("Connect Bunpro"));
-  expect(router.push).toHaveBeenLastCalledWith("/(app)/(bunpro-tabs)");
+  expect(router.push).toHaveBeenLastCalledWith({ pathname: "/settings", params: { scrollTo: "bunproReviews" } });
   expect(screen.queryByLabelText("Start Bunpro lessons")).toBeNull();
 });
 

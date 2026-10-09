@@ -1,5 +1,4 @@
 import React from "react";
-import * as SecureStore from "expo-secure-store";
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 
 import { permanentStorage } from "../../../../utils/permanentStorage";
@@ -85,7 +84,6 @@ const settingLabel = "Cycle through all Jitai fonts";
 const selectedFonts = ["reggae-one", "yuji-syuku", "custom-handwriting"];
 
 beforeEach(() => {
-  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
   useSettingsStore.setState(useSettingsStore.getInitialState(), true);
   useSettingsStore.setState({
     jitaiEnabled: true,
@@ -191,24 +189,9 @@ it("shrinks review characters to 30% from the basic settings without changing ot
 });
 
 
-it("only shows the Bunpro furigana toggle with a saved key and persists its preference", async () => {
+it("keeps Bunpro preferences out of the general Reviews section", () => {
   const screen = render(<ReviewSettingsSection />);
-  await act(async () => {});
-  expect(screen.queryByLabelText("Hide Bunpro furigana")).toBeNull();
-  screen.unmount();
-
-  jest.mocked(SecureStore.getItemAsync).mockResolvedValue("fixture-key");
-  const connectedScreen = render(<ReviewSettingsSection />);
-  const toggle = await connectedScreen.findByLabelText("Hide Bunpro furigana");
-  expect(toggle.props.value).toBe(false);
-  fireEvent(toggle, "valueChange", true);
-  expect(useSettingsStore.getState().bunproHideFurigana).toBe(true);
-  expect(JSON.parse(permanentStorage.getString("wanikani-settings")!).state.bunproHideFurigana).toBe(true);
-  connectedScreen.unmount();
-
-  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
-  const disconnectedScreen = render(<ReviewSettingsSection />);
-  await act(async () => {});
-  expect(disconnectedScreen.queryByLabelText("Hide Bunpro furigana")).toBeNull();
-  expect(useSettingsStore.getState().bunproHideFurigana).toBe(true);
+  for (const label of ["Hide Bunpro furigana", "Show details on wrong answer", "Answer feedback sounds", "Bunpro keyboard shortcuts"]) {
+    expect(screen.queryByText(label)).toBeNull();
+  }
 });

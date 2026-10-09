@@ -19,6 +19,7 @@ import { LessonSettingsSection } from "./sections/LessonSettingsSection";
 import { SubjectDetailsSection } from "./sections/SubjectDetailsSection";
 import { SubjectListsSection } from "./sections/SubjectListsSection";
 import { ReviewSettingsSection } from "./sections/ReviewSettingsSection";
+import { BunproReviewSettingsSection } from "./sections/BunproReviewSettingsSection";
 import { NotesSection } from "./sections/NotesSection";
 import { HapticSection } from "./sections/HapticSection";
 import { KanjiLearningSection } from "./sections/KanjiLearningSection";
@@ -171,6 +172,7 @@ function SettingsScreenContent() {
         <SubjectListsSection />
         <SubjectDetailsSection />
         <ReviewSettingsSection />
+        <BunproReviewSettingsSection />
         <NotesSection />
         <HapticSection />
         <KanjiLearningSection />

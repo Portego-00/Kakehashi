@@ -25,7 +25,7 @@ export function BunproReviewSettingsSheet({ visible, onClose }: { visible: boole
   const settings = useSettingsStore(state => state);
   if (!visible) return null;
   const toggle = (key: keyof typeof settings, setter: keyof typeof settings, label: string, disabled = false) => <View key={key} style={[styles.row, { borderBottomColor: theme.border }]}>
-    <Text style={{ color: theme.textColor, flex: 1 }}>{label}</Text><Switch accessibilityLabel={label} value={Boolean(settings[key])} disabled={disabled} onValueChange={value => (settings[setter] as (value: boolean) => void)(value)} />
+    <Text style={{ color: theme.textColor, flex: 1 }}>{label}</Text><Switch accessibilityLabel={label} value={Boolean(settings[key])} disabled={disabled} onValueChange={value => (settings[setter] as (value: boolean) => void)(value)} trackColor={{ false: "#767577", true: theme.primary }} thumbColor="#f4f3f4" />
   </View>;
   const heading = (title: string) => <Text accessibilityRole="header" style={[styles.heading, { color: theme.textColor }]}>{title}</Text>;
   return <Modal visible transparent animationType="fade" onRequestClose={onClose}>

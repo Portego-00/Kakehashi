@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ import {
   type HomeWidgetScheduledUpdatesDebugResult,
   updateHomeWidgetDisplayPreferences,
 } from "../../src/widgets/homeWidget";
+import { requestPinHomeWidget } from "../../src/widgets/homeWidgetController";
 
 const WIDGET_CONTENT_OPTIONS: {
   value: WidgetContentMode;
@@ -106,6 +108,7 @@ export default function WidgetSettings() {
     setWidgetBackgroundRefreshEnabled,
   } = useSettingsStore();
   const isIOS = Platform.OS === "ios";
+  const supportsWidgets = isIOS || Platform.OS === "android";
   const isPortegoDebugUser =
     userData?.username?.trim().toLowerCase() === "portego";
   const [widgetDebugData, setWidgetDebugData] =
@@ -148,7 +151,7 @@ export default function WidgetSettings() {
   };
 
   const refreshWidgetDebugData = useCallback(async () => {
-    if (!isIOS) {
+    if (!supportsWidgets) {
       return;
     }
 
@@ -169,15 +172,15 @@ export default function WidgetSettings() {
     } finally {
       setIsWidgetDebugLoading(false);
     }
-  }, [isIOS]);
+  }, [supportsWidgets]);
 
   useEffect(() => {
-    if (!isIOS || !isPortegoDebugUser) {
+    if (!supportsWidgets || !isPortegoDebugUser) {
       return;
     }
 
     void refreshWidgetDebugData();
-  }, [isIOS, isPortegoDebugUser, refreshWidgetDebugData]);
+  }, [supportsWidgets, isPortegoDebugUser, refreshWidgetDebugData]);
 
   const futureWidgetDebugEntries = useMemo(
     () =>
@@ -220,6 +223,27 @@ export default function WidgetSettings() {
           { paddingBottom: Math.max(insets.bottom, 16) + 16 },
         ]}
       >
+        {Platform.OS === "android" ? (
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+            accessibilityRole="button"
+            accessibilityLabel="Add Kakehashi widget to home screen"
+            onPress={async () => {
+              try {
+                if (await requestPinHomeWidget()) return;
+              } catch {
+                // Launchers without pin support still offer the widget picker.
+              }
+              Alert.alert("Add Home Widget", "Touch and hold an empty space on your home screen, choose Widgets, then select Kakehashi. Resize it for the small or medium layout.");
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={24} color={theme.primary} style={styles.settingIcon} />
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: theme.textColor }]}>Add to Home Screen</Text>
+              <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Content and colors below apply to all Kakehashi widgets.</Text>
+            </View>
+          </TouchableOpacity>
+        ) : null}
         <View
           style={[
             styles.section,
@@ -238,7 +262,7 @@ export default function WidgetSettings() {
             Widget Content
           </Text>
 
-          {isIOS ? (
+          {supportsWidgets ? (
             WIDGET_CONTENT_OPTIONS.map((option, index) => {
               const isSelected = widgetContentMode === option.value;
               return (
@@ -294,19 +318,19 @@ export default function WidgetSettings() {
               />
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: theme.textColor }]}>
-                  iOS Home Screen Widgets
+                  Home Screen Widgets
                 </Text>
                 <Text
                   style={[styles.settingSubtext, { color: theme.textSecondary }]}
                 >
-                  Widget support is currently available on iOS devices.
+                  Widget support is available on iOS and Android devices.
                 </Text>
               </View>
             </View>
           )}
         </View>
 
-        {isIOS ? (
+        {supportsWidgets ? (
           <View
             style={[
               styles.section,
@@ -421,7 +445,7 @@ export default function WidgetSettings() {
           </View>
         ) : null}
 
-        {isIOS ? (
+        {supportsWidgets ? (
           <View
             style={[
               styles.section,
@@ -474,7 +498,7 @@ export default function WidgetSettings() {
           </View>
         ) : null}
 
-        {isIOS && isPortegoDebugUser ? (
+        {supportsWidgets && isPortegoDebugUser ? (
           <View
             style={[
               styles.section,

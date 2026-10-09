@@ -1,0 +1,7 @@
+<resources>
+    <string name="widget_small_name">Kakehashi · Small</string>
+    <string name="widget_medium_name">Kakehashi · Medium</string>
+    <string name="widget_description">Review, critical, and streak stats. Choose content and colors in Settings → Home Widget.</string>
+    <string name="widget_reviews">Reviews</string>
+    <string name="widget_open_app">Open Kakehashi to sync</string>
+</resources>

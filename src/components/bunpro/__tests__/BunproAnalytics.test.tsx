@@ -47,7 +47,7 @@ describe("mobile Bunpro analytics", () => {
     mockDashboard.status = "unconfigured";
     screen.rerender(<BunproAnalytics />);
     fireEvent.press(screen.getByText("Bunpro settings"));
-    expect(mockPush).toHaveBeenCalledWith("/(app)/(bunpro-tabs)");
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/settings", params: { scrollTo: "bunproReviews" } });
     mockDashboard.status = "error";
     mockDashboard.error = "Bunpro could not be refreshed.";
     screen.rerender(<BunproAnalytics />);

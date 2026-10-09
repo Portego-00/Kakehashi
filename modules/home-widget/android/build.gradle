@@ -1,0 +1,17 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.kakehashiwidget'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.kakehashiwidget'
+  // Use the original iOS artwork without maintaining duplicate copies.
+  sourceSets.main.assets.srcDirs += ['../../../assets/widgets']
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

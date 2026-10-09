@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -9,7 +9,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -28,11 +27,8 @@ import {
 } from "../../../src/types/bunpro";
 import {
   BunproApiError,
-  clearBunproApiToken,
   getBunproDashboard,
   getStoredBunproApiToken,
-  saveBunproApiToken,
-  validateBunproApiToken,
 } from "../../../src/utils/bunproApi";
 import { getBunproLessonBatchSize, getBunproQueueProgress, selectBunproLessonDeck, summarizeBunproQueue } from "../../../src/utils/bunproQueue";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
@@ -40,11 +36,6 @@ import { isPortegoUsername } from "../../../src/utils/portegoAccess";
 import { useAuthStore } from "../../../src/utils/store";
 import { getBestContrastTextColor, withAlpha } from "../../../src/utils/subjectColors";
 import { useTheme } from "../../../src/utils/theme";
-
-type TokenStatus = {
-  message: string;
-  isError: boolean;
-};
 
 type ReviewableKind = "grammar" | "vocab";
 type ForecastMode = "hourly" | "daily";
@@ -235,13 +226,7 @@ export default function BunproTab() {
   const isPortegoUser = isPortegoUsername(userData?.username);
   const shouldUseNativeTabsPadding = supportsNativeTabs();
 
-  const [tokenInput, setTokenInput] = useState("");
-  const tokenInputRef = useRef("");
   const [hasStoredToken, setHasStoredToken] = useState(false);
-  const [isLoadingToken, setIsLoadingToken] = useState(true);
-  const [isSavingToken, setIsSavingToken] = useState(false);
-  const [tokenStatus, setTokenStatus] = useState<TokenStatus | null>(null);
-  const [showTokenEditor, setShowTokenEditor] = useState(false);
 
   const [dashboardData, setDashboardData] = useState<BunproDashboardPayload | null>(
     null
@@ -250,8 +235,10 @@ export default function BunproTab() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
-  const hasHandledInitialFocusRef = useRef(false);
-  const isFocusRefreshInFlightRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
+  const accountKey = `${userData?.id ?? ""}:${userData?.username ?? ""}`;
+  const accountRef = useRef(accountKey);
+  accountRef.current = accountKey;
 
   const [progressMode, setProgressMode] = useState<ReviewableKind>("grammar");
   const [jlptMode, setJlptMode] = useState<ReviewableKind>("grammar");
@@ -280,180 +267,53 @@ export default function BunproTab() {
     ? "rgba(255,255,255,0.46)"
     : withAlpha(theme.textSecondary, 0.42);
 
-  useEffect(() => {
-    tokenInputRef.current = tokenInput;
-  }, [tokenInput]);
-
-  const loadDashboard = useCallback(
-    async (tokenOverride?: string | null, asRefresh = false) => {
-      if (!isPortegoUser) {
-        return;
-      }
-
-      if (asRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoadingData(true);
-      }
-
-      const normalizedToken = tokenOverride?.trim() || undefined;
-      try {
-        const payload = await getBunproDashboard({
-          apiToken: normalizedToken,
-        });
-        setDashboardData(payload);
+  const loadDashboard = useCallback(async (asRefresh = false) => {
+    if (!isPortegoUser) return;
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && requestRef.current === controller && accountRef.current === accountKey;
+    setIsRefreshing(asRefresh);
+    setIsLoadingData(!asRefresh);
+    try {
+      const apiToken = await getStoredBunproApiToken();
+      if (!isCurrent()) return;
+      setHasStoredToken(Boolean(apiToken));
+      if (!apiToken) {
+        setDashboardData(null);
         setErrorMessage(null);
-        setLastUpdatedAt(Date.now());
-      } catch (error) {
-        setErrorMessage(formatBunproError(error));
-      } finally {
-        if (asRefresh) {
-          setIsRefreshing(false);
-        } else {
-          setIsLoadingData(false);
-        }
-      }
-    },
-    [isPortegoUser]
-  );
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function bootstrapBunpro() {
-      setIsLoadingToken(true);
-      try {
-        const storedToken = await getStoredBunproApiToken();
-        const initialToken = storedToken ?? "";
-
-        if (!isMounted) {
-          return;
-        }
-
-        setTokenInput(initialToken);
-        setHasStoredToken(Boolean(storedToken));
-        setShowTokenEditor(!Boolean(storedToken));
-
-        if (isPortegoUser) {
-          await loadDashboard(initialToken);
-        }
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-        setErrorMessage(formatBunproError(error));
-      } finally {
-        if (isMounted) {
-          setIsLoadingToken(false);
-        }
-      }
-    }
-
-    void bootstrapBunpro();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isPortegoUser, loadDashboard]);
-
-  const handleSaveToken = useCallback(async () => {
-    const normalizedToken = tokenInput.trim();
-    setTokenStatus(null);
-
-    if (!normalizedToken) {
-      setTokenStatus({
-        message: "Enter your Bunpro API token first.",
-        isError: true,
-      });
-      return;
-    }
-
-    setIsSavingToken(true);
-    setTokenStatus({
-      message: "Validating Bunpro API token...",
-      isError: false,
-    });
-
-    try {
-      const isValid = await validateBunproApiToken(normalizedToken);
-      if (!isValid) {
-        setTokenStatus({
-          message: "That token is invalid or Bunpro is unavailable right now.",
-          isError: true,
-        });
+        setLastUpdatedAt(null);
         return;
       }
-
-      await saveBunproApiToken(normalizedToken);
-      setHasStoredToken(true);
-      setTokenStatus({
-        message: "Bunpro API token saved.",
-        isError: false,
-      });
-      setShowTokenEditor(false);
-      await loadDashboard(normalizedToken);
-    } catch (error) {
-      setTokenStatus({
-        message: formatBunproError(error),
-        isError: true,
-      });
-    } finally {
-      setIsSavingToken(false);
-    }
-  }, [loadDashboard, tokenInput]);
-
-  const handleRemoveToken = useCallback(async () => {
-    setIsSavingToken(true);
-    setTokenStatus(null);
-    try {
-      await clearBunproApiToken();
-      setHasStoredToken(false);
-      setTokenInput("");
-      setDashboardData(null);
+      const payload = await getBunproDashboard({ apiToken, signal: controller.signal });
+      if (!isCurrent()) return;
+      setDashboardData(payload);
       setErrorMessage(null);
-      setShowTokenEditor(true);
-      setTokenStatus({
-        message: "Bunpro API token removed.",
-        isError: false,
-      });
+      setLastUpdatedAt(Date.now());
     } catch (error) {
-      setTokenStatus({
-        message: formatBunproError(error),
-        isError: true,
-      });
+      if (isCurrent()) setErrorMessage(formatBunproError(error));
     } finally {
-      setIsSavingToken(false);
+      if (isCurrent()) {
+        setIsRefreshing(false);
+        setIsLoadingData(false);
+      }
     }
-  }, []);
+  }, [accountKey, isPortegoUser]);
 
   const handleRefresh = useCallback(async () => {
-    if (isRefreshing) {
+    if (isRefreshing || isLoadingData) return;
+    await loadDashboard(true);
+  }, [isRefreshing, isLoadingData, loadDashboard]);
+
+  useFocusEffect(useCallback(() => {
+    if (!isPortegoUser) {
+      setHasStoredToken(false);
+      setDashboardData(null);
       return;
     }
-    await loadDashboard(tokenInput, true);
-  }, [isRefreshing, loadDashboard, tokenInput]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!isPortegoUser) {
-        return;
-      }
-
-      if (!hasHandledInitialFocusRef.current) {
-        hasHandledInitialFocusRef.current = true;
-        return;
-      }
-
-      if (isFocusRefreshInFlightRef.current) {
-        return;
-      }
-
-      isFocusRefreshInFlightRef.current = true;
-      void loadDashboard(tokenInputRef.current, true).finally(() => {
-        isFocusRefreshInFlightRef.current = false;
-      });
-    }, [isPortegoUser, loadDashboard])
-  );
+    void loadDashboard();
+    return () => { requestRef.current?.abort(); };
+  }, [isPortegoUser, loadDashboard]));
 
   const bunproUser = dashboardData?.user.user.data.attributes;
   const baseStats = dashboardData?.baseStats.facts;
@@ -1201,98 +1061,23 @@ export default function BunproTab() {
           ]}
         >
           <View style={styles.connectionHeaderRow}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={[styles.connectionTitle, { color: theme.textColor }]}>Bunpro Connection</Text>
               <Text style={[styles.connectionSubtitle, { color: softText }]}> 
-                {hasStoredToken ? "Token is saved in SecureStore." : "Token needed for Bunpro frontend API."}
+                {hasStoredToken ? "Your Bunpro API key is saved." : "Add your API key in Settings to connect Bunpro."}
               </Text>
             </View>
             <TouchableOpacity
               style={[styles.connectionActionButton, { borderColor: panelBorder }]}
-              onPress={() => setShowTokenEditor((previous) => !previous)}
+              accessibilityRole="button"
+              accessibilityLabel="Open Bunpro review settings"
+              onPress={() => router.push({ pathname: "/settings", params: { scrollTo: "bunproReviews" } })}
             >
               <Text style={[styles.connectionActionLabel, { color: softText }]}> 
-                {showTokenEditor ? "Hide" : "Manage"}
+                Open settings
               </Text>
             </TouchableOpacity>
           </View>
-
-          {showTokenEditor ? (
-            <>
-              <TextInput
-                value={tokenInput}
-                onChangeText={(value) => {
-                  setTokenInput(value);
-                  setTokenStatus(null);
-                }}
-                placeholder="Paste Bunpro API token"
-                placeholderTextColor={theme.textLight}
-                autoCapitalize="none"
-                autoCorrect={false}
-                spellCheck={false}
-                secureTextEntry
-                style={[
-                  styles.tokenInput,
-                  {
-                    color: theme.textColor,
-                    borderColor: panelBorder,
-                    backgroundColor: isDark ? "#16191f" : "#f7f8fa",
-                  },
-                ]}
-              />
-              <View style={styles.tokenActions}>
-                <TouchableOpacity
-                  style={[
-                    styles.tokenActionButton,
-                    {
-                      backgroundColor: accent,
-                      opacity: isSavingToken ? 0.6 : 1,
-                    },
-                  ]}
-                  disabled={isSavingToken || isLoadingToken}
-                  onPress={() => {
-                    void handleSaveToken();
-                  }}
-                >
-                  <Text style={styles.tokenActionButtonText}>
-                    {isSavingToken ? "Saving..." : "Save Token"}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tokenActionButton,
-                    {
-                      backgroundColor: isDark ? "#2e323a" : "#e8eaee",
-                      opacity: isSavingToken ? 0.6 : 1,
-                    },
-                  ]}
-                  disabled={isSavingToken || isLoadingToken}
-                  onPress={() => {
-                    void handleRemoveToken();
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.tokenActionButtonText,
-                      { color: isDark ? "#f1f3f5" : "#24262b" },
-                    ]}
-                  >
-                    Remove
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              {tokenStatus ? (
-                <Text
-                  style={[
-                    styles.tokenStatus,
-                    { color: tokenStatus.isError ? theme.error : accent },
-                  ]}
-                >
-                  {tokenStatus.message}
-                </Text>
-              ) : null}
-            </>
-          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -1902,32 +1687,6 @@ const styles = StyleSheet.create({
   connectionActionLabel: {
     fontSize: 12,
     fontWeight: "600",
-  },
-  tokenInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  tokenActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  tokenActionButton: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tokenActionButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  tokenStatus: {
-    fontSize: 12,
   },
   gatedContainer: {
     flex: 1,

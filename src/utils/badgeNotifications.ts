@@ -111,11 +111,11 @@ async function syncHomeWidgetIfSupported(reviewData: {
   upcomingReviews?: number[];
   upcomingReviewTimes?: { [key: string]: number };
 }): Promise<void> {
-  if (Platform.OS !== "ios") {
+  if (Platform.OS !== "ios" && Platform.OS !== "android") {
     return;
   }
   try {
-    // Keep the SwiftUI widget module lazy so Android never evaluates it. Jest's
+    // Load widget syncing only when needed. Jest's
     // CommonJS runtime also needs a synchronous module load here.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { syncHomeWidgetFromBackgroundReviewData } = require(

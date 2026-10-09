@@ -126,7 +126,7 @@ export default function BunproAnalytics() {
   if (!data) return <View style={styles.empty}>
     <Text style={[styles.panelTitle, { color: theme.textColor }]}>{status === "unconfigured" ? "Connect Bunpro" : "Bunpro analytics are unavailable"}</Text><Text style={[styles.body, styles.center, { color: theme.textSecondary }]}>{error ?? "Add your Bunpro API key to see your grammar and vocabulary progress."}</Text>
     {status !== "unconfigured" ? <Pressable accessibilityRole="button" onPress={() => void refresh()} disabled={refreshing} style={styles.action}><Text style={[styles.body, { color: colors.grammar }]}>Try again</Text></Pressable> : null}
-    <Pressable accessibilityRole="button" onPress={() => router.push("/(app)/(bunpro-tabs)")} style={styles.action}><Text style={[styles.body, { color: colors.grammar }]}>Bunpro settings</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/settings", params: { scrollTo: "bunproReviews" } })} style={styles.action}><Text style={[styles.body, { color: colors.grammar }]}>Bunpro settings</Text></Pressable>
   </View>;
   const facts = data.facts;
   const studied = facts ? bunproAnalyticsTotal(facts.grammar_studied, facts.vocab_studied, mode) : null;

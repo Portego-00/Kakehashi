@@ -56,6 +56,19 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.0",
+    date: "2026-10-09",
+    changes: [
+      {
+        type: "feature",
+        title: "Android Home Screen Widgets",
+        description:
+          "Add Reviews, Critical Items, or Streak widgets to your Android home screen in small or medium sizes, with the same artwork and color themes as iOS. Choose your widget content and colors in Widgets settings.",
+        link: { route: "/widget-settings", label: "Open Widgets Settings" },
+      },
+    ],
+  },
+  {
     version: "1.4.24",
     date: "2026-10-08",
     changes: [

@@ -304,6 +304,7 @@ type SettingsSectionKey =
   | "subjectLists"
   | "subjectDetails"
   | "reviews"
+  | "bunproReviews"
   | "notes"
   | "haptic"
   | "kanji"
@@ -332,6 +333,9 @@ type SettingsSectionChipLayout = {
 const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   profile: "profile",
   reviews: "reviews",
+  bunproReviews: "bunproReviews",
+  bunproApiKey: "bunproReviews",
+  bunpro: "bunproReviews",
   notes: "notes",
   kanji: "kanji",
   lessons: "lessons",
@@ -680,7 +684,7 @@ export function useSettingsController() {
   const scrollViewRef = useRef<ScrollView>(null);
   const sectionChipScrollViewRef = useRef<ScrollView>(null);
   const showMusicPlaybackSection = !isSongsHiddenForEmail;
-  const showWidgetsSection = Platform.OS === "ios";
+  const showWidgetsSection = Platform.OS === "ios" || Platform.OS === "android";
   const showDataStorageSection = hasFeatureAccess(
     "cache_management",
     gravatarEmail,
@@ -731,6 +735,13 @@ export function useSettingsController() {
       { key: "subjectLists", label: "Subject Lists", icon: "list-outline" },
       { key: "subjectDetails", label: "Subject Details", icon: "information-circle-outline" },
       { key: "reviews", label: "Reviews", icon: "checkmark-done-outline" },
+    );
+
+    if (isPortegoUser) {
+      chips.push({ key: "bunproReviews", label: "Bunpro reviews", icon: "book-outline" });
+    }
+
+    chips.push(
       { key: "notes", label: "Notes", icon: "create-outline" },
       { key: "haptic", label: "Haptic", icon: "phone-portrait-outline" },
       { key: "kanji", label: "Kanji", icon: "brush-outline" },
@@ -772,6 +783,7 @@ export function useSettingsController() {
     return chips;
   }, [
     canAccessApiDebugTools,
+    isPortegoUser,
     showDataStorageSection,
     showLevelRecapSection,
     showMusicPlaybackSection,
